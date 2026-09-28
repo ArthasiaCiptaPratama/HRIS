@@ -8,7 +8,7 @@
 | Metadata        | Nilai                                                        |
 | --------------- | ------------------------------------------------------------ |
 | Terakhir diubah | 2026-09-28                                                   |
-| Kondisi repo    | Fase 0: hanya `README.md`, `CLAUDE.md`, dan `docs/`          |
+| Kondisi repo    | Fase 1 berjalan: monorepo, kerangka api/web/shared, Prisma, CI, Docker |
 
 ---
 
@@ -17,28 +17,31 @@
 ```
 HRIS/
 ├── apps/
-│   ├── api/                          [planned] Backend Bun + Hono + Prisma (Vercel project "api")
-│   └── web/                          [planned] Frontend React + Vite (Vercel project "web")
+│   ├── api/                          [wip] Backend Bun + Hono + Prisma (Vercel project "api")
+│   └── web/                          [wip] Frontend React + Vite (Vercel project "web")
 ├── packages/
-│   └── shared/                       [planned] @hris/shared: skema Zod DTO, enum, kode role & izin
-├── docker-compose.yml                [planned] PostgreSQL lokal untuk development & test (D-023); versi = Supabase, TZ=UTC
+│   └── shared/                       [done] @hris/shared: skema Zod DTO, enum, kode role & izin
+├── docker-compose.yml                [done] PostgreSQL 17 lokal untuk development & test (D-023); TZ=UTC, port hanya 127.0.0.1. Versi major dicocokkan ulang saat project staging dibuat
 ├── e2e/                              [planned] Test Playwright
 ├── docs/
 │   ├── PLAN.md                       [done] Apa & kenapa
 │   ├── CODEMAP.md                    [done] Di mana (file ini)
 │   ├── PROGRESS.md                   [done] Sampai mana
 │   └── PROMPT.md                     [done] Bagaimana bekerja
-├── .github/workflows/ci.yml          [planned] Typecheck, lint, batas modul, migrasi dari DB kosong + test (service container Postgres), build
+├── .github/workflows/ci.yml          [wip] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Belum dijalankan di GitHub
 ├── CLAUDE.md                         [done] Penunjuk ke docs/PROMPT.md untuk AI agent
 ├── README.md                         [done] Ringkasan + tautan ke docs
-├── package.json                      [planned] Bun workspaces + script global
-├── biome.json                        [planned] Lint & format
-├── .dependency-cruiser.cjs           [planned] Aturan batas modul
-├── tsconfig.base.json                [planned] Konfigurasi TS bersama
-├── .editorconfig                     [planned]
-├── .gitattributes                    [planned] Paksa LF (dual boot Linux/Windows)
-├── .gitignore                        [planned]
-└── .env.example                      [planned] Daftar env var tanpa nilai rahasia
+├── package.json                      [done] Bun workspaces + script global (packageManager bun@1.4.2)
+├── bun.lock                          [done] Lockfile (di-commit; CI memakai --frozen-lockfile)
+├── biome.json                        [done] Lint & format (spasi 2, LF, lebar 100; noExplicitAny & noConsole = error)
+├── .dependency-cruiser.cjs           [done] Aturan batas modul, layer modul, batas workspace, no-circular, dev-dep
+├── tsconfig.depcruise.json           [done] Hanya untuk dependency-cruiser (resolusi alias `@/*` web)
+├── tsconfig.base.json                [done] Konfigurasi TS bersama (strict, noUncheckedIndexedAccess, bundler resolution)
+├── .editorconfig                     [done]
+├── .gitattributes                    [done] Paksa LF (dual boot Linux/Windows)
+├── .gitignore                        [done]
+├── .dockerignore                     [done] Konteks build `apps/api/Dockerfile`
+└── .env.example                      [done] Daftar env var tanpa nilai rahasia (disalin ke `.env` di root)
 ```
 
 ---
@@ -48,9 +51,9 @@ HRIS/
 ```
 apps/api/
 ├── prisma/
-│   ├── schema/                       [planned] Skema Prisma multi-file
-│   │   ├── _base.prisma              # generator (prisma-client, runtime bun) + datasource (daftar skema Postgres)
-│   │   ├── iam.prisma
+│   ├── schema/                       [wip] Skema Prisma multi-file (belum ada model; model ditambahkan per fase)
+│   │   ├── _base.prisma              [done] generator (prisma-client, runtime bun, output src/generated/prisma) + datasource (10 skema Postgres)
+│   │   ├── iam.prisma                # [planned] untuk semua file modul di bawah
 │   │   ├── organization.prisma
 │   │   ├── employee.prisma
 │   │   ├── attendance.prisma
@@ -60,37 +63,41 @@ apps/api/
 │   │   ├── payroll.prisma
 │   │   ├── notification.prisma
 │   │   └── audit.prisma
-│   ├── migrations/                   [planned] Hasil `prisma migrate dev` (di-commit, tidak pernah diedit setelah di-merge)
-│   └── seed/                         [planned] Seed data dummy per modul
-├── prisma.config.ts                  [planned]
+│   ├── migrations/                   [wip] Hasil `prisma migrate dev` (di-commit, tidak pernah diedit setelah di-merge)
+│   │   └── 20260928032354_init_module_schemas/  [done] SQL mentah: CREATE SCHEMA untuk 10 skema modul
+│   └── seed/
+│       └── index.ts                  [wip] Runner seed (daftar seeder masih kosong; diisi mulai Fase 3/4)
+├── prisma.config.ts                  [done] Memuat `.env` root (dotenv), skema folder, `datasource.url = DIRECT_URL` (dipakai CLI migrate)
 ├── src/
-│   ├── index.ts                      [planned] Entry: export app untuk Bun/Vercel
-│   ├── app.ts                        [planned] Merakit middleware + route semua modul di /api/v1
-│   ├── env.ts                        [planned] Validasi env dengan Zod (gagal cepat)
-│   ├── generated/                    # Client Prisma hasil generate (TIDAK di-commit, tidak diedit)
-│   ├── core/                         [planned] Hal lintas modul (bukan logika bisnis domain)
-│   │   ├── db.ts                     # instance PrismaClient + driver adapter
-│   │   ├── auth/                     # verifikasi JWT Supabase (JWKS), verifier bisa diganti saat test
-│   │   ├── access/                   # konteks akses: role, grant, tim; helper requireRole/requireGrant
-│   │   ├── errors.ts                 # AppError + turunannya → envelope error
-│   │   ├── response.ts               # helper envelope sukses + paginasi
-│   │   ├── logger.ts                 # log JSON terstruktur (tanpa PII) + request id
-│   │   ├── audit.ts                  # tulis audit log (dipakai semua modul)
-│   │   ├── storage.ts                # signed upload/download URL Supabase Storage
-│   │   ├── supabase-admin.ts         # client admin (service role): undangan, nonaktif akun
-│   │   └── openapi.ts                # konfigurasi dokumen OpenAPI
+│   ├── index.ts                      [done] Entry: `export default app` (Vercel & Bun; Bun membaca PORT, default 3000)
+│   ├── app.ts                        [done] `createApp(deps?)`: request-id → logger → secure headers → CORS → OpenAPI/health; `defaultHook` Zod → 400; `onError`/`notFound` → envelope error
+│   ├── env.ts                        [done] Validasi env dengan Zod (`getEnv()` lazy, `parseEnv()`); pesan error tanpa nilai env
+│   ├── generated/                    # Client Prisma hasil generate (TIDAK di-commit, tidak diedit; dibuat oleh postinstall)
+│   ├── core/                         [wip] Hal lintas modul (bukan logika bisnis domain)
+│   │   ├── db.ts                     [done] `getPrisma()` (PrismaPg, pool max 5), `disconnectPrisma()`, `pingDatabase()`
+│   │   ├── health.ts                 [done] `GET /api/v1/health` (200 ok / 503 degraded bila DB tidak terjangkau; tetap envelope `data`)
+│   │   ├── auth/                     [planned] verifikasi JWT Supabase (JWKS), verifier bisa diganti saat test
+│   │   ├── access/                   [planned] konteks akses: role, grant, tim; helper requireRole/requireGrant
+│   │   ├── errors.ts                 [done] AppError + ValidationError/UnauthenticatedError/ForbiddenError/NotFoundError/ConflictError/BusinessRuleError
+│   │   ├── response.ts               [done] `ok()`, `paginated()`, `dataEnvelope()`, `paginatedEnvelope()`, `ERROR_RESPONSES` (OpenAPI)
+│   │   ├── logger.ts                 [done] Log JSON satu baris ke stdout, `redact()` field sensitif (jaring pengaman), `requestLogger()` (tanpa query string)
+│   │   ├── audit.ts                  [planned] tulis audit log (dipakai semua modul)
+│   │   ├── storage.ts                [planned] signed upload/download URL Supabase Storage
+│   │   ├── supabase-admin.ts         [planned] client admin (service role): undangan, nonaktif akun
+│   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1), `/api/v1/docs` (Swagger UI)
+│   │   └── __tests__/                [done] Unit test app core, env, logger
 │   ├── modules/
-│   │   └── <modul>/                  # lihat §4 untuk struktur standar
+│   │   └── <modul>/                  # lihat §4 untuk struktur standar (belum ada modul)
 │   └── jobs/                         [planned] Handler Vercel Cron (dilindungi CRON_SECRET)
 ├── scripts/
 │   ├── bootstrap-super-admin.ts      [planned] Membuat akun SUPER_ADMIN Utama pertama (cari/buat user Auth berdasarkan email, lalu buat akun di DB target)
 │   └── recover-primary-admin.ts      [planned] Pemulihan status Utama (manual, lihat PLAN §4.4)
 ├── tests/
 │   ├── helpers/                      [planned] Factory data, login-as(role, grants)
-│   └── integration/                  [planned] Test HTTP → PostgreSQL lokal (auth via verifier pengganti)
-├── Dockerfile                        [planned] Jalan keluar dari Vercel (tidak dipakai di deploy saat ini)
-├── vercel.json                       [planned] bunVersion, region sin1, cron
-├── tsconfig.json
+│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada)
+├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
+├── vercel.json                       [wip] bunVersion 1.x, region sin1, install dari root, build = prisma generate (cron ditambahkan per fase). Belum diuji di Vercel
+├── tsconfig.json                     [done]
 └── package.json                      # name: @hris/api
 ```
 
@@ -99,33 +106,43 @@ apps/api/
 ```
 apps/web/
 ├── src/
-│   ├── main.tsx                      [planned] Entry
+│   ├── main.tsx                      [done] Entry (StrictMode + Providers + RouterProvider dari `react-router/dom`)
+│   ├── index.css                     [done] Tailwind v4 + tema shadcn/ui (token terang/gelap)
 │   ├── app/
-│   │   ├── router.tsx                # React Router + guard per role
-│   │   ├── providers.tsx             # TanStack Query, auth, theme
-│   │   └── layout/                   # shell: sidebar menu per role, header, notifikasi
+│   │   ├── router.tsx                [wip] `routes` + `createRouter()` (React Router 8, data mode); guard per role di Fase 2
+│   │   ├── providers.tsx             [wip] TanStack Query (`createQueryClient`); auth & theme di Fase 2
+│   │   └── layout/app-layout.tsx     [wip] Shell: sidebar (menu statis "Beranda"), header, <Outlet/>; menu per role di Fase 2
 │   ├── lib/
-│   │   ├── supabase.ts               # supabase-js (login, sesi)
-│   │   ├── api-client.ts             # fetch ke API + Bearer token + parsing envelope
-│   │   └── access.ts                 # helper can(role/grant) untuk UI (bukan pengganti cek di API)
-│   ├── components/ui/                # komponen shadcn/ui
-│   ├── components/                   # komponen bersama (DataTable, FormField, ConfirmDialog, ...)
+│   │   ├── env.ts                    [done] Validasi `import.meta.env` (VITE_*) dengan Zod
+│   │   ├── api-client.ts             [done] `createApiClient()`: fetch + Bearer (opsional) + parsing envelope → `ApiError`
+│   │   ├── api.ts                    [done] Instance api client aplikasi
+│   │   ├── utils.ts                  [done] `cn()` (clsx + tailwind-merge) untuk shadcn/ui
+│   │   ├── supabase.ts               [planned] supabase-js (login, sesi) — Fase 2
+│   │   └── access.ts                 [planned] helper can(role/grant) untuk UI (bukan pengganti cek di API) — Fase 2
+│   ├── components/ui/                [wip] shadcn/ui: button, card, badge (import `cn` diarahkan ke `@/lib/utils`)
+│   ├── components/                   [planned] komponen bersama (DataTable, FormField, ConfirmDialog, ...)
 │   └── features/
+│       ├── system/                   [done] Halaman beranda (status API/DB via `useHealth`), 404, error boundary
 │       └── <modul>/                  # per modul: pages/, components/, api.ts (hook TanStack Query), schemas.ts
-├── tests/                            [planned] Vitest + Testing Library
-├── index.html
-├── vite.config.ts
-├── vercel.json                       # rewrite SPA
+├── tests/                            [done] Vitest + Testing Library (jsdom): api-client, layout & router
+├── components.json                   [done] Konfigurasi shadcn CLI (`bunx --bun shadcn@4.21.0 add <komponen>`)
+├── index.html                        [done] lang="id"
+├── vite.config.ts                    [done] React + Tailwind, alias `@` → src, envDir = root, port 5173, konfigurasi Vitest
+├── vercel.json                       [wip] Rewrite SPA, install dari root. Belum diuji di Vercel
 └── package.json                      # name: @hris/web
 ```
 
-`packages/shared/src/` [planned]:
+`packages/shared/` [done] (paket sumber TS, diekspor langsung dari `src/index.ts` tanpa build):
 ```
-├── index.ts
-├── roles.ts                          # ROLE: SUPER_ADMIN, HR_ADMIN, MANAGER, EMPLOYEE
-├── permissions.ts                    # daftar kode grant (PLAN §4.2)
-├── enums.ts                          # status approval, jenis cuti/izin, dll.
-└── schemas/<modul>.ts                # skema Zod DTO yang dipakai FE & BE
+├── src/
+│   ├── index.ts
+│   ├── roles.ts                      # ROLES, roleSchema, ROLE, ROLE_LABELS
+│   ├── permissions.ts                # PERMISSIONS (PLAN §4.2), PERMISSION_GRANTABLE_TO, isPermissionGrantableTo()
+│   ├── enums.ts                      # status/mode/jenis approval, jenis cuti, status periode absensi & payroll
+│   └── schemas/
+│       ├── common.ts                 # ERROR_CODES, errorBodySchema, paginationQuerySchema, paginationMetaSchema
+│       └── <modul>.ts                # [planned] skema Zod DTO yang dipakai FE & BE
+└── tests/permissions.test.ts         # bun test
 ```
 
 ---
@@ -155,6 +172,21 @@ Request ─▶ core: request-id → logger → auth (verifikasi JWT) → muat ko
 ```
 
 **Aturan dependency:** `routes → policy/service → repository`. Tidak boleh lompat atau berbalik arah. Modul lain hanya lewat `index.ts`.
+
+**Ditegakkan oleh `.dependency-cruiser.cjs`** (`bun run check:boundaries`, CI):
+
+| Aturan | Melarang |
+|---|---|
+| `module-only-via-index` | Modul A meng-import file modul B selain `index.ts` |
+| `outside-only-via-index` | Kode api di luar `modules/` (core, `app.ts`, jobs, scripts, tests) meng-import file modul selain `index.ts`. Karena itu route modul dipasang di `app.ts` lewat fungsi yang diekspor `index.ts` modul |
+| `core-not-into-modules-internals` | `core/` bergantung pada detail modul |
+| `routes-no-repository` | routes → repository / `core/db.ts` / client Prisma |
+| `policy-is-pure` | policy → repository / service / routes / `core/db.ts` / client Prisma |
+| `service-no-http` | service → routes atau paket `hono`/`@hono/*` |
+| `repository-is-lowest` | repository → service / routes / policy |
+| `web-not-to-api`, `api-not-to-web`, `shared-is-leaf` | Import lintas workspace (web ↔ api, shared → apps) |
+| `web-no-server-secrets` | web → `@prisma/*`, `prisma`, `pg`, `dotenv` |
+| `no-circular`, `not-to-unresolvable`, `not-to-dev-dep` | Siklus, import yang tidak ter-resolve, kode produksi memakai devDependency |
 
 ---
 
@@ -285,10 +317,15 @@ Semua endpoint cron memeriksa header `Authorization: Bearer ${CRON_SECRET}`. Di 
 
 ## 8. Environment Variables
 
-Daftar lengkap disimpan di `.env.example`.
+Daftar lengkap disimpan di `.env.example`. **Satu file `.env` di root** dipakai semua workspace: api lewat `bun --env-file=../../.env`, Prisma CLI lewat `dotenv` di `prisma.config.ts`, web lewat `envDir` Vite. Di CI/Vercel env diisi langsung (file tidak ada).
+
+Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variabel Supabase/SMTP/cron masih **opsional** di Fase 1 dan dijadikan wajib di fase yang memakainya.
 
 | Variabel | Dipakai | Keterangan |
 |---|---|---|
+| `NODE_ENV` | api | `development` (default) · `test` · `production` |
+| `PORT` | api | Port HTTP lokal, default `3000` |
+| `LOG_LEVEL` | api | `debug` · `info` (default) · `warn` · `error` |
 | `DATABASE_URL` | api (runtime) | Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543) |
 | `DIRECT_URL` | api (migrasi) | Lokal: sama dengan `DATABASE_URL`. Staging/produksi: koneksi direct/session (port 5432) untuk `prisma migrate` |
 | `SUPABASE_URL` | api | URL project Supabase (JWKS & Admin API). Lokal: project **staging** |
@@ -307,25 +344,30 @@ Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal mema
 
 ---
 
-## 9. Script Root (Rencana)
+## 9. Script Root
 
 | Perintah | Fungsi |
 |---|---|
-| `bun install` | Install semua workspace |
-| `bun run db:up` / `db:down` | Menjalankan / menghentikan PostgreSQL lokal (`docker compose`) |
-| `bun run dev` | api + web mode watch |
+| `bun install` | Install semua workspace; `postinstall` menjalankan `db:generate` (client Prisma) |
+| `bun run db:up` / `db:down` | Menjalankan (menunggu *healthy*) / menghentikan PostgreSQL lokal (`docker compose`) |
+| `bun run dev` | api (`bun --watch`, port 3000) + web (Vite, port 5173) paralel |
 | `bun run dev:api` / `dev:web` | Salah satu saja |
-| `bun run typecheck` | `tsc --noEmit` semua workspace |
-| `bun run lint` / `format` | Biome |
-| `bun run check:boundaries` | dependency-cruiser |
-| `bun run test` / `test:api` / `test:web` / `test:e2e` | Test |
+| `bun run typecheck` | `tsc --noEmit` semua workspace (TypeScript 6.0.3) |
+| `bun run lint` / `format` | Biome `check` / `check --write`. CI memakai `biome ci .` |
+| `bun run check:boundaries` | dependency-cruiser (aturan di §4) |
+| `bun run test` | `test:shared` → `test:api` → `test:web` |
+| `bun run test:shared` / `test:api` / `test:web` | bun test / bun test (butuh `db:up`; integration memakai PostgreSQL lokal) / Vitest |
+| `bun run test:e2e` | [planned] Playwright (Fase 9) |
 | `bun run db:generate` | `prisma generate` |
-| `bun run db:migrate` | `prisma migrate dev` (lokal) |
-| `bun run db:deploy` | `prisma migrate deploy` (staging/produksi) |
-| `bun run db:reset` | Reset DB lokal + seed |
+| `bun run db:migrate` | `prisma migrate dev` (lokal); nama migrasi: `bun run db:migrate -- --name <deskripsi_snake_case>` |
+| `bun run db:deploy` | `prisma migrate deploy` (CI dari DB kosong; staging/produksi menunggu OD-7) |
+| `bun run db:check` | `prisma migrate diff --exit-code`: gagal jika skema Prisma berbeda dari DB hasil migrasi (migrasi lupa dibuat) |
+| `bun run db:reset` | Reset DB lokal + seed. Prisma menolak perintah ini bila dijalankan AI agent tanpa persetujuan eksplisit pengguna |
 | `bun run db:seed` | Seed data dummy |
-| `bun run bootstrap:super-admin` | Buat SUPER_ADMIN Utama pertama |
-| `bun run build` | Build web & api |
+| `bun run bootstrap:super-admin` | [planned] Buat SUPER_ADMIN Utama pertama (Fase 2) |
+| `bun run build` | Build api (`bun build` → `apps/api/dist`) & web (`vite build` → `apps/web/dist`) |
+
+Docker image api (jalan keluar dari Vercel): `docker build -f apps/api/Dockerfile -t hris-api .` dari root.
 
 ---
 

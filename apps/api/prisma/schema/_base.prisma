@@ -1,0 +1,15 @@
+// Generator & datasource bersama. Model tiap modul ada di file <modul>.prisma (PROMPT §6).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../../src/generated/prisma"
+  runtime      = "bun"
+  moduleFormat = "esm"
+}
+
+// PLAN §3.2: satu skema Postgres per modul; skema `public` tidak dipakai untuk data aplikasi.
+// Prisma tidak pernah mengelola skema milik Supabase (auth, storage, dll.).
+datasource db {
+  provider = "postgresql"
+  schemas  = ["iam", "organization", "employee", "attendance", "leave", "approval", "contract", "payroll", "notification", "audit"]
+}

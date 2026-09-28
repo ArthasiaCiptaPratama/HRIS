@@ -1,0 +1,38 @@
+{
+  "name": "hris",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter @hris/api --filter @hris/web dev",
+    "dev:api": "bun run --filter @hris/api dev",
+    "dev:web": "bun run --filter @hris/web dev",
+    "build": "bun run --filter @hris/api --filter @hris/web build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "check:boundaries": "depcruise apps/api/src apps/web/src packages/shared/src --config .dependency-cruiser.cjs",
+    "test": "bun run test:shared && bun run test:api && bun run test:web",
+    "test:api": "bun run --filter @hris/api test",
+    "test:web": "bun run --filter @hris/web test",
+    "test:shared": "bun run --filter @hris/shared test",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:generate": "bun run --filter @hris/api db:generate",
+    "db:migrate": "bun run --filter @hris/api db:migrate",
+    "db:deploy": "bun run --filter @hris/api db:deploy",
+    "db:reset": "bun run --filter @hris/api db:reset",
+    "db:seed": "bun run --filter @hris/api db:seed",
+    "db:check": "bun run --filter @hris/api db:check",
+    "postinstall": "bun run db:generate"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "dependency-cruiser": "18.4.0",
+    "typescript": "6.0.3"
+  }
+}

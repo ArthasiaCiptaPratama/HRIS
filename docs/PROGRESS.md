@@ -11,8 +11,8 @@
 
 | Fase | Nama             | Status       |
 | ---- | ---------------- | ------------ |
-| 0    | Instruksi Projek | Review       |
-| 1    | Fondasi          | Belum mulai  |
+| 0    | Instruksi Projek | Selesai      |
+| 1    | Fondasi          | Berjalan     |
 | 2    | IAM              | Belum mulai  |
 | 3    | Organization     | Belum mulai  |
 | 4    | Employee         | Belum mulai  |
@@ -31,12 +31,16 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ## 2. Fokus Saat Ini
 
-- **Fase aktif:** 0 — Instruksi Projek
+- **Fase aktif:** 1 — Fondasi
+- **Sudah jalan di lokal (Linux):** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
 - **Langkah berikutnya:**
-  1. Pemilik projek menyelesaikan review PLAN, CODEMAP, PROGRESS, PROMPT (sudah di-push ke `HRIS/Oatse/Linux-Windows`).
-  2. Jawab OD-7; minta admin IT menyiapkan akun pengirim email (OD-5).
-  3. Mulai Fase 1 (Fondasi).
-- **Blocker aktif:** OD-7 (cara `db:deploy` ke staging) harus terjawab sebelum Fase 1 selesai. OD lain baru memblokir fase/rilis berikutnya.
+  1. Commit & push `HRIS/Oatse/Linux-Windows`, lalu pastikan workflow CI hijau di GitHub (belum pernah jalan).
+  2. Buat Supabase project **staging** (region Singapura): self sign-up nonaktif, bucket private, *Redirect URLs* `http://localhost:5173`, skema modul tidak di *Exposed schemas*. Catat versi major PostgreSQL-nya dan cocokkan dengan `docker-compose.yml` & CI (saat ini 17).
+  3. Jawab **OD-7**, lalu `db:deploy` migrasi awal ke staging.
+  4. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
+  5. Verifikasi `bun install && bun run dev` di **Windows**.
+  6. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
+- **Blocker aktif:** OD-7 (db:deploy ke staging), OD-9 (proteksi `main`), OD-5 (SMTP staging). Akun Supabase & Vercel harus dibuat pemilik projek.
 
 ---
 
@@ -49,27 +53,27 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] `docs/PROGRESS.md`
 - [x] `docs/PROMPT.md`
 - [x] `CLAUDE.md` + tautan di `README.md`
-- [ ] Review & persetujuan pemilik projek
+- [x] Review & persetujuan pemilik projek (pemilik projek meminta mulai Fase 1, 2026-09-28)
 - [x] Branch `HRIS/Oatse/Linux-Windows` dibuat, di-commit & di-push
 
 ### Fase 1 — Fondasi
-- [ ] Root: Bun workspaces, `tsconfig.base.json`, Biome, `.editorconfig`, `.gitattributes` (LF), `.gitignore`, `.env.example`
-- [ ] Branch `HRIS/debug/database` dan `HRIS/debug/fe-be` dibuat dari `main`; proteksi `main`
-- [ ] PostgreSQL lokal: `docker-compose.yml` (image Postgres, versi = Supabase) + script `db:up`/`db:down`
+- [x] Root: Bun workspaces, `tsconfig.base.json`, Biome, `.editorconfig`, `.gitattributes` (LF), `.gitignore`, `.env.example`
+- [~] Branch `HRIS/debug/database` dan `HRIS/debug/fe-be` dibuat dari `main` ✔; proteksi `main` ditolak GitHub (paket Free, repo private) → **OD-9**
+- [x] PostgreSQL lokal: `docker-compose.yml` (image Postgres, versi = Supabase) + script `db:up`/`db:down`
 - [ ] Supabase project **staging**: self sign-up nonaktif, bucket private, *Redirect URLs* termasuk `http://localhost:5173`, Data API tidak mengekspos skema modul; dipakai untuk Auth & Storage saat develop
-- [ ] Cocokkan versi major PostgreSQL di `docker-compose.yml` dengan project staging
+- [ ] Cocokkan versi major PostgreSQL di `docker-compose.yml` dengan project staging (lokal & CI: 17; menunggu project staging)
 - [ ] Custom SMTP Supabase staging memakai akun Google Workspace pengirim (D-025; menunggu OD-5)
-- [ ] `packages/shared` (roles, permissions, enums)
-- [ ] `apps/api`: Hono + `@hono/zod-openapi`, `env.ts`, `core/` (errors, response, logger, request-id, db), `/api/v1/health`, `/openapi.json`, `/docs`
-- [ ] Prisma 7: `prisma.config.ts`, skema multi-file, multi-schema, driver adapter, migrasi awal (buat semua skema)
-- [ ] `apps/web`: Vite + React + TS, Tailwind, shadcn/ui, React Router, TanStack Query, layout kosong
-- [ ] dependency-cruiser + aturan batas modul
-- [ ] Test: `bun test` (api) & Vitest (web) dengan contoh test
-- [ ] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build
+- [x] `packages/shared` (roles, permissions, enums)
+- [x] `apps/api`: Hono + `@hono/zod-openapi`, `env.ts`, `core/` (errors, response, logger, request-id, db), `/api/v1/health`, `/openapi.json`, `/docs`
+- [x] Prisma 7: `prisma.config.ts`, skema multi-file, multi-schema, driver adapter, migrasi awal (buat semua skema)
+- [x] `apps/web`: Vite + React + TS, Tailwind, shadcn/ui, React Router, TanStack Query, layout kosong
+- [x] dependency-cruiser + aturan batas modul
+- [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
+- [~] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — workflow ditulis & tiap langkahnya lulus di lokal; belum pernah jalan di GitHub
 - [ ] Keputusan OD-7, lalu `db:deploy` migrasi awal ke staging
-- [ ] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be`
-- [ ] `Dockerfile` api (build lokal berhasil)
-- [ ] Verifikasi `bun install && bun run dev` di **Linux**
+- [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be` — `vercel.json` kedua app dibuat; project Vercel belum dibuat
+- [x] `Dockerfile` api (build lokal berhasil)
+- [x] Verifikasi `bun install && bun run dev` di **Linux**
 - [ ] Verifikasi `bun install && bun run dev` di **Windows**
 
 ### Fase 2 — IAM
@@ -174,6 +178,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 | OD-6 | Ubah data sensitif/gaji milik sendiri       | Fase 4    | Menunggu keputusan  |
 | OD-7 | Cara `db:deploy` & env per environment      | Fase 1    | Menunggu keputusan  |
 | OD-8 | Rollback migrasi & backup produksi          | Rilis 1   | Menunggu keputusan  |
+| OD-9 | Proteksi `main` butuh GitHub Team (repo private) | Rilis 1 | Menunggu keputusan  |
 
 Detail & rekomendasi: [PLAN §9](./PLAN.md#9-keputusan-terbuka).
 
@@ -194,6 +199,33 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-28 — Fase 1: fondasi monorepo, api, web, Prisma, CI
+- **Dikerjakan:** item Fase 1 berikut selesai & terverifikasi di Linux: root config, PostgreSQL lokal, `packages/shared`, `apps/api` (core + health + OpenAPI + docs), Prisma 7 + migrasi awal 10 skema, `apps/web` (layout kosong + status API), dependency-cruiser, test, Dockerfile, `bun run dev` di Linux. Sebagian: branch debug (proteksi `main` gagal), workflow CI (belum jalan di GitHub), `vercel.json` (project belum ada).
+- **Keputusan:** Fase 0 dianggap disetujui (pemilik projek meminta mulai Fase 1). OD baru: **OD-9** (proteksi `main`). Pilihan teknis (bukan OD):
+  - **TypeScript 6.0.3**, bukan 7.x: TS 7 (port Go) tidak lagi menyediakan compiler API JS yang dipakai dependency-cruiser.
+  - **Prisma 7.10.0** dikunci (npm `latest` sudah 8.0.0-rc; D-003 menetapkan Prisma 7).
+  - Versi paket dikunci persis (tanpa `^`); Bun 1.4.2 lewat `packageManager`.
+  - Satu `.env` di root untuk semua workspace.
+  - `GET /api/v1/health` mengembalikan **503** dengan envelope `data` (status `degraded`) bila DB tidak terjangkau, supaya monitor bisa membedakan API hidup vs DB putus.
+  - Komponen shadcn memakai `cn` lokal (`@/lib/utils`); CLI shadcn 4.21 sempat menambah paket npm `cn`, dihapus.
+- **File berubah:** root (`package.json`, `bun.lock`, `biome.json`, `.dependency-cruiser.cjs`, `tsconfig.base.json`, `tsconfig.depcruise.json`, `.editorconfig`, `.gitattributes`, `.gitignore`, `.dockerignore`, `.env.example`, `docker-compose.yml`), `.github/workflows/ci.yml`, `packages/shared/`, `apps/api/`, `apps/web/`, `docs/PLAN.md` (OD-9), `docs/CODEMAP.md`, `docs/PROGRESS.md`, `README.md` (mulai cepat).
+- **Verifikasi (Linux, Bun 1.4.2, Docker 29.8, PostgreSQL 17.11):**
+  - `bun run typecheck` ✔ (shared, api, web) · `bunx biome ci .` ✔ · `bun run check:boundaries` ✔ (56 modul, 0 pelanggaran)
+  - `bun run test` ✔: shared 10, api 15 (termasuk integration ke PostgreSQL lokal), web 8
+  - `bun run db:migrate` ✔ migrasi awal; rerun "Already in sync"; `bun run db:check` "No difference detected"
+  - Uji manual: `bun run dev` → `/api/v1/health` 200, 503 saat container DB dihentikan lalu pulih 200; 404 envelope + `X-Request-Id` dipantulkan; `/openapi.json` & `/docs` 200; CORS hanya `http://localhost:5173`; web 5173 + fallback SPA 200
+  - Ke-14 aturan dependency-cruiser dibuktikan dengan file yang sengaja melanggar (3 putaran); semua menangkap pelanggaran, lalu file dihapus
+  - Clone bersih (hanya file yang akan di-commit) + `bun install --frozen-lockfile` → postinstall generate, typecheck, boundaries, test ✔ tanpa `.env`
+  - `bun run build` (api & web) ✔; bundle api jalan mandiri tanpa `node_modules`; `docker build -f apps/api/Dockerfile .` ✔, container *healthy* sebagai user non-root
+- **Masalah / catatan:**
+  - Bug ditemukan test & diperbaiki: api client web menangkap `fetch` saat modul dimuat, sehingga `fetch` global yang diganti diabaikan.
+  - Bug konfigurasi ditemukan & diperbaiki: `exclude: /dist/` di dependency-cruiser ikut membuang semua paket npm (`node_modules/.../dist/`), sehingga aturan yang melibatkan paket npm diam-diam tidak jalan.
+  - Prisma menolak `migrate reset` yang dijalankan AI agent tanpa persetujuan eksplisit pengguna (env `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION`). Setelah pemilik projek mengizinkan, `bun run db:reset` ✔ (migrasi ulang + seed, 10 skema, `db:check` tanpa selisih).
+  - Bun belum di PATH fish: jalankan `fish_add_path ~/.bun/bin` (installer hanya menambahkan ke `~/.zshrc`).
+  - Tidak ada lagi `baseUrl` di tsconfig web (deprecated di TS 6); alias `@/*` memakai `paths` saja.
+  - Variabel Supabase/SMTP/cron masih opsional di `env.ts`; wajibkan di Fase 2.
+- **Berikutnya:** lihat §2 Fokus Saat Ini (commit & CI, Supabase staging, OD-7, Vercel, Windows, OD-9).
 
 ### 2026-09-28 — Fase 0: ganti penyedia email ke Google Workspace
 - **Dikerjakan:** mengganti rencana SMTP dari Resend ke SMTP Google Workspace kantor di PLAN, CODEMAP, PROGRESS.

@@ -338,7 +338,7 @@ HRIS/Oatse/Linux-Windows ──PR──▶ HRIS/debug/database ──PR──▶
 - Nama `Linux-Windows` merujuk ke device pengembang yang **dual boot** Linux & Windows. Repo harus berjalan identik di kedua OS.
 - **Commit:** Conventional Commits **tanpa scope**, bahasa Indonesia. Contoh: `feat: tambah endpoint daftar karyawan`, `fix: saldo cuti tidak kembali saat dibatalkan`.
 - **Approver:** PR ke branch debug disetujui pengembang sendiri; PR ke `main` di-review pembimbing/atasan.
-- `main` diproteksi: tidak boleh push langsung.
+- `main` diproteksi: tidak boleh push langsung. *(Penegakan otomatis oleh GitHub menunggu OD-9; sementara dijaga disiplin alur.)*
 - Detail aturan ada di [PROMPT §8](./PROMPT.md).
 
 ---
@@ -411,6 +411,7 @@ Keputusan baru ditambahkan dengan ID berikutnya **dan** dicatat di log PROGRESS.
 | OD-6 | Bolehkan seseorang (termasuk SUPER_ADMIN) mengubah **data sensitif/gaji miliknya sendiri**? | Tidak, harus akun lain. Jika hanya ada satu SUPER_ADMIN, diizinkan dengan penanda khusus di audit log. | Fase 4 |
 | OD-7 | **Cara menjalankan `db:deploy`** ke staging & produksi (manual dari laptop atau otomatis dari CI) dan cara menyimpan env per environment (lokal berisi DB lokal + kunci Supabase staging). | Otomatis dari GitHub Actions dengan secret per environment, lewat **session pooler** (port 5432; runner tidak punya IPv6). Migrasi selalu dijalankan **sebelum** kode baru aktif. | Fase 1 (migrasi awal ke staging) |
 | OD-8 | **Strategi rollback migrasi & backup produksi** (Prisma tidak punya migrasi turun). | Migrasi *expand → contract* yang kompatibel mundur + perbaikan maju; backup harian Supabase, PITR bila paket memungkinkan (terkait OD-4). | Rilis 1 |
+| OD-9 | **Proteksi branch `main`** (§6) ditolak GitHub: organisasi `ArthasiaCiptaPratama` memakai paket **Free**, dan branch protection/rulesets untuk repo **private** butuh **GitHub Team**. Pilihan: upgrade organisasi ke Team, jadikan repo public (tidak disarankan: kode HRIS internal), atau sementara hanya disiplin alur (tanpa penegakan). | Upgrade ke GitHub Team (bisa diputuskan bersama OD-4). Sampai itu, `main` hanya dijaga disiplin: tidak push langsung, merge lewat PR yang di-review. | Rilis 1 |
 
 Jika sebuah OD diputuskan: pindahkan ke §8 sebagai `D-xxx` dan catat di log PROGRESS.
 

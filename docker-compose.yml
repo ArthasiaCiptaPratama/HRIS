@@ -1,0 +1,27 @@
+# PostgreSQL lokal untuk development & test (D-023).
+# Versi major HARUS sama dengan project Supabase (PLAN §3.3). Cek ulang saat project staging dibuat.
+name: hris
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      # Kredensial khusus lokal (bukan rahasia): port hanya di-bind ke 127.0.0.1.
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hris
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - hris-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hris"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  hris-pgdata:

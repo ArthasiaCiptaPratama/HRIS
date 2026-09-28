@@ -1,0 +1,13 @@
+# Dual boot Linux/Windows: semua file teks disimpan & di-checkout dengan LF (PROMPT §9)
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
