@@ -77,7 +77,8 @@ apps/api/
 │   ├── migrations/                   [wip] Hasil `prisma migrate dev` (di-commit, tidak pernah diedit setelah di-merge)
 │   │   ├── 20260928032354_init_module_schemas/  [done] SQL mentah: CREATE SCHEMA untuk 10 skema modul
 │   │   ├── 20260928035758_add_organization_and_employee_master/  [done] Tabel ERD organization & employee
-│   │   └── 20260928061939_enable_rls_on_prisma_migrations/  [done] RLS pada `public._prisma_migrations` (advisor Supabase; bersyarat, portabel)
+│   │   ├── 20260928061939_enable_rls_on_prisma_migrations/  [done] RLS pada `public._prisma_migrations` (advisor Supabase; bersyarat, portabel)
+│   │   └── 20260928062734_add_departments_parent_id_index/  [done] Index FK `departments.parent_id` (advisor performa)
 │   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production
 │       ├── index.ts                  Runner: organization → employee
 │       ├── organization.ts           5 departemen, 12 jabatan, 4 status, 5 grade, 2 lokasi (Jakarta, Bandung)
@@ -248,7 +249,7 @@ Status: tabel ERD **[done]** (skema + migrasi, belum ada endpoint). `company_pro
 |---|---|
 | `company_profile` | [planned] Satu baris: nama, NPWP perusahaan, alamat, logo |
 | `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
-| `departments` | `name` (unik), `parent_id?` (hierarki), `deleted_at?` |
+| `departments` | `name` (unik), `parent_id?` (hierarki, ber-index), `deleted_at?` |
 | `positions` | `name`, `department_id` (FK, ERD) — unik per departemen, `deleted_at?` |
 | `employment_statuses` | ERD `employment_status`: `name` (unik; mis. Tetap, Kontrak, Probation, Magang), `deleted_at?` |
 | `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |

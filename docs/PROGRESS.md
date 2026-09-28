@@ -199,6 +199,11 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
 
+### 2026-09-28 — Fase 1: staging bersih dari advisor ERROR; percobaan ulang proteksi `main`
+- **Dikerjakan:** commit `df46af2` → CI ✔ → PR #3 ke `HRIS/debug/database` (merge `e924fa0`, CI ✔) → PR #4 ke `HRIS/debug/fe-be` (merge `d550170`) → `Deploy staging` run #36386402931 ✔. MCP: RLS `public._prisma_migrations` aktif, 3 migrasi tercatat; advisor security tinggal INFO `rls_enabled_no_policy` (disengaja). Advisor performa: FK `departments.parent_id` tanpa index → migrasi `20260928062734_add_departments_parent_id_index` (lokal ✔, `db:check` ✔; ke staging bersama rantai PR berikutnya). INFO `unused_index` wajar (DB kosong).
+- **Proteksi `main`:** pemilik projek meminta proteksi (akun pribadi GitHub Pro). Dicoba ulang: tetap 403 karena repo milik organisasi berpaket Free; OD-9 tetap terbuka. `main` tidak berubah.
+- **Berikutnya:** OD-9 (upgrade organisasi ke Team atau alternatif); fondasi akses → CRUD employee.
+
 ### 2026-09-28 — Fase 1: migrasi pertama ke staging & perbaikan advisor
 - **Dikerjakan:** commit `c62c059` → CI hijau → PR #1 ke `HRIS/debug/database` (merge `41b6b9e`, CI hijau) → PR #2 ke `HRIS/debug/fe-be` (merge `d123237`) → workflow `Deploy staging` run #36385730691 sukses: 2 migrasi diterapkan, `db:check` tanpa selisih. `main` tidak disentuh (instruksi pemilik projek: `main` hanya atas permintaannya).
 - **Verifikasi staging via MCP (read-only):** 10 skema modul; `organization` 5 tabel, `employee` 6 tabel; `_prisma_migrations` 2 baris selesai; `anon`/`authenticated` tanpa USAGE pada skema `employee`/`organization`/`iam`. Advisor security: **1 ERROR** `rls_disabled_in_public` pada `public._prisma_migrations`.
