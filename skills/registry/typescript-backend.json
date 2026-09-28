@@ -1,0 +1,15 @@
+{
+  "skillId": "typescript-backend",
+  "name": "TypeScript Backend Development",
+  "description": "General TypeScript backend development patterns including services, utilities, type definitions, and error handling.",
+  "triggers": ["backend", "service", "utility", "helper", "types", "error handling", "logger"],
+  "domains": ["backend"],
+  "requiredFiles": {
+    "create": ["src/services/{Name}.ts", "src/utils/{Name}.ts", "src/types/{Name}.ts"],
+    "modify": []
+  },
+  "outputPattern": "Service, utility, or type file following project conventions",
+  "systemPromptAddition": "## TypeScript Backend Skill\n- Use TypeScript strict mode\n- Define explicit return types for functions\n- Use Result pattern for error handling (Ok/Err)\n- Create descriptive error classes\n- Add comprehensive JSDoc comments\n- Keep functions small and focused\n- Use dependency injection where appropriate",
+  "capabilities": ["typescript", "error-handling", "dependency-injection", "typed-utilities"],
+  "version": "1.0.0"
+}

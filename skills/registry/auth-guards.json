@@ -1,0 +1,15 @@
+{
+  "skillId": "auth-guards",
+  "name": "Authentication & Authorization",
+  "description": "Implements authentication and role-based authorization guards for protected routes and features.",
+  "triggers": ["auth", "login", "permission", "role", "guard", "middleware", "jwt", "session", "access control"],
+  "domains": ["security"],
+  "requiredFiles": {
+    "create": ["src/middleware/auth.ts", "src/routes/guards.ts"],
+    "modify": ["src/app.ts"]
+  },
+  "outputPattern": "Auth middleware and role guard utilities",
+  "systemPromptAddition": "## Auth & Authorization Skill\n- Use JWT tokens for API authentication\n- Define roles: admin, manager, employee, viewer\n- Create guard middleware: authenticate(), authorize(...roles)\n- Apply guards to protected routes\n- Include user context in request (req.user)\n- Handle 401 (unauthenticated) and 403 (unauthorized) responses",
+  "capabilities": ["jwt-auth", "role-based-access", "middleware", "user-context"],
+  "version": "1.0.0"
+}

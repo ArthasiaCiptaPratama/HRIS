@@ -1,0 +1,15 @@
+{
+  "skillId": "hr-leave-management",
+  "name": "Leave Management Feature",
+  "description": "Implements leave management including leave types, request submission, approval workflows, and balance tracking.",
+  "triggers": ["leave", "absence", "pto", "vacation", "sick", "time off", "approval", "balance"],
+  "domains": ["hr-leave"],
+  "requiredFiles": {
+    "create": ["src/models/LeaveRequest.ts", "src/routes/leave.ts", "src/services/leaveService.ts"],
+    "modify": ["src/models/index.ts"]
+  },
+  "outputPattern": "LeaveRequest model, API routes, and service layer",
+  "systemPromptAddition": "## Leave Management Skill\n- Leave types: annual, sick, personal, unpaid, parental, bereavement\n- Status flow: pending → approved/rejected → cancelled\n- Include: employeeId, leaveType, startDate, endDate, reason, status, approverId\n- Validate leave balance before approval\n- Check for overlapping leave requests\n- Auto-deduct balance upon approval",
+  "capabilities": ["leave-request", "approval-workflow", "balance-tracking", "overlap-validation"],
+  "version": "1.0.0"
+}

@@ -1,0 +1,15 @@
+{
+  "skillId": "hr-employee-entity",
+  "name": "Employee Entity Management",
+  "description": "Implements employee-related entities and features. Handles employee profiles, employment status, departments, roles, and organizational hierarchy.",
+  "triggers": ["employee", "staff", "worker", "personnel", "team member", "org chart", "department", "role"],
+  "domains": ["hr-core"],
+  "requiredFiles": {
+    "create": ["src/models/Employee.ts", "src/routes/employee.ts"],
+    "modify": ["src/models/index.ts"]
+  },
+  "outputPattern": "Employee model and API routes for CRUD operations",
+  "systemPromptAddition": "## Employee Entity Skill\n- Standard fields: id, name, email, department, role, hireDate, status\n- Employment status enum: active, inactive, terminated, onLeave\n- Include employee relationships (manager, department)\n- Soft delete pattern for employee termination\n- Audit fields: createdAt, updatedAt, createdBy",
+  "capabilities": ["employee-profile", "org-hierarchy", "employment-status", "soft-delete"],
+  "version": "1.0.0"
+}

@@ -1,0 +1,15 @@
+{
+  "skillId": "react-component",
+  "name": "React Component Development",
+  "description": "Creates React functional components with hooks, TypeScript types, and proper prop interfaces. Follows the project's component patterns and styling conventions.",
+  "triggers": ["component", "ui", "form", "button", "modal", "table", "list", "widget", "page", "view"],
+  "domains": ["frontend", "ui"],
+  "requiredFiles": {
+    "create": ["src/components/{Name}/{Name}.tsx", "src/components/{Name}/index.ts"],
+    "modify": ["src/components/index.ts"]
+  },
+  "outputPattern": "Component at src/components/{Name}/{Name}.tsx",
+  "systemPromptAddition": "## React Component Skill\n- Use functional components with hooks\n- Define prop interfaces with TypeScript\n- Use the project's CSS/styling approach\n- Export from index.ts barrel file\n- Include basic accessibility attributes\n- Keep components focused and reusable",
+  "capabilities": ["hooks", "prop-types", "accessibility", "typescript"],
+  "version": "1.0.0"
+}

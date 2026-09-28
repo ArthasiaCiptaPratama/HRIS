@@ -1,0 +1,15 @@
+{
+  "skillId": "hr-attendance",
+  "name": "Attendance Tracking",
+  "description": "Implements attendance tracking including clock-in/out, work schedules, overtime calculation, and attendance reports.",
+  "triggers": ["attendance", "clock", "check-in", "check-out", "schedule", "work hours", "overtime", "timesheet"],
+  "domains": ["hr-attendance"],
+  "requiredFiles": {
+    "create": ["src/models/Attendance.ts", "src/routes/attendance.ts", "src/services/attendanceService.ts"],
+    "modify": ["src/models/index.ts"]
+  },
+  "outputPattern": "Attendance model, API routes, and attendance service",
+  "systemPromptAddition": "## Attendance Skill\n- Track: employeeId, date, clockIn, clockOut, totalHours, status\n- Status: present, absent, late, early-leave, on-leave\n- Support multiple clock-in/out per day\n- Calculate overtime (hours > scheduled hours)\n- Integrate with schedules for expected work hours\n- Generate attendance summary reports",
+  "capabilities": ["clock-in-out", "schedule-integration", "overtime-calculation", "attendance-report"],
+  "version": "1.0.0"
+}

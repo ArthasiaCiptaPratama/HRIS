@@ -1,0 +1,136 @@
+# Analysis: HRIS Frontend Mission
+
+## Analysis ID: `analysis-hris-frontend-v1`
+**Session ID**: `hris-frontend-v1`
+**Confidence**: 0.95
+**Analyzed At**: 2026-09-25
+
+---
+
+## User Input
+
+```
+Claude Mission: Help me create a frontend for HRIS system, and inside there, there's charts shortcuts to certain function and also show jatah cuti, izin hadir, dan perjalanan dinas, ada nav link diatas mmenunjukan dashboard dan juga personal management, personal management akann enunjukan data priibadi setiap karyawann dengan sidebar yanng mennunjukan functino apa saja yang dapatt dilakukan pada personal management, buat frontendnya se responsive HRIS system, dan juga gunnakan js untuk backend dan bun js untuk mmenjalankan programnya
+```
+
+---
+
+## Interpreted Intent
+
+Build a full-stack HRIS system frontend with:
+- Dashboard with chart shortcuts
+- Leave Quota (Jatah Cuti), Attendance Permission (Izin Hadir), Business Trip (Perjalanan Dinas) features
+- Top navigation with Dashboard and Personal Management
+- Personal Management page with employee data and sidebar
+- Fully responsive design
+- Bun runtime + Prisma + PostgreSQL backend
+
+---
+
+## Primary Domain
+`self_service_portal`
+
+## Secondary Domains
+- `employee_management`
+- `leave_management`
+- `attendance_tracking`
+- `compliance_reporting`
+
+---
+
+## Entities
+
+### 1. Employee
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | string (UUID) | Yes | Primary key |
+| name | string | Yes | Full name |
+| email | string | Yes | Email address |
+| phone | string | No | Phone number |
+| address | string | No | Home address |
+| department | string | Yes | Department name |
+| position | string | Yes | Job title |
+| joinDate | date | Yes | Employment start date |
+| photo | string (URL) | No | Profile photo |
+| createdAt | datetime | Yes | Record creation |
+| updatedAt | datetime | Yes | Last update |
+
+### 2. LeaveQuota (Jatah Cuti)
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | string (UUID) | Yes | Primary key |
+| employeeId | string | Yes | FK to Employee |
+| leaveType | enum | Yes | annual, sick, personal |
+| totalDays | number | Yes | Total allocated days |
+| usedDays | number | Yes | Days already used |
+| year | number | Yes | Calendar year |
+| createdAt | datetime | Yes | Record creation |
+| updatedAt | datetime | Yes | Last update |
+
+### 3. AttendancePermission (Izin Hadir)
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | string (UUID) | Yes | Primary key |
+| employeeId | string | Yes | FK to Employee |
+| type | enum | Yes | sick, permit, business |
+| date | date | Yes | Date of permission |
+| reason | string | Yes | Reason for permission |
+| status | enum | Yes | pending, approved, rejected |
+| createdAt | datetime | Yes | Record creation |
+| updatedAt | datetime | Yes | Last update |
+
+### 4. BusinessTrip (Perjalanan Dinas)
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | string (UUID) | Yes | Primary key |
+| employeeId | string | Yes | FK to Employee |
+| destination | string | Yes | Trip destination |
+| purpose | string | Yes | Purpose of trip |
+| startDate | date | Yes | Trip start |
+| endDate | date | Yes | Trip end |
+| status | enum | Yes | pending, approved, rejected |
+| createdAt | datetime | Yes | Record creation |
+| updatedAt | datetime | Yes | Last update |
+
+---
+
+## Requirements
+
+| ID | Description | Priority | Acceptance Criteria |
+|----|-------------|----------|---------------------|
+| REQ-001 | Dashboard with chart shortcuts | High | 3 cards visible with icons linking to features |
+| REQ-002 | Leave Quota display with chart | High | Chart showing used/remaining days |
+| REQ-003 | Attendance Permission feature | High | Form to submit izin hadir request |
+| REQ-004 | Business Trip feature | High | Form to submit perjalanan dinas request |
+| REQ-005 | Top navigation bar | High | Links to Dashboard and Personal Management |
+| REQ-006 | Personal Management page | High | Shows employee personal data |
+| REQ-007 | Sidebar in Personal Management | High | Lists all available functions |
+| REQ-008 | Responsive design | High | Works on mobile, tablet, desktop |
+| REQ-009 | Bun backend server | High | `bun run dev` starts server |
+| REQ-010 | Prisma + PostgreSQL | High | Database connection works |
+| REQ-011 | REST API endpoints | Medium | All CRUD operations functional |
+
+---
+
+## Identified Skills
+
+| Skill ID | Confidence | Reasoning |
+|----------|------------|-----------|
+| `typescript-backend` | 0.95 | Bun runtime with TypeScript |
+| `database-schema` | 0.95 | Prisma schema for all entities |
+| `api-endpoint` | 0.90 | REST API routes needed |
+| `react-component` | 0.70 | Frontend components (vanilla JS) |
+
+---
+
+## Ambiguities
+None — request is clear and detailed.
+
+---
+
+## Constraints
+1. Must use Bun as runtime (not Node.js)
+2. Must use Prisma ORM with PostgreSQL
+3. PostgreSQL runs locally
+4. Frontend must be responsive
+5. Charts required for leave quota visualization

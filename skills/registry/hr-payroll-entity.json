@@ -1,0 +1,15 @@
+{
+  "skillId": "hr-payroll-entity",
+  "name": "Payroll Processing",
+  "description": "Implements payroll-related entities and processes including salary, deductions, tax calculations, and payslip generation.",
+  "triggers": ["salary", "payroll", "payslip", "deduction", "tax", "compensation", "bonus", "reimbursement"],
+  "domains": ["hr-payroll"],
+  "requiredFiles": {
+    "create": ["src/models/Payroll.ts", "src/routes/payroll.ts", "src/services/payrollService.ts"],
+    "modify": ["src/models/index.ts"]
+  },
+  "outputPattern": "Payroll model, API routes, and payroll service",
+  "systemPromptAddition": "## Payroll Skill\n- Payroll cycle: monthly, bi-weekly, weekly\n- Components: grossSalary, deductions[], netSalary, taxAmount\n- Deduction types: tax, insurance, pension, loan, other\n- Payslip includes: employee, period, earnings, deductions, net\n- Use decimal for money (never float)\n- Include audit trail for all payroll changes",
+  "capabilities": ["salary-processing", "deductions", "tax-calculation", "payslip-generation", "audit-trail"],
+  "version": "1.0.0"
+}

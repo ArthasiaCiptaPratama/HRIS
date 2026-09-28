@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HRIS - Sistem Informasi Manajemen Karyawan</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Top Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <i data-lucide="building-2" class="nav-logo"></i>
+      <span>HRIS</span>
+    </div>
+
+    <div class="nav-links">
+      <a href="#" class="nav-link active" data-page="dashboard">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-link" data-page="personal">
+        <i data-lucide="users"></i>
+        <span>Personal Management</span>
+      </a>
+    </div>
+
+    <div class="nav-user">
+      <div class="user-avatar" id="userAvatar">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" alt="User">
+      </div>
+      <div class="user-info">
+        <span class="user-name" id="userName">Loading...</span>
+        <span class="user-role" id="userRole">Employee</span>
+      </div>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" id="mobileMenuToggle">
+      <i data-lucide="menu"></i>
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Dashboard Page -->
+    <section id="dashboardPage" class="page active">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p class="page-subtitle">Selamat datang di sistem HRIS</p>
+      </div>
+
+      <!-- Chart Shortcuts -->
+      <div class="chart-shortcuts">
+        <a href="#" class="chart-card" data-feature="leave">
+          <div class="chart-card-icon leave">
+            <i data-lucide="calendar-check"></i>
+          </div>
+          <div class="chart-card-content">
+            <h3>Jatah Cuti</h3>
+            <p class="chart-card-stat" id="leaveQuotaStat">-</p>
+            <span class="chart-card-label">Cuti tersedia</span>
+          </div>
+          <i data-lucide="chevron-right" class="chart-card-arrow"></i>
+        </a>
+
+        <a href="#" class="chart-card" data-feature="attendance">
+          <div class="chart-card-icon attendance">
+            <i data-lucide="clock"></i>
+          </div>
+          <div class="chart-card-content">
+            <h3>Izin Hadir</h3>
+            <p class="chart-card-stat" id="attendanceStat">-</p>
+            <span class="chart-card-label">Pengajuan tertunda</span>
+          </div>
+          <i data-lucide="chevron-right" class="chart-card-arrow"></i>
+        </a>
+
+        <a href="#" class="chart-card" data-feature="business-trip">
+          <div class="chart-card-icon business">
+            <i data-lucide="plane"></i>
+          </div>
+          <div class="chart-card-content">
+            <h3>Perjalanan Dinas</h3>
+            <p class="chart-card-stat" id="businessTripStat">-</p>
+            <span class="chart-card-label">Perjalanan menunggu</span>
+          </div>
+          <i data-lucide="chevron-right" class="chart-card-arrow"></i>
+        </a>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i data-lucide="users"></i>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value" id="totalEmployees">-</span>
+            <span class="stat-label">Total Karyawan</span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon warning">
+            <i data-lucide="alert-circle"></i>
+          </div>
+          <div class="stat-content">
+            <span class="stat-value" id="pendingRequests">-</span>
+            <span class="stat-label">Permintaan Tertunda</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="charts-section">
+        <div class="chart-container">
+          <h3>Statistik Jatah Cuti</h3>
+          <canvas id="leaveChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <h3>Distribusi Karyawan per Departemen</h3>
+          <canvas id="departmentChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Personal Management Page -->
+    <section id="personalPage" class="page">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h3>Personal Menu</h3>
+          <button class="sidebar-close" id="sidebarClose">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+
+        <nav class="sidebar-nav">
+          <a href="#" class="sidebar-link active" data-section="profile">
+            <i data-lucide="user"></i>
+            <span>Profil Saya</span>
+          </a>
+          <a href="#" class="sidebar-link" data-section="leave-quota">
+            <i data-lucide="calendar-check"></i>
+            <span>Jatah Cuti</span>
+          </a>
+          <a href="#" class="sidebar-link" data-section="attendance">
+            <i data-lucide="clock"></i>
+            <span>Izin Hadir</span>
+          </a>
+          <a href="#" class="sidebar-link" data-section="business-trip">
+            <i data-lucide="plane"></i>
+            <span>Perjalanan Dinas</span>
+          </a>
+        </nav>
+      </aside>
+
+      <!-- Personal Content -->
+      <div class="personal-content">
+        <!-- Profile Section -->
+        <div id="profileSection" class="content-section active">
+          <div class="section-header">
+            <h2>Profil Saya</h2>
+          </div>
+
+          <div class="profile-card">
+            <div class="profile-header">
+              <div class="profile-avatar" id="profileAvatar">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=User" alt="Profile">
+              </div>
+              <div class="profile-info">
+                <h3 id="profileName">-</h3>
+                <p id="profilePosition">-</p>
+                <span class="profile-department" id="profileDepartment">-</span>
+              </div>
+            </div>
+
+            <div class="profile-details">
+              <div class="detail-row">
+                <i data-lucide="mail"></i>
+                <div>
+                  <label>Email</label>
+                  <span id="profileEmail">-</span>
+                </div>
+              </div>
+              <div class="detail-row">
+                <i data-lucide="phone"></i>
+                <div>
+                  <label>Telepon</label>
+                  <span id="profilePhone">-</span>
+                </div>
+              </div>
+              <div class="detail-row">
+                <i data-lucide="map-pin"></i>
+                <div>
+                  <label>Alamat</label>
+                  <span id="profileAddress">-</span>
+                </div>
+              </div>
+              <div class="detail-row">
+                <i data-lucide="calendar"></i>
+                <div>
+                  <label>Tanggal Bergabung</label>
+                  <span id="profileJoinDate">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leave Quota Section -->
+        <div id="leaveQuotaSection" class="content-section">
+          <div class="section-header">
+            <h2>Jatah Cuti</h2>
+          </div>
+
+          <div class="leave-charts">
+            <div class="leave-chart-card">
+              <canvas id="leaveQuotaChart"></canvas>
+            </div>
+          </div>
+
+          <div class="leave-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Tipe Cuti</th>
+                  <th>Total Hari</th>
+                  <th>Terpakai</th>
+                  <th>Sisa</th>
+                  <th>Progress</th>
+                </tr>
+              </thead>
+              <tbody id="leaveQuotaTable">
+                <!-- Data will be populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Attendance Section -->
+        <div id="attendanceSection" class="content-section">
+          <div class="section-header">
+            <h2>Izin Hadir</h2>
+            <button class="btn btn-primary" id="addAttendanceBtn">
+              <i data-lucide="plus"></i>
+              Ajukan Izin
+            </button>
+          </div>
+
+          <div class="attendance-list" id="attendanceList">
+            <!-- Data will be populated by JS -->
+          </div>
+        </div>
+
+        <!-- Business Trip Section -->
+        <div id="businessTripSection" class="content-section">
+          <div class="section-header">
+            <h2>Perjalanan Dinas</h2>
+            <button class="btn btn-primary" id="addBusinessTripBtn">
+              <i data-lucide="plus"></i>
+              Ajukan Dinas
+            </button>
+          </div>
+
+          <div class="business-trip-list" id="businessTripList">
+            <!-- Data will be populated by JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modals -->
+  <!-- Attendance Modal -->
+  <div class="modal" id="attendanceModal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Ajukan Izin Hadir</h3>
+        <button class="modal-close" data-modal="attendanceModal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="attendanceForm" class="modal-body">
+        <div class="form-group">
+          <label for="attendanceType">Tipe Izin</label>
+          <select id="attendanceType" name="type" required>
+            <option value="">Pilih Tipe Izin</option>
+            <option value="SICK">Sakit</option>
+            <option value="PERMIT">Izin</option>
+            <option value="BUSINESS">Tugas Dinas</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="attendanceDate">Tanggal</label>
+          <input type="date" id="attendanceDate" name="date" required>
+        </div>
+        <div class="form-group">
+          <label for="attendanceReason">Alasan</label>
+          <textarea id="attendanceReason" name="reason" rows="3" required placeholder="Jelaskan alasan izin..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal="attendanceModal">Batal</button>
+          <button type="submit" class="btn btn-primary">Ajukan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Business Trip Modal -->
+  <div class="modal" id="businessTripModal">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Ajukan Perjalanan Dinas</h3>
+        <button class="modal-close" data-modal="businessTripModal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="businessTripForm" class="modal-body">
+        <div class="form-group">
+          <label for="tripDestination">Tujuan</label>
+          <input type="text" id="tripDestination" name="destination" required placeholder="Kota tujuan...">
+        </div>
+        <div class="form-group">
+          <label for="tripPurpose">Tujuan Dinas</label>
+          <textarea id="tripPurpose" name="purpose" rows="3" required placeholder="Jelaskan maksud perjalanan..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tripStartDate">Tanggal Mulai</label>
+            <input type="date" id="tripStartDate" name="startDate" required>
+          </div>
+          <div class="form-group">
+            <label for="tripEndDate">Tanggal Selesai</label>
+            <input type="date" id="tripEndDate" name="endDate" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-modal="businessTripModal">Batal</button>
+          <button type="submit" class="btn btn-primary">Ajukan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

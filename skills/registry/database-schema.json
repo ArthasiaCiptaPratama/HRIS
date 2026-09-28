@@ -1,0 +1,15 @@
+{
+  "skillId": "database-schema",
+  "name": "Database Schema Design",
+  "description": "Designs and implements database models with TypeScript types and Zod validation schemas. Used when creating new entities, relationships, or modifying existing data models.",
+  "triggers": ["schema", "model", "table", "entity", "relation", "database", "field", "column", "migration"],
+  "domains": ["database"],
+  "requiredFiles": {
+    "create": ["src/models/{Name}.ts"],
+    "modify": ["src/models/index.ts"]
+  },
+  "outputPattern": "TypeScript model file at src/models/{Name}.ts with Zod schema",
+  "systemPromptAddition": "## Database Schema Skill\n- Use TypeScript strict mode\n- Define interface for the data shape\n- Create a Zod schema for runtime validation\n- Export both the type and schema\n- Include indexes and relationships as comments\n- Follow existing model patterns in src/models/",
+  "capabilities": ["typescript", "zod-validation", "relational-design", "indexes"],
+  "version": "1.0.0"
+}

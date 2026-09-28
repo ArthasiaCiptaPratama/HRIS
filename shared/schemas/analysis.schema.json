@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hris.local/schemas/analysis-document.json",
+  "title": "AnalysisDocument",
+  "description": "Output of the Analyzer Agent — structured interpretation of user input",
+  "type": "object",
+  "definitions": {
+    "EntityType": {
+      "type": "string",
+      "enum": ["employee", "department", "role", "leave", "payroll", "attendance", "document", "report", "user", "system"]
+    },
+    "EntityAttribute": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "dataType": { "type": "string" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "dataType"]
+    },
+    "Entity": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "$ref": "#/definitions/EntityType" },
+        "description": { "type": "string" },
+        "attributes": { "type": "array", "items": { "$ref": "#/definitions/EntityAttribute" } }
+      },
+      "required": ["name", "type"]
+    },
+    "Requirement": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "description": { "type": "string" },
+        "priority": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "category": { "type": "string" },
+        "acceptanceCriteria": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "description", "priority"]
+    },
+    "IdentifiedSkill": {
+      "type": "object",
+      "properties": {
+        "skillId": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasoning": { "type": "string" }
+      },
+      "required": ["skillId", "confidence"]
+    },
+    "Ambiguity": {
+      "type": "object",
+      "properties": {
+        "question": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["question", "options"]
+    },
+    "HRISDomain": {
+      "type": "string",
+      "enum": [
+        "employee_management",
+        "attendance_tracking",
+        "leave_management",
+        "payroll_processing",
+        "recruitment_onboarding",
+        "performance_management",
+        "benefits_administration",
+        "training_development",
+        "org_structure",
+        "compliance_reporting",
+        "self_service_portal",
+        "system_configuration",
+        "integration"
+      ]
+    }
+  },
+  "properties": {
+    "analysisId": { "type": "string", "format": "uuid" },
+    "sessionId": { "type": "string", "format": "uuid" },
+    "userInput": { "type": "string" },
+    "interpretedIntent": { "type": "string" },
+    "primaryDomain": { "$ref": "#/definitions/HRISDomain" },
+    "secondaryDomains": { "type": "array", "items": { "$ref": "#/definitions/HRISDomain" } },
+    "entities": { "type": "array", "items": { "$ref": "#/definitions/Entity" } },
+    "requirements": { "type": "array", "items": { "$ref": "#/definitions/Requirement" } },
+    "constraints": { "type": "array", "items": { "type": "string" } },
+    "identifiedSkills": { "type": "array", "items": { "$ref": "#/definitions/IdentifiedSkill" } },
+    "ambiguities": { "type": "array", "items": { "$ref": "#/definitions/Ambiguity" } },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "analyzerVersion": { "type": "string" },
+    "analyzedAt": { "type": "string", "format": "date-time" }
+  },
+  "required": ["analysisId", "sessionId", "userInput", "interpretedIntent", "primaryDomain", "confidence", "analyzedAt"]
+}

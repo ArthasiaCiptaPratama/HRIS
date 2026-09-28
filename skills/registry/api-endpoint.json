@@ -1,0 +1,15 @@
+{
+  "skillId": "api-endpoint",
+  "name": "REST API Endpoint Development",
+  "description": "Builds REST API endpoints following the project's conventions. Creates route handlers, request/response types, and integrates with the existing routing system.",
+  "triggers": ["api", "endpoint", "route", "rest", "crud", "resource", "/api", "handler", "controller"],
+  "domains": ["backend", "api"],
+  "requiredFiles": {
+    "create": ["src/routes/{resource}.ts"],
+    "modify": ["src/app.ts", "src/routes/index.ts"]
+  },
+  "outputPattern": "Route file at src/routes/{resource}.ts with typed handlers",
+  "systemPromptAddition": "## REST API Skill\n- All routes under /api/v1/ prefix\n- Use the existing route factory pattern\n- Define request/response types with Zod\n- Include proper error handling with typed errors\n- Add JSDoc comments for each endpoint\n- Register routes in src/routes/index.ts",
+  "capabilities": ["rest-api", "request-validation", "error-handling", "typed-routes"],
+  "version": "1.0.0"
+}

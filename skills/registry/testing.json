@@ -1,0 +1,15 @@
+{
+  "skillId": "testing",
+  "name": "Testing & QA",
+  "description": "Creates unit tests and integration tests following project conventions. Uses Vitest for the testing framework.",
+  "triggers": ["test", "spec", "unit", "integration", "coverage", "qa", "verify", "assert"],
+  "domains": ["quality"],
+  "requiredFiles": {
+    "create": ["src/{path}/{file}.test.ts"],
+    "modify": []
+  },
+  "outputPattern": "Test file at src/{path}/{file}.test.ts",
+  "systemPromptAddition": "## Testing Skill\n- Use Vitest as the testing framework\n- Follow existing test patterns in src/**/*.test.ts\n- Include unit tests for all new functions/services\n- Mock external dependencies (DB, external APIs)\n- Aim for meaningful test names: describe('functionName') it('should do X when Y')\n- Test both success and error cases",
+  "capabilities": ["vitest", "unit-testing", "mocking", "assertions", "coverage"],
+  "version": "1.0.0"
+}
