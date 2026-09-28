@@ -1,0 +1,24 @@
+// Audit log (core, PLAN §4.5 & PROMPT §3.14). Append-only: tidak ada updatedAt/deletedAt.
+// Modul non-inti: aktor & entitas disimpan sebagai UUID/teks tanpa FK (PLAN §3.2.3).
+// before/after TIDAK boleh berisi nilai sensitif mentah (NIK, rekening, gaji, dll.).
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  // Null bila aksi dilakukan script/sistem (mis. bootstrap-super-admin).
+  actorAccountId String?  @map("actor_account_id") @db.Uuid
+  action         String   @db.VarChar(100)
+  entityType     String   @map("entity_type") @db.VarChar(50)
+  entityId       String?  @map("entity_id") @db.VarChar(100)
+  before         Json?
+  after          Json?
+  reason         String?
+  requestId      String?  @map("request_id") @db.VarChar(128)
+  ip             String?  @db.VarChar(45)
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([actorAccountId])
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+  @@map("audit_logs")
+  @@schema("audit")
+}

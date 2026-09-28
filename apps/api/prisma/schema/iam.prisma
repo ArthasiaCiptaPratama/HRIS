@@ -1,0 +1,75 @@
+// Modul iam (PLAN §4) — akun terhubung ke Supabase Auth, satu role per akun (D-028), grant izin (§4.2).
+// Password TIDAK disimpan di sini (Supabase Auth, D-005). Tidak ada FK ke auth.users (D-023).
+
+enum Role {
+  SUPER_ADMIN
+  HR_ADMIN
+  MANAGER
+  EMPLOYEE
+
+  @@schema("iam")
+}
+
+// PLAN §4.2: daftar tetap; harus sama dengan PERMISSIONS di packages/shared/src/permissions.ts.
+enum Permission {
+  EMPLOYEE_PERSONAL_READ   @map("employee.personal.read")
+  EMPLOYEE_PERSONAL_WRITE  @map("employee.personal.write")
+  EMPLOYEE_BANK_READ       @map("employee.bank.read")
+  EMPLOYEE_BANK_WRITE      @map("employee.bank.write")
+  EMPLOYEE_DOCUMENTS_READ  @map("employee.documents.read")
+  EMPLOYEE_DOCUMENTS_WRITE @map("employee.documents.write")
+  CONTRACT_MANAGE          @map("contract.manage")
+  PAYROLL_PERIOD_PREPARE   @map("payroll.period.prepare")
+
+  @@schema("iam")
+}
+
+model Account {
+  id                  String    @id @default(uuid()) @db.Uuid
+  // UUID user Supabase Auth. User Auth tidak pernah dihapus, hanya dinonaktifkan (PLAN §3.2.7).
+  authUserId          String    @map("auth_user_id") @db.Uuid
+  // Nullable: SUPER_ADMIN boleh tanpa data karyawan (PLAN §4.1).
+  employeeId          String?   @map("employee_id") @db.Uuid
+  employee            Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  email               String    @db.VarChar(254)
+  role                Role
+  isActive            Boolean   @default(true) @map("is_active")
+  // PLAN §4.4: tepat satu akun Utama (index unik parsial + CHECK di migrasi).
+  isPrimarySuperAdmin Boolean   @default(false) @map("is_primary_super_admin")
+  lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  grants        PermissionGrant[] @relation("GrantAccount")
+  grantsGiven   PermissionGrant[] @relation("GrantGrantedBy")
+  grantsRevoked PermissionGrant[] @relation("GrantRevokedBy")
+
+  @@unique([authUserId])
+  @@unique([employeeId])
+  @@unique([email])
+  @@index([role])
+  @@map("accounts")
+  @@schema("iam")
+}
+
+model PermissionGrant {
+  id         String     @id @default(uuid()) @db.Uuid
+  accountId  String     @map("account_id") @db.Uuid
+  account    Account    @relation("GrantAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  permission Permission
+  expiresAt  DateTime?  @map("expires_at") @db.Timestamptz(6)
+  reason     String?
+  grantedBy  String     @map("granted_by") @db.Uuid
+  granter    Account    @relation("GrantGrantedBy", fields: [grantedBy], references: [id], onDelete: Restrict)
+  revokedAt  DateTime?  @map("revoked_at") @db.Timestamptz(6)
+  revokedBy  String?    @map("revoked_by") @db.Uuid
+  revoker    Account?   @relation("GrantRevokedBy", fields: [revokedBy], references: [id], onDelete: Restrict)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([accountId])
+  @@index([grantedBy])
+  @@index([revokedBy])
+  @@map("permission_grants")
+  @@schema("iam")
+}

@@ -31,7 +31,7 @@ Sumber: PROMPT §10 (jenis test), §11 (Definition of Done), PLAN §4.3 (matriks
 
 ## Aturan data uji
 
-- Auth tidak memanggil Supabase: pakai `loginAs(role, grants?, { employeeId })` dari `tests/helpers/` (dibuat di Fase 2; sebelum itu, test core memakai `createApp({...})` dengan dependensi palsu).
+- Auth tidak memanggil Supabase: `createApp({ tokenVerifier: testVerifier })` + `createAuthFixture(RUN).loginAs(role, { grants, employeeId, isActive })` dari `tests/helpers/auth.ts` → `{ account, headers }`; panggil `cleanup()` di `afterAll`. Grant memakai nama enum Prisma (`EMPLOYEE_PERSONAL_READ`).
 - Setiap file memakai penanda `RUN = crypto.randomUUID().slice(0, 8)` pada kunci bisnis (nomor karyawan, nama master) dan membersihkan datanya di `afterAll`, urut anak → induk.
 - Factory di `tests/helpers/factories.ts`; NIK/NPWP fiktif berformat valid, tanpa data asli.
 - `await expect(attempt(() => prismaQuery)).rejects...` (PrismaPromise perlu dibungkus, lihat skill `hris-db-schema`).

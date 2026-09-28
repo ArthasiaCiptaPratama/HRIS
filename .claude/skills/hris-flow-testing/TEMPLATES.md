@@ -30,7 +30,7 @@ const app = createApp({ logger: createLogger("error", () => {}) });
 test("403 bila EMPLOYEE membuat karyawan", async () => {
   const res = await app.request("/api/v1/employees", {
     method: "POST",
-    headers: { ...(await loginAs("EMPLOYEE")), "Content-Type": "application/json" },
+    headers: { ...(await auth.loginAs("EMPLOYEE")).headers, "Content-Type": "application/json" },
     body: JSON.stringify(validEmployeeInput(RUN)),
   });
   expect(res.status).toBe(403);
@@ -54,4 +54,4 @@ describe("flow: onboarding karyawan", () => {
 });
 ```
 
-Nama helper (`loginAs`, `factories`, `post`, `get`) adalah rencana `tests/helpers/`; buat saat pertama dibutuhkan dan catat di CODEMAP §2.
+`testVerifier` & `createAuthFixture` sudah ada di `tests/helpers/auth.ts` (contoh nyata: `tests/integration/iam/me.test.ts`). `factories`, `post`, `get` masih rencana; buat saat pertama dibutuhkan dan catat di CODEMAP §2.

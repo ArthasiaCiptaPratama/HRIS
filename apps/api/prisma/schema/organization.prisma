@@ -14,6 +14,7 @@ model Department {
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([name])
+  @@index([parentId])
   @@map("departments")
   @@schema("organization")
 }

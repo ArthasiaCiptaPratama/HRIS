@@ -6,17 +6,39 @@ import { HTTPException } from "hono/http-exception";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { type ActorLoader, loadActor } from "./core/access/index.ts";
+import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
-import { AppError, INTERNAL_ERROR_MESSAGE, ValidationError } from "./core/errors.ts";
+import {
+  AppError,
+  INTERNAL_ERROR_MESSAGE,
+  UnauthenticatedError,
+  ValidationError,
+} from "./core/errors.ts";
 import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
 import { getEnv } from "./env.ts";
+import { loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
 
 export interface AppDeps {
   logger: Logger;
   corsOrigins: string[];
   checkDatabase: DatabaseCheck;
+  tokenVerifier: TokenVerifier;
+  actorLoader: ActorLoader;
+}
+
+// Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
+const REJECT_ALL_VERIFIER: TokenVerifier = {
+  verify: async () => {
+    throw new UnauthenticatedError();
+  },
+};
+
+function defaultVerifier(): TokenVerifier {
+  const supabaseUrl = getEnv().SUPABASE_URL;
+  return supabaseUrl ? createSupabaseVerifier({ supabaseUrl }) : REJECT_ALL_VERIFIER;
 }
 
 const HTTP_STATUS_TO_CODE: Partial<Record<number, ErrorCode>> = {
@@ -51,6 +73,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     logger: overrides.logger ?? createLogger(getEnv().LOG_LEVEL),
     corsOrigins: overrides.corsOrigins ?? getEnv().CORS_ORIGINS,
     checkDatabase: overrides.checkDatabase ?? pingDatabase,
+    tokenVerifier: overrides.tokenVerifier ?? defaultVerifier(),
+    actorLoader: overrides.actorLoader ?? ((authUserId) => loadIamActor(authUserId)),
   };
 
   const app = new OpenAPIHono({
@@ -85,6 +109,10 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
 
   registerOpenApi(app);
   registerHealth(app, deps.checkDatabase);
+
+  // Endpoint terproteksi: verifikasi JWT → muat akun, role, grant dari DB (D-008).
+  const protect = [authenticate(deps.tokenVerifier), loadActor(deps.actorLoader)];
+  registerIamRoutes(app, { protect });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));
 
