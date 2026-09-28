@@ -5,3 +5,6 @@ import { afterEach } from "vitest";
 afterEach(() => {
   cleanup();
 });
+
+// jsdom tidak mengimplementasikan scrollTo (dipakai layout saat pindah halaman).
+window.scrollTo = (() => undefined) as typeof window.scrollTo;

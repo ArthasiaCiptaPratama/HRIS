@@ -53,3 +53,174 @@ export async function promoteToPrimarySuperAdmin(tx: IamTx, accountId: string) {
     data: { role: "SUPER_ADMIN", isPrimarySuperAdmin: true, isActive: true },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Kelola akun, role, grant (Fase 2).
+
+export interface AccountFilter {
+  role?: Prisma.AccountWhereInput["role"];
+  isActive?: boolean;
+  q?: string;
+}
+
+function accountWhere(filter: AccountFilter): Prisma.AccountWhereInput {
+  return {
+    ...(filter.role ? { role: filter.role } : {}),
+    ...(filter.isActive === undefined ? {} : { isActive: filter.isActive }),
+    ...(filter.q ? { email: { contains: filter.q, mode: "insensitive" } } : {}),
+  };
+}
+
+export async function listAccounts(filter: AccountFilter, skip: number, take: number) {
+  const where = accountWhere(filter);
+  const [rows, total] = await getPrisma().$transaction([
+    getPrisma().account.findMany({ where, orderBy: { createdAt: "desc" }, skip, take }),
+    getPrisma().account.count({ where }),
+  ]);
+  return { rows, total };
+}
+
+export async function findAccountById(id: string, tx: IamTx = getPrisma()) {
+  return tx.account.findUnique({ where: { id } });
+}
+
+export async function findAccountByEmail(email: string, tx: IamTx = getPrisma()) {
+  return tx.account.findUnique({ where: { email } });
+}
+
+export async function countActiveSuperAdmins(tx: IamTx, excludeAccountId?: string) {
+  return tx.account.count({
+    where: {
+      role: "SUPER_ADMIN",
+      isActive: true,
+      ...(excludeAccountId ? { id: { not: excludeAccountId } } : {}),
+    },
+  });
+}
+
+export async function createAccount(
+  tx: IamTx,
+  data: { authUserId: string; email: string; role: Prisma.AccountCreateInput["role"] },
+) {
+  return tx.account.create({ data });
+}
+
+export async function updateAccountRole(
+  tx: IamTx,
+  id: string,
+  role: Prisma.AccountUpdateInput["role"],
+) {
+  return tx.account.update({ where: { id }, data: { role } });
+}
+
+export async function setAccountActive(tx: IamTx, id: string, isActive: boolean) {
+  return tx.account.update({ where: { id }, data: { isActive } });
+}
+
+export async function setPrimaryFlag(tx: IamTx, id: string, isPrimarySuperAdmin: boolean) {
+  return tx.account.update({ where: { id }, data: { isPrimarySuperAdmin } });
+}
+
+export async function findActiveGrants(tx: IamTx, accountId: string, now: Date) {
+  return tx.permissionGrant.findMany({
+    where: { accountId, revokedAt: null, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+  });
+}
+
+export async function revokeGrants(tx: IamTx, ids: string[], revokedBy: string, at: Date) {
+  if (ids.length === 0) return 0;
+  const { count } = await tx.permissionGrant.updateMany({
+    where: { id: { in: ids }, revokedAt: null },
+    data: { revokedAt: at, revokedBy },
+  });
+  return count;
+}
+
+export interface GrantFilter {
+  accountId?: string;
+  permission?: Prisma.PermissionGrantWhereInput["permission"];
+  /** true = belum dicabut & belum kedaluwarsa pada `now`; false = sebaliknya. */
+  active?: boolean;
+}
+
+function grantWhere(filter: GrantFilter, now: Date): Prisma.PermissionGrantWhereInput {
+  const activeWhere: Prisma.PermissionGrantWhereInput = {
+    revokedAt: null,
+    OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+  };
+  return {
+    ...(filter.accountId ? { accountId: filter.accountId } : {}),
+    ...(filter.permission ? { permission: filter.permission } : {}),
+    ...(filter.active === undefined ? {} : filter.active ? activeWhere : { NOT: activeWhere }),
+  };
+}
+
+export async function listGrants(filter: GrantFilter, now: Date, skip: number, take: number) {
+  const where = grantWhere(filter, now);
+  const [rows, total] = await getPrisma().$transaction([
+    getPrisma().permissionGrant.findMany({ where, orderBy: { createdAt: "desc" }, skip, take }),
+    getPrisma().permissionGrant.count({ where }),
+  ]);
+  return { rows, total };
+}
+
+export async function findGrantById(id: string, tx: IamTx = getPrisma()) {
+  return tx.permissionGrant.findUnique({ where: { id } });
+}
+
+export async function createGrant(tx: IamTx, data: Prisma.PermissionGrantUncheckedCreateInput) {
+  return tx.permissionGrant.create({ data });
+}
+
+export async function revokeGrant(tx: IamTx, id: string, revokedBy: string, at: Date) {
+  return tx.permissionGrant.update({ where: { id }, data: { revokedAt: at, revokedBy } });
+}
+
+// ---------------------------------------------------------------------------
+// Penerima notifikasi (Fase 2 Bagian B).
+
+export async function listActiveSuperAdmins() {
+  return getPrisma().account.findMany({
+    where: { role: "SUPER_ADMIN", isActive: true },
+    select: { id: true, email: true },
+  });
+}
+
+/** Grant aktif yang kedaluwarsa dalam rentang (now, until], beserta email pemiliknya (akun aktif). */
+export async function findGrantsExpiringBetween(now: Date, until: Date) {
+  return getPrisma().permissionGrant.findMany({
+    where: { revokedAt: null, expiresAt: { gt: now, lte: until }, account: { isActive: true } },
+    select: {
+      id: true,
+      permission: true,
+      expiresAt: true,
+      account: { select: { id: true, email: true } },
+    },
+  });
+}
+
+export async function linkEmployee(tx: IamTx, accountId: string, employeeId: string | null) {
+  return tx.account.update({ where: { id: accountId }, data: { employeeId } });
+}
+
+// Dipakai modul employee lewat index.ts (D-035): keterhubungan akun ↔ data karyawan.
+
+export async function findAccountsByEmployeeIds(employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
+  return getPrisma().account.findMany({
+    where: { employeeId: { in: employeeIds } },
+    select: { id: true, employeeId: true, role: true, isActive: true },
+  });
+}
+
+export async function findEmployeeIdsByRoles(roles: NonNullable<Prisma.AccountWhereInput["role"]>) {
+  const rows = await getPrisma().account.findMany({
+    where: { role: roles, isActive: true, employeeId: { not: null } },
+    select: { employeeId: true },
+  });
+  return rows.map((row) => row.employeeId as string);
+}
+
+export async function findAccountByEmployeeId(tx: IamTx, employeeId: string) {
+  return tx.account.findUnique({ where: { employeeId } });
+}

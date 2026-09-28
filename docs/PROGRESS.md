@@ -13,9 +13,9 @@
 | ---- | ---------------- | ------------ |
 | 0    | Instruksi Projek | Selesai      |
 | 1    | Fondasi          | Berjalan     |
-| 2    | IAM              | Berjalan (fondasi akses) |
-| 3    | Organization     | Berjalan (skema ERD) |
-| 4    | Employee         | Berjalan (skema ERD) |
+| 2    | IAM              | Review (semua item selesai; captcha ditunda, SMTP nyata & uji UI manual menunggu) |
+| 3    | Organization     | Berjalan (skema ERD + baca master data & struktur, D-035) |
+| 4    | Employee         | Berjalan (API + web Personal Management a–e, D-035) |
 | 5    | Attendance       | Belum mulai  |
 | 6    | Leave            | Belum mulai  |
 | —    | **Rilis 1**      | –            |
@@ -30,22 +30,23 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 ---
 
 ## 2. Fokus Saat Ini
-
-- **Fase aktif:** 1 — Fondasi (sisa: Vercel, uji Windows, proteksi `main`) · **Target minggu 2026-09-28 (D-027): employee management**.
-- **Sudah jalan (per 2026-09-28):**
-  - Lokal (Linux) & CI hijau: monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + 5 migrasi, dependency-cruiser (14 aturan), 89 test, Dockerfile.
-  - Skema ERD `organization` & `employee` + seed dummy; fondasi akses (`iam`, `audit`, `core/auth`, `core/access`, `GET /me`); uji login end-to-end dengan token Supabase asli ✔.
-  - Staging Supabase (D-029, Seoul): semua migrasi via workflow `Deploy staging` (D-030); SMTP `admin.arthasia@gmail.com` (D-032) + undangan ✔; Super Admin Utama `admin.arthasia@gmail.com` di DB lokal & staging.
-  - Alur Git: PR #1–#6 ke `HRIS/debug/*`; `main` tidak disentuh (`ebb20e5`).
-- **Langkah berikutnya (menunggu pilihan & persetujuan pemilik projek):**
-  1. Rencana **CRUD employee** (endpoint master & karyawan, tim MANAGER di `core/access`, penyaringan field sensitif, test matriks) **atau** **halaman login web** (+ route guard, set password dari undangan, lalu captcha Turnstile).
-  2. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
-  3. Verifikasi `bun install && bun run dev` di **Windows**.
-- **Blocker / ditunda:** OD-9 (proteksi `main`, ditunda pemilik projek); akun Vercel dibuat pemilik projek; OD-5 akun email produksi.
+- **Fase aktif:** 1 — Fondasi (sisa: Vercel, uji Windows, proteksi `main`) · Fase 2 IAM **Review** · **Target minggu 2026-09-29 (D-035): web Personal Management** (Fase 3–4 lebih awal).
+- **Sudah jalan (per 2026-09-29):**
+ - Lokal (Linux) hijau: typecheck, lint, boundaries (173 modul), `db:check`, test shared 10 · api 237 · web 27. Kode Fase 2 + D-035 di-commit & di-push ke `HRIS/Oatse/Linux-Windows` 2026-09-29 (atas permintaan pemilik projek); status CI run lihat log sesi.
+ - Fase 2 IAM lengkap di lokal (lihat log 2026-09-28). Staging Supabase (D-029/D-030), SMTP (D-032), Super Admin Utama lokal & staging.
+ - **D-035 (sesi 2026-09-29):** migrasi `20260929020000_employee_categories_and_histories` (lokal); modul API `organization` (`/master-data`) & `employee` (10 endpoint); web baru: top nav kelompok besar + sidebar kontekstual, Dashboard (kosong), Data Pegawai Aktif per kategori, Ubah Status (kategori/nonaktifkan), Pengaktifan, Pegawai Tidak Aktif, Struktur Organisasi, Arsip & Laporan = Maintenance, pencarian cepat Ctrl+K; dokumen QA `docs/qa/`.
+ - Alur Git: PR #1–#6 ke `HRIS/debug/*`; `main` tidak disentuh (`ebb20e5`).
+- **Langkah berikutnya (menunggu persetujuan pemilik projek):**
+ 1. Pantau CI commit 2026-09-29; bila hijau → rantai PR ke `HRIS/debug/database` → `HRIS/debug/fe-be` supaya migrasi `notification` + `employee_categories_and_histories` naik ke staging (butuh izin; kategori status di staging belum terisi: lewat seed/CRUD master data).
+ 2. Pemilik projek sudah mencoba tampilan (2026-09-29: "semuanya oke"); sisa: login Supabase sungguhan per role (Super Admin, HR, Manager) & ganti password Super Admin di Profil.
+ 3. Uji pengirim SMTP nodemailer ke Gmail sungguhan (aksi keluar, butuh izin).
+ 4. Lanjutan Fase 4: tulis data pribadi/rekening (butuh keputusan **OD-6**), dokumen (signed URL), undangan akun dari data karyawan, import CSV/Excel; isi menu Arsip (f–o) & Laporan (p) satu per satu.
+ 5. Fase 3: CRUD master data (departemen, jabatan, status+kategori, grade, lokasi) untuk SUPER_ADMIN.
+ 6. Sisa Fase 1: project Vercel (+ `CRON_SECRET`, env SMTP) dan uji Windows.
+ 7. Seragamkan halaman Administrasi (Akun, Grant, Audit, Notifikasi, Profil) dengan gaya/komponen baru (breadcrumb, DataTable) (usulan dari uji HR 2026-09-29).
+- **Blocker / ditunda:** OD-9 (proteksi `main`); akun Vercel dibuat pemilik projek; OD-5 akun email produksi; OD-6 (ubah data sensitif milik sendiri) sebelum fitur tulis data sensitif.
 - **Keamanan yang harus dibereskan sebelum produksi:** ganti password DB staging (lalu perbarui secret `STAGING_DIRECT_URL`), cabut/buat ulang App Password Gmail, ganti password Super Admin (semua pernah tertulis di percakapan).
-
 ---
-
 ## 3. Checklist Per Fase
 
 ### Fase 0 — Instruksi Projek
@@ -85,42 +86,50 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] Uji SMTP langsung (Gmail) & undangan Supabase Auth; user uji dibersihkan dari Auth staging (tambahan 2026-09-28)
 
 ### Fase 2 — IAM
-- [~] Skema `iam`, `audit`, `notification` + migrasi — `iam` (accounts, permission_grants) & `audit` (audit_logs) ✔ migrasi `20260928065300_add_iam_and_audit` + test constraint; `notification` belum
+- [x] Skema `iam`, `audit`, `notification` + migrasi — `20260928065300_add_iam_and_audit` + `20260928085157_add_notification` (notifications dengan `dedupe_key`, email_outbox)
 - [x] `core/auth`: verifikasi JWT Supabase (JWKS) + verifier pengganti untuk test — `src/core/auth/` (ES256, cek iss/aud/role/sub) + `tests/helpers/auth.ts` (`testVerifier`, `createAuthFixture().loginAs`); 12 unit test. Token asli staging ✔ (uji E2E 2026-09-28: login `admin.arthasia@gmail.com` → `/me` 200, token dirusak 401)
-- [~] `core/access`: muat role, grant (cek kedaluwarsa), tim; `requireRole`/`requireGrant` — role & grant aktif dimuat per request, `requireRole`/`requirePermission`, 15 test TDD ✔; **tim (bawahan langsung) belum**: menunggu modul employee
-- [~] Test matriks akses (TDD) untuk aksi IAM — aturan dasar (`hasPermission`, `isGrantActive`) ✔; aksi kelola role/grant menunggu endpointnya
+- [x] `core/access`: muat role, grant (cek kedaluwarsa), tim; `requireRole`/`requireGrant` — role & grant aktif dimuat per request, `requireRole`/`requirePermission`, `isSelf`/`isInTeam` (tim = `manager_id` target, tanpa query); 20 test TDD
+- [x] Test matriks akses (TDD) untuk aksi IAM — `iam.policy.test.ts` 60 baris (akun, undang, role, nonaktif, Utama, grant, audit); mutasi aturan HR terbukti tertangkap
 - [x] `GET /me` — modul `iam` (routes/policy/service/repository/schema/index), 8 integration test (401 ×4, 200, last_login_at, pencabutan grant langsung berlaku, OpenAPI)
-- [ ] Kelola role HR_ADMIN/MANAGER; aturan Super Admin Utama (4 hak eksklusif, tidak boleh 0 SUPER_ADMIN)
-- [ ] Grant: beri, cabut, kedaluwarsa, audit
-- [~] Audit log (core) + halaman audit untuk SUPER_ADMIN — tabel `audit.audit_logs` + `writeAudit()` (transaksi, redaksi) ✔; endpoint & halaman audit belum
-- [ ] Notifikasi in-app + pengiriman email via SMTP (lokal: dicatat ke log; staging/produksi: Google Workspace) + `email_outbox`
+- [x] Kelola role HR_ADMIN/MANAGER; aturan Super Admin Utama (4 hak eksklusif, tidak boleh 0 SUPER_ADMIN) — `PATCH /accounts/:id/role`, serah-terima Utama (D-033), cek SUPER_ADMIN aktif ≥ 1, grant tak berlaku dicabut otomatis (D-034)
+  - [x] Kelola akun: `GET /accounts`, `GET /accounts/:id`, `POST /accounts/invite`, `POST /accounts/:id/deactivate|reactivate` (ban Supabase satu transaksi) (tambahan 2026-09-28: baris matriks "Undang akun karyawan, nonaktifkan akun")
+- [x] Grant: beri, cabut, kedaluwarsa, audit — `GET|POST /grants`, `POST /grants/:id/revoke`, kedaluwarsa dicek per request, audit, notifikasi diberikan/dicabut/akan kedaluwarsa (cron `grant-expiry`)
+- [~] Audit log (core) + halaman audit untuk SUPER_ADMIN — tabel + `writeAudit()` + `GET /audit-logs` (SA, filter) ✔; halaman web di Bagian C
+- [~] Notifikasi in-app + pengiriman email via SMTP (lokal: dicatat ke log; staging/produksi: Google Workspace) + `email_outbox` — modul `notification` (notify, outbox + retry, endpoint), pemicu IAM, cron `grant-expiry` & `email-retry` (`CRON_SECRET`), 8 integration test dengan pengirim palsu ✔; **pengirim SMTP (nodemailer) belum diuji ke Gmail sungguhan** (menunggu izin kirim email uji / deploy API)
 - [~] Keputusan OD-5 (akun pengirim Workspace + App Password) sebelum uji undangan — staging bisa uji undangan dengan akun D-032; akun final menunggu OD-5
-- [~] Script `bootstrap-super-admin` dan `recover-primary-admin` — `bootstrap-super-admin` ✔ (jalan nyata 2026-09-28: Utama `admin.arthasia@gmail.com` di DB lokal **dan DB staging**, satu user Auth staging, idempoten teruji); `recover-primary-admin` belum
+- [x] Script `bootstrap-super-admin` dan `recover-primary-admin` — `bootstrap-super-admin` ✔ (jalan nyata 2026-09-28: Utama `admin.arthasia@gmail.com` di DB lokal **dan DB staging**, satu user Auth staging, idempoten teruji); `recover-primary-admin` ✔ (script + service teruji di DB kosong, dry-run ✔)
 - [x] Helper test `tests/helpers/auth.ts` (`testVerifier`, `createAuthFixture().loginAs`) (tambahan 2026-09-28)
 - [x] Uji login end-to-end: token asli Auth staging → `GET /me` lokal 200, token dirusak 401, logout mencabut sesi (tambahan 2026-09-28)
-- [ ] Web: halaman login, sesi, route guard per role, menu per role, manajemen akun & grant
+- [x] Web: halaman login, sesi, route guard per role, menu per role, manajemen akun & grant — login/lupa/callback/atur password, guard & menu per role, halaman Akun (undang, ubah role, nonaktif, serah-terima Utama), Grant, Audit log, Notifikasi, Profil; 17 test Vitest; build ✔; **belum dicoba di browser** (tidak ada browser otomatis di sesi ini)
+  - [x] Akun uji per role untuk verifikasi tampilan (DB lokal + Auth staging): `hr.arthasia@gmail.com` (HR_ADMIN ↔ Siti Rahmawati), `mgr.arthasia@gmail.com` (MANAGER ↔ Andi Wijaya), `emp.arthasia@gmail.com` (EMPLOYEE ↔ Rizky Ramadhan); password dipegang pemilik projek (tidak dicatat di repo) (tambahan 2026-09-28)
   - [ ] Captcha **Turnstile (Cloudflare)** di halaman login: widget + `captchaToken` pada login/reset, lalu aktifkan *Attack Protection → Captcha* di Supabase dengan *secret key* dari Cloudflare (tambahan 2026-09-28: sempat hendak diaktifkan di dashboard staging dengan secret buatan sendiri; ditunda karena akan memblokir semua login)
-  - [ ] Ganti password Super Admin lewat reset password setelah halaman login ada (tambahan 2026-09-28: password tertulis di percakapan)
+  - [ ] Ganti password Super Admin lewat halaman **Profil → Ganti password** (sudah tersedia) (tambahan 2026-09-28: password tertulis di percakapan) — dilakukan pemilik projek
 
 ### Fase 3 — Organization
 - [~] Skema + migrasi + seed dummy — tabel ERD (departments, positions, employment_statuses, grades, work_locations) + seed dummy ✔; company_profile, system_settings, holidays belum
 - [ ] Profil perusahaan, pengaturan sistem
-- [ ] Departemen (hierarki), jabatan, level, lokasi kerja (geofence), hari libur
-- [ ] Policy + test
+- [~] Departemen (hierarki), jabatan, level, lokasi kerja (geofence), hari libur — baca: `GET /master-data` + struktur organisasi (D-035) ✔; CRUD & hari libur belum
+ - [x] Kategori status kepegawaian (enum `EmploymentCategory` di `employment_statuses.category`) + seed 5 kategori (tambahan 2026-09-29: D-035 navigasi Data Pegawai Aktif)
+- [~] Policy + test — `canReadMasterData` (5 test) ✔; policy tulis master data belum
 - [ ] Web: halaman master data
+ - [x] Web: Struktur Organisasi (per departemen + bagan atasan, pencarian) (tambahan 2026-09-29: D-035 menu e)
 
 ### Fase 4 — Employee
 - [ ] Keputusan OD-6 (ubah data sensitif milik sendiri)
-- [~] Skema + migrasi + seed dummy (NIK/NPWP fiktif berformat valid) — tabel ERD (employees, employee_personal, employee_bank_accounts, family_members, educations, trainings) + seed dummy 15 karyawan ✔; documents, histories, import_jobs belum
-- [ ] CRUD karyawan + filter, pencarian, paginasi
-- [ ] `manager_id` + validasi (harus MANAGER/SUPER_ADMIN)
-- [ ] Data sensitif & rekening dengan grant (HR: semua, MANAGER: tim)
+- [~] Skema + migrasi + seed dummy (NIK/NPWP fiktif berformat valid) — tabel ERD + seed dummy ✔; `employment_histories` + `exit_reason` (migrasi `20260929020000_employee_categories_and_histories`, D-035) ✔, seed 21 karyawan (2 nonaktif) + riwayat ✔; documents, import_jobs belum
+- [x] CRUD karyawan + filter, pencarian, paginasi — `GET/POST/PATCH /employees`, filter kategori/departemen/lokasi/aktif, `q`, sort whitelist, paginasi ≤ 100; "hapus" = nonaktifkan (arsip, PLAN §4.5); 20 integration test (D-035)
+ - [x] Ubah status kepegawaian, nonaktifkan (alasan + tanggal efektif; akun login ikut nonaktif), aktifkan kembali; riwayat + audit (tambahan 2026-09-29: D-035 menu b–d)
+ - [x] `GET /employees/summary` (badge jumlah per kategori) & `GET /org-structure` (tambahan 2026-09-29: D-035)
+- [x] `manager_id` + validasi (harus MANAGER/SUPER_ADMIN) — akun aktif MANAGER/SA, bukan diri sendiri, tanpa siklus; `GET /employees/manager-options`
+- [~] Data sensitif & rekening dengan grant (HR: semua, MANAGER: tim) — **baca** ✔ (key dihilangkan bila tidak berhak, audit `employee.sensitive.read`, `view=work` need-to-know); tulis belum (OD-6)
 - [ ] Dokumen (signed upload URL), kontak darurat, riwayat
 - [ ] Karyawan ubah data diri terbatas
 - [ ] Undangan akun dari data karyawan
 - [ ] Import CSV/Excel (template, validasi per baris, laporan error)
-- [ ] Policy + test
-- [ ] Web: daftar, detail, form, import
+- [~] Policy + test — matriks employee 45 test (TDD) ✔ untuk aksi D-035; aksi tulis sensitif/dokumen belum
+- [~] Web: daftar, detail, form, import — daftar per kategori, panel detail bertab, form tambah/ubah, Ubah Status, Pengaktifan, Pegawai Tidak Aktif ✔ (D-035); import belum
+ - [x] Web: shell navigasi baru (top nav kelompok besar → sidebar kelompok kecil/isi, drawer mobile, breadcrumb, Ctrl+K, lazy route + prefetch), Dashboard kosong, halaman Maintenance untuk Arsip (f–o) & Laporan (p) (tambahan 2026-09-29: D-035)
+ - [ ] Isi menu Arsip: Data Kontak, Keluarga, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja, Assets, File, Bank, Riwayat Peringatan; menu Laporan (tambahan 2026-09-29: D-035, saat ini Maintenance)
 
 ### Fase 5 — Attendance (+ Approval)
 - [ ] Modul `approval`: mode paralel & tunggal, override, kasus khusus (PLAN §5.2) + test
@@ -215,6 +224,34 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+### 2026-09-29 — D-035: web Personal Management + API employee/organization
+- **Dikerjakan (rencana disetujui; keputusan pemilik projek: SA+HR penuh & MANAGER baca tim, 5 kategori tanpa "Masa Percobaan", menu b = ubah kategori + nonaktifkan, akun login ikut nonaktif):**
+ - **Skema:** migrasi `20260929020000_employee_categories_and_histories` (enum kategori + `employment_statuses.category` unik, `employees.exit_reason` + CHECK, `employment_histories`, index daftar). Seed: 5 status berkategori (nama lama diganti, "Masa Percobaan" di-soft delete), 21 karyawan (2 nonaktif) + riwayat.
+ - **API:** modul `organization` (`GET /master-data`) & `employee` (daftar/ringkasan/detail `view=work|full`/tambah/ubah/ubah status/nonaktif/aktif kembali/pilihan atasan/struktur); `iam` menambah fungsi publik (tautan akun, atasan sah, nonaktifkan akun pegawai dalam transaksi pemanggil); `Cache-Control: private, no-store` untuk `/api/*`.
+ - **Web:** navigasi `navigation.ts` (satu sumber menu), top nav + sidebar kontekstual (lipat, badge jumlah, prefetch), drawer mobile, pencarian cepat Ctrl+K (menu + pegawai), route lazy + preload, tema zinc + aksen teal + Geist; halaman a–e, Dashboard kosong, Maintenance (ilustrasi SVG) untuk f–p; DataTable TanStack Table v9 (sort/paginasi server, state di URL).
+ - **QA:** `docs/qa/` (README, plan, 32 kasus, run).
+- **Keputusan:** **D-035** (PLAN §8).
+- **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ (192 file) · `bun run check:boundaries` ✔ (173 modul, 0 pelanggaran) · `bun run db:check` ✔ · `bun run test` ✔ (shared 10, api 237, web 27) · seed 2× idempoten ✔ · tanpa sisa data test ✔ · `bun run build` web ✔ (halaman ter-chunk terpisah) · Playwright Chromium: 24 layar (desktop, mobile, SA & MANAGER) 0 error konsol + alur UI penuh tambah → ubah status → nonaktif → aktif kembali (4 audit), data uji dihapus.
+- **Masalah / catatan:** `prisma migrate dev` menolak berjalan non-interaktif → SQL migrasi dibuat dengan `prisma migrate diff` lalu `migrate deploy` (hasil sama; `db:check` tanpa selisih). Enum `POSITION_CHANGED` ditambahkan ke migrasi yang **belum di-commit** setelah sempat diterapkan lokal (dibatalkan manual di DB lokal lalu diterapkan ulang). `@tanstack/react-table` terpasang v9 (API `useTable` + `tableFeatures`). Verifikasi visual memakai harness di scratchpad (API lokal + verifier token uji, request Supabase diblokir) karena tidak ada browser/penanda sesi asli; login Supabase sungguhan di web baru **belum diverifikasi**. Membaca tab Pribadi/Rekening sebagai SA saat verifikasi menulis audit `employee.sensitive.read` di DB lokal (disengaja, catatan sah).
+- **Tambahan (permintaan pemilik projek):** uji akun HR_ADMIN 18/18 lulus (bukti `/mnt/winD/WORK/Magang/QA/2026-09-29-hr-account/`); aturan lokasi bukti QA (`/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/`) dicatat di skill `hris-qa-docs` & `hris-e2e-playwright` (+ `outputDir` templat Playwright).
+- **Logo (permintaan pemilik projek):** monogram SVG sementara diganti logo resmi `apps/web/public/logo/logo-arthasia.png` (nama file asli `logo-arthasia(1)(1)(1).png` diganti supaya aman di URL) di top bar, menu mobile, halaman auth (login, lupa/atur password, callback), dan favicon (`favicon.svg` lama dihapus). Bukti: `/mnt/winD/WORK/Magang/QA/2026-09-29-logo/`. Kemudian (permintaan berikutnya) logo + teks "Arthasia HRIS / PT Arthasia Cipta Pratama" diganti **logo horizontal saja** `public/logo/logo-horizontal.svg` (nama asli `Logo-horizontal.svg` → huruf kecil; ditambah `<title>` untuk lint a11y) lewat komponen `BrandLogo`; ikon PNG tetap untuk favicon. Bukti: `/mnt/winD/WORK/Magang/QA/2026-09-29-logo-horizontal/`.
+- **Persetujuan:** pemilik projek meninjau tampilan & menyatakan "semuanya oke", lalu meminta commit & push ke `HRIS/Oatse/Linux-Windows` (2026-09-29).
+- **Berikutnya:** lihat §2.
+
+### 2026-09-28 — Akun uji per role + verifikasi tampilan
+- **Dikerjakan (disetujui pemilik projek):** pemilik projek mencoba web: login/logout & semua fitur Super Admin bisa diklik. Sebelumnya `VITE_SUPABASE_URL` di `.env` kosong (tertimpa tab editor lama) → layar kosong; diisi ulang. Script baru `create-dev-account` + service `provisionAccount` (idempoten, audit, menolak mengubah SUPER_ADMIN; 2 test). Dibuat 3 akun uji di Auth staging + DB lokal, tertaut karyawan dummy: HR_ADMIN `hr.arthasia@gmail.com` (Siti Rahmawati), MANAGER `mgr.arthasia@gmail.com` (Andi Wijaya), EMPLOYEE `emp.arthasia@gmail.com` (Rizky Ramadhan).
+- **Verifikasi (login sungguhan, read-only, lalu logout):** `/me` role sesuai & karyawan tertaut; HR: `/accounts` 200, `/grants` 403, `/audit-logs` 403; MANAGER & EMPLOYEE: `/accounts`/`/grants`/`/audit-logs` 403; semua `/notifications` 200 — sesuai matriks PLAN §4.3. Jalan ulang script → `unchanged`.
+- **Catatan:** ejaan `hr.arthaasia` di pesan pemilik projek dianggap salah ketik → `hr.arthasia`. Pastikan ketiga Gmail milik kantor (notifikasi akan dikirim ke sana). Akun uji hanya di DB **lokal** (DB staging belum). Password tertulis di percakapan → hanya untuk data dummy.
+
+### 2026-09-28 — Fase 2 IAM: Bagian A (API akun/role/grant/audit), B (notifikasi & email), C (web)
+- **Dikerjakan (rencana disetujui; keputusan: login ulang di klien, HR hanya EMPLOYEE/MANAGER, captcha ditunda):**
+  - **A:** `isSelf`/`isInTeam`; matriks policy IAM (60 test, TDD); endpoint `/accounts` (daftar, detail, undang, role, nonaktif/aktif + ban Supabase), serah-terima Utama (`amr` ≤ 5 menit), `/grants` (beri, cabut), `/audit-logs`; `AuthAdmin` + palsu; script `recover-primary-admin`.
+  - **B:** skema `notification` (migrasi `20260928085157_add_notification`); `core/email` (SMTP nodemailer / log); modul `notification` (notify tidak melempar, outbox + retry, endpoint milik sendiri); pemicu grant & SUPER_ADMIN/Utama; cron `grant-expiry` & `email-retry` (`CRON_SECRET`), `vercel.json` crons harian.
+  - **C:** web auth (login, lupa, callback, atur password), guard & menu per role, halaman Akun/Grant/Audit/Notifikasi/Profil, 401 global → keluar.
+- **Keputusan:** **D-033** (konfirmasi Utama = login ulang, klaim `amr`), **D-034** (aturan kelola akun).
+- **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ · `bun run check:boundaries` ✔ (123 modul) · `bun run db:check` ✔ · `bun run test` ✔ (shared 10, api 165, web 17) · suite api penuh di DB kosong sementara ✔ (test Utama berjalan, tanpa sisa data) · `bun run build` ✔ · mutasi aturan HR tertangkap test · smoke login sungguhan (read-only): `/me`, `/accounts`, `/grants`, `/audit-logs`, `/notifications` 200, cron tanpa secret 401, OpenAPI 15 path, halaman web 200, 0 error log, logout.
+- **Masalah / catatan:** Prisma 7 & Biome memformat ulang file sehingga beberapa edit berbasis teks gagal aman (tidak ada perubahan setengah jadi) lalu diulang; shadcn CLI kembali menambah paket `cn` & `next-themes` (dihapus); deadlock `vi.mock` (factory meng-import app) diperbaiki dengan mock terpisah; `pkill -f` sempat mematikan shell sendiri; notifikasi sisa test (tanpa FK) dibersihkan & cleanup fixture diperbaiki.
+- **Belum diverifikasi:** pengirim SMTP nodemailer ke Gmail sungguhan; UI di browser (perlu dicoba pemilik projek); migrasi `notification` belum di staging.
 
 ### 2026-09-28 — Pemulihan & pembaruan menyeluruh PROGRESS
 - **Kejadian:** `docs/PROGRESS.md` di working tree tertimpa pukul 15:30:10 oleh versi pertama projek (commit `9c98778` + centang review Fase 0), kemungkinan dari tab editor lama yang disimpan. File lain utuh.

@@ -47,7 +47,18 @@ describe("createSupabaseVerifier", () => {
     expect(await verifier.verify(await sign({}))).toEqual({
       authUserId: USER_ID,
       email: "budi@example.test",
+      passwordAuthAt: undefined,
     });
+  });
+
+  test("klaim amr password → passwordAuthAt (dasar konfirmasi login ulang, D-033)", async () => {
+    const token = await sign({
+      amr: [
+        { method: "otp", timestamp: 1_790_000_000 },
+        { method: "password", timestamp: 1_790_000_123 },
+      ],
+    });
+    expect((await verifier.verify(token)).passwordAuthAt).toEqual(new Date(1_790_000_123_000));
   });
 
   test.each([

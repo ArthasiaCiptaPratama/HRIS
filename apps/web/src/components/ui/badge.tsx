@@ -16,6 +16,11 @@ const badgeVariants = cva(
           "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
         link: "text-primary underline-offset-4 [a&]:hover:underline",
+        // Varian HRIS: lembut (latar tipis) supaya tabel tetap tenang.
+        brand: "bg-brand-soft text-brand-soft-foreground",
+        success: "bg-success-soft text-success",
+        warning: "bg-warning-soft text-warning",
+        muted: "bg-muted text-muted-foreground",
       },
     },
     defaultVariants: {

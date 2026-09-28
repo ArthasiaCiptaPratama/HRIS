@@ -36,6 +36,7 @@ Buat folder/README saat pertama dipakai, lalu catat di CODEMAP §1.
 
 - Jangan menandai case LULUS tanpa menjalankannya di commit yang disebut. Case yang tidak dijalankan = `BELUM`.
 - Bukti tidak boleh memuat data sensitif asli (PROMPT §3.7); pakai data dummy.
+- **Lokasi bukti visual (WAJIB, permintaan pemilik projek 2026-09-29):** screenshot/trace/video hasil QA & testing disimpan di **`/mnt/winD/WORK/Magang/QA/<YYYY-MM-DD>-<target>/`** (di luar repo, tidak di-commit) — **bukan** di scratchpad sesi, `/tmp`, atau folder repo. Satu subfolder per sesi uji; path itu yang dirujuk di `runs/*.md`.
 - Prioritas: P1 = akses/data sensitif/payroll/uang, P2 = aturan bisnis, P3 = tampilan.
 - ID case tidak pernah dipakai ulang; case usang diberi status `DIHAPUS` + alasan.
 

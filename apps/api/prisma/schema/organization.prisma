@@ -20,14 +20,16 @@ model Department {
 }
 
 model Position {
-  id           String     @id @default(uuid()) @db.Uuid
-  name         String     @db.VarChar(100)
-  departmentId String     @map("department_id") @db.Uuid
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  employees    Employee[]
-  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  id                      String              @id @default(uuid()) @db.Uuid
+  name                    String              @db.VarChar(100)
+  departmentId            String              @map("department_id") @db.Uuid
+  department              Department          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  employees               Employee[]
+  employmentHistoriesFrom EmploymentHistory[] @relation("HistoryFromPosition")
+  employmentHistoriesTo   EmploymentHistory[] @relation("HistoryToPosition")
+  createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt               DateTime?           @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([departmentId, name])
   @@index([departmentId])
@@ -35,16 +37,33 @@ model Position {
   @@schema("organization")
 }
 
+// D-035: kategori tetap untuk navigasi "Data Pegawai Aktif" (Tetap, PKWT, Internship, Daily Worker, Outsourcing).
+// Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
+enum EmploymentCategory {
+  PERMANENT
+  PKWT
+  INTERNSHIP
+  DAILY_WORKER
+  OUTSOURCING
+
+  @@schema("organization")
+}
+
 // ERD: employment_status. Tabel (bukan enum) karena diatur SUPER_ADMIN (PROMPT §6).
 model EmploymentStatus {
-  id        String     @id @default(uuid()) @db.Uuid
-  name      String     @db.VarChar(50)
-  employees Employee[]
-  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  id                      String              @id @default(uuid()) @db.Uuid
+  name                    String              @db.VarChar(50)
+  // Nullable: status baru buatan SUPER_ADMIN boleh tanpa kategori (hanya tampil di "Semua Pegawai").
+  category                EmploymentCategory?
+  employees               Employee[]
+  employmentHistoriesFrom EmploymentHistory[] @relation("HistoryFromStatus")
+  employmentHistoriesTo   EmploymentHistory[] @relation("HistoryToStatus")
+  createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt               DateTime?           @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([name])
+  @@unique([category])
   @@map("employment_statuses")
   @@schema("organization")
 }

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "../../src/generated/prisma/client.ts";
+import type { EmploymentCategory, PrismaClient } from "../../src/generated/prisma/client.ts";
 
 // Master data dummy (PLAN §5.7). Idempoten: upsert berdasarkan kunci unik.
 export const DEPARTMENTS: Record<string, string[]> = {
@@ -9,7 +9,18 @@ export const DEPARTMENTS: Record<string, string[]> = {
   "Penjualan & Pemasaran": ["Sales Manager", "Sales Executive"],
 };
 
-export const EMPLOYMENT_STATUSES = ["Tetap", "Kontrak (PKWT)", "Masa Percobaan", "Magang"];
+// D-035: satu status per kategori navigasi. `legacyNames` = nama seed lama yang diganti (DB developer lama).
+export const EMPLOYMENT_STATUSES: Array<{
+  name: string;
+  category: EmploymentCategory;
+  legacyNames: string[];
+}> = [
+  { name: "Pegawai Tetap", category: "PERMANENT", legacyNames: ["Tetap", "Masa Percobaan"] },
+  { name: "PKWT", category: "PKWT", legacyNames: ["Kontrak (PKWT)"] },
+  { name: "Internship", category: "INTERNSHIP", legacyNames: ["Magang"] },
+  { name: "Daily Worker", category: "DAILY_WORKER", legacyNames: [] },
+  { name: "Outsourcing", category: "OUTSOURCING", legacyNames: [] },
+];
 export const GRADES = ["Staf", "Staf Senior", "Supervisor", "Manajer", "Direktur"];
 
 export const WORK_LOCATIONS = [
@@ -57,12 +68,8 @@ export async function seedOrganization(prisma: PrismaClient): Promise<Organizati
   }
 
   const statuses = new Map<string, string>();
-  for (const name of EMPLOYMENT_STATUSES) {
-    const status = await prisma.employmentStatus.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
+  for (const { name, category, legacyNames } of EMPLOYMENT_STATUSES) {
+    const status = await upsertStatus(prisma, name, category, legacyNames);
     statuses.set(name, status.id);
   }
 
@@ -83,4 +90,37 @@ export async function seedOrganization(prisma: PrismaClient): Promise<Organizati
   }
 
   return { positions, statuses, grades, locations };
+}
+
+// Cari berdasarkan kategori → nama baru/lama → buat. Nama lama yang tersisa (mis. "Masa Percobaan")
+// dipindah pegawainya ke status baru lalu di-soft delete, supaya seed ulang di DB lama tetap bersih.
+async function upsertStatus(
+  prisma: PrismaClient,
+  name: string,
+  category: EmploymentCategory,
+  legacyNames: string[],
+) {
+  const existing =
+    (await prisma.employmentStatus.findUnique({ where: { category } })) ??
+    (await prisma.employmentStatus.findFirst({ where: { name: { in: [name, ...legacyNames] } } }));
+  const status = existing
+    ? await prisma.employmentStatus.update({
+        where: { id: existing.id },
+        data: { name, category, deletedAt: null },
+      })
+    : await prisma.employmentStatus.create({ data: { name, category } });
+  const leftovers = await prisma.employmentStatus.findMany({
+    where: { name: { in: legacyNames }, id: { not: status.id } },
+  });
+  for (const legacy of leftovers) {
+    await prisma.employee.updateMany({
+      where: { employmentStatusId: legacy.id },
+      data: { employmentStatusId: status.id },
+    });
+    await prisma.employmentStatus.update({
+      where: { id: legacy.id },
+      data: { deletedAt: legacy.deletedAt ?? new Date() },
+    });
+  }
+  return status;
 }

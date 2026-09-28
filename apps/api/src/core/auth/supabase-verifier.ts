@@ -8,6 +8,7 @@ const claimsSchema = z.object({
   sub: z.uuid(),
   email: z.email().optional(),
   role: z.literal("authenticated"),
+  amr: z.array(z.object({ method: z.string(), timestamp: z.number() })).optional(),
 });
 
 export interface SupabaseVerifierOptions {
@@ -34,7 +35,12 @@ export function createSupabaseVerifier({
           algorithms: ["ES256", "RS256"],
         });
         const claims = claimsSchema.parse(payload);
-        return { authUserId: claims.sub, email: claims.email };
+        const password = claims.amr?.find((entry) => entry.method === "password");
+        return {
+          authUserId: claims.sub,
+          email: claims.email,
+          passwordAuthAt: password ? new Date(password.timestamp * 1000) : undefined,
+        };
       } catch {
         // Alasan teknis (kedaluwarsa, tanda tangan, issuer) tidak dibocorkan ke klien.
         throw new UnauthenticatedError();

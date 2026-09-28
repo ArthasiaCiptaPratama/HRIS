@@ -15,7 +15,9 @@
     "db:reset": "prisma migrate reset --force && prisma db seed",
     "db:seed": "prisma db seed",
     "db:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
-    "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts"
+    "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts",
+    "recover:primary-admin": "bun --env-file=../../.env scripts/recover-primary-admin.ts",
+    "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts"
   },
   "dependencies": {
     "@hono/swagger-ui": "0.6.1",
@@ -26,11 +28,13 @@
     "@supabase/supabase-js": "2.117.2",
     "hono": "4.13.9",
     "jose": "6.2.12",
+    "nodemailer": "10.0.11",
     "pg": "8.23.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",
+    "@types/nodemailer": "8.0.2",
     "@types/pg": "8.23.1",
     "dotenv": "18.0.4",
     "prisma": "7.10.0"
