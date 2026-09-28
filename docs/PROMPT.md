@@ -19,13 +19,15 @@ Jangan membaca seluruh repo tanpa tujuan. Gunakan CODEMAP untuk langsung menuju 
 
 ## 2. Protokol Sesi
 
+Rincian operasional (kapan bertanya, status per poin, pengisian PROGRESS, format laporan) ada di skill **`.claude/skills/hris-workflow/`**, yang wajib dipakai untuk setiap tugas.
+
 | Langkah | Yang dilakukan |
 |---|---|
 | **1. Orientasi** | Baca sesuai §1. Sebutkan fase aktif, item checklist yang akan dikerjakan, dan keputusan terbuka yang relevan. |
-| **2. Rencana** | Tulis rencana singkat: file yang akan dibuat/diubah, test yang akan ditulis, dan risiko. Untuk perubahan besar atau yang menyentuh model akses/payroll, **minta persetujuan** dulu. |
-| **3. Kerjakan** | Satu item checklist dalam satu waktu. Test dulu untuk policy & payroll (TDD). Ikuti konvensi §4–§9. |
+| **2. Rencana** | Tulis rencana singkat: poin kerja, file yang akan dibuat/diubah, test, aksi keluar, dan risiko. **Selalu tunggu persetujuan** sebelum mulai (kecuali pertanyaan/penjelasan dan pemeriksaan read-only). |
+| **3. Kerjakan** | Satu poin dalam satu waktu; setelah tiap poin: cek relevan, perbarui checklist PROGRESS, status singkat, lanjut. Langkah baru → sub-item fase aktif "(tambahan YYYY-MM-DD)". Test dulu untuk policy & payroll (TDD). Ikuti konvensi §4–§9. **Setiap aksi keluar** (commit, push, PR, deploy, tulis ke layanan luar) ditanyakan tepat sebelum dijalankan; `main` hanya atas permintaan eksplisit. |
 | **4. Verifikasi** | Jalankan `bun run typecheck`, `bun run lint`, `bun run check:boundaries`, dan test yang relevan. Laporkan hasil apa adanya, termasuk yang gagal. |
-| **5. Catat** | Perbarui **PROGRESS** (checklist + log sesi), **CODEMAP** (status & item baru), dan **PLAN** jika ada keputusan baru. |
+| **5. Catat** | Perbarui **PROGRESS** (§2 Fokus + log sesi di akhir; checklist sudah per poin), **CODEMAP** (status & item baru), dan **PLAN** jika ada keputusan baru. Tutup dengan laporan akhir format `hris-workflow`. |
 
 Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 

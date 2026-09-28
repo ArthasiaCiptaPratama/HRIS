@@ -18,6 +18,10 @@ Table organization.departments {
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null]
   deleted_at timestamptz
+
+  indexes {
+    parent_id
+  }
 }
 
 Table organization.positions {
@@ -194,7 +198,7 @@ Table employee.trainings {
   }
 }
 
-//// ---------- Skema: iam (RENCANA Fase 2, belum ada di database) ----------
+//// ---------- Skema: iam (D-028: satu akun satu role) ----------
 
 Enum iam.role {
   SUPER_ADMIN
@@ -203,16 +207,71 @@ Enum iam.role {
   EMPLOYEE
 }
 
+Enum iam.permission {
+  "employee.personal.read"
+  "employee.personal.write"
+  "employee.bank.read"
+  "employee.bank.write"
+  "employee.documents.read"
+  "employee.documents.write"
+  "contract.manage"
+  "payroll.period.prepare"
+}
+
 Table iam.accounts {
-  id uuid [pk]
+  id uuid [pk, default: `gen_random_uuid()`]
   auth_user_id uuid [not null, unique, note: 'User Supabase Auth; tanpa FK (D-023)']
   employee_id uuid [unique, ref: - employee.employees.id, note: 'Nullable: SUPER_ADMIN boleh tanpa data karyawan']
-  email varchar(254) [not null]
+  email varchar(254) [not null, unique]
   role iam.role [not null, note: 'Satu akun satu role (D-028)']
   is_active boolean [not null, default: true]
-  is_primary_super_admin boolean [not null, default: false]
+  is_primary_super_admin boolean [not null, default: false, note: 'Unik parsial: maks. satu; CHECK hanya SUPER_ADMIN']
   last_login_at timestamptz
-  created_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null]
-  Note: 'RENCANA Fase 2, belum ada di database'
+
+  indexes {
+    role
+  }
+}
+
+Table iam.permission_grants {
+  id uuid [pk, default: `gen_random_uuid()`]
+  account_id uuid [not null, ref: > iam.accounts.id]
+  permission iam.permission [not null]
+  expires_at timestamptz
+  reason text
+  granted_by uuid [not null, ref: > iam.accounts.id]
+  revoked_at timestamptz [note: 'CHECK: revoked_at & revoked_by diisi bersamaan']
+  revoked_by uuid [ref: > iam.accounts.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    account_id
+    granted_by
+    revoked_by
+  }
+}
+
+//// ---------- Skema: audit (core, append-only, tanpa FK) ----------
+
+Table audit.audit_logs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  actor_account_id uuid [note: 'Null = script/sistem']
+  action varchar(100) [not null]
+  entity_type varchar(50) [not null]
+  entity_id varchar(100)
+  before jsonb [note: 'Tanpa nilai sensitif mentah']
+  after jsonb
+  reason text
+  request_id varchar(128)
+  ip varchar(45)
+  occurred_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    actor_account_id
+    (entity_type, entity_id)
+    occurred_at
+  }
 }

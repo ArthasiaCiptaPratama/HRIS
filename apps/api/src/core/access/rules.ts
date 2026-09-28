@@ -1,0 +1,35 @@
+import { isPermissionGrantableTo, type Permission, ROLE, type Role } from "@hris/shared";
+
+// Konteks akses per request (PLAN §4, D-008: dimuat dari DB setiap request, bukan dari JWT).
+export interface Actor {
+  accountId: string;
+  authUserId: string;
+  email: string;
+  role: Role;
+  /** Null bila akun tidak terhubung ke data karyawan (hak layanan diri tidak ada, PLAN §4.1). */
+  employeeId: string | null;
+  isPrimarySuperAdmin: boolean;
+  /** Grant aktif saja (belum dicabut, belum kedaluwarsa). */
+  grants: ReadonlySet<Permission>;
+}
+
+export function hasRole(actor: Actor, roles: readonly Role[]): boolean {
+  return roles.includes(actor.role);
+}
+
+// PLAN §4.2: SUPER_ADMIN punya semua izin; role lain hanya lewat grant yang boleh diberikan ke role-nya.
+export function hasPermission(actor: Actor, permission: Permission): boolean {
+  if (actor.role === ROLE.SUPER_ADMIN) return true;
+  return actor.grants.has(permission) && isPermissionGrantableTo(permission, actor.role);
+}
+
+export interface GrantValidity {
+  expiresAt: Date | null;
+  revokedAt: Date | null;
+}
+
+// PLAN §4.2: grant mati otomatis setelah lewat & bisa dicabut kapan saja.
+export function isGrantActive(grant: GrantValidity, now: Date): boolean {
+  if (grant.revokedAt !== null) return false;
+  return grant.expiresAt === null || grant.expiresAt.getTime() > now.getTime();
+}
