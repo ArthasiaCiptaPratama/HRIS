@@ -13,7 +13,7 @@
 | ---- | ---------------- | ------------ |
 | 0    | Instruksi Projek | Selesai      |
 | 1    | Fondasi          | Berjalan     |
-| 2    | IAM              | Belum mulai  |
+| 2    | IAM              | Berjalan (fondasi akses) |
 | 3    | Organization     | Berjalan (skema ERD) |
 | 4    | Employee         | Berjalan (skema ERD) |
 | 5    | Attendance       | Belum mulai  |
@@ -31,14 +31,18 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ## 2. Fokus Saat Ini
 
-- **Fase aktif:** 1 — Fondasi (sisa item akun luar) · **Target minggu 2026-09-28 (D-027): employee management** — skema ERD `organization` & `employee` ✔, seed dummy ✔, **fondasi akses ✔** (iam/audit, core/auth, core/access, `GET /me`, bootstrap); berikutnya CRUD employee (+ tim MANAGER di core/access).
-- **Sudah jalan di lokal (Linux) & CI GitHub hijau:** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
-- **Langkah berikutnya:**
-  1. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
-  2. Verifikasi `bun install && bun run dev` di **Windows**.
-  3. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
-- **Supabase MCP:** terhubung ke project `iwgzuwcxsxnbjibhbqgh` (entri `.mcp.json`). Pemeriksaan read-only: PostgreSQL 17.6, TZ UTC, belum ada tabel/migrasi aplikasi, 0 user Auth, advisor keamanan & performa kosong. Entri duplikat scope user sebaiknya dihapus (`claude mcp remove supabase -s user`).
-- **Blocker aktif:** OD-9 (proteksi `main`), OD-5 (SMTP staging). Supabase staging siap (D-029); akun Vercel harus dibuat pemilik projek.
+- **Fase aktif:** 1 — Fondasi (sisa: Vercel, uji Windows, proteksi `main`) · **Target minggu 2026-09-28 (D-027): employee management**.
+- **Sudah jalan (per 2026-09-28):**
+  - Lokal (Linux) & CI hijau: monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + 5 migrasi, dependency-cruiser (14 aturan), 89 test, Dockerfile.
+  - Skema ERD `organization` & `employee` + seed dummy; fondasi akses (`iam`, `audit`, `core/auth`, `core/access`, `GET /me`); uji login end-to-end dengan token Supabase asli ✔.
+  - Staging Supabase (D-029, Seoul): semua migrasi via workflow `Deploy staging` (D-030); SMTP `admin.arthasia@gmail.com` (D-032) + undangan ✔; Super Admin Utama `admin.arthasia@gmail.com` di DB lokal & staging.
+  - Alur Git: PR #1–#6 ke `HRIS/debug/*`; `main` tidak disentuh (`ebb20e5`).
+- **Langkah berikutnya (menunggu pilihan & persetujuan pemilik projek):**
+  1. Rencana **CRUD employee** (endpoint master & karyawan, tim MANAGER di `core/access`, penyaringan field sensitif, test matriks) **atau** **halaman login web** (+ route guard, set password dari undangan, lalu captcha Turnstile).
+  2. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
+  3. Verifikasi `bun install && bun run dev` di **Windows**.
+- **Blocker / ditunda:** OD-9 (proteksi `main`, ditunda pemilik projek); akun Vercel dibuat pemilik projek; OD-5 akun email produksi.
+- **Keamanan yang harus dibereskan sebelum produksi:** ganti password DB staging (lalu perbarui secret `STAGING_DIRECT_URL`), cabut/buat ulang App Password Gmail, ganti password Super Admin (semua pernah tertulis di percakapan).
 
 ---
 
@@ -73,6 +77,12 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
 - [ ] Verifikasi `bun install && bun run dev` di **Windows**
+- [x] README "Mulai cepat" (install, env, db, dev) (tambahan 2026-09-28)
+- [x] MCP Supabase di `.mcp.json` (project `iwgzuwcxsxnbjibhbqgh`) terautentikasi + skill resmi `supabase` & `supabase-postgres-best-practices` (tambahan 2026-09-28)
+- [x] Skill projek: `hris-workflow`, `hris-db-schema`, `hris-flow-testing`, `hris-e2e-playwright`, `hris-qa-docs` (tambahan 2026-09-28)
+- [x] Workflow `.github/workflows/deploy-staging.yml` (D-030) + secret repo `STAGING_DIRECT_URL` (session pooler `aws-0-ap-northeast-2`, port 5432) (tambahan 2026-09-28: host direct Supabase hanya IPv6)
+- [x] Perbaikan advisor staging: RLS `public._prisma_migrations` (ERROR → INFO disengaja) & index `departments.parent_id` (tambahan 2026-09-28)
+- [x] Uji SMTP langsung (Gmail) & undangan Supabase Auth; user uji dibersihkan dari Auth staging (tambahan 2026-09-28)
 
 ### Fase 2 — IAM
 - [~] Skema `iam`, `audit`, `notification` + migrasi — `iam` (accounts, permission_grants) & `audit` (audit_logs) ✔ migrasi `20260928065300_add_iam_and_audit` + test constraint; `notification` belum
@@ -85,8 +95,12 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [~] Audit log (core) + halaman audit untuk SUPER_ADMIN — tabel `audit.audit_logs` + `writeAudit()` (transaksi, redaksi) ✔; endpoint & halaman audit belum
 - [ ] Notifikasi in-app + pengiriman email via SMTP (lokal: dicatat ke log; staging/produksi: Google Workspace) + `email_outbox`
 - [~] Keputusan OD-5 (akun pengirim Workspace + App Password) sebelum uji undangan — staging bisa uji undangan dengan akun D-032; akun final menunggu OD-5
-- [~] Script `bootstrap-super-admin` dan `recover-primary-admin` — `bootstrap-super-admin` ✔ (jalan nyata 2026-09-28: Utama `admin.arthasia@gmail.com` di DB lokal + user Auth staging, idempoten teruji); `recover-primary-admin` belum
+- [~] Script `bootstrap-super-admin` dan `recover-primary-admin` — `bootstrap-super-admin` ✔ (jalan nyata 2026-09-28: Utama `admin.arthasia@gmail.com` di DB lokal **dan DB staging**, satu user Auth staging, idempoten teruji); `recover-primary-admin` belum
+- [x] Helper test `tests/helpers/auth.ts` (`testVerifier`, `createAuthFixture().loginAs`) (tambahan 2026-09-28)
+- [x] Uji login end-to-end: token asli Auth staging → `GET /me` lokal 200, token dirusak 401, logout mencabut sesi (tambahan 2026-09-28)
 - [ ] Web: halaman login, sesi, route guard per role, menu per role, manajemen akun & grant
+  - [ ] Captcha **Turnstile (Cloudflare)** di halaman login: widget + `captchaToken` pada login/reset, lalu aktifkan *Attack Protection → Captcha* di Supabase dengan *secret key* dari Cloudflare (tambahan 2026-09-28: sempat hendak diaktifkan di dashboard staging dengan secret buatan sendiri; ditunda karena akan memblokir semua login)
+  - [ ] Ganti password Super Admin lewat reset password setelah halaman login ada (tambahan 2026-09-28: password tertulis di percakapan)
 
 ### Fase 3 — Organization
 - [~] Skema + migrasi + seed dummy — tabel ERD (departments, positions, employment_statuses, grades, work_locations) + seed dummy ✔; company_profile, system_settings, holidays belum
@@ -132,7 +146,10 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ### Rilis 1
 - [ ] Keputusan OD-4 (akun & paket), OD-8 (rollback & backup)
-- [ ] Supabase produksi + migrasi + bootstrap SUPER_ADMIN Utama
+  - [ ] Aktifkan *Prevent use of leaked passwords* (advisor `auth_leaked_password_protection`, WARN di staging; di dashboard mengarah ke pengaturan email provider, kemungkinan butuh paket berbayar) (tambahan 2026-09-28)
+- [ ] Rotasi rahasia staging: password DB (+ secret `STAGING_DIRECT_URL`), App Password `admin.arthasia@gmail.com`, cabut App Password `rizqy2458@gmail.com` (tambahan 2026-09-28: tertulis di percakapan)
+- [ ] Keputusan OD-5 (akun pengirim email produksi) & OD-9 (proteksi `main`) (tambahan 2026-09-28)
+- [ ] Supabase produksi (**wajib region `ap-southeast-1` Singapura**, D-029) + migrasi (workflow produksi di `main`, D-030) + bootstrap SUPER_ADMIN Utama
 - [ ] Vercel production + env
 - [ ] Uji asap (smoke test) di produksi
 
@@ -176,7 +193,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 | OD-6 | Ubah data sensitif/gaji milik sendiri       | Fase 4    | Menunggu keputusan  |
 | OD-7 | Cara `db:deploy` & env per environment      | Fase 1    | Terjawab → D-030 (GitHub Actions) |
 | OD-8 | Rollback migrasi & backup produksi          | Rilis 1   | Menunggu keputusan  |
-| OD-9 | Proteksi `main` butuh GitHub Team (repo private) | Rilis 1 | Menunggu keputusan  |
+| OD-9 | Proteksi `main` butuh GitHub Team (repo private) | Rilis 1 | Ditunda pemilik projek (GitHub Pro pribadi tidak berlaku untuk repo organisasi) |
 | OD-10 | Bentuk role akun | Fase 2 | Terjawab → D-028 (satu akun satu role) |
 
 Detail & rekomendasi: [PLAN §9](./PLAN.md#9-keputusan-terbuka).
@@ -198,6 +215,23 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-28 — Pemulihan & pembaruan menyeluruh PROGRESS
+- **Kejadian:** `docs/PROGRESS.md` di working tree tertimpa pukul 15:30:10 oleh versi pertama projek (commit `9c98778` + centang review Fase 0), kemungkinan dari tab editor lama yang disimpan. File lain utuh.
+- **Dikerjakan (disetujui pemilik projek, tab lama sudah ditutup):** dipulihkan dari commit `e52a139`; tiga catatan yang belum di-commit ditulis ulang (dua entri log di bawah + sub-item captcha & leaked password); audit seluruh checklist terhadap bukti; §1 status Fase 2 → Berjalan; §2 ditulis ulang; item yang belum tercatat ditambahkan sebagai sub-item `(tambahan 2026-09-28)`; OD-9 → ditunda.
+- **Verifikasi:** grep konsistensi (tanpa entri ganda; D-xxx/OD-x yang dirujuk ada di PLAN); `bunx biome ci .`.
+
+### 2026-09-28 — Bootstrap Super Admin ke DB staging; item captcha & leaked password
+- **Dikerjakan (izin pemilik projek):** `bootstrap:super-admin` dengan `DATABASE_URL` di-override ke session pooler staging (sekali jalan, `.env` tidak diubah; dry-run membuktikan override menang atas `--env-file`). User Auth `admin.arthasia@gmail.com` (`47a8155e-…`) ditemukan tanpa prompt → akun Utama staging dibuat (`f5828827-…`).
+- **Verifikasi (MCP):** `iam.accounts` staging = 1 (SUPER_ADMIN, Utama, aktif, `auth_user_id` cocok dengan `auth.users`), 1 audit `iam.account.bootstrap_primary_super_admin`. DB lokal tidak berubah (tetap Utama `f73bb6a3-…`).
+- **Dicatat untuk nanti (permintaan pemilik projek):** captcha **Turnstile** (sub-item Fase 2) dan *leaked password protection* (sub-item Rilis 1).
+- **Catatan:** entri ini sempat hilang karena PROGRESS tertimpa; ditulis ulang dari catatan sesi.
+
+### 2026-09-28 — Fondasi akses naik ke staging
+- **Dikerjakan (izin pemilik projek; `main` tidak disentuh):** push `46e18ce`, `c75d4ae`, `e52a139` ke `HRIS/Oatse/Linux-Windows` → CI run #36396299865 ✔. PR #5 → `HRIS/debug/database` (percobaan pertama berhenti karena `gh pr checks --watch` terputus jaringan; semua check ternyata lulus; dijalankan ulang tanpa PR ganda) merge `d8ca2fc` → CI #36396711338 ✔ → PR #6 → `HRIS/debug/fe-be` merge `31b2d85` → `Deploy staging` #36396869984 ✔.
+- **Verifikasi staging via MCP (read-only):** 5 migrasi tercatat (termasuk `add_departments_parent_id_index`, `add_iam_and_audit`); tabel `iam.accounts`, `iam.permission_grants`, `audit.audit_logs`; index unik parsial Utama & `departments_parent_id_idx`; 2 CHECK constraint; `anon`/`authenticated` tanpa USAGE pada `iam`/`audit`; `main` tetap `ebb20e5`.
+- **Advisor security:** INFO `rls_enabled_no_policy` (`_prisma_migrations`, disengaja); **WARN** `auth_leaked_password_protection`.
+- **Catatan:** entri ini sempat hilang karena PROGRESS tertimpa; ditulis ulang dari catatan sesi.
 
 ### 2026-09-28 — Uji login end-to-end (Auth staging → API lokal)
 - **Dikerjakan (izin pemilik projek):** publishable key diambil via MCP (`sb_publishable_…`, publik) dan diisi ke `VITE_SUPABASE_ANON_KEY` di `.env` lokal. Script sekali pakai (`supabase-js`): `signInWithPassword` sebagai `admin.arthasia@gmail.com` → token asli → `GET /api/v1/me` di `bun run dev:api` → `signOut`. Token tidak dicetak; script dihapus setelahnya.
