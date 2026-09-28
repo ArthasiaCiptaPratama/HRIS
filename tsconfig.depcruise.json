@@ -1,0 +1,14 @@
+{
+  "//": "Hanya untuk dependency-cruiser: resolusi alias '@/*' milik apps/web. Typecheck memakai tsconfig tiap workspace.",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./apps/web/src/*"]
+    }
+  },
+  "include": ["apps/*/src", "packages/*/src"]
+}

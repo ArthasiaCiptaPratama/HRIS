@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.vite
+apps/api/src/generated
+.env
+.env.*
+!.env.example
+.git
+.github
+docs
+e2e
+coverage
+*.log
