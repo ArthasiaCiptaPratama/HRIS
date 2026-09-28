@@ -46,6 +46,10 @@ Boleh: `search_docs`, `list_tables`/`list_migrations` untuk **membaca**, `get_ad
 
 ## Gotcha
 
+- Setelah deploy ke staging, jalankan MCP `get_advisors` (security & performance). `public._prisma_migrations` sudah diberi RLS (migrasi `enable_rls_on_prisma_migrations`); tabel aplikasi tidak boleh ada di `public`.
+- Koneksi staging: host direct Supabase hanya IPv6; migrasi pakai session pooler port 5432, runtime pakai transaction pooler 6543.
+- Jangan `bunx --cwd <dir> <bin>` (Bun membaca `<dir>` sebagai paket); pakai `cd <dir> && bunx <bin>` atau `working-directory`.
+
 - `prisma migrate reset` ditolak untuk AI agent tanpa persetujuan eksplisit; minta izin, lalu set `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION` = teks persetujuan pengguna persis.
 - `PrismaPromise` bukan Promise: bungkus `(async () => q())()` sebelum `expect(...).rejects`, dan selalu `await`.
 - Kode error Prisma: P2002 unik, P2003 FK, P2025 tidak ditemukan.

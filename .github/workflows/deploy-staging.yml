@@ -39,7 +39,9 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - name: Status migrasi sebelum deploy
-        run: bunx --cwd apps/api prisma migrate status || true
+        # Informasi saja: exit code != 0 berarti ada migrasi tertunda, bukan kegagalan.
+        working-directory: apps/api
+        run: bunx prisma migrate status || true
       - name: Terapkan migrasi (prisma migrate deploy)
         run: bun run db:deploy
       - name: Pastikan skema staging = skema Prisma

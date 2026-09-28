@@ -30,7 +30,7 @@ HRIS/
 │   ├── PROMPT.md                     [done] Bagaimana bekerja
 │   └── erd/hris.dbml                 [done] Diagram ERD (DBML, buka di dbdiagram.io); cermin skema Prisma, disetujui pemilik projek 2026-09-28
 ├── .github/workflows/ci.yml          [done] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Hijau di GitHub
-├── .github/workflows/deploy-staging.yml [wip] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu Deploy Hook Vercel opsional. Belum pernah jalan di GitHub
+├── .github/workflows/deploy-staging.yml [done] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu Deploy Hook Vercel opsional. Pertama sukses 2026-09-28 (run #36385730691)
 ├── .claude/skills/                    Skill Claude Code projek (dimuat otomatis)
 │   ├── hris-db-schema/               [done] Alur skema Prisma, ERD → Prisma, batas Supabase MCP
 │   ├── hris-e2e-playwright/          [done] Konvensi & templat Playwright (setup e2e/ saat pertama dipakai)
@@ -76,7 +76,8 @@ apps/api/
 │   │   └── audit.prisma
 │   ├── migrations/                   [wip] Hasil `prisma migrate dev` (di-commit, tidak pernah diedit setelah di-merge)
 │   │   ├── 20260928032354_init_module_schemas/  [done] SQL mentah: CREATE SCHEMA untuk 10 skema modul
-│   │   └── 20260928035758_add_organization_and_employee_master/  [done] Tabel ERD organization & employee
+│   │   ├── 20260928035758_add_organization_and_employee_master/  [done] Tabel ERD organization & employee
+│   │   └── 20260928061939_enable_rls_on_prisma_migrations/  [done] RLS pada `public._prisma_migrations` (advisor Supabase; bersyarat, portabel)
 │   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production
 │       ├── index.ts                  Runner: organization → employee
 │       ├── organization.ts           5 departemen, 12 jabatan, 4 status, 5 grade, 2 lokasi (Jakarta, Bandung)
