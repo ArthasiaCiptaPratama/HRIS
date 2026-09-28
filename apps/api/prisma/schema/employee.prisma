@@ -1,0 +1,175 @@
+// Modul employee (PLAN §1.2) — data induk karyawan. ERD minggu 2026-09-28 (D-026).
+// Data sensitif dipisah ke tabel sendiri supaya akses grant (PLAN §4.2) tegas di repository.
+
+enum Gender {
+  MALE
+  FEMALE
+
+  @@schema("employee")
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+
+  @@schema("employee")
+}
+
+enum Religion {
+  ISLAM
+  PROTESTANT
+  CATHOLIC
+  HINDU
+  BUDDHIST
+  CONFUCIAN
+  OTHER
+
+  @@schema("employee")
+}
+
+enum FamilyRelationship {
+  SPOUSE
+  CHILD
+  FATHER
+  MOTHER
+  SIBLING
+  OTHER
+
+  @@schema("employee")
+}
+
+model Employee {
+  id                 String    @id @default(uuid()) @db.Uuid
+  // ERD: nik = Nomor Induk Karyawan (bukan NIK KTP; NIK KTP ada di employee_personal.ktp_number).
+  employeeNumber     String    @map("employee_number") @db.VarChar(30)
+  fullName           String    @map("full_name") @db.VarChar(150)
+  // Tidak di ERD; dibutuhkan untuk direktori & undangan akun (PLAN §5.1).
+  workEmail          String?   @map("work_email") @db.VarChar(254)
+  phoneNumber        String?   @map("phone_number") @db.VarChar(30)
+  emergencyPhone     String?   @map("emergency_phone") @db.VarChar(30)
+  gender             Gender?
+  joinDate           DateTime  @map("join_date") @db.Date
+  endDate            DateTime? @map("end_date") @db.Date
+  employmentStatusId String    @map("employment_status_id") @db.Uuid
+  positionId         String    @map("position_id") @db.Uuid
+  workLocationId     String?   @map("work_location_id") @db.Uuid
+  gradeId            String?   @map("grade_id") @db.Uuid
+  // Tidak di ERD; PLAN §4.1 & D-009: tim MANAGER = bawahan langsung.
+  managerId          String?   @map("manager_id") @db.Uuid
+  // PLAN §4.5: karyawan nonaktif tidak bisa login; data tetap diarsip (tidak dihapus).
+  isActive           Boolean   @default(true) @map("is_active")
+
+  employmentStatus EmploymentStatus     @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
+  position         Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  workLocation     WorkLocation?        @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
+  grade            Grade?               @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  manager          Employee?            @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
+  subordinates     Employee[]           @relation("EmployeeManager")
+  personal         EmployeePersonal?
+  bankAccount      EmployeeBankAccount?
+  familyMembers    FamilyMember[]
+  educations       Education[]
+  trainings        Training[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([employeeNumber])
+  @@unique([workEmail])
+  @@index([positionId])
+  @@index([employmentStatusId])
+  @@index([workLocationId])
+  @@index([gradeId])
+  @@index([managerId])
+  @@index([fullName])
+  @@map("employees")
+  @@schema("employee")
+}
+
+// SENSITIF (PLAN §4.2 employee.personal.*): NIK KTP, NPWP, KK, lahir, alamat, status nikah, agama.
+model EmployeePersonal {
+  employeeId      String         @id @map("employee_id") @db.Uuid
+  employee        Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  ktpNumber       String?        @map("ktp_number") @db.VarChar(16)
+  npwpNumber      String?        @map("npwp_number") @db.VarChar(20)
+  // Tidak di ERD; tercantum di PLAN §4.2.
+  kkNumber        String?        @map("kk_number") @db.VarChar(16)
+  birthPlace      String?        @map("birth_place") @db.VarChar(100)
+  birthDate       DateTime?      @map("birth_date") @db.Date
+  ktpAddress      String?        @map("ktp_address")
+  domicileAddress String?        @map("domicile_address")
+  maritalStatus   MaritalStatus? @map("marital_status")
+  religion        Religion?
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ktpNumber])
+  @@map("employee_personal")
+  @@schema("employee")
+}
+
+// SENSITIF (PLAN §4.2 employee.bank.*).
+model EmployeeBankAccount {
+  employeeId    String   @id @map("employee_id") @db.Uuid
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  bankName      String   @map("bank_name") @db.VarChar(100)
+  accountNumber String   @map("account_number") @db.VarChar(30)
+  accountHolder String?  @map("account_holder") @db.VarChar(150)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("employee_bank_accounts")
+  @@schema("employee")
+}
+
+// ERD: family. Berisi data pribadi pihak ketiga → diperlakukan sensitif seperti employee.personal.*.
+model FamilyMember {
+  id           String             @id @default(uuid()) @db.Uuid
+  employeeId   String             @map("employee_id") @db.Uuid
+  employee     Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  name         String             @db.VarChar(150)
+  relationship FamilyRelationship
+  address      String?
+  // ERD memakai `age int`; disimpan tanggal lahir supaya umur tidak basi (dihitung saat dibaca).
+  birthDate    DateTime?          @map("birth_date") @db.Date
+  phoneNumber  String?            @map("phone_number") @db.VarChar(30)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId])
+  @@map("family_members")
+  @@schema("employee")
+}
+
+model Education {
+  id             String   @id @default(uuid()) @db.Uuid
+  employeeId     String   @map("employee_id") @db.Uuid
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  schoolName     String   @map("school_name") @db.VarChar(150)
+  major          String?  @db.VarChar(100)
+  graduationYear Int?     @map("graduation_year") @db.SmallInt
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId])
+  @@map("educations")
+  @@schema("employee")
+}
+
+model Training {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @map("employee_id") @db.Uuid
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  trainingField String   @map("training_field") @db.VarChar(150)
+  organizer     String?  @db.VarChar(150)
+  duration      String?  @db.VarChar(50)
+  trainingYear  Int?     @map("training_year") @db.SmallInt
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId])
+  @@map("trainings")
+  @@schema("employee")
+}

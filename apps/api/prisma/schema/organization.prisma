@@ -1,0 +1,82 @@
+// Modul organization (PLAN §1.2) — master data. ERD minggu 2026-09-28 (D-026).
+// Modul inti: modul lain boleh FK ke tabel di sini (PLAN §3.2).
+
+model Department {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @db.VarChar(100)
+  // CODEMAP §6.3: departemen berhierarki (opsional; ERD awal belum memakainya).
+  parentId  String?      @map("parent_id") @db.Uuid
+  parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children  Department[] @relation("DepartmentHierarchy")
+  positions Position[]
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([name])
+  @@map("departments")
+  @@schema("organization")
+}
+
+model Position {
+  id           String     @id @default(uuid()) @db.Uuid
+  name         String     @db.VarChar(100)
+  departmentId String     @map("department_id") @db.Uuid
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  employees    Employee[]
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([departmentId, name])
+  @@index([departmentId])
+  @@map("positions")
+  @@schema("organization")
+}
+
+// ERD: employment_status. Tabel (bukan enum) karena diatur SUPER_ADMIN (PROMPT §6).
+model EmploymentStatus {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String     @db.VarChar(50)
+  employees Employee[]
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([name])
+  @@map("employment_statuses")
+  @@schema("organization")
+}
+
+// ERD: grade (sebelumnya direncanakan sebagai job_levels di CODEMAP).
+model Grade {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String     @db.VarChar(50)
+  employees Employee[]
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([name])
+  @@map("grades")
+  @@schema("organization")
+}
+
+model WorkLocation {
+  id        String     @id @default(uuid()) @db.Uuid
+  name      String     @db.VarChar(100)
+  city      String?    @db.VarChar(100)
+  address   String?
+  // PLAN §5.4 geofence: belum ada di ERD; nullable sampai Fase 5 (attendance) mewajibkannya.
+  latitude  Decimal?   @db.Decimal(9, 6)
+  longitude Decimal?   @db.Decimal(9, 6)
+  radiusM   Int?       @map("radius_m")
+  employees Employee[]
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([name])
+  @@map("work_locations")
+  @@schema("organization")
+}

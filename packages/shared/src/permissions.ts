@@ -32,7 +32,8 @@ export const PERMISSION_GRANTABLE_TO: Record<Permission, readonly Role[]> = {
 };
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  "employee.personal.read": "Lihat data pribadi (NIK, NPWP, KK, tgl lahir, alamat, PTKP)",
+  "employee.personal.read":
+    "Lihat data pribadi (NIK KTP, NPWP, KK, lahir, alamat, status nikah, agama, PTKP, keluarga)",
   "employee.personal.write": "Ubah data pribadi",
   "employee.bank.read": "Lihat nomor rekening",
   "employee.bank.write": "Ubah nomor rekening",

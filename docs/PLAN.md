@@ -10,7 +10,7 @@
 | Pemilik       | Oatse                                                                      |
 | Repo          | https://github.com/ArthasiaCiptaPratama/HRIS.git                           |
 | Branch kerja  | `HRIS/Oatse/Linux-Windows`                                                 |
-| Dasar         | Sesi grill 2026-09-25 (keputusan D-001 s.d. D-022), revisi 2026-09-28 (D-023 s.d. D-025) |
+| Dasar         | Sesi grill 2026-09-25 (keputusan D-001 s.d. D-022), revisi 2026-09-28 (D-023 s.d. D-030) |
 | File terkait  | [CODEMAP](./CODEMAP.md) · [PROGRESS](./PROGRESS.md) · [PROMPT](./PROMPT.md) |
 
 ---
@@ -32,8 +32,8 @@ Membangun HRIS internal untuk **satu perusahaan** (± < 200 karyawan) yang:
 | Modul          | Ringkasan                                                                                             |
 | -------------- | ----------------------------------------------------------------------------------------------------- |
 | `iam`          | Akun (terhubung ke Supabase Auth), role, Super Admin Utama, grant izin per akun.                      |
-| `organization` | Profil perusahaan, pengaturan sistem, departemen, jabatan, level, lokasi kerja (geofence), hari libur. |
-| `employee`     | Data induk karyawan, atasan langsung (`manager_id`), data sensitif, rekening, dokumen, kontak darurat, riwayat, import CSV/Excel. |
+| `organization` | Profil perusahaan, pengaturan sistem, departemen, jabatan, status kepegawaian, grade, lokasi kerja (geofence), hari libur. |
+| `employee`     | Data induk karyawan, atasan langsung (`manager_id`), data sensitif, rekening, keluarga, pendidikan, pelatihan, dokumen, kontak darurat, riwayat, import CSV/Excel. |
 | `attendance`   | Shift, jadwal, absen (geofence + selfie + waktu server), koreksi absensi, lembur, penutupan periode absensi. |
 | `leave`        | Cuti tahunan (saldo, akrual, hold) dan izin (melahirkan, menikah, duka, sakit, dll.).               |
 | `approval`     | Mesin approval paralel yang dipakai attendance dan leave.                                             |
@@ -160,9 +160,10 @@ Catatan untuk Vercel:
 | ↳ **Utama**     | Penanda pada **tepat satu** akun SUPER_ADMIN. Punya 4 hak eksklusif (lihat 4.4).                      |
 | **HR_ADMIN**    | Operator administrasi seluruh perusahaan. Data sensitif hanya dengan grant.                           |
 | **MANAGER**     | Pemilik operasional **tim sendiri** (bawahan langsung). Data sensitif tim hanya dengan grant.         |
-| **EMPLOYEE**    | Karyawan. Melekat pada setiap akun yang terhubung ke data karyawan.                                   |
+| **EMPLOYEE**    | Karyawan biasa (tanpa hak administrasi).                                                             |
 
-- Role bersifat **tambahan**: staf HR = `EMPLOYEE + HR_ADMIN`.
+- **Satu akun tepat satu role** (D-028): staf HR ber-role `HR_ADMIN`, atasan ber-role `MANAGER`.
+- **Hak layanan diri** (absen, ajukan cuti/koreksi/lembur, lihat slip & data sendiri, ubah data diri terbatas) melekat pada **akun yang terhubung ke data karyawan**, apa pun role-nya. Karena itu HR_ADMIN/MANAGER tetap bisa absen & cuti, sedangkan SUPER_ADMIN tanpa data karyawan tidak (tanda \* di §4.3).
 - Role **tetap di kode**. SUPER_ADMIN hanya memberi/mencabut role, tidak membuat role baru.
 - **Tim MANAGER** = karyawan yang `manager_id`-nya menunjuk ke dia (satu tingkat). `manager_id` wajib menunjuk ke akun ber-role MANAGER atau SUPER_ADMIN.
 - Akun SUPER_ADMIN **boleh tanpa data karyawan** (tidak bisa absen, cuti, atau punya slip).
@@ -172,7 +173,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 
 | Kode izin                        | Artinya                                                                          | Bisa diberikan ke     |
 | -------------------------------- | -------------------------------------------------------------------------------- | --------------------- |
-| `employee.personal.read`         | Lihat NIK, NPWP, no. KK, tgl lahir, alamat, status nikah & tanggungan (PTKP)     | HR_ADMIN, MANAGER     |
+| `employee.personal.read`         | Lihat NIK KTP, NPWP, no. KK, tempat/tgl lahir, alamat KTP & domisili, status nikah, agama, tanggungan (PTKP), data keluarga | HR_ADMIN, MANAGER     |
 | `employee.personal.write`        | Ubah data di atas                                                                | HR_ADMIN, MANAGER     |
 | `employee.bank.read`             | Lihat nomor rekening                                                             | HR_ADMIN, MANAGER     |
 | `employee.bank.write`            | Ubah nomor rekening                                                              | HR_ADMIN, MANAGER     |
@@ -375,7 +376,7 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | D-004 | Satu skema Postgres per modul; FK hanya ke modul inti (`employee`, `organization`); akses lintas modul hanya via `index.ts`. | Integritas data + kemampuan ekstraksi. |
 | D-005 | **Supabase** untuk DB + Auth + Storage. Modul role bernama `iam` (skema `auth` milik Supabase). *(DB lokal disesuaikan oleh D-023)* | Login, undangan, dan storage siap pakai. |
 | D-006 | Akun lahir dari undangan HR/SUPER_ADMIN; self sign-up nonaktif; email + password. | Setiap user pasti karyawan sah. |
-| D-007 | Role tetap: SUPER_ADMIN (+ Utama), HR_ADMIN, MANAGER, EMPLOYEE, ditambah **grant izin per akun**. | Kontrol ketat atas data sensitif tanpa role builder. |
+| D-007 | *(bagian "role bersifat tambahan" diganti oleh D-028)* Role tetap: SUPER_ADMIN (+ Utama), HR_ADMIN, MANAGER, EMPLOYEE, ditambah **grant izin per akun**. | Kontrol ketat atas data sensitif tanpa role builder. |
 | D-008 | Role & grant dicek **dari DB setiap request**, bukan dari claim JWT. | Pencabutan akses langsung berlaku. |
 | D-009 | Tim MANAGER = bawahan langsung (`manager_id`), satu tingkat. | Fleksibel untuk struktur datar maupun berjenjang. |
 | D-010 | Approval **paralel** MANAGER + HR_ADMIN untuk cuti tahunan, izin, koreksi; lembur cukup MANAGER. | Atasan tahu kondisi operasional; HR memvalidasi administrasi. |
@@ -394,6 +395,11 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | D-023 | Development lokal memakai **PostgreSQL di container Docker** (versi major sama dengan Supabase; bukan Supabase CLI). Auth & Storage saat develop memakai Supabase project **staging**. Supabase hanya ada di staging & produksi. Tidak ada FK ke `auth.users`. | Setup lokal lebih ringan; alur auth & storage tetap identik dengan produksi. Konsekuensi: develop butuh internet dan project staging harus ada sejak Fase 1. |
 | D-024 | *(diganti oleh D-025)* Email lewat **Resend SMTP (free plan)**: dipasang sebagai custom SMTP Supabase Auth (staging & produksi) dan dipakai API untuk email aplikasi. API mengirim lewat SMTP (bukan SDK Resend). | Supabase Auth hanya menerima SMTP; satu jalur SMTP untuk keduanya memudahkan pindah ke SMTP kantor nanti. SMTP bawaan Supabase terlalu terbatas untuk uji undangan. |
 | D-025 | Email lewat **SMTP Google Workspace kantor**: `smtp.gmail.com` port 587 (STARTTLS), login dengan **akun pengirim khusus** (mis. `hris@<domain-kantor>`) + **App Password** (akun wajib 2-Step Verification). Dipasang sebagai custom SMTP Supabase Auth (staging & produksi) dan dipakai API untuk email aplikasi via SMTP. Menggantikan D-024. | Kantor sudah memakai Google Workspace: pengirim memakai domain kantor tanpa verifikasi domain tambahan, tanpa layanan pihak ketiga, dan batas ± 2.000 email/hari per akun cukup untuk < 200 karyawan. Jika kurang, pindah ke SMTP relay Workspace (`smtp-relay.gmail.com`) tanpa mengubah kode. |
+| D-026 | **ERD employee management** (dbdiagram.io, 2026-09-28) menjadi model data modul `organization` & `employee`, dengan penyesuaian: PK **UUID** (PROMPT §6); `nik` = **Nomor Induk Karyawan** (`employee_number`), NIK KTP = `ktp_number`; data sensitif dipisah ke `employee_personal` (termasuk agama) & `employee_bank_accounts`; `family` → `family_members` (sensitif, `age` → `birth_date`); `grade` menggantikan `job_levels`; `employment_status` jadi tabel master; ditambah `manager_id`, `work_email`, `is_active`, geofence `work_locations` (nullable). Auth tetap **Supabase Auth**: `user_account` tanpa `password_hash`. Pemetaan: `.claude/skills/hris-db-schema/ERD.md`. | Pemilik projek memberi ERD sebagai gambaran database; konvensi & model akses PLAN tetap berlaku. |
+| D-027 | **Target mingguan bertahap.** Target minggu 2026-09-28: skema data karyawan (tabel ERD `organization` & `employee`) dibuat lebih awal, sebelum Fase 1 selesai (item akun luar masih menunggu) dan sebelum Fase 2. Endpoint & UI yang butuh cek akses tetap menunggu fondasi IAM (`core/auth`, `core/access`) sesuai PROMPT §3.5. | Pemilik projek meningkatkan sistem sedikit demi sedikit per minggu; skema bisa dibuat tanpa melanggar aturan akses karena belum ada endpoint. |
+| D-028 | **Satu akun satu role** (menjawab OD-10). Role tetap di kode (SUPER_ADMIN, HR_ADMIN, MANAGER, EMPLOYEE), disimpan sebagai kolom enum `iam.accounts.role` (tabel `role` di ERD cukup direpresentasikan oleh enum ini). Hak layanan diri berasal dari keterhubungan akun ke data karyawan, bukan dari role EMPLOYEE. Grant izin per akun (§4.2) tetap. | Keputusan pemilik projek, sesuai ERD `user_account.role_id`; lebih sederhana untuk UI & pengecekan akses. |
+| D-029 | Project Supabase **`HRIS Project`** (ref `iwgzuwcxsxnbjibhbqgh`, organisasi `Work`, paket Free) ditetapkan sebagai **staging**. Project **produksi** dibuat terpisah menjelang Rilis 1 (bersama OD-4). Label "PRODUCTION" pada branch `main` di dashboard adalah label bawaan Supabase, bukan peran project. Pengaturan staging: sign-up mandiri mati, Redirect URL `http://localhost:5173/**`, *Exposed schemas* hanya `public` & `graphql_public`. Region staging **ap-northeast-2 (Seoul)** (tidak bisa diubah; semula tercatat keliru sebagai ap-southeast-2/Sydney, terbukti dari host pooler `aws-0-ap-northeast-2`; PLAN hanya mewajibkan Singapura untuk produksi): latensi staging lebih tinggi dari Vercel `sin1`, diterima; project **produksi wajib `ap-southeast-1` (Singapura)**. | Keputusan pemilik projek; branching Supabase tidak tersedia di paket Free sehingga staging & produksi harus project berbeda (PLAN §3.3). |
+| D-030 | **`db:deploy` otomatis dari GitHub Actions** (menjawab OD-7): workflow `.github/workflows/deploy-staging.yml` berjalan saat push ke `HRIS/debug/fe-be` (atau manual, hanya dari branch itu): `prisma migrate deploy` lalu `db:check`, memakai repository secret `STAGING_DIRECT_URL` (session pooler port 5432, karena runner tanpa IPv6; Environment secrets tidak tersedia di repo private paket Free). Deploy Vercel dipicu lewat Deploy Hook **setelah** migrasi sukses, sehingga migrasi selalu mendahului kode baru. Env lokal: `.env` berisi DB lokal + kunci Supabase staging; URL DB staging tidak disimpan di laptop. Produksi: workflow serupa di `main` saat Rilis 1. | Rekomendasi OD-7 dipilih pemilik projek: tercatat, berulang, tidak bergantung laptop. |
 
 Keputusan baru ditambahkan dengan ID berikutnya **dan** dicatat di log PROGRESS.
 
@@ -409,7 +415,6 @@ Keputusan baru ditambahkan dengan ID berikutnya **dan** dicatat di log PROGRESS.
 | OD-4 | **Kepemilikan akun** Vercel & Supabase dan **paket berbayar** (Vercel Pro)? | Akun/team milik kantor, berbayar sebelum ada data asli. | Rilis 1 |
 | OD-5 | Penyedia sudah diputuskan (Google Workspace, D-025). Sisa pertanyaan: **akun pengirim** mana yang dipakai, dan apakah admin Workspace kantor mengizinkan App Password untuk akun itu? Staging & produksi memakai akun yang sama atau berbeda? | Akun khusus (bukan akun pribadi karyawan), mis. `hris@<domain-kantor>`, dibuat oleh admin IT; satu akun untuk staging & produksi. | Sebelum uji undangan Fase 2 |
 | OD-6 | Bolehkan seseorang (termasuk SUPER_ADMIN) mengubah **data sensitif/gaji miliknya sendiri**? | Tidak, harus akun lain. Jika hanya ada satu SUPER_ADMIN, diizinkan dengan penanda khusus di audit log. | Fase 4 |
-| OD-7 | **Cara menjalankan `db:deploy`** ke staging & produksi (manual dari laptop atau otomatis dari CI) dan cara menyimpan env per environment (lokal berisi DB lokal + kunci Supabase staging). | Otomatis dari GitHub Actions dengan secret per environment, lewat **session pooler** (port 5432; runner tidak punya IPv6). Migrasi selalu dijalankan **sebelum** kode baru aktif. | Fase 1 (migrasi awal ke staging) |
 | OD-8 | **Strategi rollback migrasi & backup produksi** (Prisma tidak punya migrasi turun). | Migrasi *expand → contract* yang kompatibel mundur + perbaikan maju; backup harian Supabase, PITR bila paket memungkinkan (terkait OD-4). | Rilis 1 |
 | OD-9 | **Proteksi branch `main`** (§6) ditolak GitHub: organisasi `ArthasiaCiptaPratama` memakai paket **Free**, dan branch protection/rulesets untuk repo **private** butuh **GitHub Team**. Pilihan: upgrade organisasi ke Team, jadikan repo public (tidak disarankan: kode HRIS internal), atau sementara hanya disiplin alur (tanpa penegakan). | Upgrade ke GitHub Team (bisa diputuskan bersama OD-4). Sampai itu, `main` hanya dijaga disiplin: tidak push langsung, merge lewat PR yang di-review. | Rilis 1 |
 

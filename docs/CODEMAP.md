@@ -27,8 +27,19 @@ HRIS/
 │   ├── PLAN.md                       [done] Apa & kenapa
 │   ├── CODEMAP.md                    [done] Di mana (file ini)
 │   ├── PROGRESS.md                   [done] Sampai mana
-│   └── PROMPT.md                     [done] Bagaimana bekerja
-├── .github/workflows/ci.yml          [wip] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Belum dijalankan di GitHub
+│   ├── PROMPT.md                     [done] Bagaimana bekerja
+│   └── erd/hris.dbml                 [done] Diagram ERD (DBML, buka di dbdiagram.io); cermin skema Prisma, disetujui pemilik projek 2026-09-28
+├── .github/workflows/ci.yml          [done] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Hijau di GitHub
+├── .github/workflows/deploy-staging.yml [wip] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu Deploy Hook Vercel opsional. Belum pernah jalan di GitHub
+├── .claude/skills/                    Skill Claude Code projek (dimuat otomatis)
+│   ├── hris-db-schema/               [done] Alur skema Prisma, ERD → Prisma, batas Supabase MCP
+│   ├── hris-e2e-playwright/          [done] Konvensi & templat Playwright (setup e2e/ saat pertama dipakai)
+│   ├── hris-flow-testing/            [done] Test flow API & matriks akses (TDD)
+│   ├── hris-qa-docs/                 [done] Templat docs/qa/: plan, case, run, bug
+│   ├── supabase/                     [done] Skill resmi Supabase (npx skills add supabase/agent-skills); bagian skemanya dikalahkan hris-db-schema
+│   └── supabase-postgres-best-practices/ [done] Skill resmi Supabase
+├── .mcp.json                         [done] MCP Supabase (HTTP, OAuth; project_ref iwgzuwcxsxnbjibhbqgh). Tanpa rahasia
+├── skills-lock.json                  [done] Lock skill dari `npx skills` (sumber & hash)
 ├── CLAUDE.md                         [done] Penunjuk ke docs/PROMPT.md untuk AI agent
 ├── README.md                         [done] Ringkasan + tautan ke docs
 ├── package.json                      [done] Bun workspaces + script global (packageManager bun@1.4.2)
@@ -54,8 +65,8 @@ apps/api/
 │   ├── schema/                       [wip] Skema Prisma multi-file (belum ada model; model ditambahkan per fase)
 │   │   ├── _base.prisma              [done] generator (prisma-client, runtime bun, output src/generated/prisma) + datasource (10 skema Postgres)
 │   │   ├── iam.prisma                # [planned] untuk semua file modul di bawah
-│   │   ├── organization.prisma
-│   │   ├── employee.prisma
+│   │   ├── organization.prisma      [done] departments, positions, employment_statuses, grades, work_locations (ERD, D-026)
+│   │   ├── employee.prisma          [done] employees, employee_personal, employee_bank_accounts, family_members, educations, trainings + enum (ERD, D-026)
 │   │   ├── attendance.prisma
 │   │   ├── leave.prisma
 │   │   ├── approval.prisma
@@ -64,9 +75,12 @@ apps/api/
 │   │   ├── notification.prisma
 │   │   └── audit.prisma
 │   ├── migrations/                   [wip] Hasil `prisma migrate dev` (di-commit, tidak pernah diedit setelah di-merge)
-│   │   └── 20260928032354_init_module_schemas/  [done] SQL mentah: CREATE SCHEMA untuk 10 skema modul
-│   └── seed/
-│       └── index.ts                  [wip] Runner seed (daftar seeder masih kosong; diisi mulai Fase 3/4)
+│   │   ├── 20260928032354_init_module_schemas/  [done] SQL mentah: CREATE SCHEMA untuk 10 skema modul
+│   │   └── 20260928035758_add_organization_and_employee_master/  [done] Tabel ERD organization & employee
+│   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production
+│       ├── index.ts                  Runner: organization → employee
+│       ├── organization.ts           5 departemen, 12 jabatan, 4 status, 5 grade, 2 lokasi (Jakarta, Bandung)
+│       └── employee.ts               15 karyawan dummy (5 manajer) + data pribadi/rekening/keluarga/pendidikan/pelatihan fiktif; `work_email` dari SEED_EMAIL_BASE
 ├── prisma.config.ts                  [done] Memuat `.env` root (dotenv), skema folder, `datasource.url = DIRECT_URL` (dipakai CLI migrate)
 ├── src/
 │   ├── index.ts                      [done] Entry: `export default app` (Vercel & Bun; Bun membaca PORT, default 3000)
@@ -94,7 +108,7 @@ apps/api/
 │   └── recover-primary-admin.ts      [planned] Pemulihan status Utama (manual, lihat PLAN §4.4)
 ├── tests/
 │   ├── helpers/                      [planned] Factory data, login-as(role, grants)
-│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada)
+│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed)
 ├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
 ├── vercel.json                       [wip] bunVersion 1.x, region sin1, install dari root, build = prisma generate (cron ditambahkan per fase). Belum diuji di Vercel
 ├── tsconfig.json                     [done]
@@ -196,8 +210,8 @@ Request ─▶ core: request-id → logger → auth (verifikasi JWT) → muat ko
 | -------------- | -------------- | -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------ | ---- | ----------- |
 | `iam`          | `iam`          | `/me`, `/accounts`, `/roles`, `/grants`                                          | employee                | employee, notification               | 2    | `[planned]` |
 | `audit` (core) | `audit`        | `/audit-logs`                                                                    | –                       | –                                    | 2    | `[planned]` |
-| `organization` | `organization` | `/company`, `/settings`, `/departments`, `/positions`, `/job-levels`, `/work-locations`, `/holidays` | –           | –                                    | 3    | `[planned]` |
-| `employee`     | `employee`     | `/employees`, `/employees/:id/*`, `/employees/import`                            | organization            | iam, organization                    | 4    | `[planned]` |
+| `organization` | `organization` | `/company`, `/settings`, `/departments`, `/positions`, `/employment-statuses`, `/grades`, `/work-locations`, `/holidays` | –           | –                                    | 3    | `[planned]` |
+| `employee`     | `employee`     | `/employees`, `/employees/:id/*` (personal, bank-account, family-members, educations, trainings), `/employees/import`                            | organization            | iam, organization                    | 4    | `[planned]` |
 | `approval`     | `approval`     | `/approvals` (inbox keputusan)                                                   | employee                | iam, employee, notification          | 5    | `[planned]` |
 | `attendance`   | `attendance`   | `/attendance`, `/shifts`, `/schedules`, `/attendance-corrections`, `/overtime`, `/attendance-periods` | employee, organization | approval, organization, employee | 5 | `[planned]` |
 | `leave`        | `leave`        | `/leave-types`, `/leave-balances`, `/leave-requests`                             | employee                | approval, attendance, organization   | 6    | `[planned]` |
@@ -216,11 +230,10 @@ Nama tabel **snake_case jamak** (`@@map`), model Prisma **PascalCase tunggal**. 
 ### 6.1 `iam`
 | Tabel | Isi penting |
 |---|---|
-| `accounts` | `auth_user_id` (UUID Supabase, unik), `employee_id` (nullable), `email`, `is_active`, `is_primary_super_admin` |
-| `account_roles` | `account_id`, `role` |
+| `accounts` | ERD `user_account`: `auth_user_id` (UUID Supabase, unik), `employee_id` (nullable, unik), `email`, `role` (enum `Role`, **satu per akun**, D-028), `is_active`, `last_login_at`, `is_primary_super_admin`. **Tanpa** `password_hash` (password di Supabase Auth, D-005) |
 | `permission_grants` | `account_id`, `permission`, `expires_at?`, `reason?`, `granted_by`, `revoked_at?`, `revoked_by?` |
 
-Endpoint utama: `GET /me` (profil + role + grant + tim) · `POST /accounts/:id/roles` · `DELETE /accounts/:id/roles/:role` · `POST /accounts/:id/deactivate` · `POST /accounts/primary-super-admin/transfer` · `GET|POST /grants` · `POST /grants/:id/revoke`
+Endpoint utama: `GET /me` (profil + role + grant + tim) · `PATCH /accounts/:id/role` · `POST /accounts/:id/deactivate` · `POST /accounts/primary-super-admin/transfer` · `GET|POST /grants` · `POST /grants/:id/revoke`
 
 ### 6.2 `audit` (core)
 | Tabel | Isi penting |
@@ -228,27 +241,37 @@ Endpoint utama: `GET /me` (profil + role + grant + tim) · `POST /accounts/:id/r
 | `audit_logs` | `actor_account_id`, `action`, `entity_type`, `entity_id`, `before`/`after` (JSON, **tanpa** nilai sensitif mentah), `reason?`, `request_id`, `ip`, `occurred_at` |
 
 ### 6.3 `organization`
+Status: tabel ERD **[done]** (skema + migrasi, belum ada endpoint). `company_profile`, `system_settings`, `holidays` **[planned]**.
+
 | Tabel | Isi penting |
 |---|---|
-| `company_profile` | Satu baris: nama, NPWP perusahaan, alamat, logo |
-| `system_settings` | Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
-| `departments` | `name`, `parent_id?` |
-| `positions`, `job_levels` | Master jabatan & level |
-| `work_locations` | `name`, `latitude`, `longitude`, `radius_m` |
-| `holidays` | `date`, `name`, `is_collective_leave` |
+| `company_profile` | [planned] Satu baris: nama, NPWP perusahaan, alamat, logo |
+| `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
+| `departments` | `name` (unik), `parent_id?` (hierarki), `deleted_at?` |
+| `positions` | `name`, `department_id` (FK, ERD) — unik per departemen, `deleted_at?` |
+| `employment_statuses` | ERD `employment_status`: `name` (unik; mis. Tetap, Kontrak, Probation, Magang), `deleted_at?` |
+| `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |
+| `work_locations` | `name` (unik), `city?`, `address?`, `latitude?`, `longitude?` Decimal(9,6), `radius_m?` (geofence wajib di Fase 5), `deleted_at?` |
+| `holidays` | [planned] `date`, `name`, `is_collective_leave` |
+
+FK dari `employees` ke master data memakai `ON DELETE RESTRICT`: master yang dipakai tidak bisa dihapus (pakai `deleted_at`).
 
 ### 6.4 `employee`
+Status: tabel ERD **[done]** (skema + migrasi, belum ada endpoint). Pemetaan lengkap ERD → tabel: `.claude/skills/hris-db-schema/ERD.md`.
+
 | Tabel | Isi penting |
 |---|---|
-| `employees` | `employee_number`, `full_name`, `work_email`, `phone`, `department_id`, `position_id`, `job_level_id`, `work_location_id`, `manager_id` (self FK), `join_date`, `employment_status`, `allow_remote_attendance`, `is_active` |
-| `employee_personal` | **Sensitif**: `nik`, `npwp`, `kk_number`, `birth_date`, `birth_place`, `address`, `marital_status`, `dependents`, `ptkp_status` |
-| `employee_bank_accounts` | **Sensitif**: `bank_name`, `account_number`, `account_holder` |
-| `emergency_contacts` | Nama, hubungan, telepon |
-| `employee_documents` | `type`, `storage_path`, `uploaded_by` |
-| `employment_histories` | Riwayat jabatan/departemen/atasan |
-| `import_jobs` | Status & hasil import CSV/Excel |
+| `employees` | `employee_number` (ERD `nik` = Nomor Induk Karyawan, unik), `full_name`, `work_email?` (unik), `phone_number?`, `emergency_phone?`, `gender?` (enum), `join_date`, `end_date?`, `employment_status_id`, `position_id` (departemen lewat posisi), `work_location_id?`, `grade_id?`, `manager_id?` (self FK), `is_active` |
+| `employee_personal` | **Sensitif** (1:1, PK = `employee_id`): `ktp_number` (NIK KTP, unik), `npwp_number`, `kk_number`, `birth_place`, `birth_date`, `ktp_address`, `domicile_address`, `marital_status` (enum), `religion` (enum) |
+| `employee_bank_accounts` | **Sensitif** (1:1): `bank_name`, `account_number`, `account_holder?` |
+| `family_members` | ERD `family`, **sensitif** (data pribadi pihak ketiga): `name`, `relationship` (enum), `address?`, `birth_date?` (ERD `age`), `phone_number?` |
+| `educations` | `school_name`, `major?`, `graduation_year?` |
+| `trainings` | `training_field`, `organizer?`, `duration?`, `training_year?` |
+| `employee_documents` | [planned] `type`, `storage_path`, `uploaded_by` |
+| `employment_histories` | [planned] Riwayat jabatan/departemen/atasan |
+| `import_jobs` | [planned] Status & hasil import CSV/Excel |
 
-Data sensitif dipisah ke tabel sendiri supaya kontrol akses (grant) jelas di level repository.
+Enum (skema `employee`): `Gender`, `MaritalStatus`, `Religion` (6 agama resmi + `OTHER`), `FamilyRelationship`. Tabel anak memakai `ON DELETE CASCADE` ke `employees` (karyawan sendiri tidak dihapus, hanya `is_active = false`). Data sensitif dipisah ke tabel sendiri supaya kontrol akses (grant) jelas di level repository. Rencana `emergency_contacts` digantikan `employees.emergency_phone` + `family_members` (ERD).
 
 ### 6.5 `approval`
 | Tabel | Isi penting |
@@ -326,7 +349,7 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 | `NODE_ENV` | api | `development` (default) · `test` · `production` |
 | `PORT` | api | Port HTTP lokal, default `3000` |
 | `LOG_LEVEL` | api | `debug` · `info` (default) · `warn` · `error` |
-| `DATABASE_URL` | api (runtime) | Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543) |
+| `DATABASE_URL` | api (runtime) | Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543; staging: `aws-0-ap-northeast-2.pooler.supabase.com:6543`, user `postgres.iwgzuwcxsxnbjibhbqgh`) |
 | `DIRECT_URL` | api (migrasi) | Lokal: sama dengan `DATABASE_URL`. Staging/produksi: koneksi direct/session (port 5432) untuk `prisma migrate` |
 | `SUPABASE_URL` | api | URL project Supabase (JWKS & Admin API). Lokal: project **staging** |
 | `SUPABASE_SERVICE_ROLE_KEY` | api | **Rahasia**. Hanya di server, tidak pernah ke frontend |
@@ -339,6 +362,14 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 | `VITE_SUPABASE_URL` | web | URL project Supabase. Lokal: project **staging** |
 | `VITE_SUPABASE_ANON_KEY` | web | Kunci publik (anon/publishable) Supabase |
 | `STORAGE_PATH_PREFIX` | api | Lokal: `dev/<nama-developer>/`; staging/produksi: kosong |
+| `SEED_EMAIL_BASE` | seed | Email developer untuk plus-addressing `work_email` karyawan dummy (`nama@gmail.com` → `nama+dev-budi-0001@gmail.com`). Kosong → `work_email` kosong |
+
+**Secret GitHub Actions** (Settings → Secrets and variables → Actions → *Repository secrets*; bukan env aplikasi):
+
+| Secret | Dipakai | Keterangan |
+|---|---|---|
+| `STAGING_DIRECT_URL` | `deploy-staging.yml` | Connection string **session pooler** Supabase staging: `postgresql://postgres.iwgzuwcxsxnbjibhbqgh:<password>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres` (port **5432**, bukan 6543; host direct hanya IPv6). **Rahasia**, sudah diisi 2026-09-28 |
+| `VERCEL_DEPLOY_HOOK_API_STAGING`, `VERCEL_DEPLOY_HOOK_WEB_STAGING` | `deploy-staging.yml` | Opsional; URL Deploy Hook project Vercel untuk branch `HRIS/debug/fe-be` (setelah project Vercel dibuat) |
 
 Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal memakai Supabase staging (tidak ada port lokal).
 
@@ -360,10 +391,10 @@ Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal mema
 | `bun run test:e2e` | [planned] Playwright (Fase 9) |
 | `bun run db:generate` | `prisma generate` |
 | `bun run db:migrate` | `prisma migrate dev` (lokal); nama migrasi: `bun run db:migrate -- --name <deskripsi_snake_case>` |
-| `bun run db:deploy` | `prisma migrate deploy` (CI dari DB kosong; staging/produksi menunggu OD-7) |
+| `bun run db:deploy` | `prisma migrate deploy` (CI dari DB kosong; staging otomatis via `deploy-staging.yml`, D-030) |
 | `bun run db:check` | `prisma migrate diff --exit-code`: gagal jika skema Prisma berbeda dari DB hasil migrasi (migrasi lupa dibuat) |
 | `bun run db:reset` | Reset DB lokal + seed. Prisma menolak perintah ini bila dijalankan AI agent tanpa persetujuan eksplisit pengguna |
-| `bun run db:seed` | Seed data dummy |
+| `bun run db:seed` | Seed data dummy (idempoten; aman diulang) |
 | `bun run bootstrap:super-admin` | [planned] Buat SUPER_ADMIN Utama pertama (Fase 2) |
 | `bun run build` | Build api (`bun build` → `apps/api/dist`) & web (`vite build` → `apps/web/dist`) |
 
@@ -375,6 +406,6 @@ Docker image api (jalan keluar dari Vercel): `docker build -f apps/api/Dockerfil
 
 1. Folder/file penting baru → tambahkan di §1–§3 dengan status. Ubah status `[planned]` → `[wip]` → `[done]` sesuai kondisi.
 2. Tabel/endpoint/izin baru → perbarui §5–§6. Izin baru juga wajib ditambahkan ke PLAN §4.2 dan `packages/shared/src/permissions.ts`.
-3. Cron baru → §7. Env var baru → §8 **dan** `.env.example`. Script baru → §9.
+3. Tabel/kolom/relasi berubah → perbarui juga `docs/erd/hris.dbml`. Cron baru → §7. Env var baru → §8 **dan** `.env.example`. Script baru → §9.
 4. Jika implementasi menyimpang dari rencana di file ini, **perbarui file ini** agar sesuai dengan kode (CODEMAP menggambarkan kondisi nyata, PLAN menggambarkan keputusan).
 5. Perbarui tanggal "Terakhir diubah".

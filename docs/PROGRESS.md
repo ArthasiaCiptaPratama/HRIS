@@ -14,8 +14,8 @@
 | 0    | Instruksi Projek | Selesai      |
 | 1    | Fondasi          | Berjalan     |
 | 2    | IAM              | Belum mulai  |
-| 3    | Organization     | Belum mulai  |
-| 4    | Employee         | Belum mulai  |
+| 3    | Organization     | Berjalan (skema ERD) |
+| 4    | Employee         | Berjalan (skema ERD) |
 | 5    | Attendance       | Belum mulai  |
 | 6    | Leave            | Belum mulai  |
 | —    | **Rilis 1**      | –            |
@@ -31,15 +31,15 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ## 2. Fokus Saat Ini
 
-- **Fase aktif:** 1 — Fondasi
+- **Fase aktif:** 1 — Fondasi (sisa item akun luar) · **Target minggu 2026-09-28 (D-027): employee management** — skema ERD `organization` & `employee` ✔, seed dummy ✔; berikutnya fondasi akses (core/auth + core/access, D-028) lalu CRUD employee.
 - **Sudah jalan di lokal (Linux) & CI GitHub hijau:** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
 - **Langkah berikutnya:**
-  1. Buat Supabase project **staging** (region Singapura): self sign-up nonaktif, bucket private, *Redirect URLs* `http://localhost:5173`, skema modul tidak di *Exposed schemas*. Catat versi major PostgreSQL-nya dan cocokkan dengan `docker-compose.yml` & CI (saat ini 17).
-  2. Jawab **OD-7**, lalu `db:deploy` migrasi awal ke staging.
-  3. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
-  4. Verifikasi `bun install && bun run dev` di **Windows**.
-  5. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
-- **Blocker aktif:** OD-7 (db:deploy ke staging), OD-9 (proteksi `main`), OD-5 (SMTP staging). Akun Supabase & Vercel harus dibuat pemilik projek.
+  1. Isi secret `STAGING_DIRECT_URL`, commit, alirkan kode lewat PR `HRIS/Oatse/Linux-Windows` → `HRIS/debug/database` → `HRIS/debug/fe-be`; workflow `Deploy staging` menerapkan migrasi (D-030).
+  2. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
+  3. Verifikasi `bun install && bun run dev` di **Windows**.
+  4. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
+- **Supabase MCP:** terhubung ke project `iwgzuwcxsxnbjibhbqgh` (entri `.mcp.json`). Pemeriksaan read-only: PostgreSQL 17.6, TZ UTC, belum ada tabel/migrasi aplikasi, 0 user Auth, advisor keamanan & performa kosong. Entri duplikat scope user sebaiknya dihapus (`claude mcp remove supabase -s user`).
+- **Blocker aktif:** secret `STAGING_DIRECT_URL` (diisi pemilik projek), OD-9 (proteksi `main`), OD-5 (SMTP staging). Supabase staging siap (D-029); akun Vercel harus dibuat pemilik projek.
 
 ---
 
@@ -59,8 +59,8 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] Root: Bun workspaces, `tsconfig.base.json`, Biome, `.editorconfig`, `.gitattributes` (LF), `.gitignore`, `.env.example`
 - [~] Branch `HRIS/debug/database` dan `HRIS/debug/fe-be` dibuat dari `main` ✔; proteksi `main` ditolak GitHub (paket Free, repo private) → **OD-9**
 - [x] PostgreSQL lokal: `docker-compose.yml` (image Postgres, versi = Supabase) + script `db:up`/`db:down`
-- [ ] Supabase project **staging**: self sign-up nonaktif, bucket private, *Redirect URLs* termasuk `http://localhost:5173`, Data API tidak mengekspos skema modul; dipakai untuk Auth & Storage saat develop
-- [ ] Cocokkan versi major PostgreSQL di `docker-compose.yml` dengan project staging (lokal & CI: 17; menunggu project staging)
+- [x] Supabase project **staging** (D-029: `HRIS Project`, ref `iwgzuwcxsxnbjibhbqgh`, org `Work` Free): self sign-up nonaktif ✔, *Redirect URLs* `http://localhost:5173/**` ✔, Data API tidak mengekspos skema modul ✔ (dikonfirmasi pemilik projek); region **ap-northeast-2 (Seoul)**, diterima untuk staging (D-029; produksi wajib Singapura); pooler `aws-0-ap-northeast-2.pooler.supabase.com` (session 5432 & transaction 6543 teruji); bucket private menyusul saat Fase 4/5 butuh; `SUPABASE_URL`/`VITE_SUPABASE_URL` = `https://iwgzuwcxsxnbjibhbqgh.supabase.co`
+- [x] Cocokkan versi major PostgreSQL di `docker-compose.yml` dengan project staging — Supabase 17.6, lokal & CI 17 (dicek via MCP 2026-09-28)
 - [ ] Custom SMTP Supabase staging memakai akun Google Workspace pengirim (D-025; menunggu OD-5)
 - [x] `packages/shared` (roles, permissions, enums)
 - [x] `apps/api`: Hono + `@hono/zod-openapi`, `env.ts`, `core/` (errors, response, logger, request-id, db), `/api/v1/health`, `/openapi.json`, `/docs`
@@ -69,7 +69,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] dependency-cruiser + aturan batas modul
 - [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
 - [x] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — run #36375129344 hijau (commit `1815b3c`)
-- [ ] Keputusan OD-7, lalu `db:deploy` migrasi awal ke staging
+- [~] Keputusan OD-7 ✔ (D-030, workflow `deploy-staging.yml` diuji lokal di DB kosong), lalu `db:deploy` migrasi awal ke staging — menunggu secret `STAGING_DIRECT_URL` & kode sampai di `HRIS/debug/fe-be`
 - [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be` — `vercel.json` kedua app dibuat; project Vercel belum dibuat
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
@@ -90,7 +90,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [ ] Web: halaman login, sesi, route guard per role, menu per role, manajemen akun & grant
 
 ### Fase 3 — Organization
-- [ ] Skema + migrasi + seed dummy
+- [~] Skema + migrasi + seed dummy — tabel ERD (departments, positions, employment_statuses, grades, work_locations) + seed dummy ✔; company_profile, system_settings, holidays belum
 - [ ] Profil perusahaan, pengaturan sistem
 - [ ] Departemen (hierarki), jabatan, level, lokasi kerja (geofence), hari libur
 - [ ] Policy + test
@@ -98,7 +98,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ### Fase 4 — Employee
 - [ ] Keputusan OD-6 (ubah data sensitif milik sendiri)
-- [ ] Skema + migrasi + seed dummy (NIK/NPWP fiktif berformat valid)
+- [~] Skema + migrasi + seed dummy (NIK/NPWP fiktif berformat valid) — tabel ERD (employees, employee_personal, employee_bank_accounts, family_members, educations, trainings) + seed dummy 15 karyawan ✔; documents, histories, import_jobs belum
 - [ ] CRUD karyawan + filter, pencarian, paginasi
 - [ ] `manager_id` + validasi (harus MANAGER/SUPER_ADMIN)
 - [ ] Data sensitif & rekening dengan grant (HR: semua, MANAGER: tim)
@@ -175,9 +175,10 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 | OD-4 | Kepemilikan akun Vercel/Supabase & paket     | Rilis 1   | Menunggu keputusan  |
 | OD-5 | Email: penyedia = Google Workspace (D-025); sisa akun pengirim & App Password | Fase 2      | Sebagian terjawab |
 | OD-6 | Ubah data sensitif/gaji milik sendiri       | Fase 4    | Menunggu keputusan  |
-| OD-7 | Cara `db:deploy` & env per environment      | Fase 1    | Menunggu keputusan  |
+| OD-7 | Cara `db:deploy` & env per environment      | Fase 1    | Terjawab → D-030 (GitHub Actions) |
 | OD-8 | Rollback migrasi & backup produksi          | Rilis 1   | Menunggu keputusan  |
 | OD-9 | Proteksi `main` butuh GitHub Team (repo private) | Rilis 1 | Menunggu keputusan  |
+| OD-10 | Bentuk role akun | Fase 2 | Terjawab → D-028 (satu akun satu role) |
 
 Detail & rekomendasi: [PLAN §9](./PLAN.md#9-keputusan-terbuka).
 
@@ -198,6 +199,56 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-28 — Fase 1: koneksi staging & secret deploy
+- **Dikerjakan:** host direct `db.iwgzuwcxsxnbjibhbqgh.supabase.co` terbukti **IPv6 saja** (tidak bisa dari runner GitHub). Mencari cluster pooler: tenant tidak ada di `aws-0/1-ap-southeast-2`; ditemukan di **`aws-0-ap-northeast-2`** (Seoul), cocok dengan string *Shared pooler* dari dashboard. Uji `select` read-only: port 5432 (session) ✔ & 6543 (transaction) ✔, PostgreSQL 17.6. `prisma migrate status` lewat session pooler ✔ (2 migrasi belum diterapkan, sesuai harapan). Secret repository `STAGING_DIRECT_URL` diisi (session pooler, port 5432) via `gh secret set` dari stdin.
+- **Keputusan:** koreksi D-029: region staging **ap-northeast-2 (Seoul)**, bukan Sydney. Migrasi memakai port 5432 (session); port 6543 (transaction) untuk `DATABASE_URL` runtime Vercel nanti.
+- **Masalah / catatan:** password DB staging tertulis di riwayat percakapan & lemah; pemilik projek memilih tetap memakainya untuk staging (data dummy saja). **Wajib diganti** (Reset database password → perbarui secret) sebelum ada data asli atau bila staging dipakai lebih luas.
+- **Berikutnya:** commit; PR berantai ke `HRIS/debug/fe-be`; pantau `Deploy staging`; verifikasi via MCP.
+
+### 2026-09-28 — Fase 1: OD-7 terjawab, workflow deploy staging
+- **Dikerjakan:** `.github/workflows/deploy-staging.yml` (job `migrate`: cek secret → install → `db:deploy` → `db:check`; job `vercel`: Deploy Hook opsional setelah migrasi). Region staging dicatat di D-029 (kemudian dikoreksi menjadi Seoul).
+- **Keputusan:** **D-030** (OD-7 = opsi A, GitHub Actions + repository secret + session pooler).
+- **File berubah:** `.github/workflows/deploy-staging.yml`, `docs/PLAN.md`, `docs/CODEMAP.md`, `docs/PROGRESS.md`, `.claude/skills/hris-db-schema/SKILL.md`.
+- **Verifikasi:** YAML kedua workflow terbaca (`Bun.YAML.parse`); simulasi langkah workflow di database kosong `hris_deploy_probe` tanpa `.env` (hanya `DIRECT_URL`): 2 migrasi diterapkan, `db:check` "No difference detected", deploy ulang "No pending migrations", DB probe dihapus. Workflow belum pernah jalan di GitHub.
+- **Berikutnya:** pemilik projek mengisi secret; commit; PR berantai ke `HRIS/debug/fe-be`; verifikasi staging via MCP (read-only) + advisor.
+
+### 2026-09-28 — Fase 1: penetapan project Supabase staging
+- **Dikerjakan:** pemilik projek memeriksa dashboard (screenshot: org `Work` Free, project `HRIS Project`, branch `main` berlabel PRODUCTION bawaan) dan mengatur: sign-up mandiri mati, Redirect URL lokal, Exposed schemas hanya `public` & `graphql_public`.
+- **Keputusan:** **D-029**: `HRIS Project` = staging (region diterima; lihat koreksi Seoul di entri berikutnya); produksi project terpisah di Singapura menjelang Rilis 1.
+- **File berubah:** `docs/PLAN.md`, `docs/PROGRESS.md`.
+- **Verifikasi:** pengaturan dashboard dikonfirmasi pemilik projek (tidak terbaca lewat MCP). Region dilaporkan ap-southeast-2 (Sydney); kemudian terbukti ap-northeast-2 (Seoul).
+- **Berikutnya:** commit; OD-7 lalu `db:deploy` ke staging.
+
+### 2026-09-28 — Supabase MCP terhubung & pemeriksaan project
+- **Dikerjakan:** OAuth MCP untuk entri `.mcp.json` (URL berbeda dari entri scope user, token terpisah). Pemeriksaan read-only project `iwgzuwcxsxnbjibhbqgh` via MCP: `select version()`, daftar skema, `list_migrations`, `list_tables`, `list_extensions`, `get_advisors` (security & performance).
+- **Hasil:** PostgreSQL 17.6 (cocok dengan lokal/CI 17), TZ UTC; skema bawaan Supabase saja (auth, extensions, graphql, graphql_public, pgbouncer, public, realtime, storage, vault); belum ada migrasi/tabel aplikasi; 0 user Auth; extension terpasang hanya bawaan (pgcrypto, uuid-ossp, pg_stat_statements, supabase_vault, plpgsql); advisor kosong. Tidak ada perubahan yang dibuat di project.
+- **Catatan:** konfigurasi Auth (self sign-up, Redirect URLs), bucket Storage, dan *Exposed schemas* Data API tidak terbaca lewat MCP; cek manual di dashboard. Belum dikonfirmasi pemilik projek bahwa project ini adalah **staging**.
+- **Berikutnya:** konfirmasi staging & pengaturan dashboard; commit; OD-7 lalu `db:deploy`; fondasi akses → CRUD employee.
+
+### 2026-09-28 — OD-10 terjawab & seed dummy employee management
+- **Dikerjakan:** keputusan role dicatat; seed dummy idempoten `apps/api/prisma/seed/{organization,employee}.ts` + unit test `tests/seed.test.ts`; env `SEED_EMAIL_BASE`.
+- **Keputusan:** **D-028** (menjawab OD-10): satu akun satu role, kolom enum `iam.accounts.role`; hak layanan diri berasal dari keterhubungan akun ke data karyawan. D-007 bagian "role tambahan" ditandai diganti. PLAN §4.1, CODEMAP §6.1, `docs/erd/hris.dbml`, skill `hris-db-schema/ERD.md` diselaraskan.
+- **File berubah:** `docs/PLAN.md`, `docs/CODEMAP.md`, `docs/PROGRESS.md`, `docs/erd/hris.dbml`, `.claude/skills/hris-db-schema/ERD.md`, `apps/api/prisma/seed/*`, `apps/api/tests/seed.test.ts`, `.env.example`.
+- **Verifikasi:** `bun run db:seed` 3× → jumlah baris identik (5 dept, 12 jabatan, 4 status, 5 grade, 2 lokasi, 15 karyawan, 15 data pribadi, 15 rekening, 10 keluarga, 15 pendidikan, 4 pelatihan); NIK 16 digit, +40 untuk perempuan; relasi atasan terisi; plus-addressing dicoba dengan `SEED_EMAIL_BASE` lalu dikembalikan kosong. `bun run typecheck` ✔, `bunx biome ci .` ✔, `bun run check:boundaries` ✔, `bun run db:check` ✔, `bun run test` ✔ (shared 10, api 25, web 8). Belum di-commit.
+- **Masalah / catatan:** MCP Supabase terhubung lewat entri scope user yang tidak dibatasi project (lihat §2).
+- **Berikutnya:** commit; rapikan scope MCP & pastikan project staging; fondasi akses (`core/auth` + verifier test, `core/access` dengan satu role) → CRUD employee + policy + test; QA plan minggu ini.
+
+### 2026-09-28 — Target mingguan: skema ERD employee management, skill projek, Supabase MCP
+- **Dikerjakan:**
+  - ERD dari pemilik projek diterjemahkan ke Prisma: `organization.prisma` (5 tabel) & `employee.prisma` (6 tabel + 4 enum), migrasi `20260928035758_add_organization_and_employee_master`, integration test constraint `tests/integration/employee-schema.test.ts`.
+  - 4 skill projek di `.claude/skills/`: `hris-db-schema`, `hris-flow-testing`, `hris-e2e-playwright`, `hris-qa-docs`; `CLAUDE.md` menunjuk ke skill ini.
+  - MCP Supabase di `.mcp.json` (URL dari pemilik projek, `project_ref=iwgzuwcxsxnbjibhbqgh`) + skill resmi `supabase` & `supabase-postgres-best-practices` (`npx skills add supabase/agent-skills`, disalin, ditinjau: hanya Markdown).
+- **Keputusan:** D-026 (ERD jadi model data dengan penyesuaian), D-027 (target mingguan: skema karyawan lebih awal; endpoint tetap menunggu fondasi akses). OD baru: OD-10 (bentuk role). PLAN §4.2 `employee.personal.read` kini mencakup agama & data keluarga.
+- **File berubah:** `apps/api/prisma/schema/{organization,employee}.prisma`, migrasi baru, `apps/api/tests/integration/employee-schema.test.ts`, `packages/shared/src/permissions.ts` (label), `.claude/skills/*`, `.mcp.json`, `skills-lock.json`, `CLAUDE.md`, `docs/erd/hris.dbml`, `docs/PLAN.md`, `docs/CODEMAP.md`, `docs/PROGRESS.md`.
+- **Verifikasi:** `bunx prisma validate` ✔; migrasi diterapkan, rerun "Already in sync", `bun run db:check` "No difference detected"; SQL migrasi tanpa `auth.`/`storage.`/`EXTENSION`; `bun run typecheck` ✔; `bunx biome ci .` ✔; `bun run check:boundaries` ✔; `bun run test` ✔ (shared 10, api 21 termasuk 6 test constraint ERD, web 8); tidak ada sisa data test di DB; argumen `bun run db:migrate -- --create-only --name ...` terbukti diteruskan ke Prisma. Belum di-commit.
+- **Masalah / catatan:**
+  - Prisma 7 `migrate dev` **tidak** menjalankan `generate` otomatis; test gagal sampai `bun run db:generate` dijalankan (dicatat di skill `hris-db-schema`).
+  - `PrismaPromise` bukan `Promise`: `expect(q).rejects` tanpa dibungkus & tanpa `await` bisa lolos palsu; diperbaiki dan dicatat di skill.
+  - Skill resmi `supabase` menyarankan perubahan skema lewat MCP/CLI; bertentangan dengan D-003, jadi `hris-db-schema` & `CLAUDE.md` menyatakan aturan projek yang menang.
+  - Autentikasi OAuth MCP Supabase belum dilakukan (butuh browser pemilik projek); belum dipastikan apakah project `iwgzuwcxsxnbjibhbqgh` adalah staging.
+- **Persetujuan:** pemilik projek meninjau diagram DBML di dbdiagram.io dan menyetujuinya; disimpan di `docs/erd/hris.dbml`.
+- **Berikutnya:** OAuth MCP; seed dummy organization & employee; fondasi akses (`core/auth` verifier + `core/access`, OD-10) agar CRUD employee bisa dibuat dengan policy; QA plan minggu ini di `docs/qa/`.
 
 ### 2026-09-28 — Fase 1: fondasi monorepo, api, web, Prisma, CI
 - **Dikerjakan:** item Fase 1 berikut selesai & terverifikasi di Linux: root config, PostgreSQL lokal, `packages/shared`, `apps/api` (core + health + OpenAPI + docs), Prisma 7 + migrasi awal 10 skema, `apps/web` (layout kosong + status API), dependency-cruiser, test, Dockerfile, `bun run dev` di Linux. Sebagian: branch debug (proteksi `main` gagal), workflow CI (belum jalan di GitHub), `vercel.json` (project belum ada).
