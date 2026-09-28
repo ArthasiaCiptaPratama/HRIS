@@ -1,0 +1,218 @@
+// ERD HRIS — format DBML untuk https://dbdiagram.io
+// Cerminan apps/api/prisma/schema/{organization,employee}.prisma (D-026), disetujui pemilik projek 2026-09-28.
+// Wajib diperbarui bersama setiap migrasi yang mengubah tabel di sini (CODEMAP §10).
+// Aturan hapus (tidak tergambar di DBML): FK ke master organization = RESTRICT; tabel anak employee = CASCADE.
+// Nama enum di Postgres PascalCase ("Gender", "MaritalStatus", ...); di sini snake_case agar mudah dibaca.
+
+Project HRIS_Arthasia {
+  database_type: 'PostgreSQL'
+  Note: 'Skema ERD employee management (D-026). Satu skema Postgres per modul.'
+}
+
+//// ---------- Skema: organization ----------
+
+Table organization.departments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null, unique]
+  parent_id uuid [ref: > organization.departments.id, note: 'Hierarki departemen (opsional)']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz
+}
+
+Table organization.positions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null]
+  department_id uuid [not null, ref: > organization.departments.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz
+
+  indexes {
+    (department_id, name) [unique]
+    department_id
+  }
+}
+
+Table organization.employment_statuses {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(50) [not null, unique, note: 'Tetap, Kontrak, Probation, Magang']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz
+}
+
+Table organization.grades {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(50) [not null, unique]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz
+}
+
+Table organization.work_locations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null, unique]
+  city varchar(100)
+  address text
+  latitude decimal(9,6) [note: 'Geofence, wajib mulai Fase 5']
+  longitude decimal(9,6)
+  radius_m int
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz
+}
+
+//// ---------- Skema: employee ----------
+
+Enum employee.gender {
+  MALE
+  FEMALE
+}
+
+Enum employee.marital_status {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+Enum employee.religion {
+  ISLAM
+  PROTESTANT
+  CATHOLIC
+  HINDU
+  BUDDHIST
+  CONFUCIAN
+  OTHER
+}
+
+Enum employee.family_relationship {
+  SPOUSE
+  CHILD
+  FATHER
+  MOTHER
+  SIBLING
+  OTHER
+}
+
+Table employee.employees {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_number varchar(30) [not null, unique, note: 'ERD nik = Nomor Induk Karyawan']
+  full_name varchar(150) [not null]
+  work_email varchar(254) [unique]
+  phone_number varchar(30)
+  emergency_phone varchar(30)
+  gender employee.gender
+  join_date date [not null]
+  end_date date
+  employment_status_id uuid [not null, ref: > organization.employment_statuses.id]
+  position_id uuid [not null, ref: > organization.positions.id]
+  work_location_id uuid [ref: > organization.work_locations.id]
+  grade_id uuid [ref: > organization.grades.id]
+  manager_id uuid [ref: > employee.employees.id, note: 'Atasan langsung (PLAN D-009)']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    position_id
+    employment_status_id
+    work_location_id
+    grade_id
+    manager_id
+    full_name
+  }
+}
+
+Table employee.employee_personal {
+  employee_id uuid [pk, ref: - employee.employees.id, note: 'SENSITIF, 1:1, cascade']
+  ktp_number varchar(16) [unique, note: 'NIK KTP']
+  npwp_number varchar(20)
+  kk_number varchar(16)
+  birth_place varchar(100)
+  birth_date date
+  ktp_address text
+  domicile_address text
+  marital_status employee.marital_status
+  religion employee.religion
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+}
+
+Table employee.employee_bank_accounts {
+  employee_id uuid [pk, ref: - employee.employees.id, note: 'SENSITIF, 1:1, cascade']
+  bank_name varchar(100) [not null]
+  account_number varchar(30) [not null]
+  account_holder varchar(150)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+}
+
+Table employee.family_members {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  name varchar(150) [not null]
+  relationship employee.family_relationship [not null]
+  address text
+  birth_date date [note: 'Pengganti age dari ERD']
+  phone_number varchar(30)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    employee_id
+  }
+}
+
+Table employee.educations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  school_name varchar(150) [not null]
+  major varchar(100)
+  graduation_year smallint
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    employee_id
+  }
+}
+
+Table employee.trainings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  training_field varchar(150) [not null]
+  organizer varchar(150)
+  duration varchar(50)
+  training_year smallint
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    employee_id
+  }
+}
+
+//// ---------- Skema: iam (RENCANA Fase 2, belum ada di database) ----------
+
+Enum iam.role {
+  SUPER_ADMIN
+  HR_ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+Table iam.accounts {
+  id uuid [pk]
+  auth_user_id uuid [not null, unique, note: 'User Supabase Auth; tanpa FK (D-023)']
+  employee_id uuid [unique, ref: - employee.employees.id, note: 'Nullable: SUPER_ADMIN boleh tanpa data karyawan']
+  email varchar(254) [not null]
+  role iam.role [not null, note: 'Satu akun satu role (D-028)']
+  is_active boolean [not null, default: true]
+  is_primary_super_admin boolean [not null, default: false]
+  last_login_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'RENCANA Fase 2, belum ada di database'
+}

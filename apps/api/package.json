@@ -1,0 +1,35 @@
+{
+  "name": "@hris/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build src/index.ts --target=bun --outdir=dist",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun --env-file=../../.env test",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset --force && prisma db seed",
+    "db:seed": "prisma db seed",
+    "db:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code"
+  },
+  "dependencies": {
+    "@hono/swagger-ui": "0.6.1",
+    "@hono/zod-openapi": "1.6.3",
+    "@hris/shared": "workspace:*",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "hono": "4.13.9",
+    "pg": "8.23.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/pg": "8.23.1",
+    "dotenv": "18.0.4",
+    "prisma": "7.10.0"
+  }
+}

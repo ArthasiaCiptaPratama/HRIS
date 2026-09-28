@@ -1,0 +1,64 @@
+# Migrasi database ke Supabase STAGING (D-030, menjawab OD-7).
+# Berjalan saat push ke HRIS/debug/fe-be (alur Git PLAN §6) atau manual dari branch itu saja.
+# Migrasi SELALU sebelum kode baru aktif: deploy Vercel dipicu lewat Deploy Hook setelah migrasi sukses.
+name: Deploy staging
+
+on:
+  push:
+    branches: ["HRIS/debug/fe-be"]
+  workflow_dispatch:
+
+# Satu deploy staging pada satu waktu; yang baru menunggu, tidak membatalkan migrasi yang sedang jalan.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Migrasi Prisma → Supabase staging
+    if: github.ref == 'refs/heads/HRIS/debug/fe-be'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Repository secret (Environments tidak tersedia untuk repo private paket Free).
+      # Session pooler Supabase port 5432: runner GitHub tidak punya IPv6 untuk koneksi direct.
+      DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
+    steps:
+      - name: Pastikan secret tersedia
+        run: |
+          if [ -z "$DIRECT_URL" ]; then
+            echo "::error::Secret STAGING_DIRECT_URL belum diisi (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Status migrasi sebelum deploy
+        run: bunx --cwd apps/api prisma migrate status || true
+      - name: Terapkan migrasi (prisma migrate deploy)
+        run: bun run db:deploy
+      - name: Pastikan skema staging = skema Prisma
+        run: bun run db:check
+
+  vercel:
+    name: Picu deploy Vercel staging (setelah migrasi)
+    needs: migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_API_STAGING }}
+      HOOK_WEB: ${{ secrets.VERCEL_DEPLOY_HOOK_WEB_STAGING }}
+    steps:
+      - name: Panggil Deploy Hook (dilewati bila project Vercel belum dibuat)
+        run: |
+          for url in "$HOOK" "$HOOK_WEB"; do
+            if [ -n "$url" ]; then curl -fsS -X POST "$url" > /dev/null && echo "hook dipanggil"; fi
+          done
+          if [ -z "$HOOK" ] && [ -z "$HOOK_WEB" ]; then
+            echo "::notice::Deploy Hook Vercel belum dikonfigurasi; hanya migrasi yang dijalankan."
+          fi

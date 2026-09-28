@@ -1,0 +1,36 @@
+# Dependensi
+node_modules/
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+.vercel/
+
+# Client Prisma hasil generate (CODEMAP §2)
+apps/api/src/generated/
+
+# Env: hanya .env.example yang di-commit (PROMPT §3.13)
+.env
+.env.*
+!.env.example
+
+# Test
+coverage/
+playwright-report/
+test-results/
+
+# Log & sistem
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Pengaturan lokal Claude Code (izin per mesin)
+.claude/settings.local.json
