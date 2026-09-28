@@ -42,8 +42,9 @@ Nama test: kalimat bahasa Indonesia yang menjelaskan perilaku, mis. `"HR_ADMIN t
 
 ```
 bun run db:up && bun run test:e2e                       # headless
-bunx --cwd e2e playwright test --ui                      # mode UI
-bunx --cwd e2e playwright show-report                    # laporan terakhir
+cd e2e && bunx playwright test --ui                      # mode UI
+cd e2e && bunx playwright show-report                    # laporan terakhir
+# Jangan `bunx --cwd <dir> ...`: Bun membaca <dir> sebagai nama paket (GitHub tarball 404).
 ```
 
 Hasil & bukti (screenshot/trace) untuk laporan QA → skill `hris-qa-docs`.

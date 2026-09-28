@@ -34,12 +34,11 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - **Fase aktif:** 1 — Fondasi (sisa item akun luar) · **Target minggu 2026-09-28 (D-027): employee management** — skema ERD `organization` & `employee` ✔, seed dummy ✔; berikutnya fondasi akses (core/auth + core/access, D-028) lalu CRUD employee.
 - **Sudah jalan di lokal (Linux) & CI GitHub hijau:** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
 - **Langkah berikutnya:**
-  1. Isi secret `STAGING_DIRECT_URL`, commit, alirkan kode lewat PR `HRIS/Oatse/Linux-Windows` → `HRIS/debug/database` → `HRIS/debug/fe-be`; workflow `Deploy staging` menerapkan migrasi (D-030).
-  2. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
-  3. Verifikasi `bun install && bun run dev` di **Windows**.
-  4. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
+  1. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
+  2. Verifikasi `bun install && bun run dev` di **Windows**.
+  3. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
 - **Supabase MCP:** terhubung ke project `iwgzuwcxsxnbjibhbqgh` (entri `.mcp.json`). Pemeriksaan read-only: PostgreSQL 17.6, TZ UTC, belum ada tabel/migrasi aplikasi, 0 user Auth, advisor keamanan & performa kosong. Entri duplikat scope user sebaiknya dihapus (`claude mcp remove supabase -s user`).
-- **Blocker aktif:** secret `STAGING_DIRECT_URL` (diisi pemilik projek), OD-9 (proteksi `main`), OD-5 (SMTP staging). Supabase staging siap (D-029); akun Vercel harus dibuat pemilik projek.
+- **Blocker aktif:** OD-9 (proteksi `main`), OD-5 (SMTP staging). Supabase staging siap (D-029); akun Vercel harus dibuat pemilik projek.
 
 ---
 
@@ -69,7 +68,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] dependency-cruiser + aturan batas modul
 - [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
 - [x] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — run #36375129344 hijau (commit `1815b3c`)
-- [~] Keputusan OD-7 ✔ (D-030, workflow `deploy-staging.yml` diuji lokal di DB kosong), lalu `db:deploy` migrasi awal ke staging — menunggu secret `STAGING_DIRECT_URL` & kode sampai di `HRIS/debug/fe-be`
+- [x] Keputusan OD-7 ✔ (D-030), lalu `db:deploy` migrasi awal ke staging — workflow `Deploy staging` run #36385730691 sukses (2 migrasi, `db:check` tanpa selisih), diverifikasi via MCP
 - [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be` — `vercel.json` kedua app dibuat; project Vercel belum dibuat
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
@@ -199,6 +198,12 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-28 — Fase 1: migrasi pertama ke staging & perbaikan advisor
+- **Dikerjakan:** commit `c62c059` → CI hijau → PR #1 ke `HRIS/debug/database` (merge `41b6b9e`, CI hijau) → PR #2 ke `HRIS/debug/fe-be` (merge `d123237`) → workflow `Deploy staging` run #36385730691 sukses: 2 migrasi diterapkan, `db:check` tanpa selisih. `main` tidak disentuh (instruksi pemilik projek: `main` hanya atas permintaannya).
+- **Verifikasi staging via MCP (read-only):** 10 skema modul; `organization` 5 tabel, `employee` 6 tabel; `_prisma_migrations` 2 baris selesai; `anon`/`authenticated` tanpa USAGE pada skema `employee`/`organization`/`iam`. Advisor security: **1 ERROR** `rls_disabled_in_public` pada `public._prisma_migrations`.
+- **Perbaikan:** migrasi `20260928061939_enable_rls_on_prisma_migrations` (RLS tanpa policy, bersyarat `to_regclass`, portabel) — lokal: diterapkan, `relrowsecurity = t`, rerun "Already in sync", `db:check` ✔. Bug workflow: `bunx --cwd apps/api` dibaca Bun sebagai paket (tarball 404, tertutup `|| true`) → diganti `working-directory`; pola yang sama di skill Playwright diperbaiki.
+- **Berikutnya:** alirkan perbaikan ke `HRIS/debug/fe-be`, pastikan advisor bersih; fondasi akses → CRUD employee.
 
 ### 2026-09-28 — Fase 1: koneksi staging & secret deploy
 - **Dikerjakan:** host direct `db.iwgzuwcxsxnbjibhbqgh.supabase.co` terbukti **IPv6 saja** (tidak bisa dari runner GitHub). Mencari cluster pooler: tenant tidak ada di `aws-0/1-ap-southeast-2`; ditemukan di **`aws-0-ap-northeast-2`** (Seoul), cocok dengan string *Shared pooler* dari dashboard. Uji `select` read-only: port 5432 (session) ✔ & 6543 (transaction) ✔, PostgreSQL 17.6. `prisma migrate status` lewat session pooler ✔ (2 migrasi belum diterapkan, sesuai harapan). Secret repository `STAGING_DIRECT_URL` diisi (session pooler, port 5432) via `gh secret set` dari stdin.
