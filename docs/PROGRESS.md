@@ -31,7 +31,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ## 2. Fokus Saat Ini
 
-- **Fase aktif:** 1 — Fondasi (sisa item akun luar) · **Target minggu 2026-09-28 (D-027): employee management** — skema ERD `organization` & `employee` ✔, seed dummy ✔; berikutnya fondasi akses (core/auth + core/access, D-028) lalu CRUD employee.
+- **Fase aktif:** 1 — Fondasi (sisa item akun luar) · **Target minggu 2026-09-28 (D-027): employee management** — skema ERD `organization` & `employee` ✔, seed dummy ✔, **fondasi akses ✔** (iam/audit, core/auth, core/access, `GET /me`, bootstrap); berikutnya CRUD employee (+ tim MANAGER di core/access).
 - **Sudah jalan di lokal (Linux) & CI GitHub hijau:** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
 - **Langkah berikutnya:**
   1. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
@@ -60,7 +60,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] PostgreSQL lokal: `docker-compose.yml` (image Postgres, versi = Supabase) + script `db:up`/`db:down`
 - [x] Supabase project **staging** (D-029: `HRIS Project`, ref `iwgzuwcxsxnbjibhbqgh`, org `Work` Free): self sign-up nonaktif ✔, *Redirect URLs* `http://localhost:5173/**` ✔, Data API tidak mengekspos skema modul ✔ (dikonfirmasi pemilik projek); region **ap-northeast-2 (Seoul)**, diterima untuk staging (D-029; produksi wajib Singapura); pooler `aws-0-ap-northeast-2.pooler.supabase.com` (session 5432 & transaction 6543 teruji); bucket private menyusul saat Fase 4/5 butuh; `SUPABASE_URL`/`VITE_SUPABASE_URL` = `https://iwgzuwcxsxnbjibhbqgh.supabase.co`
 - [x] Cocokkan versi major PostgreSQL di `docker-compose.yml` dengan project staging — Supabase 17.6, lokal & CI 17 (dicek via MCP 2026-09-28)
-- [ ] Custom SMTP Supabase staging memakai akun Google Workspace pengirim (D-025; menunggu OD-5)
+- [x] Custom SMTP Supabase staging (D-025) — `admin.arthasia@gmail.com` (D-032; akun final produksi tetap OD-5): login & kirim langsung ✔, undangan Supabase Auth `POST /invite` **200** 2026-09-28 07:58 UTC ✔; **pengisian SMTP di dashboard Supabase oleh pemilik projek** & uji lewat Supabase Auth belum
 - [x] `packages/shared` (roles, permissions, enums)
 - [x] `apps/api`: Hono + `@hono/zod-openapi`, `env.ts`, `core/` (errors, response, logger, request-id, db), `/api/v1/health`, `/openapi.json`, `/docs`
 - [x] Prisma 7: `prisma.config.ts`, skema multi-file, multi-schema, driver adapter, migrasi awal (buat semua skema)
@@ -75,17 +75,17 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [ ] Verifikasi `bun install && bun run dev` di **Windows**
 
 ### Fase 2 — IAM
-- [ ] Skema `iam`, `audit`, `notification` + migrasi
-- [ ] `core/auth`: verifikasi JWT Supabase (JWKS) + verifier pengganti untuk test
-- [ ] `core/access`: muat role, grant (cek kedaluwarsa), tim; `requireRole`/`requireGrant`
-- [ ] Test matriks akses (TDD) untuk aksi IAM
-- [ ] `GET /me`
+- [~] Skema `iam`, `audit`, `notification` + migrasi — `iam` (accounts, permission_grants) & `audit` (audit_logs) ✔ migrasi `20260928065300_add_iam_and_audit` + test constraint; `notification` belum
+- [x] `core/auth`: verifikasi JWT Supabase (JWKS) + verifier pengganti untuk test — `src/core/auth/` (ES256, cek iss/aud/role/sub) + `tests/helpers/auth.ts` (`testVerifier`, `createAuthFixture().loginAs`); 12 unit test. Token asli staging ✔ (uji E2E 2026-09-28: login `admin.arthasia@gmail.com` → `/me` 200, token dirusak 401)
+- [~] `core/access`: muat role, grant (cek kedaluwarsa), tim; `requireRole`/`requireGrant` — role & grant aktif dimuat per request, `requireRole`/`requirePermission`, 15 test TDD ✔; **tim (bawahan langsung) belum**: menunggu modul employee
+- [~] Test matriks akses (TDD) untuk aksi IAM — aturan dasar (`hasPermission`, `isGrantActive`) ✔; aksi kelola role/grant menunggu endpointnya
+- [x] `GET /me` — modul `iam` (routes/policy/service/repository/schema/index), 8 integration test (401 ×4, 200, last_login_at, pencabutan grant langsung berlaku, OpenAPI)
 - [ ] Kelola role HR_ADMIN/MANAGER; aturan Super Admin Utama (4 hak eksklusif, tidak boleh 0 SUPER_ADMIN)
 - [ ] Grant: beri, cabut, kedaluwarsa, audit
-- [ ] Audit log (core) + halaman audit untuk SUPER_ADMIN
+- [~] Audit log (core) + halaman audit untuk SUPER_ADMIN — tabel `audit.audit_logs` + `writeAudit()` (transaksi, redaksi) ✔; endpoint & halaman audit belum
 - [ ] Notifikasi in-app + pengiriman email via SMTP (lokal: dicatat ke log; staging/produksi: Google Workspace) + `email_outbox`
-- [ ] Keputusan OD-5 (akun pengirim Workspace + App Password) sebelum uji undangan
-- [ ] Script `bootstrap-super-admin` dan `recover-primary-admin`
+- [~] Keputusan OD-5 (akun pengirim Workspace + App Password) sebelum uji undangan — staging bisa uji undangan dengan akun D-032; akun final menunggu OD-5
+- [~] Script `bootstrap-super-admin` dan `recover-primary-admin` — `bootstrap-super-admin` ✔ (jalan nyata 2026-09-28: Utama `admin.arthasia@gmail.com` di DB lokal + user Auth staging, idempoten teruji); `recover-primary-admin` belum
 - [ ] Web: halaman login, sesi, route guard per role, menu per role, manajemen akun & grant
 
 ### Fase 3 — Organization
@@ -172,7 +172,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 | OD-2 | THR dihitung sistem?                        | Fase 8    | Menunggu keputusan  |
 | OD-3 | Verifikator golden cases payroll            | Fase 8    | Menunggu keputusan  |
 | OD-4 | Kepemilikan akun Vercel/Supabase & paket     | Rilis 1   | Menunggu keputusan  |
-| OD-5 | Email: penyedia = Google Workspace (D-025); sisa akun pengirim & App Password | Fase 2      | Sebagian terjawab |
+| OD-5 | Email: penyedia = Google Workspace (D-025); akun pengirim final (produksi) | Rilis 1   | Sebagian: staging `admin.arthasia@gmail.com` (D-032) |
 | OD-6 | Ubah data sensitif/gaji milik sendiri       | Fase 4    | Menunggu keputusan  |
 | OD-7 | Cara `db:deploy` & env per environment      | Fase 1    | Terjawab → D-030 (GitHub Actions) |
 | OD-8 | Rollback migrasi & backup produksi          | Rilis 1   | Menunggu keputusan  |
@@ -198,6 +198,52 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-28 — Uji login end-to-end (Auth staging → API lokal)
+- **Dikerjakan (izin pemilik projek):** publishable key diambil via MCP (`sb_publishable_…`, publik) dan diisi ke `VITE_SUPABASE_ANON_KEY` di `.env` lokal. Script sekali pakai (`supabase-js`): `signInWithPassword` sebagai `admin.arthasia@gmail.com` → token asli → `GET /api/v1/me` di `bun run dev:api` → `signOut`. Token tidak dicetak; script dihapus setelahnya.
+- **Hasil:** token ES256, `role`/`aud` = `authenticated`, `sub` = user Auth `47a8155e-…`; `/me` **200** → akun `f73bb6a3-…`, `SUPER_ADMIN`, `isPrimarySuperAdmin: true`, `lastLoginAt` terisi; token dirusak → **401**; logout ok (MCP: 0 sesi aktif, 0 refresh token hidup); log API mencatat 200 & 401.
+- **Arti:** rantai `core/auth` (JWKS remote) → `core/access` (akun dari DB) → modul `iam` terbukti dengan token Supabase sungguhan.
+
+### 2026-09-28 — Bootstrap Super Admin Utama (DB lokal + Auth staging)
+- **Dikerjakan:** kunci `SUPABASE_SERVICE_ROLE_KEY` diisi pemilik projek di `.env` (dicek: JWT `role=service_role`, `ref=iwgzuwcxsxnbjibhbqgh`, isi tidak ditampilkan). Dry-run ✔ lalu jalan nyata (password dari pemilik projek, dikirim lewat pseudo-terminal, output disaring): user Auth `admin.arthasia@gmail.com` dibuat (`47a8155e-…`, terkonfirmasi), akun HRIS SUPER_ADMIN Utama dibuat di DB lokal (`f73bb6a3-…`), audit `iam.account.bootstrap_primary_super_admin`.
+- **Bug diperbaiki:** script root `bootstrap:super-admin` memakai `bun run --filter`, yang mem-pipe stdio sehingga input password tersembunyi tidak pernah mendapat TTY (perintah untuk pengguna pun pasti gagal) → diganti `bun run --cwd apps/api bootstrap:super-admin`. Percobaan gagal tidak meninggalkan data (Auth 0 user, DB 0 akun/audit, dicek).
+- **Verifikasi:** MCP `auth.users` = 1 (terkonfirmasi); DB lokal 1 akun Utama aktif + 1 audit; jalan ulang → `ditemukan` + `unchanged` tanpa prompt; `bun run typecheck` ✔, `bunx biome ci .` ✔, `bun run test` ✔ (shared 10, api 71, web 8; test bootstrap otomatis dilewati di DB yang sudah punya Utama, tetap berjalan penuh di CI).
+- **Catatan:** password Super Admin tertulis di riwayat percakapan & tergolong lemah → ganti lewat reset password setelah halaman login ada. Akun Utama baru ada di DB **lokal**; DB staging menunggu migrasi `iam` (rantai PR) lalu bootstrap ke DB staging.
+
+### 2026-09-28 — Fase 1: ganti pengirim SMTP staging
+- **Dikerjakan:** atas permintaan pemilik projek, pengirim diganti ke `admin.arthasia@gmail.com` (App Password baru). Uji login `smtp.gmail.com:587` STARTTLS → `235 2.7.0 Accepted`. Tidak ada email dikirim; password hanya di env proses.
+- **Keputusan:** **D-032** menggantikan D-031. OD-5 tetap terbuka untuk akun final produksi.
+- **File berubah:** `docs/PLAN.md`, `docs/CODEMAP.md`, `docs/PROGRESS.md`.
+- **Uji kirim langsung (diizinkan):** `admin.arthasia@gmail.com` → `oatse2458@gmail.com`, subjek `[HRIS Staging] Uji SMTP akun admin.arthasia`, diterima server (`refused: none`, Message-ID `<179058203763.358775.5107073056780962564@gmail.com>`).
+- **SMTP dashboard Supabase:** diisi pemilik projek (log 07:18 UTC: limiter email 2/1h → 30). Dua undangan ke `oatse2458@gmail.com` (07:20 UTC) gagal `534 5.7.9 Application-specific password required` → password di dashboard bukan App Password; 0 user tertinggal. Menunggu isi ulang password & uji undangan ulang.
+- **Dikonfirmasi pemilik projek:** email uji langsung dari Gmail sampai di penerima (SMTP Google aman).
+- **Undangan lewat Supabase Auth ✔:** 07:55:27 masih `534` (sebelum simpan ulang); konfigurasi dimuat ulang 07:57:43; undangan 07:58:04 → **200** tanpa error SMTP. `auth.users`: 1 user `oatse2458@gmail.com` (invited, belum konfirmasi, id `cbce96f7-…`).
+- **Catatan:** user uji memakai alamat utama (bukan plus-addressing PLAN §3.3); bila dipakai sebagai akun HRIS uji, pertimbangkan alamat `+stg-…`.
+- **Pembersihan (atas permintaan pemilik projek):** user uji `oatse2458@gmail.com` (`cbce96f7-…`, tanpa akun HRIS) dihapus via MCP `delete … returning`; setelahnya `auth.users`, `auth.identities`, `auth.sessions`, `auth.one_time_tokens` = 0. Bootstrap Super Admin tertunda: `SUPABASE_SERVICE_ROLE_KEY` di `.env` masih kosong.
+- **Catatan:** kedua App Password (lama & baru) tertulis di riwayat percakapan; App Password akun lama `rizqy2458@gmail.com` sebaiknya dicabut karena tidak dipakai lagi.
+
+### 2026-09-28 — Fase 1: SMTP staging sementara (Gmail pribadi)
+- **Dikerjakan:** uji login `smtp.gmail.com:587` STARTTLS dengan `rizqy2458@gmail.com` + App Password → `235 2.7.0 Accepted`; email uji `[HRIS Staging] Uji konfigurasi SMTP` ke `oatse2458@gmail.com` diterima server (`refused: none`, Message-ID `<179057924112.311008.4072610455888119196@gmail.com>`). Password hanya lewat env proses, tidak ditulis ke file/repo/secret.
+- **Keputusan:** **D-031** (pengirim sementara staging = Gmail pribadi; ganti sebelum produksi). OD-5 tetap terbuka untuk akun final.
+- **Penyesuaian rencana:** uji lewat Supabase Auth diganti uji SMTP langsung, karena SMTP dashboard belum diisi & Auth staging belum punya user (reset password hanya ke user yang ada).
+- **File berubah:** `docs/PLAN.md`, `docs/CODEMAP.md`, `docs/PROGRESS.md`.
+- **Belum diverifikasi:** email sampai di kotak masuk penerima (dicek pemilik projek); pengiriman lewat Supabase Auth (setelah dashboard diisi + ada user, mis. setelah bootstrap).
+- **Catatan:** App Password tertulis di riwayat percakapan; cabut & buat ulang sebelum produksi. Batas Gmail pribadi ± 500 email/hari.
+
+### 2026-09-28 — Fase 2 (sebagian): fondasi akses
+- **Dikerjakan (rencana 7 poin, disetujui):** skema `iam` (accounts, permission_grants) & `audit` (audit_logs) + migrasi `20260928065300_add_iam_and_audit` (index unik parsial Utama, 2 CHECK); `core/auth` (verifier JWKS ES256 + `authenticate`); `core/access` (aturan murni + `loadActor`/`requireRole`/`requirePermission`, TDD); modul `iam` + `GET /api/v1/me`; `core/audit` (`writeAudit`); `core/supabase-admin` + script `bootstrap-super-admin` (logika di service iam); env & dokumen.
+- **Keputusan (dalam rencana yang disetujui):** JWT valid tanpa akun aktif → 401 "akun tidak aktif"; `core/access` tidak meng-import modul (pemuat aktor disuntikkan app) untuk mencegah siklus; `SUPABASE_URL` wajib kecuali `NODE_ENV=test`; grant hanya berlaku bila boleh diberikan ke role pemiliknya; bootstrap membuat user Auth terkonfirmasi (tanpa email undangan, karena SMTP menunggu OD-5).
+- **File berubah:** `apps/api/prisma/schema/{iam,audit,employee}.prisma`, migrasi baru, `apps/api/src/core/{auth/*,access/*,audit.ts,supabase-admin.ts}`, `apps/api/src/modules/iam/*`, `apps/api/src/{app.ts,env.ts}`, `apps/api/scripts/bootstrap-super-admin.ts`, `apps/api/tests/{helpers/auth.ts,integration/iam/*,integration/iam-schema.test.ts,integration/audit.test.ts}`, `package.json` (script), `.env.example`, `docs/erd/hris.dbml`, `docs/CODEMAP.md`, `docs/PROGRESS.md`, skill `hris-flow-testing`. Dependensi baru api: `jose` 6.2.12, `@supabase/supabase-js` 2.117.2.
+- **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ · `bun run check:boundaries` ✔ (75 modul) · `bun run db:check` ✔ · `bun run test` ✔ (shared 10, api 71, web 8) · tidak ada sisa data test · smoke `bun run dev:api`: `/me` tanpa token 401, token ES256 bertanda tangan kunci asing 401 (verifier Supabase asli), `/me` di OpenAPI · `bootstrap:super-admin --dry-run` ✔.
+- **Belum diverifikasi:** token asli Supabase staging (butuh login/halaman login); jalan nyata `bootstrap-super-admin` ke Auth staging (butuh `SUPABASE_SERVICE_ROLE_KEY` & izin); migrasi `iam`/`audit` & index `parent_id` belum di staging (butuh rantai PR).
+- **Berikutnya:** izin commit/push/PR; bootstrap nyata; CRUD employee (tim MANAGER di `core/access`).
+
+### 2026-09-28 — Skill alur kerja `hris-workflow` (grill 9 pertanyaan)
+- **Dikerjakan:** sesi grill dengan pemilik projek, lalu skill `.claude/skills/hris-workflow/` (SKILL.md + TEMPLATES.md); rujukan di `CLAUDE.md` & PROMPT §2.
+- **Keputusan (proses kerja):** berlaku untuk setiap tugas; laporan akhir "hasil dulu" (Ringkasan → Yang dikerjakan → Hasil verifikasi → Temuan & keputusan → Butuh dari Anda → Langkah berikutnya); status singkat per poin lalu lanjut otomatis (berhenti hanya untuk OD, aksi keluar, cek gagal); checklist PROGRESS per poin, §2 & log di akhir; langkah baru = sub-item fase aktif "(tambahan YYYY-MM-DD)", di luar fase → Backlog; verifikasi relevan per poin + penuh sebelum selesai; **rencana selalu menunggu persetujuan** (kecuali pertanyaan/penjelasan & pemeriksaan read-only); **setiap aksi keluar ditanya tepat sebelum dijalankan**; temuan di luar cakupan diusulkan, tidak langsung dikerjakan.
+- **File berubah:** `.claude/skills/hris-workflow/*`, `CLAUDE.md`, `docs/PROMPT.md`, `docs/CODEMAP.md`, `docs/PROGRESS.md`.
+- **Verifikasi:** dokumen saja; grep konsistensi rujukan `hris-workflow`; `bunx biome ci .`.
+- **Berikutnya:** (menunggu persetujuan) commit; OD-9; rencana fondasi akses → CRUD employee.
 
 ### 2026-09-28 — Fase 1: staging bersih dari advisor ERROR; percobaan ulang proteksi `main`
 - **Dikerjakan:** commit `df46af2` → CI ✔ → PR #3 ke `HRIS/debug/database` (merge `e924fa0`, CI ✔) → PR #4 ke `HRIS/debug/fe-be` (merge `d550170`) → `Deploy staging` run #36386402931 ✔. MCP: RLS `public._prisma_migrations` aktif, 3 migrasi tercatat; advisor security tinggal INFO `rls_enabled_no_policy` (disengaja). Advisor performa: FK `departments.parent_id` tanpa index → migrasi `20260928062734_add_departments_parent_id_index` (lokal ✔, `db:check` ✔; ke staging bersama rantai PR berikutnya). INFO `unused_index` wajar (DB kosong).

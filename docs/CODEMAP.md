@@ -32,6 +32,7 @@ HRIS/
 ├── .github/workflows/ci.yml          [done] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Hijau di GitHub
 ├── .github/workflows/deploy-staging.yml [done] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu Deploy Hook Vercel opsional. Pertama sukses 2026-09-28 (run #36385730691)
 ├── .claude/skills/                    Skill Claude Code projek (dimuat otomatis)
+│   ├── hris-workflow/                [done] Aturan alur kerja & laporan untuk setiap tugas (hasil grill 2026-09-28)
 │   ├── hris-db-schema/               [done] Alur skema Prisma, ERD → Prisma, batas Supabase MCP
 │   ├── hris-e2e-playwright/          [done] Konvensi & templat Playwright (setup e2e/ saat pertama dipakai)
 │   ├── hris-flow-testing/            [done] Test flow API & matriks akses (TDD)
@@ -86,31 +87,32 @@ apps/api/
 ├── prisma.config.ts                  [done] Memuat `.env` root (dotenv), skema folder, `datasource.url = DIRECT_URL` (dipakai CLI migrate)
 ├── src/
 │   ├── index.ts                      [done] Entry: `export default app` (Vercel & Bun; Bun membaca PORT, default 3000)
-│   ├── app.ts                        [done] `createApp(deps?)`: request-id → logger → secure headers → CORS → OpenAPI/health; `defaultHook` Zod → 400; `onError`/`notFound` → envelope error
-│   ├── env.ts                        [done] Validasi env dengan Zod (`getEnv()` lazy, `parseEnv()`); pesan error tanpa nilai env
+│   ├── app.ts                        [done] `createApp(deps?)`: request-id → logger → secure headers → CORS → OpenAPI/health → route modul (dilindungi `protect` = authenticate + loadActor); deps bisa diganti di test (`tokenVerifier`, `actorLoader`); `defaultHook` Zod → 400; `onError`/`notFound` → envelope error
+│   ├── env.ts                        [done] Validasi env dengan Zod (`getEnv()` lazy, `parseEnv()`); `SUPABASE_URL` wajib kecuali NODE_ENV=test; pesan error tanpa nilai env
 │   ├── generated/                    # Client Prisma hasil generate (TIDAK di-commit, tidak diedit; dibuat oleh postinstall)
 │   ├── core/                         [wip] Hal lintas modul (bukan logika bisnis domain)
 │   │   ├── db.ts                     [done] `getPrisma()` (PrismaPg, pool max 5), `disconnectPrisma()`, `pingDatabase()`
 │   │   ├── health.ts                 [done] `GET /api/v1/health` (200 ok / 503 degraded bila DB tidak terjangkau; tetap envelope `data`)
-│   │   ├── auth/                     [planned] verifikasi JWT Supabase (JWKS), verifier bisa diganti saat test
-│   │   ├── access/                   [planned] konteks akses: role, grant, tim; helper requireRole/requireGrant
+│   │   ├── auth/                     [done] `TokenVerifier`, `createSupabaseVerifier` (JWKS ES256; cek iss, aud=authenticated, role, sub UUID), middleware `authenticate()` → 401
+│   │   ├── access/                   [wip] `Actor`, `hasRole`, `hasPermission` (grant hanya untuk role penerima sah), `isGrantActive`, middleware `loadActor(loader)` (tanpa akun aktif → 401), `requireRole`, `requirePermission` (→ 403). Tim MANAGER belum (menunggu modul employee)
 │   │   ├── errors.ts                 [done] AppError + ValidationError/UnauthenticatedError/ForbiddenError/NotFoundError/ConflictError/BusinessRuleError
 │   │   ├── response.ts               [done] `ok()`, `paginated()`, `dataEnvelope()`, `paginatedEnvelope()`, `ERROR_RESPONSES` (OpenAPI)
 │   │   ├── logger.ts                 [done] Log JSON satu baris ke stdout, `redact()` field sensitif (jaring pengaman), `requestLogger()` (tanpa query string)
-│   │   ├── audit.ts                  [planned] tulis audit log (dipakai semua modul)
+│   │   ├── audit.ts                  [done] `writeAudit(entry, client?)`: bisa ikut transaksi; before/after diredaksi (jaring pengaman)
 │   │   ├── storage.ts                [planned] signed upload/download URL Supabase Storage
-│   │   ├── supabase-admin.ts         [planned] client admin (service role): undangan, nonaktif akun
+│   │   ├── supabase-admin.ts         [wip] `createSupabaseAdmin()`: `findUserByEmail`, `createConfirmedUser` (service role; server/script saja). Undangan & nonaktif akun menyusul
 │   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1), `/api/v1/docs` (Swagger UI)
 │   │   └── __tests__/                [done] Unit test app core, env, logger
 │   ├── modules/
-│   │   └── <modul>/                  # lihat §4 untuk struktur standar (belum ada modul)
+│   │   ├── iam/                      [wip] `GET /me`; `loadActor` (pemuat aktor untuk core/access); `bootstrapPrimarySuperAdmin` (transaksi + audit); policy `canReadOwnAccount`
+│   │   └── <modul>/                  # lihat §4 untuk struktur standar
 │   └── jobs/                         [planned] Handler Vercel Cron (dilindungi CRON_SECRET)
 ├── scripts/
-│   ├── bootstrap-super-admin.ts      [planned] Membuat akun SUPER_ADMIN Utama pertama (cari/buat user Auth berdasarkan email, lalu buat akun di DB target)
+│   ├── bootstrap-super-admin.ts      [wip] `--email <e> [--dry-run]`: cari/buat user Auth (password diketik tersembunyi), lalu `bootstrapPrimarySuperAdmin` di DB target. Jalan nyata ✔ (Utama `admin.arthasia@gmail.com` di DB lokal)
 │   └── recover-primary-admin.ts      [planned] Pemulihan status Utama (manual, lihat PLAN §4.4)
 ├── tests/
-│   ├── helpers/                      [planned] Factory data, login-as(role, grants)
-│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed)
+│   ├── helpers/auth.ts               [done] `testVerifier` (token `test-token:<uuid>`), `bearer()`, `createAuthFixture(run)` → `loginAs(role, {grants, employeeId, isActive, primary})` + `cleanup()`
+│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed); `iam-schema.test.ts`, `audit.test.ts`, `iam/me.test.ts`, `iam/bootstrap.test.ts`
 ├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
 ├── vercel.json                       [wip] bunVersion 1.x, region sin1, install dari root, build = prisma generate (cron ditambahkan per fase). Belum diuji di Vercel
 ├── tsconfig.json                     [done]
@@ -210,8 +212,8 @@ Request ─▶ core: request-id → logger → auth (verifikasi JWT) → muat ko
 
 | Modul          | Skema DB       | Prefix route (`/api/v1`)                                                         | Boleh FK ke             | Memakai (via `index.ts`)             | Fase | Status      |
 | -------------- | -------------- | -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------ | ---- | ----------- |
-| `iam`          | `iam`          | `/me`, `/accounts`, `/roles`, `/grants`                                          | employee                | employee, notification               | 2    | `[planned]` |
-| `audit` (core) | `audit`        | `/audit-logs`                                                                    | –                       | –                                    | 2    | `[planned]` |
+| `iam`          | `iam`          | `/me` ✔, `/accounts`, `/roles`, `/grants`                                        | employee                | employee, notification               | 2    | `[wip]`     |
+| `audit` (core) | `audit`        | `/audit-logs`                                                                    | –                       | –                                    | 2    | `[wip]` (tabel + `writeAudit`) |
 | `organization` | `organization` | `/company`, `/settings`, `/departments`, `/positions`, `/employment-statuses`, `/grades`, `/work-locations`, `/holidays` | –           | –                                    | 3    | `[planned]` |
 | `employee`     | `employee`     | `/employees`, `/employees/:id/*` (personal, bank-account, family-members, educations, trainings), `/employees/import`                            | organization            | iam, organization                    | 4    | `[planned]` |
 | `approval`     | `approval`     | `/approvals` (inbox keputusan)                                                   | employee                | iam, employee, notification          | 5    | `[planned]` |
@@ -353,12 +355,12 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 | `LOG_LEVEL` | api | `debug` · `info` (default) · `warn` · `error` |
 | `DATABASE_URL` | api (runtime) | Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543; staging: `aws-0-ap-northeast-2.pooler.supabase.com:6543`, user `postgres.iwgzuwcxsxnbjibhbqgh`) |
 | `DIRECT_URL` | api (migrasi) | Lokal: sama dengan `DATABASE_URL`. Staging/produksi: koneksi direct/session (port 5432) untuk `prisma migrate` |
-| `SUPABASE_URL` | api | URL project Supabase (JWKS & Admin API). Lokal: project **staging** |
-| `SUPABASE_SERVICE_ROLE_KEY` | api | **Rahasia**. Hanya di server, tidak pernah ke frontend |
+| `SUPABASE_URL` | api | URL project Supabase (JWKS & Admin API). **Wajib** kecuali `NODE_ENV=test`. Lokal: project **staging** `https://iwgzuwcxsxnbjibhbqgh.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | api | **Rahasia**. Hanya di server/script (`bootstrap:super-admin`), tidak pernah ke frontend |
 | `CORS_ORIGINS` | api | Origin web yang diizinkan |
 | `CRON_SECRET` | api | Rahasia untuk endpoint cron |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | api | SMTP Google Workspace (D-025): `smtp.gmail.com`, port `587`, user = alamat akun pengirim, password = **App Password** (**rahasia**). Kosong di lokal → email aplikasi hanya dicatat ke log |
-| `EMAIL_FROM` | api | Alamat pengirim = akun Workspace pengirim (OD-5), mis. `HRIS Arthasia <hris@<domain-kantor>>` |
+| `EMAIL_FROM` | api | Alamat pengirim = akun Workspace pengirim (OD-5), mis. `HRIS Arthasia <hris@<domain-kantor>>`. **Staging (D-032):** `HRIS Arthasia (Staging) <admin.arthasia@gmail.com>`, `SMTP_USER=admin.arthasia@gmail.com`; `SMTP_PASS` diisi di env Vercel (bukan repo). Lokal tetap kosong (email hanya ke log) |
 | `APP_URL` | api | URL web untuk link di email. Lokal: `http://localhost:5173` |
 | `VITE_API_BASE_URL` | web | mis. `http://localhost:3000/api/v1` |
 | `VITE_SUPABASE_URL` | web | URL project Supabase. Lokal: project **staging** |
@@ -397,7 +399,7 @@ Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal mema
 | `bun run db:check` | `prisma migrate diff --exit-code`: gagal jika skema Prisma berbeda dari DB hasil migrasi (migrasi lupa dibuat) |
 | `bun run db:reset` | Reset DB lokal + seed. Prisma menolak perintah ini bila dijalankan AI agent tanpa persetujuan eksplisit pengguna |
 | `bun run db:seed` | Seed data dummy (idempoten; aman diulang) |
-| `bun run bootstrap:super-admin` | [planned] Buat SUPER_ADMIN Utama pertama (Fase 2) |
+| `bun run bootstrap:super-admin -- --email <e> [--dry-run]` | Buat/promosikan SUPER_ADMIN Utama di DB target; idempoten; butuh `SUPABASE_SERVICE_ROLE_KEY` (kecuali dry-run). Memakai `bun run --cwd apps/api` (bukan `--filter`) agar input password tersembunyi mendapat TTY |
 | `bun run build` | Build api (`bun build` → `apps/api/dist`) & web (`vite build` → `apps/web/dist`) |
 
 Docker image api (jalan keluar dari Vercel): `docker build -f apps/api/Dockerfile -t hris-api .` dari root.

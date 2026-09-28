@@ -14,7 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force && prisma db seed",
     "db:seed": "prisma db seed",
-    "db:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code"
+    "db:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
+    "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts"
   },
   "dependencies": {
     "@hono/swagger-ui": "0.6.1",
@@ -22,7 +23,9 @@
     "@hris/shared": "workspace:*",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
+    "@supabase/supabase-js": "2.117.2",
     "hono": "4.13.9",
+    "jose": "6.2.12",
     "pg": "8.23.0",
     "zod": "4.6.5"
   },
