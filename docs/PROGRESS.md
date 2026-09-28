@@ -32,14 +32,13 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 ## 2. Fokus Saat Ini
 
 - **Fase aktif:** 1 — Fondasi
-- **Sudah jalan di lokal (Linux):** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
+- **Sudah jalan di lokal (Linux) & CI GitHub hijau:** monorepo, `packages/shared`, kerangka `apps/api` & `apps/web`, Prisma + migrasi awal, dependency-cruiser, test, Dockerfile. Semua cek hijau (lihat log 2026-09-28).
 - **Langkah berikutnya:**
-  1. Commit & push `HRIS/Oatse/Linux-Windows`, lalu pastikan workflow CI hijau di GitHub (belum pernah jalan).
-  2. Buat Supabase project **staging** (region Singapura): self sign-up nonaktif, bucket private, *Redirect URLs* `http://localhost:5173`, skema modul tidak di *Exposed schemas*. Catat versi major PostgreSQL-nya dan cocokkan dengan `docker-compose.yml` & CI (saat ini 17).
-  3. Jawab **OD-7**, lalu `db:deploy` migrasi awal ke staging.
-  4. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
-  5. Verifikasi `bun install && bun run dev` di **Windows**.
-  6. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
+  1. Buat Supabase project **staging** (region Singapura): self sign-up nonaktif, bucket private, *Redirect URLs* `http://localhost:5173`, skema modul tidak di *Exposed schemas*. Catat versi major PostgreSQL-nya dan cocokkan dengan `docker-compose.yml` & CI (saat ini 17).
+  2. Jawab **OD-7**, lalu `db:deploy` migrasi awal ke staging.
+  3. Buat 2 project Vercel (`api` root `apps/api`, `web` root `apps/web`) + preview untuk `HRIS/debug/fe-be`; cek `/api/v1/health` di staging.
+  4. Verifikasi `bun install && bun run dev` di **Windows**.
+  5. Putuskan **OD-9** (proteksi `main`); minta admin IT menyiapkan akun pengirim (OD-5).
 - **Blocker aktif:** OD-7 (db:deploy ke staging), OD-9 (proteksi `main`), OD-5 (SMTP staging). Akun Supabase & Vercel harus dibuat pemilik projek.
 
 ---
@@ -69,7 +68,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] `apps/web`: Vite + React + TS, Tailwind, shadcn/ui, React Router, TanStack Query, layout kosong
 - [x] dependency-cruiser + aturan batas modul
 - [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
-- [~] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — workflow ditulis & tiap langkahnya lulus di lokal; belum pernah jalan di GitHub
+- [x] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — run #36375129344 hijau (commit `1815b3c`)
 - [ ] Keputusan OD-7, lalu `db:deploy` migrasi awal ke staging
 - [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be` — `vercel.json` kedua app dibuat; project Vercel belum dibuat
 - [x] `Dockerfile` api (build lokal berhasil)
@@ -225,7 +224,8 @@ Entri terbaru di **atas**. Salin template di bagian bawah.
   - Bun belum di PATH fish: jalankan `fish_add_path ~/.bun/bin` (installer hanya menambahkan ke `~/.zshrc`).
   - Tidak ada lagi `baseUrl` di tsconfig web (deprecated di TS 6); alias `@/*` memakai `paths` saja.
   - Variabel Supabase/SMTP/cron masih opsional di `env.ts`; wajibkan di Fase 2.
-- **Berikutnya:** lihat §2 Fokus Saat Ini (commit & CI, Supabase staging, OD-7, Vercel, Windows, OD-9).
+- **CI GitHub:** setelah push, run #36375129344 hijau (job `quality` & `api-db`).
+- **Berikutnya:** lihat §2 Fokus Saat Ini (Supabase staging, OD-7, Vercel, Windows, OD-9).
 
 ### 2026-09-28 — Fase 0: ganti penyedia email ke Google Workspace
 - **Dikerjakan:** mengganti rencana SMTP dari Resend ke SMTP Google Workspace kantor di PLAN, CODEMAP, PROGRESS.
