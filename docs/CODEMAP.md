@@ -125,9 +125,8 @@ apps/api/
 │   ├── helpers/email.ts              [done] `createFakeEmailSender()`: EmailSender palsu (menyimpan pesan, bisa disetel gagal)
 │   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed); `iam-schema.test.ts`, `audit.test.ts`, `iam/{me,bootstrap,accounts,grants-audit,recover}.test.ts`, `notification.test.ts` (notify, dedupe, outbox & retry, endpoint, pemicu grant, cron), `employee/employees.test.ts` (20 test: daftar/ringkasan/detail/view=work/tulis/status/nonaktif+akun/aktif kembali/struktur/master data; akses 401/403/404, field sensitif hilang, audit) (test yang butuh DB tanpa Utama otomatis dilewati di DB developer; penuh di CI)
 ├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
-├── index.ts                          [done] Entry **Vercel** (D-036): re-export `src/index.ts` + import `hono` supaya builder Hono memilih file ini, bukan `src/app.ts`
-├── vercel.json                       [done] framework `hono`, bunVersion 1.x, region sin1, install dari root (`--frozen-lockfile`), build = prisma generate, `crons`: grant-expiry 01:00 UTC & email-retry 02:00 UTC (harian; batas Hobby). Project `hris-staging-api` (D-036)
-├── tsconfig.json                     [done] · `module`/`moduleResolution` ditulis ulang (builder Vercel tidak membaca `extends`) + `rewriteRelativeImportExtensions` (import `./x.ts` → `./x.js` saat builder Vercel mengompilasi), D-036
+├── vercel.json                       [done] framework `hono`, bunVersion 1.x, region sin1, install dari root (`--frozen-lockfile`), build = prisma generate + **bundel `bun build` → `dist/index.js` dengan `hono` external** (`outputDirectory: dist`; builder Hono mencari entry yang meng-import `hono` di `dist/`), `crons`: grant-expiry 01:00 UTC & email-retry 02:00 UTC (harian; batas Hobby). Project `hris-staging-api` (D-036)
+├── tsconfig.json                     [done]
 └── package.json                      # name: @hris/api
 ```
 
@@ -180,7 +179,7 @@ apps/web/
 └── package.json                      # name: @hris/web
 ```
 
-`packages/shared/` [done] (paket sumber TS tanpa build; `exports` = `{ types: ./src/index.ts, default: ./src/index.js }` — Bun/Vite memetakan `.js` ke `.ts` di lokal, sedangkan bundel Vercel hanya berisi `.js` hasil kompilasi, D-036):
+`packages/shared/` [done] (paket sumber TS, diekspor langsung dari `src/index.ts` tanpa build; di Vercel ikut dibundel ke `apps/api/dist/index.js`, D-036):
 ```
 ├── src/
 │   ├── index.ts
