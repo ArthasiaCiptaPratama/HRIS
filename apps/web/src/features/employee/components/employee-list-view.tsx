@@ -266,9 +266,9 @@ export function EmployeeListView({
             ref={searchRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari nama, nomor induk, atau email…"
+            placeholder="Cari nama, nomor induk, email…"
             aria-label="Cari pegawai"
-            className="h-9 pr-16 pl-9"
+            className="h-9 pr-9 pl-9 sm:pr-16"
           />
           {search ? (
             <button
@@ -285,7 +285,7 @@ export function EmployeeListView({
             </kbd>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:flex">
+        <div className="grid grid-cols-1 gap-2 sm:flex">
           <FormSelect
             aria-label="Filter departemen"
             className="h-9 sm:w-52"
