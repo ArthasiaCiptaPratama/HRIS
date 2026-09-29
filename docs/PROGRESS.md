@@ -33,13 +33,12 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - **Fase aktif:** 1 — Fondasi (sisa: uji Windows, proteksi `main`) · Fase 2 IAM **Review** · **Target minggu 2026-09-29 (D-035): web Personal Management** (Fase 3–4 lebih awal).
 - **Sudah jalan (per 2026-09-29):**
  - Lokal (Linux) hijau: typecheck, lint, boundaries (175 modul), `db:check`, test shared 10 · api 237 · web 32 (api: dengan `SMTP_*` dikosongkan, lihat Backlog). `main` tidak disentuh (`ebb20e5`).
- - **Staging live (D-036):** web **https://hris-staging-web.vercel.app** · api **https://hris-staging-api.vercel.app/api/v1** (docs `/api/v1/docs`). Kode s.d. `43b2b69` (PR #9–#14), `Deploy staging` #36531510460 ✔ (migrasi → deploy api → deploy web). Diverifikasi: health 200 (DB ok), 401/404 envelope, OpenAPI 200, preflight CORS dari web 204 (origin asing ditolak), cron 401 tanpa/salah secret & 200 dengan `CRON_SECRET`, bundel web memakai URL api & Supabase staging. **QA staging 2026-09-29** (`docs/qa/runs/2026-09-29-staging.md`): login sungguhan 4 role, matriks akses dengan JWT asli, alur tulis HR, UI desktop & mobile → API 43/43, UI 31/31 LULUS; BUG-001 (P3, warning `HydrateFallback`) terbuka.
+ - **Staging live (D-036):** web **https://hris-staging-web.vercel.app** · api **https://hris-staging-api.vercel.app/api/v1** (docs `/api/v1/docs`). Kode s.d. `43b2b69` (PR #9–#14), `Deploy staging` #36531510460 ✔ (migrasi → deploy api → deploy web). Diverifikasi: health 200 (DB ok), 401/404 envelope, OpenAPI 200, preflight CORS dari web 204 (origin asing ditolak), cron 401 tanpa/salah secret & 200 dengan `CRON_SECRET`, bundel web memakai URL api & Supabase staging. **QA staging 2026-09-29** (`docs/qa/runs/2026-09-29-staging.md`): login sungguhan 4 role, matriks akses dengan JWT asli, alur tulis HR, UI desktop & mobile → API 43/43, UI 31/31 LULUS; BUG-001 (P3, warning `HydrateFallback`) diperbaiki 2026-09-29.
  - **Data staging terisi:** 5 departemen, 12 jabatan, 5 status, 5 grade, 2 lokasi, 21 karyawan (2 nonaktif), 23 riwayat, akun SA + HR/MGR/EMP (user Auth yang sama dengan lokal).
  - **Fase 2 IAM** lengkap (akun, role, grant, audit, notifikasi & email, cron, web). **SMTP teruji** 2026-09-29 dan env SMTP juga terisi di Vercel `hris-staging-api`.
  - **D-035 Personal Management:** API `organization` & `employee`, web Data Pegawai Aktif; menu b–e sementara Maintenance (`apps/web/src/app/feature-flags.ts`), Arsip (f–o) & Laporan (p) Maintenance.
  - QA: `docs/qa/` (plan, 32 kasus, hasil); bukti visual di `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/`.
 - **Langkah berikutnya (menunggu persetujuan pemilik projek):**
- 1. Perbaiki BUG-001 (`HydrateFallback`) & tampilan mobile daftar pegawai (placeholder/filter terpotong) — P3.
  2. Rotasi rahasia yang tertulis di percakapan 2026-09-29 (lihat Keamanan), lalu hapus `.env.staging` lokal.
  3. Fase 3: CRUD master data (departemen, jabatan, status + kategori, grade, lokasi) untuk SUPER_ADMIN.
  4. Lanjutan Fase 4: isi menu Arsip (f–o) & Laporan (p); aktifkan kembali menu b–e saat siap diuji; tulis data pribadi/rekening (butuh **OD-6**), dokumen (signed URL), undangan akun dari data karyawan, import CSV/Excel.
@@ -231,6 +230,13 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-29 — Urutan deploy api → web, BUG-001, tampilan mobile daftar pegawai
+- **Dikerjakan:** (1) `deploy-staging.yml`: job matrix `vercel` dipecah menjadi `vercel-api` (needs `migrate`) → `vercel-web` (needs `vercel-api`) karena matrix + `max-parallel: 1` tidak menjamin urutan (run #36536174711: web selesai sebelum api). (2) BUG-001: `HydrateFallback` di route akar `RequireAuth`. (3) Daftar pegawai mobile: filter departemen/lokasi ditumpuk satu kolom di bawah `sm`, input cari `pr-9 sm:pr-16`, placeholder "Cari nama, nomor induk, email…"; logo baru juga sudah di staging (PR #15/#16, `Deploy staging` #36536174711).
+- **Keputusan:** tidak ada D-xxx.
+- **File berubah:** `.github/workflows/deploy-staging.yml`, `apps/web/src/app/router.tsx`, `apps/web/src/features/auth/components/guards.tsx`, `apps/web/src/features/employee/components/employee-list-view.tsx`, `apps/web/tests/router-hydration.test.tsx`, `docs/qa/bugs/BUG-001-hydratefallback-warning.md`, `docs/qa/README.md`, `docs/CODEMAP.md`.
+- **Verifikasi:** test BUG-001 merah dulu (warning tertangkap) lalu hijau; `bun run typecheck` ✔ · `bunx biome ci .` ✔ · boundaries ✔ (175 modul) · test shared 10 · api 237 (SMTP dikosongkan) · web 33 · `bun run build` ✔; YAML diparse: `migrate → vercel-api → vercel-web`; Playwright lokal 390 px & 1440 px (login HR): placeholder muat (230/258 px), filter lebar penuh, konsol bersih setelah reload ke route lazy — bukti `/mnt/winD/WORK/Magang/QA/2026-09-29-bug001-mobile/`. Workflow baru belum dijalankan di GitHub (butuh push ke `HRIS/debug/fe-be`).
+- **Berikutnya:** naikkan ke staging & pastikan urutan job; rotasi rahasia; Fase 3 CRUD master data.
 
 ### 2026-09-29 — Web: logo vertikal Arthasia
 - **Dikerjakan:** logo di top bar, menu mobile, dan halaman login/auth diganti logo resmi vertikal (ikon + "arthasia" + "energy for the future") sesuai permintaan pemilik projek; pilihan pemilik projek: logo vertikal lengkap di semua tempat (tagline di top bar sangat kecil, diterima).

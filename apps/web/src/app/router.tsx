@@ -1,5 +1,10 @@
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router";
-import { RequireAccess, RequireAccessRoute, RequireAuth } from "@/features/auth/components/guards";
+import {
+  RequireAccess,
+  RequireAccessRoute,
+  RequireAuth,
+  RouteHydrateFallback,
+} from "@/features/auth/components/guards";
 import { AuthCallbackPage } from "@/features/auth/pages/auth-callback-page";
 import { ForgotPasswordPage } from "@/features/auth/pages/forgot-password-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
@@ -24,6 +29,7 @@ export const routes: RouteObject[] = [
   {
     // Semua halaman di bawah ini butuh sesi + akun aktif (GET /me); guard hanya kenyamanan UI.
     Component: RequireAuth,
+    HydrateFallback: RouteHydrateFallback,
     ErrorBoundary: ErrorPage,
     children: [
       {

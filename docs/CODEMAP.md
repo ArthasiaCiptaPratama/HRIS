@@ -31,7 +31,7 @@ HRIS/
 │   ├── erd/hris.dbml                 [done] Diagram ERD (DBML, buka di dbdiagram.io); cermin skema Prisma, disetujui pemilik projek 2026-09-28 (+ D-035: category, exit_reason, employment_histories)
 │   └── qa/                           [wip] Dokumentasi QA (skill hris-qa-docs): README (indeks), plans/, cases/, runs/, bugs/
 ├── .github/workflows/ci.yml          [done] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Hijau di GitHub
-├── .github/workflows/deploy-staging.yml [done] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu job `vercel` (D-036: Vercel CLI `pull/build/deploy --prebuilt --prod`, api dulu lalu web). Migrasi pertama sukses 2026-09-28 (run #36385730691); deploy Vercel pertama yang berfungsi 2026-09-29 (run #36531510460)
+├── .github/workflows/deploy-staging.yml [done] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu job `vercel-api` → `vercel-web` (D-036: Vercel CLI `pull/build/deploy --prebuilt --prod`; urutan dijamin `needs`, 2026-09-29). Migrasi pertama sukses 2026-09-28 (run #36385730691); deploy Vercel pertama yang berfungsi 2026-09-29 (run #36531510460)
 ├── .claude/skills/                    Skill Claude Code projek (dimuat otomatis)
 │   ├── hris-workflow/                [done] Aturan alur kerja & laporan untuk setiap tugas (hasil grill 2026-09-28)
 │   ├── hris-db-schema/               [done] Alur skema Prisma, ERD → Prisma, batas Supabase MCP
