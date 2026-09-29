@@ -24,5 +24,10 @@
 
 **Data tersisa (disengaja):** foto uji Agus Pratama di DB lokal + 1 objek di bucket staging (untuk dilihat pemilik projek); 4 audit foto di DB lokal.
 
+## Sesi staging (setelah deploy `adbe6ca`, `Deploy staging` #36556445220)
+- **Env:** https://hris-staging-web.vercel.app + api staging, login Supabase sungguhan HR & MGR, Playwright Chromium 1440×900. MCP: migrasi `add_employee_photo` selesai, kolom `photo_path` ada.
+- **Hasil:** 6/6 LULUS — HR unggah foto (Agus Pratama) → tampil 600×800 dari signed URL bucket private; Print data berfoto (JPEG 600×787 di xlsx); hapus foto → inisial; MANAGER tanpa tombol kamera; konsol bersih.
+- **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-29-foto-profil-staging/`. Staging dibersihkan (0 pegawai berfoto; audit 1 update + 1 delete).
+
 **Kesimpulan:** memenuhi kriteria rencana. **Bug terbuka:** tidak ada.
-**Belum diverifikasi:** tampilan foto di bingkai saat dibuka di **Microsoft Excel** (divalidasi struktur & koordinat); staging (belum di-deploy; migrasi `add_employee_photo` belum di DB staging); browser selain Chromium.
+**Belum diverifikasi:** browser selain Chromium; Windows. Tampilan foto di Excel sudah dicek pemilik projek.
