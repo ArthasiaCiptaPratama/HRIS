@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Permission, Role } from "@hris/shared";
-import { type Actor, hasPermission, hasRole, isGrantActive } from "../rules.ts";
+import { type Actor, hasPermission, hasRole, isGrantActive, isInTeam, isSelf } from "../rules.ts";
 
 const NOW = new Date("2026-09-28T08:00:00Z");
 
@@ -50,5 +50,26 @@ describe("isGrantActive (PLAN §4.2: kedaluwarsa & pencabutan langsung berlaku)"
     ["dicabut", { expiresAt: null, revokedAt: new Date("2026-09-27T00:00:00Z") }, false],
   ] as const)("%s → %p", (_label, grant, expected) => {
     expect(isGrantActive(grant, NOW)).toBe(expected);
+  });
+});
+
+// PLAN §4.1 / D-009: tim MANAGER = karyawan yang manager_id-nya menunjuk ke dia (satu tingkat).
+describe("isSelf & isInTeam", () => {
+  const manager = { ...actor("MANAGER"), employeeId: "emp-mgr" };
+  const noEmployee = actor("SUPER_ADMIN");
+
+  test.each([
+    ["bawahan langsung", { employeeId: "emp-1", managerId: "emp-mgr" }, false, true],
+    ["bukan bawahan", { employeeId: "emp-2", managerId: "emp-lain" }, false, false],
+    ["tanpa atasan", { employeeId: "emp-3", managerId: null }, false, false],
+    ["dirinya sendiri", { employeeId: "emp-mgr", managerId: "emp-atas" }, true, false],
+  ] as const)("%s → self=%p, tim=%p", (_label, target, self, team) => {
+    expect(isSelf(manager, target)).toBe(self);
+    expect(isInTeam(manager, target)).toBe(team);
+  });
+
+  test("akun tanpa data karyawan tidak punya diri/tim", () => {
+    expect(isSelf(noEmployee, { employeeId: "emp-1", managerId: null })).toBe(false);
+    expect(isInTeam(noEmployee, { employeeId: "emp-1", managerId: null })).toBe(false);
   });
 });

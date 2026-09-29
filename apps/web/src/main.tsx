@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router/dom";
 import { Providers } from "./app/providers.tsx";
 import { createRouter } from "./app/router.tsx";
+import "@fontsource-variable/geist";
+import "@fontsource-variable/geist-mono";
 import "./index.css";
 
 const rootElement = document.getElementById("root");

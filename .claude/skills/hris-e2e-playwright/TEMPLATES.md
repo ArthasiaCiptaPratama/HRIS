@@ -12,7 +12,9 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: [["list"], ["html", { open: "never" }]],
+  // Artefak QA di luar repo (skill hris-e2e-playwright "Lokasi artefak").
+  outputDir: `/mnt/winD/WORK/Magang/QA/${process.env.QA_RUN ?? new Date().toISOString().slice(0, 10)}-e2e/`,
+  reporter: [["list"], ["html", { open: "never", outputFolder: "/mnt/winD/WORK/Magang/QA/e2e-report" }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
     locale: "id-ID",

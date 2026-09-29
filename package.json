@@ -29,6 +29,8 @@
     "db:seed": "bun run --filter @hris/api db:seed",
     "db:check": "bun run --filter @hris/api db:check",
     "bootstrap:super-admin": "bun run --cwd apps/api bootstrap:super-admin",
+    "recover:primary-admin": "bun run --cwd apps/api recover:primary-admin",
+    "dev:account": "bun run --cwd apps/api dev:account",
     "postinstall": "bun run db:generate"
   },
   "devDependencies": {
