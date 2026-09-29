@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { Me } from "@/features/auth/schemas";
 import { access } from "@/lib/access";
+import { FEATURES } from "./feature-flags";
 
 // D-035: kelompok besar (top nav) → kelompok kecil (judul seksi sidebar) → isi (item sidebar).
 // Satu sumber untuk top nav, sidebar, breadcrumb, pencarian cepat (Ctrl+K), dan guard route.
@@ -150,6 +151,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "change-status",
+            maintenance: !FEATURES.changeStatus,
             label: "Ubah Status Pegawai",
             to: "/personal/ubah-status",
             icon: ArrowLeftRight,
@@ -158,6 +160,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "activation",
+            maintenance: !FEATURES.activation,
             label: "Pengaktifan Pegawai",
             to: "/personal/pengaktifan",
             icon: UserRoundCheck,
@@ -166,6 +169,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "inactive",
+            maintenance: !FEATURES.inactiveEmployees,
             label: "Data Pegawai Tidak Aktif",
             to: "/personal/pegawai-tidak-aktif",
             icon: UserX,
@@ -175,6 +179,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "structure",
+            maintenance: !FEATURES.orgStructure,
             label: "Struktur Organisasi",
             to: "/personal/struktur-organisasi",
             icon: Network,

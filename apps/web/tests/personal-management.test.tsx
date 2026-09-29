@@ -122,11 +122,11 @@ describe("halaman Personal Management", () => {
     expect(listCall?.searchParams.get("active")).toBe("true");
     // Badge jumlah di sidebar dari /employees/summary.
     const side = screen.getByRole("navigation", { name: "Menu samping" });
+    // Badge jumlah aktif (3) & PKWT (2) dari /employees/summary.
     await waitFor(() =>
-      expect(within(side).getByText("Data Pegawai Tidak Aktif").parentElement).toHaveTextContent(
-        "1",
-      ),
+      expect(within(side).getByText("Semua Pegawai").closest("a")).toHaveTextContent("3"),
     );
+    expect(within(side).getByText("PKWT").closest("a")).toHaveTextContent("2");
   });
 
   it("pencarian tersinkron ke URL (debounce) dan dikirim sebagai ?q=", async () => {
@@ -163,6 +163,45 @@ describe("halaman Personal Management", () => {
       await screen.findByRole("heading", { name: "Data Keluarga sedang disiapkan" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Maintenance")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["/personal/ubah-status", "Ubah Status Pegawai sedang disiapkan"],
+    ["/personal/pengaktifan", "Pengaktifan Pegawai sedang disiapkan"],
+    ["/personal/pegawai-tidak-aktif", "Data Pegawai Tidak Aktif sedang disiapkan"],
+    ["/personal/struktur-organisasi", "Struktur Organisasi sedang disiapkan"],
+  ])("menu b–e ditutup sementara (FEATURES): %s → Maintenance", async (path, heading) => {
+    mockApi({
+      "/me": [200, { data: me("HR_ADMIN") }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/employees/summary": [200, summary],
+    });
+    renderAt(path);
+    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+  });
+
+  it("sidebar menandai menu b–e 'Segera' (badge angka Tidak Aktif tidak tampil)", async () => {
+    mockApi({
+      "/me": [200, { data: me("HR_ADMIN") }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/employees/summary": [200, summary],
+    });
+    renderAt("/personal/arsip/kontak");
+    const side = await screen.findByRole("navigation", { name: "Menu samping" });
+    for (const label of [
+      "Ubah Status Pegawai",
+      "Pengaktifan Pegawai",
+      "Data Pegawai Tidak Aktif",
+      "Struktur Organisasi",
+    ]) {
+      const link = within(side).getByText(label).closest("a");
+      expect(link).toHaveTextContent(/segera/i);
+    }
+    expect(within(side).getByText("Data Pegawai Tidak Aktif").closest("a")).not.toHaveTextContent(
+      "1",
+    );
   });
 
   it("MANAGER membuka Ubah Status → akses ditolak (API juga menolak)", async () => {

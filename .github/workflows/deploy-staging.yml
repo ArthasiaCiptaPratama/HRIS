@@ -1,6 +1,6 @@
 # Migrasi database ke Supabase STAGING (D-030, menjawab OD-7).
 # Berjalan saat push ke HRIS/debug/fe-be (alur Git PLAN §6) atau manual dari branch itu saja.
-# Migrasi SELALU sebelum kode baru aktif: deploy Vercel dipicu lewat Deploy Hook setelah migrasi sukses.
+# Migrasi SELALU sebelum kode baru aktif: deploy Vercel (CLI, D-036) baru berjalan setelah migrasi sukses.
 name: Deploy staging
 
 on:
@@ -48,19 +48,38 @@ jobs:
         run: bun run db:check
 
   vercel:
-    name: Picu deploy Vercel staging (setelah migrasi)
+    # D-036: deploy lewat Vercel CLI (bukan integrasi Git/Deploy Hook): repo private milik organisasi
+    # tidak bisa dihubungkan ke akun Hobby. Build di runner, lalu unggah hasil prebuilt.
+    name: Deploy Vercel staging (${{ matrix.app }})
     needs: migrate
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    strategy:
+      # api dulu, lalu web: web baru memanggil api yang sudah diperbarui.
+      max-parallel: 1
+      matrix:
+        include:
+          - app: api
+            project_secret: VERCEL_PROJECT_ID_API
+          - app: web
+            project_secret: VERCEL_PROJECT_ID_WEB
     env:
-      HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_API_STAGING }}
-      HOOK_WEB: ${{ secrets.VERCEL_DEPLOY_HOOK_WEB_STAGING }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets[matrix.project_secret] }}
     steps:
-      - name: Panggil Deploy Hook (dilewati bila project Vercel belum dibuat)
+      - name: Pastikan secret tersedia
         run: |
-          for url in "$HOOK" "$HOOK_WEB"; do
-            if [ -n "$url" ]; then curl -fsS -X POST "$url" > /dev/null && echo "hook dipanggil"; fi
-          done
-          if [ -z "$HOOK" ] && [ -z "$HOOK_WEB" ]; then
-            echo "::notice::Deploy Hook Vercel belum dikonfigurasi; hanya migrasi yang dijalankan."
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::error::Secret VERCEL_TOKEN / VERCEL_ORG_ID / ${{ matrix.project_secret }} belum diisi."
+            exit 1
           fi
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      # Pengaturan project (root directory, env production) diambil dari Vercel.
+      - run: bunx vercel@61 pull --yes --environment=production --token "$VERCEL_TOKEN"
+      - run: bunx vercel@61 build --prod --token "$VERCEL_TOKEN"
+      - name: Deploy prebuilt ke production project staging
+        run: bunx vercel@61 deploy --prebuilt --prod --token "$VERCEL_TOKEN"

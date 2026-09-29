@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { FEATURES } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -167,12 +168,14 @@ function DetailBody({
                     <Pencil /> Ubah data
                   </Button>
                 ) : null}
-                <Button size="sm" variant="outline" asChild>
-                  <Link to={`/personal/ubah-status?pegawai=${employee.id}`}>
-                    <ArrowLeftRight /> Ubah status
-                  </Link>
-                </Button>
-                {access.deactivate ? (
+                {FEATURES.changeStatus ? (
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to={`/personal/ubah-status?pegawai=${employee.id}`}>
+                      <ArrowLeftRight /> Ubah status
+                    </Link>
+                  </Button>
+                ) : null}
+                {FEATURES.changeStatus && access.deactivate ? (
                   <Button size="sm" variant="ghost" className="text-destructive" asChild>
                     <Link to={`/personal/ubah-status?pegawai=${employee.id}&aksi=nonaktif`}>
                       <Power /> Nonaktifkan
@@ -180,13 +183,13 @@ function DetailBody({
                   </Button>
                 ) : null}
               </>
-            ) : (
+            ) : FEATURES.activation ? (
               <Button size="sm" variant="brand" asChild>
                 <Link to={`/personal/pengaktifan?pegawai=${employee.id}`}>
                   <RotateCcw /> Aktifkan kembali
                 </Link>
               </Button>
-            )}
+            ) : null}
           </div>
         ) : null}
       </div>
