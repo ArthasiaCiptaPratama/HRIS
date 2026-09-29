@@ -12,6 +12,7 @@ import { NotificationsPage } from "@/features/notification/pages/notifications-p
 import { ErrorPage } from "@/features/system/pages/error-page";
 import { NotFoundPage } from "@/features/system/pages/not-found-page";
 import { access } from "@/lib/access";
+import { FEATURES } from "./feature-flags";
 import { AppLayout } from "./layout/app-layout";
 import { pages } from "./route-preload";
 
@@ -38,13 +39,25 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="pegawai-aktif/semua" replace /> },
               { path: "pegawai-aktif", element: <Navigate to="semua" replace /> },
               { path: "pegawai-aktif/:category", lazy: pages.activeEmployees },
-              { path: "struktur-organisasi", lazy: pages.orgStructure },
+              {
+                path: "struktur-organisasi",
+                lazy: FEATURES.orgStructure ? pages.orgStructure : pages.maintenance,
+              },
               {
                 element: <RequireAccessRoute check={access.manageEmployees} />,
                 children: [
-                  { path: "ubah-status", lazy: pages.changeStatus },
-                  { path: "pengaktifan", lazy: pages.activation },
-                  { path: "pegawai-tidak-aktif", lazy: pages.inactiveEmployees },
+                  {
+                    path: "ubah-status",
+                    lazy: FEATURES.changeStatus ? pages.changeStatus : pages.maintenance,
+                  },
+                  {
+                    path: "pengaktifan",
+                    lazy: FEATURES.activation ? pages.activation : pages.maintenance,
+                  },
+                  {
+                    path: "pegawai-tidak-aktif",
+                    lazy: FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
+                  },
                   { path: "arsip/:section", lazy: pages.maintenance },
                   { path: "laporan", lazy: pages.maintenance },
                 ],
