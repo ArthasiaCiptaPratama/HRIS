@@ -136,7 +136,7 @@ apps/api/
 apps/web/
 ├── src/
 │   ├── main.tsx                      [done] Entry (StrictMode + Providers + RouterProvider dari `react-router/dom`) + font Geist/Geist Mono (@fontsource-variable, di-bundle, tanpa CDN)
-│   ├── index.css                     [done] Tailwind v4; tema D-035: netral zinc + aksen teal `--brand` (+ `--success`/`--warning`), animasi transform/opacity (`animate-fade-up` kaskade `--i`, `skeleton` kilau, float/swing/blink), `prefers-reduced-motion` mematikan animasi
+│   ├── index.css                     [done] Tailwind v4; tema D-035: netral zinc + aksen teal `--brand` (+ `--success`/`--warning`); cincin fokus `--ring` abu netral (zinc-400/500, permintaan pemilik projek 2026-09-29); autofill browser dinetralkan (`:autofill`), animasi transform/opacity (`animate-fade-up` kaskade `--i`, `skeleton` kilau, float/swing/blink), `prefers-reduced-motion` mematikan animasi
 │   ├── app/
 │   │   ├── navigation.ts             [done] D-035: SATU sumber menu — kelompok besar (top nav) → seksi (kelompok kecil) → item/anak; `visibleGroups(me)`, `activeTrail()` (breadcrumb/penanda aktif), `flattenNav()` (pencarian cepat), `CATEGORY_SLUGS`
 │   │   ├── route-preload.ts          [done] Loader `lazy` per halaman (code splitting) + `preloadRoute()` saat hover menu

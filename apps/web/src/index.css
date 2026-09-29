@@ -23,7 +23,7 @@
   --destructive: oklch(0.577 0.2 27.3);
   --border: oklch(0.92 0.004 286.3);
   --input: oklch(0.9 0.005 286.3);
-  --ring: oklch(0.55 0.09 180);
+  --ring: oklch(0.705 0.015 286); /* fokus: abu netral (zinc-400) */
   --brand: oklch(0.52 0.09 180);
   --brand-foreground: oklch(0.985 0 0);
   --brand-soft: oklch(0.955 0.025 180);
@@ -39,7 +39,7 @@
   --sidebar-accent: oklch(0.965 0.003 286.3);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.9);
   --sidebar-border: oklch(0.92 0.004 286.3);
-  --sidebar-ring: oklch(0.55 0.09 180);
+  --sidebar-ring: oklch(0.705 0.015 286);
 }
 
 .dark {
@@ -60,7 +60,7 @@
   --destructive: oklch(0.704 0.191 22.2);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.09 180);
+  --ring: oklch(0.552 0.016 286); /* fokus: abu netral (zinc-500) */
   --brand: oklch(0.68 0.1 180);
   --brand-foreground: oklch(0.17 0.005 285.9);
   --brand-soft: oklch(0.3 0.04 180);
@@ -76,7 +76,7 @@
   --sidebar-accent: oklch(0.27 0.006 286);
   --sidebar-accent-foreground: oklch(0.96 0.002 286);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.09 180);
+  --sidebar-ring: oklch(0.552 0.016 286);
 }
 
 @theme inline {
@@ -230,4 +230,31 @@
     /* biome-ignore lint/complexity/noImportantStyles: idem */
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Autofill browser tetap netral (permintaan pemilik projek 2026-09-29).
+   SENGAJA di luar @layer: gaya tanpa layer menang atas @layer utilities (mis. `shadow-xs` di Input),
+   sehingga bayangan penutup tidak tertimpa. Firefox/Zen memberi latar autofill `!important`
+   (tidak bisa ditimpa) → ditutup bayangan inset warna kartu; Chromium latar biru → sama. */
+input:autofill,
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:autofill,
+textarea:-webkit-autofill,
+select:autofill,
+select:-webkit-autofill {
+  filter: none;
+  -webkit-text-fill-color: var(--foreground);
+  caret-color: var(--foreground);
+  color: var(--foreground);
+  box-shadow: 0 0 0 1000px var(--card) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+/* Saat fokus: cincin fokus abu (3px) tetap tampil di atas bayangan penutup. */
+input:autofill:focus-visible,
+input:-webkit-autofill:focus-visible {
+  box-shadow:
+    0 0 0 1000px var(--card) inset,
+    0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
 }

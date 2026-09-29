@@ -40,7 +40,6 @@ export function ActiveEmployeesPage() {
   if (!(slug in CATEGORY_SLUGS)) return <Navigate to="/personal/pegawai-aktif/semua" replace />;
   const category = CATEGORY_SLUGS[slug];
   const title = category ? EMPLOYMENT_CATEGORY_LABELS[category] : "Semua Pegawai";
-  const count = category ? summary.data?.active.byCategory[category] : summary.data?.active.total;
   const defaultStatusId = category
     ? master.data?.employmentStatuses.find((s) => s.category === category)?.id
     : undefined;
@@ -56,16 +55,7 @@ export function ActiveEmployeesPage() {
   return (
     <>
       <PageHeader
-        title={
-          <span className="inline-flex items-baseline gap-3">
-            {title}
-            {count !== undefined ? (
-              <span className="text-muted-foreground font-mono text-base font-normal tabular-nums">
-                {count}
-              </span>
-            ) : null}
-          </span>
-        }
+        title={title}
         description={DESCRIPTIONS[slug]}
         actions={
           canManage ? (

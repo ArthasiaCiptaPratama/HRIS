@@ -28,3 +28,9 @@
 - **Data uji:** pegawai `HR-TEST-0001` + auditnya dihapus; `db:seed` memulihkan status Wahyu Saputra & Joko Susilo.
 - **Temuan (bukan bug):** halaman Akun (Fase 2) belum memakai gaya/komponen baru (tanpa breadcrumb, tabel lama) → usulan penyeragaman.
 - **Belum diverifikasi:** login Supabase sungguhan sebagai HR (password dipegang pemilik projek).
+
+## Sesi tambahan — regresi setelah judul tanpa angka & warna fokus/autofill
+- **Env:** lokal Linux, harness preview (port 3001/5174), Playwright Chromium 1440×900.
+- **Perintah:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ · `bun run check:boundaries` ✔ (174 modul) · `bun run db:check` ✔ · `bun run test` ✔ (shared 10, api 237, web 27) · `bun run build` ✔.
+- **Regresi browser:** 44 kunjungan halaman (SA 18, HR 16, MANAGER 10) — 41 LULUS; 3 "gagal" = `/profil` tanpa `<h1>` di ketiga role (halaman tampil normal, 0 error; temuan lama Fase 2, bukan akibat perubahan). Tidak ada error JS, tidak ada request API ≥ 400.
+- **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-29-judul-tanpa-angka/`, `/mnt/winD/WORK/Magang/QA/2026-09-29-focus-ring-abu/`, `/mnt/winD/WORK/Magang/QA/2026-09-29-autofill-netral/`.
