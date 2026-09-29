@@ -6,6 +6,7 @@ import {
   ROLE_LABELS,
 } from "@hris/shared";
 import {
+  ArrowLeft,
   ArrowLeftRight,
   Award,
   BriefcaseBusiness,
@@ -15,6 +16,7 @@ import {
   History,
   Landmark,
   Lock,
+  MapPin,
   Pencil,
   Power,
   RotateCcw,
@@ -25,19 +27,28 @@ import { Link, useSearchParams } from "react-router";
 import { FEATURES } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { errorMessage } from "@/lib/errors";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useEmployee } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
+import { PrintEmployeeButton } from "./print-employee-button";
 import { ActiveDot, ExitReasonBadge, StatusBadge } from "./status-badge";
 
 const PARAM = "pegawai";
+/** Kolom isi detail: lebar baca terbatas & di tengah layar. */
+const CONTAINER = "mx-auto w-full max-w-5xl px-4 sm:px-8";
 
 /** Detail dibuka lewat ?pegawai=<id>: bisa dibagikan, tombol Back menutup panel. */
 export function useEmployeeSheet() {
@@ -75,11 +86,22 @@ export function EmployeeDetailSheet({
 
   return (
     <Sheet open={openId !== null} onOpenChange={(open) => !open && close()}>
-      <SheetContent className="sm:max-w-2xl" aria-describedby={undefined}>
+      {/* Layar penuh: isi dipusatkan dengan lebar baca terbatas supaya tetap nyaman di layar lebar. */}
+      <SheetContent className="sm:max-w-none" aria-describedby={undefined} hideClose>
+        {/* Panel layar penuh terasa seperti halaman: tombol kembali di kiri atas (Esc juga menutup). */}
+        <SheetClose asChild>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="bg-background/80 text-foreground hover:bg-accent absolute top-1 left-3 z-20 font-semibold lg:top-4 lg:left-4"
+          >
+            <ArrowLeft strokeWidth={2.5} /> Kembali
+          </Button>
+        </SheetClose>
         {detail.isPending ? (
           <DetailSkeleton />
         ) : detail.isError || !employee ? (
-          <div className="p-6">
+          <div className="p-6 pt-16">
             <SheetTitle className="sr-only">Detail pegawai</SheetTitle>
             <EmptyState
               icon={CircleUser}
@@ -97,17 +119,15 @@ export function EmployeeDetailSheet({
 
 function DetailSkeleton() {
   return (
-    <div className="space-y-6 p-6">
+    <div className={cn(CONTAINER, "space-y-8 py-10")}>
       <SheetTitle className="sr-only">Memuat detail pegawai</SheetTitle>
-      <div className="flex items-center gap-4">
-        <Skeleton className="size-16 rounded-full" />
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-48" />
-          <Skeleton className="h-3.5 w-32" />
-        </div>
+      <div className="flex flex-col items-center gap-3">
+        <Skeleton className="size-24 rounded-full sm:size-28" />
+        <Skeleton className="h-6 w-56" />
+        <Skeleton className="h-3.5 w-72 max-w-full" />
       </div>
       <Skeleton className="h-9 w-full" />
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {Array.from({ length: 8 }, (_, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: kerangka statis
           <Skeleton key={i} className="h-10" />
@@ -132,36 +152,40 @@ function DetailBody({
   const full = useEmployee(employee.id, "full", wantsSensitive);
   const sensitive = full.data;
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b px-6 pt-6 pb-5">
-        <div className="flex items-start gap-4 pr-8">
-          <EmployeeAvatar name={employee.fullName} size="xl" inactive={!employee.isActive} />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <SheetTitle className="truncate text-xl">{employee.fullName}</SheetTitle>
-            <SheetDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-mono text-xs">{employee.employeeNumber}</span>
+    // Satu area gulir: header ikut tergulir, baris tab menempel di atas (sticky).
+    <div className="h-full min-h-0 overflow-y-auto">
+      <header className={cn(CONTAINER, "flex flex-col items-center pt-10 pb-6 text-center")}>
+        <EmployeeAvatar
+          name={employee.fullName}
+          size="2xl"
+          inactive={!employee.isActive}
+          className="ring-background shadow-sm ring-4"
+        />
+        <SheetTitle className="mt-4 max-w-full text-2xl break-words">
+          {employee.fullName}
+        </SheetTitle>
+        <SheetDescription className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span className="font-mono text-xs">{employee.employeeNumber}</span>
+          <span aria-hidden>·</span>
+          <span>{employee.position.name}</span>
+          {employee.department ? (
+            <>
               <span aria-hidden>·</span>
-              <span>{employee.position.name}</span>
-              {employee.department ? (
-                <>
-                  <span aria-hidden>·</span>
-                  <span>{employee.department.name}</span>
-                </>
-              ) : null}
-            </SheetDescription>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <StatusBadge
-                name={employee.employmentStatus.name}
-                category={employee.employmentStatus.category}
-              />
-              <ActiveDot active={employee.isActive} />
-              <ExitReasonBadge reason={employee.exitReason} />
-            </div>
-          </div>
+              <span>{employee.department.name}</span>
+            </>
+          ) : null}
+        </SheetDescription>
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <StatusBadge
+            name={employee.employmentStatus.name}
+            category={employee.employmentStatus.category}
+          />
+          <ActiveDot active={employee.isActive} />
+          <ExitReasonBadge reason={employee.exitReason} />
         </div>
-        {access.manage ? (
-          <div className="mt-5 flex flex-wrap gap-2">
-            {employee.isActive ? (
+        {access.manage || access.print ? (
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {access.manage && employee.isActive ? (
               <>
                 {onEdit ? (
                   <Button size="sm" variant="outline" onClick={() => onEdit(employee)}>
@@ -175,15 +199,19 @@ function DetailBody({
                     </Link>
                   </Button>
                 ) : null}
-                {FEATURES.changeStatus && access.deactivate ? (
-                  <Button size="sm" variant="ghost" className="text-destructive" asChild>
-                    <Link to={`/personal/ubah-status?pegawai=${employee.id}&aksi=nonaktif`}>
-                      <Power /> Nonaktifkan
-                    </Link>
-                  </Button>
-                ) : null}
               </>
-            ) : FEATURES.activation ? (
+            ) : null}
+            {access.print ? (
+              <PrintEmployeeButton employeeId={employee.id} canViewPersonal={access.personal} />
+            ) : null}
+            {access.manage && employee.isActive && FEATURES.changeStatus && access.deactivate ? (
+              <Button size="sm" variant="ghost" className="text-destructive" asChild>
+                <Link to={`/personal/ubah-status?pegawai=${employee.id}&aksi=nonaktif`}>
+                  <Power /> Nonaktifkan
+                </Link>
+              </Button>
+            ) : null}
+            {access.manage && !employee.isActive && FEATURES.activation ? (
               <Button size="sm" variant="brand" asChild>
                 <Link to={`/personal/pengaktifan?pegawai=${employee.id}`}>
                   <RotateCcw /> Aktifkan kembali
@@ -192,30 +220,33 @@ function DetailBody({
             ) : null}
           </div>
         ) : null}
-      </div>
+      </header>
 
-      <Tabs value={tab} onValueChange={setTab} className="min-h-0 flex-1 gap-0">
-        <TabsList className="px-6">
-          <TabsTrigger value="work">
-            <BriefcaseBusiness /> Kepegawaian
-          </TabsTrigger>
-          <TabsTrigger value="personal">
-            <CircleUser /> Pribadi
-          </TabsTrigger>
-          <TabsTrigger value="family">
-            <HeartHandshake /> Keluarga
-          </TabsTrigger>
-          <TabsTrigger value="education">
-            <GraduationCap /> Pendidikan
-          </TabsTrigger>
-          <TabsTrigger value="bank">
-            <Landmark /> Rekening
-          </TabsTrigger>
-          <TabsTrigger value="history">
-            <History /> Riwayat
-          </TabsTrigger>
-        </TabsList>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+      <Tabs value={tab} onValueChange={setTab} className="gap-0">
+        {/* pl-28 di bawah lg: ruang untuk tombol "Kembali" yang melayang di pojok kiri atas. */}
+        <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 border-b pl-28 backdrop-blur lg:pl-0">
+          <TabsList className={cn(CONTAINER, "justify-center-safe border-b-0")}>
+            <TabsTrigger value="work">
+              <BriefcaseBusiness /> Kepegawaian
+            </TabsTrigger>
+            <TabsTrigger value="personal">
+              <CircleUser /> Pribadi
+            </TabsTrigger>
+            <TabsTrigger value="family">
+              <HeartHandshake /> Keluarga
+            </TabsTrigger>
+            <TabsTrigger value="education">
+              <GraduationCap /> Pendidikan
+            </TabsTrigger>
+            <TabsTrigger value="bank">
+              <Landmark /> Rekening
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              <History /> Riwayat
+            </TabsTrigger>
+          </TabsList>
+        </div>
+        <div className={cn(CONTAINER, "py-8 pb-16")}>
           <TabsContent value="work">
             <WorkTab employee={employee} />
           </TabsContent>
@@ -262,7 +293,9 @@ function Field({ label, children, mono }: { label: string; children: ReactNode; 
 }
 
 function FieldGrid({ children }: { children: ReactNode }) {
-  return <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">{children}</dl>;
+  return (
+    <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">{children}</dl>
+  );
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
@@ -530,7 +563,10 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
               {detail ? <p className="text-sm">{detail}</p> : null}
               <p className="text-muted-foreground mt-0.5 text-xs">
                 Efektif {formatDate(h.effectiveDate)}
+                <span aria-hidden> · </span>
+                dicatat {formatDateTime(h.createdAt)}
               </p>
+              <ChangedBy changedBy={h.changedBy} />
               {h.note ? (
                 <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
                   {h.note}
@@ -541,5 +577,29 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
         );
       })}
     </ol>
+  );
+}
+
+function ChangedBy({ changedBy }: { changedBy: EmployeeDetail["histories"][number]["changedBy"] }) {
+  if (!changedBy) {
+    return (
+      <p className="text-muted-foreground mt-2 text-xs">Diubah oleh: sistem (data awal/impor)</p>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <span className="text-muted-foreground">Diubah oleh</span>
+      <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
+        <EmployeeAvatar name={changedBy.name} size="sm" className="size-5 text-[9px]" />
+        <span className="truncate">{changedBy.name}</span>
+      </span>
+      <span className="bg-muted rounded-md px-1.5 py-0.5 font-medium">
+        {ROLE_LABELS[changedBy.role]}
+      </span>
+      <span className="text-muted-foreground inline-flex items-center gap-1">
+        <MapPin className="size-3" aria-hidden />
+        {changedBy.workLocation ?? "Lokasi kerja belum diisi"}
+      </span>
+    </div>
   );
 }

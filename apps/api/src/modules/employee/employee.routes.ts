@@ -112,12 +112,12 @@ const routes = {
     path: `${P}/employees/{id}`,
     tags: TAGS,
     summary:
-      "Detail karyawan; bagian sensitif hanya bila berhak (grant) & view=full, dicatat di audit",
+      "Detail karyawan; bagian sensitif hanya bila berhak (grant) & view=full, dicatat di audit. view=print (SA/HR) = bahan formulir .xlsx, dicatat di audit",
     security,
     request: { params: idParamSchema, query: detailQuerySchema },
     responses: {
       200: json("Detail karyawan", dataEnvelope(employeeDetailSchema)),
-      ...errors(400, 401, 404, 500),
+      ...errors(400, 401, 403, 404, 500),
     },
   }),
   create: createRoute({

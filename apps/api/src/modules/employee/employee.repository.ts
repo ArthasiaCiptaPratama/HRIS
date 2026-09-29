@@ -98,6 +98,7 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
               id: true,
               name: true,
               relationship: true,
+              address: true,
               birthDate: true,
               phoneNumber: true,
             },
@@ -120,6 +121,15 @@ export async function findManyByIds(ids: string[]) {
     where: { id: { in: ids } },
     select: { id: true, fullName: true, employeeNumber: true, positionId: true, isActive: true },
     orderBy: { fullName: "asc" },
+  });
+}
+
+/** Nama & lokasi kerja pegawai milik akun pengubah (riwayat "diubah oleh"). */
+export async function findChangerEmployees(ids: string[]) {
+  if (ids.length === 0) return [];
+  return getPrisma().employee.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, fullName: true, workLocationId: true },
   });
 }
 

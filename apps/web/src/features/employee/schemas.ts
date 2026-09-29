@@ -59,6 +59,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
     deactivate: z.boolean(),
     personal: z.boolean(),
     bank: z.boolean(),
+    print: z.boolean(),
   }),
   personal: z
     .object({
@@ -80,6 +81,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
         id: z.string(),
         name: z.string(),
         relationship: z.string(),
+        address: z.string().nullable(),
         birthDate: z.string().nullable(),
         phoneNumber: z.string().nullable(),
       }),
@@ -121,6 +123,9 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       toPosition: ref.nullable(),
       exitReason: exitReasonSchema.nullable(),
       note: z.string().nullable(),
+      changedBy: z
+        .object({ name: z.string(), role: roleSchema, workLocation: z.string().nullable() })
+        .nullable(),
       createdAt: z.string(),
     }),
   ),

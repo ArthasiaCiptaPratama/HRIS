@@ -32,20 +32,24 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 ## 2. Fokus Saat Ini
 - **Fase aktif:** 1 — Fondasi (sisa: uji Windows, proteksi `main`) · Fase 2 IAM **Review** · **Target minggu 2026-09-29 (D-035): web Personal Management** (Fase 3–4 lebih awal).
 - **Sudah jalan (per 2026-09-29):**
- - Lokal (Linux) hijau: typecheck, lint, boundaries (175 modul), `db:check`, test shared 10 · api 237 · web 32 (api: dengan `SMTP_*` dikosongkan, lihat Backlog). `main` tidak disentuh (`ebb20e5`).
- - **Staging live (D-036):** web **https://hris-staging-web.vercel.app** · api **https://hris-staging-api.vercel.app/api/v1** (docs `/api/v1/docs`). Kode s.d. `43b2b69` (PR #9–#14), `Deploy staging` #36531510460 ✔ (migrasi → deploy api → deploy web). Diverifikasi: health 200 (DB ok), 401/404 envelope, OpenAPI 200, preflight CORS dari web 204 (origin asing ditolak), cron 401 tanpa/salah secret & 200 dengan `CRON_SECRET`, bundel web memakai URL api & Supabase staging. **QA staging 2026-09-29** (`docs/qa/runs/2026-09-29-staging.md`): login sungguhan 4 role, matriks akses dengan JWT asli, alur tulis HR, UI desktop & mobile → API 43/43, UI 31/31 LULUS; BUG-001 (P3, warning `HydrateFallback`) diperbaiki 2026-09-29.
+ - Lokal (Linux) hijau: typecheck, lint, boundaries (175 modul), `db:check`, test shared 10 · api 237 · web 33 (api: dengan `SMTP_*` dikosongkan, lihat Backlog). Branch kerja `HRIS/Oatse/Linux-Windows` = `c31ae96`; `main` tidak disentuh (`ebb20e5`).
+ - **Staging live (D-036):** web **https://hris-staging-web.vercel.app** · api **https://hris-staging-api.vercel.app/api/v1** (docs `/api/v1/docs`). Kode s.d. `3afbd3f` (PR #9–#18), `Deploy staging` #36537885447 ✔ dengan urutan job `migrate → vercel-api → vercel-web` terbukti. Diverifikasi: health 200 (DB ok), 401/404 envelope, OpenAPI 200, CORS hanya origin web, cron dijaga `CRON_SECRET`, bundel web tanpa `service_role`.
+ - **QA staging 2026-09-29** (`docs/qa/runs/2026-09-29-staging.md`): login sungguhan 4 role, matriks akses JWT asli, alur tulis HR, UI desktop & mobile → API 43/43, UI 31/31 LULUS. BUG-001 (P3, warning `HydrateFallback`) **diperbaiki** (`c31ae96`, konsol bersih di staging); daftar pegawai mobile dirapikan (filter bertumpuk, placeholder muat).
+ - **Web:** logo resmi **vertikal** Arthasia di top bar, menu mobile, dan halaman login (`public/logo/logo-vertical.webp`, 32 KB) — live di staging. File sumber `logo-arthasia-ori.png` (3,6 MB) sengaja **tidak** di-commit.
  - **Data staging terisi:** 5 departemen, 12 jabatan, 5 status, 5 grade, 2 lokasi, 21 karyawan (2 nonaktif), 23 riwayat, akun SA + HR/MGR/EMP (user Auth yang sama dengan lokal).
  - **Fase 2 IAM** lengkap (akun, role, grant, audit, notifikasi & email, cron, web). **SMTP teruji** 2026-09-29 dan env SMTP juga terisi di Vercel `hris-staging-api`.
  - **D-035 Personal Management:** API `organization` & `employee`, web Data Pegawai Aktif; menu b–e sementara Maintenance (`apps/web/src/app/feature-flags.ts`), Arsip (f–o) & Laporan (p) Maintenance.
- - QA: `docs/qa/` (plan, 32 kasus, hasil); bukti visual di `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/`.
+ - QA: `docs/qa/` (3 rencana, 93 kasus: TC-EMP 44 + TC-STG 49, hasil, BUG-001); bukti visual di `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/`.
+ - **Detail pegawai & Print data (2026-09-29, lokal, belum di-commit):** panel detail layar penuh + avatar tengah; riwayat "diubah oleh" (nama · role · lokasi kerja); tombol **Print data** → .xlsx dari template kantor (SA/HR, audit `employee.printed`). Lokal hijau: typecheck, lint, boundaries (179 modul), test shared 10 · api 248 · web 54; Playwright login sungguhan 31/31 (`docs/qa/runs/2026-09-29-detail-print.md`). File belum dicoba di Microsoft Excel sungguhan.
 - **Langkah berikutnya (menunggu persetujuan pemilik projek):**
- 2. Rotasi rahasia yang tertulis di percakapan 2026-09-29 (lihat Keamanan), lalu hapus `.env.staging` lokal.
- 3. Fase 3: CRUD master data (departemen, jabatan, status + kategori, grade, lokasi) untuk SUPER_ADMIN.
- 4. Lanjutan Fase 4: isi menu Arsip (f–o) & Laporan (p); aktifkan kembali menu b–e saat siap diuji; tulis data pribadi/rekening (butuh **OD-6**), dokumen (signed URL), undangan akun dari data karyawan, import CSV/Excel.
- 5. Seragamkan halaman Administrasi & Akun Saya dengan gaya/komponen baru.
- 6. Sisa Fase 1: uji Windows.
+ 0. Commit + naikkan fitur detail/Print data ke staging (PR `HRIS/Oatse/Linux-Windows` → `HRIS/debug/database` → `HRIS/debug/fe-be`); pemilik projek membuka file .xlsx hasil Print di Excel untuk konfirmasi tata letak cetak.
+ 1. Fase 3: CRUD master data (departemen, jabatan, status + kategori, grade, lokasi) untuk SUPER_ADMIN.
+ 2. Lanjutan Fase 4: isi menu Arsip (f–o) & Laporan (p); aktifkan kembali menu b–e saat siap diuji; tulis data pribadi/rekening (butuh **OD-6**), dokumen (signed URL), undangan akun dari data karyawan, import CSV/Excel.
+ 3. Seragamkan halaman Administrasi & Akun Saya dengan gaya/komponen baru.
+ 4. Sisa Fase 1: uji Windows.
+ 5. Backlog kecil: test api tidak boleh memakai SMTP sungguhan dari `.env`.
 - **Blocker / ditunda:** OD-9 (proteksi `main`); OD-4 (akun/team Vercel & Supabase kantor untuk produksi — staging sementara di akun pribadi Hobby, D-036); OD-5 akun email produksi; OD-6 (ubah data sensitif milik sendiri).
-- **Keamanan yang harus dibereskan sebelum produksi:** **password DB staging, token Vercel `oatse`, dan password keempat akun uji (SA/HR/MGR/EMP) tertulis di percakapan 2026-09-29** → reset password DB (perbarui secret `STAGING_DIRECT_URL` + env Vercel `DATABASE_URL`), cabut & buat ulang token Vercel (perbarui secret `VERCEL_TOKEN`), ganti password keempat akun uji; pastikan App Password Gmail yang pernah tertulis di percakapan sudah dicabut; ganti password Super Admin; ganti password `sudo` laptop.
+- **Keamanan yang harus dibereskan sebelum produksi:** **password DB staging, token Vercel `oatse`, dan password keempat akun uji (SA/HR/MGR/EMP) tertulis di percakapan 2026-09-29** → reset password DB (perbarui secret `STAGING_DIRECT_URL` + env Vercel `DATABASE_URL`), cabut & buat ulang token Vercel (perbarui secret `VERCEL_TOKEN`), ganti password keempat akun uji, lalu hapus `.env.staging` lokal. **Keputusan pemilik projek 2026-09-29: rotasi ditunda** (staging hanya berisi data dummy; dianggap aman untuk sekarang) — **wajib** dilakukan sebelum ada data karyawan sungguhan / project produksi (OD-4). Juga: pastikan App Password Gmail yang pernah tertulis di percakapan sudah dicabut; ganti password Super Admin; ganti password `sudo` laptop.
 ---
 ## 3. Checklist Per Fase
 
@@ -133,6 +137,9 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [~] Policy + test — matriks employee 45 test (TDD) ✔ untuk aksi D-035; aksi tulis sensitif/dokumen belum
 - [~] Web: daftar, detail, form, import — daftar per kategori, panel detail bertab, form tambah/ubah, Ubah Status, Pengaktifan, Pegawai Tidak Aktif ✔ (D-035); import belum
  - [x] Web: shell navigasi baru (top nav kelompok besar → sidebar kelompok kecil/isi, drawer mobile, breadcrumb, Ctrl+K, lazy route + prefetch), Dashboard kosong, halaman Maintenance untuk Arsip (f–o) & Laporan (p) (tambahan 2026-09-29: D-035)
+ - [x] Web: panel detail pegawai **layar penuh**, avatar besar di tengah atas, baris tab sticky, tombol "← Kembali" di kiri atas (menggantikan X) (tambahan 2026-09-29: permintaan pemilik projek)
+ - [x] Riwayat kepegawaian menampilkan pengubah: nama, role, lokasi kerja (`changedBy` di `GET /employees/:id`, `iam.getAccountSummaries`) (tambahan 2026-09-29: permintaan pemilik projek)
+ - [x] **Print data**: tombol di detail pegawai (SA/HR) → `GET /employees/:id?view=print` (audit `employee.printed`, data pribadi hanya bila berhak, rekening tidak dibaca) → template `public/template/Template-excel.xlsx` diisi & diunduh (.xlsx) (tambahan 2026-09-29: permintaan pemilik projek; keputusan: satu pegawai per file dari detail, periode = tgl masuk s/d tgl keluar)
  - [ ] Isi menu Arsip: Data Kontak, Keluarga, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja, Assets, File, Bank, Riwayat Peringatan; menu Laporan (tambahan 2026-09-29: D-035, saat ini Maintenance)
 
 ### Fase 5 — Attendance (+ Approval)
@@ -230,6 +237,22 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-29 — Detail pegawai layar penuh, riwayat "diubah oleh", Print data (.xlsx)
+- **Dikerjakan (permintaan pemilik projek):** (1) panel detail pegawai layar penuh (isi `max-w-5xl` di tengah, satu area gulir, baris tab sticky), (2) avatar ukuran baru `2xl` di tengah paling atas, (3) riwayat menampilkan pengubah — API `changedBy` {nama pegawai pengubah / email akun bila tanpa data pegawai, role, lokasi kerja}; `iam` menambah fungsi publik `getAccountSummaries`, (4) fitur **Print data**: `GET /employees/:id?view=print` (policy baru `canPrintEmployee` = SA/HR, TDD; data pribadi & keluarga (+alamat) hanya bila berhak, rekening tidak dibaca; audit `employee.printed`), web `lib/xlsx-template.ts` (fflate 0.8.3, isi XML lembar langsung) + `features/employee/print.ts` (pemetaan ke template) + tombol di detail.
+- **Keputusan:** tidak ada D-xxx. Pilihan pemilik projek (sesi ini): hasil = unduhan .xlsx terisi; hanya dari detail (satu pegawai per file); periode = tanggal masuk s/d tanggal keluar; "lokasi" = lokasi kerja pengubah. Keputusan kecil: unduh hanya SA/HR (MANAGER/EMPLOYEE 403), kolom template tanpa sumber data dibiarkan kosong, pasangan dipetakan ke baris Suami/Isteri menurut jenis kelamin pegawai, saudara/lainnya tidak dicetak (tidak ada barisnya), kontak darurat = `emergency_phone` + data keluarga bila nomornya cocok.
+- **File berubah:** api `employee.{policy,schema,repository,service,routes}.ts`, `employee.policy.test.ts`, `tests/integration/employee/employees.test.ts`, `iam.{repository,service}.ts`, `iam/index.ts`; web `components/ui/sheet.tsx`, `features/employee/{api,schemas,print}.ts`, `components/{employee-detail-sheet,employee-avatar,print-employee-button}.tsx`, `lib/xlsx-template.ts`, `public/template/Template-excel.xlsx`, `tests/employee-{detail,print}.test.ts(x)`, `package.json`, `bun.lock`; docs `CODEMAP.md`, `PROGRESS.md`, `qa/{README,cases/employee,plans/2026-09-29-detail-print,runs/2026-09-29-detail-print}.md`.
+- **Verifikasi:** policy merah dulu lalu hijau (52 pass); `bun run typecheck` ✔ · `bunx biome ci .` ✔ (200 file) · `bun run check:boundaries` ✔ (179 modul) · `bun run db:check` ✔ · `bun run test` ✔ (shared 10, api 248, web 53; SMTP dikosongkan) · `vite build` ✔; Playwright lokal login sungguhan SA/HR/MGR desktop & mobile 23/23; file unduhan dibaca openpyxl (244 merge, judul cetak, A4 80% utuh); audit lokal SA `{sections:[personal]}`, HR `{sections:[]}`. Bukti `/mnt/winD/WORK/Magang/QA/2026-09-29-detail-print/`.
+- **Masalah / catatan:** ditemukan & diperbaiki saat uji browser: deklarasi XML ganda di Chromium (file rusak; jsdom tidak memperlihatkannya → test penjaga ditambah), tab sticky menutupi tombol X di mobile, toast menutupi X (toast print dipindah ke bawah-tengah). Vite dev di NTFS kadang menyajikan modul lama setelah edit (perlu `touch`). Belum diverifikasi di Microsoft Excel sungguhan & staging.
+- **Tambahan (setelah pemilik projek mengecek file & menyetujui):** tombol tutup X di kanan atas diganti **"← Kembali"** (ikon panah kiri, teks & panah hitam tebal `text-foreground font-semibold` agar mudah terlihat) di kiri atas (`SheetClose` + `hideClose`); baris tab memberi ruang kiri `pl-28` di bawah `lg`, tombol sejajar tengah baris tab saat digulir di mobile. Verifikasi: web 54 test, `biome ci` ✔, typecheck ✔, boundaries ✔, build ✔, Playwright 31/31 (bukti `*-tombol-kembali.png`).
+- **Berikutnya:** commit + PR ke staging (izin pemilik projek); lalu Fase 3 CRUD master data.
+
+### 2026-09-29 — Penutup sesi: status staging & keputusan rotasi rahasia
+- **Dikerjakan:** §2 Fokus diperbarui (staging `3afbd3f`, logo vertikal, BUG-001 diperbaiki, urutan deploy); status BUG-001 dilengkapi commit & bukti staging.
+- **Keputusan:** pemilik projek **menunda rotasi rahasia** yang tertulis di percakapan (password DB staging, token Vercel, password 4 akun uji) karena staging hanya berisi data dummy; tetap wajib sebelum data asli/produksi (§2 Keamanan). `.env.staging` tetap di laptop (gitignored).
+- **File berubah:** `docs/PROGRESS.md`, `docs/qa/bugs/BUG-001-hydratefallback-warning.md`.
+- **Verifikasi:** perubahan dokumen saja; konsistensi rujukan (commit, run, PR) dicek dengan grep.
+- **Berikutnya:** Fase 3 CRUD master data.
 
 ### 2026-09-29 — Urutan deploy api → web, BUG-001, tampilan mobile daftar pegawai
 - **Dikerjakan:** (1) `deploy-staging.yml`: job matrix `vercel` dipecah menjadi `vercel-api` (needs `migrate`) → `vercel-web` (needs `vercel-api`) karena matrix + `max-parallel: 1` tidak menjamin urutan (run #36536174711: web selesai sebelum api). (2) BUG-001: `HydrateFallback` di route akar `RequireAuth`. (3) Daftar pegawai mobile: filter departemen/lokasi ditumpuk satu kolom di bawah `sm`, input cari `pr-9 sm:pr-16`, placeholder "Cari nama, nomor induk, email…"; logo baru juga sudah di staging (PR #15/#16, `Deploy staging` #36536174711).
