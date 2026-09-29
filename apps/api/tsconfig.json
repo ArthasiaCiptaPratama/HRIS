@@ -5,6 +5,8 @@
     // `extends` dan memaksa NodeNext + strict=false bila `module` tidak ada di sini (D-036).
     "module": "ESNext",
     "moduleResolution": "bundler",
+    // Builder Vercel mengompilasi tiap .ts → .js; tanpa ini import "./x.ts" gagal di-resolve saat runtime.
+    "rewriteRelativeImportExtensions": true,
     "types": ["bun"]
   },
   "include": ["index.ts", "src", "tests", "scripts", "prisma", "prisma.config.ts"]

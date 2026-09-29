@@ -127,7 +127,7 @@ apps/api/
 ├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
 ├── index.ts                          [done] Entry **Vercel** (D-036): re-export `src/index.ts` + import `hono` supaya builder Hono memilih file ini, bukan `src/app.ts`
 ├── vercel.json                       [done] framework `hono`, bunVersion 1.x, region sin1, install dari root (`--frozen-lockfile`), build = prisma generate, `crons`: grant-expiry 01:00 UTC & email-retry 02:00 UTC (harian; batas Hobby). Project `hris-staging-api` (D-036)
-├── tsconfig.json                     [done] · `module`/`moduleResolution` ditulis ulang (builder Vercel tidak membaca `extends`, D-036)
+├── tsconfig.json                     [done] · `module`/`moduleResolution` ditulis ulang (builder Vercel tidak membaca `extends`) + `rewriteRelativeImportExtensions` (import `./x.ts` → `./x.js` saat builder Vercel mengompilasi), D-036
 └── package.json                      # name: @hris/api
 ```
 
@@ -180,7 +180,7 @@ apps/web/
 └── package.json                      # name: @hris/web
 ```
 
-`packages/shared/` [done] (paket sumber TS, diekspor langsung dari `src/index.ts` tanpa build):
+`packages/shared/` [done] (paket sumber TS tanpa build; `exports` = `{ types: ./src/index.ts, default: ./src/index.js }` — Bun/Vite memetakan `.js` ke `.ts` di lokal, sedangkan bundel Vercel hanya berisi `.js` hasil kompilasi, D-036):
 ```
 ├── src/
 │   ├── index.ts
