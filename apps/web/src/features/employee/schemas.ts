@@ -30,6 +30,8 @@ export const employeeListItemSchema = z.object({
   workLocation: ref.nullable(),
   grade: ref.nullable(),
   manager: ref.nullable(),
+  /** D-037: URL baca bertanda tangan (berlaku ±10 menit); null = belum ada foto. */
+  photoUrl: z.string().nullable(),
 });
 export type EmployeeListItem = z.infer<typeof employeeListItemSchema>;
 
@@ -60,6 +62,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
     personal: z.boolean(),
     bank: z.boolean(),
     print: z.boolean(),
+    photo: z.boolean(),
   }),
   personal: z
     .object({

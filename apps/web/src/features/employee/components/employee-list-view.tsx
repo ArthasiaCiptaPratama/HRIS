@@ -37,7 +37,11 @@ export function employeeColumns(
       meta: { sortKey: "fullName", className: "min-w-[220px]" },
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
-          <EmployeeAvatar name={row.original.fullName} inactive={!row.original.isActive} />
+          <EmployeeAvatar
+            name={row.original.fullName}
+            photoUrl={row.original.photoUrl}
+            inactive={!row.original.isActive}
+          />
           <div className="min-w-0">
             <p className="group-hover:text-brand truncate font-medium transition-colors">
               {row.original.fullName}

@@ -33,5 +33,11 @@
 
 **Catatan lingkungan:** Vite dev server di partisi NTFS kadang melewatkan perubahan file (watcher) sehingga menyajikan modul lama; `touch` file memicu ulang. Bukan masalah aplikasi.
 
+## Sesi staging (setelah deploy `be5c94e`, `Deploy staging` #36551504285)
+- **Env:** https://hris-staging-web.vercel.app + api staging, login Supabase sungguhan SA/HR/MGR, Playwright Chromium 1440×900.
+- **Hasil:** 18/18 LULUS — panel selebar layar, "← Kembali" di kiri atas tanpa X & menutup panel, tab Riwayat tampil (data seed → "sistem (data awal/impor)"), Print data SA & HR mengunduh .xlsx (openpyxl: 244 merge; SA berisi data pribadi, HR kosong), MANAGER tanpa tombol Print, konsol bersih.
+- **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-29-detail-print-staging/` (`ui.ts`, `ui-results.json`, screenshot, 2 file .xlsx).
+- **Efek samping:** 2 baris audit `employee.printed` di DB staging (data dummy, disengaja).
+
 **Kesimpulan:** memenuhi kriteria rencana. **Bug terbuka:** tidak ada.
-**Belum diverifikasi:** file dibuka & dicetak di **Microsoft Excel** sungguhan (tidak tersedia di Linux sesi ini; divalidasi dengan openpyxl); browser selain Chromium; Windows; staging (belum di-deploy).
+**Belum diverifikasi:** browser selain Chromium; Windows; nama pengubah di staging (riwayat staging hanya data seed). File .xlsx sudah dicek pemilik projek di Excel.

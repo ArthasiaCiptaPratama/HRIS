@@ -11,6 +11,27 @@ const CELL_REF = /^([A-Z]{1,3})([1-9]\d*)$/;
 
 export type CellValue = string | number | null | undefined;
 
+/** Titik sudut gambar: kolom/baris berbasis 0 + offset EMU di dalam sel itu. */
+export interface CellAnchor {
+  col: number;
+  row: number;
+  colOffset: number;
+  rowOffset: number;
+}
+
+/** Gambar JPEG yang disisipkan ke drawing lembar (mis. foto di bingkai formulir). */
+export interface TemplateImage {
+  /** Drawing milik lembar, mis. "xl/drawings/drawing1.xml". */
+  drawingPath: string;
+  name: string;
+  jpeg: Uint8Array;
+  from: CellAnchor;
+  to: CellAnchor;
+}
+
+/** 1 piksel layar = 9525 EMU (satuan DrawingML). */
+export const EMU_PER_PIXEL = 9525;
+
 export class XlsxTemplateError extends Error {}
 
 /** "A" → 1, "AE" → 31. */
@@ -82,6 +103,7 @@ export function fillXlsxTemplate(
   template: Uint8Array,
   sheetPath: string,
   cells: Record<string, CellValue>,
+  images: TemplateImage[] = [],
 ): Uint8Array {
   let files: Record<string, Uint8Array>;
   try {
@@ -126,7 +148,66 @@ export function fillXlsxTemplate(
   }
 
   files[sheetPath] = strToU8(serializeSheet(doc));
+  images.forEach((image, index) => {
+    insertImage(files, image, index + 1);
+  });
   return zipSync(files, { level: 6 });
+}
+
+const escapeXml = (text: string) => text.replace(/[<>&"']/g, (char) => `&#${char.charCodeAt(0)};`);
+
+function anchorXml(tag: "from" | "to", anchor: CellAnchor) {
+  const int = (value: number) => {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new XlsxTemplateError("Posisi gambar tidak valid.");
+    }
+    return value;
+  };
+  return `<xdr:${tag}><xdr:col>${int(anchor.col)}</xdr:col><xdr:colOff>${int(anchor.colOffset)}</xdr:colOff><xdr:row>${int(anchor.row)}</xdr:row><xdr:rowOff>${int(anchor.rowOffset)}</xdr:rowOff></xdr:${tag}>`;
+}
+
+/**
+ * Sisipkan JPEG ke drawing yang sudah ada: file media baru, relasi baru, dan anchor dua sel
+ * (gambar mengikuti ukuran sel). Bagian lain template tidak disentuh.
+ */
+function insertImage(files: Record<string, Uint8Array>, image: TemplateImage, seq: number) {
+  const drawing = files[image.drawingPath];
+  const relsPath = image.drawingPath.replace(/([^/]+)$/, "_rels/$1.rels");
+  const rels = files[relsPath];
+  const types = files["[Content_Types].xml"];
+  if (!drawing || !rels || !types) {
+    throw new XlsxTemplateError("Template tidak punya area gambar untuk foto.");
+  }
+  const mediaName = `hris-image-${seq}.jpeg`;
+  const relId = `rIdHrisImage${seq}`;
+  files[`xl/media/${mediaName}`] = image.jpeg;
+
+  const relsXml = strFromU8(rels);
+  if (!relsXml.includes("</Relationships>")) throw new XlsxTemplateError("Relasi drawing rusak.");
+  files[relsPath] = strToU8(
+    relsXml.replace(
+      "</Relationships>",
+      `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mediaName}"/></Relationships>`,
+    ),
+  );
+
+  const typesXml = strFromU8(types);
+  if (!/Extension="jpeg"/i.test(typesXml)) {
+    files["[Content_Types].xml"] = strToU8(
+      typesXml.replace("</Types>", '<Default Extension="jpeg" ContentType="image/jpeg"/></Types>'),
+    );
+  }
+
+  const drawingXml = strFromU8(drawing);
+  if (!drawingXml.includes("</xdr:wsDr>")) throw new XlsxTemplateError("Drawing template rusak.");
+  const ids = [...drawingXml.matchAll(/<xdr:cNvPr id="(\d+)"/g)].map((m) => Number(m[1]));
+  const shapeId = Math.max(0, ...ids) + seq;
+  const anchor =
+    `<xdr:twoCellAnchor editAs="oneCell">${anchorXml("from", image.from)}${anchorXml("to", image.to)}` +
+    `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${shapeId}" name="${escapeXml(image.name)}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
+    `<xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+    `<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>`;
+  files[image.drawingPath] = strToU8(drawingXml.replace("</xdr:wsDr>", `${anchor}</xdr:wsDr>`));
 }
 
 /** Unduh byte sebagai file di browser. */

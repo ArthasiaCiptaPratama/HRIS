@@ -16,6 +16,7 @@ interface Result {
   to: string;
   kind: "nav" | "employee";
   name?: string;
+  photoUrl?: string | null;
 }
 
 const norm = (text: string) => text.toLocaleLowerCase("id-ID");
@@ -79,6 +80,7 @@ export function CommandPalette({
           key: `emp-${e.id}`,
           label: e.fullName,
           name: e.fullName,
+          photoUrl: e.photoUrl,
           hint: `${e.employeeNumber} · ${e.position.name}`,
           to: `/personal/pegawai-aktif/semua?pegawai=${e.id}`,
           kind: "employee" as const,
@@ -183,7 +185,7 @@ export function CommandPalette({
                       )}
                     >
                       {result.kind === "employee" && result.name ? (
-                        <EmployeeAvatar name={result.name} size="sm" />
+                        <EmployeeAvatar name={result.name} photoUrl={result.photoUrl} size="sm" />
                       ) : (
                         <span className="bg-muted text-muted-foreground grid size-7 place-items-center rounded-lg">
                           <ArrowRight className="size-3.5" aria-hidden />

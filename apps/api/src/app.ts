@@ -19,6 +19,7 @@ import {
 import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
+import { createSupabaseStorage, type StorageAdmin, UNCONFIGURED_STORAGE } from "./core/storage.ts";
 import {
   type AuthAdmin,
   createSupabaseAdmin,
@@ -38,6 +39,7 @@ export interface AppDeps {
   tokenVerifier: TokenVerifier;
   actorLoader: ActorLoader;
   authAdmin: AuthAdmin;
+  storage: StorageAdmin;
   appUrl: string;
   emailSender: EmailSender;
   cronSecret: string | undefined;
@@ -55,6 +57,14 @@ function defaultAuthAdmin(): AuthAdmin {
   return SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
     ? createSupabaseAdmin(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     : UNCONFIGURED_AUTH_ADMIN;
+}
+
+// D-037: test tidak pernah menyentuh bucket sungguhan (pakai tests/helpers/storage.ts).
+function defaultStorage(): StorageAdmin {
+  const { NODE_ENV, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = getEnv();
+  return NODE_ENV !== "test" && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createSupabaseStorage(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : UNCONFIGURED_STORAGE;
 }
 
 // D-025: SMTP hanya bila lengkap (staging/produksi); lokal → email dicatat ke log saja.
@@ -112,6 +122,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     tokenVerifier: overrides.tokenVerifier ?? defaultVerifier(),
     actorLoader: overrides.actorLoader ?? ((authUserId) => loadIamActor(authUserId)),
     authAdmin: overrides.authAdmin ?? defaultAuthAdmin(),
+    storage: overrides.storage ?? defaultStorage(),
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
     emailSender: overrides.emailSender ?? defaultEmailSender(logger),
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
@@ -163,7 +174,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
-  registerEmployeeRoutes(app, { protect, authAdmin: deps.authAdmin });
+  registerEmployeeRoutes(app, { protect, authAdmin: deps.authAdmin, storage: deps.storage });
   registerCronRoutes(app, { cronSecret: deps.cronSecret, logger: deps.logger });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));

@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useMe } from "@/features/auth/api";
 import { SetPasswordFields } from "@/features/auth/pages/set-password-page";
 import { type Me, type SetPasswordForm, setPasswordFormSchema } from "@/features/auth/schemas";
+import { useEmployee } from "@/features/employee/api";
+import { EmployeePhotoControl } from "@/features/employee/components/employee-photo-control";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 
@@ -29,6 +31,7 @@ export function ProfilePage() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      {me.employeeId ? <OwnPhotoCard employeeId={me.employeeId} /> : null}
       <Card>
         <CardHeader>
           <CardTitle>Profil akses</CardTitle>
@@ -77,5 +80,33 @@ export function ProfilePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** D-037 + PLAN §4.3 "ubah data diri sendiri: … foto": setiap akun tertaut pegawai mengelola fotonya. */
+function OwnPhotoCard({ employeeId }: { employeeId: string }) {
+  const employee = useEmployee(employeeId).data;
+  return (
+    <Card className="lg:col-span-2">
+      <CardContent className="flex flex-col items-center gap-4 py-6 text-center sm:flex-row sm:text-left">
+        {employee ? (
+          <EmployeePhotoControl
+            employeeId={employee.id}
+            name={employee.fullName}
+            photoUrl={employee.photoUrl}
+            canEdit={employee.access.photo}
+          />
+        ) : (
+          <div className="bg-muted size-24 animate-pulse rounded-full sm:size-28" />
+        )}
+        <div className="space-y-1">
+          <p className="text-lg font-semibold">{employee?.fullName ?? "Memuat…"}</p>
+          <p className="text-muted-foreground text-sm">
+            Foto profil tampil di data pegawai dan formulir cetak. Klik ikon kamera untuk mengganti
+            (JPG, PNG, atau WebP; otomatis dipotong 3:4 dan dikompres).
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

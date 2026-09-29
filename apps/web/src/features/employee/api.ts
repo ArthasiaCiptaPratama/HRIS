@@ -6,7 +6,10 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { z } from "zod";
 import { api } from "@/lib/api";
+import { prepareProfilePhoto } from "@/lib/image";
+import { supabase } from "@/lib/supabase";
 import {
   employeeDetailSchema,
   employeeListItemSchema,
@@ -206,6 +209,50 @@ export const useDeactivateEmployee = () =>
       exitReason: ExitReason;
       note?: string;
     }) => api(`/employees/${id}/deactivate`, { method: "POST", body, schema: item }),
+  );
+
+// ── Foto profil (D-037) ─────────────────────────────────────────────────────
+// Alur: minta URL unggah (API) → unggah langsung ke Supabase Storage dengan token sekali pakai →
+// konfirmasi (API memeriksa tipe & ukuran, menyimpan path, menghapus foto lama).
+
+const uploadUrlSchema = one(
+  z.object({
+    bucket: z.string(),
+    path: z.string(),
+    token: z.string(),
+    signedUrl: z.string(),
+    maxBytes: z.number(),
+  }),
+);
+const photoResultSchema = one(z.object({ photoUrl: z.string().nullable() }));
+
+export class PhotoUploadError extends Error {}
+
+export const useUploadPhoto = () =>
+  useEmployeeMutation(async ({ id, file }: { id: string; file: File }) => {
+    const { blob, contentType } = await prepareProfilePhoto(file);
+    const { data: upload } = await api(`/employees/${id}/photo/upload-url`, {
+      method: "POST",
+      body: { contentType },
+      schema: uploadUrlSchema,
+    });
+    if (blob.size > upload.maxBytes) {
+      throw new PhotoUploadError("Foto masih terlalu besar setelah dikompres (maks 2 MB).");
+    }
+    const { error } = await supabase.storage
+      .from(upload.bucket)
+      .uploadToSignedUrl(upload.path, upload.token, blob, { contentType });
+    if (error) throw new PhotoUploadError("Foto gagal diunggah. Periksa koneksi lalu coba lagi.");
+    return api(`/employees/${id}/photo`, {
+      method: "POST",
+      body: { path: upload.path },
+      schema: photoResultSchema,
+    });
+  });
+
+export const useDeletePhoto = () =>
+  useEmployeeMutation(({ id }: { id: string }) =>
+    api(`/employees/${id}/photo`, { method: "DELETE", schema: photoResultSchema }),
   );
 
 export const useReactivateEmployee = () =>

@@ -1,6 +1,6 @@
 # Kasus Uji — employee & organization (D-035)
 
-Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), `apps/api/src/modules/employee/__tests__/employee.policy.test.ts` (POL), `apps/api/src/modules/organization/__tests__/organization.policy.test.ts` (ORG). Web: `apps/web/tests/personal-management.test.tsx` (WEB), `apps/web/tests/auth-routing.test.tsx` (NAV), `apps/web/tests/employee-detail.test.tsx` (DET), `apps/web/tests/employee-print.test.ts` (PRN). Manual: skrip Playwright `/mnt/winD/WORK/Magang/QA/2026-09-29-detail-print/ui.ts` (UI).
+Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), `apps/api/src/modules/employee/__tests__/employee.policy.test.ts` (POL), `apps/api/src/modules/organization/__tests__/organization.policy.test.ts` (ORG). Web: `apps/web/tests/personal-management.test.tsx` (WEB), `apps/web/tests/auth-routing.test.tsx` (NAV), `apps/web/tests/employee-detail.test.tsx` (DET), `apps/web/tests/employee-print.test.ts` (PRN); foto: `apps/api/tests/integration/employee/photo.test.ts` (FOTO). Manual: skrip Playwright `/mnt/winD/WORK/Magang/QA/2026-09-29-detail-print/ui.ts` (UI).
 
 | ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
 |---|---|---|---|---|---|---|---|
@@ -49,3 +49,11 @@ Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), `app
 | TC-EMP-042 | P2 | Template Excel | — | template asli | Bandingkan dengan template | 244 merge, gaya sel, pengaturan cetak, logo & file lain identik; urutan sel naik; tepat satu deklarasi XML; file bukan xlsx/alamat sel salah ditolak | PRN |
 | TC-EMP-043 | P2 | Print dari detail | HR / SA | login Supabase sungguhan | Klik "Print data" | Unduh `Data Pegawai - <nomor> - <nama>.xlsx`; toast di bawah-tengah; HR tanpa grant → catatan bagian pribadi dikosongkan; file terbaca pembaca Excel independen (openpyxl) | DET, UI |
 | TC-EMP-044 | P1 | §4.3 | MANAGER | — | Buka detail | Tombol "Print data" & "Ubah data" tidak tampil | DET, UI |
+| TC-EMP-046 | P1 | D-037 + §4.3 foto sendiri | semua role | — | `canChangePhoto` | SA/HR: pegawai lain & sendiri; MANAGER & EMPLOYEE: hanya sendiri; MANAGER→tim ditolak; akun tanpa pegawai tidak | POL |
+| TC-EMP-047 | P1 | D-037 akses | HR / EMP / MGR / tanpa token | — | POST /employees/:id/photo/upload-url | HR 200 (path `employees/<id>/<uuid>.<ext>` + token); EMP/MGR diri sendiri 200; MGR→tim 403; EMP→lain 404; tanpa token 401; tipe gif 400 | FOTO |
+| TC-EMP-048 | P2 | D-037 konfirmasi | HR | objek belum/sudah terunggah | POST /employees/:id/photo | Belum terunggah 422; terunggah → 200 + URL bertanda tangan, `photo_path` tersimpan, audit `employee.photo.update`; `photoUrl` di detail & daftar | FOTO |
+| TC-EMP-049 | P1 | D-037 validasi | HR | objek bukan gambar / > 2 MB / milik pegawai lain / path aneh | POST konfirmasi | 422 + objek dibuang; path pegawai lain 422; `../`, nama bukan UUID, `.svg` → 400 | FOTO |
+| TC-EMP-050 | P2 | D-037 ganti & hapus | HR / EMP | sudah ada foto | Ganti foto; DELETE | Objek lama terhapus; DELETE → null + audit `employee.photo.delete`; DELETE ulang tanpa audit baru; MGR→tim 403 | FOTO |
+| TC-EMP-051 | P1 | D-037 bucket (staging) | anon / service role | bucket `employee-photos` | Smoke Storage sungguhan | Unggah via token OK; URL publik 400; anon list kosong; token dipakai ke path lain ditolak; GIF ditolak bucket; objek uji dibersihkan | manual (script) |
+| TC-EMP-052 | P2 | D-037 UI | HR (desktop) / EMP (Profil, mobile) / MGR | login sungguhan | Unggah → ganti → print; unggah & hapus di Profil | Foto 600×800 (3:4) tampil di header & daftar; EMP ganti/hapus foto sendiri; MGR tanpa tombol kamera; konsol bersih | DET, UI |
+| TC-EMP-053 | P2 | D-037 cetak | HR | foto ada | Print data | .xlsx berisi `xl/media/hris-image-1.jpeg` (600×787, rasio bingkai 0,762) tertambat B9→J25 jarak 3 px; logo & 244 merge utuh | PRN, UI |
