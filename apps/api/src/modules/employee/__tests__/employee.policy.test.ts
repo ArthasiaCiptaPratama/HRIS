@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Permission, Role } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../../core/access/index.ts";
 import {
+  canChangePhoto,
   canDeactivateEmployee,
   canManageEmployees,
   canPrintEmployee,
@@ -82,6 +83,26 @@ describe("canManageEmployees (tambah/ubah/ubah status/aktifkan)", () => {
     ["EMP", false],
   ] as const)("%s = %s", (who, allowed) => {
     expect(canManageEmployees(actor(who))).toBe(allowed);
+  });
+});
+
+describe("canChangePhoto (foto profil; PLAN §4.3 'ubah data diri sendiri: … foto', D-037)", () => {
+  test.each([
+    ["SA", "other", true],
+    ["SA", "self", true],
+    ["HR", "other", true],
+    ["HR", "self", true],
+    ["MGR", "self", true],
+    ["MGR", "team", false],
+    ["MGR", "other", false],
+    ["EMP", "self", true],
+    ["EMP", "other", false],
+  ] as const)("%s → %s = %s", (who, rel, allowed) => {
+    expect(canChangePhoto(actor(who), target(who, rel))).toBe(allowed);
+  });
+
+  test("akun tanpa data karyawan tidak punya foto 'sendiri'", () => {
+    expect(canChangePhoto(actor("EMP", [], null), target("EMP", "other"))).toBe(false);
   });
 });
 

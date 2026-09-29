@@ -17,7 +17,8 @@
     "db:check": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
     "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts",
     "recover:primary-admin": "bun --env-file=../../.env scripts/recover-primary-admin.ts",
-    "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts"
+    "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts",
+    "storage:setup": "bun --env-file=../../.env scripts/setup-storage.ts"
   },
   "dependencies": {
     "@hono/swagger-ui": "0.6.1",

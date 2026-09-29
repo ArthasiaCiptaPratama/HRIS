@@ -84,6 +84,9 @@ model Employee {
   isActive           Boolean             @default(true) @map("is_active")
   // Diisi saat nonaktif (tanggal efektif = end_date); dikosongkan saat diaktifkan kembali.
   exitReason         EmployeeExitReason? @map("exit_reason")
+  // D-037: path objek foto profil di bucket Supabase Storage private `employee-photos`
+  // (bukan URL; URL bertanda tangan dibuat API saat dibaca). Null = belum ada foto.
+  photoPath          String?             @map("photo_path") @db.VarChar(255)
 
   employmentStatus EmploymentStatus     @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
   position         Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)

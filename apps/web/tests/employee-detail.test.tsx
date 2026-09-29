@@ -4,7 +4,16 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { authState, me, renderAt } from "./helpers";
+import { authState, me, renderAt, supabaseMock } from "./helpers";
+
+// Canvas tidak ada di jsdom: kompres foto diganti blob tetap (geometri diuji di employee-print.test).
+vi.mock("@/lib/image", async (original) => ({
+  ...(await original<typeof import("@/lib/image")>()),
+  prepareProfilePhoto: vi.fn(async () => ({
+    blob: new Blob(["webp"], { type: "image/webp" }),
+    contentType: "image/webp",
+  })),
+}));
 
 vi.mock("@/lib/supabase", async () => ({
   supabase: (await import("./supabase-mock")).supabaseMock,
@@ -15,6 +24,7 @@ const TEMPLATE = readFileSync(
   path.join(import.meta.dirname, "..", "public", "template", "Template-excel.xlsx"),
 );
 
+let photoUrl: string | null = null;
 const detail = (access: Record<string, boolean>) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
@@ -32,6 +42,7 @@ const detail = (access: Record<string, boolean>) => ({
   workLocation: null,
   grade: null,
   manager: null,
+  photoUrl,
   emergencyPhone: null,
   account: null,
   access: {
@@ -40,6 +51,7 @@ const detail = (access: Record<string, boolean>) => ({
     personal: false,
     bank: false,
     print: false,
+    photo: false,
     ...access,
   },
   educations: [],
@@ -80,9 +92,9 @@ const json = (status: number, body: unknown) =>
 /** fetch palsu yang membedakan query (?view=...) dan melayani file template. */
 function mockBackend(role: Parameters<typeof me>[0], access: Record<string, boolean>) {
   const calls: string[] = [];
-  const fn = vi.fn(async (input: RequestInfo | URL) => {
+  const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = String(input);
-    calls.push(raw);
+    calls.push(`${init?.method ?? "GET"} ${raw}`);
     if (raw.endsWith("/template/Template-excel.xlsx")) {
       return new Response(TEMPLATE, { status: 200 });
     }
@@ -117,6 +129,20 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
     if (key === "/employees/e1") return json(200, { data: detail(access) });
+    if (key === "/employees/e1/photo/upload-url")
+      return json(200, {
+        data: {
+          bucket: "employee-photos",
+          path: "employees/e1/p.webp",
+          token: "tok",
+          signedUrl: "https://storage.test/u",
+          maxBytes: 2097152,
+        },
+      });
+    if (key === "/employees/e1/photo") {
+      photoUrl = init?.method === "DELETE" ? null : "https://storage.test/sign/p.webp";
+      return json(200, { data: { photoUrl } });
+    }
     return json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
   });
   vi.stubGlobal("fetch", fn);
@@ -124,6 +150,7 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
 }
 
 beforeEach(() => {
+  photoUrl = null;
   authState.session = { access_token: "t", user: { id: "u" } };
   vi.clearAllMocks();
 });
@@ -202,5 +229,62 @@ describe("panel detail pegawai", () => {
     await within(dialog).findByRole("heading", { name: "Agus Pratama" });
     expect(within(dialog).queryByRole("button", { name: /Print data/ })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Ubah data/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("foto profil di panel detail (D-037)", () => {
+  it("HR: unggah foto → minta URL, unggah ke Storage dengan token, konfirmasi; foto tampil", async () => {
+    const calls = mockBackend("HR_ADMIN", { manage: true, print: true, photo: true });
+    const success = vi.spyOn(toast, "success");
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      await within(dialog).findByRole("button", { name: "Unggah foto profil" }),
+    );
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Unggah foto/ }));
+    const file = new File(["x"], "foto.jpg", { type: "image/jpeg" });
+    await userEvent.upload(within(dialog).getByLabelText("Pilih file foto profil"), file);
+
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith("Foto profil diperbarui.", expect.anything()),
+    );
+    expect(calls).toContain("POST http://api.test/api/v1/employees/e1/photo/upload-url");
+    expect(calls).toContain("POST http://api.test/api/v1/employees/e1/photo");
+    expect(supabaseMock.storage.from).toHaveBeenCalledWith("employee-photos");
+    expect(supabaseMock.storageUpload).toHaveBeenCalledWith(
+      "employees/e1/p.webp",
+      "tok",
+      expect.any(Blob),
+      { contentType: "image/webp" },
+    );
+    // Setelah invalidasi, detail dimuat ulang dengan foto.
+    await waitFor(() =>
+      expect(dialog.querySelector('img[src="https://storage.test/sign/p.webp"]')).not.toBeNull(),
+    );
+  });
+
+  it("hapus foto lewat konfirmasi → DELETE; avatar kembali ke inisial", async () => {
+    photoUrl = "https://storage.test/sign/lama.webp";
+    const calls = mockBackend("HR_ADMIN", { manage: true, photo: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      await within(dialog).findByRole("button", { name: "Ganti atau hapus foto profil" }),
+    );
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Hapus foto/ }));
+    const confirm = await screen.findByRole("dialog", { name: "Hapus foto profil?" });
+    await userEvent.click(within(confirm).getByRole("button", { name: /Hapus foto/ }));
+    await waitFor(() =>
+      expect(calls).toContain("DELETE http://api.test/api/v1/employees/e1/photo"),
+    );
+    await waitFor(() => expect(dialog.querySelector("img")).toBeNull());
+  });
+
+  it("tanpa hak ubah foto (MANAGER): tidak ada tombol kamera", async () => {
+    mockBackend("MANAGER", {});
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("heading", { name: "Agus Pratama" });
+    expect(within(dialog).queryByRole("button", { name: /foto profil/ })).not.toBeInTheDocument();
   });
 });

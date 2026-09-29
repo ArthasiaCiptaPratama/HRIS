@@ -75,7 +75,7 @@ export function ReactivateDialog({
         {employee ? (
           <form onSubmit={submit} className="space-y-5">
             <div className="bg-muted/40 flex items-center gap-3 rounded-xl p-3">
-              <EmployeeAvatar name={employee.fullName} inactive />
+              <EmployeeAvatar name={employee.fullName} photoUrl={employee.photoUrl} inactive />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{employee.fullName}</p>
                 <p className="text-muted-foreground truncate text-xs">

@@ -31,6 +31,13 @@ export function canManageEmployees(actor: Actor): boolean {
   return isAdmin(actor);
 }
 
+// Foto profil (D-037): SA/HR untuk pegawai yang boleh mereka lihat; setiap akun untuk fotonya
+// sendiri (PLAN §4.3 "Ubah data diri sendiri: … foto"). MANAGER tidak mengubah foto timnya.
+export function canChangePhoto(actor: Actor, target: EmployeeTarget): boolean {
+  if (isSelf(actor, target)) return true;
+  return canManageEmployees(actor) && canViewEmployee(actor, target);
+}
+
 // Unduh formulir data pegawai (.xlsx): operator administrasi saja (SA/HR). Isi sensitif di dalamnya
 // tetap mengikuti canReadPersonal — tanpa grant, bagian itu dikosongkan.
 export function canPrintEmployee(actor: Actor, target: EmployeeTarget): boolean {
