@@ -78,7 +78,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be` — `vercel.json` kedua app dibuat; project Vercel belum dibuat
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
-- [ ] Verifikasi `bun install && bun run dev` di **Windows**
+- [ ] Verifikasi `bun install && bun run dev` di **Windows** — `bun install` hijau & `bun run typecheck` hijau di Windows 2026-09-29 (Bun 1.4.2 dipasang via npm; postinstall `bun` perlu `--allow-scripts=bun`); `bun run dev` belum (butuh `bun run db:up` & browser)
 - [x] README "Mulai cepat" (install, env, db, dev) (tambahan 2026-09-28)
 - [x] MCP Supabase di `.mcp.json` (project `iwgzuwcxsxnbjibhbqgh`) terautentikasi + skill resmi `supabase` & `supabase-postgres-best-practices` (tambahan 2026-09-28)
 - [x] Skill projek: `hris-workflow`, `hris-db-schema`, `hris-flow-testing`, `hris-e2e-playwright`, `hris-qa-docs` (tambahan 2026-09-28)
@@ -96,7 +96,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
   - [x] Kelola akun: `GET /accounts`, `GET /accounts/:id`, `POST /accounts/invite`, `POST /accounts/:id/deactivate|reactivate` (ban Supabase satu transaksi) (tambahan 2026-09-28: baris matriks "Undang akun karyawan, nonaktifkan akun")
 - [x] Grant: beri, cabut, kedaluwarsa, audit — `GET|POST /grants`, `POST /grants/:id/revoke`, kedaluwarsa dicek per request, audit, notifikasi diberikan/dicabut/akan kedaluwarsa (cron `grant-expiry`)
 - [~] Audit log (core) + halaman audit untuk SUPER_ADMIN — tabel + `writeAudit()` + `GET /audit-logs` (SA, filter) ✔; halaman web di Bagian C
-- [~] Notifikasi in-app + pengiriman email via SMTP (migrasi `notification` di staging ✔ 2026-09-29) (lokal: dicatat ke log; staging/produksi: Google Workspace) + `email_outbox` — modul `notification` (notify, outbox + retry, endpoint), pemicu IAM, cron `grant-expiry` & `email-retry` (`CRON_SECRET`), 8 integration test dengan pengirim palsu ✔; **pengirim SMTP (nodemailer) belum diuji ke Gmail sungguhan** (menunggu izin kirim email uji / deploy API)
+- [~] Notifikasi in-app + pengiriman email via SMTP (migrasi `notification` di staging ✔ 2026-09-29) (lokal: dicatat ke log; staging/produksi: Google Workspace) + `email_outbox` — modul `notification` (notify, outbox + retry, endpoint), pemicu IAM, cron `grant-expiry` & `email-retry` (`CRON_SECRET`), 8 integration test dengan pengirim palsu ✔; **pengirim SMTP (nodemailer) teruji ke Gmail sungguhan 2026-09-29** (Windows; skrip `verify-smtp` ke `matiusrizky25@gmail.com` mengembalikan `250 2.0.0 OK` & Message-ID; transporter saja, jalur `notification.notify()` belum); akun final menunggu OD-5
 - [~] Keputusan OD-5 (akun pengirim Workspace + App Password) sebelum uji undangan — staging bisa uji undangan dengan akun D-032; akun final menunggu OD-5
 - [x] Script `bootstrap-super-admin` dan `recover-primary-admin` — `bootstrap-super-admin` ✔ (jalan nyata 2026-09-28: Utama `admin.arthasia@gmail.com` di DB lokal **dan DB staging**, satu user Auth staging, idempoten teruji); `recover-primary-admin` ✔ (script + service teruji di DB kosong, dry-run ✔)
 - [x] Helper test `tests/helpers/auth.ts` (`testVerifier`, `createAuthFixture().loginAs`) (tambahan 2026-09-28)
@@ -225,6 +225,24 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-29 — Uji SMTP Gmail sungguhan (transporter) + setup Bun Windows
+- **Dikerjakan (izin pemilik projek):**
+  - Skrip baru `apps/api/scripts/verify-smtp.ts` (`--to <email> [--from <email>]`) — transporter nodemailer, `verify()` + `sendMail()`, validasi env SMTP dengan Zod, output tanpa `SMTP_PASS`, tanpa DB. Bukan bagian dari aplikasi — alat verifikasi.
+  - Entri script `verify:smtp` di `apps/api/package.json` & wrapper `bun run --cwd apps/api verify:smtp` di root `package.json`, mengikuti pola `bootstrap:super-admin`/`recover:primary-admin`/`dev:account`.
+  - `docs/CODEMAP.md` §2 scripts + §9 + tanggal "Terakhir diubah".
+  - **Bun dipasang di Windows** (npm 12.0.1: `npm install -g --allow-scripts=bun bun`; versi 1.4.2; postinstall `bun` default diblokir npm → perlu `--allow-scripts=bun`). `bun install` ✔ (postinstall `db:generate` ✔). `.env` dibuat dari `.env.example` + nilai SMTP & Supabase yang sudah dipakai di Linux.
+- **Verifikasi (Windows, Bun 1.4.2):**
+  - `bun run typecheck` ✔ (shared, api, web) · `bunx biome ci` ✔ untuk file baru + 2 `package.json` (1 format-fix otomatis oleh Biome) · `bun run check:boundaries` ✔ (174 modul, 0 pelanggaran).
+  - `bun run verify:smtp -- --to matiusrizky25@gmail.com` → `Host: smtp.gmail.com:587`, `Verify: OK`, `Send: OK`, **`SMTP response: 250 2.0.0 OK 1790648743 98e67ed59e1d1-3a498596aefsm2543802a91.6 - gsmtp`**, `Message-ID: <0bf750ce-c67a-fed1-c2d3-7a232e9f534a@gmail.com>`. Pengirim `Arthasia HRIS <admin.arthasia@gmail.com>`.
+- **Masalah / catatan:**
+  - Edit berbasis teks sempat gagal aman (baris PROGRESS tidak cocok persis) lalu diulang dengan `Grep` untuk memastikan anchor — tidak ada perubahan setengah jadi.
+  - `bun run dev` (Windows) belum diuji (butuh `bun run db:up` & browser) — sub-item Fase 1 masih terbuka sebagian.
+  - **App Password Gmail `admin.arthasia@gmail.com` sekarang tersimpan di `.env` lokal Windows** (sesuai permintaan pemilik projek). Sudah masuk daftar "wajib dirotasi sebelum produksi" di §2 (sebelumnya tertulis di riwayat percakapan).
+- **Belum diverifikasi:** email sampai di kotak masuk `matiusrizky25@gmail.com` (dicek pemilik projek); jalur `notification.notify()` end-to-end (transporter saja yang diuji — keputusan pemilik projek).
+- **Persetujuan:** pemilik projek menyetujui pengiriman email uji (aksi keluar) dan penulisan `.env`.
+- **Berikutnya:** verifikasi kotak masuk; opsional: tambah integration test `notification.notify()` end-to-end (butuh keputusan); CRON_SECRET untuk `deploy-staging.yml` masih kosong (Deploy Hook Vercel menunggu project Vercel).
+
 ### 2026-09-29 — D-035: web Personal Management + API employee/organization
 - **Dikerjakan (rencana disetujui; keputusan pemilik projek: SA+HR penuh & MANAGER baca tim, 5 kategori tanpa "Masa Percobaan", menu b = ubah kategori + nonaktifkan, akun login ikut nonaktif):**
  - **Skema:** migrasi `20260929020000_employee_categories_and_histories` (enum kategori + `employment_statuses.category` unik, `employees.exit_reason` + CHECK, `employment_histories`, index daftar). Seed: 5 status berkategori (nama lama diganti, "Masa Percobaan" di-soft delete), 21 karyawan (2 nonaktif) + riwayat.

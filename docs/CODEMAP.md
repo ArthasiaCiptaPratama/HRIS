@@ -7,7 +7,7 @@
 
 | Metadata        | Nilai                                                        |
 | --------------- | ------------------------------------------------------------ |
-| Terakhir diubah | 2026-09-28                                                   |
+| Terakhir diubah | 2026-09-29                                                   |
 | Kondisi repo    | Fase 1 berjalan: monorepo, kerangka api/web/shared, Prisma, CI, Docker |
 
 ---
@@ -119,6 +119,7 @@ apps/api/
 │   ├── bootstrap-super-admin.ts      [wip] `--email <e> [--dry-run]`: cari/buat user Auth (password diketik tersembunyi), lalu `bootstrapPrimarySuperAdmin` di DB target. Jalan nyata ✔ (Utama `admin.arthasia@gmail.com` di DB lokal)
 │   ├── create-dev-account.ts         [done] Akun UJI (bukan produksi): `DEV_ACCOUNT_PASSWORD=... --email --role HR_ADMIN|MANAGER|EMPLOYEE [--employee-number]` → user Auth terkonfirmasi + akun HRIS tertaut karyawan dummy (`provisionAccount`, audit, idempoten)
 │   └── recover-primary-admin.ts      [done] `--to-email <e> --reason "..." [--dry-run]`: pindahkan status Utama ke SUPER_ADMIN aktif + audit (PLAN §4.4)
+│   └── verify-smtp.ts                [done] `--to <email> [--from <email>]`: transporter nodemailer `verify()` + `sendMail()` ke Gmail (587 STARTTLS); butuh `SMTP_*` & `EMAIL_FROM` di `.env`; tanpa DB; output tanpa `SMTP_PASS`. Bukan bagian dari aplikasi — alat verifikasi
 ├── tests/
 │   ├── helpers/auth.ts               [done] `testVerifier` (token `test-token:<uuid>[:stale]`, `passwordAuthAt`), `bearer()`, `createAuthFixture(run)` → `loginAs(role, {grants, employeeId, isActive, primary})` → `{account, headers, staleHeaders}` + `cleanup()`
 │   ├── helpers/auth-admin.ts         [done] `createFakeAuthAdmin()`: AuthAdmin palsu (mencatat undangan/ban, bisa disetel gagal)
@@ -432,6 +433,7 @@ Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal mema
 | `DEV_ACCOUNT_PASSWORD='...' bun run dev:account -- --email <e> --role <ROLE> [--employee-number <no>]` | Buat akun UJI per role (staging Auth + DB lokal), tautkan ke karyawan dummy; tidak untuk produksi; user Auth yang sudah ada tidak diubah password-nya |
 | `bun run recover:primary-admin -- --to-email <e> --reason "..." [--dry-run]` | Pindahkan status Utama ke SUPER_ADMIN aktif (pemulihan manual, PLAN §4.4) + audit |
 | `bun run bootstrap:super-admin -- --email <e> [--dry-run]` | Buat/promosikan SUPER_ADMIN Utama di DB target; idempoten; butuh `SUPABASE_SERVICE_ROLE_KEY` (kecuali dry-run). Memakai `bun run --cwd apps/api` (bukan `--filter`) agar input password tersembunyi mendapat TTY |
+| `bun run verify:smtp -- --to <email>` | Kirim 1 email uji lewat transporter nodemailer ke Gmail sungguhan (D-025/D-032). Butuh `SMTP_*` & `EMAIL_FROM` di `.env`. Tanpa DB. Bukan bagian dari aplikasi — alat verifikasi |
 | `bun run build` | Build api (`bun build` → `apps/api/dist`) & web (`vite build` → `apps/web/dist`) |
 
 Docker image api (jalan keluar dari Vercel): `docker build -f apps/api/Dockerfile -t hris-api .` dari root.

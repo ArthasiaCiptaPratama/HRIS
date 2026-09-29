@@ -31,6 +31,7 @@
     "bootstrap:super-admin": "bun run --cwd apps/api bootstrap:super-admin",
     "recover:primary-admin": "bun run --cwd apps/api recover:primary-admin",
     "dev:account": "bun run --cwd apps/api dev:account",
+    "verify:smtp": "bun run --cwd apps/api verify:smtp",
     "postinstall": "bun run db:generate"
   },
   "devDependencies": {
