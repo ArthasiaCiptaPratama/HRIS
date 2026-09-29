@@ -146,7 +146,7 @@ Catatan untuk Vercel:
 - Region function diset ke **Singapura (`sin1`)**.
 - Upload selfie dan dokumen dilakukan **langsung dari browser ke Supabase Storage** memakai signed upload URL dari API, jadi file tidak melewati function.
 - Bun runtime di Vercel masih **Public Beta**. Kode api tidak boleh memakai API khusus Vercel di logika bisnis, dan `Dockerfile` api tetap dirawat supaya bisa pindah ke VPS.
-- **Staging (D-036):** project `hris-staging-api` & `hris-staging-web` di akun pribadi `oatse` (Hobby), dideploy oleh GitHub Actions lewat Vercel CLI setelah migrasi. Entry api untuk Vercel = `apps/api/index.ts` (re-export `src/index.ts`).
+- **Staging (D-036):** project `hris-staging-api` & `hris-staging-web` di akun pribadi `oatse` (Hobby), dideploy oleh GitHub Actions lewat Vercel CLI setelah migrasi. Api dibundel `bun build` (`hono` external) ke `apps/api/dist/index.js` sebelum diunggah; builder Vercel tidak mengompilasi TS per file.
 - Paket Vercel **Hobby hanya untuk non-komersial**. Sebelum ada data karyawan sungguhan, projek harus berada di **akun/team milik kantor dengan paket berbayar** (lihat OD-4).
 
 ---
