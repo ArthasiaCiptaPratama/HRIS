@@ -711,6 +711,26 @@ export async function getAccountLinksForEmployees(
   );
 }
 
+export interface AccountSummary {
+  accountId: string;
+  employeeId: string | null;
+  role: Role;
+  email: string;
+}
+
+/** Pelaku perubahan (mis. riwayat kepegawaian "diubah oleh"): akun yang sudah dihapus tidak ada di map. */
+export async function getAccountSummaries(
+  accountIds: string[],
+): Promise<Map<string, AccountSummary>> {
+  const rows = await repository.findAccountsByIds([...new Set(accountIds)]);
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { accountId: row.id, employeeId: row.employeeId, role: row.role, email: row.email },
+    ]),
+  );
+}
+
 /** PLAN §4.1: manager_id wajib menunjuk ke karyawan ber-akun MANAGER/SUPER_ADMIN (aktif). */
 export async function listManagerEmployeeIds(): Promise<string[]> {
   return repository.findEmployeeIdsByRoles({ in: [ROLE.MANAGER, ROLE.SUPER_ADMIN] });

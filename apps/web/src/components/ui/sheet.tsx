@@ -46,7 +46,7 @@ function SheetContent({
       >
         {children}
         {hideClose ? null : (
-          <SheetPrimitive.Close className="ring-offset-background focus-visible:ring-ring/50 text-muted-foreground hover:bg-accent hover:text-foreground absolute top-4 right-4 rounded-md p-1.5 transition-colors focus-visible:ring-[3px] focus-visible:outline-hidden">
+          <SheetPrimitive.Close className="ring-offset-background focus-visible:ring-ring/50 text-muted-foreground hover:bg-accent hover:text-foreground bg-background/80 absolute top-4 right-4 z-20 rounded-md p-1.5 transition-colors focus-visible:ring-[3px] focus-visible:outline-hidden">
             <XIcon className="size-4" />
             <span className="sr-only">Tutup</span>
           </SheetPrimitive.Close>

@@ -30,7 +30,7 @@ export function EmployeeAvatar({
   className,
 }: {
   name: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
   inactive?: boolean;
   className?: string;
 }) {
@@ -44,6 +44,7 @@ export function EmployeeAvatar({
         size === "md" && "size-9 text-xs",
         size === "lg" && "size-12 text-sm",
         size === "xl" && "size-16 text-lg",
+        size === "2xl" && "size-24 text-3xl sm:size-28 sm:text-4xl",
         className,
       )}
     >

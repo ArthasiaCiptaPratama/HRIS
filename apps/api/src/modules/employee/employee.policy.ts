@@ -31,6 +31,12 @@ export function canManageEmployees(actor: Actor): boolean {
   return isAdmin(actor);
 }
 
+// Unduh formulir data pegawai (.xlsx): operator administrasi saja (SA/HR). Isi sensitif di dalamnya
+// tetap mengikuti canReadPersonal — tanpa grant, bagian itu dikosongkan.
+export function canPrintEmployee(actor: Actor, target: EmployeeTarget): boolean {
+  return canManageEmployees(actor) && canViewEmployee(actor, target);
+}
+
 // Menonaktifkan data karyawan milik sendiri akan ikut mengunci akun sendiri → ditolak.
 export function canDeactivateEmployee(actor: Actor, target: EmployeeTarget): boolean {
   return canManageEmployees(actor) && !isSelf(actor, target);

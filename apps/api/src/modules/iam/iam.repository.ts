@@ -213,6 +213,14 @@ export async function findAccountsByEmployeeIds(employeeIds: string[]) {
   });
 }
 
+export async function findAccountsByIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  return getPrisma().account.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, employeeId: true, role: true, email: true },
+  });
+}
+
 export async function findEmployeeIdsByRoles(roles: NonNullable<Prisma.AccountWhereInput["role"]>) {
   const rows = await getPrisma().account.findMany({
     where: { role: roles, isActive: true, employeeId: { not: null } },
