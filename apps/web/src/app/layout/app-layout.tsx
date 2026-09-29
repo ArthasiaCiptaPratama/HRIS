@@ -43,7 +43,7 @@ function Brand() {
       aria-label="Arthasia HRIS — beranda"
       className="flex shrink-0 items-center rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
-      <BrandLogo decorative className="h-7 md:h-8" />
+      <BrandLogo decorative className="h-12" />
     </NavLink>
   );
 }
@@ -260,7 +260,7 @@ function MobileMenu({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 border-b px-4 py-4">
-        <BrandLogo className="h-7" />
+        <BrandLogo className="h-16" />
       </div>
       <div
         className="flex gap-1.5 overflow-x-auto border-b px-3 py-3 [scrollbar-width:none]"
