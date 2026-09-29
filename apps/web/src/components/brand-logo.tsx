@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
 
-// Logo resmi Arthasia horizontal (ikon + tulisan) — public/logo/logo-horizontal.svg, rasio 1028:216.
-// Menggantikan teks "Arthasia HRIS / PT Arthasia Cipta Pratama" di top bar, menu mobile, dan halaman auth.
+// Logo resmi Arthasia vertikal (ikon, tulisan "arthasia", tagline "energy for the future") —
+// public/logo/logo-vertical.webp, dioptimasi dari logo-arthasia-ori.png (latar transparan), rasio 358:360.
+// Dipakai di top bar, menu mobile, dan halaman auth (permintaan pemilik projek 2026-09-29).
 export function BrandLogo({
   className,
   decorative = false,
@@ -11,13 +12,13 @@ export function BrandLogo({
 }) {
   return (
     <img
-      src="/logo/logo-horizontal.svg"
-      alt={decorative ? "" : "Arthasia"}
-      width={152}
-      height={32}
+      src="/logo/logo-vertical.webp"
+      alt={decorative ? "" : "Arthasia — energy for the future"}
+      width={358}
+      height={360}
       decoding="async"
       draggable={false}
-      className={cn("h-8 w-auto shrink-0 select-none", className)}
+      className={cn("h-12 w-auto shrink-0 select-none", className)}
     />
   );
 }

@@ -30,23 +30,23 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 ---
 
 ## 2. Fokus Saat Ini
-- **Fase aktif:** 1 — Fondasi (sisa: Vercel, uji Windows, proteksi `main`) · Fase 2 IAM **Review** · **Target minggu 2026-09-29 (D-035): web Personal Management** (Fase 3–4 lebih awal).
+- **Fase aktif:** 1 — Fondasi (sisa: uji Windows, proteksi `main`) · Fase 2 IAM **Review** · **Target minggu 2026-09-29 (D-035): web Personal Management** (Fase 3–4 lebih awal).
 - **Sudah jalan (per 2026-09-29):**
- - Lokal (Linux) hijau: typecheck, lint, boundaries (175 modul), `db:check`, test shared 10 · api 237 · web 32. Branch kerja `HRIS/Oatse/Linux-Windows` = `e097470` (CI #36511942894 ✔); `main` tidak disentuh (`ebb20e5`).
- - **Staging:** kode s.d. `a53b2bc` naik lewat PR #7 (`b8dcdc5`) & PR #8 (`1df018e`), `Deploy staging` #36506844786 ✔ (7 migrasi, `db:check` tanpa selisih). Commit sesudahnya (`a2b25f5` docs, `e097470` web menu b–e) **belum** di staging — tanpa migrasi, DB staging tidak terpengaruh. **Data staging kosong:** master data & karyawan = 0, hanya 1 akun (Super Admin Utama). Vercel belum ada → web/API belum ter-deploy.
- - **Fase 2 IAM** lengkap (akun, role, grant, audit, notifikasi & email, cron, web). **SMTP teruji** 2026-09-29: email aplikasi (`createSmtpSender`) dari `admin.arthasia@gmail.com` diterima di kotak masuk `oatse2458@gmail.com` (dikonfirmasi pemilik projek). Env SMTP kini terisi di `.env` lokal (tidak di-commit).
- - **D-035 Personal Management:** skema kategori/riwayat, API `organization` (`/master-data`) & `employee` (10 endpoint), web top nav + sidebar kontekstual, Dashboard (kosong), **Data Pegawai Aktif** per kategori (daftar, cari, filter, paginasi, detail, tambah/ubah). Menu **b–e (Ubah Status, Pengaktifan, Pegawai Tidak Aktif, Struktur Organisasi) sementara Maintenance** lewat `apps/web/src/app/feature-flags.ts` (kode & API tetap); Arsip (f–o) & Laporan (p) Maintenance. UI: logo horizontal Arthasia, judul tanpa angka, fokus input abu netral, autofill netral.
+ - Lokal (Linux) hijau: typecheck, lint, boundaries (175 modul), `db:check`, test shared 10 · api 237 · web 32 (api: dengan `SMTP_*` dikosongkan, lihat Backlog). `main` tidak disentuh (`ebb20e5`).
+ - **Staging live (D-036):** web **https://hris-staging-web.vercel.app** · api **https://hris-staging-api.vercel.app/api/v1** (docs `/api/v1/docs`). Kode s.d. `43b2b69` (PR #9–#14), `Deploy staging` #36531510460 ✔ (migrasi → deploy api → deploy web). Diverifikasi: health 200 (DB ok), 401/404 envelope, OpenAPI 200, preflight CORS dari web 204 (origin asing ditolak), cron 401 tanpa/salah secret & 200 dengan `CRON_SECRET`, bundel web memakai URL api & Supabase staging. **QA staging 2026-09-29** (`docs/qa/runs/2026-09-29-staging.md`): login sungguhan 4 role, matriks akses dengan JWT asli, alur tulis HR, UI desktop & mobile → API 43/43, UI 31/31 LULUS; BUG-001 (P3, warning `HydrateFallback`) terbuka.
+ - **Data staging terisi:** 5 departemen, 12 jabatan, 5 status, 5 grade, 2 lokasi, 21 karyawan (2 nonaktif), 23 riwayat, akun SA + HR/MGR/EMP (user Auth yang sama dengan lokal).
+ - **Fase 2 IAM** lengkap (akun, role, grant, audit, notifikasi & email, cron, web). **SMTP teruji** 2026-09-29 dan env SMTP juga terisi di Vercel `hris-staging-api`.
+ - **D-035 Personal Management:** API `organization` & `employee`, web Data Pegawai Aktif; menu b–e sementara Maintenance (`apps/web/src/app/feature-flags.ts`), Arsip (f–o) & Laporan (p) Maintenance.
  - QA: `docs/qa/` (plan, 32 kasus, hasil); bukti visual di `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/`.
 - **Langkah berikutnya (menunggu persetujuan pemilik projek):**
- 1. Isi data staging (aksi tulis ke Supabase, butuh izin): seed dummy sekali jalan ke DB staging (`DATABASE_URL` di-override, `.env` tidak diubah) **atau** tunggu CRUD master data (Fase 3) lalu isi lewat UI.
- 2. Opsional: restart server dev lokal supaya notifikasi aplikasi terkirim sebagai email sungguhan (saat ini server berjalan masih memakai pengirim log).
- 3. Uji login Supabase sungguhan per role (Super Admin, HR, Manager) di web lokal.
- 4. Fase 3: CRUD master data (departemen, jabatan, status + kategori, grade, lokasi) untuk SUPER_ADMIN.
- 5. Lanjutan Fase 4: isi menu Arsip (f–o) & Laporan (p) satu per satu; aktifkan kembali menu b–e (`FEATURES` → `true`) saat siap diuji pemilik projek; tulis data pribadi/rekening (butuh **OD-6**), dokumen (signed URL), undangan akun dari data karyawan, import CSV/Excel.
- 6. Seragamkan halaman Administrasi & Akun Saya (Akun, Grant, Audit, Notifikasi, Profil — Profil belum punya `<h1>`) dengan gaya/komponen baru.
- 7. Sisa Fase 1: project Vercel (+ `CRON_SECRET`, env SMTP) dan uji Windows.
-- **Blocker / ditunda:** OD-9 (proteksi `main`); akun Vercel dibuat pemilik projek; OD-5 akun email produksi; OD-6 (ubah data sensitif milik sendiri) sebelum fitur tulis data sensitif.
-- **Keamanan yang harus dibereskan sebelum produksi:** ganti password DB staging (lalu perbarui secret `STAGING_DIRECT_URL`); pastikan App Password Gmail yang pernah tertulis di percakapan sudah dicabut (yang dipakai sekarang hanya ada di `.env`); ganti password Super Admin; ganti password `sudo` laptop (tertulis di percakapan 2026-09-29).
+ 1. Perbaiki BUG-001 (`HydrateFallback`) & tampilan mobile daftar pegawai (placeholder/filter terpotong) — P3.
+ 2. Rotasi rahasia yang tertulis di percakapan 2026-09-29 (lihat Keamanan), lalu hapus `.env.staging` lokal.
+ 3. Fase 3: CRUD master data (departemen, jabatan, status + kategori, grade, lokasi) untuk SUPER_ADMIN.
+ 4. Lanjutan Fase 4: isi menu Arsip (f–o) & Laporan (p); aktifkan kembali menu b–e saat siap diuji; tulis data pribadi/rekening (butuh **OD-6**), dokumen (signed URL), undangan akun dari data karyawan, import CSV/Excel.
+ 5. Seragamkan halaman Administrasi & Akun Saya dengan gaya/komponen baru.
+ 6. Sisa Fase 1: uji Windows.
+- **Blocker / ditunda:** OD-9 (proteksi `main`); OD-4 (akun/team Vercel & Supabase kantor untuk produksi — staging sementara di akun pribadi Hobby, D-036); OD-5 akun email produksi; OD-6 (ubah data sensitif milik sendiri).
+- **Keamanan yang harus dibereskan sebelum produksi:** **password DB staging, token Vercel `oatse`, dan password keempat akun uji (SA/HR/MGR/EMP) tertulis di percakapan 2026-09-29** → reset password DB (perbarui secret `STAGING_DIRECT_URL` + env Vercel `DATABASE_URL`), cabut & buat ulang token Vercel (perbarui secret `VERCEL_TOKEN`), ganti password keempat akun uji; pastikan App Password Gmail yang pernah tertulis di percakapan sudah dicabut; ganti password Super Admin; ganti password `sudo` laptop.
 ---
 ## 3. Checklist Per Fase
 
@@ -75,7 +75,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
 - [x] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — run #36375129344 hijau (commit `1815b3c`)
 - [x] Keputusan OD-7 ✔ (D-030), lalu `db:deploy` migrasi awal ke staging — workflow `Deploy staging` run #36385730691 sukses (2 migrasi, `db:check` tanpa selisih), diverifikasi via MCP
-- [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; ~~preview~~ staging untuk `HRIS/debug/fe-be` (D-036) — project `hris-staging-api` & `hris-staging-web` (akun `oatse`, Hobby) dibuat 2026-09-29, env production terisi, `vercel build --prod` lokal ✔ (api `bun1.x` + 2 cron, web Vite); deploy pertama lewat `deploy-staging.yml` belum
+- [x] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; ~~preview~~ staging untuk `HRIS/debug/fe-be` (D-036) — `hris-staging-api` & `hris-staging-web` (akun `oatse`, Hobby), deploy otomatis `Deploy staging` #36531510460 ✔, health/CORS/cron teruji live 2026-09-29
   - [x] Job `vercel` di `deploy-staging.yml`: Vercel CLI `pull/build/deploy --prebuilt --prod` setelah migrasi + secret `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_API/WEB` (tambahan 2026-09-29: repo private milik organisasi tidak bisa dihubungkan ke Vercel Hobby, D-036)
   - [x] Api dibundel sendiri untuk Vercel: `bun build src/index.ts --external hono` → `dist/index.js` + `outputDirectory: dist` (tambahan 2026-09-29: kompilasi per file oleh `@vercel/node` tidak cocok dengan monorepo paket sumber TS — (1) memilih `src/app.ts` tanpa default export sebagai entry, (2) tidak membaca `extends` tsconfig sehingga strict mati, (3) import `./x.ts` & `exports` `@hris/shared` tetap `.ts` setelah dikompilasi → `ResolveMessage` di deploy #36529746512, (4) tambalan `exports` `.js` membuat `packages/shared` tidak ikut (`BuildMessage`, deploy #36530682448). Tambalan PR #11/#12 dikembalikan; bundel diuji dari **clone bersih** + simulasi function terisolasi: health 200 ke DB staging, 401, 404, OpenAPI 200)
   - [x] Proteksi Vercel Authentication hanya untuk preview (tambahan 2026-09-29: default project baru melindungi URL `*.vercel.app` production sehingga web tidak bisa memanggil api)
@@ -231,6 +231,34 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-09-29 — Web: logo vertikal Arthasia
+- **Dikerjakan:** logo di top bar, menu mobile, dan halaman login/auth diganti logo resmi vertikal (ikon + "arthasia" + "energy for the future") sesuai permintaan pemilik projek; pilihan pemilik projek: logo vertikal lengkap di semua tempat (tagline di top bar sangat kecil, diterima).
+- **Keputusan:** tidak ada D-xxx (tampilan). Aset `public/logo/logo-vertical.webp` (358×360, 32 KB) dibuat dari `logo-arthasia-ori.png` (5800×6400, 3,6 MB, dipotong ke area logo); tinggi header tetap `h-14`.
+- **File berubah:** `apps/web/src/components/brand-logo.tsx`, `apps/web/src/app/layout/app-layout.tsx`, `apps/web/src/features/auth/pages/login-page.tsx`, `apps/web/public/logo/logo-vertical.webp`, `docs/CODEMAP.md`.
+- **Verifikasi:** `bun run --filter @hris/web typecheck` ✔ · `bunx biome ci .` ✔ · `bun run check:boundaries` ✔ (175 modul) · `bun run test:web` 32 pass · `vite build` ✔; Playwright lokal (login SA sungguhan): logo login 128 px, top bar 48 px (header 57 px), drawer mobile 64 px, 0 error konsol — bukti `/mnt/winD/WORK/Magang/QA/2026-09-29-logo-vertikal/`.
+- **Masalah / catatan:** file sumber `logo-arthasia-ori.png` (3,6 MB) masih di `public/logo/` sehingga ikut ter-deploy bila di-commit; favicon tetap `logo-arthasia.png`. Belum di staging (butuh commit + PR).
+
+### 2026-09-29 — QA staging Vercel (D-036)
+- **Dikerjakan:** rencana, 49 kasus (`docs/qa/cases/staging.md`, TC-STG-001…058), eksekusi di staging `43b2b69`: API (Bun + supabase-js, login password sungguhan 4 role) & UI (Playwright Chromium, login lewat form, desktop 1440×900 + mobile 390×844); hasil di `docs/qa/runs/2026-09-29-staging.md`; BUG-001.
+- **Keputusan:** tidak ada D-xxx baru. Uji E2E ad-hoc (script di folder bukti), bukan workspace `e2e/` (itu Fase 9).
+- **File berubah:** `docs/qa/plans/2026-09-29-staging.md`, `docs/qa/cases/staging.md`, `docs/qa/runs/2026-09-29-staging.md`, `docs/qa/bugs/BUG-001-hydratefallback-warning.md`, `docs/qa/README.md`, `docs/PROGRESS.md`.
+- **Verifikasi:** `bun api.ts` → 43/43 LULUS; `bun ui.ts` → 31/31 LULUS (setelah 2 perbaikan script, bukan aplikasi); bukti `/mnt/winD/WORK/Magang/QA/2026-09-29-staging/` (66 screenshot + JSON); staging dibersihkan via SQL (pegawai uji, 4 riwayat, 5 audit) → 21 pegawai / 2 nonaktif / 23 riwayat.
+- **Masalah / catatan:** BUG-001 (P3) warning `HydrateFallback`; tampilan mobile daftar pegawai (placeholder & filter terpotong); logout uji memakai scope global (sesi lain akun EMP ikut keluar); password akun uji tertulis di percakapan → rotasi.
+- **Berikutnya:** BUG-001 + tampilan mobile; rotasi rahasia; Fase 3 CRUD master data.
+
+### 2026-09-29 — Fase 1: staging Vercel + data staging (D-036)
+- **Dikerjakan:** project Vercel `hris-staging-api` & `hris-staging-web` + env production; job `vercel` di `deploy-staging.yml` (CLI, setelah migrasi) + 4 secret baru; seed dummy + akun uji HR/MGR/EMP ke DB staging; kode naik ke staging lewat PR #9–#14; staging live & terverifikasi.
+- **Keputusan:** D-036 (staging di akun Vercel pribadi Hobby, deployment production project staging, deploy via GitHub Actions + Vercel CLI, data staging = seed dummy). OD-4 tetap terbuka untuk produksi.
+- **File berubah:** `.github/workflows/deploy-staging.yml`, `apps/api/vercel.json`, `apps/web/vercel.json`, `docs/PLAN.md`, `docs/CODEMAP.md`, `docs/PROMPT.md`, `docs/PROGRESS.md`.
+- **Verifikasi:** lokal typecheck ✔, `biome ci` ✔, boundaries ✔ (175 modul), test shared 10 · api 237 · web 32; CI PR #9–#14 hijau; `Deploy staging` #36529746512, #36530682448, #36531510460 (jobs ✔); live: `/health` 200 (DB ok), `/me` 401, 404, `/openapi.json` & `/docs` 200, preflight CORS 204 hanya untuk origin web, cron 401/401/200; data staging via MCP (21 karyawan, 4 akun); advisor security tanpa temuan baru, performance 21 INFO unused index (data baru).
+- **Masalah / catatan:**
+  - Dua deploy pertama sukses di CI tetapi function api gagal saat dipanggil (`ResolveMessage`, lalu `BuildMessage`): builder `@vercel/node` mengompilasi TS per file dan tidak cocok dengan monorepo paket sumber TS (entry `src/app.ts` terpilih, `extends` tsconfig diabaikan, import `.ts` & `@hris/shared` tidak ter-resolve). Solusi akhir: api dibundel `bun build --external hono` → `dist/index.js` (`outputDirectory: dist`); tambalan sementara PR #9/#11 dikembalikan. Pelajaran: uji build Vercel dari **clone bersih** + simulasi function terisolasi, bukan dari working tree (build lokal pertama menyesatkan karena resolusi naik ke `node_modules` repo).
+  - Project Vercel baru melindungi URL production `*.vercel.app` dengan Vercel Authentication (`all_except_custom_domains`) → diubah menjadi hanya preview.
+  - `NODE_ENV` tidak diisi di env Vercel (production saat build membuat `bun install` melewati devDependencies).
+  - Test api gagal (timeout 5 s di `grants-audit.test.ts`) bila `SMTP_*` terisi di `.env` lokal — sudah terjadi sebelum tugas ini; masuk Backlog.
+  - Rahasia (password DB staging, token Vercel, password akun uji) tertulis di percakapan → masuk daftar rotasi §2.
+- **Berikutnya:** lihat §2 (uji login di web staging, rotasi rahasia, Fase 3 CRUD master data).
 ### 2026-09-29 — D-035: web Personal Management + API employee/organization
 - **Dikerjakan (rencana disetujui; keputusan pemilik projek: SA+HR penuh & MANAGER baca tim, 5 kategori tanpa "Masa Percobaan", menu b = ubah kategori + nonaktifkan, akun login ikut nonaktif):**
  - **Skema:** migrasi `20260929020000_employee_categories_and_histories` (enum kategori + `employment_statuses.category` unik, `employees.exit_reason` + CHECK, `employment_histories`, index daftar). Seed: 5 status berkategori (nama lama diganti, "Masa Percobaan" di-soft delete), 21 karyawan (2 nonaktif) + riwayat.
