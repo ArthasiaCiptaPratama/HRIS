@@ -16,4 +16,11 @@ export const supabaseMock = {
     resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null })),
     updateUser: vi.fn(async () => ({ data: {}, error: null })),
   },
+  // D-037: unggah foto ke signed upload URL (tidak pernah ke Supabase sungguhan).
+  storageUpload: vi.fn(async (..._args: unknown[]) => ({ data: { path: "x" }, error: null })),
+  storage: {
+    from: vi.fn((_bucket: string) => ({
+      uploadToSignedUrl: (...args: unknown[]) => supabaseMock.storageUpload(...args),
+    })),
+  },
 };

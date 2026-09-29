@@ -23,14 +23,19 @@ export function PrintEmployeeButton({
   const print = useMutation({
     mutationFn: async () => {
       const employee = await fetchEmployeeForPrint(employeeId);
-      await downloadEmployeeXlsx(employee, todayIso());
-      return employee;
+      const photo = await downloadEmployeeXlsx(employee, todayIso());
+      return { employee, photo };
     },
-    onSuccess: (employee) =>
+    onSuccess: ({ employee, photo }) =>
       toast.success(`Data ${employee.fullName} diunduh (.xlsx).`, {
-        description: canViewPersonal
-          ? "Buka file di Excel lalu cetak."
-          : "Data pribadi & keluarga dikosongkan karena Anda tidak memiliki izin melihatnya.",
+        description: [
+          canViewPersonal
+            ? "Buka file di Excel lalu cetak."
+            : "Data pribadi & keluarga dikosongkan karena Anda tidak memiliki izin melihatnya.",
+          photo === "failed" ? "Foto tidak dapat diambil; bingkai foto dibiarkan kosong." : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
         position: TOAST_POSITION,
       }),
     onError: (error) =>

@@ -2,6 +2,7 @@ import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
+import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import {
   changeStatusBodySchema,
@@ -15,6 +16,10 @@ import {
   listEmployeesQuerySchema,
   managerOptionSchema,
   orgStructureSchema,
+  photoConfirmBodySchema,
+  photoResultSchema,
+  photoUploadUrlBodySchema,
+  photoUploadUrlSchema,
   reactivateBodySchema,
   updateEmployeeBodySchema,
 } from "./employee.schema.ts";
@@ -24,6 +29,8 @@ export interface EmployeeRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
   protect: MiddlewareHandler[];
   authAdmin: AuthAdmin;
+  /** D-037: foto profil di Supabase Storage. */
+  storage: StorageAdmin;
 }
 
 const P = API_BASE_PATH;
@@ -159,42 +166,81 @@ const routes = {
     "Aktifkan kembali karyawan nonaktif (SA/HR); akun login tidak otomatis aktif",
     reactivateBodySchema,
   ),
+  photoUploadUrl: createRoute({
+    method: "post",
+    path: `${P}/employees/{id}/photo/upload-url`,
+    tags: TAGS,
+    summary:
+      "Minta URL unggah foto profil (SA/HR, atau pegawai untuk dirinya sendiri); unggah langsung ke Storage lalu konfirmasi",
+    security,
+    request: { params: idParamSchema, ...body(photoUploadUrlBodySchema) },
+    responses: {
+      200: json("Path & token unggah sekali pakai", dataEnvelope(photoUploadUrlSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  photoConfirm: createRoute({
+    method: "post",
+    path: `${P}/employees/{id}/photo`,
+    tags: TAGS,
+    summary:
+      "Pasang foto yang sudah diunggah (diperiksa: ada, JPG/PNG/WebP, ≤ 2 MB); foto lama dihapus; dicatat di audit",
+    security,
+    request: { params: idParamSchema, ...body(photoConfirmBodySchema) },
+    responses: {
+      200: json("URL baca foto (berlaku singkat)", dataEnvelope(photoResultSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  photoDelete: createRoute({
+    method: "delete",
+    path: `${P}/employees/{id}/photo`,
+    tags: TAGS,
+    summary: "Hapus foto profil; dicatat di audit",
+    security,
+    request: { params: idParamSchema },
+    responses: {
+      200: json("Foto dihapus", dataEnvelope(photoResultSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
 };
 
 export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps): void {
   const guard = <R extends object>(route: R) => ({ ...route, middleware: deps.protect });
+  const ctx = (c: Context): service.RequestContext => ({ ...ctxOf(c), storage: deps.storage });
 
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>
-    c.json(await service.listEmployees(ctxOf(c), c.req.valid("query")), 200),
+    c.json(await service.listEmployees(ctx(c), c.req.valid("query")), 200),
   );
   app.openapi(guard(routes.summary), async (c) =>
-    c.json(ok(await service.getSummary(ctxOf(c))), 200),
+    c.json(ok(await service.getSummary(ctx(c))), 200),
   );
   app.openapi(guard(routes.managerOptions), async (c) =>
-    c.json(ok(await service.listManagerOptions(ctxOf(c))), 200),
+    c.json(ok(await service.listManagerOptions(ctx(c))), 200),
   );
   app.openapi(guard(routes.orgStructure), async (c) =>
-    c.json(ok(await service.getOrgStructure(ctxOf(c))), 200),
+    c.json(ok(await service.getOrgStructure(ctx(c))), 200),
   );
   app.openapi(guard(routes.get), async (c) =>
     c.json(
-      ok(await service.getEmployee(ctxOf(c), c.req.valid("param").id, c.req.valid("query").view)),
+      ok(await service.getEmployee(ctx(c), c.req.valid("param").id, c.req.valid("query").view)),
       200,
     ),
   );
   app.openapi(guard(routes.create), async (c) =>
-    c.json(ok(await service.createEmployee(ctxOf(c), c.req.valid("json"))), 201),
+    c.json(ok(await service.createEmployee(ctx(c), c.req.valid("json"))), 201),
   );
   app.openapi(guard(routes.update), async (c) =>
     c.json(
-      ok(await service.updateEmployee(ctxOf(c), c.req.valid("param").id, c.req.valid("json"))),
+      ok(await service.updateEmployee(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
       200,
     ),
   );
   app.openapi(guard(routes.changeStatus), async (c) =>
     c.json(
-      ok(await service.changeStatus(ctxOf(c), c.req.valid("param").id, c.req.valid("json"))),
+      ok(await service.changeStatus(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
       200,
     ),
   );
@@ -202,7 +248,7 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     c.json(
       ok(
         await service.deactivateEmployee(
-          ctxOf(c),
+          ctx(c),
           c.req.valid("param").id,
           c.req.valid("json"),
           deps,
@@ -213,8 +259,23 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   );
   app.openapi(guard(routes.reactivate), async (c) =>
     c.json(
-      ok(await service.reactivateEmployee(ctxOf(c), c.req.valid("param").id, c.req.valid("json"))),
+      ok(await service.reactivateEmployee(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
       200,
     ),
+  );
+  app.openapi(guard(routes.photoUploadUrl), async (c) =>
+    c.json(
+      ok(await service.createPhotoUploadUrl(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
+    ),
+  );
+  app.openapi(guard(routes.photoConfirm), async (c) =>
+    c.json(
+      ok(await service.confirmPhoto(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
+    ),
+  );
+  app.openapi(guard(routes.photoDelete), async (c) =>
+    c.json(ok(await service.deletePhoto(ctx(c), c.req.valid("param").id)), 200),
   );
 }

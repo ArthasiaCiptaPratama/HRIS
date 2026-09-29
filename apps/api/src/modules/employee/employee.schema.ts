@@ -60,6 +60,8 @@ export const employeeListItemSchema = z
     workLocation: ref.nullable(),
     grade: ref.nullable(),
     manager: ref.nullable(),
+    // D-037: URL baca bertanda tangan (berlaku singkat) untuk foto profil; null = belum ada foto.
+    photoUrl: z.string().nullable(),
   })
   .openapi("EmployeeListItem");
 export type EmployeeListItem = z.infer<typeof employeeListItemSchema>;
@@ -140,6 +142,7 @@ export const employeeDetailSchema = employeeListItemSchema
       personal: z.boolean(),
       bank: z.boolean(),
       print: z.boolean(),
+      photo: z.boolean(),
     }),
     personal: personalSchema.nullable().optional(),
     familyMembers: z.array(familyMemberSchema).optional(),
@@ -165,6 +168,35 @@ export const employeeDetailSchema = employeeListItemSchema
   })
   .openapi("EmployeeDetail");
 export type EmployeeDetail = z.infer<typeof employeeDetailSchema>;
+
+// ── Foto profil (D-037) ─────────────────────────────────────────────────────
+
+export const photoUploadUrlBodySchema = z
+  .object({ contentType: z.enum(["image/jpeg", "image/png", "image/webp"]) })
+  .openapi("EmployeePhotoUploadUrlInput");
+export type PhotoUploadUrlInput = z.infer<typeof photoUploadUrlBodySchema>;
+
+export const photoUploadUrlSchema = z
+  .object({
+    bucket: z.string(),
+    path: z.string(),
+    token: z.string(),
+    signedUrl: z.string(),
+    maxBytes: z.number().int(),
+  })
+  .openapi("EmployeePhotoUploadUrl");
+export type PhotoUploadUrl = z.infer<typeof photoUploadUrlSchema>;
+
+// Path dibuat server (employees/<id>/<uuid>.<ext>); klien hanya mengembalikannya setelah unggah.
+export const photoConfirmBodySchema = z
+  .object({ path: z.string().regex(/^employees\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/) })
+  .openapi("EmployeePhotoConfirmInput");
+export type PhotoConfirmInput = z.infer<typeof photoConfirmBodySchema>;
+
+export const photoResultSchema = z
+  .object({ photoUrl: z.string().nullable() })
+  .openapi("EmployeePhoto");
+export type PhotoResult = z.infer<typeof photoResultSchema>;
 
 // ── Tulis ───────────────────────────────────────────────────────────────────
 

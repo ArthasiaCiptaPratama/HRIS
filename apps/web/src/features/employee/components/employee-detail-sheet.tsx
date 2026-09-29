@@ -43,6 +43,7 @@ import { useEmployee } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
+import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { ActiveDot, ExitReasonBadge, StatusBadge } from "./status-badge";
 
@@ -155,11 +156,13 @@ function DetailBody({
     // Satu area gulir: header ikut tergulir, baris tab menempel di atas (sticky).
     <div className="h-full min-h-0 overflow-y-auto">
       <header className={cn(CONTAINER, "flex flex-col items-center pt-10 pb-6 text-center")}>
-        <EmployeeAvatar
+        <EmployeePhotoControl
+          employeeId={employee.id}
           name={employee.fullName}
-          size="2xl"
+          photoUrl={employee.photoUrl}
           inactive={!employee.isActive}
-          className="ring-background shadow-sm ring-4"
+          canEdit={access.photo}
+          toastPosition="bottom-center"
         />
         <SheetTitle className="mt-4 max-w-full text-2xl break-words">
           {employee.fullName}

@@ -25,6 +25,7 @@ export const LIST_SELECT = {
   workLocationId: true,
   gradeId: true,
   managerId: true,
+  photoPath: true,
   manager: { select: { id: true, fullName: true } },
 } satisfies Prisma.EmployeeSelect;
 
@@ -122,6 +123,10 @@ export async function findManyByIds(ids: string[]) {
     select: { id: true, fullName: true, employeeNumber: true, positionId: true, isActive: true },
     orderBy: { fullName: "asc" },
   });
+}
+
+export async function setPhotoPath(id: string, photoPath: string | null) {
+  return getPrisma().employee.update({ where: { id }, data: { photoPath } });
 }
 
 /** Nama & lokasi kerja pegawai milik akun pengubah (riwayat "diubah oleh"). */

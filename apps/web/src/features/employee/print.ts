@@ -1,9 +1,12 @@
 import { GENDER_LABELS } from "@hris/shared";
 import { formatDate } from "@/lib/format";
+import { imageUrlToJpeg } from "@/lib/image";
 import {
   type CellValue,
   downloadFile,
+  EMU_PER_PIXEL,
   fillXlsxTemplate,
+  type TemplateImage,
   XLSX_MIME,
   XlsxTemplateError,
 } from "@/lib/xlsx-template";
@@ -13,10 +16,47 @@ import type { EmployeeDetail } from "./schemas";
 // Formulir "Daftar Isian Peserta" (apps/web/public/template/Template-excel.xlsx, satu lembar).
 // Alamat sel di bawah mengikuti tata letak template; sel gabungan ditulis di sel kiri-atasnya.
 // Kolom tanpa sumber data di HRIS (nama panggilan, suku, golongan darah, kota & tahun masuk
-// sekolah, pengalaman organisasi/kerja, pekerjaan keluarga, foto) sengaja dibiarkan kosong.
+// sekolah, pengalaman organisasi/kerja, pekerjaan keluarga) sengaja dibiarkan kosong.
+// Foto profil (D-037) disisipkan ke bingkai kosong B9:J25.
 
 export const PRINT_TEMPLATE_URL = `${import.meta.env.BASE_URL}template/Template-excel.xlsx`;
 export const PRINT_SHEET_PATH = "xl/worksheets/sheet1.xml";
+export const PRINT_DRAWING_PATH = "xl/drawings/drawing1.xml";
+
+// Bingkai foto = sel gabungan B9:J25. Template: Calibri 11 → kolom lebar 4 = 28 px; baris bawaan
+// 14,5 pt. Foto diberi jarak 3 px dari garis bingkai supaya garisnya tetap terlihat.
+const PT_TO_EMU = 12700;
+const PHOTO_FRAME = {
+  firstCol: 1, // B (berbasis 0)
+  lastCol: 9, // J
+  firstRow: 8, // baris 9
+  lastRow: 24, // baris 25
+  colWidthEmu: 28 * EMU_PER_PIXEL,
+  rowHeightEmu: 14.5 * PT_TO_EMU,
+  insetEmu: 3 * EMU_PER_PIXEL,
+};
+const frameWidth = (PHOTO_FRAME.lastCol - PHOTO_FRAME.firstCol + 1) * PHOTO_FRAME.colWidthEmu;
+const frameHeight = (PHOTO_FRAME.lastRow - PHOTO_FRAME.firstRow + 1) * PHOTO_FRAME.rowHeightEmu;
+/** Rasio lebar/tinggi area foto di dalam bingkai; foto dipotong ke rasio ini agar tidak gepeng. */
+export const PRINT_PHOTO_ASPECT =
+  (frameWidth - 2 * PHOTO_FRAME.insetEmu) / (frameHeight - 2 * PHOTO_FRAME.insetEmu);
+
+/** Letak foto di drawing template (anchor dua sel B9 → J25). */
+export function photoImage(jpeg: Uint8Array): TemplateImage {
+  const { firstCol, lastCol, firstRow, lastRow, colWidthEmu, rowHeightEmu, insetEmu } = PHOTO_FRAME;
+  return {
+    drawingPath: PRINT_DRAWING_PATH,
+    name: "Foto Pegawai",
+    jpeg,
+    from: { col: firstCol, row: firstRow, colOffset: insetEmu, rowOffset: insetEmu },
+    to: {
+      col: lastCol,
+      row: lastRow,
+      colOffset: Math.round(colWidthEmu - insetEmu),
+      rowOffset: Math.round(rowHeightEmu - insetEmu),
+    },
+  };
+}
 
 const ROWS = {
   education: [30, 31, 32, 33, 34],
@@ -208,9 +248,32 @@ async function loadTemplate(): Promise<Uint8Array> {
   return bytes;
 }
 
-/** Buat file .xlsx dari template untuk satu pegawai lalu unduh. */
-export async function downloadEmployeeXlsx(employee: EmployeeDetail, todayIso: string) {
+export type PhotoOutcome = "included" | "none" | "failed";
+
+/** Buat file .xlsx dari template untuk satu pegawai (dengan foto bila ada) lalu unduh. */
+export async function downloadEmployeeXlsx(
+  employee: EmployeeDetail,
+  todayIso: string,
+): Promise<PhotoOutcome> {
   const template = await loadTemplate();
-  const bytes = fillXlsxTemplate(template, PRINT_SHEET_PATH, buildPrintCells(employee, todayIso));
+  const images: TemplateImage[] = [];
+  let photo: PhotoOutcome = "none";
+  if (employee.photoUrl) {
+    try {
+      const { bytes } = await imageUrlToJpeg(employee.photoUrl, PRINT_PHOTO_ASPECT);
+      images.push(photoImage(bytes));
+      photo = "included";
+    } catch {
+      // Foto gagal diambil (mis. jaringan): formulir tetap dibuat dengan bingkai kosong.
+      photo = "failed";
+    }
+  }
+  const bytes = fillXlsxTemplate(
+    template,
+    PRINT_SHEET_PATH,
+    buildPrintCells(employee, todayIso),
+    images,
+  );
   downloadFile(bytes, printFileName(employee), XLSX_MIME);
+  return photo;
 }

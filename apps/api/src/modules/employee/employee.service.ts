@@ -7,6 +7,13 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
+import {
+  EMPLOYEE_PHOTO_BUCKET,
+  EMPLOYEE_PHOTO_MAX_BYTES,
+  EMPLOYEE_PHOTO_MIME_TYPES,
+  type StorageAdmin,
+  UNCONFIGURED_STORAGE,
+} from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import {
   deactivateAccountOfEmployee,
@@ -33,6 +40,10 @@ import type {
   ListEmployeesQuery,
   ManagerOption,
   OrgStructure,
+  PhotoConfirmInput,
+  PhotoResult,
+  PhotoUploadUrl,
+  PhotoUploadUrlInput,
   ReactivateInput,
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
@@ -41,6 +52,22 @@ export interface RequestContext {
   actor: Actor;
   requestId?: string | undefined;
   ip?: string | undefined;
+  /** D-037: Supabase Storage untuk foto profil (test memakai versi palsu). */
+  storage?: StorageAdmin | undefined;
+}
+
+// URL baca foto berlaku singkat: cukup untuk satu sesi melihat halaman; setelahnya diminta ulang.
+const PHOTO_URL_TTL_SECONDS = 10 * 60;
+const storageOf = (ctx: RequestContext | undefined) => ctx?.storage ?? UNCONFIGURED_STORAGE;
+
+/** path foto → URL bertanda tangan (satu panggilan untuk semua baris). */
+async function signPhotoUrls(
+  ctx: RequestContext | undefined,
+  paths: (string | null)[],
+): Promise<Map<string, string>> {
+  const wanted = paths.filter((path): path is string => path !== null);
+  if (wanted.length === 0) return new Map();
+  return storageOf(ctx).createSignedUrls(EMPLOYEE_PHOTO_BUCKET, wanted, PHOTO_URL_TTL_SECONDS);
 }
 
 // ── Utilitas ────────────────────────────────────────────────────────────────
@@ -71,7 +98,11 @@ function nameRef<T extends { id: string; name: string }>(map: Map<string, T>, id
   return row ? { id: row.id, name: row.name } : null;
 }
 
-function toListItem(row: repository.EmployeeRow, lookup: MasterLookup): EmployeeListItem {
+function toListItem(
+  row: repository.EmployeeRow,
+  lookup: MasterLookup,
+  photoUrls: Map<string, string> = new Map(),
+): EmployeeListItem {
   const status = lookup.statuses.get(row.employmentStatusId);
   const position = lookup.positions.get(row.positionId);
   return {
@@ -95,13 +126,14 @@ function toListItem(row: repository.EmployeeRow, lookup: MasterLookup): Employee
     workLocation: nameRef(lookup.locations, row.workLocationId),
     grade: nameRef(lookup.grades, row.gradeId),
     manager: row.manager ? { id: row.manager.id, name: row.manager.fullName } : null,
+    photoUrl: row.photoPath ? (photoUrls.get(row.photoPath) ?? null) : null,
   };
 }
 
 /** Respons mutasi: data kerja saja (tanpa bagian sensitif, jadi tanpa audit baca). */
-async function loadListItem(id: string): Promise<EmployeeListItem> {
+async function loadListItem(id: string, ctx: RequestContext): Promise<EmployeeListItem> {
   const [row, lookup] = await Promise.all([loadEmployee(id), getMasterLookup()]);
-  return toListItem(row, lookup);
+  return toListItem(row, lookup, await signPhotoUrls(ctx, [row.photoPath]));
 }
 
 async function loadEmployee(id: string, tx?: repository.EmployeeTx) {
@@ -186,8 +218,12 @@ export async function listEmployees(ctx: RequestContext, query: ListEmployeesQue
     (query.page - 1) * query.pageSize,
     query.pageSize,
   );
+  const photoUrls = await signPhotoUrls(
+    ctx,
+    rows.map((row) => row.photoPath),
+  );
   return {
-    data: rows.map((row) => toListItem(row, lookup)),
+    data: rows.map((row) => toListItem(row, lookup, photoUrls)),
     meta: { page: query.page, pageSize: query.pageSize, total },
   };
 }
@@ -267,6 +303,7 @@ export async function getEmployee(
     personal: policy.canReadPersonal(ctx.actor, target),
     bank: policy.canReadBank(ctx.actor, target),
     print: policy.canPrintEmployee(ctx.actor, target),
+    photo: policy.canChangePhoto(ctx.actor, target),
   };
   if (view === "print" && !access.print) {
     throw new ForbiddenError("Anda tidak berhak mengunduh data pegawai ini.");
@@ -277,10 +314,11 @@ export async function getEmployee(
     personal: view !== "work" && access.personal,
     bank: view === "full" && access.bank,
   };
-  const [lookup, parts, links] = await Promise.all([
+  const [lookup, parts, links, photoUrls] = await Promise.all([
     getMasterLookup(),
     repository.findEmployeeParts(id, include),
     getAccountLinksForEmployees([id]),
+    signPhotoUrls(ctx, [row.photoPath]),
   ]);
   const changers = await resolveChangers(
     parts.histories.map((h) => h.changedBy),
@@ -308,7 +346,7 @@ export async function getEmployee(
 
   const link = links.get(id);
   const detail: EmployeeDetail = {
-    ...toListItem(row, lookup),
+    ...toListItem(row, lookup, photoUrls),
     emergencyPhone: row.emergencyPhone,
     account: link ? { role: link.role, isActive: link.isActive } : null,
     access,
@@ -466,7 +504,7 @@ export async function createEmployee(
       return created.id;
     })
     .catch(rethrowUnique);
-  return loadListItem(id);
+  return loadListItem(id, ctx);
 }
 
 export async function updateEmployee(
@@ -530,7 +568,7 @@ export async function updateEmployee(
       );
     })
     .catch(rethrowUnique);
-  return loadListItem(id);
+  return loadListItem(id, ctx);
 }
 
 export async function changeStatus(
@@ -571,7 +609,7 @@ export async function changeStatus(
       tx,
     );
   });
-  return loadListItem(id);
+  return loadListItem(id, ctx);
 }
 
 export async function deactivateEmployee(
@@ -618,7 +656,7 @@ export async function deactivateEmployee(
       tx,
     );
   });
-  return loadListItem(id);
+  return loadListItem(id, ctx);
 }
 
 export async function reactivateEmployee(
@@ -661,7 +699,7 @@ export async function reactivateEmployee(
       tx,
     );
   });
-  return loadListItem(id);
+  return loadListItem(id, ctx);
 }
 
 // ── Struktur organisasi & pilihan atasan ────────────────────────────────────
@@ -710,4 +748,104 @@ export async function listManagerOptions(ctx: RequestContext): Promise<ManagerOp
       employeeNumber: row.employeeNumber,
       position: lookup.positions.get(row.positionId)?.name ?? "—",
     }));
+}
+
+// ── Foto profil (D-037) ─────────────────────────────────────────────────────
+// Alur: (1) upload-url → path unik + token sekali pakai; (2) browser mengunggah langsung ke Storage;
+// (3) konfirmasi → server memeriksa objek (ada, tipe gambar, ≤ 2 MB) lalu menyimpan path.
+// Bucket private: foto hanya bisa dibaca lewat URL bertanda tangan dari API.
+
+const PHOTO_EXTENSION: Record<PhotoUploadUrlInput["contentType"], string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+async function loadPhotoTarget(ctx: RequestContext, id: string) {
+  const row = await repository.findEmployee(id);
+  const target = row ? targetOf(row) : null;
+  if (!row || !target || !policy.canViewEmployee(ctx.actor, target)) {
+    throw new NotFoundError("Karyawan tidak ditemukan.");
+  }
+  if (!policy.canChangePhoto(ctx.actor, target)) {
+    throw new ForbiddenError("Anda tidak berhak mengubah foto pegawai ini.");
+  }
+  return row;
+}
+
+export async function createPhotoUploadUrl(
+  ctx: RequestContext,
+  id: string,
+  input: PhotoUploadUrlInput,
+): Promise<PhotoUploadUrl> {
+  await loadPhotoTarget(ctx, id);
+  const path = `employees/${id}/${crypto.randomUUID()}.${PHOTO_EXTENSION[input.contentType]}`;
+  const upload = await storageOf(ctx).createSignedUploadUrl(EMPLOYEE_PHOTO_BUCKET, path);
+  return {
+    bucket: EMPLOYEE_PHOTO_BUCKET,
+    path,
+    token: upload.token,
+    signedUrl: upload.signedUrl,
+    maxBytes: EMPLOYEE_PHOTO_MAX_BYTES,
+  };
+}
+
+export async function confirmPhoto(
+  ctx: RequestContext,
+  id: string,
+  input: PhotoConfirmInput,
+): Promise<PhotoResult> {
+  const row = await loadPhotoTarget(ctx, id);
+  // Path wajib milik pegawai ini (mencegah memakai foto orang lain).
+  if (!input.path.startsWith(`employees/${id}/`)) {
+    throw new BusinessRuleError("Foto tidak valid untuk pegawai ini.");
+  }
+  const storage = storageOf(ctx);
+  const info = await storage.getObjectInfo(EMPLOYEE_PHOTO_BUCKET, input.path);
+  if (!info) throw new BusinessRuleError("Foto belum terunggah. Coba unggah ulang.");
+  const allowed = (EMPLOYEE_PHOTO_MIME_TYPES as readonly string[]).includes(info.contentType ?? "");
+  if (!allowed || info.size <= 0 || info.size > EMPLOYEE_PHOTO_MAX_BYTES) {
+    await storage.removeObjects(EMPLOYEE_PHOTO_BUCKET, [input.path]);
+    throw new BusinessRuleError("Foto harus berupa gambar JPG, PNG, atau WebP maksimal 2 MB.");
+  }
+  if (row.photoPath === input.path) {
+    const urls = await signPhotoUrls(ctx, [input.path]);
+    return { photoUrl: urls.get(input.path) ?? null };
+  }
+
+  await repository.setPhotoPath(id, input.path);
+  await writeAudit({
+    ...auditBase(ctx),
+    action: "employee.photo.update",
+    entityId: id,
+    before: { hasPhoto: row.photoPath !== null },
+    after: { hasPhoto: true },
+  });
+  // Foto lama dihapus setelah path baru tersimpan; gagal hapus tidak membatalkan perubahan.
+  if (row.photoPath) await removeQuietly(storage, row.photoPath);
+  const urls = await signPhotoUrls(ctx, [input.path]);
+  return { photoUrl: urls.get(input.path) ?? null };
+}
+
+export async function deletePhoto(ctx: RequestContext, id: string): Promise<PhotoResult> {
+  const row = await loadPhotoTarget(ctx, id);
+  if (!row.photoPath) return { photoUrl: null };
+  await repository.setPhotoPath(id, null);
+  await writeAudit({
+    ...auditBase(ctx),
+    action: "employee.photo.delete",
+    entityId: id,
+    before: { hasPhoto: true },
+    after: { hasPhoto: false },
+  });
+  await removeQuietly(storageOf(ctx), row.photoPath);
+  return { photoUrl: null };
+}
+
+async function removeQuietly(storage: StorageAdmin, path: string) {
+  try {
+    await storage.removeObjects(EMPLOYEE_PHOTO_BUCKET, [path]);
+  } catch {
+    // Objek yatim tidak berbahaya (bucket private); tidak ada data pribadi yang dicatat di sini.
+  }
 }

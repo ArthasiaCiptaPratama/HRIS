@@ -93,7 +93,11 @@ export function EmployeePicker({
                       selected ? "bg-brand-soft" : "hover:bg-muted/70",
                     )}
                   >
-                    <EmployeeAvatar name={row.fullName} inactive={!row.isActive} />
+                    <EmployeeAvatar
+                      name={row.fullName}
+                      photoUrl={row.photoUrl}
+                      inactive={!row.isActive}
+                    />
                     <span className="min-w-0 flex-1">
                       <span
                         className={cn(

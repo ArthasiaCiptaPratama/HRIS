@@ -43,6 +43,7 @@ const employee = (id: string, name: string) => ({
   workLocation: null,
   grade: null,
   manager: null,
+  photoUrl: null,
 });
 
 beforeEach(() => {

@@ -5,11 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ageOn,
   buildPrintCells,
+  PRINT_PHOTO_ASPECT,
   PRINT_SHEET_PATH,
+  photoImage,
   printFileName,
   wrapText,
 } from "@/features/employee/print";
 import type { EmployeeDetail } from "@/features/employee/schemas";
+import { centerCrop, fitWithin, ImageProcessingError } from "@/lib/image";
 import {
   columnIndex,
   fillXlsxTemplate,
@@ -43,7 +46,15 @@ function base(overrides: Partial<EmployeeDetail> = {}): EmployeeDetail {
     manager: null,
     emergencyPhone: "0813-0000-0007",
     account: null,
-    access: { manage: true, deactivate: true, personal: true, bank: false, print: true },
+    access: {
+      manage: true,
+      deactivate: true,
+      personal: true,
+      bank: false,
+      print: true,
+      photo: true,
+    },
+    photoUrl: null,
     educations: [
       { id: "ed1", schoolName: "Universitas Indonesia", major: "Manajemen", graduationYear: 2020 },
       { id: "ed2", schoolName: "SMA Negeri 8 Jakarta", major: "IPA", graduationYear: 2016 },
@@ -334,5 +345,94 @@ describe("fillXlsxTemplate (template asli)", () => {
     expect(() => fillXlsxTemplate(TEMPLATE, PRINT_SHEET_PATH, { A0: "x" })).toThrow(
       XlsxTemplateError,
     );
+  });
+});
+
+describe("foto di formulir cetak (D-037)", () => {
+  // JPEG palsu cukup untuk menguji struktur paket; isi gambar tidak dibaca di sini.
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+  const withPhoto = unzipSync(
+    fillXlsxTemplate(TEMPLATE, PRINT_SHEET_PATH, buildPrintCells(base(), "2026-09-29"), [
+      photoImage(jpeg),
+    ]),
+  );
+  const originalFiles = unzipSync(TEMPLATE);
+  const text = (name: string) => strFromU8(withPhoto[name] as Uint8Array);
+
+  it("file gambar, relasi, dan tipe konten ditambahkan", () => {
+    expect(withPhoto["xl/media/hris-image-1.jpeg"]).toEqual(jpeg);
+    expect(text("xl/drawings/_rels/drawing1.xml.rels")).toContain(
+      'Id="rIdHrisImage1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/hris-image-1.jpeg"',
+    );
+    expect(text("[Content_Types].xml")).toContain(
+      '<Default Extension="jpeg" ContentType="image/jpeg"/>',
+    );
+  });
+
+  it("foto ditambatkan di bingkai B9:J25 dengan jarak 3 px; logo template tetap", () => {
+    const drawing = new DOMParser().parseFromString(
+      text("xl/drawings/drawing1.xml"),
+      "application/xml",
+    );
+    expect(drawing.getElementsByTagName("parsererror")).toHaveLength(0);
+    const XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+    const anchors = Array.from(drawing.getElementsByTagNameNS(XDR, "twoCellAnchor"));
+    expect(anchors).toHaveLength(2);
+    const pos = (anchor: Element, tag: "from" | "to") => {
+      const el = anchor.getElementsByTagNameNS(XDR, tag)[0] as Element;
+      return ["col", "colOff", "row", "rowOff"].map((name) =>
+        Number(el.getElementsByTagNameNS(XDR, name)[0]?.textContent),
+      );
+    };
+    const [logo, photo] = anchors as [Element, Element];
+    expect(pos(logo, "from")).toEqual([26, 152401, 0, 0]); // logo kanan atas tidak bergeser
+    expect(pos(photo, "from")).toEqual([1, 28575, 8, 28575]); // B9 + 3 px
+    expect(pos(photo, "to")).toEqual([9, 266700 - 28575, 24, 184150 - 28575]); // J25 − 3 px
+    const ids = Array.from(drawing.getElementsByTagNameNS(XDR, "cNvPr")).map((el) =>
+      el.getAttribute("id"),
+    );
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(photo.getElementsByTagNameNS(XDR, "cNvPr")[0]?.getAttribute("name")).toBe(
+      "Foto Pegawai",
+    );
+  });
+
+  it("file lain selain drawing/relasi/tipe konten/lembar tetap identik", () => {
+    const changed = new Set([
+      PRINT_SHEET_PATH,
+      "xl/drawings/drawing1.xml",
+      "xl/drawings/_rels/drawing1.xml.rels",
+      "[Content_Types].xml",
+    ]);
+    for (const name of Object.keys(originalFiles)) {
+      if (!changed.has(name)) expect(withPhoto[name], name).toEqual(originalFiles[name]);
+    }
+    expect(withPhoto["xl/media/image1.png"]).toEqual(originalFiles["xl/media/image1.png"]);
+  });
+
+  it("rasio area foto ≈ 3:4 (sesuai potongan foto profil)", () => {
+    expect(PRINT_PHOTO_ASPECT).toBeCloseTo(246 / 322.67, 2);
+    expect(Math.abs(PRINT_PHOTO_ASPECT - 3 / 4)).toBeLessThan(0.02);
+  });
+
+  it("posisi gambar tidak valid ditolak", () => {
+    const bad = { ...photoImage(jpeg), from: { col: -1, row: 0, colOffset: 0, rowOffset: 0 } };
+    expect(() => fillXlsxTemplate(TEMPLATE, PRINT_SHEET_PATH, {}, [bad])).toThrow(
+      XlsxTemplateError,
+    );
+  });
+});
+
+describe("centerCrop & fitWithin (foto 3:4)", () => {
+  it("potong tengah lanskap & potret ke 3:4", () => {
+    expect(centerCrop(1600, 900, 3 / 4)).toEqual({ sx: 463, sy: 0, sw: 675, sh: 900 });
+    expect(centerCrop(600, 1200, 3 / 4)).toEqual({ sx: 0, sy: 200, sw: 600, sh: 800 });
+    expect(centerCrop(300, 400, 3 / 4)).toEqual({ sx: 0, sy: 0, sw: 300, sh: 400 });
+    expect(() => centerCrop(0, 10, 1)).toThrow(ImageProcessingError);
+  });
+
+  it("diperkecil agar muat, tidak pernah diperbesar", () => {
+    expect(fitWithin(1350, 1800, { width: 600, height: 800 })).toEqual({ width: 600, height: 800 });
+    expect(fitWithin(300, 400, { width: 600, height: 800 })).toEqual({ width: 300, height: 400 });
   });
 });
