@@ -11,6 +11,7 @@ import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import {
   deactivateAccountOfEmployee,
   getAccountLinksForEmployees,
+  getAccountSummaries,
   listManagerEmployeeIds,
 } from "../iam/index.ts";
 import {
@@ -25,6 +26,7 @@ import type {
   ChangeStatusInput,
   CreateEmployeeInput,
   DeactivateInput,
+  DetailView,
   EmployeeDetail,
   EmployeeListItem,
   EmployeeSummary,
@@ -218,10 +220,40 @@ export async function getSummary(ctx: RequestContext): Promise<EmployeeSummary> 
 
 // ── Detail ──────────────────────────────────────────────────────────────────
 
+type Changer = NonNullable<EmployeeDetail["histories"][number]["changedBy"]>;
+
+/** Akun pengubah → nama pegawai (fallback email akun), role, dan lokasi kerja. */
+async function resolveChangers(
+  accountIds: (string | null)[],
+  lookup: MasterLookup,
+): Promise<Map<string, Changer>> {
+  const ids = accountIds.filter((value): value is string => value !== null);
+  if (ids.length === 0) return new Map();
+  const accounts = await getAccountSummaries(ids);
+  const employeeIds = [...accounts.values()]
+    .map((account) => account.employeeId)
+    .filter((value): value is string => value !== null);
+  const employees = new Map(
+    (await repository.findChangerEmployees(employeeIds)).map((row) => [row.id, row]),
+  );
+  const result = new Map<string, Changer>();
+  for (const account of accounts.values()) {
+    const employee = account.employeeId ? employees.get(account.employeeId) : undefined;
+    result.set(account.accountId, {
+      name: employee?.fullName ?? account.email,
+      role: account.role,
+      workLocation: employee?.workLocationId
+        ? (lookup.locations.get(employee.workLocationId)?.name ?? null)
+        : null,
+    });
+  }
+  return result;
+}
+
 export async function getEmployee(
   ctx: RequestContext,
   id: string,
-  view: "full" | "work" = "full",
+  view: DetailView = "full",
 ): Promise<EmployeeDetail> {
   const row = await repository.findEmployee(id);
   const target = row ? targetOf(row) : null;
@@ -234,23 +266,38 @@ export async function getEmployee(
     deactivate: policy.canDeactivateEmployee(ctx.actor, target),
     personal: policy.canReadPersonal(ctx.actor, target),
     bank: policy.canReadBank(ctx.actor, target),
+    print: policy.canPrintEmployee(ctx.actor, target),
   };
+  if (view === "print" && !access.print) {
+    throw new ForbiddenError("Anda tidak berhak mengunduh data pegawai ini.");
+  }
   // Need-to-know: bagian sensitif hanya dibaca (dan diaudit) bila memang diminta.
-  const withSensitive = view === "full";
+  // Formulir cetak tidak memuat rekening, jadi view=print tidak membacanya.
+  const include = {
+    personal: view !== "work" && access.personal,
+    bank: view === "full" && access.bank,
+  };
   const [lookup, parts, links] = await Promise.all([
     getMasterLookup(),
-    repository.findEmployeeParts(id, {
-      personal: withSensitive && access.personal,
-      bank: withSensitive && access.bank,
-    }),
+    repository.findEmployeeParts(id, include),
     getAccountLinksForEmployees([id]),
   ]);
+  const changers = await resolveChangers(
+    parts.histories.map((h) => h.changedBy),
+    lookup,
+  );
 
   // PLAN §4.2: setiap akses data sensitif milik orang lain tercatat di audit (tanpa nilainya).
-  const sections = withSensitive
-    ? [access.personal && "personal", access.bank && "bank"].filter(Boolean)
-    : [];
-  if (sections.length > 0 && ctx.actor.employeeId !== id) {
+  const sections = [include.personal && "personal", include.bank && "bank"].filter(Boolean);
+  if (view === "print") {
+    // PLAN §4.5: data pegawai yang dibawa keluar sistem (file) selalu tercatat, termasuk data sendiri.
+    await writeAudit({
+      ...auditBase(ctx),
+      action: "employee.printed",
+      entityId: id,
+      after: { format: "xlsx", sections },
+    });
+  } else if (sections.length > 0 && ctx.actor.employeeId !== id) {
     await writeAudit({
       ...auditBase(ctx),
       action: "employee.sensitive.read",
@@ -277,11 +324,12 @@ export async function getEmployee(
       toPosition: nameRef(lookup.positions, h.toPositionId),
       exitReason: h.exitReason,
       note: h.note,
+      changedBy: h.changedBy ? (changers.get(h.changedBy) ?? null) : null,
       createdAt: h.createdAt.toISOString(),
     })),
   };
   // Key sensitif hanya ada bila boleh (bukan null).
-  if (withSensitive && access.personal) {
+  if (include.personal) {
     const p = parts.personal;
     detail.personal = p
       ? {
@@ -301,7 +349,7 @@ export async function getEmployee(
       birthDate: f.birthDate ? toIso(f.birthDate) : null,
     }));
   }
-  if (withSensitive && access.bank) detail.bankAccount = parts.bankAccount;
+  if (include.bank) detail.bankAccount = parts.bankAccount;
   return detail;
 }
 

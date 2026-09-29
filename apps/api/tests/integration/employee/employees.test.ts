@@ -43,6 +43,7 @@ const ids = {
   teamEmp: "",
   otherEmp: "",
   hrEmp: "",
+  location: "",
 };
 let sa: Login;
 let hr: Login;
@@ -51,7 +52,10 @@ let mgr: Login;
 let emp: Login;
 let teamAccount: Login;
 
-async function makeEmployee(n: string, extra: { managerId?: string; statusId?: string } = {}) {
+async function makeEmployee(
+  n: string,
+  extra: { managerId?: string; statusId?: string; workLocationId?: string } = {},
+) {
   const row = await prisma.employee.create({
     data: {
       employeeNumber: NUM(n),
@@ -60,6 +64,7 @@ async function makeEmployee(n: string, extra: { managerId?: string; statusId?: s
       employmentStatusId: extra.statusId ?? ids.status,
       positionId: ids.position,
       managerId: extra.managerId ?? null,
+      workLocationId: extra.workLocationId ?? null,
     },
   });
   await prisma.employeePersonal.create({
@@ -97,10 +102,12 @@ beforeAll(async () => {
     ids.createdCategoryStatus = true;
   }
 
+  ids.location = (await prisma.workLocation.create({ data: { name: `Lok ${RUN}` } })).id;
+
   ids.managerEmp = await makeEmployee("M1");
   ids.teamEmp = await makeEmployee("T1", { managerId: ids.managerEmp });
   ids.otherEmp = await makeEmployee("O1", { statusId: ids.categoryStatus });
-  ids.hrEmp = await makeEmployee("H1");
+  ids.hrEmp = await makeEmployee("H1", { workLocationId: ids.location });
 
   sa = await auth.loginAs("SUPER_ADMIN");
   hr = await auth.loginAs("HR_ADMIN", { employeeId: ids.hrEmp });
@@ -126,6 +133,7 @@ afterAll(async () => {
     data: { managerId: null },
   });
   await prisma.employee.deleteMany({ where: { id: { in: employeeIds } } });
+  await prisma.workLocation.delete({ where: { id: ids.location } });
   await prisma.position.deleteMany({ where: { departmentId: ids.department } });
   await prisma.department.delete({ where: { id: ids.department } });
   await prisma.employmentStatus.deleteMany({
@@ -191,7 +199,12 @@ describe("GET /employees (daftar)", () => {
 describe("GET /employees/:id (detail & data sensitif)", () => {
   test("HR tanpa grant: key personal/bankAccount/familyMembers TIDAK ada; tanpa audit baca", async () => {
     const { data } = await body(await call("GET", `/employees/${ids.teamEmp}`, hr.headers));
-    expect(data.access).toMatchObject({ manage: true, personal: false, bank: false });
+    expect(data.access).toMatchObject({
+      manage: true,
+      personal: false,
+      bank: false,
+      print: true,
+    });
     expect(data).not.toHaveProperty("personal");
     expect(data).not.toHaveProperty("bankAccount");
     expect(data).not.toHaveProperty("familyMembers");
@@ -469,5 +482,122 @@ describe("Struktur organisasi, master data, pilihan atasan", () => {
     expect(optionIds).toContain(ids.managerEmp);
     expect(optionIds).not.toContain(ids.hrEmp);
     expect((await call("GET", "/employees/manager-options", mgr.headers)).status).toBe(403);
+  });
+});
+
+describe("Riwayat: pelaku perubahan (diubah oleh)", () => {
+  test("nama pegawai + role + lokasi kerja pengubah; SA tanpa data pegawai → email; data awal → null", async () => {
+    const created = await call("POST", "/employees", hr.headers, {
+      employeeNumber: NUM("R1"),
+      fullName: `Uji ${RUN} Riwayat`,
+      joinDate: "2026-09-01",
+      employmentStatusId: ids.status,
+      positionId: ids.position,
+    });
+    expect(created.status).toBe(201);
+    const id = (await body(created)).data.id as string;
+    const changed = await call("POST", `/employees/${id}/status-change`, sa.headers, {
+      employmentStatusId: ids.status2,
+      effectiveDate: "2026-09-15",
+    });
+    expect(changed.status).toBe(200);
+    // Riwayat hasil seed/impor tidak punya pelaku.
+    await prisma.employmentHistory.create({
+      data: {
+        employeeId: id,
+        changeType: "POSITION_CHANGED",
+        effectiveDate: new Date("2026-09-02T00:00:00.000Z"),
+        toPositionId: ids.position,
+      },
+    });
+
+    const { data } = await body(await call("GET", `/employees/${id}?view=work`, sa.headers));
+    const byType = Object.fromEntries(
+      data.histories.map((h: { changeType: string; changedBy: unknown }) => [
+        h.changeType,
+        h.changedBy,
+      ]),
+    );
+    expect(byType.HIRED).toEqual({
+      name: `Uji ${RUN} H1`,
+      role: "HR_ADMIN",
+      workLocation: `Lok ${RUN}`,
+    });
+    expect(byType.STATUS_CHANGED).toEqual({
+      name: sa.account.email,
+      role: "SUPER_ADMIN",
+      workLocation: null,
+    });
+    expect(byType.POSITION_CHANGED).toBeNull();
+  });
+});
+
+describe("GET /employees/:id?view=print (formulir data pegawai .xlsx)", () => {
+  const printed = (actorAccountId: string, entityId: string) =>
+    prisma.auditLog.findMany({ where: { action: "employee.printed", actorAccountId, entityId } });
+
+  test("HR tanpa grant: 200 tanpa data sensitif; audit employee.printed tanpa bagian sensitif", async () => {
+    const res = await call("GET", `/employees/${ids.otherEmp}?view=print`, hr.headers);
+    expect(res.status).toBe(200);
+    const { data } = await body(res);
+    expect(data.access.print).toBe(true);
+    expect(data).not.toHaveProperty("personal");
+    expect(data).not.toHaveProperty("familyMembers");
+    expect(data).not.toHaveProperty("bankAccount");
+    const audits = await printed(hr.account.id, ids.otherEmp);
+    expect(audits.map((a) => a.after)).toEqual([{ format: "xlsx", sections: [] }]);
+  });
+
+  test("HR dengan grant: data pribadi & keluarga ikut, rekening TIDAK dibaca; satu audit printed", async () => {
+    await prisma.familyMember.create({
+      data: {
+        employeeId: ids.otherEmp,
+        name: `Keluarga ${RUN}`,
+        relationship: "MOTHER",
+        address: "Jl. Uji No. 1",
+        phoneNumber: "081234",
+      },
+    });
+    const { data } = await body(
+      await call("GET", `/employees/${ids.otherEmp}?view=print`, hrGranted.headers),
+    );
+    expect(data.personal.ktpNumber).toHaveLength(16);
+    expect(data.familyMembers).toEqual([
+      expect.objectContaining({ name: `Keluarga ${RUN}`, address: "Jl. Uji No. 1" }),
+    ]);
+    expect(data).not.toHaveProperty("bankAccount");
+    const audits = await printed(hrGranted.account.id, ids.otherEmp);
+    expect(audits.map((a) => a.after)).toEqual([{ format: "xlsx", sections: ["personal"] }]);
+    // Tidak dicatat dua kali sebagai baca sensitif biasa.
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          action: "employee.sensitive.read",
+          actorAccountId: hrGranted.account.id,
+          entityId: ids.otherEmp,
+        },
+      }),
+    ).toBe(0);
+  });
+
+  test("MANAGER (tim) & EMPLOYEE (sendiri) 403; tanpa token 401; di luar jangkauan 404", async () => {
+    const mgrRes = await call("GET", `/employees/${ids.teamEmp}?view=print`, mgr.headers);
+    expect(await code(mgrRes)).toBe("FORBIDDEN");
+    const empRes = await call("GET", `/employees/${ids.otherEmp}?view=print`, emp.headers);
+    expect(await code(empRes)).toBe("FORBIDDEN");
+    const own = await body(await call("GET", `/employees/${ids.otherEmp}?view=work`, emp.headers));
+    expect(own.data.access.print).toBe(false);
+    expect((await call("GET", `/employees/${ids.otherEmp}?view=print`, {})).status).toBe(401);
+    expect(
+      await code(await call("GET", `/employees/${ids.otherEmp}?view=print`, mgr.headers)),
+    ).toBe("NOT_FOUND");
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          action: "employee.printed",
+          actorAccountId: { in: [mgr.account.id, emp.account.id] },
+        },
+      }),
+    ).toBe(0);
   });
 });

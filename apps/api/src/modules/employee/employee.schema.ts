@@ -18,8 +18,11 @@ const optionalText = (max: number) => z.string().trim().max(max).optional();
 
 export const idParamSchema = z.object({ id: z.uuid() });
 
-// "work" = data kerja saja (tanpa query/audit data sensitif); "full" = termasuk bagian yang boleh.
-export const detailQuerySchema = z.object({ view: z.enum(["full", "work"]).default("full") });
+// "work" = data kerja saja (tanpa query/audit data sensitif); "full" = termasuk bagian yang boleh;
+// "print" = bahan formulir .xlsx (SA/HR): data pribadi & keluarga bila boleh, rekening tidak dibaca.
+export const detailViewSchema = z.enum(["full", "work", "print"]);
+export type DetailView = z.infer<typeof detailViewSchema>;
+export const detailQuerySchema = z.object({ view: detailViewSchema.default("full") });
 
 // ── Daftar ──────────────────────────────────────────────────────────────────
 
@@ -94,6 +97,7 @@ const familyMemberSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   relationship: z.enum(["SPOUSE", "CHILD", "FATHER", "MOTHER", "SIBLING", "OTHER"]),
+  address: z.string().nullable(),
   birthDate: isoDate.nullable(),
   phoneNumber: z.string().nullable(),
 });
@@ -114,6 +118,15 @@ const historySchema = z.object({
   toPosition: ref.nullable(),
   exitReason: exitReasonSchema.nullable(),
   note: z.string().nullable(),
+  // Pelaku perubahan (null = data awal/seed atau akun sudah tidak ada). name = nama pegawai
+  // milik akun itu, atau email akun bila akun tidak terhubung ke data pegawai (mis. Super Admin).
+  changedBy: z
+    .object({
+      name: z.string(),
+      role: roleSchema,
+      workLocation: z.string().nullable(),
+    })
+    .nullable(),
   createdAt: z.iso.datetime(),
 });
 
@@ -126,6 +139,7 @@ export const employeeDetailSchema = employeeListItemSchema
       deactivate: z.boolean(),
       personal: z.boolean(),
       bank: z.boolean(),
+      print: z.boolean(),
     }),
     personal: personalSchema.nullable().optional(),
     familyMembers: z.array(familyMemberSchema).optional(),

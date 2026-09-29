@@ -103,6 +103,16 @@ export function useEmployee(id: string | null, view: DetailView = "work", enable
   });
 }
 
+/**
+ * Bahan formulir cetak (.xlsx): selalu diambil baru (tidak di-cache) karena setiap unduhan
+ * tercatat di audit log (`employee.printed`). API menolak (403) selain SA/HR.
+ */
+export function fetchEmployeeForPrint(id: string) {
+  return api(`/employees/${id}?view=print`, { schema: one(employeeDetailSchema) }).then(
+    (r) => r.data,
+  );
+}
+
 export function useMasterData() {
   return useQuery({
     queryKey: employeeKeys.masterData,

@@ -4,6 +4,7 @@ import type { Actor, EmployeeTarget } from "../../../core/access/index.ts";
 import {
   canDeactivateEmployee,
   canManageEmployees,
+  canPrintEmployee,
   canReadBank,
   canReadOrgStructure,
   canReadPersonal,
@@ -81,6 +82,20 @@ describe("canManageEmployees (tambah/ubah/ubah status/aktifkan)", () => {
     ["EMP", false],
   ] as const)("%s = %s", (who, allowed) => {
     expect(canManageEmployees(actor(who))).toBe(allowed);
+  });
+});
+
+describe("canPrintEmployee (unduh formulir data pegawai .xlsx)", () => {
+  test.each([
+    ["SA", "other", true],
+    ["SA", "self", true],
+    ["HR", "other", true],
+    ["HR", "self", true],
+    ["MGR", "team", false],
+    ["MGR", "self", false],
+    ["EMP", "self", false],
+  ] as const)("%s → %s = %s", (who, rel, allowed) => {
+    expect(canPrintEmployee(actor(who), target(who, rel))).toBe(allowed);
   });
 });
 

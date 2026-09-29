@@ -3,11 +3,13 @@ export { type IamRouteDeps, registerIamRoutes } from "./iam.routes.ts";
 export type { MeResponse } from "./iam.schema.ts";
 export {
   type AccountDeactivationOutcome,
+  type AccountSummary,
   type BootstrapOutcome,
   bootstrapPrimarySuperAdmin,
   deactivateAccountOfEmployee,
   type EmployeeAccountLink,
   getAccountLinksForEmployees,
+  getAccountSummaries,
   listManagerEmployeeIds,
   loadActor,
   notifyExpiringGrants,
