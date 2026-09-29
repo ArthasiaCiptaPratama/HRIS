@@ -31,7 +31,7 @@ HRIS/
 │   ├── erd/hris.dbml                 [done] Diagram ERD (DBML, buka di dbdiagram.io); cermin skema Prisma, disetujui pemilik projek 2026-09-28 (+ D-035: category, exit_reason, employment_histories)
 │   └── qa/                           [wip] Dokumentasi QA (skill hris-qa-docs): README (indeks), plans/, cases/, runs/, bugs/
 ├── .github/workflows/ci.yml          [done] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Hijau di GitHub
-├── .github/workflows/deploy-staging.yml [done] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu Deploy Hook Vercel opsional. Pertama sukses 2026-09-28 (run #36385730691)
+├── .github/workflows/deploy-staging.yml [done] D-030: push ke `HRIS/debug/fe-be` → `db:deploy` + `db:check` ke Supabase staging (secret `STAGING_DIRECT_URL`), lalu job `vercel` (D-036: Vercel CLI `pull/build/deploy --prebuilt --prod`, api dulu lalu web). Migrasi pertama sukses 2026-09-28 (run #36385730691)
 ├── .claude/skills/                    Skill Claude Code projek (dimuat otomatis)
 │   ├── hris-workflow/                [done] Aturan alur kerja & laporan untuk setiap tugas (hasil grill 2026-09-28)
 │   ├── hris-db-schema/               [done] Alur skema Prisma, ERD → Prisma, batas Supabase MCP
@@ -125,8 +125,9 @@ apps/api/
 │   ├── helpers/email.ts              [done] `createFakeEmailSender()`: EmailSender palsu (menyimpan pesan, bisa disetel gagal)
 │   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed); `iam-schema.test.ts`, `audit.test.ts`, `iam/{me,bootstrap,accounts,grants-audit,recover}.test.ts`, `notification.test.ts` (notify, dedupe, outbox & retry, endpoint, pemicu grant, cron), `employee/employees.test.ts` (20 test: daftar/ringkasan/detail/view=work/tulis/status/nonaktif+akun/aktif kembali/struktur/master data; akses 401/403/404, field sensitif hilang, audit) (test yang butuh DB tanpa Utama otomatis dilewati di DB developer; penuh di CI)
 ├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
-├── vercel.json                       [wip] bunVersion 1.x, region sin1, install dari root, build = prisma generate, `crons`: grant-expiry 01:00 UTC & email-retry 02:00 UTC (harian; batas paket Hobby). Belum diuji di Vercel
-├── tsconfig.json                     [done]
+├── index.ts                          [done] Entry **Vercel** (D-036): re-export `src/index.ts` + import `hono` supaya builder Hono memilih file ini, bukan `src/app.ts`
+├── vercel.json                       [done] framework `hono`, bunVersion 1.x, region sin1, install dari root (`--frozen-lockfile`), build = prisma generate, `crons`: grant-expiry 01:00 UTC & email-retry 02:00 UTC (harian; batas Hobby). Project `hris-staging-api` (D-036)
+├── tsconfig.json                     [done] · `module`/`moduleResolution` ditulis ulang (builder Vercel tidak membaca `extends`, D-036)
 └── package.json                      # name: @hris/api
 ```
 
@@ -139,6 +140,7 @@ apps/web/
 │   ├── index.css                     [done] Tailwind v4; tema D-035: netral zinc + aksen teal `--brand` (+ `--success`/`--warning`); cincin fokus `--ring` abu netral (zinc-400/500, permintaan pemilik projek 2026-09-29); autofill browser dinetralkan (`:autofill`), animasi transform/opacity (`animate-fade-up` kaskade `--i`, `skeleton` kilau, float/swing/blink), `prefers-reduced-motion` mematikan animasi
 │   ├── app/
 │   │   ├── navigation.ts             [done] D-035: SATU sumber menu — kelompok besar (top nav) → seksi (kelompok kecil) → item/anak; `visibleGroups(me)`, `activeTrail()` (breadcrumb/penanda aktif), `flattenNav()` (pencarian cepat), `CATEGORY_SLUGS`
+│   │   ├── feature-flags.ts          [done] `FEATURES`: saklar halaman web; `false` = rute & menu tampil Maintenance ("Segera"), kode halaman tetap disimpan. Saat ini menu b–e (Ubah Status, Pengaktifan, Pegawai Tidak Aktif, Struktur Organisasi) = `false` (permintaan pemilik projek 2026-09-29); API tidak terpengaruh
 │   │   ├── route-preload.ts          [done] Loader `lazy` per halaman (code splitting) + `preloadRoute()` saat hover menu
 │   │   ├── router.tsx                [done] Publik: `/login`, `/lupa-password`, `/auth/callback`, `/auth/atur-password`; terlindungi (`RequireAuth`): `/` (Dashboard), `/personal/*` (`RequireAccessRoute` personalMenu; ubah-status, pengaktifan, pegawai-tidak-aktif, arsip/:section, laporan → manageEmployees), `/akun`, `/grant`, `/audit` (`RequireAccess`), `/notifikasi`, `/profil`
 │   │   ├── providers.tsx             [done] TanStack Query (401 → `signOut` global; tanpa retry untuk 401/403/404) + `AuthProvider` + Toaster (sonner)
@@ -174,7 +176,7 @@ apps/web/
 ├── public/logo/logo-horizontal.svg   [done] Logo resmi horizontal (ikon + tulisan "arthasia", 1028×216) — top bar, menu mobile, halaman auth lewat `components/brand-logo.tsx`
 ├── public/logo/logo-arthasia.png     [done] Ikon logo Arthasia (PNG transparan 286×176) — favicon
 ├── vite.config.ts                    [done] React + Tailwind, alias `@` → src, envDir = root, port 5173, konfigurasi Vitest
-├── vercel.json                       [wip] Rewrite SPA, install dari root. Belum diuji di Vercel
+├── vercel.json                       [done] Rewrite SPA, install dari root (`--frozen-lockfile`). Project `hris-staging-web` (D-036)
 └── package.json                      # name: @hris/web
 ```
 
@@ -376,6 +378,8 @@ Semua endpoint cron memeriksa header `Authorization: Bearer ${CRON_SECRET}`. Di 
 
 Daftar lengkap disimpan di `.env.example`. **Satu file `.env` di root** dipakai semua workspace: api lewat `bun --env-file=../../.env`, Prisma CLI lewat `dotenv` di `prisma.config.ts`, web lewat `envDir` Vite. Di CI/Vercel env diisi langsung (file tidak ada).
 
+**Env Vercel staging (D-036, target *production* project staging; nilai rahasia hanya di Vercel):** `hris-staging-api`: `DATABASE_URL` (transaction pooler 6543), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGINS`=`APP_URL`=`https://hris-staging-web.vercel.app`, `CRON_SECRET`, `SMTP_*`, `EMAIL_FROM`, `LOG_LEVEL`. `NODE_ENV` sengaja tidak diisi (Vercel mengisinya sendiri; `production` saat build membuat `bun install` melewati devDependencies seperti `prisma`). `hris-staging-web`: `VITE_API_BASE_URL`=`https://hris-staging-api.vercel.app/api/v1`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+
 Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variabel Supabase/SMTP/cron masih **opsional** di Fase 1 dan dijadikan wajib di fase yang memakainya.
 
 | Variabel | Dipakai | Keterangan |
@@ -403,7 +407,9 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 | Secret | Dipakai | Keterangan |
 |---|---|---|
 | `STAGING_DIRECT_URL` | `deploy-staging.yml` | Connection string **session pooler** Supabase staging: `postgresql://postgres.iwgzuwcxsxnbjibhbqgh:<password>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres` (port **5432**, bukan 6543; host direct hanya IPv6). **Rahasia**, sudah diisi 2026-09-28 |
-| `VERCEL_DEPLOY_HOOK_API_STAGING`, `VERCEL_DEPLOY_HOOK_WEB_STAGING` | `deploy-staging.yml` | Opsional; URL Deploy Hook project Vercel untuk branch `HRIS/debug/fe-be` (setelah project Vercel dibuat) |
+| `VERCEL_TOKEN` | `deploy-staging.yml` | **Rahasia**. Token akun Vercel `oatse` untuk CLI (D-036) |
+| `VERCEL_ORG_ID` | `deploy-staging.yml` | `team_LT9rBNwfha3zcvHfBB85LEXk` (scope akun `oatse`) |
+| `VERCEL_PROJECT_ID_API`, `VERCEL_PROJECT_ID_WEB` | `deploy-staging.yml` | `prj_YikNSEXpoKlOMC6Jli7a0MPjk0vu` (`hris-staging-api`), `prj_YZVG4UA4Ug5vhAPkbZBaA4e1tm7W` (`hris-staging-web`) |
 
 Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal memakai Supabase staging (tidak ada port lokal).
 

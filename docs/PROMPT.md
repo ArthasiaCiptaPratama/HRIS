@@ -160,7 +160,7 @@ HRIS/Oatse/Linux-Windows ──PR──▶ HRIS/debug/database ──PR──▶
 |---|---|---|
 | `HRIS/Oatse/Linux-Windows` | Kerja harian | – |
 | `HRIS/debug/database` | Verifikasi migrasi di PostgreSQL **lokal** & CI | `db:reset` + `db:migrate` bersih di lokal, seed jalan, CI (migrasi dari DB kosong + test integration) hijau |
-| `HRIS/debug/fe-be` | Uji integrasi FE+BE di **staging** (Vercel Preview + Supabase staging) | CI hijau, `db:deploy` ke staging sukses, uji manual alur yang berubah |
+| `HRIS/debug/fe-be` | Uji integrasi FE+BE di **staging** (Vercel project staging, D-036 + Supabase staging) | CI hijau, `db:deploy` ke staging sukses, uji manual alur yang berubah |
 | `main` | Stabil / produksi | CI hijau, review pembimbing/atasan |
 
 - Branch kerja **tidak boleh** diberi sub-branch `HRIS/Oatse/Linux-Windows/...`, karena Git menolak nama yang sekaligus branch dan "folder". Jika butuh branch sementara, gunakan nama sejajar, mis. `HRIS/Oatse/eksperimen-x`.

@@ -1,3 +1,5 @@
+import { FEATURES } from "./feature-flags";
+
 // Code splitting per halaman (React Router `lazy`) + preload saat kursor di atas menu, supaya
 // bundle awal kecil tetapi perpindahan halaman tetap terasa instan.
 
@@ -32,10 +34,13 @@ export const pages = {
 
 const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/pegawai-aktif", pages.activeEmployees],
-  ["/personal/ubah-status", pages.changeStatus],
-  ["/personal/pengaktifan", pages.activation],
-  ["/personal/pegawai-tidak-aktif", pages.inactiveEmployees],
-  ["/personal/struktur-organisasi", pages.orgStructure],
+  ["/personal/ubah-status", FEATURES.changeStatus ? pages.changeStatus : pages.maintenance],
+  ["/personal/pengaktifan", FEATURES.activation ? pages.activation : pages.maintenance],
+  [
+    "/personal/pegawai-tidak-aktif",
+    FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
+  ],
+  ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
   ["/personal/arsip", pages.maintenance],
   ["/personal/laporan", pages.maintenance],
 ];
