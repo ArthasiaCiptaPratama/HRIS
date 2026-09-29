@@ -75,7 +75,11 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
 - [x] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — run #36375129344 hijau (commit `1815b3c`)
 - [x] Keputusan OD-7 ✔ (D-030), lalu `db:deploy` migrasi awal ke staging — workflow `Deploy staging` run #36385730691 sukses (2 migrasi, `db:check` tanpa selisih), diverifikasi via MCP
-- [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; preview untuk `HRIS/debug/fe-be` — `vercel.json` kedua app dibuat; project Vercel belum dibuat
+- [~] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; ~~preview~~ staging untuk `HRIS/debug/fe-be` (D-036) — project `hris-staging-api` & `hris-staging-web` (akun `oatse`, Hobby) dibuat 2026-09-29, env production terisi, `vercel build --prod` lokal ✔ (api `bun1.x` + 2 cron, web Vite); deploy pertama lewat `deploy-staging.yml` belum
+  - [x] Job `vercel` di `deploy-staging.yml`: Vercel CLI `pull/build/deploy --prebuilt --prod` setelah migrasi + secret `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_API/WEB` (tambahan 2026-09-29: repo private milik organisasi tidak bisa dihubungkan ke Vercel Hobby, D-036)
+  - [x] Entry Vercel `apps/api/index.ts` + `module`/`moduleResolution` eksplisit di `apps/api/tsconfig.json` (tambahan 2026-09-29: builder Hono memilih `src/app.ts` tanpa default export; `@vercel/node` tidak membaca `extends` sehingga strict mati dan tipe Hono rusak)
+  - [x] Proteksi Vercel Authentication hanya untuk preview (tambahan 2026-09-29: default project baru melindungi URL `*.vercel.app` production sehingga web tidak bisa memanggil api)
+  - [x] Isi data staging: seed dummy (5 departemen, 12 jabatan, 5 status, 5 grade, 2 lokasi, 21 karyawan) + akun uji HR/MGR/EMP ke DB staging, diverifikasi via MCP (tambahan 2026-09-29: D-036 poin 4)
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
 - [ ] Verifikasi `bun install && bun run dev` di **Windows**
@@ -214,6 +218,8 @@ Detail & rekomendasi: [PLAN §9](./PLAN.md#9-keputusan-terbuka).
 
 Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerjakan**.
 
+- Test api tidak boleh memakai SMTP sungguhan dari `.env`: paksa pengirim log/palsu saat `NODE_ENV=test` (dari tugas deploy Vercel, 2026-09-29: `grants-audit.test.ts` timeout 5 s bila `SMTP_*` terisi)
+- Aktifkan *Leaked Password Protection* Supabase Auth bila tersedia di paket (advisor WARN, dari tugas deploy Vercel 2026-09-29)
 - Aplikasi mobile (projek terpisah, memakai API yang sama)
 - MFA untuk SUPER_ADMIN/HR_ADMIN
 - Notifikasi WhatsApp
