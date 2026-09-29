@@ -1,3 +1,4 @@
+export * from "./employee.ts";
 export * from "./enums.ts";
 export * from "./permissions.ts";
 export * from "./roles.ts";

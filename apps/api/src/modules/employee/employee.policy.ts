@@ -1,0 +1,62 @@
+import { ROLE } from "@hris/shared";
+import {
+  type Actor,
+  type EmployeeTarget,
+  hasPermission,
+  isInTeam,
+  isSelf,
+} from "../../core/access/index.ts";
+
+// PROMPT §3.5: keputusan akses murni; default tolak. Data target diberikan pemanggil.
+// Sumber: PLAN §4.3 "Karyawan", §4.2 (grant), D-035 (MANAGER hanya membaca tim).
+
+const isAdmin = (actor: Actor) => actor.role === ROLE.SUPER_ADMIN || actor.role === ROLE.HR_ADMIN;
+
+export type EmployeeListScope = "all" | "team";
+
+// Data kerja: SA/HR semua; MANAGER tim (butuh keterhubungan ke data karyawan); EMPLOYEE lewat detail sendiri.
+export function employeeListScope(actor: Actor): EmployeeListScope | null {
+  if (isAdmin(actor)) return "all";
+  if (actor.role === ROLE.MANAGER && actor.employeeId !== null) return "team";
+  return null;
+}
+
+export function canViewEmployee(actor: Actor, target: EmployeeTarget): boolean {
+  if (isAdmin(actor) || isSelf(actor, target)) return true;
+  return actor.role === ROLE.MANAGER && isInTeam(actor, target);
+}
+
+// "Tambah/ubah/nonaktifkan karyawan, tempatkan jabatan, isi manager_id": SA ✅ HR ✅.
+export function canManageEmployees(actor: Actor): boolean {
+  return isAdmin(actor);
+}
+
+// Menonaktifkan data karyawan milik sendiri akan ikut mengunci akun sendiri → ditolak.
+export function canDeactivateEmployee(actor: Actor, target: EmployeeTarget): boolean {
+  return canManageEmployees(actor) && !isSelf(actor, target);
+}
+
+// Data sensitif: SA ✅; HR 🔑 semua; MANAGER 🔑 tim; semua orang 👁 milik sendiri.
+function canReadSensitive(
+  actor: Actor,
+  target: EmployeeTarget,
+  permission: "employee.personal.read" | "employee.bank.read",
+): boolean {
+  if (actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
+  if (!hasPermission(actor, permission)) return false;
+  if (actor.role === ROLE.HR_ADMIN) return true;
+  return actor.role === ROLE.MANAGER && isInTeam(actor, target);
+}
+
+export function canReadPersonal(actor: Actor, target: EmployeeTarget): boolean {
+  return canReadSensitive(actor, target, "employee.personal.read");
+}
+
+export function canReadBank(actor: Actor, target: EmployeeTarget): boolean {
+  return canReadSensitive(actor, target, "employee.bank.read");
+}
+
+// Direktori (nama, jabatan, departemen): 👁 untuk semua role.
+export function canReadOrgStructure(actor: Actor): boolean {
+  return actor.accountId.length > 0;
+}

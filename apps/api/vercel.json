@@ -3,5 +3,15 @@
   "bunVersion": "1.x",
   "regions": ["sin1"],
   "installCommand": "cd ../.. && bun install --frozen-lockfile",
-  "buildCommand": "bun run db:generate"
+  "buildCommand": "bun run db:generate",
+  "crons": [
+    {
+      "path": "/api/cron/grant-expiry",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/email-retry",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }

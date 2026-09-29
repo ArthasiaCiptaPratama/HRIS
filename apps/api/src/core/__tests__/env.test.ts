@@ -34,3 +34,15 @@ describe("parseEnv", () => {
     }
   });
 });
+
+describe("SMTP_PORT", () => {
+  const BASE_TEST = {
+    DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hris",
+    NODE_ENV: "test",
+  };
+  test("angka valid, kosong → undefined, bukan angka ditolak", () => {
+    expect(parseEnv({ ...BASE_TEST, SMTP_PORT: "587" }).SMTP_PORT).toBe(587);
+    expect(parseEnv({ ...BASE_TEST, SMTP_PORT: "" }).SMTP_PORT).toBeUndefined();
+    expect(() => parseEnv({ ...BASE_TEST, SMTP_PORT: "abc" })).toThrow(/SMTP_PORT/);
+  });
+});

@@ -33,3 +33,19 @@ export function isGrantActive(grant: GrantValidity, now: Date): boolean {
   if (grant.revokedAt !== null) return false;
   return grant.expiresAt === null || grant.expiresAt.getTime() > now.getTime();
 }
+
+/** Data minimum karyawan target untuk keputusan akses; diberikan pemanggil (policy tidak query DB). */
+export interface EmployeeTarget {
+  employeeId: string;
+  managerId: string | null;
+}
+
+// PLAN §4.3 "sendiri": hanya akun yang terhubung ke data karyawan itu.
+export function isSelf(actor: Actor, target: EmployeeTarget): boolean {
+  return actor.employeeId !== null && actor.employeeId === target.employeeId;
+}
+
+// PLAN §4.1 / D-009: tim = bawahan langsung (manager_id target = employee aktor), satu tingkat.
+export function isInTeam(actor: Actor, target: EmployeeTarget): boolean {
+  return actor.employeeId !== null && target.managerId === actor.employeeId;
+}

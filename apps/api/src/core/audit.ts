@@ -41,3 +41,36 @@ export async function writeAudit(entry: AuditEntry, client: AuditClient = getPri
     },
   });
 }
+
+export interface AuditLogFilter {
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  actorAccountId?: string;
+  from?: Date;
+  to?: Date;
+}
+
+/** Baca audit log (terbaru dulu). Akses dibatasi pemanggil: hanya SUPER_ADMIN (PLAN §4.3). */
+export async function listAuditLogs(filter: AuditLogFilter, skip: number, take: number) {
+  const where: Prisma.AuditLogWhereInput = {
+    ...(filter.action ? { action: { startsWith: filter.action } } : {}),
+    ...(filter.entityType ? { entityType: filter.entityType } : {}),
+    ...(filter.entityId ? { entityId: filter.entityId } : {}),
+    ...(filter.actorAccountId ? { actorAccountId: filter.actorAccountId } : {}),
+    ...(filter.from || filter.to
+      ? {
+          occurredAt: {
+            ...(filter.from ? { gte: filter.from } : {}),
+            ...(filter.to ? { lte: filter.to } : {}),
+          },
+        }
+      : {}),
+  };
+  const prisma = getPrisma();
+  const [rows, total] = await prisma.$transaction([
+    prisma.auditLog.findMany({ where, orderBy: { occurredAt: "desc" }, skip, take }),
+    prisma.auditLog.count({ where }),
+  ]);
+  return { rows, total };
+}

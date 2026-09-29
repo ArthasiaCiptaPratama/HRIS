@@ -19,6 +19,12 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
+    // Nilai palsu: supabase-js di-mock di test, tidak ada panggilan jaringan.
+    env: {
+      VITE_API_BASE_URL: "http://api.test/api/v1",
+      VITE_SUPABASE_URL: "https://project-test.supabase.co",
+      VITE_SUPABASE_ANON_KEY: "sb_publishable_test_key_value_1234567890",
+    },
     include: ["tests/**/*.test.{ts,tsx}"],
   },
 });

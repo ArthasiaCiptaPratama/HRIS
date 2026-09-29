@@ -30,7 +30,9 @@ const envSchema = z
     SUPABASE_SERVICE_ROLE_KEY: optionalString,
     CRON_SECRET: optionalString,
     SMTP_HOST: optionalString,
-    SMTP_PORT: optionalString,
+    SMTP_PORT: optionalString
+      .transform((value) => (value === undefined ? undefined : Number(value)))
+      .pipe(z.number().int().min(1).max(65535).optional()),
     SMTP_USER: optionalString,
     SMTP_PASS: optionalString,
     EMAIL_FROM: optionalString,

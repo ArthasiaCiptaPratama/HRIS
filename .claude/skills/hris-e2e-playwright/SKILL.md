@@ -49,4 +49,6 @@ cd e2e && bunx playwright show-report                    # laporan terakhir
 
 Hasil & bukti (screenshot/trace) untuk laporan QA → skill `hris-qa-docs`.
 
+**Lokasi artefak (WAJIB):** screenshot, trace, dan video disimpan ke `/mnt/winD/WORK/Magang/QA/<YYYY-MM-DD>-<target>/` (permintaan pemilik projek 2026-09-29), bukan scratchpad/`/tmp`/folder repo. Di `playwright.config.ts` set `outputDir` ke folder itu; untuk script ad-hoc, `page.screenshot({ path: "/mnt/winD/WORK/Magang/QA/<run>/<nama>.png" })`.
+
 Templat config, auth setup, page object, dan spec: [TEMPLATES.md](TEMPLATES.md).

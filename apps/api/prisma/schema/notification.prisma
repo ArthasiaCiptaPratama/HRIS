@@ -1,0 +1,49 @@
+// Modul notification (PLAN §5.6): in-app + email. Isi TIDAK PERNAH memuat data sensitif.
+// Modul non-inti: penerima disimpan sebagai UUID akun tanpa FK (PLAN §3.2.3).
+
+enum EmailOutboxStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@schema("notification")
+}
+
+model Notification {
+  id                 String    @id @default(uuid()) @db.Uuid
+  recipientAccountId String    @map("recipient_account_id") @db.Uuid
+  type               String    @db.VarChar(50)
+  title              String    @db.VarChar(200)
+  body               String?
+  link               String?   @db.VarChar(500)
+  // Mencegah notifikasi ganda dari cron (mis. `grant-expiring:<grantId>`), unik per penerima.
+  dedupeKey          String?   @map("dedupe_key") @db.VarChar(200)
+  readAt             DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([recipientAccountId, dedupeKey])
+  @@index([recipientAccountId, readAt])
+  @@index([createdAt])
+  @@map("notifications")
+  @@schema("notification")
+}
+
+// Email yang gagal dikirim, dicoba ulang oleh cron `email-retry` (CODEMAP §7).
+model EmailOutbox {
+  id            String            @id @default(uuid()) @db.Uuid
+  toEmail       String            @map("to_email") @db.VarChar(254)
+  subject       String            @db.VarChar(200)
+  textBody      String            @map("text_body")
+  status        EmailOutboxStatus @default(PENDING)
+  attempts      Int               @default(0)
+  lastError     String?           @map("last_error") @db.VarChar(500)
+  nextAttemptAt DateTime?         @map("next_attempt_at") @db.Timestamptz(6)
+  sentAt        DateTime?         @map("sent_at") @db.Timestamptz(6)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt])
+  @@map("email_outbox")
+  @@schema("notification")
+}

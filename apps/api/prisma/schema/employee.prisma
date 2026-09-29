@@ -40,26 +40,50 @@ enum FamilyRelationship {
   @@schema("employee")
 }
 
+// D-035: alasan pegawai dinonaktifkan (menu "Ubah Status Pegawai").
+enum EmployeeExitReason {
+  RESIGNATION
+  TERMINATION
+  CONTRACT_ENDED
+  RETIREMENT
+  DECEASED
+  OTHER
+
+  @@schema("employee")
+}
+
+enum EmploymentChangeType {
+  HIRED
+  STATUS_CHANGED
+  POSITION_CHANGED
+  DEACTIVATED
+  REACTIVATED
+
+  @@schema("employee")
+}
+
 model Employee {
-  id                 String    @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(uuid()) @db.Uuid
   // ERD: nik = Nomor Induk Karyawan (bukan NIK KTP; NIK KTP ada di employee_personal.ktp_number).
-  employeeNumber     String    @map("employee_number") @db.VarChar(30)
-  fullName           String    @map("full_name") @db.VarChar(150)
+  employeeNumber     String              @map("employee_number") @db.VarChar(30)
+  fullName           String              @map("full_name") @db.VarChar(150)
   // Tidak di ERD; dibutuhkan untuk direktori & undangan akun (PLAN §5.1).
-  workEmail          String?   @map("work_email") @db.VarChar(254)
-  phoneNumber        String?   @map("phone_number") @db.VarChar(30)
-  emergencyPhone     String?   @map("emergency_phone") @db.VarChar(30)
+  workEmail          String?             @map("work_email") @db.VarChar(254)
+  phoneNumber        String?             @map("phone_number") @db.VarChar(30)
+  emergencyPhone     String?             @map("emergency_phone") @db.VarChar(30)
   gender             Gender?
-  joinDate           DateTime  @map("join_date") @db.Date
-  endDate            DateTime? @map("end_date") @db.Date
-  employmentStatusId String    @map("employment_status_id") @db.Uuid
-  positionId         String    @map("position_id") @db.Uuid
-  workLocationId     String?   @map("work_location_id") @db.Uuid
-  gradeId            String?   @map("grade_id") @db.Uuid
+  joinDate           DateTime            @map("join_date") @db.Date
+  endDate            DateTime?           @map("end_date") @db.Date
+  employmentStatusId String              @map("employment_status_id") @db.Uuid
+  positionId         String              @map("position_id") @db.Uuid
+  workLocationId     String?             @map("work_location_id") @db.Uuid
+  gradeId            String?             @map("grade_id") @db.Uuid
   // Tidak di ERD; PLAN §4.1 & D-009: tim MANAGER = bawahan langsung.
-  managerId          String?   @map("manager_id") @db.Uuid
+  managerId          String?             @map("manager_id") @db.Uuid
   // PLAN §4.5: karyawan nonaktif tidak bisa login; data tetap diarsip (tidak dihapus).
-  isActive           Boolean   @default(true) @map("is_active")
+  isActive           Boolean             @default(true) @map("is_active")
+  // Diisi saat nonaktif (tanggal efektif = end_date); dikosongkan saat diaktifkan kembali.
+  exitReason         EmployeeExitReason? @map("exit_reason")
 
   employmentStatus EmploymentStatus     @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
   position         Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)
@@ -72,6 +96,7 @@ model Employee {
   familyMembers    FamilyMember[]
   educations       Education[]
   trainings        Training[]
+  histories        EmploymentHistory[]
   // Sisi balik relasi iam.accounts.employee_id (wajib Prisma); jangan di-include dari modul employee.
   account          Account?
 
@@ -81,12 +106,44 @@ model Employee {
   @@unique([employeeNumber])
   @@unique([workEmail])
   @@index([positionId])
-  @@index([employmentStatusId])
+  // Daftar per kategori (D-035): filter status + aktif; kolom pertama tetap melayani FK.
+  @@index([employmentStatusId, isActive])
   @@index([workLocationId])
   @@index([gradeId])
   @@index([managerId])
-  @@index([fullName])
+  // Urutan default daftar pegawai aktif/nonaktif berdasarkan nama.
+  @@index([isActive, fullName])
   @@map("employees")
+  @@schema("employee")
+}
+
+// D-035: riwayat perubahan kepegawaian (masuk, ubah status, nonaktif, aktif kembali).
+// Dasar menu arsip "Riwayat Jabatan" nanti. changed_by = iam.accounts.id tanpa FK (iam bukan modul inti).
+model EmploymentHistory {
+  id             String               @id @default(uuid()) @db.Uuid
+  employeeId     String               @map("employee_id") @db.Uuid
+  employee       Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  changeType     EmploymentChangeType @map("change_type")
+  effectiveDate  DateTime             @map("effective_date") @db.Date
+  fromStatusId   String?              @map("from_status_id") @db.Uuid
+  fromStatus     EmploymentStatus?    @relation("HistoryFromStatus", fields: [fromStatusId], references: [id], onDelete: Restrict)
+  toStatusId     String?              @map("to_status_id") @db.Uuid
+  toStatus       EmploymentStatus?    @relation("HistoryToStatus", fields: [toStatusId], references: [id], onDelete: Restrict)
+  fromPositionId String?              @map("from_position_id") @db.Uuid
+  fromPosition   Position?            @relation("HistoryFromPosition", fields: [fromPositionId], references: [id], onDelete: Restrict)
+  toPositionId   String?              @map("to_position_id") @db.Uuid
+  toPosition     Position?            @relation("HistoryToPosition", fields: [toPositionId], references: [id], onDelete: Restrict)
+  exitReason     EmployeeExitReason?  @map("exit_reason")
+  note           String?              @db.VarChar(500)
+  changedBy      String?              @map("changed_by") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([employeeId, effectiveDate(sort: Desc)])
+  @@index([fromStatusId])
+  @@index([toStatusId])
+  @@index([fromPositionId])
+  @@index([toPositionId])
+  @@map("employment_histories")
   @@schema("employee")
 }
 

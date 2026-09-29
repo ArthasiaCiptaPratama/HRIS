@@ -10,14 +10,21 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const testVerifier: TokenVerifier = {
   async verify(token) {
-    const authUserId = token.startsWith(TOKEN_PREFIX) ? token.slice(TOKEN_PREFIX.length) : "";
+    // Format: test-token:<uuid>[:stale]. ":stale" = password dimasukkan 1 jam lalu (uji D-033).
+    const [authUserId = "", flag] = token.startsWith(TOKEN_PREFIX)
+      ? token.slice(TOKEN_PREFIX.length).split(":")
+      : [];
     if (!UUID.test(authUserId)) throw new UnauthenticatedError();
-    return { authUserId, email: undefined };
+    const passwordAuthAt = new Date(Date.now() - (flag === "stale" ? 3_600_000 : 5_000));
+    return { authUserId, email: undefined, passwordAuthAt };
   },
 };
 
-export function bearer(authUserId: string): Record<string, string> {
-  return { Authorization: `Bearer ${TOKEN_PREFIX}${authUserId}` };
+export function bearer(
+  authUserId: string,
+  options: { stale?: boolean } = {},
+): Record<string, string> {
+  return { Authorization: `Bearer ${TOKEN_PREFIX}${authUserId}${options.stale ? ":stale" : ""}` };
 }
 
 export interface GrantInput {
@@ -77,7 +84,11 @@ export function createAuthFixture(run: string) {
         },
       });
     }
-    return { account, headers: bearer(account.authUserId) };
+    return {
+      account,
+      headers: bearer(account.authUserId),
+      staleHeaders: bearer(account.authUserId, { stale: true }),
+    };
   }
 
   async function cleanup() {
@@ -86,7 +97,15 @@ export function createAuthFixture(run: string) {
       select: { id: true },
     });
     const ids = accounts.map((a) => a.id);
-    await prisma.permissionGrant.deleteMany({ where: { accountId: { in: ids } } });
+    await prisma.permissionGrant.deleteMany({
+      where: {
+        OR: [{ accountId: { in: ids } }, { grantedBy: { in: ids } }, { revokedBy: { in: ids } }],
+      },
+    });
+    await prisma.auditLog.deleteMany({
+      where: { OR: [{ actorAccountId: { in: ids } }, { entityId: { in: ids } }] },
+    });
+    await prisma.notification.deleteMany({ where: { recipientAccountId: { in: ids } } });
     await prisma.account.deleteMany({ where: { id: { in: ids } } });
   }
 

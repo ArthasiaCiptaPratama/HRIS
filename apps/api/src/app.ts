@@ -9,6 +9,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { type ActorLoader, loadActor } from "./core/access/index.ts";
 import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
+import { createLogSender, createSmtpSender, type EmailSender } from "./core/email.ts";
 import {
   AppError,
   INTERNAL_ERROR_MESSAGE,
@@ -18,8 +19,17 @@ import {
 import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
+import {
+  type AuthAdmin,
+  createSupabaseAdmin,
+  UNCONFIGURED_AUTH_ADMIN,
+} from "./core/supabase-admin.ts";
 import { getEnv } from "./env.ts";
+import { registerCronRoutes } from "./jobs/cron.ts";
+import { registerEmployeeRoutes } from "./modules/employee/index.ts";
 import { loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
+import { configureNotification, registerNotificationRoutes } from "./modules/notification/index.ts";
+import { registerOrganizationRoutes } from "./modules/organization/index.ts";
 
 export interface AppDeps {
   logger: Logger;
@@ -27,6 +37,10 @@ export interface AppDeps {
   checkDatabase: DatabaseCheck;
   tokenVerifier: TokenVerifier;
   actorLoader: ActorLoader;
+  authAdmin: AuthAdmin;
+  appUrl: string;
+  emailSender: EmailSender;
+  cronSecret: string | undefined;
 }
 
 // Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
@@ -35,6 +49,27 @@ const REJECT_ALL_VERIFIER: TokenVerifier = {
     throw new UnauthenticatedError();
   },
 };
+
+function defaultAuthAdmin(): AuthAdmin {
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = getEnv();
+  return SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createSupabaseAdmin(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : UNCONFIGURED_AUTH_ADMIN;
+}
+
+// D-025: SMTP hanya bila lengkap (staging/produksi); lokal → email dicatat ke log saja.
+function defaultEmailSender(logger: Logger): EmailSender {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM } = getEnv();
+  return SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && EMAIL_FROM
+    ? createSmtpSender({
+        host: SMTP_HOST,
+        port: SMTP_PORT,
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+        from: EMAIL_FROM,
+      })
+    : createLogSender(logger);
+}
 
 function defaultVerifier(): TokenVerifier {
   const supabaseUrl = getEnv().SUPABASE_URL;
@@ -69,13 +104,19 @@ function errorJson(
 }
 
 export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
+  const logger = overrides.logger ?? createLogger(getEnv().LOG_LEVEL);
   const deps: AppDeps = {
-    logger: overrides.logger ?? createLogger(getEnv().LOG_LEVEL),
+    logger,
     corsOrigins: overrides.corsOrigins ?? getEnv().CORS_ORIGINS,
     checkDatabase: overrides.checkDatabase ?? pingDatabase,
     tokenVerifier: overrides.tokenVerifier ?? defaultVerifier(),
     actorLoader: overrides.actorLoader ?? ((authUserId) => loadIamActor(authUserId)),
+    authAdmin: overrides.authAdmin ?? defaultAuthAdmin(),
+    appUrl: overrides.appUrl ?? getEnv().APP_URL,
+    emailSender: overrides.emailSender ?? defaultEmailSender(logger),
+    cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
   };
+  configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
 
   const app = new OpenAPIHono({
     // PROMPT §5: input yang tidak lolos Zod → 400 VALIDATION_ERROR lewat envelope standar.
@@ -107,12 +148,23 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     }),
   );
 
+  // Respons API berisi data pribadi/per akun: jangan disimpan cache browser/proxy (PLAN §10 PDP).
+  // Cache sisi klien diatur TanStack Query di memori, bukan cache HTTP.
+  app.use("/api/*", async (c, next) => {
+    await next();
+    if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "private, no-store");
+  });
+
   registerOpenApi(app);
   registerHealth(app, deps.checkDatabase);
 
   // Endpoint terproteksi: verifikasi JWT → muat akun, role, grant dari DB (D-008).
   const protect = [authenticate(deps.tokenVerifier), loadActor(deps.actorLoader)];
-  registerIamRoutes(app, { protect });
+  registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
+  registerNotificationRoutes(app, { protect });
+  registerOrganizationRoutes(app, { protect });
+  registerEmployeeRoutes(app, { protect, authAdmin: deps.authAdmin });
+  registerCronRoutes(app, { cronSecret: deps.cronSecret, logger: deps.logger });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));
 

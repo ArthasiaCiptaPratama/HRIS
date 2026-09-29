@@ -2,6 +2,8 @@
 export interface VerifiedToken {
   authUserId: string;
   email: string | undefined;
+  /** Waktu terakhir user benar-benar memasukkan password (klaim `amr`); tidak berubah saat token di-refresh. */
+  passwordAuthAt: Date | undefined;
 }
 
 export interface TokenVerifier {
