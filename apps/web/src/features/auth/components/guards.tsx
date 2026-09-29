@@ -13,6 +13,11 @@ export function FullPageMessage({ children }: { children: ReactNode }) {
   );
 }
 
+// Tampil selama modul route lazy pertama dimuat (BUG-001: tanpa ini React Router memberi warning).
+export function RouteHydrateFallback() {
+  return <FullPageMessage>Memuat halaman…</FullPageMessage>;
+}
+
 // Route guard (PROMPT §7): kenyamanan UI; API tetap menolak akses yang tidak berhak.
 export function RequireAuth() {
   const { session, loading } = useAuth();
