@@ -30,4 +30,5 @@
 - 2 foto lama tanpa prefix (Agus Pratama, Hendra Gunawan, milik DB lokal) dipindah ke `dev/oatse/…` + `photo_path` lokal diperbarui; `moved-photos.ts`: keduanya tampil (600×800, 470×626) dari path berprefix.
 
 **Kesimpulan:** memenuhi kriteria rencana, lokal & staging. **Bug terbuka:** tidak ada.
+**Arsip Drive:** `hris-qa:2026-09-30-seragam-admin` — 36 file (plan, cases 12 case, run, 18 screenshot `lokal-` + 15 `staging-`), 2026-09-30; `rclone check` 0 selisih.
 **Belum diverifikasi:** browser selain Chromium, Windows.

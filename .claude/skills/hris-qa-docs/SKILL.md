@@ -1,6 +1,6 @@
 ---
 name: hris-qa-docs
-description: Menyusun dokumentasi QA HRIS di docs/qa/ — rencana uji (test plan) per target mingguan/fase, kasus uji (test case) per modul yang terlacak ke PLAN & PROGRESS, laporan eksekusi uji (test run) dengan bukti, dan laporan bug. Use when the user asks for QA documentation, test plan, test case, test scenario, UAT checklist, bug report, test report/"laporan pengujian", or when a feature is finished and needs to be documented as tested.
+description: Menyusun dokumentasi QA HRIS di docs/qa/ — rencana uji (test plan) per target mingguan/fase, kasus uji (test case) per modul yang terlacak ke PLAN & PROGRESS, laporan eksekusi uji (test run) dengan bukti, laporan bug, dan arsip QA fitur yang sudah lulus ke Google Drive (rclone). Use when the user asks for QA documentation, test plan, test case, test scenario, UAT checklist, bug report, test report/"laporan pengujian", uploading/archiving QA results to Google Drive, or when a feature is finished and needs to be documented as tested.
 ---
 
 # Dokumentasi QA HRIS
@@ -30,6 +30,7 @@ Buat folder/README saat pertama dipakai, lalu catat di CODEMAP §1.
 - [ ] Run report: commit SHA, env (lokal/staging), versi, hasil per case, bukti (path screenshot/trace), bug terbuka
 - [ ] Gagal → bug report + test yang gagal dulu (skill hris-flow-testing)
 - [ ] Perbarui docs/qa/README.md dan log PROGRESS
+- [ ] Fitur LEGIT (lihat "Arsip Google Drive") → susun folder arsip → TANYA izin → rclone sync → cek → catat di run & log PROGRESS
 ```
 
 ## Aturan
@@ -41,3 +42,21 @@ Buat folder/README saat pertama dipakai, lalu catat di CODEMAP §1.
 - ID case tidak pernah dipakai ulang; case usang diberi status `DIHAPUS` + alasan.
 
 Templat plan, case, run, dan bug: [TEMPLATES.md](TEMPLATES.md).
+
+## Arsip Google Drive (permintaan pemilik projek 2026-09-30)
+
+Drive = **arsip bersih** hasil QA per fitur untuk dibaca/dibagikan. Sumber utama tetap `docs/qa/` (repo) dan bukti lokal `/mnt/winD/WORK/Magang/QA/`.
+
+- **Remote rclone:** `hris-qa:` (Google Drive, `root_folder_id` = folder QA pemilik projek). Belum ada / token kedaluwarsa → minta pemilik projek menjalankan `rclone config reconnect hris-qa:` (login lewat browser). **Jangan pernah mencetak isi `rclone.conf` atau log auth** (berisi token).
+- **Hanya fitur yang LEGIT:** semua case P1/P2 fitur itu LULUS di lokal **dan** di staging setelah rilis, tanpa bug P1/P2 terbuka. Uji di tengah jalan, uji ulang, atau hasil lokal saja **tidak** diunggah.
+- **Satu fitur = satu folder** `<YYYY-MM-DD>-<target>/` (sama dengan nama plan/run):
+  - `plan.md`, `run.md` — salinan apa adanya dari `docs/qa/plans|runs/`
+  - `cases.md` — **hanya** case fitur itu (judul + baris otomasi + header tabel + baris `TC-…` yang dirujuk plan), bukan seluruh file modul
+  - `bugs/BUG-NNN-<slug>.md` — hanya bila ada bug terkait fitur
+  - `screenshots/` — PNG dari folder bukti lokal; awali `lokal-` / `staging-` bila dari dua sesi. Script uji (`*.ts`), JSON, file uji lain **tidak** ikut
+  - Format `.md` apa adanya (tanpa konversi ke Google Docs/PDF)
+- **Tanpa penumpukan:** susun di folder sementara (scratchpad sesi), lalu `rclone sync` ke folder fitur itu — unggah ulang mengganti isi, bukan menambah. Jangan membuat folder kedua untuk fitur yang sama; jangan menyentuh folder lain di Drive.
+- **Aksi keluar:** unggah ditanyakan ke pemilik projek **tepat sebelum** dijalankan (skill `hris-workflow`).
+- Bukti hanya data dummy (email akun uji boleh tampak); tidak ada data sensitif asli.
+
+Perintah: [TEMPLATES.md](TEMPLATES.md) bagian "Arsip Drive".
