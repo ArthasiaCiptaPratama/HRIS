@@ -1,6 +1,6 @@
 # Kasus Uji — employee & organization (D-035)
 
-Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), `apps/api/src/modules/employee/__tests__/employee.policy.test.ts` (POL), `apps/api/src/modules/organization/__tests__/organization.policy.test.ts` (ORG). Web: `apps/web/tests/personal-management.test.tsx` (WEB), `apps/web/tests/auth-routing.test.tsx` (NAV), `apps/web/tests/employee-detail.test.tsx` (DET), `apps/web/tests/employee-print.test.ts` (PRN); foto: `apps/api/tests/integration/employee/photo.test.ts` (FOTO). Manual: skrip Playwright `/mnt/winD/WORK/Magang/QA/2026-09-29-detail-print/ui.ts` (UI).
+Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), `apps/api/src/modules/employee/__tests__/employee.policy.test.ts` (POL), `apps/api/src/modules/organization/__tests__/organization.policy.test.ts` (ORG). Web: `apps/web/tests/personal-management.test.tsx` (WEB), `apps/web/tests/auth-routing.test.tsx` (NAV), `apps/web/tests/employee-detail.test.tsx` (DET), `apps/web/tests/employee-print.test.ts` (PRN); foto: `apps/api/tests/integration/employee/photo.test.ts` (FOTO). Manual: skrip Playwright `/mnt/winD/WORK/Magang/QA/2026-09-29-detail-print/ui.ts` (UI); D-038: `/mnt/winD/WORK/Magang/QA/2026-09-30-grup-kategori/ui.ts` (UI).
 
 | ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
 |---|---|---|---|---|---|---|---|
@@ -59,3 +59,14 @@ Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), `app
 | TC-EMP-053 | P2 | D-037 cetak | HR | foto ada | Print data | .xlsx berisi `xl/media/hris-image-1.jpeg` (600×787, rasio bingkai 0,762) tertambat B9→J25 jarak 3 px; logo & 244 merge utuh | PRN, UI |
 | TC-EMP-054 | P2 | PLAN §3.3 prefix Storage lokal | HR | app dengan `storagePathPrefix` `dev/qa-test/` | POST upload-url → unggah → POST /photo | Path `dev/qa-test/employees/<id>/<uuid>.png`; konfirmasi 200; path lengkap tersimpan & tetap terbaca oleh app tanpa prefix | FOTO |
 | TC-EMP-055 | P1 | PLAN §3.3 + D-037 kepemilikan path | HR | objek tanpa prefix / prefix developer lain | POST /photo dengan path lingkungan lain | 422 BUSINESS_RULE_VIOLATION di app berprefix maupun tanpa prefix | FOTO |
+| TC-EMP-056 | P2 | D-038 filter grup | HR | status OUTSOURCING & VENDOR | GET /employees?group=EXTERNAL; ?group=INTERNAL; ?category=VENDOR | EXTERNAL = Outsourcing + Vendor (urut nama); INTERNAL tanpa keduanya; VENDOR hanya vendor | INT |
+| TC-EMP-057 | P1 | D-038 + D-035 tim | MANAGER | anggota tim tanpa kategori eksternal | GET /employees?group=EXTERNAL | Hanya tim (kosong); cakupan tim tetap berlaku di filter grup | INT, UI |
+| TC-EMP-058 | P2 | PROMPT §5 validasi | SA | — | GET /employees?group=PUSAT | 400 VALIDATION_ERROR | INT |
+| TC-EMP-059 | P3 | D-038 navigasi | SA/HR | — | `visibleGroups()` | Seksi: Data Karyawan Aktif → Pengelolaan Karyawan → Arsip → Laporan & Rekap; isi: Semua Karyawan Aktif · Karyawan Internal (Tetap, Percobaan, PKWT, Pekerja Harian, Semua Karyawan Internal) · Program Magang (Magang) · Tenaga Kerja Eksternal (Outsourcing, Vendor, Semua Tenaga Kerja Eksternal) | WEB, UI |
+| TC-EMP-060 | P3 | D-038 breadcrumb | HR | — | `activeTrail()` untuk slug pkwt, internal, magang, vendor, eksternal, semua | Seksi Data Karyawan Aktif › grup › anak; semua = item tanpa anak | WEB, UI |
+| TC-EMP-061 | P2 | D-038 badge | HR | summary per kategori | Buka sidebar | Badge "Semua …" grup = jumlah kategorinya; Semua Karyawan Aktif = total | WEB, UI |
+| TC-EMP-062 | P2 | D-038 halaman | HR | — | Buka `/pegawai-aktif/eksternal`, `/internal`, `/pkwt`, `/semua` | API `?group=`/`?category=` sesuai; chip = saudara dalam grup (di semua: per grup); judul & deskripsi sesuai | WEB, UI |
+| TC-EMP-063 | P3 | D-038 slug lama | HR | — | Buka `/internship`, `/daily-worker`, slug tak dikenal | → `/magang`, `/harian`, `/semua` | WEB, UI |
+| TC-EMP-064 | P3 | D-038 istilah | SA/HR | — | Sidebar, halaman, dialog, Ctrl+K, nama file print | Memakai "Karyawan" (Ubah Status Karyawan, Tambah karyawan, "Data Karyawan - … .xlsx"); URL tidak berubah | WEB, DET, PRN, UI |
+| TC-EMP-065 | P2 | D-038 kategori baru | HR | seed Karyawan Percobaan & Vendor | Buka Karyawan Percobaan → Tambah karyawan | Nadia Putri berbadge Karyawan Percobaan; status default dialog = Karyawan Percobaan | UI |
+| TC-EMP-066 | P3 | D-038 mobile | SA | 390 px | Buka drawer, klik Vendor | Tanpa scroll horizontal; grup tampil; berpindah ke `/vendor` | UI |

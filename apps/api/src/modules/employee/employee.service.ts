@@ -1,4 +1,4 @@
-import { EMPLOYMENT_CATEGORIES, type EmploymentCategory } from "@hris/shared";
+import { CATEGORIES_BY_GROUP, EMPLOYMENT_CATEGORIES, type EmploymentCategory } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
@@ -25,7 +25,7 @@ import {
   getMasterLookup,
   type MasterLookup,
   positionIdsInDepartment,
-  statusIdsForCategory,
+  statusIdsForCategories,
 } from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import * as repository from "./employee.repository.ts";
@@ -180,8 +180,12 @@ function buildWhere(
   lookup: MasterLookup,
 ): repository.EmployeeWhere {
   const and: repository.EmployeeWhere[] = [scopeWhere(actor), { isActive: query.active }];
-  if (query.category) {
-    const ids = statusIdsForCategory(lookup, query.category);
+  const categoryFilters = [
+    ...(query.category ? [[query.category]] : []),
+    ...(query.group ? [CATEGORIES_BY_GROUP[query.group]] : []),
+  ];
+  for (const categories of categoryFilters) {
+    const ids = statusIdsForCategories(lookup, categories);
     and.push({ employmentStatusId: { in: ids.length > 0 ? ids : [NO_MATCH] } });
   }
   if (query.statusId) and.push({ employmentStatusId: query.statusId });
@@ -310,7 +314,7 @@ export async function getEmployee(
     photo: policy.canChangePhoto(ctx.actor, target),
   };
   if (view === "print" && !access.print) {
-    throw new ForbiddenError("Anda tidak berhak mengunduh data pegawai ini.");
+    throw new ForbiddenError("Anda tidak berhak mengunduh data karyawan ini.");
   }
   // Need-to-know: bagian sensitif hanya dibaca (dan diaudit) bila memang diminta.
   // Formulir cetak tidak memuat rekening, jadi view=print tidak membacanya.
@@ -585,7 +589,7 @@ export async function changeStatus(
   await repository.withTransaction(async (tx) => {
     const before = await loadEmployee(id, tx);
     if (!before.isActive) {
-      throw new BusinessRuleError("Karyawan nonaktif. Gunakan menu Pengaktifan Pegawai.");
+      throw new BusinessRuleError("Karyawan nonaktif. Gunakan menu Pengaktifan Karyawan.");
     }
     if (before.employmentStatusId === input.employmentStatusId) {
       throw new ConflictError("Status kepegawaian baru sama dengan status saat ini.");
@@ -772,7 +776,7 @@ async function loadPhotoTarget(ctx: RequestContext, id: string) {
     throw new NotFoundError("Karyawan tidak ditemukan.");
   }
   if (!policy.canChangePhoto(ctx.actor, target)) {
-    throw new ForbiddenError("Anda tidak berhak mengubah foto pegawai ini.");
+    throw new ForbiddenError("Anda tidak berhak mengubah foto karyawan ini.");
   }
   return row;
 }
@@ -802,7 +806,7 @@ export async function confirmPhoto(
   const row = await loadPhotoTarget(ctx, id);
   // Path wajib milik pegawai ini di lingkungan ini (mencegah memakai foto orang lain/lingkungan lain).
   if (!input.path.startsWith(photoDir(ctx, id))) {
-    throw new BusinessRuleError("Foto tidak valid untuk pegawai ini.");
+    throw new BusinessRuleError("Foto tidak valid untuk karyawan ini.");
   }
   const storage = storageOf(ctx);
   const info = await storage.getObjectInfo(EMPLOYEE_PHOTO_BUCKET, input.path);

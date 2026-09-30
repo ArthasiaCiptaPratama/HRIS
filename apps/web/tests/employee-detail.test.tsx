@@ -61,7 +61,7 @@ const detail = (access: Record<string, boolean>) => ({
       id: "h2",
       changeType: "STATUS_CHANGED",
       effectiveDate: "2026-09-15",
-      fromStatus: { id: "s0", name: "Internship" },
+      fromStatus: { id: "s0", name: "Magang" },
       toStatus: { id: "s1", name: "PKWT" },
       fromPosition: null,
       toPosition: null,
@@ -75,7 +75,7 @@ const detail = (access: Record<string, boolean>) => ({
       changeType: "HIRED",
       effectiveDate: "2023-08-01",
       fromStatus: null,
-      toStatus: { id: "s0", name: "Internship" },
+      toStatus: { id: "s0", name: "Magang" },
       fromPosition: null,
       toPosition: { id: "p1", name: "GA Staff" },
       exitReason: null,
@@ -110,7 +110,15 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
         data: {
           active: {
             total: 1,
-            byCategory: { PERMANENT: 0, PKWT: 1, INTERNSHIP: 0, DAILY_WORKER: 0, OUTSOURCING: 0 },
+            byCategory: {
+              PERMANENT: 0,
+              PROBATION: 0,
+              PKWT: 1,
+              DAILY_WORKER: 0,
+              INTERNSHIP: 0,
+              OUTSOURCING: 0,
+              VENDOR: 0,
+            },
             uncategorized: 0,
           },
           inactive: 0,
@@ -190,7 +198,7 @@ describe("panel detail pegawai", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("HR: Print data → ambil ?view=print lalu unduh .xlsx bernama pegawai", async () => {
+  it("HR: Print data → ambil ?view=print lalu unduh .xlsx bernama karyawan", async () => {
     const calls = mockBackend("HR_ADMIN", { manage: true, deactivate: true, print: true });
     const createObjectURL = vi.fn((_blob: Blob) => "blob:xlsx");
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
@@ -207,7 +215,7 @@ describe("panel detail pegawai", () => {
     await userEvent.click(await within(dialog).findByRole("button", { name: /Print data/ }));
 
     await waitFor(() =>
-      expect(clicked).toEqual(["Data Pegawai - ACP-2023-0007 - Agus Pratama.xlsx"]),
+      expect(clicked).toEqual(["Data Karyawan - ACP-2023-0007 - Agus Pratama.xlsx"]),
     );
     expect(calls.some((c) => c.endsWith("/employees/e1?view=print"))).toBe(true);
     const blob = createObjectURL.mock.calls[0]?.[0] as Blob;

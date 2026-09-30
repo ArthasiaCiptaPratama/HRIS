@@ -98,7 +98,7 @@ export async function imageUrlToJpeg(
   aspect: number,
 ): Promise<{ bytes: Uint8Array; width: number; height: number }> {
   const response = await fetch(url);
-  if (!response.ok) throw new ImageProcessingError("Foto pegawai tidak dapat diunduh.");
+  if (!response.ok) throw new ImageProcessingError("Foto karyawan tidak dapat diunduh.");
   const bitmap = await decode(await response.blob());
   try {
     const canvas = await render(bitmap, aspect, PROFILE_PHOTO_MAX);

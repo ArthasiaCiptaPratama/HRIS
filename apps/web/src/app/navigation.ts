@@ -1,9 +1,9 @@
-import { EMPLOYMENT_CATEGORY_LABELS, type EmploymentCategory } from "@hris/shared";
 import {
   ArrowLeftRight,
   Award,
   Bell,
   BriefcaseBusiness,
+  Building2,
   ChartColumn,
   Contact,
   FileClock,
@@ -24,13 +24,21 @@ import {
   UserX,
 } from "lucide-react";
 import type { Me } from "@/features/auth/schemas";
+import {
+  ACTIVE_BASE,
+  ACTIVE_GROUPS,
+  type ActiveFilter,
+  type ActiveView,
+  ALL_ACTIVE_VIEW,
+} from "@/features/employee/active-views";
 import { access } from "@/lib/access";
 import { FEATURES } from "./feature-flags";
 
 // D-035: kelompok besar (top nav) → kelompok kecil (judul seksi sidebar) → isi (item sidebar).
 // Satu sumber untuk top nav, sidebar, breadcrumb, pencarian cepat (Ctrl+K), dan guard route.
 
-export type SummaryKey = EmploymentCategory | "ALL" | "INACTIVE";
+/** Sumber angka badge: filter daftar aktif (D-038) atau jumlah nonaktif. */
+export type SummaryKey = ActiveFilter | "INACTIVE";
 
 export interface NavItem {
   id: string;
@@ -66,17 +74,20 @@ export interface NavGroup {
   sections: NavSection[];
 }
 
-/** Slug URL ↔ kategori (D-035). `semua` = semua pegawai aktif. */
-export const CATEGORY_SLUGS: Record<string, EmploymentCategory | undefined> = {
-  tetap: "PERMANENT",
-  pkwt: "PKWT",
-  internship: "INTERNSHIP",
-  "daily-worker": "DAILY_WORKER",
-  outsourcing: "OUTSOURCING",
-  semua: undefined,
+const activeItem = (view: ActiveView, icon: LucideIcon = Users): NavItem => ({
+  id: `active-${view.slug}`,
+  label: view.label,
+  to: `${ACTIVE_BASE}/${view.slug}`,
+  icon,
+  summaryKey: view.filter,
+});
+
+const GROUP_ICONS: Record<string, LucideIcon> = {
+  INTERNAL: BriefcaseBusiness,
+  INTERNSHIP: GraduationCap,
+  EXTERNAL: Building2,
 };
 
-const ACTIVE_BASE = "/personal/pegawai-aktif";
 const manage = access.manageEmployees;
 
 const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem => ({
@@ -117,42 +128,30 @@ export const NAV_GROUPS: NavGroup[] = [
     inTopNav: true,
     sections: [
       {
-        id: "employment",
-        label: "Kepegawaian",
+        // D-038: semua → grup (Internal / Magang / Eksternal) → kategori.
+        id: "active",
+        label: "Data Karyawan Aktif",
         items: [
-          {
-            id: "active",
-            label: "Data Pegawai Aktif",
-            to: `${ACTIVE_BASE}/semua`,
-            icon: Users,
-            summaryKey: "ALL",
-            keywords: "karyawan daftar direktori",
-            children: [
-              ...(["tetap", "pkwt", "internship", "daily-worker", "outsourcing"] as const).map(
-                (slug): NavItem => {
-                  const category = CATEGORY_SLUGS[slug] as EmploymentCategory;
-                  return {
-                    id: `active-${slug}`,
-                    label: EMPLOYMENT_CATEGORY_LABELS[category],
-                    to: `${ACTIVE_BASE}/${slug}`,
-                    icon: Users,
-                    summaryKey: category,
-                  };
-                },
-              ),
-              {
-                id: "active-semua",
-                label: "Semua Pegawai",
-                to: `${ACTIVE_BASE}/semua`,
-                icon: Users,
-                summaryKey: "ALL",
-              },
-            ],
-          },
+          { ...activeItem(ALL_ACTIVE_VIEW), keywords: "karyawan pegawai daftar direktori" },
+          ...ACTIVE_GROUPS.map(
+            (group): NavItem => ({
+              id: `group-${group.group.toLowerCase()}`,
+              label: group.label,
+              to: group.to,
+              icon: GROUP_ICONS[group.group] ?? Users,
+              children: group.views.map((view) => activeItem(view)),
+            }),
+          ),
+        ],
+      },
+      {
+        id: "employment",
+        label: "Pengelolaan Karyawan",
+        items: [
           {
             id: "change-status",
             maintenance: !FEATURES.changeStatus,
-            label: "Ubah Status Pegawai",
+            label: "Ubah Status Karyawan",
             to: "/personal/ubah-status",
             icon: ArrowLeftRight,
             visible: manage,
@@ -161,7 +160,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             id: "activation",
             maintenance: !FEATURES.activation,
-            label: "Pengaktifan Pegawai",
+            label: "Pengaktifan Karyawan",
             to: "/personal/pengaktifan",
             icon: UserRoundCheck,
             visible: manage,
@@ -170,7 +169,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             id: "inactive",
             maintenance: !FEATURES.inactiveEmployees,
-            label: "Data Pegawai Tidak Aktif",
+            label: "Data Karyawan Tidak Aktif",
             to: "/personal/pegawai-tidak-aktif",
             icon: UserX,
             visible: manage,
@@ -322,16 +321,17 @@ export function activeTrail(groups: NavGroup[], pathname: string): ActiveTrail |
   for (const group of groups) {
     for (const section of group.sections) {
       for (const item of section.items) {
-        consider({ group, section, item }, item.to);
+        // Induk berlipat tidak punya halaman sendiri: `to`-nya = salah satu anak, jadi anak yang dipilih.
+        if (!item.children?.length) consider({ group, section, item }, item.to);
         for (const child of item.children ?? [])
           consider({ group, section, item, child }, child.to);
       }
     }
   }
-  // Rute turunan tanpa item sendiri (mis. /personal/pegawai-aktif/<slug>) tetap ikut induknya.
+  // Rute turunan tanpa item sendiri (mis. slug tak dikenal) tetap ikut "Semua Karyawan Aktif".
   if (!best && pathname.startsWith(ACTIVE_BASE)) {
     const group = groups.find((g) => g.id === "personal");
-    const section = group?.sections[0];
+    const section = group?.sections.find((s) => s.id === "active");
     const item = section?.items[0];
     if (group && section && item) best = { group, section, item };
   }

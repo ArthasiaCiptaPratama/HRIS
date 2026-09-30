@@ -3,8 +3,8 @@
 // API tidak terpengaruh (akses tetap dijaga policy di server).
 export const FEATURES = {
   // Personal Management menu b–e (permintaan pemilik projek 2026-09-29: ditutup sementara).
-  changeStatus: false, // b. Ubah Status Pegawai
-  activation: false, // c. Pengaktifan Pegawai
-  inactiveEmployees: false, // d. Data Pegawai Tidak Aktif
+  changeStatus: false, // b. Ubah Status Karyawan
+  activation: false, // c. Pengaktifan Karyawan
+  inactiveEmployees: false, // d. Data Karyawan Tidak Aktif
   orgStructure: false, // e. Struktur Organisasi
 } as const;

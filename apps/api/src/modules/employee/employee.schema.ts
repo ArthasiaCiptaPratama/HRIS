@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import {
   EMPLOYEE_SORT_FIELDS,
+  employmentCategoryGroupSchema,
   employmentCategorySchema,
   employmentChangeTypeSchema,
   exitReasonSchema,
@@ -34,6 +35,8 @@ export const listEmployeesQuerySchema = z.object({
   q: z.string().trim().min(1).max(100).optional(),
   active: booleanQuery.default(true),
   category: employmentCategorySchema.optional(),
+  // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
+  group: employmentCategoryGroupSchema.optional(),
   statusId: z.uuid().optional(),
   departmentId: z.uuid().optional(),
   positionId: z.uuid().optional(),

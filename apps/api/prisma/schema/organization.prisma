@@ -37,7 +37,8 @@ model Position {
   @@schema("organization")
 }
 
-// D-035: kategori tetap untuk navigasi "Data Pegawai Aktif" (Tetap, PKWT, Internship, Daily Worker, Outsourcing).
+// D-035/D-038: kategori tetap untuk navigasi "Data Karyawan Aktif" (grup Internal: Tetap, Percobaan, PKWT,
+// Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
 enum EmploymentCategory {
   PERMANENT
@@ -45,6 +46,8 @@ enum EmploymentCategory {
   INTERNSHIP
   DAILY_WORKER
   OUTSOURCING
+  PROBATION
+  VENDOR
 
   @@schema("organization")
 }
@@ -53,7 +56,7 @@ enum EmploymentCategory {
 model EmploymentStatus {
   id                      String              @id @default(uuid()) @db.Uuid
   name                    String              @db.VarChar(50)
-  // Nullable: status baru buatan SUPER_ADMIN boleh tanpa kategori (hanya tampil di "Semua Pegawai").
+  // Nullable: status baru buatan SUPER_ADMIN boleh tanpa kategori (hanya tampil di "Semua Karyawan Aktif").
   category                EmploymentCategory?
   employees               Employee[]
   employmentHistoriesFrom EmploymentHistory[] @relation("HistoryFromStatus")

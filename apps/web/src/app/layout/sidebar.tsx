@@ -5,6 +5,7 @@ import { NavLink, useLocation } from "react-router";
 import { activeTrail, type NavGroup, type NavItem, type SummaryKey } from "@/app/navigation";
 import { preloadRoute } from "@/app/route-preload";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ACTIVE_BASE, activeCount } from "@/features/employee/active-views";
 import { prefetchEmployees, useEmployeeSummary } from "@/features/employee/api";
 import type { EmployeeSummary } from "@/features/employee/schemas";
 import { useHealth } from "@/features/system/api";
@@ -12,9 +13,8 @@ import { cn } from "@/lib/utils";
 
 function summaryCount(summary: EmployeeSummary | undefined, key: SummaryKey | undefined) {
   if (!summary || !key) return undefined;
-  if (key === "ALL") return summary.active.total;
   if (key === "INACTIVE") return summary.inactive;
-  return summary.active.byCategory[key];
+  return activeCount(summary, key);
 }
 
 function Count({ value, active }: { value: number | undefined; active?: boolean }) {
@@ -51,17 +51,14 @@ export function SidebarContent({
   // Prefetch kode halaman + halaman pertama data saat kursor/fokus di atas menu.
   const warm = (item: NavItem) => {
     preloadRoute(item.to);
-    const slug = item.to.match(/^\/personal\/pegawai-aktif\/(.+)$/)?.[1];
-    const category =
-      item.summaryKey && !["ALL", "INACTIVE"].includes(item.summaryKey)
-        ? (item.summaryKey as Exclude<SummaryKey, "ALL" | "INACTIVE">)
-        : undefined;
-    if (slug) {
+    const filter = item.summaryKey;
+    if (item.to.startsWith(`${ACTIVE_BASE}/`) && filter && filter !== "INACTIVE") {
       void prefetchEmployees(queryClient, {
         page: 1,
         pageSize: 20,
         active: true,
-        category,
+        category: filter.category,
+        group: filter.group,
         sort: "fullName:asc",
       });
     }
@@ -164,7 +161,9 @@ function SidebarItem({
       {collapsed ? (
         <span className="sr-only">{item.label}</span>
       ) : (
-        <span className="truncate">{item.label}</span>
+        <span className="truncate" title={item.label}>
+          {item.label}
+        </span>
       )}
       {!collapsed && item.maintenance ? (
         <span className="text-muted-foreground/70 ml-auto text-[10px] tracking-wide uppercase">
@@ -208,7 +207,9 @@ function SidebarItem({
           className={cn("size-4 shrink-0", parentActive ? "text-brand" : "text-muted-foreground")}
           aria-hidden
         />
-        <span className="truncate">{item.label}</span>
+        <span className="truncate" title={item.label}>
+          {item.label}
+        </span>
         <ChevronDown
           className={cn(
             "text-muted-foreground ml-auto size-3.5 transition-transform duration-200",
@@ -248,7 +249,9 @@ function SidebarItem({
                       aria-hidden
                     />
                   ) : null}
-                  <span className="truncate">{child.label}</span>
+                  <span className="truncate" title={child.label}>
+                    {child.label}
+                  </span>
                   <Count value={summaryCount(summary, child.summaryKey)} active={active} />
                 </NavLink>
               </li>

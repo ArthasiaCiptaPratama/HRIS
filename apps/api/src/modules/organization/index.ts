@@ -11,5 +11,5 @@ export {
   getMasterLookup,
   type MasterLookup,
   positionIdsInDepartment,
-  statusIdsForCategory,
+  statusIdsForCategories,
 } from "./organization.service.ts";

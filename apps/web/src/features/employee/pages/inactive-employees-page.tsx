@@ -10,15 +10,15 @@ export function InactiveEmployeesPage() {
   return (
     <>
       <PageHeader
-        title="Data Pegawai Tidak Aktif"
-        description="Arsip pegawai yang sudah keluar: resign, PHK, kontrak berakhir, pensiun, dan lainnya. Data hanya bisa dibaca."
+        title="Data Karyawan Tidak Aktif"
+        description="Arsip karyawan yang sudah keluar: resign, PHK, kontrak berakhir, pensiun, dan lainnya. Data hanya bisa dibaca."
       />
       <EmployeeListView
         variant="inactive"
         columns={columns}
         onRowClick={(row) => sheet.open(row.id)}
-        emptyTitle="Belum ada pegawai nonaktif"
-        emptyDescription="Pegawai yang dinonaktifkan lewat menu Ubah Status Pegawai akan muncul di sini."
+        emptyTitle="Belum ada karyawan nonaktif"
+        emptyDescription="Karyawan yang dinonaktifkan lewat menu Ubah Status Karyawan akan muncul di sini."
       />
       <EmployeeDetailSheet />
     </>
