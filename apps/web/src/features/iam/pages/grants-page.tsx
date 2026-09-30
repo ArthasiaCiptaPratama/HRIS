@@ -5,10 +5,16 @@ import {
   PERMISSIONS,
   type Permission,
 } from "@hris/shared";
+import { createColumnHelper } from "@tanstack/react-table";
+import { KeyRound, SearchX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Pagination } from "@/components/pagination";
+import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
+import { FormSelect } from "@/components/form-select";
+import { ListPanel } from "@/components/list-panel";
+import { PageHeader } from "@/components/page-header";
+import { TablePagination } from "@/components/table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,27 +34,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { useAccounts, useCreateGrant, useGrants, useRevokeGrant } from "../api";
-import { type GrantForm, grantFormSchema } from "../schemas";
+import { type Grant, type GrantForm, grantFormSchema } from "../schemas";
+
+const grantColumnHelper = createColumnHelper<typeof tableFeaturesNone, Grant>();
 
 export function GrantsPage() {
   const [page, setPage] = useState(1);
-  const [onlyActive, setOnlyActive] = useState(true);
-  const grants = useGrants({ page, active: onlyActive ? true : undefined });
+  const [pageSize, setPageSize] = useState(20);
+  const [status, setStatus] = useState<"active" | "all">("active");
+  const grants = useGrants({ page, pageSize, active: status === "active" ? true : undefined });
   // Penerima grant hanya HR_ADMIN/MANAGER aktif (PLAN §4.2).
-  const hr = useAccounts({ page: 1, role: "HR_ADMIN", isActive: true });
-  const managers = useAccounts({ page: 1, role: "MANAGER", isActive: true });
+  const hr = useAccounts({ page: 1, pageSize: 100, role: "HR_ADMIN", isActive: true });
+  const managers = useAccounts({ page: 1, pageSize: 100, role: "MANAGER", isActive: true });
   const recipients = useMemo(
     () => [...(hr.data?.data ?? []), ...(managers.data?.data ?? [])],
     [hr.data, managers.data],
@@ -56,6 +57,7 @@ export function GrantsPage() {
   const emailOf = (id: string) => recipients.find((a) => a.id === id)?.email ?? id.slice(0, 8);
   const [open, setOpen] = useState(false);
   const revoke = useRevokeGrant();
+  const total = grants.data?.meta.total ?? 0;
 
   const onRevoke = async (id: string) => {
     const reason = window.prompt("Alasan pencabutan (opsional):") ?? undefined;
@@ -67,101 +69,120 @@ export function GrantsPage() {
     }
   };
 
+  const columns: DataColumn<Grant>[] = [
+    grantColumnHelper.display({
+      id: "account",
+      header: "Akun",
+      meta: { className: "min-w-[200px] font-medium" },
+      cell: ({ row }) => emailOf(row.original.accountId),
+    }) as DataColumn<Grant>,
+    grantColumnHelper.display({
+      id: "permission",
+      header: "Izin",
+      meta: { className: "min-w-[200px]" },
+      cell: ({ row }) => PERMISSION_LABELS[row.original.permission],
+    }) as DataColumn<Grant>,
+    grantColumnHelper.display({
+      id: "expiresAt",
+      header: "Berlaku sampai",
+      meta: { className: "whitespace-nowrap tabular-nums text-muted-foreground" },
+      cell: ({ row }) =>
+        row.original.expiresAt ? formatDate(row.original.expiresAt) : "Tanpa batas",
+    }) as DataColumn<Grant>,
+    grantColumnHelper.display({
+      id: "status",
+      header: "Status",
+      cell: ({ row }) =>
+        row.original.isActive ? (
+          <Badge variant="success">Aktif</Badge>
+        ) : (
+          <Badge variant="muted">{row.original.revokedAt ? "Dicabut" : "Kedaluwarsa"}</Badge>
+        ),
+    }) as DataColumn<Grant>,
+    grantColumnHelper.display({
+      id: "action",
+      header: () => <span className="sr-only">Aksi</span>,
+      meta: { className: "text-right" },
+      cell: ({ row }) =>
+        row.original.isActive ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onRevoke(row.original.id)}
+            disabled={revoke.isPending}
+          >
+            Cabut
+          </Button>
+        ) : null,
+    }) as DataColumn<Grant>,
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Grant izin</h1>
-          <p className="text-muted-foreground text-sm">
-            Izin tambahan untuk HR Admin & Manager. Data gaji tidak pernah bisa di-grant.
-          </p>
-        </div>
-        <Button onClick={() => setOpen(true)}>Beri grant</Button>
-      </div>
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={onlyActive}
-          onChange={(e) => {
-            setOnlyActive(e.target.checked);
-            setPage(1);
-          }}
+    <div>
+      <PageHeader
+        title="Grant izin"
+        description="Izin tambahan untuk HR Admin & Manager. Data gaji tidak pernah bisa di-grant."
+        actions={
+          <Button variant="brand" onClick={() => setOpen(true)}>
+            <KeyRound /> Beri grant
+          </Button>
+        }
+      />
+      <ListPanel
+        toolbar={
+          <FormSelect
+            aria-label="Filter status grant"
+            className="h-9 sm:w-48"
+            value={status}
+            onChange={(value) => {
+              setStatus(value === "all" ? "all" : "active");
+              setPage(1);
+            }}
+            placeholder="Hanya yang aktif"
+            options={[
+              { value: "active", label: "Hanya yang aktif" },
+              { value: "all", label: "Semua (termasuk dicabut)" },
+            ]}
+          />
+        }
+        footer={
+          total > 0 ? (
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          ) : null
+        }
+      >
+        <DataTable
+          label="Daftar grant"
+          columns={columns}
+          data={grants.data?.data ?? []}
+          loading={grants.isPending}
+          fetching={grants.isFetching}
+          skeletonRows={Math.min(pageSize, 8)}
+          skeletonAvatar={false}
+          empty={
+            grants.isError
+              ? {
+                  icon: SearchX,
+                  title: "Gagal memuat data",
+                  description: errorMessage(grants.error),
+                }
+              : {
+                  icon: KeyRound,
+                  title: status === "active" ? "Tidak ada grant aktif" : "Belum ada grant",
+                  description: "Grant memberi HR Admin/Manager akses data sensitif sementara.",
+                }
+          }
         />
-        Hanya yang aktif
-      </label>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Akun</TableHead>
-              <TableHead>Izin</TableHead>
-              <TableHead>Berlaku sampai</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {grants.isPending ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Memuat…
-                </TableCell>
-              </TableRow>
-            ) : grants.isError ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-destructive">
-                  {errorMessage(grants.error)}
-                </TableCell>
-              </TableRow>
-            ) : grants.data.data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Belum ada grant.
-                </TableCell>
-              </TableRow>
-            ) : (
-              grants.data.data.map((grant) => (
-                <TableRow key={grant.id}>
-                  <TableCell>{emailOf(grant.accountId)}</TableCell>
-                  <TableCell>{PERMISSION_LABELS[grant.permission]}</TableCell>
-                  <TableCell>
-                    {grant.expiresAt ? formatDate(grant.expiresAt) : "Tanpa batas"}
-                  </TableCell>
-                  <TableCell>
-                    {grant.isActive ? (
-                      <Badge variant="outline">Aktif</Badge>
-                    ) : (
-                      <Badge variant="secondary">
-                        {grant.revokedAt ? "Dicabut" : "Kedaluwarsa"}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {grant.isActive ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => onRevoke(grant.id)}
-                        disabled={revoke.isPending}
-                      >
-                        Cabut
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      {grants.data ? (
-        <Pagination
-          page={page}
-          pageSize={grants.data.meta.pageSize}
-          total={grants.data.meta.total}
-          onPageChange={setPage}
-        />
-      ) : null}
+      </ListPanel>
       <CreateGrantDialog open={open} onOpenChange={setOpen} recipients={recipients} />
     </div>
   );

@@ -1,9 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ROLE_LABELS, ROLES, type Role } from "@hris/shared";
+import { createColumnHelper } from "@tanstack/react-table";
+import { SearchX, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Pagination } from "@/components/pagination";
+import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
+import { FormSelect } from "@/components/form-select";
+import { ListPanel } from "@/components/list-panel";
+import { PageHeader } from "@/components/page-header";
+import { SearchField } from "@/components/search-field";
+import { TablePagination } from "@/components/table-pagination";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,16 +30,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
@@ -46,24 +46,29 @@ import {
 } from "../api";
 import { type Account, type InviteForm, inviteFormSchema } from "../schemas";
 
-const ALL = "__all__";
+const accountColumnHelper = createColumnHelper<typeof tableFeaturesNone, Account>();
 
 export function AccountsPage() {
   const me = useMe().data as Me;
   const [page, setPage] = useState(1);
-  const [role, setRole] = useState<Role | undefined>();
-  const [status, setStatus] = useState<"active" | "inactive" | undefined>();
-  const [q, setQ] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [role, setRole] = useState("");
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const q = useDebouncedValue(search, 300);
   const accounts = useAccounts({
     page,
-    role,
-    isActive: status === undefined ? undefined : status === "active",
+    pageSize,
+    role: (role || undefined) as Role | undefined,
+    isActive: status === "" ? undefined : status === "active",
     q: q || undefined,
   });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [roleTarget, setRoleTarget] = useState<Account | null>(null);
   const [transferTarget, setTransferTarget] = useState<Account | null>(null);
   const setActive = useSetActive();
+  const filtered = Boolean(q || role || status);
+  const total = accounts.data?.meta.total ?? 0;
 
   const toggleActive = async (account: Account) => {
     const verb = account.isActive ? "menonaktifkan" : "mengaktifkan kembali";
@@ -76,164 +81,182 @@ export function AccountsPage() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Akun</h1>
-          <p className="text-muted-foreground text-sm">Kelola akun, role, dan status aktif.</p>
+  const columns: DataColumn<Account>[] = [
+    accountColumnHelper.display({
+      id: "email",
+      header: "Akun",
+      meta: { className: "min-w-[220px]" },
+      cell: ({ row }) => (
+        <p className="truncate font-medium">
+          {row.original.email}
+          {row.original.id === me.id ? (
+            <span className="text-muted-foreground font-normal"> (Anda)</span>
+          ) : null}
+        </p>
+      ),
+    }) as DataColumn<Account>,
+    accountColumnHelper.display({
+      id: "role",
+      header: "Role",
+      cell: ({ row }) => (
+        <div className="flex gap-1">
+          <Badge variant="secondary">{ROLE_LABELS[row.original.role]}</Badge>
+          {row.original.isPrimarySuperAdmin ? <Badge variant="brand">Utama</Badge> : null}
         </div>
-        {access.inviteRoles(me).length > 0 ? (
-          <Button onClick={() => setInviteOpen(true)}>Undang akun</Button>
-        ) : null}
-      </div>
+      ),
+    }) as DataColumn<Account>,
+    accountColumnHelper.display({
+      id: "status",
+      header: "Status",
+      cell: ({ row }) =>
+        row.original.isActive ? (
+          <Badge variant="success">Aktif</Badge>
+        ) : (
+          <Badge variant="destructive">Nonaktif</Badge>
+        ),
+    }) as DataColumn<Account>,
+    accountColumnHelper.display({
+      id: "lastLogin",
+      header: "Login terakhir",
+      meta: {
+        headerClassName: "hidden md:table-cell",
+        className: "hidden md:table-cell whitespace-nowrap text-muted-foreground tabular-nums",
+      },
+      cell: ({ row }) => formatDateTime(row.original.lastLoginAt),
+    }) as DataColumn<Account>,
+    accountColumnHelper.display({
+      id: "action",
+      header: () => <span className="sr-only">Aksi</span>,
+      meta: { className: "text-right whitespace-nowrap" },
+      cell: ({ row }) => {
+        const account = row.original;
+        return (
+          <div className="flex justify-end gap-1">
+            {access.changeRole(me) && account.id !== me.id && !account.isPrimarySuperAdmin ? (
+              <Button size="sm" variant="outline" onClick={() => setRoleTarget(account)}>
+                Ubah role
+              </Button>
+            ) : null}
+            {access.setActive(me, account) ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => toggleActive(account)}
+                disabled={setActive.isPending}
+              >
+                {account.isActive ? "Nonaktifkan" : "Aktifkan"}
+              </Button>
+            ) : null}
+            {access.transferPrimary(me) &&
+            account.role === "SUPER_ADMIN" &&
+            account.isActive &&
+            account.id !== me.id ? (
+              <Button size="sm" variant="outline" onClick={() => setTransferTarget(account)}>
+                Jadikan Utama
+              </Button>
+            ) : null}
+          </div>
+        );
+      },
+    }) as DataColumn<Account>,
+  ];
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          className="w-full sm:w-64"
-          placeholder="Cari email…"
-          aria-label="Cari email"
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setPage(1);
-          }}
+  return (
+    <div>
+      <PageHeader
+        title="Akun"
+        description="Kelola akun login, role, dan status aktif."
+        actions={
+          access.inviteRoles(me).length > 0 ? (
+            <Button variant="brand" onClick={() => setInviteOpen(true)}>
+              <UserPlus /> Undang akun
+            </Button>
+          ) : null
+        }
+      />
+      <ListPanel
+        toolbar={
+          <>
+            <SearchField
+              value={search}
+              onChange={(value) => {
+                setSearch(value);
+                setPage(1);
+              }}
+              placeholder="Cari email…"
+              aria-label="Cari email"
+            />
+            <div className="grid grid-cols-1 gap-2 sm:flex">
+              <FormSelect
+                aria-label="Filter role"
+                className="h-9 sm:w-44"
+                value={role}
+                onChange={(value) => {
+                  setRole(value);
+                  setPage(1);
+                }}
+                placeholder="Semua role"
+                noneLabel="Semua role"
+                options={ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))}
+              />
+              <FormSelect
+                aria-label="Filter status"
+                className="h-9 sm:w-40"
+                value={status}
+                onChange={(value) => {
+                  setStatus(value);
+                  setPage(1);
+                }}
+                placeholder="Semua status"
+                noneLabel="Semua status"
+                options={[
+                  { value: "active", label: "Aktif" },
+                  { value: "inactive", label: "Nonaktif" },
+                ]}
+              />
+            </div>
+          </>
+        }
+        footer={
+          total > 0 ? (
+            <TablePagination
+              page={page}
+              pageSize={pageSize}
+              total={total}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          ) : null
+        }
+      >
+        <DataTable
+          label="Daftar akun"
+          columns={columns}
+          data={accounts.data?.data ?? []}
+          loading={accounts.isPending}
+          fetching={accounts.isFetching}
+          skeletonRows={Math.min(pageSize, 8)}
+          skeletonAvatar={false}
+          empty={
+            accounts.isError
+              ? {
+                  icon: SearchX,
+                  title: "Gagal memuat data",
+                  description: errorMessage(accounts.error),
+                }
+              : filtered
+                ? {
+                    icon: SearchX,
+                    title: "Tidak ada yang cocok",
+                    description: "Coba kata kunci lain atau hapus filter.",
+                  }
+                : { icon: Users, title: "Belum ada akun" }
+          }
         />
-        <Select
-          value={role ?? ALL}
-          onValueChange={(v) => {
-            setRole(v === ALL ? undefined : (v as Role));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-44" aria-label="Filter role">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Semua role</SelectItem>
-            {ROLES.map((r) => (
-              <SelectItem key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={status ?? ALL}
-          onValueChange={(v) => {
-            setStatus(v === ALL ? undefined : (v as "active" | "inactive"));
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-40" aria-label="Filter status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Semua status</SelectItem>
-            <SelectItem value="active">Aktif</SelectItem>
-            <SelectItem value="inactive">Nonaktif</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Login terakhir</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {accounts.isPending ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Memuat…
-                </TableCell>
-              </TableRow>
-            ) : accounts.isError ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-destructive">
-                  {errorMessage(accounts.error)}
-                </TableCell>
-              </TableRow>
-            ) : accounts.data.data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground">
-                  Tidak ada akun.
-                </TableCell>
-              </TableRow>
-            ) : (
-              accounts.data.data.map((account) => (
-                <TableRow key={account.id}>
-                  <TableCell className="font-medium">
-                    {account.email}
-                    {account.id === me.id ? (
-                      <span className="text-muted-foreground"> (Anda)</span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Badge variant="secondary">{ROLE_LABELS[account.role]}</Badge>
-                      {account.isPrimarySuperAdmin ? <Badge>Utama</Badge> : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {account.isActive ? (
-                      <Badge variant="outline">Aktif</Badge>
-                    ) : (
-                      <Badge variant="destructive">Nonaktif</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{formatDateTime(account.lastLoginAt)}</TableCell>
-                  <TableCell className="space-x-1 text-right">
-                    {access.changeRole(me) &&
-                    account.id !== me.id &&
-                    !account.isPrimarySuperAdmin ? (
-                      <Button size="sm" variant="outline" onClick={() => setRoleTarget(account)}>
-                        Ubah role
-                      </Button>
-                    ) : null}
-                    {access.setActive(me, account) ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleActive(account)}
-                        disabled={setActive.isPending}
-                      >
-                        {account.isActive ? "Nonaktifkan" : "Aktifkan"}
-                      </Button>
-                    ) : null}
-                    {access.transferPrimary(me) &&
-                    account.role === "SUPER_ADMIN" &&
-                    account.isActive &&
-                    account.id !== me.id ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setTransferTarget(account)}
-                      >
-                        Jadikan Utama
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      {accounts.data ? (
-        <Pagination
-          page={page}
-          pageSize={accounts.data.meta.pageSize}
-          total={accounts.data.meta.total}
-          onPageChange={setPage}
-        />
-      ) : null}
+      </ListPanel>
 
       <InviteDialog me={me} open={inviteOpen} onOpenChange={setInviteOpen} />
       <ChangeRoleDialog me={me} account={roleTarget} onClose={() => setRoleTarget(null)} />

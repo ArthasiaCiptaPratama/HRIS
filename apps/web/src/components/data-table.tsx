@@ -42,6 +42,7 @@ export function DataTable<T extends RowData & { id: string }>({
   onRowClick,
   empty,
   skeletonRows = 8,
+  skeletonAvatar = true,
   label,
 }: {
   columns: DataColumn<T>[];
@@ -54,6 +55,8 @@ export function DataTable<T extends RowData & { id: string }>({
   onRowClick?: (row: T) => void;
   empty: { icon: LucideIcon; title: string; description?: ReactNode; action?: ReactNode };
   skeletonRows?: number;
+  /** Kolom pertama kerangka memakai bentuk avatar (daftar orang). */
+  skeletonAvatar?: boolean;
   label: string;
 }) {
   const table = useTable({
@@ -135,7 +138,7 @@ export function DataTable<T extends RowData & { id: string }>({
                   {Array.from({ length: columnCount }, (_, cell) => (
                     // biome-ignore lint/suspicious/noArrayIndexKey: sel kerangka statis
                     <td key={cell} className="px-4 py-3.5">
-                      {cell === 0 ? (
+                      {cell === 0 && skeletonAvatar ? (
                         <div className="flex items-center gap-3">
                           <Skeleton className="size-9 rounded-full" />
                           <div className="space-y-1.5">

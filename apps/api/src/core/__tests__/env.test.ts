@@ -46,3 +46,32 @@ describe("SMTP_PORT", () => {
     expect(() => parseEnv({ ...BASE_TEST, SMTP_PORT: "abc" })).toThrow(/SMTP_PORT/);
   });
 });
+
+// PLAN §3.3: file dari lokal disimpan di bucket staging dengan prefix `dev/<nama-developer>/`.
+describe("STORAGE_PATH_PREFIX", () => {
+  test("kosong (staging/produksi) atau segmen huruf kecil diakhiri '/'", () => {
+    expect(parseEnv(BASE).STORAGE_PATH_PREFIX).toBe("");
+    expect(parseEnv({ ...BASE, STORAGE_PATH_PREFIX: "" }).STORAGE_PATH_PREFIX).toBe("");
+    expect(parseEnv({ ...BASE, STORAGE_PATH_PREFIX: "dev/oatse/" }).STORAGE_PATH_PREFIX).toBe(
+      "dev/oatse/",
+    );
+    expect(parseEnv({ ...BASE, STORAGE_PATH_PREFIX: "dev/budi-2/" }).STORAGE_PATH_PREFIX).toBe(
+      "dev/budi-2/",
+    );
+  });
+
+  test("format lain ditolak (tanpa '/' akhir, '/' awal, '..', huruf besar, spasi)", () => {
+    for (const value of [
+      "dev/oatse",
+      "/dev/oatse/",
+      "../x/",
+      "dev//x/",
+      "Dev/Oatse/",
+      "dev/o atse/",
+    ]) {
+      expect(() => parseEnv({ ...BASE, STORAGE_PATH_PREFIX: value })).toThrow(
+        /STORAGE_PATH_PREFIX/,
+      );
+    }
+  });
+});

@@ -54,11 +54,15 @@ export interface RequestContext {
   ip?: string | undefined;
   /** D-037: Supabase Storage untuk foto profil (test memakai versi palsu). */
   storage?: StorageAdmin | undefined;
+  /** PLAN §3.3: prefix path objek (lokal `dev/<nama>/`; staging/produksi kosong). */
+  storagePathPrefix?: string | undefined;
 }
 
 // URL baca foto berlaku singkat: cukup untuk satu sesi melihat halaman; setelahnya diminta ulang.
 const PHOTO_URL_TTL_SECONDS = 10 * 60;
 const storageOf = (ctx: RequestContext | undefined) => ctx?.storage ?? UNCONFIGURED_STORAGE;
+const photoDir = (ctx: RequestContext, id: string) =>
+  `${ctx.storagePathPrefix ?? ""}employees/${id}/`;
 
 /** path foto → URL bertanda tangan (satu panggilan untuk semua baris). */
 async function signPhotoUrls(
@@ -779,7 +783,7 @@ export async function createPhotoUploadUrl(
   input: PhotoUploadUrlInput,
 ): Promise<PhotoUploadUrl> {
   await loadPhotoTarget(ctx, id);
-  const path = `employees/${id}/${crypto.randomUUID()}.${PHOTO_EXTENSION[input.contentType]}`;
+  const path = `${photoDir(ctx, id)}${crypto.randomUUID()}.${PHOTO_EXTENSION[input.contentType]}`;
   const upload = await storageOf(ctx).createSignedUploadUrl(EMPLOYEE_PHOTO_BUCKET, path);
   return {
     bucket: EMPLOYEE_PHOTO_BUCKET,
@@ -796,8 +800,8 @@ export async function confirmPhoto(
   input: PhotoConfirmInput,
 ): Promise<PhotoResult> {
   const row = await loadPhotoTarget(ctx, id);
-  // Path wajib milik pegawai ini (mencegah memakai foto orang lain).
-  if (!input.path.startsWith(`employees/${id}/`)) {
+  // Path wajib milik pegawai ini di lingkungan ini (mencegah memakai foto orang lain/lingkungan lain).
+  if (!input.path.startsWith(photoDir(ctx, id))) {
     throw new BusinessRuleError("Foto tidak valid untuk pegawai ini.");
   }
   const storage = storageOf(ctx);
