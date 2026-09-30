@@ -32,7 +32,7 @@ const kuliah = (d: Dashboard) =>
     0,
   );
 
-const ids = { department: "", position: "", location: "", employees: [] as string[] };
+const ids = { status: "", department: "", position: "", location: "", employees: [] as string[] };
 let headers: Record<Role, Record<string, string>>;
 type Role = "SUPER_ADMIN" | "HR_ADMIN" | "MANAGER" | "EMPLOYEE";
 
@@ -47,6 +47,7 @@ afterAll(async () => {
   if (ids.position) await prisma.position.delete({ where: { id: ids.position } });
   if (ids.department) await prisma.department.delete({ where: { id: ids.department } });
   if (ids.location) await prisma.workLocation.delete({ where: { id: ids.location } });
+  if (ids.status) await prisma.employmentStatus.delete({ where: { id: ids.status } });
   await auth.cleanup();
   await disconnectPrisma();
 });
@@ -62,7 +63,8 @@ describe("GET /dashboard", () => {
 
   test("agregat bertambah sesuai karyawan baru; nonaktif hanya di overview; tanpa nama orang", async () => {
     const before = await read(await get(headers.HR_ADMIN));
-    const status = await prisma.employmentStatus.findFirstOrThrow({ where: { deletedAt: null } });
+    // Status sendiri (tanpa kategori): CI menjalankan test di DB kosong tanpa seed.
+    ids.status = (await prisma.employmentStatus.create({ data: { name: `Dash ${RUN}` } })).id;
     ids.department = (await prisma.department.create({ data: { name: `Dash ${RUN}` } })).id;
     ids.position = (
       await prisma.position.create({
@@ -73,7 +75,7 @@ describe("GET /dashboard", () => {
       await prisma.workLocation.create({ data: { name: `Lok Dash ${RUN}`, city: "Palangka Raya" } })
     ).id;
     const base = {
-      employmentStatusId: status.id,
+      employmentStatusId: ids.status,
       positionId: ids.position,
       workLocationId: ids.location,
     };
