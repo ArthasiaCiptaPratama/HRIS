@@ -23,11 +23,11 @@ import { tenure, todayIso } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 
 const EXIT_HINTS: Record<ExitReason, string> = {
-  RESIGNATION: "Pegawai mengajukan pengunduran diri.",
+  RESIGNATION: "Karyawan mengajukan pengunduran diri.",
   TERMINATION: "Pemutusan hubungan kerja oleh perusahaan.",
   CONTRACT_ENDED: "Masa PKWT/magang selesai dan tidak diperpanjang.",
   RETIREMENT: "Mencapai usia pensiun.",
-  DECEASED: "Pegawai meninggal dunia.",
+  DECEASED: "Karyawan meninggal dunia.",
   OTHER: "Alasan lain; jelaskan di catatan.",
 };
 
@@ -53,13 +53,13 @@ export function ChangeStatusPage() {
   return (
     <>
       <PageHeader
-        title="Ubah Status Pegawai"
-        description="Ubah kategori kepegawaian (mis. PKWT menjadi Pegawai Tetap) atau nonaktifkan pegawai yang keluar. Setiap perubahan tercatat di riwayat dan audit log."
+        title="Ubah Status Karyawan"
+        description="Ubah kategori kepegawaian (mis. PKWT menjadi Karyawan Tetap) atau nonaktifkan karyawan yang keluar. Setiap perubahan tercatat di riwayat dan audit log."
       />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(300px,380px)_1fr]">
         <EmployeePicker
           active
-          title="Pegawai aktif"
+          title="Karyawan aktif"
           selectedId={selectedId}
           onSelect={(id) => select(id)}
         />
@@ -68,8 +68,8 @@ export function ChangeStatusPage() {
             <div className="bg-card grid h-full min-h-[420px] place-items-center rounded-2xl border border-dashed">
               <EmptyState
                 icon={UserRoundSearch}
-                title="Pilih pegawai terlebih dulu"
-                description="Cari dan pilih pegawai di daftar sebelah kiri untuk mengubah status atau menonaktifkannya."
+                title="Pilih karyawan terlebih dulu"
+                description="Cari dan pilih karyawan di daftar sebelah kiri untuk mengubah status atau menonaktifkannya."
               />
             </div>
           ) : employee.isPending ? (
@@ -88,7 +88,7 @@ export function ChangeStatusPage() {
             <div className="bg-card rounded-2xl border">
               <EmptyState
                 icon={TriangleAlert}
-                title="Gagal memuat pegawai"
+                title="Gagal memuat karyawan"
                 description={errorMessage(employee.error)}
               />
             </div>
@@ -97,7 +97,7 @@ export function ChangeStatusPage() {
               <EmptyState
                 icon={Power}
                 title={`${employee.data.fullName} sudah nonaktif`}
-                description="Gunakan menu Pengaktifan Pegawai untuk mengaktifkan kembali."
+                description="Gunakan menu Pengaktifan Karyawan untuk mengaktifkan kembali."
               />
             </div>
           ) : (
@@ -356,7 +356,7 @@ function DeactivateForm({ employee, onDone }: { employee: EmployeeDetail; onDone
         <AlertTitle>Yang akan terjadi</AlertTitle>
         <AlertDescription>
           <ul className="list-disc space-y-0.5 pl-4">
-            <li>Pegawai pindah ke Data Pegawai Tidak Aktif (data tetap diarsip).</li>
+            <li>Karyawan pindah ke Data Karyawan Tidak Aktif (data tetap diarsip).</li>
             {employee.account?.isActive ? (
               <li>Akun login HRIS-nya ikut dinonaktifkan dan tidak bisa masuk lagi.</li>
             ) : null}
@@ -379,7 +379,7 @@ function DeactivateForm({ employee, onDone }: { employee: EmployeeDetail; onDone
           variant="destructive"
           disabled={!reason || !confirmed || mutation.isPending}
         >
-          <Power /> {mutation.isPending ? "Memproses…" : "Nonaktifkan pegawai"}
+          <Power /> {mutation.isPending ? "Memproses…" : "Nonaktifkan karyawan"}
         </Button>
       </div>
     </form>

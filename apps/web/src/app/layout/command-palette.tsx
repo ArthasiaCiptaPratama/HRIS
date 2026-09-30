@@ -21,7 +21,7 @@ interface Result {
 
 const norm = (text: string) => text.toLocaleLowerCase("id-ID");
 
-/** Pencarian cepat (Ctrl/Cmd + K): semua menu yang boleh diakses + pegawai (bila berhak). */
+/** Pencarian cepat (Ctrl/Cmd + K): semua menu yang boleh diakses + karyawan (bila berhak). */
 export function CommandPalette({
   open,
   onOpenChange,
@@ -133,8 +133,8 @@ export function CommandPalette({
                   go(results[cursor]);
                 }
               }}
-              placeholder={canSearchEmployees ? "Cari menu atau nama pegawai…" : "Cari menu…"}
-              aria-label="Cari menu atau pegawai"
+              placeholder={canSearchEmployees ? "Cari menu atau nama karyawan…" : "Cari menu…"}
+              aria-label="Cari menu atau karyawan"
               role="combobox"
               aria-expanded
               aria-controls="command-results"
@@ -164,7 +164,7 @@ export function CommandPalette({
                   <div key={result.key} role="presentation">
                     {index === 0 || firstEmployee ? (
                       <p className="text-muted-foreground px-2 pt-2 pb-1 text-[11px] font-medium tracking-wider uppercase">
-                        {result.kind === "employee" ? "Pegawai" : "Menu"}
+                        {result.kind === "employee" ? "Karyawan" : "Menu"}
                       </p>
                     ) : null}
                     <div
@@ -214,7 +214,7 @@ export function CommandPalette({
               <kbd className="font-mono">Enter</kbd> buka
             </span>
             {canSearchEmployees ? (
-              <span className="ml-auto">Ketik 2+ huruf untuk mencari pegawai</span>
+              <span className="ml-auto">Ketik 2+ huruf untuk mencari karyawan</span>
             ) : null}
           </div>
         </DialogPrimitive.Content>

@@ -108,7 +108,7 @@ function OwnPhotoCard({ employeeId }: { employeeId: string }) {
         <div className="space-y-1">
           <p className="text-lg font-semibold">{employee?.fullName ?? "Memuat…"}</p>
           <p className="text-muted-foreground text-sm">
-            Foto profil tampil di data pegawai dan formulir cetak. Klik ikon kamera untuk mengganti
+            Foto profil tampil di data karyawan dan formulir cetak. Klik ikon kamera untuk mengganti
             (JPG, PNG, atau WebP; otomatis dipotong 3:4 dan dikompres).
           </p>
         </div>

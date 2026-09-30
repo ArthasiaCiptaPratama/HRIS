@@ -45,3 +45,21 @@
 - **Diharapkan:** ... · **Terjadi:** ...
 - **Akar masalah:** ... · **Test pencegah:** path test yang gagal sebelum perbaikan
 ```
+
+## Arsip Drive (fitur LEGIT → `hris-qa:<YYYY-MM-DD>-<target>/`)
+```bash
+RUN=<YYYY-MM-DD>-<target>                          # nama plan/run
+QA=/mnt/winD/WORK/Magang/QA                        # bukti lokal
+B=<scratchpad>/drive/$RUN && rm -rf "$B" && mkdir -p "$B/screenshots"
+cp docs/qa/plans/$RUN.md "$B/plan.md"
+cp docs/qa/runs/$RUN.md  "$B/run.md"
+# cases.md: judul + paragraf otomasi + header tabel + HANYA baris case fitur (ID dari plan)
+{ sed -n '1,/^|---/p' docs/qa/cases/<modul>.md; grep -E '^\| (TC-ADM-0(0[1-9]|10)|TC-EMP-05[45]) ' docs/qa/cases/*.md | cut -d: -f2-; } > "$B/cases.md"
+# bug terkait (bila ada): mkdir -p "$B/bugs" && cp docs/qa/bugs/BUG-NNN-*.md "$B/bugs/"
+for f in "$QA/$RUN"/*.png;         do cp "$f" "$B/screenshots/lokal-$(basename "$f")"; done
+for f in "$QA/$RUN-staging"/*.png; do cp "$f" "$B/screenshots/staging-$(basename "$f")"; done   # bila ada
+rclone sync "$B" "hris-qa:$RUN" --checksum        # SETELAH izin pemilik projek
+rclone ls "hris-qa:$RUN"                           # cek: jumlah & nama file sesuai
+```
+Catat di `runs/$RUN.md` (baris "Arsip Drive: `hris-qa:$RUN` — N file, tanggal") dan log PROGRESS.
+

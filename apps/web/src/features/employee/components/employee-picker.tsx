@@ -49,7 +49,7 @@ export function EmployeePicker({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Cari nama atau nomor induk…"
-            aria-label="Cari pegawai"
+            aria-label="Cari karyawan"
             className="h-9 pl-9"
           />
         </div>

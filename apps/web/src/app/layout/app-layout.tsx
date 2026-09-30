@@ -147,7 +147,7 @@ export function AppLayout() {
                 className="text-muted-foreground hover:text-foreground hover:border-foreground/20 bg-muted/40 hidden h-9 items-center gap-2 rounded-lg border px-3 text-sm whitespace-nowrap transition-colors lg:flex lg:w-72"
               >
                 <Search className="size-4" aria-hidden />
-                <span className="truncate">Cari menu atau pegawai…</span>
+                <span className="truncate">Cari menu atau karyawan…</span>
                 <kbd className="bg-background ml-auto shrink-0 rounded border px-1.5 font-mono text-[10px]">
                   Ctrl K
                 </kbd>
@@ -179,7 +179,7 @@ export function AppLayout() {
             <aside
               className={cn(
                 "bg-sidebar sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 flex-col border-r transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:flex",
-                collapsed ? "w-[68px]" : "w-[17rem]",
+                collapsed ? "w-[68px]" : "w-[18.5rem]",
               )}
             >
               <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-width:thin]">

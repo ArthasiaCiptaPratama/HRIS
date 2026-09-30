@@ -67,9 +67,9 @@ export function ReactivateDialog({
     <Dialog open={employee !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Aktifkan kembali pegawai</DialogTitle>
+          <DialogTitle>Aktifkan kembali karyawan</DialogTitle>
           <DialogDescription>
-            Pegawai kembali tampil di Data Pegawai Aktif. Riwayat keluar tetap tersimpan.
+            Karyawan kembali tampil di Data Karyawan Aktif. Riwayat keluar tetap tersimpan.
           </DialogDescription>
         </DialogHeader>
         {employee ? (
@@ -127,7 +127,7 @@ export function ReactivateDialog({
               <Info />
               <AlertDescription>
                 <p>
-                  Akun login HRIS pegawai ini <strong>tidak</strong> ikut aktif otomatis. Aktifkan
+                  Akun login HRIS karyawan ini <strong>tidak</strong> ikut aktif otomatis. Aktifkan
                   lewat menu Administrasi → Akun bila diperlukan.
                 </p>
               </AlertDescription>

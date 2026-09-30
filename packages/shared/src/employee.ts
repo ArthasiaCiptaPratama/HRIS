@@ -1,22 +1,43 @@
 import { z } from "zod";
 
-// D-035: kategori navigasi "Data Pegawai Aktif". Nilai sama dengan enum Prisma `EmploymentCategory`.
+// D-035/D-038: kategori navigasi "Data Karyawan Aktif". Nilai sama dengan enum Prisma `EmploymentCategory`.
 export const EMPLOYMENT_CATEGORIES = [
   "PERMANENT",
+  "PROBATION",
   "PKWT",
-  "INTERNSHIP",
   "DAILY_WORKER",
+  "INTERNSHIP",
   "OUTSOURCING",
+  "VENDOR",
 ] as const;
 export const employmentCategorySchema = z.enum(EMPLOYMENT_CATEGORIES);
 export type EmploymentCategory = z.infer<typeof employmentCategorySchema>;
 
 export const EMPLOYMENT_CATEGORY_LABELS: Record<EmploymentCategory, string> = {
-  PERMANENT: "Pegawai Tetap",
+  PERMANENT: "Karyawan Tetap",
+  PROBATION: "Karyawan Percobaan",
   PKWT: "PKWT",
-  INTERNSHIP: "Internship",
-  DAILY_WORKER: "Daily Worker",
+  DAILY_WORKER: "Pekerja Harian",
+  INTERNSHIP: "Magang",
   OUTSOURCING: "Outsourcing",
+  VENDOR: "Vendor",
+};
+
+// D-038: kelompok kategori di sidebar & filter `?group=` (satu sumber untuk API dan web).
+export const EMPLOYMENT_CATEGORY_GROUPS = ["INTERNAL", "INTERNSHIP", "EXTERNAL"] as const;
+export const employmentCategoryGroupSchema = z.enum(EMPLOYMENT_CATEGORY_GROUPS);
+export type EmploymentCategoryGroup = z.infer<typeof employmentCategoryGroupSchema>;
+
+export const CATEGORIES_BY_GROUP: Record<EmploymentCategoryGroup, readonly EmploymentCategory[]> = {
+  INTERNAL: ["PERMANENT", "PROBATION", "PKWT", "DAILY_WORKER"],
+  INTERNSHIP: ["INTERNSHIP"],
+  EXTERNAL: ["OUTSOURCING", "VENDOR"],
+};
+
+export const EMPLOYMENT_CATEGORY_GROUP_LABELS: Record<EmploymentCategoryGroup, string> = {
+  INTERNAL: "Karyawan Internal",
+  INTERNSHIP: "Program Magang",
+  EXTERNAL: "Tenaga Kerja Eksternal",
 };
 
 // D-035: alasan pegawai dinonaktifkan. Nilai sama dengan enum Prisma `EmployeeExitReason`.

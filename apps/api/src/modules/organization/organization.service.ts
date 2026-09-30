@@ -42,9 +42,14 @@ export async function getMasterLookup(): Promise<MasterLookup> {
   };
 }
 
-/** Id status kepegawaian (termasuk yang di-soft delete) untuk kategori navigasi (D-035). */
-export function statusIdsForCategory(lookup: MasterLookup, category: EmploymentCategory): string[] {
-  return [...lookup.statuses.values()].filter((s) => s.category === category).map((s) => s.id);
+/** Id status kepegawaian (termasuk yang di-soft delete) untuk kategori navigasi (D-035, grup D-038). */
+export function statusIdsForCategories(
+  lookup: MasterLookup,
+  categories: readonly EmploymentCategory[],
+): string[] {
+  return [...lookup.statuses.values()]
+    .filter((s) => s.category !== null && categories.includes(s.category))
+    .map((s) => s.id);
 }
 
 export function positionIdsInDepartment(lookup: MasterLookup, departmentId: string): string[] {
