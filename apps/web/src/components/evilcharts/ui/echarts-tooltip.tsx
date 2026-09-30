@@ -1,5 +1,5 @@
-import { indicatorBackground, type ResolvedColors } from "@/components/evilcharts/ui/echarts-chart";
 import type { TooltipComponentOption } from "echarts/components";
+import { indicatorBackground, type ResolvedColors } from "@/components/evilcharts/ui/echarts-chart";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tooltip — the shared HTML shell/row primitives and the chart-agnostic option

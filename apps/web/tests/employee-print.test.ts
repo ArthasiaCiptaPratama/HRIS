@@ -45,6 +45,8 @@ function base(overrides: Partial<EmployeeDetail> = {}): EmployeeDetail {
     grade: null,
     manager: null,
     emergencyPhone: "0813-0000-0007",
+    emergencyContactName: null,
+    emergencyContactRelationship: null,
     account: null,
     access: {
       manage: true,
@@ -56,8 +58,20 @@ function base(overrides: Partial<EmployeeDetail> = {}): EmployeeDetail {
     },
     photoUrl: null,
     educations: [
-      { id: "ed1", schoolName: "Universitas Indonesia", major: "Manajemen", graduationYear: 2020 },
-      { id: "ed2", schoolName: "SMA Negeri 8 Jakarta", major: "IPA", graduationYear: 2016 },
+      {
+        id: "ed1",
+        schoolName: "Universitas Indonesia",
+        major: "Manajemen",
+        graduationYear: 2020,
+        level: null,
+      },
+      {
+        id: "ed2",
+        schoolName: "SMA Negeri 8 Jakarta",
+        major: "IPA",
+        graduationYear: 2016,
+        level: null,
+      },
     ],
     trainings: [
       {
@@ -86,6 +100,10 @@ const withPersonal = () =>
         "Jl. Dharmawangsa Raya No. 8, Kebayoran Baru, Kota Jakarta Selatan, DKI Jakarta 12160 & sekitarnya <RT 01>",
       maritalStatus: "MARRIED",
       religion: "ISLAM",
+      bpjsEmploymentNumber: null,
+      bpjsHealthNumber: null,
+      ptkpStatus: null,
+      originCity: null,
     },
     familyMembers: [
       {
@@ -194,6 +212,7 @@ describe("buildPrintCells (data pegawai → sel template)", () => {
       schoolName: `Sekolah ${i}`,
       major: null,
       graduationYear: 2000 + i,
+      level: null,
     }));
     const limited = buildPrintCells(base({ educations: many }), "2026-09-29");
     expect(limited.D34).toBe("Sekolah 4");

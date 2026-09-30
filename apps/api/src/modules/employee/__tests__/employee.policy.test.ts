@@ -4,12 +4,15 @@ import type { Actor, EmployeeTarget } from "../../../core/access/index.ts";
 import {
   canChangePhoto,
   canDeactivateEmployee,
+  canImportEmployees,
   canManageEmployees,
   canPrintEmployee,
   canReadBank,
   canReadOrgStructure,
   canReadPersonal,
+  canViewDashboard,
   canViewEmployee,
+  canWriteSensitiveViaImport,
   employeeListScope,
 } from "../employee.policy.ts";
 
@@ -173,5 +176,42 @@ describe("canReadBank (rekening)", () => {
 describe("canReadOrgStructure (direktori: semua role 👁)", () => {
   test.each(["SA", "HR", "MGR", "EMP"] as const)("%s = true", (who) => {
     expect(canReadOrgStructure(actor(who))).toBe(true);
+  });
+});
+
+// D-042: import karyawan — SA & HR; kolom sensitif hanya SA atau HR ber-grant *.write.
+describe("D-042 import karyawan", () => {
+  test.each([
+    ["SA", true],
+    ["HR", true],
+    ["MGR", false],
+    ["EMP", false],
+  ] as const)("canImportEmployees %s = %s", (who, allowed) => {
+    expect(canImportEmployees(actor(who))).toBe(allowed);
+  });
+
+  test.each([
+    ["SA", [], "personal", true],
+    ["SA", [], "bank", true],
+    ["HR", [], "personal", false],
+    ["HR", ["employee.personal.write"], "personal", true],
+    ["HR", ["employee.personal.write"], "bank", false],
+    ["HR", ["employee.bank.write"], "bank", true],
+    ["HR", ["employee.personal.read"], "personal", false],
+    ["MGR", ["employee.personal.write"], "personal", false],
+  ] as const)("canWriteSensitiveViaImport %s %j %s = %s", (who, grants, section, allowed) => {
+    expect(canWriteSensitiveViaImport(actor(who, [...grants]), section)).toBe(allowed);
+  });
+});
+
+// Dashboard agregat: SA & HR saja.
+describe("Dashboard", () => {
+  test.each([
+    ["SA", true],
+    ["HR", true],
+    ["MGR", false],
+    ["EMP", false],
+  ] as const)("canViewDashboard %s = %s", (who, allowed) => {
+    expect(canViewDashboard(actor(who))).toBe(allowed);
   });
 });

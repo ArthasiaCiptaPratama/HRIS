@@ -7,6 +7,7 @@ import {
   ChartColumn,
   Contact,
   FileClock,
+  FileUp,
   FolderArchive,
   GraduationCap,
   HeartHandshake,
@@ -156,6 +157,14 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: ArrowLeftRight,
             visible: manage,
             keywords: "resign phk nonaktifkan pkwt tetap",
+          },
+          {
+            id: "import",
+            label: "Import Data Karyawan",
+            to: "/personal/import",
+            icon: FileUp,
+            visible: manage,
+            keywords: "unggah excel csv xlsx impor massal",
           },
           {
             id: "activation",

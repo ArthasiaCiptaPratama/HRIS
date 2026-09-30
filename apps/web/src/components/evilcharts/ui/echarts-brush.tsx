@@ -1,7 +1,7 @@
-import { withAlpha, type ResolvedColors } from "@/components/evilcharts/ui/echarts-chart";
 import type { DataZoomComponentOption } from "echarts/components";
-import type { FC } from "react";
 import * as echarts from "echarts/core";
+import type { FC } from "react";
+import { type ResolvedColors, withAlpha } from "@/components/evilcharts/ui/echarts-chart";
 
 type EChartsInstance = ReturnType<typeof echarts.init>;
 
@@ -150,10 +150,10 @@ export function syncBrushOverlay(
 
   const gripFill = withAlpha(tokens.background, 0.7);
   [-4, 0, 4].forEach((offset, i) => {
-    els.grips[i].setShape({ cx: selectionLeft, cy: centerY + offset, r: 1 });
-    els.grips[i].setStyle({ fill: gripFill });
-    els.grips[i + 3].setShape({ cx: selectionRight, cy: centerY + offset, r: 1 });
-    els.grips[i + 3].setStyle({ fill: gripFill });
+    els.grips[i]?.setShape({ cx: selectionLeft, cy: centerY + offset, r: 1 });
+    els.grips[i]?.setStyle({ fill: gripFill });
+    els.grips[i + 3]?.setShape({ cx: selectionRight, cy: centerY + offset, r: 1 });
+    els.grips[i + 3]?.setStyle({ fill: gripFill });
   });
 
   // Range label pills straddle the frame's bottom line — an overlay, so they

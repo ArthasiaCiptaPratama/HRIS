@@ -1,7 +1,7 @@
 # Desain — Import Data Karyawan (CSV/Excel)
 
 > Keputusan: **D-042** (import), **D-039** (multi-perusahaan), **D-040** (akses per PT), **D-041** (kolom tambahan) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas).
-> Status: **[planned]** — dikerjakan di Tahap 4 (setelah multi-PT & CRUD master data). Checklist: PROGRESS Fase 4.
+> Status: **[done] dirilis 2026-09-30 tanpa multi-perusahaan** — kolom perusahaan di file dikenali tetapi belum disimpan (menyusul bersama D-039/D-040, termasuk `import_jobs.company_id` & PT bawaan). Penyempurnaan: nama wajib hanya untuk karyawan baru; baris tanpa nama & nomor induk dihitung "baris kosong"; status keluar karyawan lama tidak diubah import; UI 4 langkah (Unggah → Pemetaan → Pratinjau → Selesai) dibuka dari tombol **Import** di Data Karyawan Aktif. Checklist: PROGRESS Fase 4.
 > Dokumen ini **tidak memuat nilai data asli**. Profil file contoh di §2 hanya struktur & pola.
 
 ## 1. Tujuan & prinsip

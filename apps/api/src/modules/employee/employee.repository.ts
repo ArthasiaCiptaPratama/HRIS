@@ -61,7 +61,12 @@ export async function countByStatus(where: EmployeeWhere) {
 export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
   return tx.employee.findUnique({
     where: { id },
-    select: { ...LIST_SELECT, emergencyPhone: true },
+    select: {
+      ...LIST_SELECT,
+      emergencyPhone: true,
+      emergencyContactName: true,
+      emergencyContactRelationship: true,
+    },
   });
 }
 
@@ -72,7 +77,7 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
     await Promise.all([
       prisma.education.findMany({
         where: { employeeId: id },
-        select: { id: true, schoolName: true, major: true, graduationYear: true },
+        select: { id: true, schoolName: true, major: true, graduationYear: true, level: true },
         orderBy: [{ graduationYear: "desc" }, { createdAt: "desc" }],
       }),
       prisma.training.findMany({
@@ -173,4 +178,18 @@ export async function createHistory(
 
 export async function countActiveSubordinates(id: string) {
   return getPrisma().employee.count({ where: { managerId: id, isActive: true } });
+}
+
+/** Dashboard: baris minimal seluruh karyawan (agregat dihitung di service; skala ribuan baris). */
+export async function listForDashboard() {
+  return getPrisma().employee.findMany({
+    select: {
+      isActive: true,
+      joinDate: true,
+      employmentStatusId: true,
+      positionId: true,
+      workLocationId: true,
+      educations: { select: { level: true } },
+    },
+  });
 }

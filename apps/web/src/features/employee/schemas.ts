@@ -1,9 +1,11 @@
 import {
+  educationLevelSchema,
   employmentCategorySchema,
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
   paginationMetaSchema,
+  ptkpStatusSchema,
   roleSchema,
 } from "@hris/shared";
 import { z } from "zod";
@@ -53,8 +55,36 @@ export const summarySchema = z.object({
 });
 export type EmployeeSummary = z.infer<typeof summarySchema>;
 
+// Dashboard SA/HR (GET /dashboard): agregat karyawan — jumlah saja, tanpa data per orang.
+const countRow = z.object({ id: z.string().nullable(), name: z.string(), count: z.number() });
+export const DASHBOARD_EDUCATION_LEVELS = ["SD", "SMP", "SMA", "Kuliah", "Tanpa Data"] as const;
+export const dashboardSchema = z.object({
+  overview: z.object({
+    total: z.number(),
+    active: z.number(),
+    inactive: z.number(),
+    avgTenureYears: z.number().nullable(),
+  }),
+  byCategory: z.array(countRow.extend({ category: employmentCategorySchema.nullable() })),
+  byLocation: z.array(countRow.extend({ city: z.string().nullable() })),
+  byDepartment: z.array(countRow),
+  byPosition: z.array(countRow),
+  byJoinYear: z.array(z.object({ year: z.number(), count: z.number() })),
+  byEducationPivot: z.array(
+    z.object({
+      category: z.string(),
+      label: z.string(),
+      levels: z.array(z.object({ level: z.enum(DASHBOARD_EDUCATION_LEVELS), count: z.number() })),
+      total: z.number(),
+    }),
+  ),
+});
+export type EmployeeDashboard = z.infer<typeof dashboardSchema>;
+
 export const employeeDetailSchema = employeeListItemSchema.extend({
   emergencyPhone: z.string().nullable(),
+  emergencyContactName: z.string().nullable(),
+  emergencyContactRelationship: z.string().nullable(),
   account: z.object({ role: roleSchema, isActive: z.boolean() }).nullable(),
   access: z.object({
     manage: z.boolean(),
@@ -75,6 +105,11 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       domicileAddress: z.string().nullable(),
       maritalStatus: z.string().nullable(),
       religion: z.string().nullable(),
+      // D-041 (sensitif).
+      bpjsEmploymentNumber: z.string().nullable(),
+      bpjsHealthNumber: z.string().nullable(),
+      ptkpStatus: ptkpStatusSchema.nullable(),
+      originCity: z.string().nullable(),
     })
     .nullable()
     .optional(),
@@ -104,6 +139,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       schoolName: z.string(),
       major: z.string().nullable(),
       graduationYear: z.number().nullable(),
+      level: educationLevelSchema.nullable(),
     }),
   ),
   trainings: z.array(
@@ -200,6 +236,8 @@ export const employeeFormSchema = z.object({
     .refine((v) => v === "" || z.email().safeParse(v).success, "Email tidak valid."),
   phoneNumber: optionalPhone,
   emergencyPhone: optionalPhone,
+  emergencyContactName: z.string().trim().max(150),
+  emergencyContactRelationship: z.string().trim().max(50),
   gender: z.enum(["", "MALE", "FEMALE"]),
   joinDate: z.iso.date("Tanggal masuk wajib diisi."),
   employmentStatusId: z.string().min(1, "Pilih status kepegawaian."),

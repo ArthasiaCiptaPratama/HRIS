@@ -1,61 +1,61 @@
 "use client";
 
-import {
-  DEFAULT_ECHARTS_RENDERER,
-  buildChartCss,
-  flattenColor,
-  getColorsCount,
-  resolveColors,
-  withAlpha,
-  type ChartConfig,
-  type EChartsRenderer,
-  type ResolvedColors,
-} from "@/components/evilcharts/ui/echarts-chart";
-import {
-  tooltipBaseOption,
-  tooltipIndicatorHtml,
-  tooltipRow,
-  tooltipShell,
-  type TooltipPosition,
-  type TooltipRoundness,
-  type TooltipVariant,
-} from "@/components/evilcharts/ui/echarts-tooltip";
-import {
-  Brush,
-  buildBrushDataZoom,
-  syncBrushOverlay,
-  type BrushGeometry,
-  type BrushOverlayElements,
-  type BrushProps,
-  type BrushRange,
-} from "@/components/evilcharts/ui/echarts-brush";
+import { BarChart, type BarSeriesOption } from "echarts/charts";
 import {
   DataZoomComponent,
-  GridComponent,
-  TooltipComponent,
   type DataZoomComponentOption,
+  GridComponent,
   type GridComponentOption,
+  TooltipComponent,
   type TooltipComponentOption,
 } from "echarts/components";
+import type { ComposeOption, ImagePatternObject } from "echarts/core";
+import * as echarts from "echarts/core";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Children,
+  type CSSProperties,
+  type FC,
   isValidElement,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type FC,
-  type ReactNode,
 } from "react";
-import { LegendOverlay, type LegendVariant } from "@/components/evilcharts/ui/echarts-legend";
-import type { ComposeOption, ImagePatternObject } from "echarts/core";
-import { BarChart, type BarSeriesOption } from "echarts/charts";
+import {
+  Brush,
+  type BrushGeometry,
+  type BrushOverlayElements,
+  type BrushProps,
+  type BrushRange,
+  buildBrushDataZoom,
+  syncBrushOverlay,
+} from "@/components/evilcharts/ui/echarts-brush";
+import {
+  buildChartCss,
+  type ChartConfig,
+  DEFAULT_ECHARTS_RENDERER,
+  type EChartsRenderer,
+  flattenColor,
+  getColorsCount,
+  type ResolvedColors,
+  resolveColors,
+  withAlpha,
+} from "@/components/evilcharts/ui/echarts-chart";
 import { sampleGradient } from "@/components/evilcharts/ui/echarts-dot";
-import { motion, useReducedMotion } from "motion/react";
-import * as echarts from "echarts/core";
+import { LegendOverlay, type LegendVariant } from "@/components/evilcharts/ui/echarts-legend";
+import {
+  type TooltipPosition,
+  type TooltipRoundness,
+  type TooltipVariant,
+  tooltipBaseOption,
+  tooltipIndicatorHtml,
+  tooltipRow,
+  tooltipShell,
+} from "@/components/evilcharts/ui/echarts-tooltip";
 
 // Re-export the shared types that were previously declared inline here, so
 // existing consumers/examples keep importing them from the chart module.
@@ -2241,7 +2241,8 @@ function shimmerWindowStops(center: number, color: string, peak: number) {
 
   const stops: { offset: number; color: string }[] = [];
   for (const offset of offsets) {
-    if (stops.length === 0 || offset - stops[stops.length - 1].offset > 1e-4) {
+    const last = stops[stops.length - 1];
+    if (!last || offset - last.offset > 1e-4) {
       stops.push({ offset, color: withAlpha(color, alphaAt(offset)) });
     }
   }

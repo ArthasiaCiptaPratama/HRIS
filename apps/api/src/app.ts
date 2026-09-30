@@ -156,7 +156,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     "*",
     cors({
       origin: deps.corsOrigins,
-      allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: ["Authorization", "Content-Type", "X-Request-Id"],
       exposeHeaders: ["X-Request-Id"],
       maxAge: 600,

@@ -7,6 +7,7 @@ import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import {
   changeStatusBodySchema,
   createEmployeeBodySchema,
+  dashboardSchema,
   deactivateBodySchema,
   detailQuerySchema,
   employeeDetailSchema,
@@ -24,6 +25,7 @@ import {
   updateEmployeeBodySchema,
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
+import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
 
 export interface EmployeeRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
@@ -91,6 +93,17 @@ const routes = {
     security,
     responses: {
       200: json("Ringkasan", dataEnvelope(employeeSummarySchema)),
+      ...errors(401, 403, 500),
+    },
+  }),
+  dashboard: createRoute({
+    method: "get",
+    path: `${P}/dashboard`,
+    tags: TAGS,
+    summary: "Agregat kepegawaian untuk Dashboard (SA/HR; hanya jumlah, tanpa data per orang)",
+    security,
+    responses: {
+      200: json("Dashboard", dataEnvelope(dashboardSchema)),
       ...errors(401, 403, 500),
     },
   }),
@@ -216,12 +229,18 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     storagePathPrefix: deps.storagePathPrefix,
   });
 
+  // D-042: import karyawan (/employee-imports/*).
+  registerEmployeeImportRoutes(app, { protect: deps.protect, ctx });
+
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>
     c.json(await service.listEmployees(ctx(c), c.req.valid("query")), 200),
   );
   app.openapi(guard(routes.summary), async (c) =>
     c.json(ok(await service.getSummary(ctx(c))), 200),
+  );
+  app.openapi(guard(routes.dashboard), async (c) =>
+    c.json(ok(await service.getDashboard(ctx(c))), 200),
   );
   app.openapi(guard(routes.managerOptions), async (c) =>
     c.json(ok(await service.listManagerOptions(ctx(c))), 200),

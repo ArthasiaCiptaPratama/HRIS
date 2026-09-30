@@ -11,8 +11,9 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-09-30-seragam-admin.md](plans/2026-09-30-seragam-admin.md) | Seragam halaman Administrasi & Akun Saya, prefix Storage lokal, SMTP di test |
 | Rencana | [plans/2026-09-30-grup-kategori.md](plans/2026-09-30-grup-kategori.md) | D-038: sidebar Data Karyawan Aktif per grup (Internal / Magang / Eksternal), kategori Percobaan & Vendor, istilah Karyawan |
 | Rencana | [plans/2026-09-30-menu-be.md](plans/2026-09-30-menu-be.md) | Menu Ubah Status Karyawan (ubah kategori & nonaktifkan) |
+| Rencana | [plans/2026-09-30-rilis-import.md](plans/2026-09-30-rilis-import.md) | Rilis import data karyawan (tanpa multi-PT) + dashboard SA/HR |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
-| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-071 |
+| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-071, TC-EMP-079 s.d. TC-EMP-092 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-010 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18) |
@@ -21,5 +22,6 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-09-30-seragam-admin.md](runs/2026-09-30-seragam-admin.md) | Lokal: api 271 · web 72 (SMTP terisi), Playwright 31/31; staging `b7828a0` 31/31; unggah foto berprefix sungguhan ✔ — LULUS |
 | Hasil | [runs/2026-09-30-grup-kategori.md](runs/2026-09-30-grup-kategori.md) | Lokal: api 272 · web 82, Playwright 19/19; staging `1da5e2d` 19/19 (seed ulang master data) — LULUS |
 | Hasil | [runs/2026-09-30-menu-be.md](runs/2026-09-30-menu-be.md) | Lokal: web 84 (+1 dilewati), Playwright 15/15 (alur tulis sungguhan, data dikembalikan) — LULUS (staging belum) |
+| Hasil | [runs/2026-09-30-rilis-import.md](runs/2026-09-30-rilis-import.md) | Lokal (DB `hris_release`): shared 63 · api 301 · web 93, Playwright 15/15 — LULUS; staging menyusul |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

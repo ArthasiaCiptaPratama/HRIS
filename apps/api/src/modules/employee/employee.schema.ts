@@ -1,6 +1,7 @@
 import { z } from "@hono/zod-openapi";
 import {
   EMPLOYEE_SORT_FIELDS,
+  educationLevelSchema,
   employmentCategoryGroupSchema,
   employmentCategorySchema,
   employmentChangeTypeSchema,
@@ -8,6 +9,7 @@ import {
   genderSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
+  ptkpStatusSchema,
   roleSchema,
 } from "@hris/shared";
 
@@ -96,6 +98,11 @@ const personalSchema = z.object({
   religion: z
     .enum(["ISLAM", "PROTESTANT", "CATHOLIC", "HINDU", "BUDDHIST", "CONFUCIAN", "OTHER"])
     .nullable(),
+  // D-041 (sensitif).
+  bpjsEmploymentNumber: z.string().nullable(),
+  bpjsHealthNumber: z.string().nullable(),
+  ptkpStatus: ptkpStatusSchema.nullable(),
+  originCity: z.string().nullable(),
 });
 
 const familyMemberSchema = z.object({
@@ -138,6 +145,9 @@ const historySchema = z.object({
 export const employeeDetailSchema = employeeListItemSchema
   .extend({
     emergencyPhone: z.string().nullable(),
+    // D-041: kontak darurat.
+    emergencyContactName: z.string().nullable(),
+    emergencyContactRelationship: z.string().nullable(),
     account: z.object({ role: roleSchema, isActive: z.boolean() }).nullable(),
     access: z.object({
       manage: z.boolean(),
@@ -156,6 +166,7 @@ export const employeeDetailSchema = employeeListItemSchema
         schoolName: z.string(),
         major: z.string().nullable(),
         graduationYear: z.number().int().nullable(),
+        level: educationLevelSchema.nullable(),
       }),
     ),
     trainings: z.array(
@@ -225,6 +236,8 @@ export const createEmployeeBodySchema = z
     workEmail: z.email().max(254).nullable().optional(),
     phoneNumber: phone.nullable().optional(),
     emergencyPhone: phone.nullable().optional(),
+    emergencyContactName: z.string().trim().max(150).nullable().optional(),
+    emergencyContactRelationship: z.string().trim().max(50).nullable().optional(),
     gender: genderSchema.nullable().optional(),
     joinDate: isoDate,
     employmentStatusId: z.uuid(),
@@ -297,3 +310,36 @@ export const managerOptionSchema = z
   .object({ id: z.uuid(), fullName: z.string(), employeeNumber: z.string(), position: z.string() })
   .openapi("ManagerOption");
 export type ManagerOption = z.infer<typeof managerOptionSchema>;
+
+// ── Dashboard (D-035 lanjutan, 2026-09-30): agregat kepegawaian untuk SA/HR ──────
+const countRow = z.object({ id: z.string().nullable(), name: z.string(), count: z.number().int() });
+export const DASHBOARD_EDUCATION_LEVELS = ["SD", "SMP", "SMA", "Kuliah", "Tanpa Data"] as const;
+
+export const dashboardSchema = z
+  .object({
+    overview: z.object({
+      total: z.number().int(),
+      active: z.number().int(),
+      inactive: z.number().int(),
+      /** Rata-rata masa kerja karyawan aktif (tahun, 1 desimal); null bila belum ada karyawan aktif. */
+      avgTenureYears: z.number().nullable(),
+    }),
+    /** Semua agregat di bawah hanya karyawan AKTIF. */
+    byCategory: z.array(countRow.extend({ category: employmentCategorySchema.nullable() })),
+    byLocation: z.array(countRow.extend({ city: z.string().nullable() })),
+    byDepartment: z.array(countRow),
+    byPosition: z.array(countRow),
+    byJoinYear: z.array(z.object({ year: z.number().int(), count: z.number().int() })),
+    byEducationPivot: z.array(
+      z.object({
+        category: z.string(),
+        label: z.string(),
+        levels: z.array(
+          z.object({ level: z.enum(DASHBOARD_EDUCATION_LEVELS), count: z.number().int() }),
+        ),
+        total: z.number().int(),
+      }),
+    ),
+  })
+  .openapi("EmployeeDashboard");
+export type EmployeeDashboard = z.infer<typeof dashboardSchema>;
