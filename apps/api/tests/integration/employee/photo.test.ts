@@ -18,16 +18,36 @@ const app = createApp({
   tokenVerifier: testVerifier,
   authAdmin: createFakeAuthAdmin().admin,
   storage: fake.storage,
+  // Eksplisit kosong: `.env` developer boleh berisi prefix `dev/<nama>/` (PLAN §3.3).
+  storagePathPrefix: "",
+  appUrl: "http://localhost:5173",
+});
+// App kedua mewakili lokal developer: path foto diberi prefix `dev/<nama>/`.
+const PREFIX = "dev/qa-test/";
+const devApp = createApp({
+  logger: createLogger("error", () => {}),
+  tokenVerifier: testVerifier,
+  authAdmin: createFakeAuthAdmin().admin,
+  storage: fake.storage,
+  storagePathPrefix: PREFIX,
   appUrl: "http://localhost:5173",
 });
 
 type Headers = Record<string, string>;
-const call = (method: string, path: string, headers: Headers, body?: unknown) =>
-  app.request(`/api/v1${path}`, {
+const callOn = (
+  target: typeof app,
+  method: string,
+  path: string,
+  headers: Headers,
+  body?: unknown,
+) =>
+  target.request(`/api/v1${path}`, {
     method,
     headers: { ...headers, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+const call = (method: string, path: string, headers: Headers, body?: unknown) =>
+  callOn(app, method, path, headers, body);
 const code = async (res: Response) => ((await res.json()) as ErrorBody).error.code;
 // biome-ignore lint/suspicious/noExplicitAny: bentuk respons diperiksa per test
 const body = async (res: Response) => (await res.json()) as { data: any };
@@ -257,5 +277,49 @@ describe("POST /employees/:id/photo (konfirmasi) & DELETE", () => {
         where: { action: "employee.photo.delete", entityId: ids.self },
       }),
     ).toBe(1);
+  });
+});
+
+describe("STORAGE_PATH_PREFIX (PLAN §3.3: file lokal di bucket staging dengan prefix)", () => {
+  test("upload-url memberi path berprefix; konfirmasi berprefix 200 dan tersimpan", async () => {
+    const res = await callOn(
+      devApp,
+      "POST",
+      `/employees/${ids.other}/photo/upload-url`,
+      hr.headers,
+      {
+        contentType: "image/png",
+      },
+    );
+    expect(res.status).toBe(200);
+    const path = (await body(res)).data.path as string;
+    expect(path).toMatch(new RegExp(`^dev/qa-test/employees/${ids.other}/[0-9a-f-]{36}\\.png$`));
+    fake.putObject(BUCKET, path, { size: 40_000, contentType: "image/png" });
+    const ok = await callOn(devApp, "POST", `/employees/${ids.other}/photo`, hr.headers, { path });
+    expect(ok.status).toBe(200);
+    expect((await prisma.employee.findUnique({ where: { id: ids.other } }))?.photoPath).toBe(path);
+    // Foto berprefix tetap terbaca oleh app tanpa prefix (path lengkap disimpan di DB).
+    const detail = await body(await call("GET", `/employees/${ids.other}?view=work`, sa.headers));
+    expect(detail.data.photoUrl).toContain(path);
+  });
+
+  test("konfirmasi ditolak bila prefix tidak cocok dengan lingkungan (422)", async () => {
+    const plain = await uploaded(ids.other, hr.headers);
+    expect(
+      await code(
+        await callOn(devApp, "POST", `/employees/${ids.other}/photo`, hr.headers, { path: plain }),
+      ),
+    ).toBe("BUSINESS_RULE_VIOLATION");
+    const other = `dev/orang-lain/employees/${ids.other}/${crypto.randomUUID()}.webp`;
+    fake.putObject(BUCKET, other, { size: 1000, contentType: "image/webp" });
+    for (const target of [app, devApp]) {
+      expect(
+        await code(
+          await callOn(target, "POST", `/employees/${ids.other}/photo`, hr.headers, {
+            path: other,
+          }),
+        ),
+      ).toBe("BUSINESS_RULE_VIOLATION");
+    }
   });
 });

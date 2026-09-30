@@ -189,7 +189,11 @@ export type PhotoUploadUrl = z.infer<typeof photoUploadUrlSchema>;
 
 // Path dibuat server (employees/<id>/<uuid>.<ext>); klien hanya mengembalikannya setelah unggah.
 export const photoConfirmBodySchema = z
-  .object({ path: z.string().regex(/^employees\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/) })
+  .object({
+    path: z
+      .string()
+      .regex(/^(?:[a-z0-9][a-z0-9-]*\/)*employees\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/),
+  })
   .openapi("EmployeePhotoConfirmInput");
 export type PhotoConfirmInput = z.infer<typeof photoConfirmBodySchema>;
 

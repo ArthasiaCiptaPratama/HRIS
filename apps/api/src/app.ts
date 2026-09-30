@@ -40,6 +40,8 @@ export interface AppDeps {
   actorLoader: ActorLoader;
   authAdmin: AuthAdmin;
   storage: StorageAdmin;
+  /** PLAN §3.3: prefix path objek Storage (lokal `dev/<nama>/`, staging/produksi kosong). */
+  storagePathPrefix: string;
   appUrl: string;
   emailSender: EmailSender;
   cronSecret: string | undefined;
@@ -123,6 +125,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     actorLoader: overrides.actorLoader ?? ((authUserId) => loadIamActor(authUserId)),
     authAdmin: overrides.authAdmin ?? defaultAuthAdmin(),
     storage: overrides.storage ?? defaultStorage(),
+    storagePathPrefix: overrides.storagePathPrefix ?? getEnv().STORAGE_PATH_PREFIX,
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
     emailSender: overrides.emailSender ?? defaultEmailSender(logger),
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
@@ -174,7 +177,12 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
-  registerEmployeeRoutes(app, { protect, authAdmin: deps.authAdmin, storage: deps.storage });
+  registerEmployeeRoutes(app, {
+    protect,
+    authAdmin: deps.authAdmin,
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+  });
   registerCronRoutes(app, { cronSecret: deps.cronSecret, logger: deps.logger });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));
