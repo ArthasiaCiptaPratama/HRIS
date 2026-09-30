@@ -34,3 +34,10 @@ desktop.ini
 
 # Pengaturan lokal Claude Code (izin per mesin)
 .claude/settings.local.json
+
+# Data karyawan ASLI tidak pernah masuk repo (PROMPT §3.7, D-042). Simpan di luar repo:
+# /mnt/winD/WORK/Magang/DATA-ASLI/. Template import di repo hanya berisi data dummy.
+apps/web/public/template/Template-import-excel.xlsx
+**/DATA-ASLI/
+*.asli.xlsx
+*.asli.csv

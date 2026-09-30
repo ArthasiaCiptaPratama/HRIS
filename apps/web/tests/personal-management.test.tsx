@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { activeTrail, flattenNav, visibleGroups } from "@/app/navigation";
 import { authState, me, mockApi, renderAt } from "./helpers";
 
@@ -295,23 +296,36 @@ describe("halaman Personal Management", () => {
     expect(screen.getByText("Maintenance")).toBeInTheDocument();
   });
 
-  it.each([
-    ["/personal/ubah-status", "Ubah Status Karyawan sedang disiapkan"],
-    ["/personal/pengaktifan", "Pengaktifan Karyawan sedang disiapkan"],
-    ["/personal/pegawai-tidak-aktif", "Data Karyawan Tidak Aktif sedang disiapkan"],
-    ["/personal/struktur-organisasi", "Struktur Organisasi sedang disiapkan"],
-  ])("menu b–e ditutup sementara (FEATURES): %s → Maintenance", async (path, heading) => {
+  // Menu b–e mengikuti saklar FEATURES: aktif → halaman asli; nonaktif → Maintenance ("Segera").
+  const MENUS = [
+    ["/personal/ubah-status", "Ubah Status Karyawan", FEATURES.changeStatus],
+    ["/personal/pengaktifan", "Pengaktifan Karyawan", FEATURES.activation],
+    ["/personal/pegawai-tidak-aktif", "Data Karyawan Tidak Aktif", FEATURES.inactiveEmployees],
+    ["/personal/struktur-organisasi", "Struktur Organisasi", FEATURES.orgStructure],
+  ] as const;
+
+  it.each(MENUS)("menu %s (%s) mengikuti FEATURES", async (path, title, enabled) => {
     mockApi({
       "/me": [200, { data: me("HR_ADMIN") }],
       "/health": [200, health],
       "/notifications": [200, emptyNotifications],
       "/employees/summary": [200, summary],
+      "/master-data": [200, masterData],
+      "/employees": [200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } }],
+      "/org-structure": [200, { data: { departments: [], totalEmployees: 0 } }],
     });
     renderAt(path);
-    expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
+    if (enabled) {
+      expect(await screen.findByRole("heading", { level: 1, name: title })).toBeInTheDocument();
+      expect(screen.queryByText("Maintenance")).not.toBeInTheDocument();
+    } else {
+      expect(
+        await screen.findByRole("heading", { name: `${title} sedang disiapkan` }),
+      ).toBeInTheDocument();
+    }
   });
 
-  it("sidebar menandai menu b–e 'Segera' (badge angka Tidak Aktif tidak tampil)", async () => {
+  it("sidebar: label 'Segera' hanya pada menu b–e yang belum aktif", async () => {
     mockApi({
       "/me": [200, { data: me("HR_ADMIN") }],
       "/health": [200, health],
@@ -320,18 +334,11 @@ describe("halaman Personal Management", () => {
     });
     renderAt("/personal/arsip/kontak");
     const side = await screen.findByRole("navigation", { name: "Menu samping" });
-    for (const label of [
-      "Ubah Status Karyawan",
-      "Pengaktifan Karyawan",
-      "Data Karyawan Tidak Aktif",
-      "Struktur Organisasi",
-    ]) {
-      const link = within(side).getByText(label).closest("a");
-      expect(link).toHaveTextContent(/segera/i);
+    for (const [, title, enabled] of MENUS) {
+      const link = within(side).getByText(title).closest("a");
+      if (enabled) expect(link).not.toHaveTextContent(/segera/i);
+      else expect(link).toHaveTextContent(/segera/i);
     }
-    expect(within(side).getByText("Data Karyawan Tidak Aktif").closest("a")).not.toHaveTextContent(
-      "1",
-    );
   });
 
   it("MANAGER membuka Ubah Status → akses ditolak (API juga menolak)", async () => {

@@ -1,6 +1,6 @@
 # Hasil Uji — Pengelompokan Kategori Karyawan di Sidebar (D-038, 2026-09-30)
 
-- **Commit:** working tree di atas `66d686d` (belum di-commit) · **Branch:** `HRIS/Oatse/Linux-Windows` · **Env:** lokal Linux · **Bun/PG:** 1.4.2 / PostgreSQL 17
+- **Commit:** `7b27c1d` (saat uji: working tree di atas `66d686d`) · **Branch:** `HRIS/Oatse/Linux-Windows` · **Env:** lokal Linux · **Bun/PG:** 1.4.2 / PostgreSQL 17
 - **Perintah & ringkasan:**
   - Migrasi `20260930035548_add_probation_and_vendor_categories` diterapkan; rerun `prisma migrate dev` → "Already in sync"; `bun run db:check` ✔; `bun run db:seed` → 7 status, 23 karyawan.
   - Test grup ditulis dulu dan merah (1 gagal) → setelah implementasi hijau (employee integration 34 pass).
@@ -24,5 +24,11 @@
 
 **Temuan selama uji (diperbaiki):** label "Semua Tenaga Kerja Eksternal" (dan "Data Karyawan Tidak Aktif", sudah terpotong sebelumnya) terpotong di sidebar 17rem → sidebar 18.5rem + atribut `title`; judul kosong "Belum ada karyawan Semua …" janggal → "Belum ada data <kategori>" / "Belum ada karyawan aktif di kelompok ini".
 
-**Kesimpulan:** memenuhi kriteria rencana di lokal. **Bug terbuka:** tidak ada.
-**Belum diverifikasi:** staging (butuh rilis + seed ulang master data staging), browser selain Chromium, Windows.
+## Sesi staging (setelah deploy `1da5e2d`, `Deploy staging` #36668354921)
+- **Rilis:** PR #25 (`→ HRIS/debug/database`, CI #36668209938 ✔, merge `af01fb9`) → PR #26 (`→ HRIS/debug/fe-be`, CI ✔, merge `1da5e2d`) → `Deploy staging` #36668354921 ✔ (migrasi `20260930035548_add_probation_and_vendor_categories` diterapkan → api → web).
+- **Data:** MCP: 9 migrasi, enum 7 nilai; seed ulang master data (izin pemilik projek; staging tanpa email kerja & foto sehingga tidak ada yang hilang) → 7 status (Karyawan Tetap 11, Percobaan 1, PKWT 3, Pekerja Harian 2, Magang 1, Outsourcing 2, Vendor 1), 23 karyawan (2 nonaktif). Advisor security tanpa temuan baru (INFO `_prisma_migrations`, WARN leaked password — sudah diketahui).
+- **Hasil:** `ui.ts` (`WEB` = staging) **19/19 LULUS**, konsol bersih. Percobaan pertama 17/19: G-03/G-04 membaca badge sebelum `/employees/summary` tiba (staging lebih lambat; respons 200 berisi 7 kategori) → script menunggu badge terisi (perbaikan script, bukan aplikasi; diterapkan juga ke script lokal).
+- **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-30-grup-kategori-staging/` (11 screenshot + `ui-results.json`).
+
+**Kesimpulan:** memenuhi kriteria rencana di lokal & staging. **Bug terbuka:** tidak ada.
+**Belum diverifikasi:** browser selain Chromium, Windows.
