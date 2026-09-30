@@ -32,8 +32,13 @@ export function PageHeader({
             <Link to={trail.group.to} className="hover:text-foreground transition-colors">
               {trail.group.label}
             </Link>
-            <ChevronRight className="size-3" aria-hidden />
-            <span>{trail.section.label}</span>
+            {/* Seksi yang namanya sama dengan kelompok besar (mis. "Akun Saya") tidak diulang. */}
+            {trail.section.label !== trail.group.label ? (
+              <>
+                <ChevronRight className="size-3" aria-hidden />
+                <span>{trail.section.label}</span>
+              </>
+            ) : null}
             {trail.child ? (
               <>
                 <ChevronRight className="size-3" aria-hidden />

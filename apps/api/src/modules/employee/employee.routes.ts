@@ -31,6 +31,8 @@ export interface EmployeeRouteDeps {
   authAdmin: AuthAdmin;
   /** D-037: foto profil di Supabase Storage. */
   storage: StorageAdmin;
+  /** PLAN §3.3: prefix path objek Storage (lokal `dev/<nama>/`). */
+  storagePathPrefix?: string;
 }
 
 const P = API_BASE_PATH;
@@ -208,7 +210,11 @@ const routes = {
 
 export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps): void {
   const guard = <R extends object>(route: R) => ({ ...route, middleware: deps.protect });
-  const ctx = (c: Context): service.RequestContext => ({ ...ctxOf(c), storage: deps.storage });
+  const ctx = (c: Context): service.RequestContext => ({
+    ...ctxOf(c),
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+  });
 
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>

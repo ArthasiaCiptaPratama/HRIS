@@ -10,7 +10,7 @@
 | Pemilik       | Oatse                                                                      |
 | Repo          | https://github.com/ArthasiaCiptaPratama/HRIS.git                           |
 | Branch kerja  | `HRIS/Oatse/Linux-Windows`                                                 |
-| Dasar         | Sesi grill 2026-09-25 (keputusan D-001 s.d. D-022), revisi 2026-09-28 (D-023 s.d. D-034), 2026-09-29 (D-035) |
+| Dasar         | Sesi grill 2026-09-25 (keputusan D-001 s.d. D-022), revisi 2026-09-28 (D-023 s.d. D-034), 2026-09-29 (D-035 s.d. D-037) |
 | File terkait  | [CODEMAP](./CODEMAP.md) · [PROGRESS](./PROGRESS.md) · [PROMPT](./PROMPT.md) |
 
 ---
@@ -352,7 +352,7 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | Fase | Nama | Isi utama | Kriteria selesai |
 |---|---|---|---|
 | 0 | Instruksi Projek | PLAN, CODEMAP, PROGRESS, PROMPT, CLAUDE.md | Disetujui pemilik projek, di-commit ke branch kerja |
-| 1 | Fondasi | Monorepo Bun, TS, Biome, dependency-cruiser, CI, PostgreSQL lokal (Docker) + Supabase project staging, kerangka `apps/api` (core) & `apps/web`, `packages/shared`, Prisma setup, 2 project Vercel + preview staging | `bun run dev` jalan di **Linux & Windows**; `/api/v1/health` OK di lokal & staging; CI hijau |
+| 1 | Fondasi | Monorepo Bun, TS, Biome, dependency-cruiser, CI, PostgreSQL lokal (Docker) + Supabase project staging, kerangka `apps/api` (core) & `apps/web`, `packages/shared`, Prisma setup, 2 project Vercel staging (D-036) | `bun run dev` jalan di **Linux & Windows**; `/api/v1/health` OK di lokal & staging; CI hijau |
 | 2 | IAM | Login Supabase di web, verifikasi JWT di api, role, Super Admin Utama + bootstrap, grant izin, audit log, undangan akun | Test matriks akses (bagian IAM) lulus; login → akses terproteksi → logout teruji |
 | 3 | Organization | Profil perusahaan, pengaturan sistem, departemen, jabatan, level, lokasi + geofence, kalender libur | CRUD + policy + test; UI master data |
 | 4 | Employee | Data karyawan, `manager_id`, data sensitif (grant), rekening, dokumen, kontak darurat, riwayat, undangan dari data karyawan, import CSV/Excel, seed dummy | Karyawan dibuat end-to-end dari UI; akses data sensitif sesuai matriks (teruji) |

@@ -36,7 +36,12 @@ const envSchema = z
     SMTP_USER: optionalString,
     SMTP_PASS: optionalString,
     EMAIL_FROM: optionalString,
-    STORAGE_PATH_PREFIX: z.string().default(""),
+    // PLAN §3.3: lokal `dev/<nama-developer>/` (bucket staging dipakai bersama); staging/produksi kosong.
+    STORAGE_PATH_PREFIX: z
+      .string()
+      .regex(/^(?:[a-z0-9][a-z0-9-]*\/)*$/, "lowercase segments ending with '/', e.g. dev/name/")
+      .max(64)
+      .default(""),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== "test" && !env.SUPABASE_URL) {

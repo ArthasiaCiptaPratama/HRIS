@@ -25,7 +25,7 @@ import {
   createSupabaseAdmin,
   UNCONFIGURED_AUTH_ADMIN,
 } from "./core/supabase-admin.ts";
-import { getEnv } from "./env.ts";
+import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
 import { registerEmployeeRoutes } from "./modules/employee/index.ts";
 import { loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
@@ -40,6 +40,8 @@ export interface AppDeps {
   actorLoader: ActorLoader;
   authAdmin: AuthAdmin;
   storage: StorageAdmin;
+  /** PLAN §3.3: prefix path objek Storage (lokal `dev/<nama>/`, staging/produksi kosong). */
+  storagePathPrefix: string;
   appUrl: string;
   emailSender: EmailSender;
   cronSecret: string | undefined;
@@ -68,9 +70,10 @@ function defaultStorage(): StorageAdmin {
 }
 
 // D-025: SMTP hanya bila lengkap (staging/produksi); lokal → email dicatat ke log saja.
-function defaultEmailSender(logger: Logger): EmailSender {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM } = getEnv();
-  return SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && EMAIL_FROM
+// NODE_ENV=test selalu log: test tidak boleh mengirim email sungguhan walau `.env` berisi SMTP_*.
+export function selectEmailSender(env: Env, logger: Logger): EmailSender {
+  const { NODE_ENV, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM } = env;
+  return NODE_ENV !== "test" && SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && EMAIL_FROM
     ? createSmtpSender({
         host: SMTP_HOST,
         port: SMTP_PORT,
@@ -123,8 +126,9 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     actorLoader: overrides.actorLoader ?? ((authUserId) => loadIamActor(authUserId)),
     authAdmin: overrides.authAdmin ?? defaultAuthAdmin(),
     storage: overrides.storage ?? defaultStorage(),
+    storagePathPrefix: overrides.storagePathPrefix ?? getEnv().STORAGE_PATH_PREFIX,
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
-    emailSender: overrides.emailSender ?? defaultEmailSender(logger),
+    emailSender: overrides.emailSender ?? selectEmailSender(getEnv(), logger),
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
   };
   configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
@@ -174,7 +178,12 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
-  registerEmployeeRoutes(app, { protect, authAdmin: deps.authAdmin, storage: deps.storage });
+  registerEmployeeRoutes(app, {
+    protect,
+    authAdmin: deps.authAdmin,
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+  });
   registerCronRoutes(app, { cronSecret: deps.cronSecret, logger: deps.logger });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));

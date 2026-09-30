@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { PERMISSION_LABELS, ROLE_LABELS } from "@hris/shared";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,55 +31,60 @@ export function ProfilePage() {
   });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {me.employeeId ? <OwnPhotoCard employeeId={me.employeeId} /> : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>Profil akses</CardTitle>
-          <CardDescription>{me.email}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="flex gap-1">
-            <Badge variant="secondary">{ROLE_LABELS[me.role]}</Badge>
-            {me.isPrimarySuperAdmin ? <Badge>Super Admin Utama</Badge> : null}
-          </div>
-          <p className="text-muted-foreground">Login terakhir: {formatDateTime(me.lastLoginAt)}</p>
-          <div>
-            <p className="font-medium">Izin tambahan (grant)</p>
-            {me.grants.length === 0 ? (
-              <p className="text-muted-foreground">Tidak ada.</p>
-            ) : (
-              <ul className="list-disc pl-5">
-                {me.grants.map((g) => (
-                  <li key={g.permission}>
-                    {PERMISSION_LABELS[g.permission]}
-                    {g.expiresAt ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        — sampai {formatDate(g.expiresAt)}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Ganti password</CardTitle>
-          <CardDescription>Minimal 12 karakter.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit} noValidate>
-            <SetPasswordFields form={form} />
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              Simpan password
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div>
+      <PageHeader title="Profil" description="Foto, akses, dan keamanan akun Anda." />
+      <div className="animate-fade-up grid gap-4 lg:grid-cols-2">
+        {me.employeeId ? <OwnPhotoCard employeeId={me.employeeId} /> : null}
+        <Card>
+          <CardHeader>
+            <CardTitle>Profil akses</CardTitle>
+            <CardDescription>{me.email}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex gap-1">
+              <Badge variant="secondary">{ROLE_LABELS[me.role]}</Badge>
+              {me.isPrimarySuperAdmin ? <Badge>Super Admin Utama</Badge> : null}
+            </div>
+            <p className="text-muted-foreground">
+              Login terakhir: {formatDateTime(me.lastLoginAt)}
+            </p>
+            <div>
+              <p className="font-medium">Izin tambahan (grant)</p>
+              {me.grants.length === 0 ? (
+                <p className="text-muted-foreground">Tidak ada.</p>
+              ) : (
+                <ul className="list-disc pl-5">
+                  {me.grants.map((g) => (
+                    <li key={g.permission}>
+                      {PERMISSION_LABELS[g.permission]}
+                      {g.expiresAt ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          — sampai {formatDate(g.expiresAt)}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Ganti password</CardTitle>
+            <CardDescription>Minimal 12 karakter.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={onSubmit} noValidate>
+              <SetPasswordFields form={form} />
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                Simpan password
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
