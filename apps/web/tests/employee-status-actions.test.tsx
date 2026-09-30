@@ -39,6 +39,8 @@ const detail = (overrides: Partial<typeof base> = {}) => ({
   ...base,
   ...overrides,
   emergencyPhone: null,
+  emergencyContactName: null,
+  emergencyContactRelationship: null,
   account: null,
   access: {
     manage: true,

@@ -33,7 +33,7 @@ export interface ApiClientOptions {
 
 export interface RequestOptions<T extends z.ZodType> {
   schema: T;
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
   // Endpoint tertentu (mis. health 503) tetap mengembalikan envelope data pada status non-2xx.

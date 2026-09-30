@@ -1,5 +1,6 @@
 import type { EmploymentCategory } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
+import { type AuditEntry, writeAudit } from "../../core/audit.ts";
 import { ForbiddenError } from "../../core/errors.ts";
 import * as policy from "./organization.policy.ts";
 import * as repository from "./organization.repository.ts";
@@ -75,4 +76,108 @@ export async function listMasterData(actor: Actor) {
     grades: active(lookup.grades),
     workLocations: active(lookup.locations),
   };
+}
+
+// ── D-042: master data untuk import karyawan ──────────────────────────────────
+// Nama dicocokkan tanpa peka huruf besar/kecil & spasi. Yang belum ada dibuat (HR boleh MENAMBAH lewat
+// import, D-042 poin 4), di dalam transaksi pemanggil, dengan audit per entitas.
+
+export const masterKey = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+export const positionKey = (department: string, name: string) =>
+  `${masterKey(department)}|${masterKey(name)}`;
+
+export interface MasterDataNames {
+  departments: string[];
+  positions: { department: string; name: string }[];
+  grades: string[];
+  workLocations: string[];
+}
+
+/** Id master data aktif per kunci nama (departemen, jabatan per departemen, grade, lokasi). */
+export function masterIndex(lookup: MasterLookup) {
+  const live = <T extends { deleted: boolean }>(map: Map<string, T>) =>
+    [...map.values()].filter((row) => !row.deleted);
+  const departments = new Map(live(lookup.departments).map((d) => [masterKey(d.name), d.id]));
+  const departmentName = new Map(live(lookup.departments).map((d) => [d.id, d.name]));
+  const positions = new Map(
+    live(lookup.positions).map((p) => [
+      positionKey(departmentName.get(p.departmentId) ?? "", p.name),
+      p.id,
+    ]),
+  );
+  return {
+    departments,
+    positions,
+    grades: new Map(live(lookup.grades).map((g) => [masterKey(g.name), g.id])),
+    workLocations: new Map(live(lookup.locations).map((l) => [masterKey(l.name), l.id])),
+  };
+}
+
+/** Nama yang belum ada di master data (unik, bentuk tulisan pertama yang ditemukan dipertahankan). */
+export function missingMasterData(lookup: MasterLookup, names: MasterDataNames): MasterDataNames {
+  const index = masterIndex(lookup);
+  const unique = (values: string[], known: Map<string, string>) => {
+    const seen = new Map<string, string>();
+    for (const value of values) {
+      const key = masterKey(value);
+      if (!known.has(key) && !seen.has(key)) seen.set(key, value.trim());
+    }
+    return [...seen.values()];
+  };
+  const positions = new Map<string, { department: string; name: string }>();
+  for (const p of names.positions) {
+    const key = positionKey(p.department, p.name);
+    if (!index.positions.has(key) && !positions.has(key))
+      positions.set(key, { department: p.department.trim(), name: p.name.trim() });
+  }
+  return {
+    departments: unique(names.departments, index.departments),
+    positions: [...positions.values()],
+    grades: unique(names.grades, index.grades),
+    workLocations: unique(names.workLocations, index.workLocations),
+  };
+}
+
+/** Buat master data yang belum ada; kembalikan indeks lengkap (lama + baru) untuk dipakai pemanggil. */
+export async function createMissingMasterData(
+  tx: repository.OrganizationTx,
+  lookup: MasterLookup,
+  missing: MasterDataNames,
+  audit: Omit<AuditEntry, "action" | "entityType" | "entityId" | "after">,
+) {
+  const index = masterIndex(lookup);
+  const log = (entity: string, id: string, name: string) =>
+    writeAudit(
+      {
+        ...audit,
+        action: `organization.${entity}.create`,
+        entityType: `organization.${entity}`,
+        entityId: id,
+        after: { name, source: "import" },
+      },
+      tx,
+    );
+  for (const name of missing.departments) {
+    const row = await repository.createDepartment(tx, name);
+    index.departments.set(masterKey(name), row.id);
+    await log("department", row.id, name);
+  }
+  for (const p of missing.positions) {
+    const departmentId = index.departments.get(masterKey(p.department));
+    if (!departmentId) continue; // departemen wajib ada/dibuat lebih dulu (dijaga pemanggil)
+    const row = await repository.createPosition(tx, departmentId, p.name);
+    index.positions.set(positionKey(p.department, p.name), row.id);
+    await log("position", row.id, p.name);
+  }
+  for (const name of missing.grades) {
+    const row = await repository.createGrade(tx, name);
+    index.grades.set(masterKey(name), row.id);
+    await log("grade", row.id, name);
+  }
+  for (const name of missing.workLocations) {
+    const row = await repository.createWorkLocation(tx, name);
+    index.workLocations.set(masterKey(name), row.id);
+    await log("work_location", row.id, name);
+  }
+  return index;
 }

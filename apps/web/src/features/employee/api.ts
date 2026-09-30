@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { prepareProfilePhoto } from "@/lib/image";
 import { supabase } from "@/lib/supabase";
 import {
+  dashboardSchema,
   employeeDetailSchema,
   employeeListItemSchema,
   employeePageSchema,
@@ -31,6 +32,7 @@ export const employeeKeys = {
   all: ["employees"] as const,
   list: (params: EmployeeListParams) => ["employees", "list", params] as const,
   summary: ["employees", "summary"] as const,
+  dashboard: ["employees", "dashboard"] as const,
   detail: (id: string, view: DetailView) => ["employees", "detail", id, view] as const,
   structure: ["employees", "structure"] as const,
   managerOptions: ["employees", "manager-options"] as const,
@@ -83,6 +85,17 @@ export function useEmployeeSummary(enabled = true) {
     queryKey: employeeKeys.summary,
     queryFn: ({ signal }) =>
       api("/employees/summary", { schema: one(summarySchema), signal }).then((r) => r.data),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/** Dashboard SA/HR; kunci di bawah "employees" sehingga ikut segar setelah mutasi/import. */
+export function useDashboard(enabled = true) {
+  return useQuery({
+    queryKey: employeeKeys.dashboard,
+    queryFn: ({ signal }) =>
+      api("/dashboard", { schema: one(dashboardSchema), signal }).then((r) => r.data),
     enabled,
     staleTime: 60_000,
   });
@@ -167,6 +180,8 @@ export interface EmployeeWriteBody {
   workEmail: string | null;
   phoneNumber: string | null;
   emergencyPhone: string | null;
+  emergencyContactName: string | null;
+  emergencyContactRelationship: string | null;
   gender: "MALE" | "FEMALE" | null;
   joinDate: string;
   employmentStatusId?: string;

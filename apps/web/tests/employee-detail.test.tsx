@@ -44,6 +44,8 @@ const detail = (access: Record<string, boolean>) => ({
   manager: null,
   photoUrl,
   emergencyPhone: null,
+  emergencyContactName: null,
+  emergencyContactRelationship: null,
   account: null,
   access: {
     manage: false,

@@ -56,6 +56,8 @@ export const routes: RouteObject[] = [
                     path: "ubah-status",
                     lazy: FEATURES.changeStatus ? pages.changeStatus : pages.maintenance,
                   },
+                  // D-042: import data karyawan dari .xlsx/.csv (dibuka dari Data Karyawan Aktif).
+                  { path: "import", lazy: pages.importEmployees },
                   {
                     path: "pengaktifan",
                     lazy: FEATURES.activation ? pages.activation : pages.maintenance,
