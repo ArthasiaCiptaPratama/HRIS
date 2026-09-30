@@ -10,7 +10,7 @@
 | Pemilik       | Oatse                                                                      |
 | Repo          | https://github.com/ArthasiaCiptaPratama/HRIS.git                           |
 | Branch kerja  | `HRIS/Oatse/Linux-Windows`                                                 |
-| Dasar         | Sesi grill 2026-09-25 (keputusan D-001 s.d. D-022), revisi 2026-09-28 (D-023 s.d. D-034), 2026-09-29 (D-035 s.d. D-037), 2026-09-30 (D-038) |
+| Dasar         | Sesi grill 2026-09-25 (keputusan D-001 s.d. D-022), revisi 2026-09-28 (D-023 s.d. D-034), 2026-09-29 (D-035 s.d. D-037), 2026-09-30 (D-038 s.d. D-042) |
 | File terkait  | [CODEMAP](./CODEMAP.md) · [PROGRESS](./PROGRESS.md) · [PROMPT](./PROMPT.md) |
 
 ---
@@ -18,7 +18,7 @@
 ## 1. Tujuan & Ruang Lingkup
 
 ### 1.1 Tujuan
-Membangun HRIS internal untuk **satu perusahaan** (± < 200 karyawan) yang:
+Membangun HRIS internal untuk **satu grup perusahaan tambang batu bara** (multi-entitas: ACP, PNR, RCE, RDA, AU, NMA, …; banyak site — D-039; awalnya ± < 200 karyawan) yang:
 1. **Terpisah jelas per domain**. Setiap domain HR adalah modul dengan batas kode dan batas data yang tegas.
 2. **Scalable** dalam dua arti:
    - **Horizontal:** backend stateless, bisa berjalan di banyak instance.
@@ -32,7 +32,7 @@ Membangun HRIS internal untuk **satu perusahaan** (± < 200 karyawan) yang:
 | Modul          | Ringkasan                                                                                             |
 | -------------- | ----------------------------------------------------------------------------------------------------- |
 | `iam`          | Akun (terhubung ke Supabase Auth), role, Super Admin Utama, grant izin per akun.                      |
-| `organization` | Profil perusahaan, pengaturan sistem, departemen, jabatan, status kepegawaian, grade, lokasi kerja (geofence), hari libur. |
+| `organization` | Perusahaan dalam grup (entitas, D-039), profil perusahaan, pengaturan sistem, departemen, jabatan, status kepegawaian, grade, lokasi kerja (geofence), hari libur. |
 | `employee`     | Data induk karyawan, atasan langsung (`manager_id`), data sensitif, rekening, keluarga, pendidikan, pelatihan, dokumen, kontak darurat, riwayat, import CSV/Excel. |
 | `attendance`   | Shift, jadwal, absen (geofence + selfie + waktu server), koreksi absensi, lembur, penutupan periode absensi. |
 | `leave`        | Cuti tahunan (saldo, akrual, hold) dan izin (melahirkan, menikah, duka, sakit, dll.).               |
@@ -174,7 +174,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 
 | Kode izin                        | Artinya                                                                          | Bisa diberikan ke     |
 | -------------------------------- | -------------------------------------------------------------------------------- | --------------------- |
-| `employee.personal.read`         | Lihat NIK KTP, NPWP, no. KK, tempat/tgl lahir, alamat KTP & domisili, status nikah, agama, tanggungan (PTKP), data keluarga | HR_ADMIN, MANAGER     |
+| `employee.personal.read`         | Lihat NIK KTP, NPWP, no. KK, tempat/tgl lahir, kota asal, alamat KTP & domisili, status nikah, agama, tanggungan (PTKP), nomor BPJS TK & Kesehatan (D-041), data keluarga | HR_ADMIN, MANAGER     |
 | `employee.personal.write`        | Ubah data di atas                                                                | HR_ADMIN, MANAGER     |
 | `employee.bank.read`             | Lihat nomor rekening                                                             | HR_ADMIN, MANAGER     |
 | `employee.bank.write`            | Ubah nomor rekening                                                              | HR_ADMIN, MANAGER     |
@@ -202,8 +202,9 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Beri/cabut role HR_ADMIN & MANAGER, beri/cabut grant | ✅ | ❌ | ❌ | ❌ |
 | Undang akun karyawan, nonaktifkan akun | ✅ | ✅ | ❌ | ❌ |
 | Pengaturan sistem, profil perusahaan, audit log | ✅ | ❌ | ❌ | ❌ |
+| Kelola perusahaan dalam grup & penugasan PT ke akun HR_ADMIN (D-039, D-040) | ✅ | ❌ | ❌ | ❌ |
 | **Kebijakan (policy)** | | | | |
-| Struktur organisasi: departemen, jabatan, level, lokasi & geofence | ✅ | 👁 | 👁 | 👁 |
+| Struktur organisasi: departemen, jabatan, level, lokasi & geofence | ✅ | 👁 (+ tambah baru lewat import, D-042) | 👁 | 👁 |
 | Kalender libur | ✅ | 👁 | 👁 | 👁 |
 | Template shift & jam kerja, toleransi telat | ✅ | 👁 | 👁 | ❌ |
 | Jenis cuti/izin, kuota, akrual, carry-over | ✅ | 👁 | 👁 | 👁 |
@@ -217,7 +218,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Rekening bank | ✅ | 🔑 | 🔑 tim | 👁 sendiri |
 | Dokumen karyawan | ✅ | 🔑 | 🔑 tim | ✅ sendiri |
 | Ubah data diri sendiri: no. HP, alamat domisili, kontak darurat, foto | ✅ | ✅ | ✅ | ✅ |
-| Import karyawan (CSV/Excel) | ✅ | ✅ | ❌ | ❌ |
+| Import karyawan (CSV/Excel) (D-042) | ✅ | ✅ PT sendiri; kolom sensitif hanya dengan grant `*.write` | ❌ | ❌ |
 | **Kontrak** | | | | |
 | Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
 | Lihat kontrak sendiri | ✅ | ✅ | ✅ | ✅ |
@@ -242,6 +243,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Lihat & unduh slip gaji sendiri | ✅* | ✅ | ✅ | ✅ |
 
 \* jika akun terhubung ke data karyawan.
+
+**Cakupan perusahaan (D-040):** setiap baris "Karyawan", "Kontrak", "Absensi", dan "Cuti" untuk HR_ADMIN hanya berlaku atas karyawan di **perusahaan yang ditugaskan ke akunnya**; grant HR juga hanya berlaku di cakupan itu. SUPER_ADMIN atas semua perusahaan; MANAGER tetap atas timnya; EMPLOYEE atas dirinya.
 
 ### 4.4 Super Admin Utama
 - **Tepat satu** akun SUPER_ADMIN berstatus Utama pada setiap saat.
@@ -325,7 +328,8 @@ Kasus khusus:
 
 ### 5.7 Data Awal
 - Development memakai **data dummy** khas Indonesia (script seed): nama, NIK/NPWP berformat valid tapi fiktif, alamat, struktur organisasi contoh.
-- Fitur **import CSV/Excel** disediakan untuk data karyawan dan saldo cuti (untuk migrasi data asli nanti).
+- Fitur **import CSV/Excel** disediakan untuk data karyawan dan saldo cuti (untuk migrasi data asli nanti). Desain import karyawan: D-042 dan [design/import-karyawan.md](./design/import-karyawan.md).
+- **File berisi data asli tidak pernah masuk repo** (disimpan di luar repo, mis. `/mnt/winD/WORK/Magang/DATA-ASLI/`). Test & template memakai file dummy berstruktur sama.
 
 ---
 
@@ -372,7 +376,7 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | ID    | Keputusan | Alasan |
 |---|---|---|
 | D-001 | **Modular monolith** (bukan microservice terpisah). Satu backend, modul dengan batas ketat. | Deployment sederhana; skala < 200 karyawan; modul tetap bisa diekstrak. |
-| D-002 | **Single company**, tanpa `company_id`/`tenant_id`. Profil perusahaan tunggal. | Hanya dipakai satu badan hukum. |
+| D-002 | *(diganti oleh D-039)* **Single company**, tanpa `company_id`/`tenant_id`. Profil perusahaan tunggal. | Hanya dipakai satu badan hukum. |
 | D-003 | **Prisma 7** satu-satunya ORM (skema, migrasi, query). Drizzle tidak dipakai. | Satu sumber skema, tidak ada drift. |
 | D-004 | Satu skema Postgres per modul; FK hanya ke modul inti (`employee`, `organization`); akses lintas modul hanya via `index.ts`. | Integritas data + kemampuan ekstraksi. |
 | D-005 | **Supabase** untuk DB + Auth + Storage. Modul role bernama `iam` (skema `auth` milik Supabase). *(DB lokal disesuaikan oleh D-023)* | Login, undangan, dan storage siap pakai. |
@@ -410,6 +414,11 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | D-037 | **Foto profil pegawai (2026-09-29, permintaan pemilik projek):** (1) Disimpan di bucket Supabase Storage **private** `employee-photos` (maks 2 MB, hanya `image/jpeg`, `image/png`, `image/webp`), path `employees/<employee_id>/<uuid>.<ext>` di kolom `employee.employees.photo_path` (bukan URL). Bucket dibuat/diselaraskan **hanya** lewat script idempoten `bun run storage:setup` (service role) — staging dijalankan 2026-09-29, produksi dijalankan saat Rilis 1; tanpa policy RLS untuk anon/authenticated. (2) Alur unggah: API menerbitkan signed upload URL (token sekali pakai, terikat path) → browser memotong ke tengah **3:4**, mengompres (maks 600×800, WebP/JPEG) dan mengunggah langsung ke Storage → API mengonfirmasi (objek ada, tipe gambar, ≤ 2 MB), menyimpan path, menghapus foto lama, audit `employee.photo.update`/`delete`. (3) Baca: URL bertanda tangan berumur **10 menit** di daftar & detail untuk siapa pun yang boleh melihat pegawai itu (§4.3 data kerja). (4) Ubah/hapus: SUPER_ADMIN & HR_ADMIN untuk pegawai yang mereka lihat; setiap akun tertaut untuk fotonya sendiri (§4.3 "ubah data diri sendiri: … foto", lewat halaman Profil); MANAGER tidak untuk timnya. (5) Formulir cetak (.xlsx) menyisipkan foto (JPEG) di bingkai B9:J25. | Keputusan pemilik projek 2026-09-29 (akses & rasio 3:4 dipilih dari opsi); bucket private + signed URL sesuai PLAN §2 (file storage) dan D-023 (Storage lokal = staging). |
 
 | D-038 | **Kategori & pengelompokan Data Karyawan Aktif (2026-09-30, permintaan pemilik projek; mengganti D-035 poin 3 bagian "probation bukan kategori"):** (1) Kategori enum `employment_statuses.category` menjadi 7: `PERMANENT` (Karyawan Tetap), `PROBATION` (Karyawan Percobaan), `PKWT`, `DAILY_WORKER` (Pekerja Harian), `INTERNSHIP` (Magang), `OUTSOURCING`, `VENDOR`. Karyawan Percobaan = **kategori sendiri**; setelah lulus, HR/SA memindahkannya lewat Ubah Status (riwayat + audit); aturan durasi percobaan belum diatur sistem. (2) Kategori dikelompokkan (`CATEGORIES_BY_GROUP` di `@hris/shared`): **Karyawan Internal** (Tetap, Percobaan, PKWT, Pekerja Harian), **Program Magang** (Magang), **Tenaga Kerja Eksternal** (Outsourcing, Vendor). (3) Sidebar Personal Management: seksi "Data Karyawan Aktif" = Semua Karyawan Aktif + tiga grup berlipat, grup ber-kategori > 1 punya "Semua …" sendiri; seksi "Pengelolaan Karyawan" = Ubah Status, Pengaktifan, Data Tidak Aktif, Struktur Organisasi. "Semua Karyawan Aktif" tetap ada (tujuan default & satu-satunya tempat status tanpa kategori). (4) API `GET /employees?group=INTERNAL\|INTERNSHIP\|EXTERNAL` (AND dengan `category`); cakupan akses tidak berubah (§4.3, D-035 poin 2). (5) Istilah tampilan Personal Management = **"Karyawan"** (sesuai PLAN), URL tetap (`/personal/pegawai-aktif/<slug>`; slug lama `internship`/`daily-worker` dialihkan). | Keputusan pemilik projek 2026-09-30 (opsi yang direkomendasikan dipilih untuk model percobaan, nama grup, menu semua, dan istilah). |
+
+| D-039 | **Satu sistem, banyak entitas (2026-09-30, mengganti D-002):** HRIS dipakai grup perusahaan tambang batu bara (ACP, PNR, RCE, RDA, AU, NMA, …) dengan banyak site. (1) Tabel `organization.companies` (kode unik mis. `ACP`, nama badan hukum, NPWP badan, alamat, `is_active`, `deleted_at`); dikelola SUPER_ADMIN. (2) `employee.employees.company_id` **wajib** (FK ke modul inti organization); data yang sudah ada dimigrasikan ke **ACP** (migrasi *expand → backfill → contract*). (3) **Master data departemen, jabatan, grade, status, dan site/lokasi kerja berlaku untuk seluruh grup** (dipakai bersama; satu site bisa diisi beberapa PT) — perusahaan hanya menempel di karyawan. (4) Perpindahan karyawan antar-PT dicatat di `employment_histories` (jenis `COMPANY_CHANGED`) + audit. (5) Satu login & satu database untuk seluruh grup; **bukan** multi-tenant terisolasi. (6) Payroll, BPJS, dan pajak nanti dihitung per perusahaan (badan hukum) — dirinci di Fase 8. | Keputusan pemilik projek 2026-09-30: sistem akan melebar ke beberapa perusahaan & site; model multi-entitas memudahkan laporan grup dan mutasi antar-PT tanpa beban multi-tenant. |
+| D-040 | **Akses per perusahaan (2026-09-30):** tabel `iam.account_companies` (akun ↔ perusahaan). HR_ADMIN hanya melihat & mengelola karyawan di perusahaan yang ditugaskan (daftar, ringkasan, detail, struktur, ubah status, import, undangan); karyawan di luar cakupan → **404** (tidak boleh diketahui keberadaannya). Grant HR berlaku di dalam cakupan itu. SUPER_ADMIN: semua perusahaan. MANAGER: tetap tim (bawahan langsung, D-009) lintas PT. EMPLOYEE: diri sendiri. HR_ADMIN tanpa penugasan = tidak melihat karyawan mana pun. Penugasan diatur SUPER_ADMIN (audit + notifikasi). | Keputusan pemilik projek 2026-09-30. |
+| D-041 | **Kolom data karyawan tambahan (2026-09-30, untuk import):** `employee_personal`: `bpjs_employment_number` (BPJS Ketenagakerjaan), `bpjs_health_number` (BPJS Kesehatan), `ptkp_status` (enum TK/0–TK/3, K/0–K/3), `origin_city` — **sensitif**, di bawah grant `employee.personal.*`. `employees`: `emergency_contact_name`, `emergency_contact_relationship`. `educations`: `level` (enum SD, SMP, SMA/SMK, D1–D4, S1–S3, lainnya). Data kontrak (tanggal akhir, PKWT ke-n, durasi, nomor offering) disimpan di modul `contract` **Fase 7**; sampai itu diisi lewat import ulang mode "perbarui". | Keputusan pemilik projek 2026-09-30: kolom file master data kantor diberi tempat resmi, bukan JSON bebas. |
+| D-042 | **Import karyawan CSV/Excel (2026-09-30):** (1) File **diurai di browser** dan **tidak disimpan**; hanya baris terpetakan yang dikirim ke API dan **divalidasi ulang di server** (Zod + normalizer bersama di `@hris/shared`). (2) **Deteksi otomatis**: sheet, baris header, pemetaan kolom (kamus sinonim ID/EN + kemiripan teks + tebakan dari isi kolom, dengan skor keyakinan; bisa dikoreksi pengguna; profil pemetaan diingat per susunan header), kolom turunan/formula diabaikan. (3) **Mode per import**: "tambah saja" atau "tambah + perbarui" (kunci = nomor induk karyawan; sel kosong **tidak** menimpa). (4) **Master data baru** (departemen, jabatan, grade, site, status) dibuat otomatis setelah tampil di pratinjau dan bisa dipetakan ke yang sudah ada; HR_ADMIN boleh **menambah** (bukan mengubah/menghapus) lewat import, tercatat di audit. (5) **Kolom sensitif** (KTP, NPWP, KK, alamat, agama, PTKP, BPJS, rekening) hanya ditulis bila aktor SUPER_ADMIN atau ber-grant `employee.personal.write` / `employee.bank.write`; bila tidak, kolom itu dilewati dan diberitahukan di pratinjau. Baris milik akun pengimpor sendiri tidak memperbarui data sensitif sampai OD-6 diputuskan. (6) Baris **RESIGN** (+ tanggal) diimpor sebagai karyawan **nonaktif** (alasan Mengundurkan diri, riwayat HIRED + DEACTIVATED, tanpa akun). (7) Disimpan hanya jejak `employee.import_jobs` (aktor, waktu, nama & hash file, mode, jumlah, error per baris **tanpa nilai**) + audit per karyawan bersumber `import`. (8) Batas 2.000 baris / 5 MB per import, satu transaksi. (9) Library: `read-excel-file` (xlsx) + `papaparse` (csv); SheetJS npm (0.18.5, CVE) tidak dipakai. (10) Data asli tidak pernah masuk repo; test memakai template dummy berstruktur sama. Desain rinci: [design/import-karyawan.md](./design/import-karyawan.md). | Keputusan pemilik projek 2026-09-30 (semua opsi yang direkomendasikan dipilih); risiko kebocoran PII (UU PDP) ditekan dengan tidak menyimpan file. |
 
 Keputusan baru ditambahkan dengan ID berikutnya **dan** dicatat di log PROGRESS.
 
