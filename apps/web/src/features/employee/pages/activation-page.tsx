@@ -39,15 +39,15 @@ export function ActivationPage() {
   return (
     <>
       <PageHeader
-        title="Pengaktifan Pegawai"
-        description="Aktifkan kembali pegawai yang sebelumnya keluar (mis. direkrut ulang). Riwayat keluar tetap tersimpan."
+        title="Pengaktifan Karyawan"
+        description="Aktifkan kembali karyawan yang sebelumnya keluar (mis. direkrut ulang). Riwayat keluar tetap tersimpan."
       />
       <EmployeeListView
         variant="inactive"
         columns={columns}
         onRowClick={setTarget}
-        emptyTitle="Tidak ada pegawai nonaktif"
-        emptyDescription="Semua pegawai berstatus aktif."
+        emptyTitle="Tidak ada karyawan nonaktif"
+        emptyDescription="Semua karyawan berstatus aktif."
       />
       <ReactivateDialog
         employee={target}

@@ -173,7 +173,7 @@ const routes = {
     path: `${P}/employees/{id}/photo/upload-url`,
     tags: TAGS,
     summary:
-      "Minta URL unggah foto profil (SA/HR, atau pegawai untuk dirinya sendiri); unggah langsung ke Storage lalu konfirmasi",
+      "Minta URL unggah foto profil (SA/HR, atau karyawan untuk dirinya sendiri); unggah langsung ke Storage lalu konfirmasi",
     security,
     request: { params: idParamSchema, ...body(photoUploadUrlBodySchema) },
     responses: {

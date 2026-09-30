@@ -31,12 +31,12 @@ export function MaintenancePage() {
           </h1>
           <p className="text-muted-foreground max-w-[52ch] leading-relaxed">
             Halaman ini masuk tahap pengembangan berikutnya. Sementara itu, data terkait tetap bisa
-            dilihat dari panel detail pegawai di menu Data Pegawai Aktif.
+            dilihat dari panel detail karyawan di menu Data Karyawan Aktif.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 pt-1">
           <Button asChild>
-            <Link to="/personal/pegawai-aktif/semua">Buka Data Pegawai Aktif</Link>
+            <Link to="/personal/pegawai-aktif/semua">Buka Data Karyawan Aktif</Link>
           </Button>
           <Button variant="ghost" onClick={() => window.history.back()}>
             <ArrowLeft /> Kembali

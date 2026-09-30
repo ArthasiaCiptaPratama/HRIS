@@ -150,7 +150,7 @@ function Stats({ data, people }: { data: OrgStructure; people: Person[] }) {
   const managers = new Set(people.map((p) => p.managerId).filter(Boolean)).size;
   const positions = data.departments.reduce((sum, d) => sum + d.positions.length, 0);
   const items = [
-    { label: "Pegawai aktif", value: data.totalEmployees },
+    { label: "Karyawan aktif", value: data.totalEmployees },
     { label: "Departemen", value: data.departments.length },
     { label: "Jabatan", value: positions },
     { label: "Atasan langsung", value: managers },

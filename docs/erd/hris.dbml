@@ -44,12 +44,14 @@ Enum organization.employment_category {
   INTERNSHIP
   DAILY_WORKER
   OUTSOURCING
+  PROBATION
+  VENDOR
 }
 
 Table organization.employment_statuses {
   id uuid [pk, default: `gen_random_uuid()`]
-  name varchar(50) [not null, unique, note: 'Pegawai Tetap, PKWT, Internship, Daily Worker, Outsourcing']
-  category organization.employment_category [unique, note: 'D-035: kategori navigasi Data Pegawai Aktif; null = tanpa kategori']
+  name varchar(50) [not null, unique, note: 'Karyawan Tetap, Karyawan Percobaan, PKWT, Pekerja Harian, Magang, Outsourcing, Vendor (D-038)']
+  category organization.employment_category [unique, note: 'D-035/D-038: kategori navigasi Data Karyawan Aktif (grup Internal / Magang / Eksternal); null = tanpa kategori']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null]
   deleted_at timestamptz

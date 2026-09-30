@@ -1,4 +1,4 @@
-import type { EmploymentCategory } from "@hris/shared";
+import type { EmploymentCategory, EmploymentCategoryGroup } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Search, SearchX, Users, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +33,7 @@ export function employeeColumns(
   const columns: DataColumn<EmployeeListItem>[] = [
     helper.display({
       id: "name",
-      header: "Pegawai",
+      header: "Karyawan",
       meta: { sortKey: "fullName", className: "min-w-[220px]" },
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
@@ -179,6 +179,7 @@ export function useListParams(defaults: { sort: string }) {
 export function EmployeeListView({
   variant,
   category,
+  group,
   columns,
   onRowClick,
   emptyTitle,
@@ -188,6 +189,7 @@ export function EmployeeListView({
 }: {
   variant: ListVariant;
   category?: EmploymentCategory | undefined;
+  group?: EmploymentCategoryGroup | undefined;
   columns: DataColumn<EmployeeListItem>[];
   onRowClick?: (row: EmployeeListItem) => void;
   emptyTitle: string;
@@ -231,6 +233,7 @@ export function EmployeeListView({
       active: variant === "active",
       q: list.q || undefined,
       category,
+      group,
       departmentId: list.departmentId || undefined,
       workLocationId: list.workLocationId || undefined,
       sort: list.sort,
@@ -243,6 +246,7 @@ export function EmployeeListView({
       list.workLocationId,
       list.sort,
       category,
+      group,
       variant,
     ],
   );
@@ -271,7 +275,7 @@ export function EmployeeListView({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Cari nama, nomor induk, email…"
-            aria-label="Cari pegawai"
+            aria-label="Cari karyawan"
             className="h-9 pr-9 pl-9 sm:pr-16"
           />
           {search ? (
@@ -329,7 +333,7 @@ export function EmployeeListView({
       </div>
 
       <DataTable
-        label="Daftar pegawai"
+        label="Daftar karyawan"
         columns={columns}
         data={rows}
         loading={query.isPending}

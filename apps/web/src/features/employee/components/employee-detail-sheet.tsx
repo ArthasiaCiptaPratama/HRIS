@@ -103,10 +103,10 @@ export function EmployeeDetailSheet({
           <DetailSkeleton />
         ) : detail.isError || !employee ? (
           <div className="p-6 pt-16">
-            <SheetTitle className="sr-only">Detail pegawai</SheetTitle>
+            <SheetTitle className="sr-only">Detail karyawan</SheetTitle>
             <EmptyState
               icon={CircleUser}
-              title="Data pegawai tidak dapat ditampilkan"
+              title="Data karyawan tidak dapat ditampilkan"
               description={errorMessage(detail.error)}
             />
           </div>
@@ -121,7 +121,7 @@ export function EmployeeDetailSheet({
 function DetailSkeleton() {
   return (
     <div className={cn(CONTAINER, "space-y-8 py-10")}>
-      <SheetTitle className="sr-only">Memuat detail pegawai</SheetTitle>
+      <SheetTitle className="sr-only">Memuat detail karyawan</SheetTitle>
       <div className="flex flex-col items-center gap-3">
         <Skeleton className="size-24 rounded-full sm:size-28" />
         <Skeleton className="h-6 w-56" />

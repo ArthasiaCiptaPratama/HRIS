@@ -126,7 +126,7 @@ export function EmployeeFormDialog({
     try {
       if (employee) {
         await update.mutateAsync({ id: employee.id, body });
-        toast.success("Data pegawai diperbarui.");
+        toast.success("Data karyawan diperbarui.");
         onSaved?.(employee.id);
       } else {
         const created = (await create.mutateAsync({
@@ -151,10 +151,10 @@ export function EmployeeFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b px-6 pt-6 pb-4">
-          <DialogTitle>{editing ? "Ubah data pegawai" : "Tambah pegawai"}</DialogTitle>
+          <DialogTitle>{editing ? "Ubah data karyawan" : "Tambah karyawan"}</DialogTitle>
           <DialogDescription>
             {editing
-              ? "Perbarui data kerja. Status kepegawaian diubah lewat menu Ubah Status Pegawai supaya tercatat di riwayat."
+              ? "Perbarui data kerja. Status kepegawaian diubah lewat menu Ubah Status Karyawan supaya tercatat di riwayat."
               : "Data kerja inti. Data pribadi, rekening, dan dokumen dilengkapi terpisah (butuh izin khusus)."}
           </DialogDescription>
         </DialogHeader>
@@ -218,7 +218,7 @@ export function EmployeeFormDialog({
                     <AlertDescription>
                       <p>
                         Status saat ini: <strong>{employee?.employmentStatus.name}</strong>. Ubah
-                        lewat menu Ubah Status Pegawai.
+                        lewat menu Ubah Status Karyawan.
                       </p>
                     </AlertDescription>
                   </Alert>
@@ -327,7 +327,7 @@ export function EmployeeFormDialog({
                 label="Atasan langsung"
                 htmlFor="f-manager"
                 optional
-                hint="Hanya pegawai yang punya akun Manager/Super Admin."
+                hint="Hanya karyawan yang punya akun Manager/Super Admin."
               >
                 <Controller
                   control={control}
@@ -403,7 +403,7 @@ export function EmployeeFormDialog({
                 ? "Menyimpan…"
                 : editing
                   ? "Simpan perubahan"
-                  : "Tambah pegawai"}
+                  : "Tambah karyawan"}
             </Button>
           </DialogFooter>
         </form>

@@ -254,7 +254,7 @@ describe("utilitas", () => {
 
   it("printFileName aman untuk Windows", () => {
     expect(printFileName({ employeeNumber: "ACP/2023:07", fullName: 'Agus "AP" Pratama' })).toBe(
-      "Data Pegawai - ACP-2023-07 - Agus -AP- Pratama.xlsx",
+      "Data Karyawan - ACP-2023-07 - Agus -AP- Pratama.xlsx",
     );
   });
 
@@ -393,7 +393,7 @@ describe("foto di formulir cetak (D-037)", () => {
     );
     expect(new Set(ids).size).toBe(ids.length);
     expect(photo.getElementsByTagNameNS(XDR, "cNvPr")[0]?.getAttribute("name")).toBe(
-      "Foto Pegawai",
+      "Foto Karyawan",
     );
   });
 

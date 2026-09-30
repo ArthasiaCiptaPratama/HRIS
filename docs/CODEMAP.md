@@ -7,7 +7,7 @@
 
 | Metadata        | Nilai                                                        |
 | --------------- | ------------------------------------------------------------ |
-| Terakhir diubah | 2026-09-30 (audit langsung ke repo)                          |
+| Terakhir diubah | 2026-09-30 (D-038: grup kategori karyawan)                   |
 | Kondisi repo    | Fase 1 hampir selesai (sisa uji Windows); Fase 2 IAM review; Fase 3–4 berjalan (modul `organization` baca, `employee` + foto profil + print). Staging live (D-036) |
 
 ---
@@ -37,7 +37,7 @@ HRIS/
 │   ├── hris-db-schema/               [done] Alur skema Prisma, ERD → Prisma, batas Supabase MCP
 │   ├── hris-e2e-playwright/          [done] Konvensi & templat Playwright (setup e2e/ saat pertama dipakai)
 │   ├── hris-flow-testing/            [done] Test flow API & matriks akses (TDD)
-│   ├── hris-qa-docs/                 [done] Templat docs/qa/: plan, case, run, bug
+│   ├── hris-qa-docs/                 [done] Templat docs/qa/: plan, case, run, bug + arsip QA fitur LEGIT ke Google Drive (`rclone sync` ke remote `hris-qa:`, satu folder per fitur; 2026-09-30)
 │   ├── supabase/                     [done] Skill resmi Supabase (npx skills add supabase/agent-skills); bagian skemanya dikalahkan hris-db-schema
 │   └── supabase-postgres-best-practices/ [done] Skill resmi Supabase
 ├── .mcp.json                         [done] MCP Supabase (HTTP, OAuth; project_ref iwgzuwcxsxnbjibhbqgh). Tanpa rahasia
@@ -67,7 +67,7 @@ apps/api/
 │   ├── schema/                       [wip] Skema Prisma multi-file; model ditambahkan per fase (file modul yang belum ada = `[planned]`)
 │   │   ├── _base.prisma              [done] generator (prisma-client, runtime bun, output src/generated/prisma) + datasource (10 skema Postgres)
 │   │   ├── iam.prisma               [done] accounts (enum `Role`, D-028), permission_grants
-│   │   ├── organization.prisma      [done] departments, positions, employment_statuses (+ enum `EmploymentCategory`, D-035), grades, work_locations (ERD, D-026)
+│   │   ├── organization.prisma      [done] departments, positions, employment_statuses (+ enum `EmploymentCategory` 7 nilai, D-035/D-038), grades, work_locations (ERD, D-026)
 │   │   ├── employee.prisma          [done] employees (+ `exit_reason`), employee_personal, employee_bank_accounts, family_members, educations, trainings, employment_histories + enum (ERD D-026, D-035)
 │   │   ├── attendance.prisma        [planned] Fase 5
 │   │   ├── leave.prisma             [planned] Fase 6
@@ -84,11 +84,12 @@ apps/api/
 │   │   ├── 20260928065300_add_iam_and_audit/  [done] iam.accounts, iam.permission_grants, audit.audit_logs + index unik parsial Utama + 2 CHECK
 │   │   ├── 20260928085157_add_notification/  [done] notification.notifications, notification.email_outbox
 │   │   ├── 20260929020000_employee_categories_and_histories/  [done] D-035: enum kategori + `employment_statuses.category` (unik), `employees.exit_reason` + CHECK (hanya saat nonaktif), `employment_histories`, index daftar `(employment_status_id, is_active)` & `(is_active, full_name)`
-│   │   └── 20260929100000_add_employee_photo/  [done] D-037: `employees.photo_path varchar(255)`
+│   │   ├── 20260929100000_add_employee_photo/  [done] D-037: `employees.photo_path varchar(255)`
+│   │   └── 20260930035548_add_probation_and_vendor_categories/  [done] D-038: `ALTER TYPE EmploymentCategory ADD VALUE 'PROBATION', 'VENDOR'`
 │   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production
 │       ├── index.ts                  Runner: organization → employee
-│       ├── organization.ts           5 departemen, 12 jabatan, 5 status berkategori (D-035; nama lama "Tetap/Kontrak (PKWT)/Magang" diganti, "Masa Percobaan" di-soft delete), 5 grade, 2 lokasi
-│       └── employee.ts               21 karyawan dummy (5 manajer, 2 nonaktif) + data pribadi/rekening/keluarga/pendidikan/pelatihan fiktif + riwayat HIRED/DEACTIVATED; `work_email` dari SEED_EMAIL_BASE
+│       ├── organization.ts           5 departemen, 12 jabatan, 7 status berkategori (D-038: Karyawan Tetap, Karyawan Percobaan, PKWT, Pekerja Harian, Magang, Outsourcing, Vendor; nama lama "Pegawai Tetap/Tetap/Kontrak (PKWT)/Internship/Daily Worker" diganti, "Masa Percobaan" dihidupkan lagi sebagai Karyawan Percobaan), 5 grade, 2 lokasi
+│       └── employee.ts               23 karyawan dummy (5 manajer, 2 nonaktif; + Nadia Putri Percobaan & Yusuf Hidayat Vendor, D-038) + data pribadi/rekening/keluarga/pendidikan/pelatihan fiktif + riwayat HIRED/DEACTIVATED; `work_email` dari SEED_EMAIL_BASE
 ├── prisma.config.ts                  [done] Memuat `.env` root (dotenv), skema folder, `datasource.url = DIRECT_URL` (dipakai CLI migrate)
 ├── src/
 │   ├── index.ts                      [done] Entry: `export default app` (Vercel & Bun; Bun membaca PORT, default 3000)
@@ -111,8 +112,8 @@ apps/api/
 │   │   └── __tests__/                [done] Unit test app core, env, logger
 │   ├── modules/
 │   │   ├── iam/                      [done] 12 endpoint + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`, `provisionAccount` (akun uji); notifikasi & web selesai (Fase 2 Review)
-│   │   ├── organization/             [wip] D-035: `GET /master-data` (departemen, jabatan, status+kategori, grade, lokasi aktif; semua role); `getMasterLookup()` + helper kategori/departemen untuk modul lain. CRUD master data menyusul Fase 3
-│   │   ├── employee/                 [wip] D-035: `GET /employees` (paginasi, filter kategori/departemen/lokasi/aktif, `q`, sort whitelist; SA/HR semua, MANAGER tim), `GET /employees/summary`, `GET /employees/manager-options`, `GET /org-structure`, `GET /employees/:id?view=work|full|print` (sensitif hanya bila berhak & view=full → audit `employee.sensitive.read`; `print` SA/HR → audit `employee.printed`), `POST /employees`, `PATCH /employees/:id`, `POST /employees/:id/{status-change,deactivate,reactivate}` (riwayat + audit; nonaktif ikut menonaktifkan akun via iam), `POST /employees/:id/photo/upload-url`, `POST|DELETE /employees/:id/photo` (D-037). 13 endpoint, policy 62 test
+│   │   ├── organization/             [wip] D-035: `GET /master-data` (departemen, jabatan, status+kategori, grade, lokasi aktif; semua role); `getMasterLookup()` + helper `statusIdsForCategories()` (D-038) / departemen untuk modul lain. CRUD master data menyusul Fase 3
+│   │   ├── employee/                 [wip] D-035: `GET /employees` (paginasi, filter kategori / grup `?group=` (D-038) / departemen / lokasi / aktif, `q`, sort whitelist; SA/HR semua, MANAGER tim), `GET /employees/summary`, `GET /employees/manager-options`, `GET /org-structure`, `GET /employees/:id?view=work|full|print` (sensitif hanya bila berhak & view=full → audit `employee.sensitive.read`; `print` SA/HR → audit `employee.printed`), `POST /employees`, `PATCH /employees/:id`, `POST /employees/:id/{status-change,deactivate,reactivate}` (riwayat + audit; nonaktif ikut menonaktifkan akun via iam), `POST /employees/:id/photo/upload-url`, `POST|DELETE /employees/:id/photo` (D-037). 13 endpoint, policy 62 test
 │   │   ├── notification/             [done] `notify()` (in-app + email, tidak pernah melempar, gagal → outbox), `retryEmailOutbox()`, `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`; `configureNotification()` dipanggil app
 │   │   └── <modul>/                  # lihat §4 untuk struktur standar
 │   └── jobs/cron.ts                  [done] `GET /api/cron/grant-expiry`, `GET /api/cron/email-retry`; `Authorization: Bearer ${CRON_SECRET}` (timing-safe; secret kosong → selalu 401)
@@ -147,8 +148,8 @@ apps/web/
 │   │   ├── router.tsx                [done] Publik: `/login`, `/lupa-password`, `/auth/callback`, `/auth/atur-password`; terlindungi (`RequireAuth`): `/` (Dashboard), `/personal/*` (`RequireAccessRoute` personalMenu; ubah-status, pengaktifan, pegawai-tidak-aktif, arsip/:section, laporan → manageEmployees), `/akun`, `/grant`, `/audit` (`RequireAccess`), `/notifikasi`, `/profil`
 │   │   ├── providers.tsx             [done] TanStack Query (401 → `signOut` global; tanpa retry untuk 401/403/404) + `AuthProvider` + Toaster (sonner)
 │   │   └── layout/
-│   │       ├── app-layout.tsx        [done] Top bar (brand, tab kelompok besar + garis aktif, tombol cari Ctrl+K, lonceng, menu akun), sidebar kontekstual (bisa diciutkan, disimpan di localStorage), drawer mobile, bilah progres navigasi, skip link
-│   │       ├── sidebar.tsx           [done] Seksi & item per kelompok, anak "Data Pegawai Aktif" bisa dilipat, badge jumlah dari `/employees/summary`, prefetch kode + data halaman pertama saat hover, status sistem (`/health`)
+│   │       ├── app-layout.tsx        [done] Top bar (brand, tab kelompok besar + garis aktif, tombol cari Ctrl+K, lonceng, menu akun), sidebar kontekstual (lebar 18.5rem sejak D-038 agar label terpanjang muat; bisa diciutkan, disimpan di localStorage), drawer mobile, bilah progres navigasi, skip link
+│   │       ├── sidebar.tsx           [done] Seksi & item per kelompok, seksi "Data Karyawan Aktif" (D-038): Semua Karyawan Aktif + grup Internal/Magang/Eksternal berlipat, badge jumlah dari `/employees/summary` (gabungan grup dijumlahkan), label bertooltip `title`, prefetch kode + data halaman pertama saat hover, status sistem (`/health`)
 │   │       └── command-palette.tsx   [done] Pencarian cepat: menu yang boleh diakses + pegawai (≥ 2 huruf, hanya bila berhak), navigasi keyboard
 │   ├── lib/
 │   │   ├── env.ts                    [done] Validasi `import.meta.env` (VITE_*); `VITE_SUPABASE_URL` & `VITE_SUPABASE_ANON_KEY` wajib
@@ -169,7 +170,7 @@ apps/web/
 │   ├── hooks/use-debounced-value.ts  [done]
 │   └── features/
 │       ├── system/                   [done] Dashboard (sapaan, kosong — D-035), Maintenance (ilustrasi SVG karakter beranimasi, untuk Arsip & Laporan), 404, error boundary; `useHealth`
-│       ├── employee/                 [wip] D-035 Personal Management: `api.ts` (hook + strategi cache: master data 5 mnt, daftar 30 dtk + keepPreviousData, detail `view=work`/`full` terpisah, invalidasi per mutasi), `schemas.ts`, `labels.ts`; komponen: daftar (filter/cari/sort/paginasi tersimpan di URL), panel detail **layar penuh** (`?pegawai=`; tombol "← Kembali" di kiri atas menggantikan X; avatar besar di tengah atas, satu area gulir + baris tab sticky; tab sensitif memuat `view=full` saat dibuka; tab Riwayat menampilkan "diubah oleh" nama · role · lokasi kerja), foto profil (`employee-photo-control.tsx`: avatar + tombol kamera → unggah/ganti/hapus dengan konfirmasi; hook `useUploadPhoto`/`useDeletePhoto`: upload-url → `uploadToSignedUrl` → konfirmasi; avatar menampilkan foto di daftar, detail, pemilih, palet Ctrl+K dengan inisial sebagai cadangan; D-037), tombol **Print data** (`print-employee-button.tsx` → `fetchEmployeeForPrint` `view=print` → `print.ts`: pemetaan data → sel template + foto JPEG di bingkai B9:J25 (`insertImage` di `xlsx-template.ts`), nama file aman; SA/HR, 2026-09-29), form tambah/ubah (RHF + Zod), pemilih pegawai, kartu pilihan, dialog aktifkan kembali; halaman: Data Pegawai Aktif (per kategori), Ubah Status (kategori/nonaktifkan), Pengaktifan, Pegawai Tidak Aktif, Struktur Organisasi (per departemen + bagan atasan)
+│       ├── employee/                 [wip] D-035 Personal Management: `active-views.ts` (D-038: slug ↔ filter `category`/`group`, grup & tampilan "Semua …", chip saudara, `activeCount()` dari summary, slug lama dialihkan), `api.ts` (hook + strategi cache: master data 5 mnt, daftar 30 dtk + keepPreviousData, detail `view=work`/`full` terpisah, invalidasi per mutasi), `schemas.ts`, `labels.ts`; komponen: daftar (filter/cari/sort/paginasi tersimpan di URL), panel detail **layar penuh** (`?pegawai=`; tombol "← Kembali" di kiri atas menggantikan X; avatar besar di tengah atas, satu area gulir + baris tab sticky; tab sensitif memuat `view=full` saat dibuka; tab Riwayat menampilkan "diubah oleh" nama · role · lokasi kerja), foto profil (`employee-photo-control.tsx`: avatar + tombol kamera → unggah/ganti/hapus dengan konfirmasi; hook `useUploadPhoto`/`useDeletePhoto`: upload-url → `uploadToSignedUrl` → konfirmasi; avatar menampilkan foto di daftar, detail, pemilih, palet Ctrl+K dengan inisial sebagai cadangan; D-037), tombol **Print data** (`print-employee-button.tsx` → `fetchEmployeeForPrint` `view=print` → `print.ts`: pemetaan data → sel template + foto JPEG di bingkai B9:J25 (`insertImage` di `xlsx-template.ts`), nama file aman; SA/HR, 2026-09-29), form tambah/ubah (RHF + Zod), pemilih pegawai, kartu pilihan, dialog aktifkan kembali; halaman: Data Pegawai Aktif (per kategori), Ubah Status (kategori/nonaktifkan), Pengaktifan, Pegawai Tidak Aktif, Struktur Organisasi (per departemen + bagan atasan)
 │       ├── auth/                     [done] `AuthProvider`/`useAuth`, `useMe`, guard `RequireAuth`/`RequireAccess`, halaman login, lupa password (pesan selalu sama), callback tautan, atur password; `safeNext()` cegah open redirect
 │       ├── iam/                      [done] Hook akun/role/nonaktif/serah-terima (login ulang, D-033)/grant/audit; halaman Akun, Grant izin, Audit log, Profil (foto profil sendiri bila tertaut pegawai — D-037, izin aktif, ganti password) — 2026-09-30: halaman Akun, Grant izin, Audit log, Profil diseragamkan (`PageHeader`, `DataTable` + `TablePagination`, `EmptyState`, `ListPanel`); hook menerima `pageSize`
 │       ├── notification/             [done] Lonceng (unread, 5 terbaru, 60 dtk), halaman Notifikasi, tandai baca (gaya seragam 2026-09-30: `PageHeader`, `ListPanel`, `EmptyState`, `TablePagination`)
@@ -191,7 +192,7 @@ apps/web/
 ├── src/
 │   ├── index.ts
 │   ├── roles.ts                      # ROLES, roleSchema, ROLE, ROLE_LABELS
-│   ├── employee.ts                   # D-035: EMPLOYMENT_CATEGORIES, EXIT_REASONS, EMPLOYMENT_CHANGE_TYPES (+ skema Zod & label Indonesia)
+│   ├── employee.ts                   # D-035/D-038: EMPLOYMENT_CATEGORIES (7) + label, EMPLOYMENT_CATEGORY_GROUPS / CATEGORIES_BY_GROUP / label grup, EXIT_REASONS, EMPLOYMENT_CHANGE_TYPES (+ skema Zod & label Indonesia)
 │   ├── permissions.ts                # PERMISSIONS (PLAN §4.2), PERMISSION_GRANTABLE_TO, isPermissionGrantableTo()
 │   ├── enums.ts                      # status/mode/jenis approval, jenis cuti, status periode absensi & payroll
 │   └── schemas/
@@ -290,7 +291,7 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 | `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
 | `departments` | `name` (unik), `parent_id?` (hierarki, ber-index), `deleted_at?` |
 | `positions` | `name`, `department_id` (FK, ERD) — unik per departemen, `deleted_at?` |
-| `employment_statuses` | ERD `employment_status`: `name` (unik), `category?` (enum `EmploymentCategory` unik: PERMANENT, PKWT, INTERNSHIP, DAILY_WORKER, OUTSOURCING — D-035), `deleted_at?` |
+| `employment_statuses` | ERD `employment_status`: `name` (unik), `category?` (enum `EmploymentCategory` unik: PERMANENT, PROBATION, PKWT, DAILY_WORKER, INTERNSHIP, OUTSOURCING, VENDOR — D-035/D-038), `deleted_at?` |
 | `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |
 | `work_locations` | `name` (unik), `city?`, `address?`, `latitude?`, `longitude?` Decimal(9,6), `radius_m?` (geofence wajib di Fase 5), `deleted_at?` |
 | `holidays` | [planned] `date`, `name`, `is_collective_leave` |

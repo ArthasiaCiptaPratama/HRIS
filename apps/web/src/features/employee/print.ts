@@ -46,7 +46,7 @@ export function photoImage(jpeg: Uint8Array): TemplateImage {
   const { firstCol, lastCol, firstRow, lastRow, colWidthEmu, rowHeightEmu, insetEmu } = PHOTO_FRAME;
   return {
     drawingPath: PRINT_DRAWING_PATH,
-    name: "Foto Pegawai",
+    name: "Foto Karyawan",
     jpeg,
     from: { col: firstCol, row: firstRow, colOffset: insetEmu, rowOffset: insetEmu },
     to: {
@@ -227,14 +227,14 @@ export function buildPrintCells(
   return cells;
 }
 
-/** Nama file aman untuk Windows/Linux: "Data Pegawai - ACP-2023-0007 - Agus Pratama.xlsx". */
+/** Nama file aman untuk Windows/Linux: "Data Karyawan - ACP-2023-0007 - Agus Pratama.xlsx". */
 export function printFileName(employee: Pick<EmployeeDetail, "employeeNumber" | "fullName">) {
   const safe = (text: string) =>
     text
       .replace(/[\\/:*?"<>|]+/g, "-")
       .replace(/\s+/g, " ")
       .trim();
-  return `Data Pegawai - ${safe(employee.employeeNumber)} - ${safe(employee.fullName)}.xlsx`;
+  return `Data Karyawan - ${safe(employee.employeeNumber)} - ${safe(employee.fullName)}.xlsx`;
 }
 
 async function loadTemplate(): Promise<Uint8Array> {

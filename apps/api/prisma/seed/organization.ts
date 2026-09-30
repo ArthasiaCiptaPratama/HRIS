@@ -9,17 +9,20 @@ export const DEPARTMENTS: Record<string, string[]> = {
   "Penjualan & Pemasaran": ["Sales Manager", "Sales Executive"],
 };
 
-// D-035: satu status per kategori navigasi. `legacyNames` = nama seed lama yang diganti (DB developer lama).
+// D-035/D-038: satu status per kategori navigasi. `legacyNames` = nama seed lama yang diganti (DB developer
+// lama). "Masa Percobaan" dulu digabung ke Pegawai Tetap; sejak D-038 menjadi kategori sendiri lagi.
 export const EMPLOYMENT_STATUSES: Array<{
   name: string;
   category: EmploymentCategory;
   legacyNames: string[];
 }> = [
-  { name: "Pegawai Tetap", category: "PERMANENT", legacyNames: ["Tetap", "Masa Percobaan"] },
+  { name: "Karyawan Tetap", category: "PERMANENT", legacyNames: ["Pegawai Tetap", "Tetap"] },
+  { name: "Karyawan Percobaan", category: "PROBATION", legacyNames: ["Masa Percobaan"] },
   { name: "PKWT", category: "PKWT", legacyNames: ["Kontrak (PKWT)"] },
-  { name: "Internship", category: "INTERNSHIP", legacyNames: ["Magang"] },
-  { name: "Daily Worker", category: "DAILY_WORKER", legacyNames: [] },
+  { name: "Pekerja Harian", category: "DAILY_WORKER", legacyNames: ["Daily Worker"] },
+  { name: "Magang", category: "INTERNSHIP", legacyNames: ["Internship"] },
   { name: "Outsourcing", category: "OUTSOURCING", legacyNames: [] },
+  { name: "Vendor", category: "VENDOR", legacyNames: [] },
 ];
 export const GRADES = ["Staf", "Staf Senior", "Supervisor", "Manajer", "Direktur"];
 

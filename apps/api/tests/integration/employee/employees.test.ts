@@ -38,7 +38,7 @@ const ids = {
   status: "",
   status2: "",
   categoryStatus: "",
-  createdCategoryStatus: false,
+  createdStatuses: [] as string[],
   managerEmp: "",
   teamEmp: "",
   otherEmp: "",
@@ -79,6 +79,17 @@ async function makeEmployee(
   return row.id;
 }
 
+// Kategori unik: pakai milik seed bila ada (DB developer), buat sendiri bila DB kosong (CI).
+async function categoryStatus(category: "OUTSOURCING" | "VENDOR") {
+  const existing = await prisma.employmentStatus.findUnique({ where: { category } });
+  if (existing) return existing.id;
+  const created = await prisma.employmentStatus.create({
+    data: { name: `${category} ${RUN}`, category },
+  });
+  ids.createdStatuses.push(created.id);
+  return created.id;
+}
+
 beforeAll(async () => {
   const department = await prisma.department.create({ data: { name: `Dept ${RUN}` } });
   ids.department = department.id;
@@ -90,17 +101,7 @@ beforeAll(async () => {
   ).id;
   ids.status = (await prisma.employmentStatus.create({ data: { name: `St ${RUN}` } })).id;
   ids.status2 = (await prisma.employmentStatus.create({ data: { name: `St2 ${RUN}` } })).id;
-  // Kategori unik: pakai milik seed bila ada (DB developer), buat sendiri bila DB kosong (CI).
-  const existing = await prisma.employmentStatus.findUnique({ where: { category: "OUTSOURCING" } });
-  if (existing) ids.categoryStatus = existing.id;
-  else {
-    ids.categoryStatus = (
-      await prisma.employmentStatus.create({
-        data: { name: `Outs ${RUN}`, category: "OUTSOURCING" },
-      })
-    ).id;
-    ids.createdCategoryStatus = true;
-  }
+  ids.categoryStatus = await categoryStatus("OUTSOURCING");
 
   ids.location = (await prisma.workLocation.create({ data: { name: `Lok ${RUN}` } })).id;
 
@@ -139,7 +140,7 @@ afterAll(async () => {
   await prisma.employmentStatus.deleteMany({
     where: {
       id: {
-        in: [ids.status, ids.status2, ...(ids.createdCategoryStatus ? [ids.categoryStatus] : [])],
+        in: [ids.status, ids.status2, ...ids.createdStatuses],
       },
     },
   });
@@ -171,6 +172,29 @@ describe("GET /employees (daftar)", () => {
     );
     expect(byDept.meta).toEqual({ page: 2, pageSize: 2, total: 4 });
     expect(byDept.data).toHaveLength(2);
+  });
+
+  test("D-038 filter grup: EXTERNAL = Outsourcing + Vendor; INTERNAL tanpa keduanya; MANAGER tetap tim", async () => {
+    const vendorEmp = await makeEmployee("V1", { statusId: await categoryStatus("VENDOR") });
+    const external = await body(
+      await call("GET", `/employees?q=${RUN}&group=EXTERNAL`, hr.headers),
+    );
+    expect(external.data.map((r: { id: string }) => r.id)).toEqual([ids.otherEmp, vendorEmp]);
+    expect(external.meta.total).toBe(2);
+    const internal = await body(
+      await call("GET", `/employees?q=${RUN}&group=INTERNAL`, hr.headers),
+    );
+    expect(internal.data).toEqual([]);
+    const vendorOnly = await body(
+      await call("GET", `/employees?q=${RUN}&category=VENDOR`, sa.headers),
+    );
+    expect(vendorOnly.data.map((r: { id: string }) => r.id)).toEqual([vendorEmp]);
+    const team = await body(await call("GET", `/employees?q=${RUN}&group=EXTERNAL`, mgr.headers));
+    expect(team.data).toEqual([]);
+    expect(await code(await call("GET", "/employees?group=PUSAT", sa.headers))).toBe(
+      "VALIDATION_ERROR",
+    );
+    await prisma.employee.delete({ where: { id: vendorEmp } });
   });
 
   test("MANAGER hanya tim; EMPLOYEE 403; tanpa token 401; query tidak valid 400", async () => {

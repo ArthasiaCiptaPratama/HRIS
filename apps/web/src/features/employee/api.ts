@@ -1,4 +1,4 @@
-import type { EmploymentCategory, ExitReason } from "@hris/shared";
+import type { EmploymentCategory, EmploymentCategoryGroup, ExitReason } from "@hris/shared";
 import {
   keepPreviousData,
   type QueryClient,
@@ -43,6 +43,7 @@ export interface EmployeeListParams {
   active: boolean;
   q?: string | undefined;
   category?: EmploymentCategory | undefined;
+  group?: EmploymentCategoryGroup | undefined;
   departmentId?: string | undefined;
   workLocationId?: string | undefined;
   sort: string;
