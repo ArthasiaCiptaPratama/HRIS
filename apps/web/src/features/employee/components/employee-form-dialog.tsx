@@ -35,6 +35,8 @@ const EMPTY: EmployeeForm = {
   workEmail: "",
   phoneNumber: "",
   emergencyPhone: "",
+  emergencyContactName: "",
+  emergencyContactRelationship: "",
   gender: "",
   joinDate: todayIso(),
   employmentStatusId: "",
@@ -52,6 +54,8 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     workEmail: employee.workEmail ?? "",
     phoneNumber: employee.phoneNumber ?? "",
     emergencyPhone: employee.emergencyPhone ?? "",
+    emergencyContactName: employee.emergencyContactName ?? "",
+    emergencyContactRelationship: employee.emergencyContactRelationship ?? "",
     gender: employee.gender ?? "",
     joinDate: employee.joinDate,
     employmentStatusId: employee.employmentStatus.id,
@@ -116,6 +120,8 @@ export function EmployeeFormDialog({
       workEmail: orNull(values.workEmail),
       phoneNumber: orNull(values.phoneNumber),
       emergencyPhone: orNull(values.emergencyPhone),
+      emergencyContactName: orNull(values.emergencyContactName),
+      emergencyContactRelationship: orNull(values.emergencyContactRelationship),
       gender: values.gender === "" ? null : values.gender,
       joinDate: values.joinDate,
       positionId: values.positionId,
@@ -378,8 +384,18 @@ export function EmployeeFormDialog({
                   {...register("phoneNumber")}
                 />
               </FormField>
+              <FormField label="Nama kontak darurat" htmlFor="f-emergency-name" optional>
+                <Input id="f-emergency-name" {...register("emergencyContactName")} />
+              </FormField>
+              <FormField label="Hubungan kontak darurat" htmlFor="f-emergency-rel" optional>
+                <Input
+                  id="f-emergency-rel"
+                  placeholder="Mis. Istri, Ayah"
+                  {...register("emergencyContactRelationship")}
+                />
+              </FormField>
               <FormField
-                label="Kontak darurat"
+                label="No. telepon kontak darurat"
                 error={errors.emergencyPhone?.message}
                 htmlFor="f-emergency"
                 optional

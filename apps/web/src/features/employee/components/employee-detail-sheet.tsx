@@ -1,8 +1,10 @@
 import {
+  EDUCATION_LEVEL_LABELS,
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
   GENDER_LABELS,
+  PTKP_LABELS,
   ROLE_LABELS,
 } from "@hris/shared";
 import {
@@ -340,8 +342,18 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="No. HP" mono>
             {employee.phoneNumber}
           </Field>
-          <Field label="Kontak darurat" mono>
-            {employee.emergencyPhone}
+          <Field label="Kontak darurat">
+            {[
+              employee.emergencyContactName,
+              employee.emergencyContactRelationship
+                ? `(${employee.emergencyContactRelationship})`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" ") || null}
+            {employee.emergencyPhone ? (
+              <span className="block font-mono">{employee.emergencyPhone}</span>
+            ) : null}
           </Field>
           <Field label="Jenis kelamin">
             {employee.gender ? GENDER_LABELS[employee.gender] : null}
@@ -426,6 +438,14 @@ function PersonalTab({ employee }: { employee: EmployeeDetail }) {
       <Field label="Agama">{p.religion ? RELIGION_LABELS[p.religion] : null}</Field>
       <Field label="Alamat KTP">{p.ktpAddress}</Field>
       <Field label="Alamat domisili">{p.domicileAddress}</Field>
+      <Field label="Kota asal">{p.originCity}</Field>
+      <Field label="Status PTKP">{p.ptkpStatus ? PTKP_LABELS[p.ptkpStatus] : null}</Field>
+      <Field label="BPJS Ketenagakerjaan" mono>
+        {p.bpjsEmploymentNumber}
+      </Field>
+      <Field label="BPJS Kesehatan" mono>
+        {p.bpjsHealthNumber}
+      </Field>
     </FieldGrid>
   );
 }
@@ -467,7 +487,14 @@ function EducationTab({ employee }: { employee: EmployeeDetail }) {
                   <GraduationCap className="size-4" aria-hidden />
                 </span>
                 <div>
-                  <p className="text-sm font-medium">{edu.schoolName}</p>
+                  <p className="text-sm font-medium">
+                    {edu.level ? (
+                      <span className="text-muted-foreground mr-1.5 font-mono text-xs">
+                        {EDUCATION_LEVEL_LABELS[edu.level]}
+                      </span>
+                    ) : null}
+                    {edu.schoolName}
+                  </p>
                   <p className="text-muted-foreground text-xs">
                     {[edu.major, edu.graduationYear ? `Lulus ${edu.graduationYear}` : null]
                       .filter(Boolean)

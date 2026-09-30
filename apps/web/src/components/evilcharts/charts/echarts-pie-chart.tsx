@@ -1,44 +1,44 @@
 "use client";
 
-import {
-  resolveTooltipPosition,
-  roundnessClass,
-  tooltipIndicatorHtml,
-  tooltipRow,
-  tooltipVariantClass,
-  type TooltipPosition,
-  type TooltipRoundness,
-  type TooltipVariant,
-} from "@/components/evilcharts/ui/echarts-tooltip";
-import {
-  DEFAULT_ECHARTS_RENDERER,
-  buildChartCss,
-  getColorsCount,
-  resolveColors,
-  withAlpha,
-  type ChartConfig,
-  type EChartsRenderer,
-  type ResolvedColors,
-} from "@/components/evilcharts/ui/echarts-chart";
+import { PieChart, type PieSeriesOption } from "echarts/charts";
+import { TooltipComponent, type TooltipComponentOption } from "echarts/components";
+import type { ComposeOption } from "echarts/core";
+import * as echarts from "echarts/core";
+import { motion, useReducedMotion } from "motion/react";
 import {
   Children,
+  type CSSProperties,
+  type FC,
   isValidElement,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type FC,
-  type ReactNode,
 } from "react";
-import { TooltipComponent, type TooltipComponentOption } from "echarts/components";
+import {
+  buildChartCss,
+  type ChartConfig,
+  DEFAULT_ECHARTS_RENDERER,
+  type EChartsRenderer,
+  getColorsCount,
+  type ResolvedColors,
+  resolveColors,
+  withAlpha,
+} from "@/components/evilcharts/ui/echarts-chart";
 import { LegendOverlay, type LegendVariant } from "@/components/evilcharts/ui/echarts-legend";
-import { PieChart, type PieSeriesOption } from "echarts/charts";
-import { motion, useReducedMotion } from "motion/react";
-import type { ComposeOption } from "echarts/core";
-import * as echarts from "echarts/core";
+import {
+  resolveTooltipPosition,
+  roundnessClass,
+  type TooltipPosition,
+  type TooltipRoundness,
+  type TooltipVariant,
+  tooltipIndicatorHtml,
+  tooltipRow,
+  tooltipVariantClass,
+} from "@/components/evilcharts/ui/echarts-tooltip";
 
 // Re-export the shared types that were previously declared inline here, so
 // existing consumers/examples keep importing them from the chart module.

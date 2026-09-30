@@ -1,6 +1,6 @@
-import { UserPlus } from "lucide-react";
+import { FileUp, UserPlus } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Navigate, NavLink, useParams } from "react-router";
+import { Link, Navigate, NavLink, useParams } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { useMe } from "@/features/auth/api";
@@ -58,9 +58,16 @@ export function ActiveEmployeesPage() {
         description={view.description}
         actions={
           canManage ? (
-            <Button onClick={() => setForm({ open: true, employee: null })}>
-              <UserPlus /> Tambah karyawan
-            </Button>
+            <>
+              <Button variant="outline" asChild>
+                <Link to={`/personal/import?dari=${view.slug}`}>
+                  <FileUp /> Import
+                </Link>
+              </Button>
+              <Button onClick={() => setForm({ open: true, employee: null })}>
+                <UserPlus /> Tambah karyawan
+              </Button>
+            </>
           ) : null
         }
       />

@@ -73,6 +73,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
         "Karyawan Tetap",
         "Semua Karyawan Aktif",
         "Ubah Status Karyawan",
+        "Import Data Karyawan",
         "Pengaktifan Karyawan",
         "Data Karyawan Tidak Aktif",
         "Struktur Organisasi",
@@ -91,6 +92,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
     expect(items).toContain("Struktur Organisasi");
     for (const label of [
       "Ubah Status Karyawan",
+      "Import Data Karyawan",
       "Pengaktifan Karyawan",
       "Data Keluarga",
       "Laporan",
@@ -129,6 +131,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
     ]);
     expect(personal?.sections[1]?.items.map((i) => i.label)).toEqual([
       "Ubah Status Karyawan",
+      "Import Data Karyawan",
       "Pengaktifan Karyawan",
       "Data Karyawan Tidak Aktif",
       "Struktur Organisasi",

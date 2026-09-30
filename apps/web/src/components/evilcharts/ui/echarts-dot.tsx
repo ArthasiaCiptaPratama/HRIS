@@ -32,9 +32,9 @@ function withAlpha(color: string, alpha: number): string {
     const n = parseInt(hex, 16);
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
   }
-  const m = color.match(/rgba?\(([^)]+)\)/);
-  if (m) {
-    const [r, g, b] = m[1].split(",").map((s) => parseFloat(s));
+  const inner = color.match(/rgba?\(([^)]+)\)/)?.[1];
+  if (inner !== undefined) {
+    const [r, g, b] = inner.split(",").map((s) => parseFloat(s));
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
   return color;
@@ -97,14 +97,15 @@ export function sampleGradient(slots: string[], t: number): string {
   const parse = (color: string) =>
     color
       .match(/rgba?\(([^)]+)\)/)?.[1]
-      .split(",")
+      ?.split(",")
       .map(Number) ?? [120, 120, 120, 1];
 
   const position = t * (slots.length - 1);
   const index = Math.min(Math.floor(position), slots.length - 2);
   const fraction = position - index;
-  const [r1, g1, b1, a1 = 1] = parse(slots[index]);
-  const [r2, g2, b2, a2 = 1] = parse(slots[index + 1]);
+  const fallback = "rgba(120, 120, 120, 1)";
+  const [r1 = 120, g1 = 120, b1 = 120, a1 = 1] = parse(slots[index] ?? fallback);
+  const [r2 = 120, g2 = 120, b2 = 120, a2 = 1] = parse(slots[index + 1] ?? fallback);
   const lerp = (from: number, to: number) => from + (to - from) * fraction;
 
   return `rgba(${Math.round(lerp(r1, r2))}, ${Math.round(lerp(g1, g2))}, ${Math.round(lerp(b1, b2))}, ${lerp(a1, a2).toFixed(3)})`;

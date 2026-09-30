@@ -1,7 +1,12 @@
 "use client";
 
-import { getColorsCount, indicatorBackground, type ChartConfig } from "@/components/evilcharts/ui/echarts-chart";
 import type { CSSProperties } from "react";
+import {
+  type ChartConfig,
+  cssKey,
+  getColorsCount,
+  indicatorBackground,
+} from "@/components/evilcharts/ui/echarts-chart";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Legend overlay (React) — replicates ChartLegendContent + its 7 indicators.
@@ -19,7 +24,7 @@ export type LegendVariant =
   | "horizontal-bar";
 
 export function legendFillStyle(key: string, colorsCount: number): CSSProperties {
-  if (colorsCount <= 1) return { backgroundColor: `var(--color-${key}-0)` };
+  if (colorsCount <= 1) return { backgroundColor: `var(--color-${cssKey(key)}-0)` };
   return { background: indicatorBackground(key, colorsCount) };
 }
 
@@ -60,7 +65,6 @@ export function LegendIndicator({
       return <div className="h-1 w-3 shrink-0 rounded-[2px]" style={fill} />;
     case "rounded-square-outline":
       return <div className="h-2.5 w-2.5 shrink-0 rounded-[3px] p-[1.5px]" style={outline} />;
-    case "rounded-square":
     default:
       return <div className="h-2 w-2 shrink-0 rounded-[2px]" style={fill} />;
   }

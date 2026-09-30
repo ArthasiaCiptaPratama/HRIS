@@ -18,6 +18,10 @@ export const pages = {
     import("@/features/employee/pages/change-status-page").then((m) => ({
       Component: m.ChangeStatusPage,
     })),
+  importEmployees: () =>
+    import("@/features/employee/import/import-page").then((m) => ({
+      Component: m.ImportEmployeesPage,
+    })),
   activation: () =>
     import("@/features/employee/pages/activation-page").then((m) => ({
       Component: m.ActivationPage,
@@ -35,6 +39,7 @@ export const pages = {
 const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/pegawai-aktif", pages.activeEmployees],
   ["/personal/ubah-status", FEATURES.changeStatus ? pages.changeStatus : pages.maintenance],
+  ["/personal/import", pages.importEmployees],
   ["/personal/pengaktifan", FEATURES.activation ? pages.activation : pages.maintenance],
   [
     "/personal/pegawai-tidak-aktif",

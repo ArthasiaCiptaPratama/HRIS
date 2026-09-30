@@ -1,4 +1,9 @@
-import { CATEGORIES_BY_GROUP, EMPLOYMENT_CATEGORIES, type EmploymentCategory } from "@hris/shared";
+import {
+  CATEGORIES_BY_GROUP,
+  EMPLOYMENT_CATEGORIES,
+  EMPLOYMENT_CATEGORY_LABELS,
+  type EmploymentCategory,
+} from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
@@ -32,8 +37,10 @@ import * as repository from "./employee.repository.ts";
 import type {
   ChangeStatusInput,
   CreateEmployeeInput,
+  DASHBOARD_EDUCATION_LEVELS,
   DeactivateInput,
   DetailView,
+  EmployeeDashboard,
   EmployeeDetail,
   EmployeeListItem,
   EmployeeSummary,
@@ -262,6 +269,136 @@ export async function getSummary(ctx: RequestContext): Promise<EmployeeSummary> 
   return { active: { total, byCategory, uncategorized }, inactive };
 }
 
+// ── Dashboard ───────────────────────────────────────────────────────────────
+
+type DashboardLevel = (typeof DASHBOARD_EDUCATION_LEVELS)[number];
+const LEVEL_RANK = {
+  SD: 1,
+  SMP: 2,
+  SMA: 3,
+  D1: 4,
+  D2: 4,
+  D3: 4,
+  D4: 4,
+  S1: 4,
+  S2: 4,
+  S3: 4,
+} as const;
+const DASHBOARD_LEVELS: DashboardLevel[] = ["SD", "SMP", "SMA", "Kuliah", "Tanpa Data"];
+
+/** Jenjang tertinggi karyawan → kelompok dashboard (D1–S3 = Kuliah; tanpa data/OTHER = Tanpa Data). */
+function educationBucket(levels: (string | null)[]): DashboardLevel {
+  let best = 0;
+  for (const level of levels) {
+    const rank = level ? (LEVEL_RANK[level as keyof typeof LEVEL_RANK] ?? 0) : 0;
+    best = Math.max(best, rank);
+  }
+  return best === 0 ? "Tanpa Data" : (DASHBOARD_LEVELS[best - 1] as DashboardLevel);
+}
+
+const MS_PER_YEAR = 365.25 * 24 * 60 * 60 * 1000;
+
+/** Agregat kepegawaian untuk halaman Dashboard (SA/HR). Hanya jumlah — tanpa data per orang. */
+export async function getDashboard(
+  ctx: RequestContext,
+  now = new Date(),
+): Promise<EmployeeDashboard> {
+  if (!policy.canViewDashboard(ctx.actor)) throw new ForbiddenError();
+  const [lookup, rows] = await Promise.all([getMasterLookup(), repository.listForDashboard()]);
+  const active = rows.filter((row) => row.isActive);
+  const today = toDate(todayInJakarta(now)).getTime();
+
+  const tally = <K>(keys: K[]) => {
+    const counts = new Map<K, number>();
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+    return counts;
+  };
+  const byCount = <T extends { count: number; name: string }>(a: T, b: T) =>
+    b.count - a.count || a.name.localeCompare(b.name, "id");
+
+  const categoryOf = (statusId: string) => lookup.statuses.get(statusId)?.category ?? null;
+  const categories = tally(active.map((row) => categoryOf(row.employmentStatusId)));
+  const byCategory = [...categories]
+    .map(([category, count]) => ({
+      id: category,
+      category,
+      name: category ? EMPLOYMENT_CATEGORY_LABELS[category] : "Tanpa kategori",
+      count,
+    }))
+    .sort(byCount);
+
+  const byLocation = [...tally(active.map((row) => row.workLocationId))]
+    .map(([id, count]) => {
+      const location = id ? lookup.locations.get(id) : undefined;
+      return {
+        id,
+        name: location?.name ?? "Belum ditentukan",
+        city: location?.city ?? null,
+        count,
+      };
+    })
+    .sort(byCount);
+
+  const departmentOf = (positionId: string) =>
+    lookup.positions.get(positionId)?.departmentId ?? null;
+  const byDepartment = [...tally(active.map((row) => departmentOf(row.positionId)))]
+    .map(([id, count]) => ({
+      id,
+      name: (id ? lookup.departments.get(id)?.name : undefined) ?? "—",
+      count,
+    }))
+    .sort(byCount);
+
+  const byPosition = [...tally(active.map((row) => row.positionId))]
+    .map(([id, count]) => ({ id, name: lookup.positions.get(id)?.name ?? "—", count }))
+    .sort(byCount);
+
+  const byJoinYear = [...tally(active.map((row) => row.joinDate.getUTCFullYear()))]
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => a.year - b.year);
+
+  const pivot = new Map<string, Map<DashboardLevel, number>>();
+  for (const row of active) {
+    const key = categoryOf(row.employmentStatusId) ?? "NONE";
+    const levels = pivot.get(key) ?? new Map<DashboardLevel, number>();
+    const bucket = educationBucket(row.educations.map((e) => e.level));
+    levels.set(bucket, (levels.get(bucket) ?? 0) + 1);
+    pivot.set(key, levels);
+  }
+  const byEducationPivot = [...pivot]
+    .map(([category, levels]) => ({
+      category,
+      label:
+        category === "NONE"
+          ? "Tanpa kategori"
+          : EMPLOYMENT_CATEGORY_LABELS[category as EmploymentCategory],
+      levels: DASHBOARD_LEVELS.map((level) => ({ level, count: levels.get(level) ?? 0 })),
+      total: [...levels.values()].reduce((sum, n) => sum + n, 0),
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const tenure = active.map((row) => Math.max(0, today - row.joinDate.getTime()) / MS_PER_YEAR);
+  const avgTenureYears =
+    tenure.length > 0
+      ? Math.round((tenure.reduce((sum, n) => sum + n, 0) / tenure.length) * 10) / 10
+      : null;
+
+  return {
+    overview: {
+      total: rows.length,
+      active: active.length,
+      inactive: rows.length - active.length,
+      avgTenureYears,
+    },
+    byCategory,
+    byLocation,
+    byDepartment,
+    byPosition,
+    byJoinYear,
+    byEducationPivot,
+  };
+}
+
 // ── Detail ──────────────────────────────────────────────────────────────────
 
 type Changer = NonNullable<EmployeeDetail["histories"][number]["changedBy"]>;
@@ -356,6 +493,8 @@ export async function getEmployee(
   const detail: EmployeeDetail = {
     ...toListItem(row, lookup, photoUrls),
     emergencyPhone: row.emergencyPhone,
+    emergencyContactName: row.emergencyContactName,
+    emergencyContactRelationship: row.emergencyContactRelationship,
     account: link ? { role: link.role, isActive: link.isActive } : null,
     access,
     educations: parts.educations,
@@ -388,6 +527,10 @@ export async function getEmployee(
           domicileAddress: p.domicileAddress,
           maritalStatus: p.maritalStatus,
           religion: p.religion,
+          bpjsEmploymentNumber: p.bpjsEmploymentNumber,
+          bpjsHealthNumber: p.bpjsHealthNumber,
+          ptkpStatus: p.ptkpStatus,
+          originCity: p.originCity,
         }
       : null;
     detail.familyMembers = (parts.familyMembers ?? []).map((f) => ({
@@ -479,6 +622,8 @@ export async function createEmployee(
         workEmail: input.workEmail?.toLowerCase() ?? null,
         phoneNumber: input.phoneNumber ?? null,
         emergencyPhone: input.emergencyPhone ?? null,
+        emergencyContactName: input.emergencyContactName ?? null,
+        emergencyContactRelationship: input.emergencyContactRelationship ?? null,
         gender: input.gender ?? null,
         joinDate: toDate(input.joinDate),
         employmentStatusId: input.employmentStatusId,
@@ -541,6 +686,8 @@ export async function updateEmployee(
           input.workEmail === undefined ? undefined : (input.workEmail?.toLowerCase() ?? null),
         phoneNumber: nullable(input.phoneNumber),
         emergencyPhone: nullable(input.emergencyPhone),
+        emergencyContactName: nullable(input.emergencyContactName),
+        emergencyContactRelationship: nullable(input.emergencyContactRelationship),
         gender: nullable(input.gender),
         joinDate: input.joinDate ? toDate(input.joinDate) : undefined,
         positionId: input.positionId,

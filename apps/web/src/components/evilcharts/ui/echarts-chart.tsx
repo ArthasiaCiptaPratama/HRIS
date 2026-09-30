@@ -1,6 +1,6 @@
+import * as echarts from "echarts/core";
 import { CanvasRenderer, SVGRenderer } from "echarts/renderers";
 import type { ComponentType, ReactNode } from "react";
-import * as echarts from "echarts/core";
 
 export const ECHARTS_RENDERERS = {
   canvas: "canvas",
@@ -66,7 +66,9 @@ export function distributeColors(colors: string[], maxCount: number): string[] {
   for (let i = 0; i < available; i++) {
     const isExtra = i >= available - extraSlots;
     const slots = baseSlots + (isExtra ? 1 : 0);
-    for (let j = 0; j < slots; j++) result.push(colors[i]);
+    const color = colors[i];
+    if (color === undefined) continue;
+    for (let j = 0; j < slots; j++) result.push(color);
   }
 
   return result;
@@ -74,6 +76,15 @@ export function distributeColors(colors: string[], maxCount: number): string[] {
 
 // Emits the same CSS <ChartStyle> would: `--color-{key}-{n}` scoped to
 // `[data-chart={id}]` (light) and `.dark [data-chart={id}]` (dark).
+/**
+ * Nama kunci config → aman untuk nama custom property CSS. Kunci boleh berupa label bebas
+ * (mis. "Karyawan Tetap"); spasi/karakter lain di-escape supaya variabel warna tetap valid dan
+ * tidak bisa menyisipkan CSS (label berasal dari master data).
+ */
+export function cssKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9_-]/g, (c) => `_${c.charCodeAt(0).toString(16)}`);
+}
+
 export function buildChartCss(id: string, config: ChartConfig): string {
   const colorConfig = Object.entries(config).filter(([, item]) => item.colors);
   if (!colorConfig.length) return "";
@@ -84,7 +95,7 @@ export function buildChartCss(id: string, config: ChartConfig): string {
         const authored = item.colors?.[theme];
         if (!authored || authored.length === 0) return [];
         return distributeColors(authored, getColorsCount(item)).map(
-          (color, index) => `  --color-${key}-${index}: ${color};`,
+          (color, index) => `  --color-${cssKey(key)}-${index}: ${color};`,
         );
       })
       .join("\n");
@@ -113,7 +124,7 @@ export function normalizeColor(value: string): string {
   normalizerCtx.fillStyle = "#000";
   normalizerCtx.fillStyle = raw; // invalid values leave the sentinel in place
   normalizerCtx.fillRect(0, 0, 1, 1);
-  const [r, g, b, a] = normalizerCtx.getImageData(0, 0, 1, 1).data;
+  const [r = 0, g = 0, b = 0, a = 255] = normalizerCtx.getImageData(0, 0, 1, 1).data;
   return `rgba(${r}, ${g}, ${b}, ${(a / 255).toFixed(3)})`;
 }
 
@@ -121,9 +132,9 @@ export function normalizeColor(value: string): string {
 // replacing) keeps translucent theme tokens honest: a border that is 10%-white
 // at `withAlpha(border, 0.5)` lands at 5%, matching Tailwind's `border/50`.
 export function withAlpha(color: string, alpha: number): string {
-  const match = color.match(/rgba?\(([^)]+)\)/);
-  if (!match) return color;
-  const [r, g, b, a] = match[1].split(",").map((p) => p.trim());
+  const inner = color.match(/rgba?\(([^)]+)\)/)?.[1];
+  if (inner === undefined) return color;
+  const [r, g, b, a] = inner.split(",").map((p) => p.trim());
   const base = a === undefined ? 1 : Number.parseFloat(a) || 0;
   return `rgba(${r}, ${g}, ${b}, ${(base * alpha).toFixed(3)})`;
 }
@@ -153,7 +164,7 @@ export function resolveColors(
     const count = getColorsCount(config[key] ?? {});
     const slots: string[] = [];
     for (let n = 0; n < count; n++) {
-      const raw = computed.getPropertyValue(`--color-${key}-${n}`).trim();
+      const raw = computed.getPropertyValue(`--color-${cssKey(key)}-${n}`).trim();
       slots.push(raw ? normalizeColor(raw) : "rgba(120, 120, 120, 1)");
     }
     series[key] = slots;
@@ -189,10 +200,10 @@ export function seriesPaint(slots: string[]): string | echarts.graphic.LinearGra
 // Solid var / gradient of vars for a series indicator — mirrors getIndicatorColorStyle.
 // Used by BOTH the tooltip rows and the legend indicators.
 export function indicatorBackground(key: string, colorsCount: number): string {
-  if (colorsCount <= 1) return `var(--color-${key}-0)`;
+  if (colorsCount <= 1) return `var(--color-${cssKey(key)}-0)`;
   const stops = Array.from({ length: colorsCount }, (_, i) => {
     const offset = (i / (colorsCount - 1)) * 100;
-    return `var(--color-${key}-${i}) ${offset}%`;
+    return `var(--color-${cssKey(key)}-${i}) ${offset}%`;
   }).join(", ");
   return `linear-gradient(to right, ${stops})`;
 }
@@ -204,10 +215,10 @@ export function flattenColor(color: string, base: string): string {
   const parse = (value: string) =>
     value
       .match(/rgba?\(([^)]+)\)/)?.[1]
-      .split(",")
+      ?.split(",")
       .map((part) => Number.parseFloat(part)) ?? [0, 0, 0, 1];
-  const [r, g, b, a = 1] = parse(color);
-  const [baseR, baseG, baseB] = parse(base);
+  const [r = 0, g = 0, b = 0, a = 1] = parse(color);
+  const [baseR = 0, baseG = 0, baseB = 0] = parse(base);
   const mix = (channel: number, baseChannel: number) =>
     Math.round(channel * a + baseChannel * (1 - a));
   return `rgb(${mix(r, baseR)}, ${mix(g, baseG)}, ${mix(b, baseB)})`;

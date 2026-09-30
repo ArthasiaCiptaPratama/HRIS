@@ -73,3 +73,23 @@ export function canReadBank(actor: Actor, target: EmployeeTarget): boolean {
 export function canReadOrgStructure(actor: Actor): boolean {
   return actor.accountId.length > 0;
 }
+
+// D-042 / PLAN §4.3 "Import karyawan (CSV/Excel)": SA ✅ HR ✅.
+export function canImportEmployees(actor: Actor): boolean {
+  return canManageEmployees(actor);
+}
+
+// D-042 poin 5: kolom sensitif lewat import hanya SA atau HR ber-grant `employee.*.write` (§4.2).
+export function canWriteSensitiveViaImport(actor: Actor, section: "personal" | "bank"): boolean {
+  if (!canImportEmployees(actor)) return false;
+  return hasPermission(
+    actor,
+    section === "personal" ? "employee.personal.write" : "employee.bank.write",
+  );
+}
+
+// Dashboard agregat kepegawaian (ringkasan seluruh karyawan): SA & HR saja. MANAGER/EMPLOYEE melihat
+// dashboard sapaan (ringkasan seluruh karyawan bukan need-to-know mereka, PLAN §4).
+export function canViewDashboard(actor: Actor): boolean {
+  return canManageEmployees(actor);
+}

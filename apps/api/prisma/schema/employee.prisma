@@ -17,6 +17,52 @@ enum MaritalStatus {
   @@schema("employee")
 }
 
+// D-041: status PTKP (tanggungan pajak). Nama enum tanpa garis miring: TK0 = "TK/0".
+enum PtkpStatus {
+  TK0
+  TK1
+  TK2
+  TK3
+  K0
+  K1
+  K2
+  K3
+
+  @@schema("employee")
+}
+
+// D-041: jenjang pendidikan formal.
+enum EducationLevel {
+  SD
+  SMP
+  SMA
+  D1
+  D2
+  D3
+  D4
+  S1
+  S2
+  S3
+  OTHER
+
+  @@schema("employee")
+}
+
+// D-042: import karyawan.
+enum ImportMode {
+  CREATE_ONLY
+  UPSERT
+
+  @@schema("employee")
+}
+
+enum ImportIssueSeverity {
+  ERROR
+  WARNING
+
+  @@schema("employee")
+}
+
 enum Religion {
   ISLAM
   PROTESTANT
@@ -63,30 +109,33 @@ enum EmploymentChangeType {
 }
 
 model Employee {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                           String              @id @default(uuid()) @db.Uuid
   // ERD: nik = Nomor Induk Karyawan (bukan NIK KTP; NIK KTP ada di employee_personal.ktp_number).
-  employeeNumber     String              @map("employee_number") @db.VarChar(30)
-  fullName           String              @map("full_name") @db.VarChar(150)
+  employeeNumber               String              @map("employee_number") @db.VarChar(30)
+  fullName                     String              @map("full_name") @db.VarChar(150)
   // Tidak di ERD; dibutuhkan untuk direktori & undangan akun (PLAN §5.1).
-  workEmail          String?             @map("work_email") @db.VarChar(254)
-  phoneNumber        String?             @map("phone_number") @db.VarChar(30)
-  emergencyPhone     String?             @map("emergency_phone") @db.VarChar(30)
-  gender             Gender?
-  joinDate           DateTime            @map("join_date") @db.Date
-  endDate            DateTime?           @map("end_date") @db.Date
-  employmentStatusId String              @map("employment_status_id") @db.Uuid
-  positionId         String              @map("position_id") @db.Uuid
-  workLocationId     String?             @map("work_location_id") @db.Uuid
-  gradeId            String?             @map("grade_id") @db.Uuid
+  workEmail                    String?             @map("work_email") @db.VarChar(254)
+  phoneNumber                  String?             @map("phone_number") @db.VarChar(30)
+  emergencyPhone               String?             @map("emergency_phone") @db.VarChar(30)
+  // D-041: kontak darurat (nama & hubungan), pelengkap emergency_phone.
+  emergencyContactName         String?             @map("emergency_contact_name") @db.VarChar(150)
+  emergencyContactRelationship String?             @map("emergency_contact_relationship") @db.VarChar(50)
+  gender                       Gender?
+  joinDate                     DateTime            @map("join_date") @db.Date
+  endDate                      DateTime?           @map("end_date") @db.Date
+  employmentStatusId           String              @map("employment_status_id") @db.Uuid
+  positionId                   String              @map("position_id") @db.Uuid
+  workLocationId               String?             @map("work_location_id") @db.Uuid
+  gradeId                      String?             @map("grade_id") @db.Uuid
   // Tidak di ERD; PLAN §4.1 & D-009: tim MANAGER = bawahan langsung.
-  managerId          String?             @map("manager_id") @db.Uuid
+  managerId                    String?             @map("manager_id") @db.Uuid
   // PLAN §4.5: karyawan nonaktif tidak bisa login; data tetap diarsip (tidak dihapus).
-  isActive           Boolean             @default(true) @map("is_active")
+  isActive                     Boolean             @default(true) @map("is_active")
   // Diisi saat nonaktif (tanggal efektif = end_date); dikosongkan saat diaktifkan kembali.
-  exitReason         EmployeeExitReason? @map("exit_reason")
+  exitReason                   EmployeeExitReason? @map("exit_reason")
   // D-037: path objek foto profil di bucket Supabase Storage private `employee-photos`
   // (bukan URL; URL bertanda tangan dibuat API saat dibaca). Null = belum ada foto.
-  photoPath          String?             @map("photo_path") @db.VarChar(255)
+  photoPath                    String?             @map("photo_path") @db.VarChar(255)
 
   employmentStatus EmploymentStatus     @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
   position         Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)
@@ -152,20 +201,25 @@ model EmploymentHistory {
 
 // SENSITIF (PLAN §4.2 employee.personal.*): NIK KTP, NPWP, KK, lahir, alamat, status nikah, agama.
 model EmployeePersonal {
-  employeeId      String         @id @map("employee_id") @db.Uuid
-  employee        Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  ktpNumber       String?        @map("ktp_number") @db.VarChar(16)
-  npwpNumber      String?        @map("npwp_number") @db.VarChar(20)
+  employeeId           String         @id @map("employee_id") @db.Uuid
+  employee             Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  ktpNumber            String?        @map("ktp_number") @db.VarChar(16)
+  npwpNumber           String?        @map("npwp_number") @db.VarChar(20)
   // Tidak di ERD; tercantum di PLAN §4.2.
-  kkNumber        String?        @map("kk_number") @db.VarChar(16)
-  birthPlace      String?        @map("birth_place") @db.VarChar(100)
-  birthDate       DateTime?      @map("birth_date") @db.Date
-  ktpAddress      String?        @map("ktp_address")
-  domicileAddress String?        @map("domicile_address")
-  maritalStatus   MaritalStatus? @map("marital_status")
-  religion        Religion?
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  kkNumber             String?        @map("kk_number") @db.VarChar(16)
+  birthPlace           String?        @map("birth_place") @db.VarChar(100)
+  birthDate            DateTime?      @map("birth_date") @db.Date
+  ktpAddress           String?        @map("ktp_address")
+  domicileAddress      String?        @map("domicile_address")
+  maritalStatus        MaritalStatus? @map("marital_status")
+  religion             Religion?
+  // D-041 (sensitif, grant employee.personal.*): BPJS, PTKP, kota asal.
+  bpjsEmploymentNumber String?        @map("bpjs_employment_number") @db.VarChar(20)
+  bpjsHealthNumber     String?        @map("bpjs_health_number") @db.VarChar(20)
+  ptkpStatus           PtkpStatus?    @map("ptkp_status")
+  originCity           String?        @map("origin_city") @db.VarChar(100)
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([ktpNumber])
   @@map("employee_personal")
@@ -206,14 +260,16 @@ model FamilyMember {
 }
 
 model Education {
-  id             String   @id @default(uuid()) @db.Uuid
-  employeeId     String   @map("employee_id") @db.Uuid
-  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  schoolName     String   @map("school_name") @db.VarChar(150)
-  major          String?  @db.VarChar(100)
-  graduationYear Int?     @map("graduation_year") @db.SmallInt
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String          @id @default(uuid()) @db.Uuid
+  employeeId     String          @map("employee_id") @db.Uuid
+  employee       Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  schoolName     String          @map("school_name") @db.VarChar(150)
+  major          String?         @db.VarChar(100)
+  graduationYear Int?            @map("graduation_year") @db.SmallInt
+  // D-041: jenjang (SD…S3); nama sekolah tetap di school_name.
+  level          EducationLevel?
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([employeeId])
   @@map("educations")
@@ -233,5 +289,58 @@ model Training {
 
   @@index([employeeId])
   @@map("trainings")
+  @@schema("employee")
+}
+
+// D-042: jejak import karyawan. File TIDAK disimpan (UU PDP); hanya ringkasan & masalah per baris
+// TANPA nilai. actor_account_id = iam.accounts.id tanpa FK (iam bukan modul inti, PLAN §3.2).
+model ImportJob {
+  id             String           @id @default(uuid()) @db.Uuid
+  actorAccountId String           @map("actor_account_id") @db.Uuid
+  fileName       String           @map("file_name") @db.VarChar(255)
+  fileSha256     String           @map("file_sha256") @db.VarChar(64)
+  mode           ImportMode
+  totalRows      Int              @map("total_rows")
+  createdCount   Int              @map("created_count")
+  updatedCount   Int              @map("updated_count")
+  skippedCount   Int              @map("skipped_count")
+  errorCount     Int              @map("error_count")
+  // Nama field sensitif yang dilewati karena aktor tidak berhak menulisnya (D-042 poin 5).
+  skippedFields  String[]         @map("skipped_fields")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  issues         ImportJobIssue[]
+
+  @@index([actorAccountId])
+  @@index([createdAt])
+  @@map("import_jobs")
+  @@schema("employee")
+}
+
+model ImportJobIssue {
+  id           String              @id @default(uuid()) @db.Uuid
+  jobId        String              @map("job_id") @db.Uuid
+  job          ImportJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sourceRow    Int                 @map("source_row")
+  sourceColumn String?             @map("source_column") @db.VarChar(10)
+  field        String?             @db.VarChar(50)
+  code         String              @db.VarChar(50)
+  severity     ImportIssueSeverity
+
+  @@index([jobId])
+  @@map("import_job_issues")
+  @@schema("employee")
+}
+
+// D-042: pemetaan kolom yang dikonfirmasi pengguna, dipakai ulang untuk susunan header yang sama.
+model ImportMapping {
+  id        String   @id @default(uuid()) @db.Uuid
+  signature String   @db.VarChar(64)
+  mapping   Json
+  updatedBy String   @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([signature])
+  @@map("import_mappings")
   @@schema("employee")
 }

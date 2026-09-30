@@ -86,3 +86,48 @@ export const GENDER_LABELS: Record<Gender, string> = { MALE: "Laki-laki", FEMALE
 
 export const EMPLOYEE_SORT_FIELDS = ["fullName", "employeeNumber", "joinDate", "endDate"] as const;
 export type EmployeeSortField = (typeof EMPLOYEE_SORT_FIELDS)[number];
+
+// D-041: status PTKP. Nilai sama dengan enum Prisma `PtkpStatus` (TK0 = "TK/0").
+export const PTKP_STATUSES = ["TK0", "TK1", "TK2", "TK3", "K0", "K1", "K2", "K3"] as const;
+export const ptkpStatusSchema = z.enum(PTKP_STATUSES);
+export type PtkpStatus = z.infer<typeof ptkpStatusSchema>;
+export const PTKP_LABELS: Record<PtkpStatus, string> = {
+  TK0: "TK/0",
+  TK1: "TK/1",
+  TK2: "TK/2",
+  TK3: "TK/3",
+  K0: "K/0",
+  K1: "K/1",
+  K2: "K/2",
+  K3: "K/3",
+};
+
+// D-041: jenjang pendidikan. Nilai sama dengan enum Prisma `EducationLevel`.
+export const EDUCATION_LEVELS = [
+  "SD",
+  "SMP",
+  "SMA",
+  "D1",
+  "D2",
+  "D3",
+  "D4",
+  "S1",
+  "S2",
+  "S3",
+  "OTHER",
+] as const;
+export const educationLevelSchema = z.enum(EDUCATION_LEVELS);
+export type EducationLevel = z.infer<typeof educationLevelSchema>;
+export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
+  SD: "SD",
+  SMP: "SMP",
+  SMA: "SMA/SMK",
+  D1: "D1",
+  D2: "D2",
+  D3: "D3",
+  D4: "D4",
+  S1: "S1",
+  S2: "S2",
+  S3: "S3",
+  OTHER: "Lainnya",
+};
