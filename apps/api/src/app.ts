@@ -25,7 +25,7 @@ import {
   createSupabaseAdmin,
   UNCONFIGURED_AUTH_ADMIN,
 } from "./core/supabase-admin.ts";
-import { getEnv } from "./env.ts";
+import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
 import { registerEmployeeRoutes } from "./modules/employee/index.ts";
 import { loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
@@ -70,9 +70,10 @@ function defaultStorage(): StorageAdmin {
 }
 
 // D-025: SMTP hanya bila lengkap (staging/produksi); lokal → email dicatat ke log saja.
-function defaultEmailSender(logger: Logger): EmailSender {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM } = getEnv();
-  return SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && EMAIL_FROM
+// NODE_ENV=test selalu log: test tidak boleh mengirim email sungguhan walau `.env` berisi SMTP_*.
+export function selectEmailSender(env: Env, logger: Logger): EmailSender {
+  const { NODE_ENV, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM } = env;
+  return NODE_ENV !== "test" && SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS && EMAIL_FROM
     ? createSmtpSender({
         host: SMTP_HOST,
         port: SMTP_PORT,
@@ -127,7 +128,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     storage: overrides.storage ?? defaultStorage(),
     storagePathPrefix: overrides.storagePathPrefix ?? getEnv().STORAGE_PATH_PREFIX,
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
-    emailSender: overrides.emailSender ?? defaultEmailSender(logger),
+    emailSender: overrides.emailSender ?? selectEmailSender(getEnv(), logger),
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
   };
   configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });

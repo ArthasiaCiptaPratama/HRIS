@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createRoute, z } from "@hono/zod-openapi";
 import type { ErrorBody } from "@hris/shared";
-import { createApp } from "../../app.ts";
+import { createApp, selectEmailSender } from "../../app.ts";
+import { parseEnv } from "../../env.ts";
 import { BusinessRuleError } from "../errors.ts";
 import { createLogger } from "../logger.ts";
 
@@ -112,5 +113,35 @@ describe("app core", () => {
     expect(doc.openapi).toBe("3.1.0");
     expect(doc.paths["/api/v1/health"]).toBeDefined();
     expect(doc.components.securitySchemes.Bearer).toMatchObject({ scheme: "bearer" });
+  });
+});
+
+// Backlog 2026-09-29: test tidak boleh mengirim email sungguhan walau `.env` developer berisi SMTP_*.
+describe("selectEmailSender", () => {
+  const SMTP = {
+    DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/hris",
+    SUPABASE_URL: "https://project.supabase.co",
+    SMTP_HOST: "smtp.gmail.com",
+    SMTP_PORT: "587",
+    SMTP_USER: "sender@example.com",
+    SMTP_PASS: "app-password",
+    EMAIL_FROM: "HRIS <sender@example.com>",
+  };
+  const logger = createLogger("error", () => {});
+
+  test("NODE_ENV=test selalu log, walau SMTP lengkap", () => {
+    expect(selectEmailSender(parseEnv({ ...SMTP, NODE_ENV: "test" }), logger).kind).toBe("log");
+  });
+
+  test("di luar test: SMTP lengkap → smtp; tidak lengkap → log", () => {
+    expect(selectEmailSender(parseEnv({ ...SMTP, NODE_ENV: "development" }), logger).kind).toBe(
+      "smtp",
+    );
+    expect(selectEmailSender(parseEnv({ ...SMTP, NODE_ENV: "production" }), logger).kind).toBe(
+      "smtp",
+    );
+    expect(
+      selectEmailSender(parseEnv({ ...SMTP, SMTP_PASS: "", NODE_ENV: "development" }), logger).kind,
+    ).toBe("log");
   });
 });
