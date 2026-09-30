@@ -19,5 +19,15 @@
 
 **Temuan selama uji (diperbaiki):** breadcrumb "Akun Saya › Akun Saya" (label kelompok & seksi sama) → seksi tidak diulang; jsdom tanpa API pointer untuk Radix Select → polyfill di `tests/setup.ts`.
 
-**Kesimpulan:** memenuhi kriteria rencana. **Bug terbuka:** tidak ada.
-**Belum diverifikasi:** staging (butuh rilis), unggah foto sungguhan dengan prefix `dev/oatse/` ke bucket staging (logika teruji dengan Storage palsu), browser selain Chromium, Windows.
+## Sesi staging (setelah deploy `b7828a0`, `Deploy staging` #36661819195)
+- **Env:** https://hris-staging-web.vercel.app + api staging, login Supabase sungguhan SA/HR/MGR/EMP, Playwright Chromium 1440×900 & 390×844 (`ui.ts` yang sama, `WEB` = staging).
+- **Hasil:** **31/31 LULUS**, konsol bersih. Screenshot audit log pertama tertangkap di tengah animasi kaskade → diambil ulang (`audit-recheck.ts`: 20 baris, opacity 1).
+- **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-30-seragam-admin-staging/`.
+
+## Unggah foto berprefix sungguhan (lokal → bucket staging)
+- `prefix-upload.ts upload`: HR unggah foto untuk pegawai dummy lokal Agus Salim → `photo_path` = `dev/oatse/employees/f118b415-…/e4a5f3a7-….webp`; MCP: objek ada (7 530 B, image/webp); signed URL memuat `/employee-photos/dev/oatse/employees/`; konsol bersih (`hr-foto-berprefix.png`).
+- `prefix-upload.ts delete`: hapus lewat UI → `photo_path` NULL; MCP: 0 objek `dev/oatse/` tersisa dari uji ini. → TC-EMP-054 terbukti juga dengan Storage sungguhan.
+- 2 foto lama tanpa prefix (Agus Pratama, Hendra Gunawan, milik DB lokal) dipindah ke `dev/oatse/…` + `photo_path` lokal diperbarui; `moved-photos.ts`: keduanya tampil (600×800, 470×626) dari path berprefix.
+
+**Kesimpulan:** memenuhi kriteria rencana, lokal & staging. **Bug terbuka:** tidak ada.
+**Belum diverifikasi:** browser selain Chromium, Windows.
