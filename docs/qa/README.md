@@ -18,6 +18,6 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-09-29-detail-print.md](runs/2026-09-29-detail-print.md) | Lokal, Linux: test api 248 · web 54, Playwright lokal 31/31 + staging 18/18 LULUS; 3 temuan diperbaiki saat uji |
 | Hasil | [runs/2026-09-29-foto-profil.md](runs/2026-09-29-foto-profil.md) | Lokal + Storage staging: api 265 · web 64, smoke Storage, Playwright lokal 9/9 + staging 6/6 LULUS |
 | Hasil | [runs/2026-09-30-seragam-admin.md](runs/2026-09-30-seragam-admin.md) | Lokal: api 271 · web 72 (SMTP terisi), Playwright 31/31; staging `b7828a0` 31/31; unggah foto berprefix sungguhan ✔ — LULUS |
-| Hasil | [runs/2026-09-30-grup-kategori.md](runs/2026-09-30-grup-kategori.md) | Lokal: api 272 · web 82, Playwright 19/19 — LULUS (staging belum) |
+| Hasil | [runs/2026-09-30-grup-kategori.md](runs/2026-09-30-grup-kategori.md) | Lokal: api 272 · web 82, Playwright 19/19; staging `1da5e2d` 19/19 (seed ulang master data) — LULUS |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |
