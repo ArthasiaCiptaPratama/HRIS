@@ -21,6 +21,7 @@ function query(params: Record<string, string | number | boolean | undefined>) {
 
 export interface AccountsParams {
   page: number;
+  pageSize?: number | undefined;
   role?: Role | undefined;
   isActive?: boolean | undefined;
   q?: string | undefined;
@@ -30,7 +31,7 @@ export function useAccounts(params: AccountsParams, enabled = true) {
   return useQuery({
     queryKey: iamKeys.accounts({ ...params }),
     queryFn: ({ signal }) =>
-      api(`/accounts${query({ ...params, pageSize: 20 })}`, {
+      api(`/accounts${query({ pageSize: 20, ...params })}`, {
         schema: page(accountSchema),
         signal,
       }),
@@ -92,6 +93,7 @@ export function useTransferPrimary() {
 
 export interface GrantsParams {
   page: number;
+  pageSize?: number | undefined;
   active?: boolean | undefined;
   accountId?: string | undefined;
 }
@@ -100,7 +102,7 @@ export function useGrants(params: GrantsParams) {
   return useQuery({
     queryKey: iamKeys.grants({ ...params }),
     queryFn: ({ signal }) =>
-      api(`/grants${query({ ...params, pageSize: 20 })}`, { schema: page(grantSchema), signal }),
+      api(`/grants${query({ pageSize: 20, ...params })}`, { schema: page(grantSchema), signal }),
     placeholderData: keepPreviousData,
   });
 }
@@ -133,6 +135,7 @@ export function useRevokeGrant() {
 
 export interface AuditParams {
   page: number;
+  pageSize?: number | undefined;
   action?: string | undefined;
   entityType?: string | undefined;
   from?: string | undefined;
@@ -143,7 +146,7 @@ export function useAuditLogs(params: AuditParams) {
   return useQuery({
     queryKey: iamKeys.auditLogs({ ...params }),
     queryFn: ({ signal }) =>
-      api(`/audit-logs${query({ ...params, pageSize: 20 })}`, {
+      api(`/audit-logs${query({ pageSize: 20, ...params })}`, {
         schema: page(auditLogSchema),
         signal,
       }),
