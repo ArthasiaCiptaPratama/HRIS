@@ -28,6 +28,7 @@ HRIS/
 │   ├── CODEMAP.md                    [done] Di mana (file ini)
 │   ├── PROGRESS.md                   [done] Sampai mana
 │   ├── PROMPT.md                     [done] Bagaimana bekerja
+│   ├── design/import-karyawan.md     [planned] D-042: desain import CSV/Excel (profil file kantor, mesin deteksi, API, data, UI, test)
 │   ├── erd/hris.dbml                 [done] Diagram ERD (DBML, buka di dbdiagram.io); cermin skema Prisma, disetujui pemilik projek 2026-09-28 (+ D-035: category, exit_reason, employment_histories)
 │   └── qa/                           [wip] Dokumentasi QA (skill hris-qa-docs): README (indeks), plans/, cases/, runs/, bugs/
 ├── .github/workflows/ci.yml          [done] Job `quality` (typecheck, biome ci, boundaries, test shared & web, build) + job `api-db` (service Postgres 17: db:deploy dari DB kosong, db:check drift, test api). Hijau di GitHub
@@ -143,7 +144,7 @@ apps/web/
 │   ├── index.css                     [done] Tailwind v4; tema D-035: netral zinc + aksen teal `--brand` (+ `--success`/`--warning`); cincin fokus `--ring` abu netral (zinc-400/500, permintaan pemilik projek 2026-09-29); autofill browser dinetralkan (`:autofill`), animasi transform/opacity (`animate-fade-up` kaskade `--i`, `skeleton` kilau, float/swing/blink), `prefers-reduced-motion` mematikan animasi
 │   ├── app/
 │   │   ├── navigation.ts             [done] D-035: SATU sumber menu — kelompok besar (top nav) → seksi (kelompok kecil) → item/anak; `visibleGroups(me)`, `activeTrail()` (breadcrumb/penanda aktif), `flattenNav()` (pencarian cepat), `CATEGORY_SLUGS`
-│   │   ├── feature-flags.ts          [done] `FEATURES`: saklar halaman web; `false` = rute & menu tampil Maintenance ("Segera"), kode halaman tetap disimpan. Saat ini menu b–e (Ubah Status, Pengaktifan, Pegawai Tidak Aktif, Struktur Organisasi) = `false` (permintaan pemilik projek 2026-09-29); API tidak terpengaruh
+│   │   ├── feature-flags.ts          [done] `FEATURES`: saklar halaman web; `false` = rute & menu tampil Maintenance ("Segera"), kode halaman tetap disimpan. Menu b–e (Ubah Status, Pengaktifan, Karyawan Tidak Aktif, Struktur Organisasi) Ubah Status aktif (`true`) sejak 2026-09-30; Pengaktifan, Karyawan Tidak Aktif, Struktur Organisasi masih `false`; API tidak terpengaruh
 │   │   ├── route-preload.ts          [done] Loader `lazy` per halaman (code splitting) + `preloadRoute()` saat hover menu
 │   │   ├── router.tsx                [done] Publik: `/login`, `/lupa-password`, `/auth/callback`, `/auth/atur-password`; terlindungi (`RequireAuth`): `/` (Dashboard), `/personal/*` (`RequireAccessRoute` personalMenu; ubah-status, pengaktifan, pegawai-tidak-aktif, arsip/:section, laporan → manageEmployees), `/akun`, `/grant`, `/audit` (`RequireAccess`), `/notifikasi`, `/profil`
 │   │   ├── providers.tsx             [done] TanStack Query (401 → `signOut` global; tanpa retry untuk 401/403/404) + `AuthProvider` + Toaster (sonner)
@@ -181,6 +182,8 @@ apps/web/
 ├── public/logo/logo-vertical.webp   [done] Logo resmi **vertikal** (ikon + "arthasia" + tagline "energy for the future", WebP transparan 358×360, 32 KB; dioptimasi dari `logo-arthasia-ori.png`) — top bar (h-12), menu mobile (h-16), halaman auth (h-32) lewat `components/brand-logo.tsx` (2026-09-29)
 ├── public/logo/logo-horizontal.svg   [done] Logo horizontal lama (1028×216) — tidak dipakai lagi sejak 2026-09-29, disimpan bila ingin kembali
 ├── public/logo/logo-arthasia.png     [done] Ikon logo Arthasia (PNG transparan 286×176) — favicon
+├── scripts/generate-import-template.ts [done] Pembuat template import dummy (D-042 Tahap 0; `bun run --filter @hris/web template:import`)
+├── public/template/Template-import-karyawan.xlsx [done] D-042 Tahap 0: template import **dummy** (struktur = file master data kantor: judul, baris Control, header baris 5, formula, baris RESIGN tersembunyi, variasi penulisan); dibuat ulang `bun run --filter @hris/web template:import` (`scripts/generate-import-template.ts`, fflate). File asli TIDAK di repo
 ├── public/template/Template-excel.xlsx [done] Template formulir "Daftar Isian Peserta" (1 lembar `Sheet3` = `xl/worksheets/sheet1.xml`, A4) untuk **Print data** pegawai; alamat sel dipetakan di `features/employee/print.ts` — bila tata letak template diubah, perbarui pemetaan & test `employee-print.test.ts` (2026-09-29)
 ├── vite.config.ts                    [done] React + Tailwind, alias `@` → src, envDir = root, port 5173, konfigurasi Vitest
 ├── vercel.json                       [done] Rewrite SPA, install dari root (`--frozen-lockfile`). Project `hris-staging-web` (D-036)
@@ -274,6 +277,7 @@ Nama tabel **snake_case jamak** (`@@map`), model Prisma **PascalCase tunggal**. 
 |---|---|
 | `accounts` | ERD `user_account`: `auth_user_id` (UUID Supabase, unik), `employee_id` (nullable, unik), `email`, `role` (enum `Role`, **satu per akun**, D-028), `is_active`, `last_login_at`, `is_primary_super_admin`. **Tanpa** `password_hash` (password di Supabase Auth, D-005) |
 | `permission_grants` | `account_id`, `permission`, `expires_at?`, `reason?`, `granted_by`, `revoked_at?`, `revoked_by?` |
+| `account_companies` | [planned] D-040: `account_id`, `company_id` (FK ke `organization.companies`, modul inti — PLAN §3.2) — cakupan PT akun HR_ADMIN |
 
 Endpoint: `GET /me` · `GET /accounts` (SA, HR; filter role/isActive/q) · `GET /accounts/:id` (SA, HR, sendiri) · `POST /accounts/invite` (SA; HR hanya EMPLOYEE; SUPER_ADMIN hanya Utama) · `PATCH /accounts/:id/role` (SA; SUPER_ADMIN hanya Utama) · `POST /accounts/:id/deactivate|reactivate` (SA; HR hanya EMPLOYEE/MANAGER; ban Supabase) · `POST /accounts/primary-super-admin/transfer` (Utama, login ulang ≤ 5 menit, D-033) · `GET|POST /grants`, `POST /grants/:id/revoke` (SA) · `GET /audit-logs` (SA). Aturan lengkap: D-034.
 
@@ -287,7 +291,8 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 
 | Tabel | Isi penting |
 |---|---|
-| `company_profile` | [planned] Satu baris: nama, NPWP perusahaan, alamat, logo |
+| `companies` | [planned] D-039: perusahaan dalam grup — `code` (unik, mis. ACP), `name`, `npwp?`, `address?`, `is_active`, `deleted_at?`; dikelola SA; FK wajib dari `employees.company_id` |
+| `company_profile` | [planned] *(digantikan `companies`, D-039)* |
 | `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
 | `departments` | `name` (unik), `parent_id?` (hierarki, ber-index), `deleted_at?` |
 | `positions` | `name`, `department_id` (FK, ERD) — unik per departemen, `deleted_at?` |
@@ -311,7 +316,10 @@ Status: tabel ERD **[done]**; endpoint daftar/detail/tambah/ubah/ubah status/non
 | `trainings` | `training_field`, `organizer?`, `duration?`, `training_year?` |
 | `employee_documents` | [planned] `type`, `storage_path`, `uploaded_by` |
 | `employment_histories` | [done] D-035: `change_type` (HIRED, STATUS_CHANGED, POSITION_CHANGED, DEACTIVATED, REACTIVATED), `effective_date`, `from/to_status_id`, `from/to_position_id` (FK organization), `exit_reason?`, `note?`, `changed_by` (akun, tanpa FK) |
-| `import_jobs` | [planned] Status & hasil import CSV/Excel |
+| `import_jobs` | [planned] D-042: aktor, `company_id?`, nama & `file_sha256`, `mode`, status, jumlah dibuat/diperbarui/dilewati/error, `skipped_fields` |
+| `import_job_issues` | [planned] D-042: `job_id`, `source_row`, `source_column`, `field`, `code`, `severity` — **tanpa nilai** |
+| `import_mappings` | [planned] D-042: `signature` (hash header) unik → `mapping` jsonb |
+| *(kolom baru)* | [planned] D-039 `employees.company_id` (wajib); D-041 `employees.emergency_contact_name?`, `emergency_contact_relationship?`; `employee_personal.bpjs_employment_number?`, `bpjs_health_number?`, `ptkp_status?`, `origin_city?` (sensitif); `educations.level?` |
 
 Enum (skema `employee`): `Gender`, `MaritalStatus`, `Religion` (6 agama resmi + `OTHER`), `FamilyRelationship`. Tabel anak memakai `ON DELETE CASCADE` ke `employees` (karyawan sendiri tidak dihapus, hanya `is_active = false`). Data sensitif dipisah ke tabel sendiri supaya kontrol akses (grant) jelas di level repository. Rencana `emergency_contacts` digantikan `employees.emergency_phone` + `family_members` (ERD).
 
