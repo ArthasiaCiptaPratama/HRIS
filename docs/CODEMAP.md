@@ -7,8 +7,8 @@
 
 | Metadata        | Nilai                                                        |
 | --------------- | ------------------------------------------------------------ |
-| Terakhir diubah | 2026-09-28                                                   |
-| Kondisi repo    | Fase 1 berjalan: monorepo, kerangka api/web/shared, Prisma, CI, Docker |
+| Terakhir diubah | 2026-09-30 (audit langsung ke repo)                          |
+| Kondisi repo    | Fase 1 hampir selesai (sisa uji Windows); Fase 2 IAM review; Fase 3–4 berjalan (modul `organization` baca, `employee` + foto profil + print). Staging live (D-036) |
 
 ---
 
@@ -64,18 +64,18 @@ HRIS/
 ```
 apps/api/
 ├── prisma/
-│   ├── schema/                       [wip] Skema Prisma multi-file (belum ada model; model ditambahkan per fase)
+│   ├── schema/                       [wip] Skema Prisma multi-file; model ditambahkan per fase (file modul yang belum ada = `[planned]`)
 │   │   ├── _base.prisma              [done] generator (prisma-client, runtime bun, output src/generated/prisma) + datasource (10 skema Postgres)
-│   │   ├── iam.prisma                # [planned] untuk semua file modul di bawah
+│   │   ├── iam.prisma               [done] accounts (enum `Role`, D-028), permission_grants
 │   │   ├── organization.prisma      [done] departments, positions, employment_statuses (+ enum `EmploymentCategory`, D-035), grades, work_locations (ERD, D-026)
 │   │   ├── employee.prisma          [done] employees (+ `exit_reason`), employee_personal, employee_bank_accounts, family_members, educations, trainings, employment_histories + enum (ERD D-026, D-035)
-│   │   ├── attendance.prisma
-│   │   ├── leave.prisma
-│   │   ├── approval.prisma
-│   │   ├── contract.prisma
-│   │   ├── payroll.prisma
+│   │   ├── attendance.prisma        [planned] Fase 5
+│   │   ├── leave.prisma             [planned] Fase 6
+│   │   ├── approval.prisma          [planned] Fase 5
+│   │   ├── contract.prisma          [planned] Fase 7
+│   │   ├── payroll.prisma           [planned] Fase 8
 │   │   ├── notification.prisma      [done] notifications (dedupe_key), email_outbox + enum status
-│   │   └── audit.prisma
+│   │   └── audit.prisma             [done] audit_logs
 │   ├── migrations/                   [wip] Hasil `prisma migrate dev` (di-commit, tidak pernah diedit setelah di-merge)
 │   │   ├── 20260928032354_init_module_schemas/  [done] SQL mentah: CREATE SCHEMA untuk 10 skema modul
 │   │   ├── 20260928035758_add_organization_and_employee_master/  [done] Tabel ERD organization & employee
@@ -83,7 +83,8 @@ apps/api/
 │   │   ├── 20260928062734_add_departments_parent_id_index/  [done] Index FK `departments.parent_id` (advisor performa)
 │   │   ├── 20260928065300_add_iam_and_audit/  [done] iam.accounts, iam.permission_grants, audit.audit_logs + index unik parsial Utama + 2 CHECK
 │   │   ├── 20260928085157_add_notification/  [done] notification.notifications, notification.email_outbox
-│   │   └── 20260929020000_employee_categories_and_histories/  [done] D-035: enum kategori + `employment_statuses.category` (unik), `employees.exit_reason` + CHECK (hanya saat nonaktif), `employment_histories`, index daftar `(employment_status_id, is_active)` & `(is_active, full_name)`
+│   │   ├── 20260929020000_employee_categories_and_histories/  [done] D-035: enum kategori + `employment_statuses.category` (unik), `employees.exit_reason` + CHECK (hanya saat nonaktif), `employment_histories`, index daftar `(employment_status_id, is_active)` & `(is_active, full_name)`
+│   │   └── 20260929100000_add_employee_photo/  [done] D-037: `employees.photo_path varchar(255)`
 │   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production
 │       ├── index.ts                  Runner: organization → employee
 │       ├── organization.ts           5 departemen, 12 jabatan, 5 status berkategori (D-035; nama lama "Tetap/Kontrak (PKWT)/Magang" diganti, "Masa Percobaan" di-soft delete), 5 grade, 2 lokasi
@@ -104,28 +105,28 @@ apps/api/
 │   │   ├── email.ts                  [done] `EmailSender`: `createSmtpSender` (nodemailer, 587 STARTTLS/465 TLS) & `createLogSender` (lokal, hanya penerima+subjek, D-025)
 │   │   ├── logger.ts                 [done] Log JSON satu baris ke stdout, `redact()` field sensitif (jaring pengaman), `requestLogger()` (tanpa query string)
 │   │   ├── audit.ts                  [done] `writeAudit(entry, client?)`: bisa ikut transaksi; before/after diredaksi (jaring pengaman); `listAuditLogs(filter)`
-│   │   ├── storage.ts                [planned] signed upload/download URL Supabase Storage
 │   │   ├── storage.ts                [done] D-037: antarmuka `StorageAdmin` (signed upload URL, signed URL baca, info objek, hapus, `ensurePrivateBucket`) + `createSupabaseStorage()` (service role) + `UNCONFIGURED_STORAGE`; konstanta bucket `employee-photos` (2 MB, jpeg/png/webp). Test memakai `tests/helpers/storage.ts` (palsu); `NODE_ENV=test` tidak pernah memakai Storage sungguhan
 │   │   ├── supabase-admin.ts         [done] antarmuka `AuthAdmin` (`findUserByEmail`, `inviteUser`, `createConfirmedUser`, `setBanned`) + `createSupabaseAdmin()` (service role; server/script saja) + `UNCONFIGURED_AUTH_ADMIN` (kunci kosong → 422 jelas)
 │   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1), `/api/v1/docs` (Swagger UI)
 │   │   └── __tests__/                [done] Unit test app core, env, logger
 │   ├── modules/
-│   │   ├── iam/                      [wip] 12 endpoint + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`. Bagian B/C (notifikasi, web) menyusul
+│   │   ├── iam/                      [done] 12 endpoint + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`, `provisionAccount` (akun uji); notifikasi & web selesai (Fase 2 Review)
 │   │   ├── organization/             [wip] D-035: `GET /master-data` (departemen, jabatan, status+kategori, grade, lokasi aktif; semua role); `getMasterLookup()` + helper kategori/departemen untuk modul lain. CRUD master data menyusul Fase 3
-│   │   ├── employee/                 [wip] D-035: `GET /employees` (paginasi, filter kategori/departemen/lokasi/aktif, `q`, sort whitelist; SA/HR semua, MANAGER tim), `GET /employees/summary`, `GET /employees/manager-options`, `GET /org-structure`, `GET /employees/:id?view=work|full` (sensitif hanya bila berhak & view=full → audit `employee.sensitive.read`), `POST /employees`, `PATCH /employees/:id`, `POST /employees/:id/{status-change,deactivate,reactivate}` (riwayat + audit; nonaktif ikut menonaktifkan akun via iam). Policy 45 test
+│   │   ├── employee/                 [wip] D-035: `GET /employees` (paginasi, filter kategori/departemen/lokasi/aktif, `q`, sort whitelist; SA/HR semua, MANAGER tim), `GET /employees/summary`, `GET /employees/manager-options`, `GET /org-structure`, `GET /employees/:id?view=work|full|print` (sensitif hanya bila berhak & view=full → audit `employee.sensitive.read`; `print` SA/HR → audit `employee.printed`), `POST /employees`, `PATCH /employees/:id`, `POST /employees/:id/{status-change,deactivate,reactivate}` (riwayat + audit; nonaktif ikut menonaktifkan akun via iam), `POST /employees/:id/photo/upload-url`, `POST|DELETE /employees/:id/photo` (D-037). 13 endpoint, policy 62 test
 │   │   ├── notification/             [done] `notify()` (in-app + email, tidak pernah melempar, gagal → outbox), `retryEmailOutbox()`, `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`; `configureNotification()` dipanggil app
 │   │   └── <modul>/                  # lihat §4 untuk struktur standar
 │   └── jobs/cron.ts                  [done] `GET /api/cron/grant-expiry`, `GET /api/cron/email-retry`; `Authorization: Bearer ${CRON_SECRET}` (timing-safe; secret kosong → selalu 401)
 ├── scripts/
 │   ├── setup-storage.ts              [done] `bun run storage:setup`: buat/selaraskan bucket private (idempoten) di project Supabase dari `.env`; staging dijalankan 2026-09-29 (D-037)
-│   ├── bootstrap-super-admin.ts      [wip] `--email <e> [--dry-run]`: cari/buat user Auth (password diketik tersembunyi), lalu `bootstrapPrimarySuperAdmin` di DB target. Jalan nyata ✔ (Utama `admin.arthasia@gmail.com` di DB lokal)
+│   ├── bootstrap-super-admin.ts      [done] `--email <e> [--dry-run]`: cari/buat user Auth (password diketik tersembunyi), lalu `bootstrapPrimarySuperAdmin` di DB target. Jalan nyata ✔ (Utama `admin.arthasia@gmail.com` di DB lokal & DB staging)
 │   ├── create-dev-account.ts         [done] Akun UJI (bukan produksi): `DEV_ACCOUNT_PASSWORD=... --email --role HR_ADMIN|MANAGER|EMPLOYEE [--employee-number]` → user Auth terkonfirmasi + akun HRIS tertaut karyawan dummy (`provisionAccount`, audit, idempoten)
 │   └── recover-primary-admin.ts      [done] `--to-email <e> --reason "..." [--dry-run]`: pindahkan status Utama ke SUPER_ADMIN aktif + audit (PLAN §4.4)
 ├── tests/
 │   ├── helpers/auth.ts               [done] `testVerifier` (token `test-token:<uuid>[:stale]`, `passwordAuthAt`), `bearer()`, `createAuthFixture(run)` → `loginAs(role, {grants, employeeId, isActive, primary})` → `{account, headers, staleHeaders}` + `cleanup()`
 │   ├── helpers/auth-admin.ts         [done] `createFakeAuthAdmin()`: AuthAdmin palsu (mencatat undangan/ban, bisa disetel gagal)
 │   ├── helpers/email.ts              [done] `createFakeEmailSender()`: EmailSender palsu (menyimpan pesan, bisa disetel gagal)
-│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed); `iam-schema.test.ts`, `audit.test.ts`, `iam/{me,bootstrap,accounts,grants-audit,recover}.test.ts`, `notification.test.ts` (notify, dedupe, outbox & retry, endpoint, pemicu grant, cron), `employee/employees.test.ts` (20 test: daftar/ringkasan/detail/view=work/tulis/status/nonaktif+akun/aktif kembali/struktur/master data; akses 401/403/404, field sensitif hilang, audit) (test yang butuh DB tanpa Utama otomatis dilewati di DB developer; penuh di CI)
+│   ├── helpers/storage.ts            [done] `StorageAdmin` palsu untuk test foto (D-037)
+│   └── integration/                  [wip] Test → PostgreSQL lokal: `health.test.ts`, `schemas.test.ts` (10 skema ada), `employee-schema.test.ts` (constraint ERD); `tests/seed.test.ts` (generator NIK/email seed); `iam-schema.test.ts`, `audit.test.ts`, `iam/{me,bootstrap,accounts,grants-audit,recover,provision}.test.ts`, `notification.test.ts` (notify, dedupe, outbox & retry, endpoint, pemicu grant, cron), `employee/photo.test.ts` (upload-url, konfirmasi, hapus, akses, audit; D-037), `employee/employees.test.ts` (20 test: daftar/ringkasan/detail/view=work/tulis/status/nonaktif+akun/aktif kembali/struktur/master data; akses 401/403/404, field sensitif hilang, audit) (test yang butuh DB tanpa Utama otomatis dilewati di DB developer; penuh di CI)
 ├── Dockerfile                        [done] Multi-stage `oven/bun:1.4.2-alpine`, bundle `bun build`, user non-root, HEALTHCHECK. Build dari root: `docker build -f apps/api/Dockerfile .`
 ├── vercel.json                       [done] framework `hono`, bunVersion 1.x, region sin1, install dari root (`--frozen-lockfile`), build = prisma generate + **bundel `bun build` → `dist/index.js` dengan `hono` external** (`outputDirectory: dist`; builder Hono mencari entry yang meng-import `hono` di `dist/`), `crons`: grant-expiry 01:00 UTC & email-retry 02:00 UTC (harian; batas Hobby). Project `hris-staging-api` (D-036)
 ├── tsconfig.json                     [done]
@@ -173,7 +174,7 @@ apps/web/
 │       ├── iam/                      [done] Hook akun/role/nonaktif/serah-terima (login ulang, D-033)/grant/audit; halaman Akun, Grant izin, Audit log, Profil (foto profil sendiri bila tertaut pegawai — D-037, izin aktif, ganti password)
 │       ├── notification/             [done] Lonceng (unread, 5 terbaru, 60 dtk), halaman Notifikasi, tandai baca
 │       └── <modul>/                  # per modul: pages/, components/, api.ts (hook TanStack Query), schemas.ts (subset respons API)
-├── tests/                            [done] Vitest + Testing Library (jsdom): api-client, `access.test.ts`, `auth-routing.test.tsx` (guard, top nav & sidebar per role, 401 → keluar, login, lupa password, open redirect), `personal-management.test.tsx` (navigasi per role, breadcrumb, daftar per kategori → query API, pencarian → `?q=`, Maintenance, akses ditolak MANAGER/EMPLOYEE, slug tak dikenal); `employee-detail.test.tsx` (panel layar penuh, riwayat pengubah, Print data → unduhan, MANAGER tanpa tombol); `employee-print.test.ts` (pemetaan sel + template asli: nilai, gaya, merge, file lain identik, deklarasi XML); `supabase-mock.ts` (mock terpisah, cegah deadlock vi.mock), `helpers.tsx`
+├── tests/                            [done] Vitest + Testing Library (jsdom): api-client, `access.test.ts`, `auth-routing.test.tsx` (guard, top nav & sidebar per role, 401 → keluar, login, lupa password, open redirect), `personal-management.test.tsx` (navigasi per role, breadcrumb, daftar per kategori → query API, pencarian → `?q=`, Maintenance, akses ditolak MANAGER/EMPLOYEE, slug tak dikenal); `employee-detail.test.tsx` (panel layar penuh, riwayat pengubah, Print data → unduhan, MANAGER tanpa tombol); `router-hydration.test.tsx` (BUG-001: tanpa warning `HydrateFallback`); `employee-print.test.ts` (pemetaan sel + template asli: nilai, gaya, merge, file lain identik, deklarasi XML); `supabase-mock.ts` (mock terpisah, cegah deadlock vi.mock), `helpers.tsx`
 ├── components.json                   [done] Konfigurasi shadcn CLI (`bunx --bun shadcn@4.21.0 add <komponen>`)
 ├── index.html                        [done] lang="id", favicon = logo Arthasia
 ├── public/logo/logo-vertical.webp   [done] Logo resmi **vertikal** (ikon + "arthasia" + tagline "energy for the future", WebP transparan 358×360, 32 KB; dioptimasi dari `logo-arthasia-ori.png`) — top bar (h-12), menu mobile (h-16), halaman auth (h-32) lewat `components/brand-logo.tsx` (2026-09-29)
@@ -190,6 +191,7 @@ apps/web/
 ├── src/
 │   ├── index.ts
 │   ├── roles.ts                      # ROLES, roleSchema, ROLE, ROLE_LABELS
+│   ├── employee.ts                   # D-035: EMPLOYMENT_CATEGORIES, EXIT_REASONS, EMPLOYMENT_CHANGE_TYPES (+ skema Zod & label Indonesia)
 │   ├── permissions.ts                # PERMISSIONS (PLAN §4.2), PERMISSION_GRANTABLE_TO, isPermissionGrantableTo()
 │   ├── enums.ts                      # status/mode/jenis approval, jenis cuti, status periode absensi & payroll
 │   └── schemas/
@@ -247,8 +249,8 @@ Request ─▶ core: request-id → logger → auth (verifikasi JWT) → muat ko
 
 | Modul          | Skema DB       | Prefix route (`/api/v1`)                                                         | Boleh FK ke             | Memakai (via `index.ts`)             | Fase | Status      |
 | -------------- | -------------- | -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------ | ---- | ----------- |
-| `iam`          | `iam`          | `/me`, `/accounts`, `/accounts/:id`, `/accounts/invite`, `/accounts/:id/{role,deactivate,reactivate}`, `/accounts/primary-super-admin/transfer`, `/grants`, `/grants/:id/revoke`, `/audit-logs` | employee | employee, notification | 2 | `[wip]` |
-| `audit` (core) | `audit`        | `/audit-logs`                                                                    | –                       | –                                    | 2    | `[wip]` (tabel + `writeAudit`) |
+| `iam`          | `iam`          | `/me`, `/accounts`, `/accounts/:id`, `/accounts/invite`, `/accounts/:id/{role,deactivate,reactivate}`, `/accounts/primary-super-admin/transfer`, `/grants`, `/grants/:id/revoke`, `/audit-logs` | employee | employee, notification | 2 | `[done]` (Fase 2 Review) |
+| `audit` (core) | `audit`        | `/audit-logs`                                                                    | –                       | –                                    | 2    | `[done]` (tabel + `writeAudit` + halaman web) |
 | `organization` | `organization` | `/master-data` ✔ (D-035); rencana: `/company`, `/settings`, `/departments`, `/positions`, `/employment-statuses`, `/grades`, `/work-locations`, `/holidays` | –           | –                                    | 3    | `[wip]` (baca saja) |
 | `employee`     | `employee`     | ✔ `/employees`, `/employees/summary`, `/employees/manager-options`, `/employees/:id` (`?view=work\|full\|print`), `/employees/:id/photo` (POST/DELETE) + `/employees/:id/photo/upload-url` (D-037), `/employees/:id/{status-change,deactivate,reactivate}`, `/org-structure` (D-035); rencana: `/employees/:id/*` (tulis data pribadi, rekening, keluarga, pendidikan, pelatihan, dokumen), `/employees/import` | organization            | iam, organization                    | 4    | `[wip]` |
 | `approval`     | `approval`     | `/approvals` (inbox keputusan)                                                   | employee                | iam, employee, notification          | 5    | `[planned]` |
@@ -404,7 +406,7 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 | `VITE_API_BASE_URL` | web | mis. `http://localhost:3000/api/v1` |
 | `VITE_SUPABASE_URL` | web | **Wajib.** URL project Supabase. Lokal: project **staging** `https://iwgzuwcxsxnbjibhbqgh.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | web | **Wajib.** Kunci publik Supabase (staging: publishable key `sb_publishable_…`, diambil via MCP) |
-| `STORAGE_PATH_PREFIX` | api | Lokal: `dev/<nama-developer>/`; staging/produksi: kosong |
+| `STORAGE_PATH_PREFIX` | api | Lokal: `dev/<nama-developer>/`; staging/produksi: kosong. **Belum dipakai kode** (divalidasi di `env.ts` saja; path foto D-037 tanpa prefix) — lihat Backlog PROGRESS |
 | `SEED_EMAIL_BASE` | seed | Email developer untuk plus-addressing `work_email` karyawan dummy (`nama@gmail.com` → `nama+dev-budi-0001@gmail.com`). Kosong → `work_email` kosong |
 
 **Secret GitHub Actions** (Settings → Secrets and variables → Actions → *Repository secrets*; bukan env aplikasi):
