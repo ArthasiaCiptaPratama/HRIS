@@ -358,7 +358,7 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="Jenis kelamin">
             {employee.gender ? GENDER_LABELS[employee.gender] : null}
           </Field>
-          <Field label="Akun HRIS">
+          <Field label="Akun login">
             {employee.account
               ? `${ROLE_LABELS[employee.account.role]} · ${employee.account.isActive ? "aktif" : "nonaktif"}`
               : "Belum punya akun"}

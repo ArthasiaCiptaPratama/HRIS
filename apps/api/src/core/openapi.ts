@@ -16,9 +16,9 @@ export function registerOpenApi(app: OpenAPIHono): void {
   app.doc31(`${API_BASE_PATH}/openapi.json`, {
     openapi: "3.1.0",
     info: {
-      title: "HRIS Arthasia API",
+      title: "Akselerasi Arthasia API",
       version: "1.0.0",
-      description: "REST API HRIS PT Arthasia Cipta Pratama.",
+      description: "REST API Akselerasi Arthasia (HRIS PT Arthasia Cipta Pratama).",
     },
     servers: [{ url: "/" }],
   });

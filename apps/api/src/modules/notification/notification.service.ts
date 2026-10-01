@@ -71,8 +71,10 @@ function safeError(error: unknown): string {
 }
 
 function emailText(input: NotifyInput, appUrl: string): string {
-  const link = input.link ? `\n\nBuka HRIS: ${appUrl.replace(/\/+$/, "")}${input.link}` : "";
-  return `${input.title}${input.body ? `\n\n${input.body}` : ""}${link}\n\n— HRIS Arthasia (email otomatis, jangan dibalas)`;
+  const link = input.link
+    ? `\n\nBuka Akselerasi Arthasia: ${appUrl.replace(/\/+$/, "")}${input.link}`
+    : "";
+  return `${input.title}${input.body ? `\n\n${input.body}` : ""}${link}\n\n— Akselerasi Arthasia (email otomatis, jangan dibalas)`;
 }
 
 /** Tidak pernah melempar: kegagalan notifikasi tidak boleh membatalkan aksi utama pemanggil. */
@@ -117,7 +119,7 @@ export async function notify(input: NotifyInput, now: Date = new Date()): Promis
     if (!input.email) continue;
     const message = {
       to: recipient.email,
-      subject: `[HRIS] ${input.title}`,
+      subject: `[Akselerasi Arthasia] ${input.title}`,
       text: emailText(input, appUrl),
     };
     try {
