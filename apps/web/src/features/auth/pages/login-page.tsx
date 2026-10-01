@@ -62,7 +62,10 @@ export function LoginPage() {
   });
 
   return (
-    <AuthCard title="Masuk ke HRIS" description="Gunakan email dan password akun Anda.">
+    <AuthCard
+      title="Masuk ke Akselerasi Arthasia"
+      description="Gunakan email dan password akun Anda."
+    >
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
         {error ? (
           <Alert variant="destructive">

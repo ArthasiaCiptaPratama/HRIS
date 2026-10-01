@@ -127,8 +127,8 @@ export function ReactivateDialog({
               <Info />
               <AlertDescription>
                 <p>
-                  Akun login HRIS karyawan ini <strong>tidak</strong> ikut aktif otomatis. Aktifkan
-                  lewat menu Administrasi → Akun bila diperlukan.
+                  Akun login karyawan ini <strong>tidak</strong> ikut aktif otomatis. Aktifkan lewat
+                  menu Administrasi → Akun bila diperlukan.
                 </p>
               </AlertDescription>
             </Alert>

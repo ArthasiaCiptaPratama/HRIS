@@ -257,6 +257,12 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
 
+### 2026-10-01 — Nama aplikasi "Akselerasi Arthasia" (jalur rilis)
+- **Dikerjakan (permintaan pemilik projek, dirilis ke staging):** nama tampil diganti dari "HRIS Arthasia" menjadi **Akselerasi Arthasia**: `<title>`, label logo, judul login, teks atur password, email notifikasi (subjek `[Akselerasi Arthasia] …`, tautan, tanda tangan), judul OpenAPI, pesan konflik undangan; "Akun HRIS" → "Akun login". Perubahan yang sama dibuat di develop.
+- **Keputusan:** D-044 (dicatat di PLAN jalur develop, bersama D-043 aturan dua jalur develop & rilis).
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (216 modul) · test shared 63 · api 301 · web 93 (+1 dilewati) ✔.
+- **Catatan:** template email Supabase Auth & `EMAIL_FROM` di env berada di luar repo, belum diubah.
+
 ### 2026-09-30 — Rilis import data karyawan + dashboard SA/HR (branch `HRIS/Oatse/rilis-import`)
 - **Dikerjakan (rencana disetujui; pemilik projek: rilis hanya import, multi-PT ditahan, dashboard teman diperbaiki sekalian):** branch rilis terpisah (git worktree) dari `origin/HRIS/Oatse/Linux-Windows` + merge `origin/HRIS/debug/fe-be`. (1) D-041 kolom + D-042 import tanpa multi-perusahaan: migrasi `20260930102336_add_import_and_employee_details` (hanya tambah enum/kolom nullable/3 tabel), `@hris/shared/import`, master data baru dari import (`organization`), API `/employee-imports` + policy, halaman `/personal/import`, tombol Import di Data Karyawan Aktif, menu Import; kolom perusahaan di file dikenali tetapi belum disimpan. (2) Dashboard rekan tim (`5211a25`: CI & deploy web gagal — dependency `echarts`/`motion` tidak ditambahkan, `useDashboard` & endpoint belum ada, error TypeScript): `GET /dashboard` (SA/HR, agregat saja) + hook, dependency ditambahkan, error tipe diperbaiki, grafik dimuat lazy khusus SA/HR, warna donut (nama variabel CSS di-escape), palet 8 warna, satuan kartu; blok demo `peak-echarts-bar-chart.tsx` (data palsu, tidak dipakai) dihapus; override biome untuk kode vendor `components/evilcharts`. (3) Metode PUT di CORS & api-client (profil pemetaan import).
 - **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ · `check:boundaries` ✔ (216 modul) · `db:check` ✔ · test shared 63 · api 301 · web 93 (+1 dilewati) · build ✔; Playwright lokal (DB `hris_release`, login sungguhan) 15/15, data uji dibersihkan — `docs/qa/runs/2026-09-30-rilis-import.md`.

@@ -358,7 +358,7 @@ function DeactivateForm({ employee, onDone }: { employee: EmployeeDetail; onDone
           <ul className="list-disc space-y-0.5 pl-4">
             <li>Karyawan pindah ke Data Karyawan Tidak Aktif (data tetap diarsip).</li>
             {employee.account?.isActive ? (
-              <li>Akun login HRIS-nya ikut dinonaktifkan dan tidak bisa masuk lagi.</li>
+              <li>Akun loginnya ikut dinonaktifkan dan tidak bisa masuk lagi.</li>
             ) : null}
             <li>Bawahan langsung perlu diberi atasan baru secara terpisah.</li>
           </ul>
