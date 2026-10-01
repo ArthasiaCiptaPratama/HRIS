@@ -3,6 +3,7 @@ import {
   EMPLOYMENT_CATEGORIES,
   EMPLOYMENT_CATEGORY_LABELS,
   type EmploymentCategory,
+  POSITION_LEVELS,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
@@ -979,13 +980,22 @@ export async function getOrgStructure(ctx: RequestContext): Promise<OrgStructure
       id: department.id,
       name: department.name,
       parentId: department.parentId,
+      unitType: department.unitType,
       positions: positions
         .filter((p) => p.departmentId === department.id)
         // Jabatan yang dihapus tetap tampil bila masih ada pemegangnya.
         .filter((p) => !p.deleted || byPosition.has(p.id))
+        // D-050: urut level (Direksi → Helper), lalu nama; tanpa level di akhir.
+        .sort(
+          (a, b) =>
+            (a.level ? POSITION_LEVELS.indexOf(a.level) : POSITION_LEVELS.length) -
+              (b.level ? POSITION_LEVELS.indexOf(b.level) : POSITION_LEVELS.length) ||
+            a.name.localeCompare(b.name, "id"),
+        )
         .map((p) => ({
           id: p.id,
           name: p.name,
+          level: p.level,
           employees: (byPosition.get(p.id) ?? []).map(({ positionId: _p, ...rest }) => rest),
         })),
     }));

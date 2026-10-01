@@ -4,7 +4,9 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  orgUnitTypeSchema,
   paginationMetaSchema,
+  positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
 } from "@hris/shared";
@@ -178,8 +180,13 @@ export type EmployeeDetail = z.infer<typeof employeeDetailSchema>;
 export const masterDataSchema = z.object({
   /** D-040: hanya perusahaan dalam cakupan pengguna. */
   companies: z.array(ref.extend({ code: z.string() })),
-  departments: z.array(ref.extend({ parentId: z.string().nullable() })),
-  positions: z.array(ref.extend({ departmentId: z.string() })),
+  // D-050: departments = semua unit organisasi (dengan jenis); jabatan ber-level opsional.
+  departments: z.array(
+    ref.extend({ parentId: z.string().nullable(), unitType: orgUnitTypeSchema }),
+  ),
+  positions: z.array(
+    ref.extend({ departmentId: z.string(), level: positionLevelSchema.nullable() }),
+  ),
   employmentStatuses: z.array(ref.extend({ category: employmentCategorySchema.nullable() })),
   grades: z.array(ref),
   workLocations: z.array(ref.extend({ city: z.string().nullable() })),
@@ -192,10 +199,12 @@ export const orgStructureSchema = z.object({
       id: z.string(),
       name: z.string(),
       parentId: z.string().nullable(),
+      unitType: orgUnitTypeSchema,
       positions: z.array(
         z.object({
           id: z.string(),
           name: z.string(),
+          level: positionLevelSchema.nullable(),
           employees: z.array(
             z.object({
               id: z.string(),
@@ -248,7 +257,7 @@ export const employeeFormSchema = z.object({
   joinDate: z.iso.date("Tanggal masuk wajib diisi."),
   companyId: z.string().min(1, "Pilih perusahaan."),
   employmentStatusId: z.string().min(1, "Pilih status kepegawaian."),
-  departmentId: z.string().min(1, "Pilih departemen."),
+  departmentId: z.string().min(1, "Pilih unit organisasi."),
   positionId: z.string().min(1, "Pilih jabatan."),
   workLocationId: z.string(),
   gradeId: z.string(),

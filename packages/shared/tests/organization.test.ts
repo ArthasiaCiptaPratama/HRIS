@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
+  canBeChildOf,
   companyInputSchema,
   geofenceIncomplete,
   gradeInputSchema,
+  ORG_UNIT_TYPES,
+  POSITION_LEVELS,
   workLocationInputSchema,
 } from "../src/organization.ts";
 
@@ -70,4 +73,34 @@ describe("workLocationInputSchema", () => {
 test("nama dipangkas & spasi ganda dirapikan; kosong ditolak", () => {
   expect(gradeInputSchema.parse({ name: "  3   A " })).toEqual({ name: "3 A" });
   expect(gradeInputSchema.safeParse({ name: "   " }).success).toBe(false);
+});
+
+// D-050: jenis unit organisasi & induk yang sah.
+describe("canBeChildOf", () => {
+  test.each([
+    ["DIRECTORATE", "DIRECTORATE", true],
+    ["DIVISION", "DIRECTORATE", true],
+    ["DEPARTMENT", "DIRECTORATE", true],
+    ["DEPARTMENT", "DIVISION", true],
+    ["SECTION", "DEPARTMENT", true],
+    ["SECTION", "DIVISION", true],
+    ["DIRECTORATE", "DIVISION", false],
+    ["DIVISION", "DIVISION", false],
+    ["DIVISION", "DEPARTMENT", false],
+    ["DEPARTMENT", "DEPARTMENT", false],
+    ["DEPARTMENT", "SECTION", false],
+    ["SECTION", "SECTION", false],
+    ["SECTION", "DIRECTORATE", false],
+  ] as const)("%s di bawah %s = %s", (child, parent, ok) => {
+    expect(canBeChildOf(child, parent)).toBe(ok);
+  });
+
+  test("semua jenis boleh tanpa induk (puncak)", () => {
+    for (const type of ORG_UNIT_TYPES) expect(canBeChildOf(type, null)).toBe(true);
+  });
+
+  test("level jabatan berurutan dari Direksi ke Helper", () => {
+    expect(POSITION_LEVELS[0]).toBe("DIRECTOR");
+    expect(POSITION_LEVELS.at(-1)).toBe("NON_STAFF");
+  });
 });

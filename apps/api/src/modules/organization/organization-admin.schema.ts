@@ -1,5 +1,10 @@
 import { z } from "@hono/zod-openapi";
-import { employmentCategorySchema, masterDataViewSchema } from "@hris/shared";
+import {
+  employmentCategorySchema,
+  masterDataViewSchema,
+  orgUnitTypeSchema,
+  positionLevelSchema,
+} from "@hris/shared";
 
 // D-049: DTO halaman admin master data (SA kelola, HR lihat). Hanya jumlah karyawan — tanpa data per orang.
 
@@ -25,6 +30,7 @@ export const companyAdminSchema = z
 export const departmentAdminSchema = z
   .object({
     ...base,
+    unitType: orgUnitTypeSchema,
     parentId: z.uuid().nullable(),
     parentName: z.string().nullable(),
     positionCount: z.number().int(),
@@ -32,7 +38,12 @@ export const departmentAdminSchema = z
   .openapi("DepartmentAdmin");
 
 export const positionAdminSchema = z
-  .object({ ...base, departmentId: z.uuid(), departmentName: z.string() })
+  .object({
+    ...base,
+    departmentId: z.uuid(),
+    departmentName: z.string(),
+    level: positionLevelSchema.nullable(),
+  })
   .openapi("PositionAdmin");
 
 export const employmentStatusAdminSchema = z

@@ -7,7 +7,7 @@
 
 | Metadata        | Nilai                                                        |
 | --------------- | ------------------------------------------------------------ |
-| Terakhir diubah | 2026-10-01 (D-049: CRUD master data + peta geofence Leaflet)  |
+| Terakhir diubah | 2026-10-02 (D-050: unit organisasi berjenjang & level jabatan) |
 | Kondisi repo    | Fase 1 hampir selesai (sisa uji Windows); Fase 2 IAM review; Fase 3–4 berjalan (modul `organization` baca, `employee` + foto profil + print). Staging live (D-036) |
 
 ---
@@ -88,7 +88,8 @@ apps/api/
 │   │   ├── 20260929100000_add_employee_photo/  [done] D-037: `employees.photo_path varchar(255)`
 │   │   ├── 20260930035548_add_probation_and_vendor_categories/  [done] D-038: `ALTER TYPE EmploymentCategory ADD VALUE 'PROBATION', 'VENDOR'`
 │   │   ├── 20260930102336_add_import_and_employee_details/  [done] D-041/D-042 (migrasi rilis 2026-09-30, menggantikan `20260930090116` lokal): kolom tambahan karyawan, enum PTKP/jenjang, `import_jobs` (tanpa `company_id`), `import_job_issues`, `import_mappings`
-│   │   └── 20261001100000_add_companies_and_account_scope/  [done] D-039/D-040 (dipindah dari `20260930061627` agar setelah migrasi rilis, D-043; + `import_jobs.company_id`): `organization.companies` (+ baris ACP), `employees.company_id` (expand → backfill ACP → NOT NULL), riwayat `from/to_company_id` + enum `COMPANY_CHANGED`, `iam.account_companies` (+ akun HR_ADMIN yang ada → ACP)
+│   │   ├── 20261001100000_add_companies_and_account_scope/  [done] D-039/D-040 (dipindah dari `20260930061627` agar setelah migrasi rilis, D-043; + `import_jobs.company_id`): `organization.companies` (+ baris ACP), `employees.company_id` (expand → backfill ACP → NOT NULL), riwayat `from/to_company_id` + enum `COMPANY_CHANGED`, `iam.account_companies` (+ akun HR_ADMIN yang ada → ACP)
+│   │   └── 20261001092853_add_org_unit_type_and_position_level/  [done] D-050: enum `OrgUnitType` + `departments.unit_type` (default DEPARTMENT), enum `PositionLevel` + `positions.level?` (hanya menambah)
 │   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production
 │       ├── index.ts                  Runner: organization → employee
 │       ├── organization.ts           5 departemen, 12 jabatan, 7 status berkategori (D-038: Karyawan Tetap, Karyawan Percobaan, PKWT, Pekerja Harian, Magang, Outsourcing, Vendor; nama lama "Pegawai Tetap/Tetap/Kontrak (PKWT)/Internship/Daily Worker" diganti, "Masa Percobaan" dihidupkan lagi sebagai Karyawan Percobaan), 5 grade, 2 lokasi
@@ -201,7 +202,7 @@ apps/web/
 │   ├── index.ts
 │   ├── roles.ts                      # ROLES, roleSchema, ROLE, ROLE_LABELS
 │   ├── employee.ts                   # D-035/D-038: EMPLOYMENT_CATEGORIES (7) + label, EMPLOYMENT_CATEGORY_GROUPS / CATEGORIES_BY_GROUP / label grup, EXIT_REASONS, EMPLOYMENT_CHANGE_TYPES (+ skema Zod & label Indonesia); D-041: PTKP_STATUSES, EDUCATION_LEVELS (+ label)
-│   ├── organization.ts               # D-049: skema input master data (kode PT, NPWP badan, departemen/jabatan/status/grade, lokasi + geofence lengkap-atau-kosong), `MASTER_DATA_KINDS`/label, `MERGEABLE_MASTER_DATA`, `geofenceIncomplete`
+│   ├── organization.ts               # D-049/D-050: skema input master data (kode PT, NPWP badan, unit organisasi + `ORG_UNIT_TYPES`/`canBeChildOf`, jabatan + `POSITION_LEVELS`, status/grade, lokasi + geofence lengkap-atau-kosong), `MASTER_DATA_KINDS`/label, `MERGEABLE_MASTER_DATA`, `geofenceIncomplete`
 │   ├── import/                       # D-042 mesin import (murni, dipakai web & api): `fields.ts` (IMPORT_FIELDS: label, seksi, sinonim; DERIVED_HEADERS; `fieldPermission`; batas 2.000 baris/5 MB), `normalize.ts` (tanggal ID/serial Excel, NIK 16 digit, NPWP, BPJS, telepon, gender, agama, PTKP, pendidikan, status → kategori, penanda resign), `row.ts` (`normalizeImportRow`, `isBlankImportRow`, IMPORT_ISSUE_MESSAGES), `detect.ts` (header & baris data, `pickSheet`, `suggestMapping`: sinonim + kemiripan + isi kolom, `buildRawRows`, `headerSignatureSource`)
 │   ├── permissions.ts                # PERMISSIONS (PLAN §4.2), PERMISSION_GRANTABLE_TO, isPermissionGrantableTo()
 │   ├── enums.ts                      # status/mode/jenis approval, jenis cuti, status periode absensi & payroll
@@ -301,8 +302,8 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 | `companies` | [done] D-039: perusahaan dalam grup — `code` (unik, mis. ACP), `name`, `npwp?`, `address?`, `is_active`, `deleted_at?`; dikelola SA; FK wajib dari `employees.company_id` |
 | `company_profile` | [planned] *(digantikan `companies`, D-039)* |
 | `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
-| `departments` | `name` (unik), `parent_id?` (hierarki, ber-index), `deleted_at?` |
-| `positions` | `name`, `department_id` (FK, ERD) — unik per departemen, `deleted_at?` |
+| `departments` | **D-050: semua unit organisasi** — `name` (unik), `unit_type` (enum `OrgUnitType`: DIRECTORATE, DIVISION, DEPARTMENT, SECTION; default DEPARTMENT), `parent_id?` (hierarki, ber-index; induk sah dijaga service + `canBeChildOf` di shared), `deleted_at?` |
+| `positions` | `name`, `department_id` (FK ke unit jenis apa pun, ERD) — unik per unit, `level?` (enum `PositionLevel`: DIRECTOR … NON_STAFF, D-050; beda dari grade), `deleted_at?` |
 | `employment_statuses` | ERD `employment_status`: `name` (unik), `category?` (enum `EmploymentCategory` unik: PERMANENT, PROBATION, PKWT, DAILY_WORKER, INTERNSHIP, OUTSOURCING, VENDOR — D-035/D-038), `deleted_at?` |
 | `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |
 | `work_locations` | `name` (unik), `city?`, `address?`, `latitude?`, `longitude?` Decimal(9,6), `radius_m?` (geofence wajib di Fase 5), `deleted_at?` |

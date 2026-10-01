@@ -1,4 +1,4 @@
-import { employmentCategorySchema } from "@hris/shared";
+import { employmentCategorySchema, orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
 import { z } from "zod";
 
 // D-049: bentuk respons daftar admin master data (sama dengan organization-admin.schema.ts API).
@@ -18,6 +18,7 @@ export const companyAdminSchema = z.object({
 });
 export const departmentAdminSchema = z.object({
   ...base,
+  unitType: orgUnitTypeSchema,
   parentId: z.string().nullable(),
   parentName: z.string().nullable(),
   positionCount: z.number(),
@@ -26,6 +27,7 @@ export const positionAdminSchema = z.object({
   ...base,
   departmentId: z.string(),
   departmentName: z.string(),
+  level: positionLevelSchema.nullable(),
 });
 export const employmentStatusAdminSchema = z.object({
   ...base,
@@ -55,11 +57,13 @@ export const masterDataItemSchema = z.object({
   npwpNumber: z.string().nullable().optional(),
   address: z.string().nullable().optional(),
   totalEmployeeCount: z.number().optional(),
+  unitType: orgUnitTypeSchema.optional(),
   parentId: z.string().nullable().optional(),
   parentName: z.string().nullable().optional(),
   positionCount: z.number().optional(),
   departmentId: z.string().optional(),
   departmentName: z.string().optional(),
+  level: positionLevelSchema.nullable().optional(),
   category: employmentCategorySchema.nullable().optional(),
   city: z.string().nullable().optional(),
   latitude: z.number().nullable().optional(),

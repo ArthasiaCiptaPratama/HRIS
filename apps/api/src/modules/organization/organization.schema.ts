@@ -1,12 +1,23 @@
 import { z } from "@hono/zod-openapi";
-import { employmentCategorySchema } from "@hris/shared";
+import { employmentCategorySchema, orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
 
 export const departmentSchema = z
-  .object({ id: z.uuid(), name: z.string(), parentId: z.uuid().nullable() })
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    parentId: z.uuid().nullable(),
+    // D-050: jenis unit organisasi (Direktorat/Divisi/Departemen/Seksi).
+    unitType: orgUnitTypeSchema,
+  })
   .openapi("Department");
 
 export const positionSchema = z
-  .object({ id: z.uuid(), name: z.string(), departmentId: z.uuid() })
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    departmentId: z.uuid(),
+    level: positionLevelSchema.nullable(),
+  })
   .openapi("Position");
 
 export const employmentStatusSchema = z

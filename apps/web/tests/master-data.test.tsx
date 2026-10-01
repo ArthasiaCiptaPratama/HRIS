@@ -48,6 +48,7 @@ const department = {
   name: "Teknologi Informasi",
   archived: false,
   employeeCount: 2,
+  unitType: "DEPARTMENT",
   parentId: null,
   parentName: null,
   positionCount: 1,
@@ -194,6 +195,67 @@ describe("Master Data (D-049)", () => {
     expect(within(dialog).getByLabelText("Radius (m)")).toHaveValue("250");
     const search = calls.find((c) => c.path.startsWith("/search"));
     expect(search).toBeDefined();
+  });
+
+  it("D-050: /master-data/departemen dialihkan ke Unit Organisasi; kolom Jenis; induk tersaring sesuai jenis", async () => {
+    const user = userEvent.setup();
+    const directorate = {
+      ...department,
+      id: ID(5),
+      name: "Direktorat Utama",
+      unitType: "DIRECTORATE",
+      positionCount: 0,
+    };
+    const calls = mockFetch(me("SUPER_ADMIN", true), { departments: [department, directorate] });
+    renderAt("/master-data/departemen");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Unit organisasi" }),
+    ).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: "Daftar unit organisasi" });
+    expect(await within(table).findByText("Direktorat")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Tambah unit" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Nama"), "Divisi Engineering");
+    // Jenis Divisi → induk hanya Direktorat (Departemen tidak ditawarkan).
+    await user.click(within(dialog).getByLabelText("Jenis unit"));
+    await user.click(await screen.findByRole("option", { name: "Divisi" }));
+    await user.click(within(dialog).getByLabelText(/Unit induk/));
+    expect(await screen.findByRole("option", { name: /Direktorat Utama/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Teknologi Informasi/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("option", { name: /Direktorat Utama/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0]).toMatchObject({
+      method: "POST",
+      path: "/departments",
+      body: { name: "Divisi Engineering", unitType: "DIVISION", parentId: ID(5) },
+    });
+  });
+
+  it("D-050: jabatan ber-level — kolom Level & level terkirim saat simpan", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(me("SUPER_ADMIN", true), {
+      positions: [{ ...position, level: "STAFF" }],
+      departments: [department],
+    });
+    renderAt("/master-data/jabatan");
+    const table = await screen.findByRole("table", { name: "Daftar jabatan" });
+    expect(await within(table).findByText("Staf / Operator")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tambah jabatan" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Nama"), "Supervisor IT");
+    await user.click(within(dialog).getByLabelText("Unit organisasi"));
+    await user.click(await screen.findByRole("option", { name: /Teknologi Informasi/ }));
+    await user.click(within(dialog).getByLabelText(/Level/));
+    await user.click(await screen.findByRole("option", { name: "Supervisor" }));
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0]?.body).toEqual({
+      name: "Supervisor IT",
+      departmentId: ID(3),
+      level: "SUPERVISOR",
+    });
   });
 
   it("arsipkan lewat menu aksi + konfirmasi memanggil POST /:id/archive", async () => {

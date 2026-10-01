@@ -7,8 +7,10 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  orgUnitTypeSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
+  positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
 } from "@hris/shared";
@@ -296,10 +298,13 @@ export const orgStructureSchema = z
         id: z.uuid(),
         name: z.string(),
         parentId: z.uuid().nullable(),
+        // D-050: jenis unit organisasi.
+        unitType: orgUnitTypeSchema,
         positions: z.array(
           z.object({
             id: z.uuid(),
             name: z.string(),
+            level: positionLevelSchema.nullable(),
             employees: z.array(
               z.object({
                 id: z.uuid(),

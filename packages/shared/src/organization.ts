@@ -16,7 +16,8 @@ export type MasterDataKind = z.infer<typeof masterDataKindSchema>;
 
 export const MASTER_DATA_LABELS: Record<MasterDataKind, string> = {
   companies: "Perusahaan",
-  departments: "Departemen",
+  // D-050: tabel/API "departments" menyimpan semua unit organisasi (Direktorat … Seksi).
+  departments: "Unit organisasi",
   positions: "Jabatan",
   "employment-statuses": "Status kepegawaian",
   grades: "Grade",
@@ -31,6 +32,60 @@ export const MERGEABLE_MASTER_DATA: readonly MasterDataKind[] = [
   "grades",
   "work-locations",
 ];
+
+// ── D-050: unit organisasi berjenjang & level jabatan ───────────────────────────
+
+export const ORG_UNIT_TYPES = ["DIRECTORATE", "DIVISION", "DEPARTMENT", "SECTION"] as const;
+export const orgUnitTypeSchema = z.enum(ORG_UNIT_TYPES);
+export type OrgUnitType = z.infer<typeof orgUnitTypeSchema>;
+
+export const ORG_UNIT_TYPE_LABELS: Record<OrgUnitType, string> = {
+  DIRECTORATE: "Direktorat",
+  DIVISION: "Divisi",
+  DEPARTMENT: "Departemen",
+  SECTION: "Seksi",
+};
+
+/**
+ * Induk yang sah per jenis. Semua jenis boleh tanpa induk (puncak). Departemen boleh langsung di
+ * bawah Direktorat (tanpa Divisi); Direktorat boleh di bawah Direktorat (mis. Direktorat Operasional
+ * di bawah Direktorat Utama).
+ */
+export const ORG_UNIT_PARENTS: Record<OrgUnitType, readonly OrgUnitType[]> = {
+  DIRECTORATE: ["DIRECTORATE"],
+  DIVISION: ["DIRECTORATE"],
+  DEPARTMENT: ["DIRECTORATE", "DIVISION"],
+  SECTION: ["DIVISION", "DEPARTMENT"],
+};
+
+export function canBeChildOf(child: OrgUnitType, parent: OrgUnitType | null): boolean {
+  return parent === null || ORG_UNIT_PARENTS[child].includes(parent);
+}
+
+/** Urutan dari puncak ke bawah (Direksi → Helper) untuk bagan & laporan. */
+export const POSITION_LEVELS = [
+  "DIRECTOR",
+  "GENERAL_MANAGER",
+  "MANAGER",
+  "SUPERINTENDENT",
+  "SUPERVISOR",
+  "FOREMAN",
+  "STAFF",
+  "NON_STAFF",
+] as const;
+export const positionLevelSchema = z.enum(POSITION_LEVELS);
+export type PositionLevel = z.infer<typeof positionLevelSchema>;
+
+export const POSITION_LEVEL_LABELS: Record<PositionLevel, string> = {
+  DIRECTOR: "Direksi",
+  GENERAL_MANAGER: "GM / VP",
+  MANAGER: "Manager",
+  SUPERINTENDENT: "Superintendent",
+  SUPERVISOR: "Supervisor",
+  FOREMAN: "Foreman",
+  STAFF: "Staf / Operator",
+  NON_STAFF: "Helper / Non-staf",
+};
 
 export const MASTER_DATA_VIEWS = ["active", "archived", "all"] as const;
 export const masterDataViewSchema = z.enum(MASTER_DATA_VIEWS);
@@ -79,13 +134,17 @@ export type CompanyInput = z.infer<typeof companyInputSchema>;
 
 export const departmentInputSchema = z.object({
   name: name(100),
+  /** D-050: jenis unit; tanpa nilai saat tambah = Departemen. */
+  unitType: orgUnitTypeSchema.optional(),
   parentId: z.uuid().nullable().optional(),
 });
 export type DepartmentInput = z.infer<typeof departmentInputSchema>;
 
 export const positionInputSchema = z.object({
   name: name(100),
-  departmentId: z.uuid("Pilih departemen."),
+  departmentId: z.uuid("Pilih unit organisasi."),
+  /** D-050: level jabatan (opsional). */
+  level: positionLevelSchema.nullable().optional(),
 });
 export type PositionInput = z.infer<typeof positionInputSchema>;
 

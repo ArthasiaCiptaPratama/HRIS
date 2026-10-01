@@ -1,4 +1,4 @@
-import type { EmploymentCategory } from "@hris/shared";
+import type { EmploymentCategory, OrgUnitType, PositionLevel } from "@hris/shared";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 
@@ -12,11 +12,11 @@ export async function loadMasterData() {
   const [departments, positions, statuses, grades, locations, companies] =
     await prisma.$transaction([
       prisma.department.findMany({
-        select: { id: true, name: true, parentId: true, deletedAt: true },
+        select: { id: true, name: true, parentId: true, unitType: true, deletedAt: true },
         orderBy: { name: "asc" },
       }),
       prisma.position.findMany({
-        select: { id: true, name: true, departmentId: true, deletedAt: true },
+        select: { id: true, name: true, departmentId: true, level: true, deletedAt: true },
         orderBy: { name: "asc" },
       }),
       prisma.employmentStatus.findMany({
@@ -79,11 +79,11 @@ export async function listAdminRows() {
         orderBy: { code: "asc" },
       }),
       prisma.department.findMany({
-        select: { ...ADMIN_SELECT, parentId: true },
+        select: { ...ADMIN_SELECT, parentId: true, unitType: true },
         orderBy: { name: "asc" },
       }),
       prisma.position.findMany({
-        select: { ...ADMIN_SELECT, departmentId: true },
+        select: { ...ADMIN_SELECT, departmentId: true, level: true },
         orderBy: { name: "asc" },
       }),
       prisma.employmentStatus.findMany({
@@ -130,20 +130,30 @@ export const companyRepo = {
 };
 
 export const departmentRepo = {
-  create: (tx: OrganizationTx, data: { name: string; parentId: string | null }) =>
-    tx.department.create({ data, select: { id: true } }),
-  update: (tx: OrganizationTx, id: string, data: { name?: string; parentId?: string | null }) =>
-    tx.department.update({ where: { id }, data, select: { id: true } }),
+  create: (
+    tx: OrganizationTx,
+    data: { name: string; parentId: string | null; unitType: OrgUnitType },
+  ) => tx.department.create({ data, select: { id: true } }),
+  update: (
+    tx: OrganizationTx,
+    id: string,
+    data: { name?: string; parentId?: string | null; unitType?: OrgUnitType },
+  ) => tx.department.update({ where: { id }, data, select: { id: true } }),
   /** Pindahkan sub-departemen ke induk lain (gabungkan departemen). */
   reparentChildren: (tx: OrganizationTx, fromId: string, toId: string) =>
     tx.department.updateMany({ where: { parentId: fromId }, data: { parentId: toId } }),
 };
 
 export const positionRepo = {
-  create: (tx: OrganizationTx, data: { name: string; departmentId: string }) =>
-    tx.position.create({ data, select: { id: true } }),
-  update: (tx: OrganizationTx, id: string, data: { name?: string; departmentId?: string }) =>
-    tx.position.update({ where: { id }, data, select: { id: true } }),
+  create: (
+    tx: OrganizationTx,
+    data: { name: string; departmentId: string; level: PositionLevel | null },
+  ) => tx.position.create({ data, select: { id: true } }),
+  update: (
+    tx: OrganizationTx,
+    id: string,
+    data: { name?: string; departmentId?: string; level?: PositionLevel | null },
+  ) => tx.position.update({ where: { id }, data, select: { id: true } }),
 };
 
 export const statusRepo = {

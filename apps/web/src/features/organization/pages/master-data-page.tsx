@@ -1,4 +1,5 @@
 import {
+  canBeChildOf,
   companyInputSchema,
   departmentInputSchema,
   EMPLOYMENT_CATEGORIES,
@@ -9,6 +10,12 @@ import {
   type MasterDataKind,
   type MasterDataView,
   MERGEABLE_MASTER_DATA,
+  ORG_UNIT_TYPE_LABELS,
+  ORG_UNIT_TYPES,
+  type OrgUnitType,
+  POSITION_LEVEL_LABELS,
+  POSITION_LEVELS,
+  type PositionLevel,
   positionInputSchema,
   workLocationInputSchema,
 } from "@hris/shared";
@@ -67,6 +74,7 @@ import {
 import type { GeoPoint } from "../components/geofence-map";
 import { GeofencePicker } from "../components/geofence-picker";
 import {
+  isMasterDataAlias,
   MASTER_DATA_BASE,
   MASTER_DATA_PAGES,
   type MasterDataPageConfig,
@@ -84,6 +92,8 @@ export function MasterDataPage() {
   const { kind: slug } = useParams();
   const config = masterDataPage(slug);
   if (!config) return <Navigate to={`${MASTER_DATA_BASE}/${MASTER_DATA_PAGES[0]?.slug}`} replace />;
+  if (isMasterDataAlias(slug))
+    return <Navigate to={`${MASTER_DATA_BASE}/${config.slug}`} replace />;
   // `key` mengosongkan filter & dialog saat berpindah jenis.
   return <MasterDataScreen key={config.kind} config={config} />;
 }
@@ -252,6 +262,15 @@ function buildColumns(
       }),
     ],
     departments: [
+      col({
+        id: "unitType",
+        header: "Jenis",
+        cell: ({ row }) => (
+          <Badge variant="secondary">
+            {ORG_UNIT_TYPE_LABELS[row.original.unitType ?? "DEPARTMENT"]}
+          </Badge>
+        ),
+      }),
       col({ id: "parent", header: "Induk", cell: ({ row }) => muted(row.original.parentName) }),
       col({
         id: "positions",
@@ -263,8 +282,15 @@ function buildColumns(
     positions: [
       col({
         id: "department",
-        header: "Departemen",
+        header: "Unit organisasi",
         cell: ({ row }) => row.original.departmentName,
+      }),
+      col({
+        id: "level",
+        header: "Level",
+        meta: { className: "whitespace-nowrap" },
+        cell: ({ row }) =>
+          row.original.level ? POSITION_LEVEL_LABELS[row.original.level] : muted("—"),
       }),
     ],
     "employment-statuses": [
@@ -369,8 +395,10 @@ function initialValues(item: MasterDataItem | null): Values {
     code: s(item?.code),
     npwpNumber: s(item?.npwpNumber),
     address: s(item?.address),
+    unitType: s(item?.unitType ?? "DEPARTMENT"),
     parentId: s(item?.parentId),
     departmentId: s(item?.departmentId),
+    level: s(item?.level),
     category: s(item?.category),
     city: s(item?.city),
     latitude: s(item?.latitude),
@@ -397,9 +425,17 @@ function toBody(kind: MasterDataKind, v: Values): Record<string, unknown> {
         address: text(v.address),
       };
     case "departments":
-      return { name: v.name ?? "", parentId: text(v.parentId) };
+      return {
+        name: v.name ?? "",
+        unitType: (v.unitType || "DEPARTMENT") as OrgUnitType,
+        parentId: text(v.parentId),
+      };
     case "positions":
-      return { name: v.name ?? "", departmentId: v.departmentId ?? "" };
+      return {
+        name: v.name ?? "",
+        departmentId: v.departmentId ?? "",
+        level: (text(v.level) as PositionLevel | null) ?? null,
+      };
     case "employment-statuses":
       return { name: v.name ?? "", category: (text(v.category) as EmploymentCategory) ?? null };
     case "grades":
@@ -561,37 +597,99 @@ function MasterDataFormDialog({
               )}
             </>
           ) : null}
-          {config.kind === "departments"
-            ? field(
+          {config.kind === "departments" ? (
+            <>
+              {field(
+                "unitType",
+                "Jenis unit",
+                <FormSelect
+                  id="md-unitType"
+                  value={values.unitType ?? "DEPARTMENT"}
+                  onChange={(value) =>
+                    setValues((v) => {
+                      // Induk yang tidak sah untuk jenis baru dikosongkan (D-050).
+                      const parent = (departments.data ?? []).find((d) => d.id === v.parentId);
+                      const keep =
+                        !parent ||
+                        canBeChildOf(value as OrgUnitType, parent.unitType ?? "DEPARTMENT");
+                      return { ...v, unitType: value, parentId: keep ? (v.parentId ?? "") : "" };
+                    })
+                  }
+                  placeholder="Pilih jenis"
+                  options={ORG_UNIT_TYPES.map((t) => ({
+                    value: t,
+                    label: ORG_UNIT_TYPE_LABELS[t],
+                  }))}
+                />,
+              )}
+              {field(
                 "parentId",
-                "Departemen induk",
+                "Unit induk",
                 <FormSelect
                   id="md-parentId"
                   value={values.parentId ?? ""}
                   onChange={set("parentId")}
                   placeholder="Pilih induk"
-                  noneLabel="Tanpa induk"
+                  noneLabel="Tanpa induk (puncak)"
                   options={(departments.data ?? [])
-                    .filter((d) => d.id !== item?.id)
-                    .map((d) => ({ value: d.id, label: d.name }))}
+                    .filter(
+                      (d) =>
+                        d.id !== item?.id &&
+                        canBeChildOf(
+                          (values.unitType || "DEPARTMENT") as OrgUnitType,
+                          d.unitType ?? "DEPARTMENT",
+                        ),
+                    )
+                    .map((d) => ({
+                      value: d.id,
+                      label: d.name,
+                      hint: ORG_UNIT_TYPE_LABELS[d.unitType ?? "DEPARTMENT"],
+                    }))}
                 />,
-                { optional: true },
-              )
-            : null}
-          {config.kind === "positions"
-            ? field(
+                {
+                  optional: true,
+                  hint: "Direktorat ⊃ Divisi ⊃ Departemen ⊃ Seksi; departemen boleh langsung di bawah direktorat.",
+                },
+              )}
+            </>
+          ) : null}
+          {config.kind === "positions" ? (
+            <>
+              {field(
                 "departmentId",
-                "Departemen",
+                "Unit organisasi",
                 <FormSelect
                   id="md-departmentId"
                   value={values.departmentId ?? ""}
                   onChange={set("departmentId")}
-                  placeholder="Pilih departemen"
+                  placeholder="Pilih unit"
                   invalid={Boolean(errors.departmentId)}
-                  options={(departments.data ?? []).map((d) => ({ value: d.id, label: d.name }))}
+                  options={(departments.data ?? []).map((d) => ({
+                    value: d.id,
+                    label: d.name,
+                    hint: ORG_UNIT_TYPE_LABELS[d.unitType ?? "DEPARTMENT"],
+                  }))}
                 />,
-              )
-            : null}
+                { hint: "Jabatan direksi (Direktur, Sekretaris) cukup di unit Direktorat." },
+              )}
+              {field(
+                "level",
+                "Level",
+                <FormSelect
+                  id="md-level"
+                  value={values.level ?? ""}
+                  onChange={set("level")}
+                  placeholder="Pilih level"
+                  noneLabel="Tanpa level"
+                  options={POSITION_LEVELS.map((l) => ({
+                    value: l,
+                    label: POSITION_LEVEL_LABELS[l],
+                  }))}
+                />,
+                { optional: true },
+              )}
+            </>
+          ) : null}
           {config.kind === "employment-statuses"
             ? field(
                 "category",
@@ -795,7 +893,8 @@ function MergeDialog({
   }, [source]);
   if (!source) return null;
   const options = (targets.data ?? [])
-    .filter((t) => t.id !== source.id)
+    // D-050: unit hanya digabung ke unit sejenis.
+    .filter((t) => t.id !== source.id && (!source.unitType || t.unitType === source.unitType))
     .map((t) => ({
       value: t.id,
       label: t.name,

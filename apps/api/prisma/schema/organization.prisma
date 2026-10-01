@@ -31,7 +31,9 @@ model Company {
 model Department {
   id        String       @id @default(uuid()) @db.Uuid
   name      String       @db.VarChar(100)
-  // CODEMAP §6.3: departemen berhierarki (opsional; ERD awal belum memakainya).
+  // D-050: tabel ini menyimpan semua UNIT ORGANISASI (nama tabel tetap "departments" supaya rilis aman).
+  unitType  OrgUnitType  @default(DEPARTMENT) @map("unit_type")
+  // CODEMAP §6.3: unit berhierarki; jenis induk yang sah dijaga service (D-050).
   parentId  String?      @map("parent_id") @db.Uuid
   parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children  Department[] @relation("DepartmentHierarchy")
@@ -50,6 +52,8 @@ model Position {
   id                      String              @id @default(uuid()) @db.Uuid
   name                    String              @db.VarChar(100)
   departmentId            String              @map("department_id") @db.Uuid
+  // D-050: level jabatan (opsional) — berbeda dari Grade (golongan, D-026).
+  level                   PositionLevel?
   department              Department          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   employees               Employee[]
   employmentHistoriesFrom EmploymentHistory[] @relation("HistoryFromPosition")
@@ -67,6 +71,30 @@ model Position {
 // D-035/D-038: kategori tetap untuk navigasi "Data Karyawan Aktif" (grup Internal: Tetap, Percobaan, PKWT,
 // Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
+// D-050: jenis unit organisasi. Departemen boleh langsung di bawah Direktorat (tanpa Divisi).
+enum OrgUnitType {
+  DIRECTORATE
+  DIVISION
+  DEPARTMENT
+  SECTION
+
+  @@schema("organization")
+}
+
+// D-050: level jabatan untuk urutan bagan & laporan (bukan golongan gaji).
+enum PositionLevel {
+  DIRECTOR
+  GENERAL_MANAGER
+  MANAGER
+  SUPERINTENDENT
+  SUPERVISOR
+  FOREMAN
+  STAFF
+  NON_STAFF
+
+  @@schema("organization")
+}
+
 enum EmploymentCategory {
   PERMANENT
   PKWT

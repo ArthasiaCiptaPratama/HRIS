@@ -80,7 +80,9 @@ function mockBackend({
         return json(200, {
           data: {
             companies,
-            departments: [{ id: "d1", name: "Operasional", parentId: null }],
+            departments: [
+              { id: "d1", name: "Operasional", parentId: null, unitType: "DEPARTMENT" },
+            ],
             positions: [],
             employmentStatuses: [],
             grades: [],

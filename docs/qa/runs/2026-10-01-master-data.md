@@ -29,3 +29,15 @@
 
 **Kesimpulan:** kriteria otomatis terpenuhi di lokal. **Bug terbuka:** tidak ada.
 **Belum diverifikasi:** uji browser (Playwright login sungguhan), staging, Windows.
+
+## Tambahan 2026-10-02 — D-050 unit organisasi & level jabatan
+- `bun run test` ✔ (shared 88 · api 375 · web 109) · typecheck ✔ · biome ✔ · boundaries ✔ · `db:check` ✔ · build ✔.
+
+| ID | Hasil | Bukti |
+|---|---|---|
+| TC-ADM-029 | LULUS | MD "D-050" (induk tidak sah, Departemen di bawah Direktorat) + SH `canBeChildOf` (14) + WMD (induk tersaring) |
+| TC-ADM-030 | LULUS | MD (ubah jenis vs sub-unit, gabungkan beda jenis) |
+| TC-ADM-031 | LULUS | MD (`/master-data`, `/org-structure` + urut level) + WMD (level terkirim) |
+| TC-ADM-032 | LULUS | WMD (slug lama dialihkan) |
+| Regresi | LULUS | 2 test lama disesuaikan (Departemen di bawah Departemen kini tidak sah → memakai Direktorat/Divisi) |
+

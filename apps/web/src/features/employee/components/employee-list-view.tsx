@@ -1,4 +1,5 @@
 import type { EmploymentCategory, EmploymentCategoryGroup } from "@hris/shared";
+import { ORG_UNIT_TYPE_LABELS } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Search, SearchX, Users, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -317,13 +318,17 @@ export function EmployeeListView({
         </div>
         <div className="grid grid-cols-1 gap-2 sm:flex">
           <FormSelect
-            aria-label="Filter departemen"
+            aria-label="Filter unit organisasi"
             className="h-9 sm:w-52"
             value={list.departmentId}
             onChange={(value) => list.update({ dept: value })}
-            placeholder="Semua departemen"
-            noneLabel="Semua departemen"
-            options={(master.data?.departments ?? []).map((d) => ({ value: d.id, label: d.name }))}
+            placeholder="Semua unit"
+            noneLabel="Semua unit"
+            options={(master.data?.departments ?? []).map((d) => ({
+              value: d.id,
+              label: d.name,
+              hint: ORG_UNIT_TYPE_LABELS[d.unitType],
+            }))}
           />
           <FormSelect
             aria-label="Filter lokasi"

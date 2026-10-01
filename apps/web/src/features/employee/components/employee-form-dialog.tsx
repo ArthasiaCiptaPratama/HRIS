@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { GENDER_LABELS } from "@hris/shared";
+import { GENDER_LABELS, ORG_UNIT_TYPE_LABELS } from "@hris/shared";
 import { Info } from "lucide-react";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -308,7 +308,11 @@ export function EmployeeFormDialog({
                   />
                 </FormField>
               )}
-              <FormField label="Departemen" error={errors.departmentId?.message} htmlFor="f-dept">
+              <FormField
+                label="Unit organisasi"
+                error={errors.departmentId?.message}
+                htmlFor="f-dept"
+              >
                 <Controller
                   control={control}
                   name="departmentId"
@@ -320,11 +324,12 @@ export function EmployeeFormDialog({
                         field.onChange(value);
                         setValue("positionId", "", { shouldValidate: false });
                       }}
-                      placeholder="Pilih departemen"
+                      placeholder="Pilih unit"
                       options={keepCurrent(
                         (master.data?.departments ?? []).map((d) => ({
                           value: d.id,
                           label: d.name,
+                          hint: ORG_UNIT_TYPE_LABELS[d.unitType],
                         })),
                         employee?.department,
                       )}
@@ -342,7 +347,7 @@ export function EmployeeFormDialog({
                       id="f-position"
                       value={field.value}
                       onChange={field.onChange}
-                      placeholder={departmentId ? "Pilih jabatan" : "Pilih departemen dulu"}
+                      placeholder={departmentId ? "Pilih jabatan" : "Pilih unit dulu"}
                       disabled={!departmentId}
                       options={keepCurrent(
                         positions.map((p) => ({ value: p.id, label: p.name })),

@@ -222,8 +222,17 @@ describe("arsip, pulihkan, hapus", () => {
   });
 
   test("induk departemen tidak boleh membentuk siklus", async () => {
-    const a = await create("/departments", { name: N("Dept A") }, "departments");
-    const b = await create("/departments", { name: N("Dept B"), parentId: a }, "departments");
+    // D-050: Direktorat boleh di bawah Direktorat (Departemen di bawah Departemen tidak sah).
+    const a = await create(
+      "/departments",
+      { name: N("Dir A"), unitType: "DIRECTORATE" },
+      "departments",
+    );
+    const b = await create(
+      "/departments",
+      { name: N("Dir B"), unitType: "DIRECTORATE", parentId: a },
+      "departments",
+    );
     expect(await code(await call("PATCH", `/departments/${a}`, sa.headers, { parentId: b }))).toBe(
       "BUSINESS_RULE_VIOLATION",
     );
@@ -314,8 +323,17 @@ describe("gabungkan", () => {
   });
 
   test("departemen: jabatan bernama sama digabung, lainnya dipindah, sub-departemen ikut pindah", async () => {
-    const src = await create("/departments", { name: N("Dept Sumber") }, "departments");
-    const dst = await create("/departments", { name: N("Dept Tujuan") }, "departments");
+    // D-050: gabungkan antar unit sejenis (Divisi), sub-unit Departemen ikut pindah.
+    const src = await create(
+      "/departments",
+      { name: N("Div Sumber"), unitType: "DIVISION" },
+      "departments",
+    );
+    const dst = await create(
+      "/departments",
+      { name: N("Div Tujuan"), unitType: "DIVISION" },
+      "departments",
+    );
     const child = await create(
       "/departments",
       { name: N("Dept Anak"), parentId: src },
@@ -432,5 +450,95 @@ describe("dampak ke fitur lain", () => {
       "MASTER_ARCHIVED",
     );
     expect(preview.masterData.positions).toEqual([]);
+  });
+});
+
+describe("D-050 unit organisasi berjenjang & level jabatan", () => {
+  test("jenis bawaan Departemen; Departemen langsung di bawah Direktorat; jabatan di Direktorat ber-level", async () => {
+    const dir = await create(
+      "/departments",
+      { name: N("Direktorat Utama"), unitType: "DIRECTORATE" },
+      "departments",
+    );
+    const dept = await create("/departments", { name: N("Legal"), parentId: dir }, "departments");
+    const ceo = await create(
+      "/positions",
+      { name: N("Direktur Utama"), departmentId: dir, level: "DIRECTOR" },
+      "positions",
+    );
+    const list = await data(await call("GET", `/departments?q=${RUN}`, sa.headers));
+    expect(list.find((d: { id: string }) => d.id === dept)).toMatchObject({
+      unitType: "DEPARTMENT",
+      parentId: dir,
+    });
+    const master = await data(await call("GET", "/master-data", emp.headers));
+    expect(master.departments.find((d: { id: string }) => d.id === dir).unitType).toBe(
+      "DIRECTORATE",
+    );
+    expect(master.positions.find((p: { id: string }) => p.id === ceo).level).toBe("DIRECTOR");
+  });
+
+  test("induk tidak sah ditolak: Divisi di bawah Departemen, Departemen di bawah Departemen", async () => {
+    const dept = await create("/departments", { name: N("Dept Induk") }, "departments");
+    expect(
+      await code(
+        await call("POST", "/departments", sa.headers, {
+          name: N("Divisi Salah"),
+          unitType: "DIVISION",
+          parentId: dept,
+        }),
+      ),
+    ).toBe("BUSINESS_RULE_VIOLATION");
+    expect(
+      await code(
+        await call("POST", "/departments", sa.headers, { name: N("Dept Anak"), parentId: dept }),
+      ),
+    ).toBe("BUSINESS_RULE_VIOLATION");
+  });
+
+  test("ubah jenis yang membuat sub-unit tidak sah ditolak", async () => {
+    const div = await create(
+      "/departments",
+      { name: N("Divisi Eng"), unitType: "DIVISION" },
+      "departments",
+    );
+    await create("/departments", { name: N("Dept Drill"), parentId: div }, "departments");
+    // Divisi → Seksi: Departemen di bawah Seksi tidak sah.
+    expect(
+      await code(await call("PATCH", `/departments/${div}`, sa.headers, { unitType: "SECTION" })),
+    ).toBe("BUSINESS_RULE_VIOLATION");
+    expect(
+      (await call("PATCH", `/departments/${div}`, sa.headers, { unitType: "DIRECTORATE" })).status,
+    ).toBe(200);
+  });
+
+  test("gabungkan unit beda jenis ditolak", async () => {
+    const dir = await create(
+      "/departments",
+      { name: N("Direktorat Gab"), unitType: "DIRECTORATE" },
+      "departments",
+    );
+    const dept = await create("/departments", { name: N("Dept Gab Jenis") }, "departments");
+    expect(
+      await code(await call("POST", `/departments/${dept}/merge`, sa.headers, { targetId: dir })),
+    ).toBe("BUSINESS_RULE_VIOLATION");
+  });
+
+  test("struktur organisasi membawa jenis unit & level jabatan", async () => {
+    const dir = await create(
+      "/departments",
+      { name: N("Direktorat Struktur"), unitType: "DIRECTORATE" },
+      "departments",
+    );
+    const pos = await create(
+      "/positions",
+      { name: N("Sekretaris Direksi"), departmentId: dir, level: "STAFF" },
+      "positions",
+    );
+    await makeEmployee("S1", { positionId: pos });
+    const structure = await data(await call("GET", "/org-structure", sa.headers));
+    const unit = structure.departments.find((d: { id: string }) => d.id === dir);
+    expect(unit.unitType).toBe("DIRECTORATE");
+    expect(unit.positions[0]).toMatchObject({ id: pos, level: "STAFF" });
   });
 });

@@ -1,4 +1,5 @@
 import {
+  canBeChildOf,
   companyInputSchema,
   departmentInputSchema,
   employmentStatusInputSchema,
@@ -8,6 +9,8 @@ import {
   type MasterDataKind,
   type MasterDataView,
   MERGEABLE_MASTER_DATA,
+  ORG_UNIT_TYPE_LABELS,
+  type OrgUnitType,
   positionInputSchema,
   workLocationBaseSchema,
   workLocationInputSchema,
@@ -87,7 +90,7 @@ const AUDIT_ENTITY: Record<MasterDataKind, string> = {
 };
 const LABEL: Record<MasterDataKind, string> = {
   companies: "Perusahaan",
-  departments: "Departemen",
+  departments: "Unit organisasi",
   positions: "Jabatan",
   "employment-statuses": "Status kepegawaian",
   grades: "Grade",
@@ -220,6 +223,7 @@ export async function listAdmin(
           return {
             id: d.id,
             name: d.name,
+            unitType: d.unitType,
             parentId: d.parentId,
             parentName: d.parentId ? (names.get(d.parentId) ?? null) : null,
             positionCount: positions.filter((p) => p.deletedAt === null).length,
@@ -239,6 +243,7 @@ export async function listAdmin(
           name: p.name,
           departmentId: p.departmentId,
           departmentName: p.departmentName,
+          level: p.level,
           archived: p.deletedAt !== null,
           employeeCount: active(usage, p.id),
         }));
@@ -303,7 +308,7 @@ function findRow(rows: Rows, kind: MasterDataKind, id: string) {
   return row;
 }
 
-function activeDepartment(rows: Rows, id: string, label = "Departemen") {
+function activeDepartment(rows: Rows, id: string, label = "Unit organisasi") {
   const department = rows.departments.find((d) => d.id === id);
   if (!department || department.deletedAt !== null) {
     throw new BusinessRuleError(`${label} tidak ditemukan atau sudah diarsipkan.`);
@@ -311,15 +316,41 @@ function activeDepartment(rows: Rows, id: string, label = "Departemen") {
   return department;
 }
 
+/** D-050: jenis induk yang sah + semua sub-unit aktif tetap sah untuk jenis (baru) unit ini. */
+function assertUnitPlacement(
+  rows: Rows,
+  id: string | null,
+  unitType: OrgUnitType,
+  parentId: string | null,
+) {
+  const parent = parentId ? rows.departments.find((d) => d.id === parentId) : null;
+  if (!canBeChildOf(unitType, parent?.unitType ?? null)) {
+    throw new BusinessRuleError(
+      `${ORG_UNIT_TYPE_LABELS[unitType]} tidak bisa berada di bawah ${
+        parent ? ORG_UNIT_TYPE_LABELS[parent.unitType] : "unit itu"
+      }.`,
+    );
+  }
+  if (!id) return;
+  const invalidChild = rows.departments.find(
+    (d) => d.parentId === id && d.deletedAt === null && !canBeChildOf(d.unitType, unitType),
+  );
+  if (invalidChild) {
+    throw new BusinessRuleError(
+      `Sub-unit "${invalidChild.name}" (${ORG_UNIT_TYPE_LABELS[invalidChild.unitType]}) tidak bisa berada di bawah ${ORG_UNIT_TYPE_LABELS[unitType]}. Pindahkan sub-unitnya dulu.`,
+    );
+  }
+}
+
 /** Induk departemen tidak boleh dirinya sendiri atau keturunannya (siklus). */
 function assertNoCycle(rows: Rows, id: string, parentId: string | null | undefined) {
   if (!parentId) return;
-  if (parentId === id) throw new BusinessRuleError("Departemen tidak boleh menjadi induk dirinya.");
+  if (parentId === id) throw new BusinessRuleError("Unit tidak boleh menjadi induk dirinya.");
   const parents = new Map(rows.departments.map((d) => [d.id, d.parentId]));
   let cursor: string | null | undefined = parentId;
   for (let depth = 0; cursor && depth < 100; depth += 1) {
     if (cursor === id) {
-      throw new BusinessRuleError("Induk tidak boleh sub-departemen dari departemen ini (siklus).");
+      throw new BusinessRuleError("Induk tidak boleh sub-unit dari unit ini (siklus).");
     }
     cursor = parents.get(cursor);
   }
@@ -377,19 +408,30 @@ export async function createItem(
         }
         case "departments": {
           const input = parseInput(departmentInputSchema, body);
-          if (input.parentId) activeDepartment(rows, input.parentId, "Departemen induk");
+          if (input.parentId) activeDepartment(rows, input.parentId, "Unit induk");
+          const unitType = input.unitType ?? "DEPARTMENT";
+          assertUnitPlacement(rows, null, unitType, input.parentId ?? null);
           created = await repository.departmentRepo.create(tx, {
             name: input.name,
+            unitType,
             parentId: input.parentId ?? null,
           });
-          after = { name: input.name, parentId: input.parentId ?? null };
+          after = { name: input.name, unitType, parentId: input.parentId ?? null };
           break;
         }
         case "positions": {
           const input = parseInput(positionInputSchema, body);
-          activeDepartment(rows, input.departmentId);
-          created = await repository.positionRepo.create(tx, input);
-          after = { name: input.name, departmentId: input.departmentId };
+          activeDepartment(rows, input.departmentId, "Unit organisasi");
+          created = await repository.positionRepo.create(tx, {
+            name: input.name,
+            departmentId: input.departmentId,
+            level: input.level ?? null,
+          });
+          after = {
+            name: input.name,
+            departmentId: input.departmentId,
+            level: input.level ?? null,
+          };
           break;
         }
         case "employment-statuses": {
@@ -469,20 +511,36 @@ export async function updateItem(
         }
         case "departments": {
           const input = parseInput(departmentInputSchema.partial(), body);
-          if (input.parentId) activeDepartment(rows, input.parentId, "Departemen induk");
+          if (input.parentId) activeDepartment(rows, input.parentId, "Unit induk");
           assertNoCycle(rows, id, input.parentId);
           const current = rows.departments.find((d) => d.id === id);
+          if (input.unitType !== undefined || input.parentId !== undefined) {
+            assertUnitPlacement(
+              rows,
+              id,
+              input.unitType ?? current?.unitType ?? "DEPARTMENT",
+              input.parentId !== undefined ? input.parentId : (current?.parentId ?? null),
+            );
+          }
           await repository.departmentRepo.update(tx, id, input);
-          before = { name: current?.name, parentId: current?.parentId };
+          before = {
+            name: current?.name,
+            unitType: current?.unitType,
+            parentId: current?.parentId,
+          };
           after = input;
           break;
         }
         case "positions": {
           const input = parseInput(positionInputSchema.partial(), body);
-          if (input.departmentId) activeDepartment(rows, input.departmentId);
+          if (input.departmentId) activeDepartment(rows, input.departmentId, "Unit organisasi");
           const current = rows.positions.find((p) => p.id === id);
           await repository.positionRepo.update(tx, id, input);
-          before = { name: current?.name, departmentId: current?.departmentId };
+          before = {
+            name: current?.name,
+            departmentId: current?.departmentId,
+            level: current?.level,
+          };
           after = input;
           break;
         }
@@ -561,7 +619,7 @@ export async function archiveItem(
     const children = rows.departments.filter((d) => d.parentId === id && d.deletedAt === null);
     if (positions.length > 0 || children.length > 0) {
       throw new BusinessRuleError(
-        "Departemen masih punya jabatan atau sub-departemen aktif. Arsipkan/pindahkan dulu, atau gabungkan ke departemen lain.",
+        "Unit masih punya jabatan atau sub-unit aktif. Arsipkan/pindahkan dulu, atau gabungkan ke unit lain.",
       );
     }
   }
@@ -659,8 +717,18 @@ export async function mergeItem(
       );
     }
   }
-  if (kind === "departments" && isDescendant(rows, targetId, id)) {
-    throw new BusinessRuleError("Tujuan adalah sub-departemen dari departemen ini.");
+  if (kind === "departments") {
+    if (isDescendant(rows, targetId, id)) {
+      throw new BusinessRuleError("Tujuan adalah sub-unit dari unit ini.");
+    }
+    const source = rows.departments.find((d) => d.id === id);
+    const destination = rows.departments.find((d) => d.id === targetId);
+    // D-050: gabungkan hanya antar unit sejenis (sub-unit & jabatan dipindah apa adanya).
+    if (source && destination && source.unitType !== destination.unitType) {
+      throw new BusinessRuleError(
+        `Hanya bisa digabung ke unit sejenis (${ORG_UNIT_TYPE_LABELS[source.unitType]}).`,
+      );
+    }
   }
 
   return mapDbErrors(kind, () =>

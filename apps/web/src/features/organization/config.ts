@@ -32,11 +32,13 @@ export const MASTER_DATA_PAGES: MasterDataPageConfig[] = [
   },
   {
     kind: "departments",
-    slug: "departemen",
+    // D-050: semua unit organisasi (Direktorat, Divisi, Departemen, Seksi).
+    slug: "unit-organisasi",
     label: MASTER_DATA_LABELS.departments,
-    noun: "departemen",
+    noun: "unit",
     icon: Building,
-    description: "Departemen berhierarki; dipakai bersama seluruh perusahaan dalam grup.",
+    description:
+      "Direktorat, divisi, departemen, dan seksi berhierarki. Departemen boleh langsung di bawah direktorat; jabatan direksi cukup ditaruh di unit direktorat.",
   },
   {
     kind: "positions",
@@ -44,7 +46,8 @@ export const MASTER_DATA_PAGES: MasterDataPageConfig[] = [
     label: MASTER_DATA_LABELS.positions,
     noun: "jabatan",
     icon: BriefcaseBusiness,
-    description: "Jabatan per departemen. Gabungkan jabatan ganda hasil import ke yang benar.",
+    description:
+      "Jabatan per unit organisasi, dengan level (Direksi … Helper). Gabungkan jabatan ganda hasil import ke yang benar.",
   },
   {
     kind: "employment-statuses",
@@ -76,6 +79,14 @@ export const MASTER_DATA_PAGES: MasterDataPageConfig[] = [
 
 export const MASTER_DATA_BASE = "/master-data";
 
+/** Slug lama tetap berfungsi (dialihkan ke slug baru). */
+const SLUG_ALIASES: Record<string, string> = { departemen: "unit-organisasi" };
+
 export function masterDataPage(slug: string | undefined): MasterDataPageConfig | undefined {
-  return MASTER_DATA_PAGES.find((page) => page.slug === slug);
+  const resolved = slug ? (SLUG_ALIASES[slug] ?? slug) : slug;
+  return MASTER_DATA_PAGES.find((page) => page.slug === resolved);
+}
+
+export function isMasterDataAlias(slug: string | undefined): boolean {
+  return slug !== undefined && slug in SLUG_ALIASES;
 }

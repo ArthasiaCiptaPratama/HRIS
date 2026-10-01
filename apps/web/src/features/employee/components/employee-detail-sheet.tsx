@@ -322,7 +322,7 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
             {employee.company.code} · {employee.company.name}
           </Field>
           <Field label="Jabatan">{employee.position.name}</Field>
-          <Field label="Departemen">{employee.department?.name}</Field>
+          <Field label="Unit organisasi">{employee.department?.name}</Field>
           <Field label="Grade">{employee.grade?.name}</Field>
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
           <Field label="Atasan langsung">{employee.manager?.name}</Field>
