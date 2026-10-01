@@ -14,3 +14,7 @@ Otomasi: `apps/web/tests/admin-pages.test.tsx` (ADM), `apps/web/tests/auth-routi
 | TC-ADM-008 | P2 | UI mobile | SA 390 px | — | Buka 5 halaman | Tanpa scroll horizontal halaman, konsol bersih | UI |
 | TC-ADM-009 | P1 | D-025 + Backlog 2026-09-29 | — | `.env` berisi SMTP_* lengkap | `bun run test` | `NODE_ENV=test` → pengirim `log` (tidak ada email sungguhan, tanpa timeout); di luar test SMTP lengkap → `smtp` | APP |
 | TC-ADM-010 | P2 | PLAN §3.3 | — | — | `parseEnv` dengan `STORAGE_PATH_PREFIX` | Kosong / `dev/<nama>/` diterima; tanpa `/` akhir, `/` awal, `..`, huruf besar, spasi ditolak | ENV |
+| TC-ADM-011 | P1 | D-040 akun per PT | HR ACP / HR tanpa PT / SA | akun karyawan ACP, PT lain, akun belum tertaut | GET /accounts, GET /accounts/:id, POST deactivate | HR ACP: akun ACP + belum tertaut, akun PT lain 404; HR tanpa PT: hanya belum tertaut; SA semua | INT (`tests/integration/iam/companies.test.ts`) |
+| TC-ADM-012 | P1 | D-040 penugasan PT | SA / HR | akun HR | PUT /accounts/:id/companies | SA 200 + audit `iam.account.assign_companies` + notifikasi; cakupan HR langsung berubah; HR 403; akun non-HR 403; PT tak dikenal 422; ganda 400 | INT, WEB, UI |
+| TC-ADM-013 | P2 | D-040 + D-034 | SA | akun HR ber-PT | PATCH role → MANAGER | Penugasan PT dicabut, audit `removedCompanyIds` | INT |
+| TC-ADM-014 | P1 | Bug CORS PUT | browser | — | Preflight OPTIONS metode PUT | `Access-Control-Allow-Methods` memuat PUT (dan GET/POST/PATCH/DELETE) | APP (`src/core/__tests__/app.test.ts`) |

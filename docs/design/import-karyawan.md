@@ -1,7 +1,7 @@
 # Desain — Import Data Karyawan (CSV/Excel)
 
 > Keputusan: **D-042** (import), **D-039** (multi-perusahaan), **D-040** (akses per PT), **D-041** (kolom tambahan) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas).
-> Status: **[done] dirilis 2026-09-30 tanpa multi-perusahaan** — kolom perusahaan di file dikenali tetapi belum disimpan (menyusul bersama D-039/D-040, termasuk `import_jobs.company_id` & PT bawaan). Penyempurnaan: nama wajib hanya untuk karyawan baru; baris tanpa nama & nomor induk dihitung "baris kosong"; status keluar karyawan lama tidak diubah import; UI 4 langkah (Unggah → Pemetaan → Pratinjau → Selesai) dibuka dari tombol **Import** di Data Karyawan Aktif. Checklist: PROGRESS Fase 4.
+> Status: **[done]** — dirilis ke staging 2026-09-30 **tanpa** multi-perusahaan (migrasi `20260930102336`); versi **dengan** PT (D-039/D-040, `import_jobs.company_id` di migrasi `20261001100000`) ada di develop, menunggu rilis (antrean PROGRESS §2). Penyempurnaan saat implementasi: §10. Checklist: PROGRESS Fase 4.
 > Dokumen ini **tidak memuat nilai data asli**. Profil file contoh di §2 hanya struktur & pola.
 
 ## 1. Tujuan & prinsip
@@ -177,10 +177,10 @@ Setiap masalah = `{ row (nomor baris Excel asli), column (huruf kolom asli), fie
 | `GET /api/v1/employee-imports` · `GET /api/v1/employee-imports/:id` | Riwayat import & ringkasan error | SA; HR (import miliknya/PT-nya) |
 | `GET /api/v1/employee-imports/mappings/:signature` · `PUT …` | Profil pemetaan | SA; HR |
 
-- Body: `{ companyId?, mode: "CREATE_ONLY" | "UPSERT", fileName, fileSha256, mapping, rows: Array<Record<field, unknown> & { sourceRow: number }> }`, ≤ 2.000 baris. Zod di batas sistem.
+- Body (implementasi): `{ fileName, fileSha256, mode: "CREATE_ONLY" | "UPSERT", companyId?, rows: [{ sourceRow, raw: { <fieldKey>: sel } }], masterDataMapping? }`, 1–2.000 baris; pemetaan sudah diterapkan di browser sehingga `raw` berkunci field (tidak ada `mapping` di body). Commit = body yang sama + `previewHash`. Zod di batas sistem (`employee-import.schema.ts`).
 - `companyId` default untuk baris tanpa kolom perusahaan; baris dengan kode PT di luar cakupan aktor → error baris (D-040).
 - Kolom sensitif tanpa hak menulis → dibuang di server, dilaporkan di `skippedFields` (D-042 poin 5).
-- Master data: rencana dibuat lewat fungsi publik `organization/index.ts` (`planMasterData`, `createMasterDataFromImport`) — batas modul tetap (PROMPT §3.3).
+- Master data: lewat fungsi publik `organization/index.ts` (`masterIndex`, `missingMasterData`, `createMissingMasterData`) — batas modul tetap (PROMPT §3.3). Status kepegawaian **tidak** dibuat otomatis: teks status harus cocok dengan kategori yang ada (baris baru tanpa status → error).
 - Respons pratinjau: `{ counts, rows: [{ sourceRow, action, employeeNumber, changes: [field], issues }], masterData: { departments[], positions[], grades[], workLocations[], statuses[] }, skippedFields, previewHash }`. Nilai sensitif **tidak** dikembalikan (cukup nama field yang berubah).
 - Audit: `employee.import.completed` (counts, mode, fileSha256), per karyawan `employee.create`/`employee.update` `{ source: "import", jobId }`, `employee.sensitive.write` `{ sections }`, `organization.<entity>.create` `{ source: "import" }`.
 
@@ -188,15 +188,15 @@ Setiap masalah = `{ row (nomor baris Excel asli), column (huruf kolom asli), fie
 
 | Tabel | Kolom |
 |---|---|
-| `employee.import_jobs` | id, actor_account_id, company_id?, file_name, file_sha256, mode, status (`COMPLETED`/`FAILED`), total_rows, created_count, updated_count, skipped_count, error_count, skipped_fields (text[]), created_at |
+| `employee.import_jobs` | id, actor_account_id, company_id?, file_name, file_sha256, mode, total_rows, created_count, updated_count, skipped_count, error_count, skipped_fields (text[]), created_at — hanya dibuat saat commit berhasil (transaksi gagal = tidak ada job), jadi tanpa kolom status |
 | `employee.import_job_issues` | id, job_id, source_row, source_column, field, code, severity — **tanpa nilai** |
 | `employee.import_mappings` | id, signature (unik), mapping (jsonb: header asli → field), updated_by, updated_at |
 
 Kolom D-041 & `company_id` (D-039) ditambahkan lewat migrasi Tahap 2/4.
 
-## 7. UI (web, `features/employee/pages/import-page.tsx`)
+## 7. UI (web, `features/employee/import/`)
 
-Menu **Pengelolaan Karyawan → Import Data Karyawan** (SA/HR). Stepper:
+Rute `/personal/import` (SA/HR). Dibuka dari tombol **Import** di header setiap halaman **Data Karyawan Aktif** (`?dari=<kategori>` → tombol kembali ke kategori itu) dan menu **Pengelolaan Karyawan → Import Data Karyawan**. Implementasi 4 langkah (Struktur digabung ke Pemetaan): Unggah → Pemetaan kolom → Pratinjau → Selesai. Rancangan awal:
 1. **Unggah** — tarik-lepas / pilih file; tautan **Unduh template** (`public/template/Template-import-karyawan.xlsx`, dummy); pilih PT default & mode.
 2. **Struktur** — sheet & baris header terdeteksi (bisa diganti), pratinjau 5 baris pertama (kolom sensitif disamarkan `••••1234`).
 3. **Pemetaan kolom** — tiap kolom: header asli → field (dropdown), chip keyakinan (tinggi/sedang/rendah), "diabaikan: dihitung sistem"; tombol "Simpan pemetaan".
@@ -216,3 +216,15 @@ Menu **Pengelolaan Karyawan → Import Data Karyawan** (SA/HR). Stepper:
 
 ## 9. Di luar cakupan tahap ini
 Import saldo cuti (Fase 6, memakai mesin yang sama), data kontrak (Fase 7, lewat import ulang mode UPSERT), `.xls` biner lama (diminta simpan ulang sebagai `.xlsx`), import foto/dokumen.
+
+## 10. Penyempurnaan saat implementasi (2026-09-30)
+
+1. **Nama wajib hanya untuk baris baru** — baris UPSERT yang hanya membawa nomor induk + kolom yang ingin diperbarui tetap sah.
+2. **Baris kosong** (tanpa nama dan tanpa nomor induk) dilewati diam-diam dan dihitung di `counts.blank`, bukan error.
+3. **PT bawaan**: SA (atau HR dengan > 1 PT) memilih "Perusahaan bawaan" di langkah Unggah; HR dengan satu PT otomatis. Baris tanpa kolom perusahaan dan tanpa PT bawaan → error `COMPANY_REQUIRED`.
+4. **Status keluar karyawan yang sudah ada** tidak diubah oleh import (peringatan `EXIT_EXISTING_IGNORED`); menonaktifkan tetap lewat menu Ubah Status (alasan & tanggal efektif tercatat).
+5. **Profil pemetaan** disimpan otomatis saat lanjut ke pratinjau (kotak "Ingat pemetaan…", default aktif), kunci = SHA-256 susunan header ternormalisasi.
+6. **Unduh baris bermasalah** tersedia di Pratinjau dan Selesai: header asli + kolom "Keterangan import" (`Baris N: ERROR — <field>: <pesan>`), dibuat di browser (`lib/xlsx-write.ts`, fflate).
+7. Pesan masalah menyebut **letak kolom** di file (mis. "Kolom K · Status karyawan: …").
+8. Pengujian nyata: shared 63 · api (import 11 integration + policy) · web `employee-import.test.tsx` 6 · Playwright lokal 13/13 (`docs/qa/runs/2026-09-30-import-karyawan.md`). Fixture file (§8 baris "Fixture") diganti: template dummy `public/template/Template-import-karyawan.xlsx` + grid/CSV inline di test.
+

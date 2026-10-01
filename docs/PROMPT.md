@@ -15,6 +15,8 @@
 
 Jangan membaca seluruh repo tanpa tujuan. Gunakan CODEMAP untuk langsung menuju file yang tepat.
 
+**Cek jalur dulu (D-043):** jalankan `git branch --show-current` / `git worktree list`. Folder `HRIS` = **develop** (kemajuan), folder `HRIS-rilis` = **rilis** (yang tampil di staging/presentasi). Isi kode, dokumen, dan saklar `FEATURES` kedua folder **sengaja berbeda** — jangan menganggapnya sebagai selisih yang harus diperbaiki. Status masing-masing jalur ada di PROGRESS §2, termasuk **tabel "Antrean push / rilis"**: daftar commit develop yang belum di-push/dirilis beserta migrasi & kebutuhan data staging. Jangan push atau merge ke rilis tanpa izin pemilik projek; setelah setiap langkah, perbarui kolom Status di tabel itu.
+
 ---
 
 ## 2. Protokol Sesi
@@ -152,19 +154,40 @@ Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 
 ## 8. Konvensi Git
 
-### Branch & alur
+### Branch & alur (D-043: dua jalur)
 ```
-HRIS/Oatse/Linux-Windows ──PR──▶ HRIS/debug/database ──PR──▶ HRIS/debug/fe-be ──PR──▶ main
+HRIS/Oatse/Linux-Windows (develop) ──merge s.d. commit──▶ HRIS/Oatse/rilis ──PR──▶ HRIS/debug/database ──PR──▶ HRIS/debug/fe-be ──PR──▶ main
+   folder /HRIS                         (satu arah)        folder /HRIS-rilis
 ```
 | Branch | Fungsi | Syarat PR masuk |
 |---|---|---|
-| `HRIS/Oatse/Linux-Windows` | Kerja harian | – |
+| `HRIS/Oatse/Linux-Windows` | **Develop**: kerja harian, commit & push bebas | – (tidak di-PR langsung ke `HRIS/debug/*`) |
+| `HRIS/Oatse/rilis` *(sementara `HRIS/Oatse/rilis-import`)* | **Rilis**: isi yang dipresentasikan & di-deploy; git worktree `/mnt/winD/WORK/Magang/HRIS-rilis` | Hanya menerima merge dari develop (atau perbaikan presentasi yang lalu dibawa balik ke develop) |
+| `HRIS/<nama>/…` (rekan tim, mis. `HRIS/Mat/…`) | Kerja harian rekan tim | – |
 | `HRIS/debug/database` | Verifikasi migrasi di PostgreSQL **lokal** & CI | `db:reset` + `db:migrate` bersih di lokal, seed jalan, CI (migrasi dari DB kosong + test integration) hijau |
 | `HRIS/debug/fe-be` | Uji integrasi FE+BE di **staging** (Vercel project staging, D-036 + Supabase staging) | CI hijau, `db:deploy` ke staging sukses, uji manual alur yang berubah |
 | `main` | Stabil / produksi | CI hijau, review pembimbing/atasan |
 
 - Branch kerja **tidak boleh** diberi sub-branch `HRIS/Oatse/Linux-Windows/...`, karena Git menolak nama yang sekaligus branch dan "folder". Jika butuh branch sementara, gunakan nama sejajar, mis. `HRIS/Oatse/eksperimen-x`.
 - Jangan force-push ke `HRIS/debug/*` atau `main`.
+
+### Develop & rilis (D-043)
+- **Develop** di-commit **per fitur dan berurutan** (satu fitur = satu/beberapa commit yang berdampingan), supaya rilis bisa berhenti di commit mana pun.
+- **Menyiapkan presentasi/rilis** (di folder `HRIS-rilis`):
+  1. `git merge <commit develop terakhir yang mau ditunjukkan>` (bukan cherry-pick).
+  2. Atur saklar `apps/web/src/app/feature-flags.ts` sesuai materi; menu yang belum mau ditunjukkan = `false` (tampil "Segera").
+  3. Verifikasi penuh (typecheck, lint, boundaries, test, build) dengan DB lokal rilis (`hris_release`).
+  4. Commit → PR ke `HRIS/debug/database` → PR ke `HRIS/debug/fe-be` → `Deploy staging` → uji staging.
+  5. Catat isi rilis di PROGRESS §2 blok "Rilis/staging".
+- **Satu arah:** develop tidak pernah me-merge rilis, **kecuali** untuk membawa balik perbaikan yang terpaksa dibuat di rilis — lakukan segera setelah rilis.
+- **Migrasi selalu dibuat di develop.** Rilis hanya membawa migrasi develop sesuai urutan timestamp-nya. Jangan membuat migrasi kedua yang isinya mirip di rilis.
+- Fitur yang mengubah skema/API tidak bisa disembunyikan saklar `FEATURES`; untuk menahannya, jangan merge commit-nya ke rilis.
+
+### Aturan untuk rekan tim
+- Kerja di branch sendiri `HRIS/<nama>/<topik>`; **dilarang push langsung** ke `HRIS/debug/*` dan `main` (push ke `HRIS/debug/fe-be` langsung men-deploy staging).
+- Masuk ke rilis/`HRIS/debug/*` hanya lewat **PR dengan CI hijau**; dependency baru ikut ditambahkan di `package.json` + `bun.lock` pada PR yang sama.
+- Format commit sama dengan di bawah (tanpa scope, bahasa Indonesia, huruf kecil).
+- Pelajaran 2026-09-30: commit `feat(web): redesign dashboard …` di-push langsung ke `HRIS/debug/fe-be` → CI & deploy web staging gagal (dependency `echarts`/`motion` tidak ada, endpoint `/dashboard` belum ada, error TypeScript), lalu diperbaiki di jalur rilis.
 
 ### Commit
 - **Conventional Commits tanpa scope**, deskripsi **bahasa Indonesia**, huruf kecil, tanpa titik di akhir:
