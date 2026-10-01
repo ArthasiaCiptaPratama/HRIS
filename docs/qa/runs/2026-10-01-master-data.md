@@ -15,6 +15,7 @@
 | TC-ADM-023, TC-ADM-024 | LULUS | MD (siklus induk, departemen berjabatan aktif, status berkategori) |
 | TC-ADM-025 | LULUS | MD "perusahaan" |
 | TC-ADM-026 | LULUS | WMD (SA, HR, MANAGER, tempel koordinat) |
+| TC-ADM-028 | LULUS (otomatis) | WMD "peta: klik … cari tempat" (komponen Leaflet di-mock); build: chunk `geofence-map` terpisah; browser sungguhan belum |
 | TC-ADM-027 | **BELUM** | perubahan web kecil (dialog Atur PT), belum diuji di browser |
 | TC-EMP-094 | LULUS | MD "dampak ke fitur lain" + WEB `employee-detail.test.tsx` |
 | TC-EMP-095 | LULUS | MD "import: nama jabatan terarsip" |

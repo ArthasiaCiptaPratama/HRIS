@@ -64,6 +64,8 @@ import {
   useMergeMasterData,
   useSaveMasterData,
 } from "../api";
+import type { GeoPoint } from "../components/geofence-map";
+import { GeofencePicker } from "../components/geofence-picker";
 import {
   MASTER_DATA_BASE,
   MASTER_DATA_PAGES,
@@ -503,7 +505,13 @@ function MasterDataFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent
+        className={
+          config.kind === "work-locations"
+            ? "max-h-[92dvh] overflow-y-auto sm:max-w-2xl"
+            : undefined
+        }
+      >
         <DialogHeader>
           <DialogTitle>{item ? `Ubah ${config.noun}` : `Tambah ${config.noun}`}</DialogTitle>
           <DialogDescription>{config.description}</DialogDescription>
@@ -622,10 +630,22 @@ function MasterDataFormDialog({
               )}
               <fieldset className="space-y-3 rounded-lg border p-3">
                 <legend className="px-1 text-sm font-medium">Geofence (opsional)</legend>
+                <GeofencePicker
+                  point={geoPoint(values)}
+                  radius={positiveNumber(values.radiusM)}
+                  onPick={(point) =>
+                    setValues((v) => ({
+                      ...v,
+                      latitude: String(point.lat),
+                      longitude: String(point.lng),
+                      // Radius kosong → 100 m supaya lingkaran langsung terlihat (bisa diubah).
+                      radiusM: v.radiusM?.trim() ? v.radiusM : String(DEFAULT_RADIUS_M),
+                    }))
+                  }
+                />
                 <p className="text-muted-foreground text-xs">
-                  Tempel koordinat dari Google Maps (klik kanan titik → salin, mis. “-2.2136,
-                  113.9213”) ke kolom latitude; longitude terisi otomatis. Wajib untuk absensi
-                  nanti.
+                  Atau isi angka langsung / tempel koordinat dari Google Maps (mis. “-2.2136,
+                  113.9213”) ke kolom latitude. Wajib untuk absensi nanti.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-3">
                   {field(
@@ -674,6 +694,23 @@ function MasterDataFormDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+const DEFAULT_RADIUS_M = 100;
+
+function positiveNumber(value: string | undefined): number | null {
+  const parsed = Number(value?.trim().replace(",", "."));
+  return value?.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** Titik peta dari kolom angka; null bila kosong/tidak valid. */
+function geoPoint(values: Values): GeoPoint | null {
+  const lat = Number(values.latitude?.trim().replace(",", "."));
+  const lng = Number(values.longitude?.trim().replace(",", "."));
+  if (!values.latitude?.trim() || !values.longitude?.trim()) return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+    return null;
+  return { lat, lng };
 }
 
 // ── Konfirmasi arsip / pulihkan / hapus ───────────────────────────────────────

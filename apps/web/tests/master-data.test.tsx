@@ -7,6 +7,28 @@ vi.mock("@/lib/supabase", async () => ({
   supabase: (await import("./supabase-mock")).supabaseMock,
 }));
 
+// Leaflet butuh browser sungguhan; di jsdom peta diganti tombol "klik peta" + tampilan titik/radius.
+vi.mock("@/features/organization/components/geofence-map", () => ({
+  GeofenceMap: ({
+    point,
+    radius,
+    onPick,
+  }: {
+    point: { lat: number; lng: number } | null;
+    radius: number | null;
+    onPick: (p: { lat: number; lng: number }) => void;
+  }) => (
+    <div>
+      <button type="button" onClick={() => onPick({ lat: -1.5, lng: 116.25 })}>
+        klik peta
+      </button>
+      <output aria-label="titik peta">
+        {point ? `${point.lat},${point.lng}` : "kosong"}|{radius ?? "-"}
+      </output>
+    </div>
+  ),
+}));
+
 // D-049: Administrasi › Master Data — SA kelola (tambah, ubah, arsip, hapus, gabungkan), HR lihat saja.
 const health = {
   data: { status: "ok", checks: { database: "ok" }, time: new Date().toISOString() },
@@ -50,6 +72,10 @@ function mockFetch(role: ReturnType<typeof me>, lists: Record<string, unknown[]>
     if (path === "/health") return json(200, health);
     if (path === "/notifications")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0, unreadCount: 0 } });
+    if (url.hostname === "nominatim.openstreetmap.org")
+      return json(200, [
+        { display_name: "Kuala Kapuas, Kalimantan Tengah", lat: "-3.0088", lon: "114.3878" },
+      ]);
     if (method === "GET" && path.slice(1) in lists)
       return json(200, { data: lists[path.slice(1)] });
     if (method !== "GET")
@@ -132,6 +158,42 @@ describe("Master Data (D-049)", () => {
       path: "/work-locations",
       body: { name: "Site Kapuas", latitude: -2.2136, longitude: 113.9213, radiusM: 150 },
     });
+  });
+
+  it("peta: klik mengisi latitude/longitude + radius bawaan 100 m; ketik angka menggeser titik; cari tempat", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(me("SUPER_ADMIN", true), { "work-locations": [] });
+    renderAt("/master-data/lokasi-kerja");
+    await user.click(await screen.findByRole("button", { name: "Tambah lokasi" }));
+    const dialog = await screen.findByRole("dialog");
+    const titik = await within(dialog).findByRole("status", { name: "titik peta" });
+    expect(titik).toHaveTextContent("kosong|-");
+
+    await user.click(within(dialog).getByRole("button", { name: "klik peta" }));
+    expect(within(dialog).getByLabelText("Latitude")).toHaveValue("-1.5");
+    expect(within(dialog).getByLabelText("Longitude")).toHaveValue("116.25");
+    expect(within(dialog).getByLabelText("Radius (m)")).toHaveValue("100");
+    expect(titik).toHaveTextContent("-1.5,116.25|100");
+
+    // Ketik angka → titik peta mengikuti; radius yang sudah diisi tidak ditimpa klik berikutnya.
+    const radius = within(dialog).getByLabelText("Radius (m)");
+    await user.clear(radius);
+    await user.type(radius, "250");
+    const lat = within(dialog).getByLabelText("Latitude");
+    await user.clear(lat);
+    await user.type(lat, "-2.75");
+    expect(titik).toHaveTextContent("-2.75,116.25|250");
+
+    // Cari tempat (Nominatim) → pilih hasil → titik pindah.
+    await user.type(within(dialog).getByLabelText("Cari tempat di peta"), "Kuala Kapuas");
+    await user.click(within(dialog).getByRole("button", { name: "Cari" }));
+    await user.click(
+      await within(dialog).findByRole("button", { name: /Kuala Kapuas, Kalimantan/ }),
+    );
+    expect(within(dialog).getByLabelText("Latitude")).toHaveValue("-3.0088");
+    expect(within(dialog).getByLabelText("Radius (m)")).toHaveValue("250");
+    const search = calls.find((c) => c.path.startsWith("/search"));
+    expect(search).toBeDefined();
   });
 
   it("arsipkan lewat menu aksi + konfirmasi memanggil POST /:id/archive", async () => {
