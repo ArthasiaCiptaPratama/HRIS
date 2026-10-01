@@ -11,6 +11,7 @@ import {
   workLocationSchema,
 } from "./organization.schema.ts";
 import * as service from "./organization.service.ts";
+import { registerOrganizationAdminRoutes } from "./organization-admin.routes.ts";
 
 export interface OrganizationRouteDeps {
   protect: MiddlewareHandler[];
@@ -50,4 +51,5 @@ export function registerOrganizationRoutes(app: OpenAPIHono, deps: OrganizationR
   app.openapi({ ...masterDataRoute, middleware: deps.protect }, async (c) =>
     c.json(ok(await service.listMasterData(c.get("actor"))), 200),
   );
+  registerOrganizationAdminRoutes(app, deps.protect);
 }

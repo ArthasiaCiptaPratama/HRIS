@@ -30,6 +30,10 @@ export const pages = {
     import("@/features/employee/pages/inactive-employees-page").then((m) => ({
       Component: m.InactiveEmployeesPage,
     })),
+  masterData: () =>
+    import("@/features/organization/pages/master-data-page").then((m) => ({
+      Component: m.MasterDataPage,
+    })),
   orgStructure: () =>
     import("@/features/employee/pages/org-structure-page").then((m) => ({
       Component: m.OrgStructurePage,
@@ -48,6 +52,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
   ["/personal/arsip", pages.maintenance],
   ["/personal/laporan", pages.maintenance],
+  ["/master-data", pages.masterData],
 ];
 
 export function preloadRoute(path: string): void {

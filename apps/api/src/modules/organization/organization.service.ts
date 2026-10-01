@@ -125,6 +125,34 @@ export function masterIndex(lookup: MasterLookup) {
   };
 }
 
+/**
+ * D-049: kunci nama yang hanya ada di ARSIP (tidak ada padanan aktif). Import tidak boleh membuat item
+ * baru bernama sama (nama unik termasuk arsip) dan tidak boleh diam-diam memulihkannya.
+ */
+export function archivedMasterIndex(lookup: MasterLookup) {
+  const live = masterIndex(lookup);
+  const keys = <T extends { name: string; deleted: boolean }>(
+    map: Map<string, T>,
+    active: Map<string, string>,
+    key: (row: T) => string = (row) => masterKey(row.name),
+  ) =>
+    new Set(
+      [...map.values()]
+        .filter((row) => row.deleted)
+        .map(key)
+        .filter((k) => !active.has(k)),
+    );
+  const departmentName = new Map([...lookup.departments.values()].map((d) => [d.id, d.name]));
+  return {
+    departments: keys(lookup.departments, live.departments),
+    positions: keys(lookup.positions, live.positions, (p) =>
+      positionKey(departmentName.get(p.departmentId) ?? "", p.name),
+    ),
+    grades: keys(lookup.grades, live.grades),
+    workLocations: keys(lookup.locations, live.workLocations),
+  };
+}
+
 /** Nama yang belum ada di master data (unik, bentuk tulisan pertama yang ditemukan dipertahankan). */
 export function missingMasterData(lookup: MasterLookup, names: MasterDataNames): MasterDataNames {
   const index = masterIndex(lookup);

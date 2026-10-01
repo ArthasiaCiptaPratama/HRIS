@@ -11,6 +11,7 @@ import {
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import {
+  archivedMasterIndex,
   createMissingMasterData,
   getMasterLookup,
   type MasterDataNames,
@@ -263,18 +264,57 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   });
 
   // 3) Master data yang belum ada (hanya dari baris yang akan ditulis), setelah pemetaan pengguna.
+  //    Baris UPDATE hanya menyumbang nama untuk field yang BERUBAH (nilai lama tidak ditulis ulang).
   const map = body.masterDataMapping ?? {};
   const mapped = (dict: Record<string, string> | undefined, key: string) => dict?.[key];
+  const wants = (p: RowPlan, field: ImportFieldKey) =>
+    p.action === "CREATE" || p.changes.includes(field);
+  // D-049: nama yang hanya ada di arsip (tanpa pemetaan) → error baris, bukan membuat item baru.
+  const archived = archivedMasterIndex(lookup);
+  for (const p of plans) {
+    if (p.action !== "CREATE" && p.action !== "UPDATE") continue;
+    const dept = p.departmentName;
+    if (wants(p, "positionName") && dept && p.row.positionName) {
+      if (!mapped(map.departments, masterKey(dept)) && archived.departments.has(masterKey(dept)))
+        p.issues.push(issue("departmentName", "MASTER_ARCHIVED"));
+      const key = positionKey(dept, p.row.positionName);
+      if (!mapped(map.positions, key) && archived.positions.has(key))
+        p.issues.push(issue("positionName", "MASTER_ARCHIVED"));
+    }
+    const grade = p.row.gradeName;
+    if (wants(p, "gradeName") && grade && !mapped(map.grades, masterKey(grade)))
+      if (archived.grades.has(masterKey(grade)))
+        p.issues.push(issue("gradeName", "MASTER_ARCHIVED"));
+    const location = p.row.workLocationName;
+    if (
+      wants(p, "workLocationName") &&
+      location &&
+      !mapped(map.workLocations, masterKey(location)) &&
+      archived.workLocations.has(masterKey(location))
+    )
+      p.issues.push(issue("workLocationName", "MASTER_ARCHIVED"));
+    if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
+  }
   const writing = plans.filter((p) => p.action === "CREATE" || p.action === "UPDATE");
   const names: MasterDataNames = { departments: [], positions: [], grades: [], workLocations: [] };
   for (const p of writing) {
     const dept = p.departmentName;
-    if (dept && !mapped(map.departments, masterKey(dept))) names.departments.push(dept);
-    if (p.row.positionName && dept && !mapped(map.positions, positionKey(dept, p.row.positionName)))
+    if (wants(p, "positionName") && dept && !mapped(map.departments, masterKey(dept)))
+      names.departments.push(dept);
+    if (
+      wants(p, "positionName") &&
+      p.row.positionName &&
+      dept &&
+      !mapped(map.positions, positionKey(dept, p.row.positionName))
+    )
       names.positions.push({ department: dept, name: p.row.positionName });
-    if (p.row.gradeName && !mapped(map.grades, masterKey(p.row.gradeName)))
+    if (wants(p, "gradeName") && p.row.gradeName && !mapped(map.grades, masterKey(p.row.gradeName)))
       names.grades.push(p.row.gradeName);
-    if (p.row.workLocationName && !mapped(map.workLocations, masterKey(p.row.workLocationName)))
+    if (
+      wants(p, "workLocationName") &&
+      p.row.workLocationName &&
+      !mapped(map.workLocations, masterKey(p.row.workLocationName))
+    )
       names.workLocations.push(p.row.workLocationName);
   }
   const missing = missingMasterData(lookup, names);

@@ -170,6 +170,14 @@ export function EmployeeFormDialog({
     }
   });
 
+  // D-049: nilai lama yang sudah diarsipkan tetap ditampilkan (tidak bisa dipilih untuk data lain).
+  const keepCurrent = <O extends { value: string; label: string }>(
+    options: O[],
+    current: { id: string; name: string } | null | undefined,
+  ): (O | { value: string; label: string })[] =>
+    editing && current && !options.some((o) => o.value === current.id)
+      ? [...options, { value: current.id, label: `${current.name} (diarsipkan)` }]
+      : options;
   const statusOptions = (master.data?.employmentStatuses ?? []).map((s) => ({
     value: s.id,
     label: s.name,
@@ -250,11 +258,16 @@ export function EmployeeFormDialog({
                         value={field.value}
                         onChange={field.onChange}
                         placeholder="Pilih perusahaan"
-                        options={scope.companies.map((c) => ({
-                          value: c.id,
-                          label: c.code,
-                          hint: c.name,
-                        }))}
+                        options={keepCurrent(
+                          scope.companies.map((c) => ({
+                            value: c.id,
+                            label: c.code,
+                            hint: c.name,
+                          })),
+                          employee
+                            ? { id: employee.company.id, name: employee.company.code }
+                            : null,
+                        )}
                         invalid={Boolean(errors.companyId)}
                       />
                     )}
@@ -308,10 +321,13 @@ export function EmployeeFormDialog({
                         setValue("positionId", "", { shouldValidate: false });
                       }}
                       placeholder="Pilih departemen"
-                      options={(master.data?.departments ?? []).map((d) => ({
-                        value: d.id,
-                        label: d.name,
-                      }))}
+                      options={keepCurrent(
+                        (master.data?.departments ?? []).map((d) => ({
+                          value: d.id,
+                          label: d.name,
+                        })),
+                        employee?.department,
+                      )}
                       invalid={Boolean(errors.departmentId)}
                     />
                   )}
@@ -328,7 +344,12 @@ export function EmployeeFormDialog({
                       onChange={field.onChange}
                       placeholder={departmentId ? "Pilih jabatan" : "Pilih departemen dulu"}
                       disabled={!departmentId}
-                      options={positions.map((p) => ({ value: p.id, label: p.name }))}
+                      options={keepCurrent(
+                        positions.map((p) => ({ value: p.id, label: p.name })),
+                        employee && departmentId === employee.department?.id
+                          ? employee.position
+                          : null,
+                      )}
                       invalid={Boolean(errors.positionId)}
                     />
                   )}
@@ -345,10 +366,10 @@ export function EmployeeFormDialog({
                       onChange={field.onChange}
                       placeholder="Pilih grade"
                       noneLabel="Tanpa grade"
-                      options={(master.data?.grades ?? []).map((g) => ({
-                        value: g.id,
-                        label: g.name,
-                      }))}
+                      options={keepCurrent(
+                        (master.data?.grades ?? []).map((g) => ({ value: g.id, label: g.name })),
+                        employee?.grade,
+                      )}
                     />
                   )}
                 />
@@ -364,11 +385,14 @@ export function EmployeeFormDialog({
                       onChange={field.onChange}
                       placeholder="Pilih lokasi"
                       noneLabel="Belum ditentukan"
-                      options={(master.data?.workLocations ?? []).map((l) => ({
-                        value: l.id,
-                        label: l.name,
-                        ...(l.city ? { hint: l.city } : {}),
-                      }))}
+                      options={keepCurrent(
+                        (master.data?.workLocations ?? []).map((l) => ({
+                          value: l.id,
+                          label: l.name,
+                          ...(l.city ? { hint: l.city } : {}),
+                        })),
+                        employee?.workLocation,
+                      )}
                     />
                   )}
                 />

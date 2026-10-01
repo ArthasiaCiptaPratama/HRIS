@@ -740,10 +740,20 @@ export async function updateEmployee(
   now = new Date(),
 ): Promise<EmployeeListItem> {
   assertCanManage(ctx.actor);
-  assertRefs(await getMasterLookup(), input);
+  const lookup = await getMasterLookup();
   await repository
     .withTransaction(async (tx) => {
       const before = await loadInScope(ctx, id, tx);
+      // D-049: hanya rujukan yang BERUBAH yang harus aktif; nilai lama yang sudah diarsipkan tetap boleh
+      // dikirim ulang oleh form supaya field lain masih bisa diubah.
+      const changed = <T>(next: T | undefined, current: T): T | undefined =>
+        next !== undefined && next !== current ? next : undefined;
+      assertRefs(lookup, {
+        companyId: changed(input.companyId, before.companyId),
+        positionId: changed(input.positionId, before.positionId),
+        workLocationId: changed(input.workLocationId, before.workLocationId),
+        gradeId: changed(input.gradeId, before.gradeId),
+      });
       if (!before.isActive) {
         throw new BusinessRuleError(
           "Data karyawan nonaktif hanya arsip. Aktifkan kembali untuk mengubah.",
@@ -1095,3 +1105,17 @@ async function removeQuietly(storage: StorageAdmin, path: string) {
     // Objek yatim tidak berbahaya (bucket private); tidak ada data pribadi yang dicatat di sini.
   }
 }
+
+// ── D-049: dukungan master data untuk modul organization (disuntik di app.ts) ──────────────────
+// Organization tidak boleh membaca tabel employee (PLAN §3.2.4); data yang dibutuhkannya disediakan
+// di sini tanpa data per orang (hanya jumlah) dan pemindahan rujukan saat gabungkan.
+
+export const employeeMasterDataSupport = {
+  countByMasterRef: (kind: repository.MasterRefKind) => repository.countByMasterRef(kind),
+  reassignMasterRef: (
+    tx: repository.EmployeeTx,
+    kind: Exclude<repository.MasterRefKind, "company">,
+    fromId: string,
+    toId: string,
+  ) => repository.reassignMasterRef(tx, kind, fromId, toId),
+};

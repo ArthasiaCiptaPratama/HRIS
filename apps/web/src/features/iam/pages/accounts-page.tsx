@@ -112,7 +112,8 @@ export function AccountsPage() {
             row.original.companyIds.length > 0 ? (
               row.original.companyIds.map((id) => (
                 <Badge key={id} variant="muted" className="font-mono">
-                  {companyCode.get(id) ?? "?"}
+                  {/* D-049: PT yang sudah diarsipkan tidak ada di /master-data. */}
+                  {companyCode.get(id) ?? "PT diarsipkan"}
                 </Badge>
               ))
             ) : (
@@ -387,9 +388,11 @@ function AssignCompaniesDialog({
   const [selected, setSelected] = useState<string[]>([]);
   const [prevAccount, setPrevAccount] = useState<Account | null>(null);
   // Isi ulang pilihan setiap kali dialog dibuka untuk akun lain.
+  // D-049: PT yang diarsipkan tidak bisa dipilih lagi → tidak ikut dikirim (dilepas saat disimpan).
+  const archived = (account?.companyIds ?? []).filter((id) => !companies.some((c) => c.id === id));
   if (account !== prevAccount) {
     setPrevAccount(account);
-    setSelected(account?.companyIds ?? []);
+    setSelected((account?.companyIds ?? []).filter((id) => companies.some((c) => c.id === id)));
   }
   const toggle = (id: string) =>
     setSelected((current) =>
@@ -431,6 +434,12 @@ function AssignCompaniesDialog({
             </label>
           ))}
         </fieldset>
+        {archived.length > 0 ? (
+          <p className="text-muted-foreground text-sm">
+            {archived.length} perusahaan yang ditugaskan sudah diarsipkan dan akan dilepas saat
+            disimpan.
+          </p>
+        ) : null}
         {selected.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             Tanpa perusahaan, akun ini tidak melihat karyawan mana pun.

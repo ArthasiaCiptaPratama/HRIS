@@ -248,6 +248,19 @@ describe("panel detail pegawai", () => {
   });
 });
 
+describe("form ubah karyawan & master data terarsip (D-049)", () => {
+  it("jabatan/departemen yang sudah diarsipkan tetap tampil sebagai nilai terpilih", async () => {
+    // Mock /master-data tidak memuat departemen & jabatan karyawan ini (= sudah diarsipkan).
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const detailDialog = await screen.findByRole("dialog");
+    await userEvent.click(await within(detailDialog).findByRole("button", { name: /Ubah data/ }));
+    // Radix Select merender nilai terpilih + <option> tersembunyi → bisa lebih dari satu.
+    expect((await screen.findAllByText("GA Staff (diarsipkan)")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Human Resources & GA (diarsipkan)").length).toBeGreaterThan(0);
+  });
+});
+
 describe("foto profil di panel detail (D-037)", () => {
   it("HR: unggah foto → minta URL, unggah ke Storage dengan token, konfirmasi; foto tampil", async () => {
     const calls = mockBackend("HR_ADMIN", { manage: true, print: true, photo: true });

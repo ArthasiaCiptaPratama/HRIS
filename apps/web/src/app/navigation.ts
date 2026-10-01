@@ -32,6 +32,7 @@ import {
   type ActiveView,
   ALL_ACTIVE_VIEW,
 } from "@/features/employee/active-views";
+import { MASTER_DATA_BASE, MASTER_DATA_PAGES } from "@/features/organization/config";
 import { access } from "@/lib/access";
 import { FEATURES } from "./feature-flags";
 
@@ -233,7 +234,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Administrasi",
     icon: KeyRound,
     to: "/akun",
-    match: (p) => ["/akun", "/grant", "/audit"].some((base) => p.startsWith(base)),
+    match: (p) => ["/akun", "/grant", "/audit", "/master-data"].some((base) => p.startsWith(base)),
     visible: access.listAccounts,
     inTopNav: true,
     sections: [
@@ -257,6 +258,19 @@ export const NAV_GROUPS: NavGroup[] = [
             visible: access.readAuditLogs,
           },
         ],
+      },
+      {
+        // D-049: master data organisasi (SA kelola, HR lihat).
+        id: "master-data",
+        label: "Master Data",
+        items: MASTER_DATA_PAGES.map((page) => ({
+          id: `master-${page.kind}`,
+          label: page.label,
+          to: `${MASTER_DATA_BASE}/${page.slug}`,
+          icon: page.icon,
+          visible: access.viewMasterData,
+          keywords: "master data organisasi",
+        })),
       },
     ],
   },

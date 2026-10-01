@@ -28,13 +28,14 @@ import {
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
 import {
+  employeeMasterDataSupport,
   employeeScopeForIam,
   registerEmployeeRoutes,
   withEmployeeCompanyScope,
 } from "./modules/employee/index.ts";
 import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
 import { configureNotification, registerNotificationRoutes } from "./modules/notification/index.ts";
-import { registerOrganizationRoutes } from "./modules/organization/index.ts";
+import { configureOrganization, registerOrganizationRoutes } from "./modules/organization/index.ts";
 
 export interface AppDeps {
   logger: Logger;
@@ -143,6 +144,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   };
   configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
   configureIam({ employeeScope: employeeScopeForIam });
+  // D-049: organization tidak membaca tabel employee; jumlah pemakai & gabungkan disuntik dari employee.
+  configureOrganization({ employeeSupport: employeeMasterDataSupport });
 
   const app = new OpenAPIHono({
     // PROMPT §5: input yang tidak lolos Zod → 400 VALIDATION_ERROR lewat envelope standar.

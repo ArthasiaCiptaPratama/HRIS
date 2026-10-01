@@ -224,3 +224,66 @@ export async function listForDashboard(where: EmployeeWhere) {
     },
   });
 }
+
+// ── D-049: dukungan master data untuk modul organization (lewat index.ts, disuntik di app.ts) ──
+
+export type MasterRefKind = "company" | "position" | "status" | "grade" | "location";
+
+const MASTER_REF_COLUMN = {
+  company: "companyId",
+  position: "positionId",
+  status: "employmentStatusId",
+  grade: "gradeId",
+  location: "workLocationId",
+} as const;
+
+/** Jumlah karyawan (aktif & total) per id master data. */
+export async function countByMasterRef(kind: MasterRefKind) {
+  const column = MASTER_REF_COLUMN[kind];
+  const rows = await getPrisma().employee.groupBy({
+    by: [column, "isActive"],
+    _count: { _all: true },
+  });
+  const result = new Map<string, { active: number; total: number }>();
+  for (const row of rows) {
+    const id = (row as Record<string, unknown>)[column];
+    if (typeof id !== "string") continue;
+    const entry = result.get(id) ?? { active: 0, total: 0 };
+    entry.total += row._count._all;
+    if (row.isActive) entry.active += row._count._all;
+    result.set(id, entry);
+  }
+  return result;
+}
+
+/** Pindahkan rujukan karyawan (+ riwayat untuk jabatan/status) dari satu master data ke yang lain. */
+export async function reassignMasterRef(
+  tx: EmployeeTx,
+  kind: Exclude<MasterRefKind, "company">,
+  fromId: string,
+  toId: string,
+) {
+  const column = MASTER_REF_COLUMN[kind];
+  const employees = await tx.employee.updateMany({
+    where: { [column]: fromId },
+    data: { [column]: toId },
+  });
+  let histories = 0;
+  if (kind === "position" || kind === "status") {
+    const [from, to] =
+      kind === "position" ? ["fromPositionId", "toPositionId"] : ["fromStatusId", "toStatusId"];
+    histories += (
+      await tx.employmentHistory.updateMany({
+        where: { [from as string]: fromId },
+        data: { [from as string]: toId },
+      })
+    ).count;
+    histories += (
+      await tx.employmentHistory.updateMany({
+        where: { [to as string]: fromId },
+        data: { [to as string]: toId },
+      })
+    ).count;
+  }
+  return { employees: employees.count, histories };
+}
