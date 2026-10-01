@@ -18,8 +18,8 @@ const badgeVariants = cva(
         link: "text-primary underline-offset-4 [a&]:hover:underline",
         // Varian HRIS: lembut (latar tipis) supaya tabel tetap tenang.
         brand: "bg-brand-soft text-brand-soft-foreground",
-        success: "bg-success-soft text-success",
-        warning: "bg-warning-soft text-warning",
+        success: "bg-success-soft text-success-soft-foreground",
+        warning: "bg-warning-soft text-warning-soft-foreground",
         muted: "bg-muted text-muted-foreground",
       },
     },
