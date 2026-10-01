@@ -66,6 +66,20 @@ export function useChangeRole() {
   });
 }
 
+// D-040: set penugasan perusahaan akun HR_ADMIN (SUPER_ADMIN).
+export function useAssignCompanies() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, companyIds }: { id: string; companyIds: string[] }) =>
+      api(`/accounts/${id}/companies`, {
+        method: "PUT",
+        body: { companyIds },
+        schema: one(accountSchema),
+      }),
+    onSuccess: invalidate,
+  });
+}
+
 export function useSetActive() {
   const invalidate = useInvalidate();
   return useMutation({

@@ -21,6 +21,7 @@ export const LIST_SELECT = {
   isActive: true,
   exitReason: true,
   employmentStatusId: true,
+  companyId: true,
   positionId: true,
   workLocationId: true,
   gradeId: true,
@@ -149,12 +150,41 @@ export async function findManagerId(id: string, tx: EmployeeTx = getPrisma()) {
   return row?.managerId ?? null;
 }
 
-export async function listActiveForStructure() {
+/** Direktori: `companyIds` null = semua PT (D-040). */
+export async function listActiveForStructure(companyIds: readonly string[] | null) {
   return getPrisma().employee.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
+    },
     select: { id: true, fullName: true, employeeNumber: true, positionId: true, managerId: true },
     orderBy: { fullName: "asc" },
   });
+}
+
+/** D-040: PT per karyawan (cakupan akun di iam). */
+export async function findCompanyIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  return getPrisma().employee.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, companyId: true },
+  });
+}
+
+/** D-040: id karyawan di perusahaan tertentu (cakupan akun HR di iam). */
+export async function findIdsInCompanies(companyIds: string[]) {
+  if (companyIds.length === 0) return [];
+  const rows = await getPrisma().employee.findMany({
+    where: { companyId: { in: companyIds } },
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
+}
+
+/** D-040: PT tempat karyawan terdaftar (untuk cakupan direktori MANAGER/EMPLOYEE). */
+export async function findCompanyId(id: string) {
+  const row = await getPrisma().employee.findUnique({ where: { id }, select: { companyId: true } });
+  return row?.companyId ?? null;
 }
 
 export async function createEmployee(tx: EmployeeTx, data: Prisma.EmployeeUncheckedCreateInput) {
@@ -180,9 +210,10 @@ export async function countActiveSubordinates(id: string) {
   return getPrisma().employee.count({ where: { managerId: id, isActive: true } });
 }
 
-/** Dashboard: baris minimal seluruh karyawan (agregat dihitung di service; skala ribuan baris). */
-export async function listForDashboard() {
+/** Dashboard: baris minimal karyawan dalam cakupan (agregat dihitung di service; skala ribuan baris). */
+export async function listForDashboard(where: EmployeeWhere) {
   return getPrisma().employee.findMany({
+    where,
     select: {
       isActive: true,
       joinDate: true,

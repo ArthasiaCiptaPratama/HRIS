@@ -67,6 +67,7 @@ export const EMPLOYMENT_CHANGE_TYPES = [
   "POSITION_CHANGED",
   "DEACTIVATED",
   "REACTIVATED",
+  "COMPANY_CHANGED",
 ] as const;
 export const employmentChangeTypeSchema = z.enum(EMPLOYMENT_CHANGE_TYPES);
 export type EmploymentChangeType = z.infer<typeof employmentChangeTypeSchema>;
@@ -77,6 +78,7 @@ export const EMPLOYMENT_CHANGE_LABELS: Record<EmploymentChangeType, string> = {
   POSITION_CHANGED: "Ubah jabatan",
   DEACTIVATED: "Dinonaktifkan",
   REACTIVATED: "Diaktifkan kembali",
+  COMPANY_CHANGED: "Pindah perusahaan",
 };
 
 export const GENDERS = ["MALE", "FEMALE"] as const;

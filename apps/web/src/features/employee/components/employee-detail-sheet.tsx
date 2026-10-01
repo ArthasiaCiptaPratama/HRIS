@@ -12,6 +12,7 @@ import {
   ArrowLeftRight,
   Award,
   BriefcaseBusiness,
+  Building2,
   CircleUser,
   GraduationCap,
   HeartHandshake,
@@ -317,6 +318,9 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
       <section>
         <SectionTitle>Penempatan</SectionTitle>
         <FieldGrid>
+          <Field label="Perusahaan">
+            {employee.company.code} · {employee.company.name}
+          </Field>
           <Field label="Jabatan">{employee.position.name}</Field>
           <Field label="Departemen">{employee.department?.name}</Field>
           <Field label="Grade">{employee.grade?.name}</Field>
@@ -556,6 +560,7 @@ const HISTORY_ICON: Record<EmploymentChangeType, typeof History> = {
   POSITION_CHANGED: BriefcaseBusiness,
   DEACTIVATED: Power,
   REACTIVATED: RotateCcw,
+  COMPANY_CHANGED: Building2,
 };
 
 function HistoryTab({ employee }: { employee: EmployeeDetail }) {
@@ -570,13 +575,15 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
             ? `${h.fromStatus?.name ?? "—"} → ${h.toStatus?.name ?? "—"}`
             : h.changeType === "POSITION_CHANGED"
               ? `${h.fromPosition?.name ?? "—"} → ${h.toPosition?.name ?? "—"}`
-              : h.changeType === "DEACTIVATED"
-                ? h.exitReason
-                  ? EXIT_REASON_LABELS[h.exitReason]
-                  : null
-                : h.changeType === "HIRED"
-                  ? [h.toPosition?.name, h.toStatus?.name].filter(Boolean).join(" · ")
-                  : h.toStatus?.name;
+              : h.changeType === "COMPANY_CHANGED"
+                ? `${h.fromCompany?.name ?? "—"} → ${h.toCompany?.name ?? "—"}`
+                : h.changeType === "DEACTIVATED"
+                  ? h.exitReason
+                    ? EXIT_REASON_LABELS[h.exitReason]
+                    : null
+                  : h.changeType === "HIRED"
+                    ? [h.toPosition?.name, h.toStatus?.name].filter(Boolean).join(" · ")
+                    : h.toStatus?.name;
         return (
           <li key={h.id} className="relative flex gap-4">
             <span

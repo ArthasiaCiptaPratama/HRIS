@@ -28,6 +28,8 @@ interface SeedEmployee {
   family: Array<{ name: string; relationship: FamilyRelationship; birthDate: string }>;
   education: { schoolName: string; major: string; graduationYear: number };
   training?: { trainingField: string; organizer: string; duration: string; trainingYear: number };
+  /** D-039: kode perusahaan; default ACP. */
+  company?: string;
   /** D-035: pegawai nonaktif (arsip) — tanggal efektif keluar & alasan. */
   exit?: { endDate: string; reason: EmployeeExitReason };
 }
@@ -539,6 +541,69 @@ export const EMPLOYEES: SeedEmployee[] = [
       graduationYear: 2016,
     },
   },
+  // D-039/D-040: karyawan PT dummy CD2 untuk menguji cakupan PT (HR ACP tidak boleh melihatnya).
+  {
+    number: "CD2-2024-0001",
+    name: "Hadi Contoh Wibowo",
+    gender: "MALE",
+    position: "Operations Manager",
+    status: "Karyawan Tetap",
+    grade: "Manajer",
+    location: BDG,
+    managerNumber: null,
+    joinDate: "2024-01-08",
+    birthDate: "1985-03-19",
+    birthPlace: "Bandung",
+    maritalStatus: "MARRIED",
+    religion: "ISLAM",
+    family: [],
+    education: {
+      schoolName: "Universitas Contoh Bandung",
+      major: "Teknik Pertambangan",
+      graduationYear: 2008,
+    },
+    company: "CD2",
+  },
+  {
+    number: "CD2-2025-0002",
+    name: "Lina Contoh Marlina",
+    gender: "FEMALE",
+    position: "Operations Staff",
+    status: "PKWT",
+    grade: "Staf",
+    location: BDG,
+    managerNumber: "CD2-2024-0001",
+    joinDate: "2025-04-14",
+    birthDate: "1998-07-02",
+    birthPlace: "Bandung",
+    maritalStatus: "SINGLE",
+    religion: "CATHOLIC",
+    family: [],
+    education: {
+      schoolName: "SMK Contoh Bandung",
+      major: "Geologi Pertambangan",
+      graduationYear: 2016,
+    },
+    company: "CD2",
+  },
+  {
+    number: "CD2-2026-0003",
+    name: "Bagas Contoh Pratomo",
+    gender: "MALE",
+    position: "GA Staff",
+    status: "Outsourcing",
+    grade: "Staf",
+    location: BDG,
+    managerNumber: "CD2-2024-0001",
+    joinDate: "2026-02-02",
+    birthDate: "1995-11-23",
+    birthPlace: "Bandung",
+    maritalStatus: "MARRIED",
+    religion: "ISLAM",
+    family: [],
+    education: { schoolName: "SMA Contoh Bandung", major: "IPS", graduationYear: 2013 },
+    company: "CD2",
+  },
 ];
 
 const REGION_CODE = { Jakarta: "317101", Bandung: "327301" } as const;
@@ -594,6 +659,7 @@ export async function seedEmployees(
       gender: employee.gender,
       joinDate: date(employee.joinDate),
       employmentStatusId: pick(org.statuses, employee.status),
+      companyId: pick(org.companies, employee.company ?? "ACP"),
       positionId: pick(org.positions, employee.position),
       workLocationId: pick(org.locations, employee.location),
       gradeId: pick(org.grades, employee.grade),

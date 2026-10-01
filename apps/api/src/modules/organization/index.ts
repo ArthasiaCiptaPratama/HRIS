@@ -1,6 +1,7 @@
 // Interface publik modul organization (PLAN §3.2.5): hanya file ini yang boleh di-import dari luar modul.
 export { type OrganizationRouteDeps, registerOrganizationRoutes } from "./organization.routes.ts";
 export type {
+  CompanyDto,
   DepartmentDto,
   EmploymentStatusDto,
   GradeDto,

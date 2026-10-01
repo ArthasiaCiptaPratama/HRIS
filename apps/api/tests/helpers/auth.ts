@@ -3,6 +3,7 @@ import type { TokenVerifier } from "../../src/core/auth/index.ts";
 import { getPrisma } from "../../src/core/db.ts";
 import { UnauthenticatedError } from "../../src/core/errors.ts";
 import type { Permission as DbPermission } from "../../src/generated/prisma/client.ts";
+import { acpCompanyId } from "./company.ts";
 
 // PROMPT §10: auth di test memakai verifier pengganti, tidak memanggil Supabase Auth.
 const TOKEN_PREFIX = "test-token:";
@@ -38,6 +39,8 @@ export interface LoginOptions {
   employeeId?: string | null;
   isActive?: boolean;
   primary?: boolean;
+  /** D-040: PT yang ditugaskan (HR_ADMIN). Default HR_ADMIN = [ACP]; role lain tidak memakai. */
+  companies?: string[];
 }
 
 /** Membuat akun uji sungguhan di DB lokal; `cleanup()` menghapus semua yang dibuat fixture ini. */
@@ -72,6 +75,10 @@ export function createAuthFixture(run: string) {
         isPrimarySuperAdmin: options.primary ?? false,
       },
     });
+    const companies = options.companies ?? (role === "HR_ADMIN" ? [await acpCompanyId()] : []);
+    for (const companyId of companies) {
+      await prisma.accountCompany.create({ data: { accountId: account.id, companyId } });
+    }
     for (const grant of options.grants ?? []) {
       const grantedBy = await granter();
       await prisma.permissionGrant.create({

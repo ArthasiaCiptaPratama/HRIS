@@ -30,6 +30,8 @@ export const accountSchema = z
     isActive: z.boolean(),
     isPrimarySuperAdmin: z.boolean(),
     employeeId: z.uuid().nullable(),
+    // D-040: perusahaan yang ditugaskan (dipakai HR_ADMIN; role lain kosong).
+    companyIds: z.array(z.uuid()),
     lastLoginAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
   })
@@ -52,6 +54,17 @@ export const inviteAccountBodySchema = z
 export type InviteAccountInput = z.infer<typeof inviteAccountBodySchema>;
 
 export const changeRoleBodySchema = z.object({ role: roleSchema }).openapi("ChangeRole");
+
+// D-040: set penugasan PT (menggantikan yang lama; boleh kosong = HR tidak melihat karyawan mana pun).
+export const assignCompaniesBodySchema = z
+  .object({
+    companyIds: z
+      .array(z.uuid())
+      .max(50)
+      .refine((ids) => new Set(ids).size === ids.length, "Perusahaan tidak boleh ganda."),
+  })
+  .openapi("AssignAccountCompanies");
+export type AssignCompaniesInput = z.infer<typeof assignCompaniesBodySchema>;
 
 export const transferPrimaryBodySchema = z
   .object({ targetAccountId: z.uuid() })
@@ -99,9 +112,13 @@ export const auditLogSchema = z
   .object({
     id: z.uuid(),
     actorAccountId: z.uuid().nullable(),
+    // Email akun pelaku (null = script/sistem atau akun sudah tidak ada).
+    actorEmail: z.string().nullable(),
     action: z.string(),
     entityType: z.string(),
     entityId: z.string().nullable(),
+    // Label entitas yang terbaca manusia (email akun / "Nama (nomor induk)" karyawan); null bila tidak diketahui.
+    entityLabel: z.string().nullable(),
     before: z.unknown().nullable(),
     after: z.unknown().nullable(),
     reason: z.string().nullable(),

@@ -21,6 +21,7 @@ import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import {
   type EmployeeWriteBody,
+  useCompanyScope,
   useCreateEmployee,
   useManagerOptions,
   useMasterData,
@@ -39,6 +40,7 @@ const EMPTY: EmployeeForm = {
   emergencyContactRelationship: "",
   gender: "",
   joinDate: todayIso(),
+  companyId: "",
   employmentStatusId: "",
   departmentId: "",
   positionId: "",
@@ -58,6 +60,7 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     emergencyContactRelationship: employee.emergencyContactRelationship ?? "",
     gender: employee.gender ?? "",
     joinDate: employee.joinDate,
+    companyId: employee.company.id,
     employmentStatusId: employee.employmentStatus.id,
     departmentId: employee.department?.id ?? "",
     positionId: employee.position.id,
@@ -85,6 +88,7 @@ export function EmployeeFormDialog({
 }) {
   const editing = Boolean(employee);
   const master = useMasterData();
+  const scope = useCompanyScope();
   const managers = useManagerOptions(open);
   const create = useCreateEmployee();
   const update = useUpdateEmployee();
@@ -97,15 +101,32 @@ export function EmployeeFormDialog({
   const { register, handleSubmit, control, watch, setValue, reset, formState } = form;
   const errors = formState.errors;
 
+  // Hanya saat dialog dibuka / data dasar berubah — nilai scope dibaca saat reset saja.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scope sengaja tidak jadi pemicu reset
   useEffect(() => {
     if (open) {
       reset(
         employee
           ? fromDetail(employee)
-          : { ...EMPTY, joinDate: todayIso(), employmentStatusId: defaultStatusId ?? "" },
+          : {
+              ...EMPTY,
+              joinDate: todayIso(),
+              employmentStatusId: defaultStatusId ?? "",
+              // D-040: perusahaan terpilih di top bar; satu-satunya PT dalam cakupan diisi otomatis.
+              companyId:
+                scope.selectedId ??
+                (scope.companies.length === 1 ? (scope.companies[0]?.id ?? "") : ""),
+            },
       );
     }
   }, [open, employee, defaultStatusId, reset]);
+
+  // Master data datang setelah dialog terbuka: isi PT otomatis bila hanya ada satu pilihan.
+  useEffect(() => {
+    if (open && !editing && !form.getValues("companyId") && scope.companies.length === 1) {
+      setValue("companyId", scope.companies[0]?.id ?? "");
+    }
+  }, [open, editing, scope.companies, form, setValue]);
 
   const departmentId = watch("departmentId");
   const positions = useMemo(
@@ -124,6 +145,7 @@ export function EmployeeFormDialog({
       emergencyContactRelationship: orNull(values.emergencyContactRelationship),
       gender: values.gender === "" ? null : values.gender,
       joinDate: values.joinDate,
+      companyId: values.companyId,
       positionId: values.positionId,
       workLocationId: orNull(values.workLocationId),
       gradeId: orNull(values.gradeId),
@@ -217,6 +239,28 @@ export function EmployeeFormDialog({
             </FormSection>
 
             <FormSection title="Penempatan">
+              {scope.showCompany || !scope.companies.some((c) => c.id === watch("companyId")) ? (
+                <FormField label="Perusahaan" error={errors.companyId?.message} htmlFor="f-company">
+                  <Controller
+                    control={control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormSelect
+                        id="f-company"
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pilih perusahaan"
+                        options={scope.companies.map((c) => ({
+                          value: c.id,
+                          label: c.code,
+                          hint: c.name,
+                        }))}
+                        invalid={Boolean(errors.companyId)}
+                      />
+                    )}
+                  />
+                </FormField>
+              ) : null}
               {editing ? (
                 <div className="sm:col-span-2">
                   <Alert>

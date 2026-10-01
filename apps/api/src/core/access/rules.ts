@@ -11,6 +11,11 @@ export interface Actor {
   isPrimarySuperAdmin: boolean;
   /** Grant aktif saja (belum dicabut, belum kedaluwarsa). */
   grants: ReadonlySet<Permission>;
+  /**
+   * D-040: cakupan perusahaan. `null` = semua PT (SUPER_ADMIN). HR_ADMIN = PT yang ditugaskan;
+   * MANAGER/EMPLOYEE = PT tempat ia terdaftar (dipakai untuk direktori). Set kosong = tidak ada.
+   */
+  companyIds: ReadonlySet<string> | null;
 }
 
 export function hasRole(actor: Actor, roles: readonly Role[]): boolean {
@@ -38,6 +43,8 @@ export function isGrantActive(grant: GrantValidity, now: Date): boolean {
 export interface EmployeeTarget {
   employeeId: string;
   managerId: string | null;
+  /** D-039: perusahaan tempat karyawan target terdaftar. */
+  companyId: string;
 }
 
 // PLAN §4.3 "sendiri": hanya akun yang terhubung ke data karyawan itu.
@@ -48,4 +55,9 @@ export function isSelf(actor: Actor, target: EmployeeTarget): boolean {
 // PLAN §4.1 / D-009: tim = bawahan langsung (manager_id target = employee aktor), satu tingkat.
 export function isInTeam(actor: Actor, target: EmployeeTarget): boolean {
   return actor.employeeId !== null && target.managerId === actor.employeeId;
+}
+
+// D-040: karyawan target berada di perusahaan dalam cakupan aktor (SUPER_ADMIN: semua).
+export function isInCompanyScope(actor: Actor, target: Pick<EmployeeTarget, "companyId">): boolean {
+  return actor.companyIds === null || actor.companyIds.has(target.companyId);
 }

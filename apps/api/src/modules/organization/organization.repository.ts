@@ -8,29 +8,35 @@ export type OrganizationTx = Prisma.TransactionClient;
 
 export async function loadMasterData() {
   const prisma = getPrisma();
-  const [departments, positions, statuses, grades, locations] = await prisma.$transaction([
-    prisma.department.findMany({
-      select: { id: true, name: true, parentId: true, deletedAt: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.position.findMany({
-      select: { id: true, name: true, departmentId: true, deletedAt: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.employmentStatus.findMany({
-      select: { id: true, name: true, category: true, deletedAt: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.grade.findMany({
-      select: { id: true, name: true, deletedAt: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.workLocation.findMany({
-      select: { id: true, name: true, city: true, deletedAt: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
-  return { departments, positions, statuses, grades, locations };
+  const [departments, positions, statuses, grades, locations, companies] =
+    await prisma.$transaction([
+      prisma.department.findMany({
+        select: { id: true, name: true, parentId: true, deletedAt: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.position.findMany({
+        select: { id: true, name: true, departmentId: true, deletedAt: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.employmentStatus.findMany({
+        select: { id: true, name: true, category: true, deletedAt: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.grade.findMany({
+        select: { id: true, name: true, deletedAt: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.workLocation.findMany({
+        select: { id: true, name: true, city: true, deletedAt: true },
+        orderBy: { name: "asc" },
+      }),
+      // D-039: perusahaan dalam grup; nonaktif diperlakukan seperti dihapus untuk pilihan baru.
+      prisma.company.findMany({
+        select: { id: true, code: true, name: true, isActive: true, deletedAt: true },
+        orderBy: { code: "asc" },
+      }),
+    ]);
+  return { departments, positions, statuses, grades, locations, companies };
 }
 
 // ── D-042: master data baru dari import (dalam transaksi pemanggil) ───────────

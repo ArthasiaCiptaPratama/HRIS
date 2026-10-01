@@ -9,11 +9,21 @@ export interface AccountTarget {
   role: Role;
   isPrimarySuperAdmin: boolean;
   isActive: boolean;
+  /** D-040: PT karyawan yang tertaut ke akun; null/undefined = akun belum tertaut karyawan. */
+  companyId?: string | null;
 }
 
 const isSuperAdmin = (actor: Actor) => actor.role === ROLE.SUPER_ADMIN;
 const isHrAdmin = (actor: Actor) => actor.role === ROLE.HR_ADMIN;
 const isSelfAccount = (actor: Actor, target: AccountTarget) => actor.accountId === target.accountId;
+
+// D-040: HR_ADMIN hanya akun karyawan di PT yang ditugaskan; akun yang belum tertaut karyawan
+// (hasil undangan) tidak punya PT sehingga tetap dalam jangkauan HR.
+const inHrScope = (actor: Actor, target: AccountTarget) =>
+  target.companyId === null ||
+  target.companyId === undefined ||
+  actor.companyIds === null ||
+  actor.companyIds.has(target.companyId);
 
 // GET /me: setiap akun aktif boleh melihat profil aksesnya sendiri (PLAN §4.3, data "sendiri").
 export function canReadOwnAccount(actor: Actor): boolean {
@@ -26,7 +36,8 @@ export function canListAccounts(actor: Actor): boolean {
 }
 
 export function canViewAccount(actor: Actor, target: AccountTarget): boolean {
-  return canListAccounts(actor) || isSelfAccount(actor, target);
+  if (isSuperAdmin(actor) || isSelfAccount(actor, target)) return true;
+  return isHrAdmin(actor) && inHrScope(actor, target);
 }
 
 // Memberi role = hak SA (§4.3); role SUPER_ADMIN = hak eksklusif Utama (§4.4); HR hanya akun karyawan.
@@ -51,7 +62,16 @@ export function canSetActive(actor: Actor, target: AccountTarget): boolean {
   if (isSuperAdmin(actor)) {
     return target.role !== ROLE.SUPER_ADMIN || actor.isPrimarySuperAdmin;
   }
-  return isHrAdmin(actor) && (target.role === ROLE.EMPLOYEE || target.role === ROLE.MANAGER);
+  return (
+    isHrAdmin(actor) &&
+    (target.role === ROLE.EMPLOYEE || target.role === ROLE.MANAGER) &&
+    inHrScope(actor, target)
+  );
+}
+
+// D-040: penugasan PT = bagian kelola akses (§4.3 "Beri/cabut role & grant": SA); hanya untuk HR_ADMIN.
+export function canAssignCompanies(actor: Actor, target: AccountTarget): boolean {
+  return isSuperAdmin(actor) && target.role === ROLE.HR_ADMIN;
 }
 
 // §4.4: hanya Utama, ke SUPER_ADMIN lain yang aktif. Konfirmasi password dicek terpisah (login ulang, D-033).

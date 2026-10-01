@@ -3,6 +3,7 @@ import type { Permission, Role } from "@hris/shared";
 import type { Actor } from "../../../core/access/index.ts";
 import {
   type AccountTarget,
+  canAssignCompanies,
   canChangeRole,
   canGrantTo,
   canInviteAccount,
@@ -35,6 +36,7 @@ function actor(who: Who, id = `acc-${who}`): Actor {
     employeeId: null,
     isPrimarySuperAdmin: who === "UTAMA",
     grants: new Set<Permission>(),
+    companyIds: who === "SA" || who === "UTAMA" ? null : new Set<string>(),
   };
 }
 
@@ -197,5 +199,37 @@ describe("audit log (§4.3: hanya SUPER_ADMIN)", () => {
     ["EMP", false],
   ] as const)("%s = %p", (who, ok) => {
     expect(canReadAuditLogs(actor(who))).toBe(ok);
+  });
+});
+
+// D-040: HR_ADMIN hanya akun karyawan di PT yang ditugaskan (akun belum tertaut karyawan tetap terlihat);
+// penugasan PT hanya oleh SUPER_ADMIN dan hanya untuk akun HR_ADMIN.
+describe("D-040 cakupan perusahaan akun", () => {
+  const hrA = { ...actor("HR"), companyIds: new Set(["co-A"]) };
+  const emp = (companyId: string | null) => target("EMPLOYEE", { companyId });
+
+  test.each([
+    ["co-A", true],
+    ["co-B", false],
+    [null, true],
+  ] as const)("HR PT co-A → akun karyawan PT %s: lihat & nonaktifkan = %p", (companyId, ok) => {
+    expect(canViewAccount(hrA, emp(companyId))).toBe(ok);
+    expect(canSetActive(hrA, emp(companyId))).toBe(ok);
+  });
+
+  test("SA melihat & menonaktifkan akun PT mana pun", () => {
+    expect(canViewAccount(actor("SA"), emp("co-B"))).toBe(true);
+    expect(canSetActive(actor("SA"), emp("co-B"))).toBe(true);
+  });
+
+  test.each([
+    ["SA", "HR_ADMIN", true],
+    ["UTAMA", "HR_ADMIN", true],
+    ["SA", "MANAGER", false],
+    ["SA", "SUPER_ADMIN", false],
+    ["HR", "HR_ADMIN", false],
+    ["MGR", "HR_ADMIN", false],
+  ] as const)("canAssignCompanies %s → akun %s = %p", (who, role, ok) => {
+    expect(canAssignCompanies(actor(who), target(role))).toBe(ok);
   });
 });

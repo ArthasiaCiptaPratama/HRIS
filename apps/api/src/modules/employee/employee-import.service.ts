@@ -31,7 +31,7 @@ import type {
 } from "./employee-import.schema.ts";
 
 // D-042: import karyawan. `analyze` dipakai pratinjau & simpan (sumber kebenaran di server).
-// Aturan: grant untuk kolom sensitif (§4.2), master data baru boleh ditambah,
+// Aturan: cakupan PT (D-040), grant untuk kolom sensitif (§4.2), master data baru boleh ditambah,
 // baris resign → nonaktif, sel kosong tidak menimpa (UPSERT), baris error tidak diimpor.
 
 const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -47,6 +47,7 @@ interface RowPlan {
   issues: ImportRowIssue[];
   changes: ImportFieldKey[];
   existing?: importRepo.ExistingEmployee;
+  companyId?: string;
   statusId?: string;
   /** Departemen untuk jabatan (dari file atau departemen jabatan saat ini). */
   departmentName?: string;
@@ -121,6 +122,10 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   const lookup = await getMasterLookup();
   const writePersonal = policy.canWriteSensitiveViaImport(ctx.actor, "personal");
   const writeBank = policy.canWriteSensitiveViaImport(ctx.actor, "bank");
+  const companyByCode = new Map(
+    [...lookup.companies.values()].filter((c) => !c.deleted).map((c) => [c.code.toUpperCase(), c]),
+  );
+  const scopeCompanies = [...(ctx.actor.companyIds ?? [])];
 
   // 1) Buang kolom sensitif yang aktor tak berhak tulis (D-042 poin 5) — dicatat sebagai dilewati.
   const skipped = new Set<ImportFieldKey>();
@@ -182,7 +187,24 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     const existing = number ? existingByNumber.get(number) : undefined;
     if (existing) plan.existing = existing;
 
-    // Kolom perusahaan (D-039) dikenali tetapi belum disimpan: multi-perusahaan belum dirilis.
+    // Perusahaan (D-039/D-040): kode di file > PT bawaan > satu-satunya PT dalam cakupan.
+    let companyId: string | undefined;
+    if (row.companyCode) {
+      const company = companyByCode.get(row.companyCode);
+      if (!company) plan.issues.push(issue("companyCode", "COMPANY_UNKNOWN"));
+      else companyId = company.id;
+    } else if (existing) companyId = existing.companyId;
+    else if (body.companyId) companyId = body.companyId;
+    else if (scopeCompanies.length === 1) companyId = scopeCompanies[0];
+    if (companyId) {
+      plan.companyId = companyId;
+      if (!existing || companyId !== existing.companyId) {
+        if (!policy.canCreateInCompany(ctx.actor, companyId))
+          plan.issues.push(issue("companyCode", "COMPANY_OUT_OF_SCOPE"));
+      }
+    } else if (!existing && !plan.issues.some((i) => i.field === "companyCode")) {
+      plan.issues.push(issue("companyCode", "COMPANY_REQUIRED"));
+    }
 
     if (row.category) {
       const statusId = statusIdFor(lookup, row.category);
@@ -199,7 +221,11 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       plan.issues.push(issue("workEmail", "EMAIL_TAKEN"));
 
     if (existing) {
-      const target = { employeeId: existing.id, managerId: existing.managerId };
+      const target = {
+        employeeId: existing.id,
+        managerId: existing.managerId,
+        companyId: existing.companyId,
+      };
       if (!policy.canViewEmployee(ctx.actor, target)) {
         plan.issues.push(issue("employeeNumber", "EXISTING_OUT_OF_SCOPE"));
       } else if (body.mode === "CREATE_ONLY") {
@@ -265,6 +291,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     action: p.action,
     employeeNumber: p.row.employeeNumber ?? null,
     fullName: p.row.fullName ?? p.existing?.fullName ?? null,
+    companyCode: p.companyId ? (lookup.companies.get(p.companyId)?.code ?? null) : null,
     changes: p.changes,
     issues: p.issues,
   }));
@@ -310,6 +337,7 @@ function diff(
     changes.push("emergencyContactRelationship");
   if (differs(row.gender, e.gender)) changes.push("gender");
   if (differs(row.joinDate, toIso(e.joinDate))) changes.push("joinDate");
+  if (plan.companyId && plan.companyId !== e.companyId) changes.push("companyCode");
   if (plan.statusId && plan.statusId !== e.employmentStatusId) changes.push("employmentStatusText");
   const currentDept = departmentNameOf(lookup, e.positionId);
   const currentPosition = lookup.positions.get(e.positionId)?.name;
@@ -398,6 +426,7 @@ export async function commit(
           row.positionName as string,
         ) as string;
         const created = await repository.createEmployee(tx, {
+          companyId: plan.companyId as string,
           employeeNumber: row.employeeNumber as string,
           fullName: row.fullName as string,
           workEmail: row.workEmail ?? null,
@@ -435,6 +464,7 @@ export async function commit(
           effectiveDate: toDate(row.joinDate as string),
           toStatusId: plan.statusId as string,
           toPositionId: posId,
+          toCompanyId: plan.companyId as string,
           note: "Import data karyawan",
           changedBy: ctx.actor.accountId,
         });
@@ -458,6 +488,7 @@ export async function commit(
             after: {
               source: "import",
               employeeNumber: row.employeeNumber,
+              companyId: plan.companyId,
               employmentStatusId: plan.statusId,
               isActive: !row.exit,
             },
@@ -497,6 +528,7 @@ export async function commit(
             : {}),
           ...(has("gender") ? { gender: row.gender } : {}),
           ...(has("joinDate") ? { joinDate: toDate(row.joinDate as string) } : {}),
+          ...(has("companyCode") ? { companyId: plan.companyId } : {}),
           ...(has("employmentStatusText") ? { employmentStatusId: plan.statusId } : {}),
           ...(newPositionId ? { positionId: newPositionId } : {}),
           ...(has("gradeName") && row.gradeName ? { gradeId: gradeId(row.gradeName) } : {}),
@@ -525,6 +557,16 @@ export async function commit(
             note: "Import data karyawan",
             changedBy: ctx.actor.accountId,
           });
+        if (has("companyCode"))
+          await repository.createHistory(tx, {
+            employeeId: e.id,
+            changeType: "COMPANY_CHANGED",
+            effectiveDate: today,
+            fromCompanyId: e.companyId,
+            toCompanyId: plan.companyId as string,
+            note: "Import data karyawan",
+            changedBy: ctx.actor.accountId,
+          });
         const personalChanges = PERSONAL_KEYS.filter((k) => has(PERSONAL_FIELD[k]));
         if (personalChanges.length > 0) {
           const data = personalData(row);
@@ -549,6 +591,7 @@ export async function commit(
             entityType: "employee.employee",
             entityId: e.id,
             before: {
+              companyId: e.companyId,
               positionId: e.positionId,
               employmentStatusId: e.employmentStatusId,
             },
@@ -578,6 +621,7 @@ export async function commit(
       tx,
       {
         actorAccountId: ctx.actor.accountId,
+        companyId: body.companyId ?? null,
         fileName: body.fileName,
         fileSha256: body.fileSha256,
         mode: body.mode,
@@ -628,6 +672,7 @@ function toJobDto(job: NonNullable<Awaited<ReturnType<typeof importRepo.findJob>
   return {
     id: job.id,
     actorAccountId: job.actorAccountId,
+    companyId: job.companyId,
     fileName: job.fileName,
     mode: job.mode,
     totalRows: job.totalRows,

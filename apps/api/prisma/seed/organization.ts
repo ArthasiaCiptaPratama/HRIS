@@ -24,6 +24,11 @@ export const EMPLOYMENT_STATUSES: Array<{
   { name: "Outsourcing", category: "OUTSOURCING", legacyNames: [] },
   { name: "Vendor", category: "VENDOR", legacyNames: [] },
 ];
+// D-039: ACP dibuat migrasi (data referensi); CD2 = perusahaan DUMMY untuk menguji batas akses per PT (D-040).
+export const COMPANIES = [
+  { code: "ACP", name: "PT Arthasia Cipta Pratama" },
+  { code: "CD2", name: "PT Contoh Dua (Dummy)" },
+];
 export const GRADES = ["Staf", "Staf Senior", "Supervisor", "Manajer", "Direktur"];
 
 export const WORK_LOCATIONS = [
@@ -46,6 +51,7 @@ export const WORK_LOCATIONS = [
 ];
 
 export interface OrganizationIds {
+  companies: Map<string, string>;
   positions: Map<string, string>;
   statuses: Map<string, string>;
   grades: Map<string, string>;
@@ -53,6 +59,16 @@ export interface OrganizationIds {
 }
 
 export async function seedOrganization(prisma: PrismaClient): Promise<OrganizationIds> {
+  const companies = new Map<string, string>();
+  for (const { code, name } of COMPANIES) {
+    const company = await prisma.company.upsert({
+      where: { code },
+      update: {},
+      create: { code, name },
+    });
+    companies.set(code, company.id);
+  }
+
   const positions = new Map<string, string>();
   for (const [departmentName, positionNames] of Object.entries(DEPARTMENTS)) {
     const department = await prisma.department.upsert({
@@ -92,7 +108,7 @@ export async function seedOrganization(prisma: PrismaClient): Promise<Organizati
     locations.set(location.name, row.id);
   }
 
-  return { positions, statuses, grades, locations };
+  return { companies, positions, statuses, grades, locations };
 }
 
 // Cari berdasarkan kategori → nama baru/lama → buat. Nama lama yang tersisa (mis. "Masa Percobaan")

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { disconnectPrisma, getPrisma } from "../../src/core/db.ts";
+import { acpCompanyId } from "../helpers/company.ts";
 
 // Constraint skema ERD employee management (D-026) di PostgreSQL lokal. Data dibersihkan sendiri.
 const prisma = getPrisma();
@@ -15,6 +16,7 @@ async function createEmployee(suffix: string, extra: { managerId?: string } = {}
   return prisma.employee.create({
     data: {
       employeeNumber: `T-${RUN}-${suffix}`,
+      companyId: await acpCompanyId(),
       fullName: `Uji ${suffix}`,
       joinDate: new Date("2026-01-05"),
       employmentStatusId: ids.statusId,

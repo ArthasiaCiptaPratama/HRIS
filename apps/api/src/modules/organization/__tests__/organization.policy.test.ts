@@ -11,6 +11,7 @@ const actor = (role: Role): Actor => ({
   employeeId: null,
   isPrimarySuperAdmin: false,
   grants: new Set(),
+  companyIds: null,
 });
 
 // PLAN §4.3: struktur organisasi, jabatan, level, lokasi → 👁 semua role.

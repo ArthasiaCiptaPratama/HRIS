@@ -37,6 +37,7 @@ const detail = (access: Record<string, boolean>) => ({
   isActive: true,
   exitReason: null,
   employmentStatus: { id: "s1", name: "PKWT", category: "PKWT" },
+  company: { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" },
   position: { id: "p1", name: "GA Staff" },
   department: { id: "d1", name: "Human Resources & GA" },
   workLocation: null,
@@ -67,6 +68,8 @@ const detail = (access: Record<string, boolean>) => ({
       toStatus: { id: "s1", name: "PKWT" },
       fromPosition: null,
       toPosition: null,
+      fromCompany: null,
+      toCompany: null,
       exitReason: null,
       note: null,
       changedBy: { name: "Siti Rahmawati", role: "HR_ADMIN", workLocation: "Kantor Pusat Jakarta" },
@@ -80,6 +83,8 @@ const detail = (access: Record<string, boolean>) => ({
       toStatus: { id: "s0", name: "Magang" },
       fromPosition: null,
       toPosition: { id: "p1", name: "GA Staff" },
+      fromCompany: null,
+      toCompany: null,
       exitReason: null,
       note: null,
       changedBy: null,
@@ -129,6 +134,7 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
     if (key === "/master-data")
       return json(200, {
         data: {
+          companies: [],
           departments: [],
           positions: [],
           employmentStatuses: [],

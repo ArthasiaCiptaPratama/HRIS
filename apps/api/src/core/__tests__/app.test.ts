@@ -21,12 +21,12 @@ function buildApp(databaseOk = true) {
 }
 
 describe("app core", () => {
-  // Bug 2026-09-30: PUT (mis. /employee-imports/mappings/:signature) ditolak browser karena preflight CORS
+  // Bug 2026-09-30: PUT /accounts/:id/companies (D-040) ditolak browser karena preflight CORS
   // tidak mengizinkan PUT. Semua metode yang dipakai route API wajib ada di allowMethods.
   test("preflight CORS mengizinkan setiap metode route API (termasuk PUT)", async () => {
     const { app } = buildApp();
     for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"]) {
-      const res = await app.request("/api/v1/employee-imports/mappings/x", {
+      const res = await app.request("/api/v1/accounts/x/companies", {
         method: "OPTIONS",
         headers: {
           Origin: "http://localhost:5173",

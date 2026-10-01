@@ -27,6 +27,8 @@ export const employeeListItemSchema = z.object({
   isActive: z.boolean(),
   exitReason: exitReasonSchema.nullable(),
   employmentStatus: ref.extend({ category: employmentCategorySchema.nullable() }),
+  /** D-039: perusahaan dalam grup. */
+  company: ref.extend({ code: z.string() }),
   position: ref,
   department: ref.nullable(),
   workLocation: ref.nullable(),
@@ -160,6 +162,8 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       toStatus: ref.nullable(),
       fromPosition: ref.nullable(),
       toPosition: ref.nullable(),
+      fromCompany: ref.nullable(),
+      toCompany: ref.nullable(),
       exitReason: exitReasonSchema.nullable(),
       note: z.string().nullable(),
       changedBy: z
@@ -172,6 +176,8 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
 export type EmployeeDetail = z.infer<typeof employeeDetailSchema>;
 
 export const masterDataSchema = z.object({
+  /** D-040: hanya perusahaan dalam cakupan pengguna. */
+  companies: z.array(ref.extend({ code: z.string() })),
   departments: z.array(ref.extend({ parentId: z.string().nullable() })),
   positions: z.array(ref.extend({ departmentId: z.string() })),
   employmentStatuses: z.array(ref.extend({ category: employmentCategorySchema.nullable() })),
@@ -240,6 +246,7 @@ export const employeeFormSchema = z.object({
   emergencyContactRelationship: z.string().trim().max(50),
   gender: z.enum(["", "MALE", "FEMALE"]),
   joinDate: z.iso.date("Tanggal masuk wajib diisi."),
+  companyId: z.string().min(1, "Pilih perusahaan."),
   employmentStatusId: z.string().min(1, "Pilih status kepegawaian."),
   departmentId: z.string().min(1, "Pilih departemen."),
   positionId: z.string().min(1, "Pilih jabatan."),

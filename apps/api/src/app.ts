@@ -27,8 +27,12 @@ import {
 } from "./core/supabase-admin.ts";
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
-import { registerEmployeeRoutes } from "./modules/employee/index.ts";
-import { loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
+import {
+  employeeScopeForIam,
+  registerEmployeeRoutes,
+  withEmployeeCompanyScope,
+} from "./modules/employee/index.ts";
+import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
 import { configureNotification, registerNotificationRoutes } from "./modules/notification/index.ts";
 import { registerOrganizationRoutes } from "./modules/organization/index.ts";
 
@@ -123,7 +127,13 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     corsOrigins: overrides.corsOrigins ?? getEnv().CORS_ORIGINS,
     checkDatabase: overrides.checkDatabase ?? pingDatabase,
     tokenVerifier: overrides.tokenVerifier ?? defaultVerifier(),
-    actorLoader: overrides.actorLoader ?? ((authUserId) => loadIamActor(authUserId)),
+    // D-040: iam memuat role/grant/PT penugasan; employee melengkapi PT tempat aktor terdaftar.
+    actorLoader:
+      overrides.actorLoader ??
+      (async (authUserId) => {
+        const actor = await loadIamActor(authUserId);
+        return actor ? withEmployeeCompanyScope(actor) : null;
+      }),
     authAdmin: overrides.authAdmin ?? defaultAuthAdmin(),
     storage: overrides.storage ?? defaultStorage(),
     storagePathPrefix: overrides.storagePathPrefix ?? getEnv().STORAGE_PATH_PREFIX,
@@ -132,6 +142,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
   };
   configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
+  configureIam({ employeeScope: employeeScopeForIam });
 
   const app = new OpenAPIHono({
     // PROMPT §5: input yang tidak lolos Zod → 400 VALIDATION_ERROR lewat envelope standar.

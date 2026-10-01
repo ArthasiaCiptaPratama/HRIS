@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { cn } from "@/lib/utils";
-import { useEmployees } from "../api";
+import { useCompanyScope, useEmployees } from "../api";
 import { EmployeeAvatar } from "./employee-avatar";
 import { StatusBadge } from "./status-badge";
 
@@ -23,10 +23,12 @@ export function EmployeePicker({
 }) {
   const [search, setSearch] = useState("");
   const q = useDebouncedValue(search.trim(), 250);
+  const { selectedId: companyId } = useCompanyScope();
   const query = useEmployees({
     page: 1,
     pageSize: 50,
     active,
+    companyId,
     q: q || undefined,
     sort: "fullName:asc",
   });

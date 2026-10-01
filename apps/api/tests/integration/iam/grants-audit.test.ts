@@ -147,7 +147,7 @@ describe("GET /audit-logs (hanya SUPER_ADMIN)", () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      data: { action: string; actorAccountId: string }[];
+      data: { action: string; actorAccountId: string; actorEmail: string | null }[];
       meta: { total: number };
     };
     expect(body.meta.total).toBeGreaterThanOrEqual(2);
@@ -156,6 +156,8 @@ describe("GET /audit-logs (hanya SUPER_ADMIN)", () => {
         (row) => row.action.startsWith("iam.grant") && row.actorAccountId === sa.account.id,
       ),
     ).toBe(true);
+    // Audit 2026-09-30: aktor ditampilkan sebagai email, bukan hanya UUID.
+    expect(body.data.every((row) => row.actorEmail === sa.account.email)).toBe(true);
     expect((await call("GET", "/audit-logs", hr.headers)).status).toBe(403);
     expect((await call("GET", "/audit-logs", mgr.headers)).status).toBe(403);
   });

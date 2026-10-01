@@ -22,6 +22,7 @@ import {
   photoUploadUrlBodySchema,
   photoUploadUrlSchema,
   reactivateBodySchema,
+  summaryQuerySchema,
   updateEmployeeBodySchema,
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
@@ -89,8 +90,10 @@ const routes = {
     method: "get",
     path: `${P}/employees/summary`,
     tags: TAGS,
-    summary: "Jumlah karyawan aktif per kategori & nonaktif (cakupan sama dengan daftar)",
+    summary:
+      "Jumlah karyawan aktif per kategori & nonaktif (cakupan sama dengan daftar; ?companyId=)",
     security,
+    request: { query: summaryQuerySchema },
     responses: {
       200: json("Ringkasan", dataEnvelope(employeeSummarySchema)),
       ...errors(401, 403, 500),
@@ -237,7 +240,7 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     c.json(await service.listEmployees(ctx(c), c.req.valid("query")), 200),
   );
   app.openapi(guard(routes.summary), async (c) =>
-    c.json(ok(await service.getSummary(ctx(c))), 200),
+    c.json(ok(await service.getSummary(ctx(c), c.req.valid("query"))), 200),
   );
   app.openapi(guard(routes.dashboard), async (c) =>
     c.json(ok(await service.getDashboard(ctx(c))), 200),

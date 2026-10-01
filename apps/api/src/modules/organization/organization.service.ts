@@ -5,6 +5,7 @@ import { ForbiddenError } from "../../core/errors.ts";
 import * as policy from "./organization.policy.ts";
 import * as repository from "./organization.repository.ts";
 import type {
+  CompanyDto,
   DepartmentDto,
   EmploymentStatusDto,
   GradeDto,
@@ -19,6 +20,7 @@ type Row<T> = T & { deletedAt: Date | null };
  * (`deleted: true`) supaya data lama tetap punya nama, tapi tidak boleh dipilih untuk data baru.
  */
 export interface MasterLookup {
+  companies: Map<string, CompanyDto & { deleted: boolean }>;
   departments: Map<string, DepartmentDto & { deleted: boolean }>;
   positions: Map<string, PositionDto & { deleted: boolean }>;
   statuses: Map<string, EmploymentStatusDto & { deleted: boolean }>;
@@ -35,6 +37,12 @@ function toMap<T extends { id: string }>(rows: Row<T>[]) {
 export async function getMasterLookup(): Promise<MasterLookup> {
   const data = await repository.loadMasterData();
   return {
+    companies: toMap(
+      data.companies.map(({ isActive, deletedAt, ...rest }) => ({
+        ...rest,
+        deletedAt: isActive ? deletedAt : (deletedAt ?? new Date(0)),
+      })),
+    ),
     departments: toMap(data.departments),
     positions: toMap(data.positions),
     statuses: toMap(data.statuses),
@@ -70,6 +78,10 @@ export async function listMasterData(actor: Actor) {
   assertCanRead(actor);
   const lookup = await getMasterLookup();
   return {
+    // D-040: pilihan perusahaan hanya yang dalam cakupan aktor (SUPER_ADMIN semua).
+    companies: active(lookup.companies).filter(
+      (company) => actor.companyIds === null || actor.companyIds.has(company.id),
+    ),
     departments: active(lookup.departments),
     positions: active(lookup.positions),
     employmentStatuses: active(lookup.statuses),

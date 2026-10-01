@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
+import { useCompanyScope } from "@/features/employee/api";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
@@ -39,6 +40,7 @@ import { formatDateTime } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import {
   useAccounts,
+  useAssignCompanies,
   useChangeRole,
   useInviteAccount,
   useSetActive,
@@ -65,6 +67,9 @@ export function AccountsPage() {
   });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [roleTarget, setRoleTarget] = useState<Account | null>(null);
+  const [companyTarget, setCompanyTarget] = useState<Account | null>(null);
+  const scope = useCompanyScope();
+  const companyCode = new Map(scope.companies.map((c) => [c.id, c.code]));
   const [transferTarget, setTransferTarget] = useState<Account | null>(null);
   const setActive = useSetActive();
   const filtered = Boolean(q || role || status);
@@ -102,6 +107,18 @@ export function AccountsPage() {
         <div className="flex gap-1">
           <Badge variant="secondary">{ROLE_LABELS[row.original.role]}</Badge>
           {row.original.isPrimarySuperAdmin ? <Badge variant="brand">Utama</Badge> : null}
+          {/* D-040: perusahaan yang ditugaskan ke akun HR. */}
+          {row.original.role === "HR_ADMIN" && access.assignCompanies(me) ? (
+            row.original.companyIds.length > 0 ? (
+              row.original.companyIds.map((id) => (
+                <Badge key={id} variant="muted" className="font-mono">
+                  {companyCode.get(id) ?? "?"}
+                </Badge>
+              ))
+            ) : (
+              <Badge variant="warning">Tanpa PT</Badge>
+            )
+          ) : null}
         </div>
       ),
     }) as DataColumn<Account>,
@@ -132,6 +149,11 @@ export function AccountsPage() {
         const account = row.original;
         return (
           <div className="flex justify-end gap-1">
+            {access.assignCompanies(me) && account.role === "HR_ADMIN" ? (
+              <Button size="sm" variant="outline" onClick={() => setCompanyTarget(account)}>
+                Atur PT
+              </Button>
+            ) : null}
             {access.changeRole(me) && account.id !== me.id && !account.isPrimarySuperAdmin ? (
               <Button size="sm" variant="outline" onClick={() => setRoleTarget(account)}>
                 Ubah role
@@ -260,6 +282,11 @@ export function AccountsPage() {
 
       <InviteDialog me={me} open={inviteOpen} onOpenChange={setInviteOpen} />
       <ChangeRoleDialog me={me} account={roleTarget} onClose={() => setRoleTarget(null)} />
+      <AssignCompaniesDialog
+        account={companyTarget}
+        companies={scope.companies}
+        onClose={() => setCompanyTarget(null)}
+      />
       <TransferPrimaryDialog
         me={me}
         account={transferTarget}
@@ -341,6 +368,79 @@ function InviteDialog({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// D-040: centang perusahaan yang dikelola akun HR_ADMIN (menggantikan penugasan lama).
+function AssignCompaniesDialog({
+  account,
+  companies,
+  onClose,
+}: {
+  account: Account | null;
+  companies: { id: string; code: string; name: string }[];
+  onClose: () => void;
+}) {
+  const assign = useAssignCompanies();
+  const [selected, setSelected] = useState<string[]>([]);
+  const [prevAccount, setPrevAccount] = useState<Account | null>(null);
+  // Isi ulang pilihan setiap kali dialog dibuka untuk akun lain.
+  if (account !== prevAccount) {
+    setPrevAccount(account);
+    setSelected(account?.companyIds ?? []);
+  }
+  const toggle = (id: string) =>
+    setSelected((current) =>
+      current.includes(id) ? current.filter((c) => c !== id) : [...current, id],
+    );
+  const submit = async () => {
+    if (!account) return;
+    try {
+      await assign.mutateAsync({ id: account.id, companyIds: selected });
+      toast.success("Penugasan perusahaan diperbarui.");
+      onClose();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+  return (
+    <Dialog open={account !== null} onOpenChange={(open) => (open ? null : onClose())}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Atur perusahaan</DialogTitle>
+          <DialogDescription>
+            {account?.email} hanya melihat dan mengelola karyawan di perusahaan yang dicentang.
+          </DialogDescription>
+        </DialogHeader>
+        <fieldset className="space-y-2" aria-label="Perusahaan yang dikelola">
+          {companies.map((company) => (
+            <label
+              key={company.id}
+              className="hover:bg-muted/60 flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm"
+            >
+              <input
+                type="checkbox"
+                className="accent-brand size-4"
+                checked={selected.includes(company.id)}
+                onChange={() => toggle(company.id)}
+              />
+              <span className="font-mono text-xs">{company.code}</span>
+              <span className="text-muted-foreground truncate">{company.name}</span>
+            </label>
+          ))}
+        </fieldset>
+        {selected.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            Tanpa perusahaan, akun ini tidak melihat karyawan mana pun.
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button onClick={submit} disabled={assign.isPending}>
+            Simpan
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

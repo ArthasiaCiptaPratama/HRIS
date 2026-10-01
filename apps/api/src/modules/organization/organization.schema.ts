@@ -19,6 +19,12 @@ export const workLocationSchema = z
   .object({ id: z.uuid(), name: z.string(), city: z.string().nullable() })
   .openapi("WorkLocation");
 
+// D-039: perusahaan dalam grup (ringkas: untuk pilihan, filter, dan label).
+export const companySchema = z
+  .object({ id: z.uuid(), code: z.string(), name: z.string() })
+  .openapi("Company");
+
+export type CompanyDto = z.infer<typeof companySchema>;
 export type DepartmentDto = z.infer<typeof departmentSchema>;
 export type PositionDto = z.infer<typeof positionSchema>;
 export type EmploymentStatusDto = z.infer<typeof employmentStatusSchema>;

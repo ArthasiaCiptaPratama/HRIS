@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useMe } from "@/features/auth/api";
 import { SetPasswordFields } from "@/features/auth/pages/set-password-page";
 import { type Me, type SetPasswordForm, setPasswordFormSchema } from "@/features/auth/schemas";
-import { useEmployee } from "@/features/employee/api";
+import { useCompanyScope, useEmployee } from "@/features/employee/api";
 import { EmployeePhotoControl } from "@/features/employee/components/employee-photo-control";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
@@ -48,6 +48,7 @@ export function ProfilePage() {
             <p className="text-muted-foreground">
               Login terakhir: {formatDateTime(me.lastLoginAt)}
             </p>
+            <CompanyScope me={me} />
             <div>
               <p className="font-medium">Izin tambahan (grant)</p>
               {me.grants.length === 0 ? (
@@ -114,5 +115,43 @@ function OwnPhotoCard({ employeeId }: { employeeId: string }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** D-040: cakupan perusahaan akun ini (dari /master-data yang sudah disaring API per akun). */
+function CompanyScope({ me }: { me: Me }) {
+  const { companies } = useCompanyScope();
+  const label =
+    me.role === "HR_ADMIN"
+      ? "Perusahaan yang dikelola"
+      : me.role === "SUPER_ADMIN"
+        ? "Perusahaan"
+        : null;
+  if (me.role === "SUPER_ADMIN") {
+    return (
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className="text-muted-foreground">Semua perusahaan dalam grup.</p>
+      </div>
+    );
+  }
+  if (me.role !== "HR_ADMIN") return null;
+  return (
+    <div>
+      <p className="font-medium">{label}</p>
+      {companies.length === 0 ? (
+        <p className="text-muted-foreground">
+          Belum ditugaskan ke perusahaan mana pun. Hubungi Super Admin.
+        </p>
+      ) : (
+        <ul className="list-disc pl-5">
+          {companies.map((company) => (
+            <li key={company.id}>
+              <span className="font-mono text-xs">{company.code}</span> · {company.name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

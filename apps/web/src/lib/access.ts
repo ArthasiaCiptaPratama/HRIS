@@ -15,6 +15,8 @@ export const access = {
     return isHrAdmin(me) ? ["EMPLOYEE"] : [];
   },
   changeRole: (me: Me) => isSuperAdmin(me),
+  // D-040: penugasan perusahaan akun HR_ADMIN hanya oleh SUPER_ADMIN.
+  assignCompanies: (me: Me) => isSuperAdmin(me),
   setActive: (me: Me, target: { id: string; role: string; isPrimarySuperAdmin: boolean }) => {
     if (target.id === me.id || target.isPrimarySuperAdmin) return false;
     if (isSuperAdmin(me)) return target.role !== ROLE.SUPER_ADMIN || me.isPrimarySuperAdmin;

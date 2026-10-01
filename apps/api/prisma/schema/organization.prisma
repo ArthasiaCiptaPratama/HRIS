@@ -1,6 +1,33 @@
 // Modul organization (PLAN §1.2) — master data. ERD minggu 2026-09-28 (D-026).
 // Modul inti: modul lain boleh FK ke tabel di sini (PLAN §3.2).
 
+// D-039: perusahaan dalam grup (multi-entitas, satu sistem). Master data lain (departemen, jabatan,
+// grade, status, site) berlaku untuk seluruh grup; perusahaan menempel di karyawan.
+model Company {
+  id               String              @id @default(uuid()) @db.Uuid
+  // Kode singkat unik yang dipakai di file kantor & UI, mis. "ACP", "PNR".
+  code             String              @db.VarChar(10)
+  name             String              @db.VarChar(150)
+  npwpNumber       String?             @map("npwp_number") @db.VarChar(20)
+  address          String?
+  isActive         Boolean             @default(true) @map("is_active")
+  employees        Employee[]
+  historiesFrom    EmploymentHistory[] @relation("HistoryFromCompany")
+  historiesTo      EmploymentHistory[] @relation("HistoryToCompany")
+  // Sisi balik iam.account_companies (wajib Prisma); jangan di-include dari modul organization.
+  accountCompanies AccountCompany[]
+  // Sisi balik employee.import_jobs (D-042).
+  importJobs       ImportJob[]
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([code])
+  @@unique([name])
+  @@map("companies")
+  @@schema("organization")
+}
+
 model Department {
   id        String       @id @default(uuid()) @db.Uuid
   name      String       @db.VarChar(100)

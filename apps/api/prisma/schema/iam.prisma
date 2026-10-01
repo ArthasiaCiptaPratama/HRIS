@@ -43,6 +43,8 @@ model Account {
   grants        PermissionGrant[] @relation("GrantAccount")
   grantsGiven   PermissionGrant[] @relation("GrantGrantedBy")
   grantsRevoked PermissionGrant[] @relation("GrantRevokedBy")
+  // D-040: perusahaan yang ditugaskan (dipakai untuk HR_ADMIN).
+  companies     AccountCompany[]
 
   @@unique([authUserId])
   @@unique([employeeId])
@@ -71,5 +73,22 @@ model PermissionGrant {
   @@index([grantedBy])
   @@index([revokedBy])
   @@map("permission_grants")
+  @@schema("iam")
+}
+
+// D-040: cakupan perusahaan akun HR_ADMIN (SUPER_ADMIN semua; MANAGER/EMPLOYEE tidak memakai tabel ini).
+// FK ke organization.companies diizinkan (modul inti, PLAN §3.2). Diatur SUPER_ADMIN, tercatat di audit.
+model AccountCompany {
+  accountId  String   @map("account_id") @db.Uuid
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  companyId  String   @map("company_id") @db.Uuid
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  // Akun SUPER_ADMIN yang menugaskan; null = migrasi/script.
+  assignedBy String?  @map("assigned_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([accountId, companyId])
+  @@index([companyId])
+  @@map("account_companies")
   @@schema("iam")
 }

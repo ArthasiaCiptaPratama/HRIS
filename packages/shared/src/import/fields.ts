@@ -57,8 +57,6 @@ export const IMPORT_FIELDS = {
     label: "Perusahaan",
     section: "work",
     synonyms: ["perusahaan", "pt", "company", "entitas", "kode perusahaan", "company code"],
-    // Multi-perusahaan (D-039/D-040) belum dirilis: kolom dikenali tetapi belum disimpan.
-    notStored: true,
   },
   joinDate: {
     label: "Tanggal masuk",
