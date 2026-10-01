@@ -68,7 +68,7 @@ export function SetPasswordPage() {
   return (
     <AuthCard
       title="Atur password"
-      description="Buat password untuk akun HRIS Anda (minimal 12 karakter)."
+      description="Buat password untuk akun Akselerasi Arthasia Anda (minimal 12 karakter)."
     >
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
         {error ? (

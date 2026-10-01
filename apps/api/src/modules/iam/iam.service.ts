@@ -258,7 +258,7 @@ export async function inviteAccount(
   if (!policy.canInviteAccount(ctx.actor, input.role)) throw new ForbiddenError();
   const email = input.email.trim().toLowerCase();
   if (await repository.findAccountByEmail(email)) {
-    throw new ConflictError("Email sudah terdaftar sebagai akun HRIS.");
+    throw new ConflictError("Email sudah terdaftar sebagai akun Akselerasi Arthasia.");
   }
   // User Auth bisa sudah ada (mis. dari bootstrap/environment lain berbagi Auth staging, PLAN §3.3).
   const existingUser = await deps.authAdmin.findUserByEmail(email);

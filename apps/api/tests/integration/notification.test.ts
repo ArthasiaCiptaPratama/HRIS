@@ -70,7 +70,7 @@ describe("notify()", () => {
       email: true,
     });
     expect(result).toMatchObject({ created: 2, emailed: 2, queued: 0, failed: 0 });
-    expect(email.sent[0]?.subject).toBe("[HRIS] Halo");
+    expect(email.sent[0]?.subject).toBe("[Akselerasi Arthasia] Halo");
     expect(email.sent[0]?.text).toContain("http://localhost:5173/profil");
   });
 

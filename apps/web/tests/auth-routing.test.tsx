@@ -23,7 +23,9 @@ describe("route guard & menu per role", () => {
   it("tanpa sesi → diarahkan ke halaman login", async () => {
     mockApi({});
     renderAt("/akun");
-    expect(await screen.findByRole("heading", { name: "Masuk ke HRIS" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Masuk ke Akselerasi Arthasia" }),
+    ).toBeInTheDocument();
   });
 
   it("EMPLOYEE: top nav hanya Dashboard; /akun menampilkan akses ditolak", async () => {

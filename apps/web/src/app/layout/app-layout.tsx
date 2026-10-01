@@ -40,7 +40,7 @@ function Brand() {
   return (
     <NavLink
       to="/"
-      aria-label="Arthasia HRIS — beranda"
+      aria-label="Akselerasi Arthasia — beranda"
       className="flex shrink-0 items-center rounded-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
       <BrandLogo decorative className="h-12" />
