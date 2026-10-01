@@ -14,8 +14,8 @@
 | 0    | Instruksi Projek | Selesai      |
 | 1    | Fondasi          | Berjalan     |
 | 2    | IAM              | Review (fitur selesai & teruji di staging; sisa: captcha Turnstile ditunda, ganti password SA oleh pemilik projek, akun email produksi OD-5) |
-| 3    | Organization     | Berjalan (skema ERD + baca master data & struktur, D-035) |
-| 4    | Employee         | Berjalan (API + web Personal Management a–e, D-035) |
+| 3    | Organization     | Berjalan (CRUD 6 master data + peta geofence D-049 selesai lokal; sisa: kalender libur & pengaturan sistem → Fase 5) |
+| 4    | Employee         | Berjalan (Personal Management, foto, print, import, multi-PT; sisa: onboarding D-045–D-048, dokumen, tulis data sensitif OD-6, Arsip & Laporan) |
 | 5    | Attendance       | Belum mulai  |
 | 6    | Leave            | Belum mulai  |
 | —    | **Rilis 1**      | –            |
@@ -31,7 +31,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 
 ## 2. Fokus Saat Ini
 - **Dua jalur kerja (D-043) — baca dulu, isinya sengaja berbeda:**
- - **Develop** — folder `/mnt/winD/WORK/Magang/HRIS`, branch `HRIS/Oatse/Linux-Windows`. **Sudah disatukan dengan rilis 2026-10-01** (fast-forward ke `2140141` = isi staging, lalu pekerjaan lokal dipasang ulang) dan di-commit **lokal per fitur — belum di-push** (permintaan pemilik projek: push satu per satu setelah presentasi 2026-10-02). Saklar `FEATURES` bebas diubah untuk pengecekan (saat ini c–e `false`). Verifikasi 2026-10-01 setelah penyatuan: typecheck ✔ · biome ✔ · boundaries ✔ (219 modul) · `db:check` ✔ · test shared 63 · api 347 · web 99 (+1 dilewati) ✔ · build ✔. DB lokal `hris` di-reset (izin) → 11 migrasi + seed (26 karyawan, PT ACP & CD2) + akun SA/HR(ACP)/MGR/EMP dipulihkan; struktur DB dibandingkan dengan dump sebelum reset: identik (hanya urutan kolom `company_id`).
+ - **Develop** — folder `/mnt/winD/WORK/Magang/HRIS`, branch `HRIS/Oatse/Linux-Windows`. **Sudah disatukan dengan rilis 2026-10-01** (fast-forward ke `2140141` = isi staging, lalu pekerjaan lokal dipasang ulang) dan di-commit **lokal per fitur — belum di-push** (permintaan pemilik projek: push satu per satu setelah presentasi 2026-10-02). Saklar `FEATURES` bebas diubah untuk pengecekan (saat ini c–e `false`). Verifikasi terakhir 2026-10-01 (setelah Tahap 3 + peta, `0963b15`): typecheck ✔ · biome ✔ · boundaries ✔ (232 modul) · `db:check` ✔ · test shared 73 · api 370 · web 106 (+1 dilewati) ✔ · build ✔. Commit lokal di atas rilis: 5 (antrean di bawah). DB lokal `hris` di-reset (izin) → 11 migrasi + seed (26 karyawan, PT ACP & CD2) + akun SA/HR(ACP)/MGR/EMP dipulihkan; struktur DB dibandingkan dengan dump sebelum reset: identik (hanya urutan kolom `company_id`).
  - **Rilis/staging** — folder `/mnt/winD/WORK/Magang/HRIS-rilis` (git worktree, DB lokal `hris_release`), branch `HRIS/Oatse/rilis-import` (akan diganti `HRIS/Oatse/rilis` setelah presentasi); kode **identik** dengan `HRIS/debug/fe-be` = `2140141` (rilis nama D-044: commit `1ffb1a8`, PR #31/#32, `Deploy staging` #36815081695 ✔). Isi: semua fitur sampai menu Ubah Status + import **tanpa** multi-PT + dashboard SA/HR + nama **Akselerasi Arthasia**. `FEATURES`: hanya `changeStatus` `true`. Staging (MCP 2026-10-01): 10 migrasi (terakhir `20260930102336_add_import_and_employee_details`), 23 karyawan (2 nonaktif), 4 akun, 7 status, tabel `companies` belum ada.
 - **ANTREAN PUSH / RILIS (develop → GitHub → rilis → staging; setiap langkah ditanya dulu ke pemilik projek):**
 
@@ -41,11 +41,12 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
   | 2 | `4441206` `feat: multi perusahaan dan cakupan pt per akun` | D-039/D-040 multi-PT & cakupan HR, import dengan PT, dashboard per cakupan PT, sisa audit UI (audit log, profil PT, print B2) | migrasi `20261001100000_add_companies_and_account_scope` (ACP + backfill; akun HR staging otomatis → ACP); **seed ulang staging** untuk PT dummy CD2 (izin terpisah) | lokal, belum push |
   | 3 | `ecd5bf3` `docs: aturan dua jalur develop rilis, rencana onboarding, dan status penyatuan` | D-043–D-048, status penyatuan, desain onboarding, QA | – | lokal, belum push |
   | 4 | `1ac361e` `feat: kelola master data perusahaan, departemen, jabatan, status, grade, dan lokasi` | D-049 CRUD 6 master data + menu Administrasi › Master Data; dampak ke form karyawan, import, Atur PT | **tanpa migrasi**; butuh #2 lebih dulu (perusahaan) | lokal, belum push |
-  | 5 | commit peta (`feat: pilih titik geofence lokasi kerja di peta`, setelah #4) | Pemilih peta Leaflet + OSM, GPS, cari tempat | dependency baru `leaflet`, `react-leaflet` (`bun.lock`) | lokal, belum push |
+  | 5 | `0963b15` `feat: pilih titik geofence lokasi kerja di peta` | Pemilih peta Leaflet + OSM, GPS, cari tempat | dependency baru `leaflet`, `react-leaflet` (`bun.lock`) | lokal, belum push |
+  | 6 | commit dokumen tepat setelah #5 (`docs: perbarui progress dan codemap …`) | Status fase, angka verifikasi, daftar test CODEMAP | – | lokal, belum push |
 
   Cara: (a) `git push origin HRIS/Oatse/Linux-Windows` (cadangan + CI, tidak men-deploy); (b) di folder `HRIS-rilis`: `git merge <commit>` sampai nomor yang mau ditunjukkan → atur `FEATURES` → verifikasi → PR ke `HRIS/debug/database` → PR ke `HRIS/debug/fe-be` → `Deploy staging` → uji staging (PROMPT §8 "Develop & rilis"). Perbarui kolom Status di tabel ini setiap langkah.
 - **Cadangan penyatuan 2026-10-01 (boleh dihapus setelah antrean #1–#2 rilis):** `git stash` "develop-sebelum-penyatuan-2026-10-01" (`stash@{0}`), branch lokal `tmp/develop-wip` (`898cb0c`, keadaan develop sebelum penyatuan). Tidak pernah di-push.
-- **Fase aktif:** 1 — Fondasi (sisa: uji Windows, proteksi `main`) · Fase 2 IAM **Review** · Fase 3–4 berjalan.
+- **Fase aktif:** 1 — Fondasi (sisa: uji Windows, proteksi `main`) · Fase 2 IAM **Review** · Fase 3 (master data ✔ lokal) · Fase 4 berjalan — **berikutnya: Onboarding karyawan baru (a)**.
 - **Fitur yang sudah naik ke staging:** Fase 2 IAM lengkap; D-035 Personal Management (PR #7/#8); logo & BUG-001 (PR #15–#18); detail layar penuh, riwayat "diubah oleh", Print data (PR #19/#20); foto profil D-037 (PR #21/#22); halaman Administrasi seragam (PR #23/#24); D-038 grup kategori (PR #25/#26); menu Ubah Status (PR #27/#28); import tanpa multi-PT + dashboard SA/HR (PR #29/#30, `Deploy staging` #36705880177); nama Akselerasi Arthasia (PR #31/#32).
 - **QA:** `docs/qa/` — 10 rencana, 11 laporan hasil (semua LULUS), kasus TC-EMP s.d. 093 · TC-STG · TC-ADM; BUG-001 (P3, diperbaiki); bukti visual di `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/`.
 - **Langkah berikutnya (urutan keputusan pemilik projek 2026-10-01, D-045):**
