@@ -133,9 +133,22 @@ export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
   if (!actor.employeeId) return actor;
   const employee = await repository.findActorEmployee(actor.employeeId);
   // D-045: request pertama setelah calon mengatur password → status "Mengisi data".
-  if (employee?.onboardingStatus === "INVITED") await markActivatedOnLogin(actor.employeeId);
-  if (actor.role === "SUPER_ADMIN" || actor.role === "HR_ADMIN") return actor;
-  return { ...actor, companyIds: new Set(employee ? [employee.companyId] : []) };
+  let status = employee?.onboardingStatus ?? "APPROVED";
+  if (status === "INVITED" && (await markActivatedOnLogin(actor.employeeId))) status = "FILLING";
+  const withOnboarding: Actor = {
+    ...actor,
+    onboarding: employee
+      ? {
+          status,
+          completionRequired: employee.completionRequired,
+          submitted: status === "SUBMITTED" || employee.completionSubmittedAt !== null,
+          // Calon belum disetujui dikunci ke wizard; karyawan existing (lengkapi data) tidak.
+          locked: status !== "APPROVED",
+        }
+      : null,
+  };
+  if (actor.role === "SUPER_ADMIN" || actor.role === "HR_ADMIN") return withOnboarding;
+  return { ...withOnboarding, companyIds: new Set(employee ? [employee.companyId] : []) };
 }
 
 function nameRef<T extends { id: string; name: string }>(map: Map<string, T>, id: string | null) {

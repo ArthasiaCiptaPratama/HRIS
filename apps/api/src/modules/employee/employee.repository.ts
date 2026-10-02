@@ -201,7 +201,12 @@ export async function findCompanyId(id: string) {
 export async function findActorEmployee(id: string) {
   return getPrisma().employee.findUnique({
     where: { id },
-    select: { companyId: true, onboardingStatus: true },
+    select: {
+      companyId: true,
+      onboardingStatus: true,
+      completionRequired: true,
+      completionSubmittedAt: true,
+    },
   });
 }
 

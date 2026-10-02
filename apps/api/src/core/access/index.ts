@@ -1,4 +1,5 @@
 export { type ActorLoader, loadActor, requirePermission, requireRole } from "./middleware.ts";
+export { enforceOnboardingLock, isAllowedWhileOnboarding } from "./onboarding-lock.ts";
 export {
   type Actor,
   type EmployeeTarget,
@@ -9,4 +10,5 @@ export {
   isInCompanyScope,
   isInTeam,
   isSelf,
+  type OnboardingState,
 } from "./rules.ts";

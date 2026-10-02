@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  documentTypeSchema,
   ONBOARDING_MAX_ROWS,
   onboardingInvitationStatusSchema,
   onboardingStatusSchema,
@@ -128,3 +129,116 @@ export const inviteExistingResultSchema = z
 
 export const employeeIdParamSchema = z.object({ employeeId: z.uuid() });
 export const batchIdParamSchema = z.object({ id: z.uuid() });
+
+// ── D-045 b: wizard milik sendiri (/onboarding/me) ──────────────────────────────────────────────
+
+const nullableString = z.string().nullable();
+export const myOnboardingSchema = z
+  .object({
+    employeeId: z.uuid(),
+    status: onboardingStatusSchema,
+    mode: z.enum(["candidate", "completion"]).nullable(),
+    editable: z.boolean(),
+    submittedAt: z.iso.datetime().nullable(),
+    personal: z.object({
+      fullName: z.string(),
+      gender: nullableString,
+      birthPlace: nullableString,
+      birthDate: nullableString,
+      ktpNumber: nullableString,
+      kkNumber: nullableString,
+      religion: nullableString,
+      maritalStatus: nullableString,
+      ktpAddress: nullableString,
+      domicileAddress: nullableString,
+      originCity: nullableString,
+      phoneNumber: nullableString,
+      npwpNumber: nullableString,
+      npwpAbsent: z.boolean(),
+      bpjsEmploymentNumber: nullableString,
+      bpjsEmploymentAbsent: z.boolean(),
+      bpjsHealthNumber: nullableString,
+      bpjsHealthAbsent: z.boolean(),
+    }),
+    emergency: z.object({
+      name: nullableString,
+      relationship: nullableString,
+      phone: nullableString,
+    }),
+    family: z.array(
+      z.object({
+        name: z.string(),
+        relationship: z.string(),
+        birthDate: nullableString,
+        phoneNumber: nullableString,
+      }),
+    ),
+    bank: z.object({
+      bankName: nullableString,
+      accountNumber: nullableString,
+      accountHolder: nullableString,
+    }),
+    educations: z.array(
+      z.object({
+        level: nullableString,
+        schoolName: z.string(),
+        major: nullableString,
+        graduationYear: z.number().int().nullable(),
+      }),
+    ),
+    trainings: z.array(
+      z.object({
+        trainingField: z.string(),
+        organizer: nullableString,
+        trainingYear: z.number().int().nullable(),
+      }),
+    ),
+    workExperiences: z.array(
+      z.object({
+        companyName: z.string(),
+        position: z.string(),
+        startYear: z.number().int(),
+        endYear: z.number().int().nullable(),
+      }),
+    ),
+    documents: z.array(
+      z.object({
+        id: z.uuid(),
+        type: z.string(),
+        mimeType: z.string(),
+        sizeBytes: z.number().int(),
+        url: nullableString,
+        removable: z.boolean(),
+      }),
+    ),
+    photoUrl: nullableString,
+    missing: z.array(z.object({ section: z.string(), field: z.string(), message: z.string() })),
+  })
+  .openapi("MyOnboarding");
+
+export const sectionParamSchema = z.object({
+  section: z.enum(["personal", "emergency", "family", "bank", "professional"]),
+});
+
+export const documentUploadUrlBodySchema = z
+  .object({
+    type: documentTypeSchema,
+    contentType: z.enum(["application/pdf", "image/jpeg", "image/png"]),
+  })
+  .openapi("DocumentUploadUrlBody");
+
+export const documentUploadUrlSchema = z
+  .object({
+    bucket: z.string(),
+    path: z.string(),
+    token: z.string(),
+    signedUrl: z.string(),
+    maxBytes: z.number().int(),
+  })
+  .openapi("DocumentUploadUrl");
+
+export const documentConfirmBodySchema = z
+  .object({ type: documentTypeSchema, path: z.string().min(1).max(255) })
+  .openapi("DocumentConfirmBody");
+
+export const documentIdParamSchema = z.object({ id: z.uuid() });

@@ -616,6 +616,6 @@ function emptyCounts() {
 
 // ── Login pertama (dipanggil saat aktor dimuat) ─────────────────────────────────────────────────
 
-export async function markActivatedOnLogin(employeeId: string): Promise<void> {
-  await repo.activateIfInvited(employeeId);
+export async function markActivatedOnLogin(employeeId: string): Promise<boolean> {
+  return repo.activateIfInvited(employeeId);
 }

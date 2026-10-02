@@ -2,6 +2,7 @@ export * from "./employee.ts";
 export * from "./enums.ts";
 export * from "./import/index.ts";
 export * from "./onboarding.ts";
+export * from "./onboarding-form.ts";
 export * from "./organization.ts";
 export * from "./permissions.ts";
 export * from "./roles.ts";

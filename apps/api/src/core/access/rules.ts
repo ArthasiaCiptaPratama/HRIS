@@ -1,6 +1,13 @@
 import { isPermissionGrantableTo, type Permission, ROLE, type Role } from "@hris/shared";
 
 // Konteks akses per request (PLAN §4, D-008: dimuat dari DB setiap request, bukan dari JWT).
+export interface OnboardingState {
+  status: string;
+  completionRequired: boolean;
+  submitted: boolean;
+  locked: boolean;
+}
+
 export interface Actor {
   accountId: string;
   authUserId: string;
@@ -16,6 +23,11 @@ export interface Actor {
    * MANAGER/EMPLOYEE = PT tempat ia terdaftar (dipakai untuk direktori). Set kosong = tidak ada.
    */
   companyIds: ReadonlySet<string> | null;
+  /**
+   * D-045: status onboarding karyawan milik akun (diisi employee saat aktor dimuat). `locked` = calon
+   * yang belum disetujui → hanya endpoint wizard yang boleh (middleware kunci di app.ts).
+   */
+  onboarding?: OnboardingState | null;
 }
 
 export function hasRole(actor: Actor, roles: readonly Role[]): boolean {

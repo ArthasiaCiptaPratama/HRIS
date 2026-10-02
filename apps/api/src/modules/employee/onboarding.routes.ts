@@ -3,20 +3,28 @@ import { onboardingBatchInputSchema } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import type { StorageAdmin } from "../../core/storage.ts";
 import {
   batchIdParamSchema,
   batchSchema,
   candidateListQuerySchema,
   candidateSchema,
+  documentConfirmBodySchema,
+  documentIdParamSchema,
+  documentUploadUrlBodySchema,
+  documentUploadUrlSchema,
   employeeIdParamSchema,
   inviteExistingBodySchema,
   inviteExistingResultSchema,
+  myOnboardingSchema,
   previewBodySchema,
   previewResultSchema,
   processResultSchema,
+  sectionParamSchema,
   statusCountsSchema,
 } from "./onboarding.schema.ts";
 import * as service from "./onboarding.service.ts";
+import * as wizard from "./onboarding-wizard.service.ts";
 
 // D-045 bagian a: Penerimaan Karyawan Baru (SA semua PT, HR PT ditugaskan — policy di service).
 
@@ -141,9 +149,93 @@ const routes = {
   }),
 };
 
+const wizardRoutes = {
+  me: createRoute({
+    method: "get",
+    path: `${P}/onboarding/me`,
+    tags: TAGS,
+    summary: "Wizard: data onboarding milik sendiri + daftar kekurangan",
+    security,
+    responses: {
+      200: json("Onboarding", dataEnvelope(myOnboardingSchema)),
+      ...errors(401, 403, 404, 500),
+    },
+  }),
+  save: createRoute({
+    method: "put",
+    path: `${P}/onboarding/me/{section}`,
+    tags: TAGS,
+    summary: "Wizard: simpan draf satu bagian (calon: semua; existing: hanya field kosong)",
+    security,
+    request: {
+      params: sectionParamSchema,
+      body: {
+        content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Onboarding", dataEnvelope(myOnboardingSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  uploadUrl: createRoute({
+    method: "post",
+    path: `${P}/onboarding/me/documents/upload-url`,
+    tags: TAGS,
+    summary: "Wizard: URL unggah dokumen (bucket private employee-documents)",
+    security,
+    request: body(documentUploadUrlBodySchema),
+    responses: {
+      200: json("URL unggah", dataEnvelope(documentUploadUrlSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  confirm: createRoute({
+    method: "post",
+    path: `${P}/onboarding/me/documents`,
+    tags: TAGS,
+    summary: "Wizard: konfirmasi dokumen terunggah (cek tipe & ukuran)",
+    security,
+    request: body(documentConfirmBodySchema),
+    responses: {
+      201: json("Dokumen", dataEnvelope(z.object({ id: z.uuid() }))),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  removeDocument: createRoute({
+    method: "delete",
+    path: `${P}/onboarding/me/documents/{id}`,
+    tags: TAGS,
+    summary: "Wizard: hapus dokumen sendiri",
+    security,
+    request: { params: documentIdParamSchema },
+    responses: {
+      200: json("Dihapus", dataEnvelope(z.object({ id: z.uuid() }))),
+      ...errors(401, 403, 404, 422, 500),
+    },
+  }),
+  submit: createRoute({
+    method: "post",
+    path: `${P}/onboarding/me/submit`,
+    tags: TAGS,
+    summary: "Wizard: kirim untuk direview (hanya bila data wajib lengkap)",
+    security,
+    responses: {
+      200: json("Onboarding", dataEnvelope(myOnboardingSchema)),
+      ...errors(401, 403, 404, 422, 500),
+    },
+  }),
+};
+
 export function registerOnboardingRoutes(
   app: OpenAPIHono,
-  deps: { protect: MiddlewareHandler[]; invitations: service.InvitationDeps },
+  deps: {
+    protect: MiddlewareHandler[];
+    invitations: service.InvitationDeps;
+    storage?: StorageAdmin | undefined;
+    storagePathPrefix?: string | undefined;
+  },
 ): void {
   const guard = <R extends object>(route: R) => ({ ...route, middleware: deps.protect });
   const ctx = (c: Context): service.OnboardingContext => ({
@@ -187,5 +279,33 @@ export function registerOnboardingRoutes(
   );
   app.openapi(guard(routes.inviteExisting), async (c) =>
     c.json(ok(await service.inviteExisting(ctx(c), c.req.valid("json"))), 200),
+  );
+
+  // D-045 b: wizard milik sendiri.
+  const wctx = (c: Context): wizard.WizardContext => ({
+    ...ctx(c),
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+  });
+  app.openapi(guard(wizardRoutes.me), async (c) =>
+    c.json(ok(await wizard.getMyOnboarding(wctx(c))), 200),
+  );
+  app.openapi(guard(wizardRoutes.save), async (c) =>
+    c.json(
+      ok(await wizard.saveSection(wctx(c), c.req.valid("param").section, c.req.valid("json"))),
+      200,
+    ),
+  );
+  app.openapi(guard(wizardRoutes.uploadUrl), async (c) =>
+    c.json(ok(await wizard.createDocumentUploadUrl(wctx(c), c.req.valid("json"))), 200),
+  );
+  app.openapi(guard(wizardRoutes.confirm), async (c) =>
+    c.json(ok(await wizard.confirmDocument(wctx(c), c.req.valid("json"))), 201),
+  );
+  app.openapi(guard(wizardRoutes.removeDocument), async (c) =>
+    c.json(ok(await wizard.deleteDocument(wctx(c), c.req.valid("param").id)), 200),
+  );
+  app.openapi(guard(wizardRoutes.submit), async (c) =>
+    c.json(ok(await wizard.submitMyOnboarding(wctx(c))), 200),
   );
 }

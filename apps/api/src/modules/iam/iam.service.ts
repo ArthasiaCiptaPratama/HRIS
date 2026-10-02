@@ -277,6 +277,7 @@ export async function getMe(actor: Actor, now: Date = new Date()): Promise<MeRes
         permission: PERMISSION_CODE[grant.permission],
         expiresAt: grant.expiresAt?.toISOString() ?? null,
       })),
+    onboarding: actor.onboarding ?? null,
   };
 }
 

@@ -282,10 +282,12 @@ describe("simpan, sembunyikan, antrean, login pertama", () => {
     expect(
       await prisma.onboardingEvent.count({ where: { employeeId: invitedId, toStatus: "FILLING" } }),
     ).toBe(1);
-    // Calon melihat datanya sendiri (wizard, bagian b); admin tetap 404 lewat endpoint karyawan biasa.
+    // D-045 b: calon dikunci ke wizard (/onboarding/me); endpoint karyawan biasa 403 untuknya,
+    // dan admin tetap 404 (calon belum menjadi karyawan).
     expect((await call("GET", `/employees/${invitedId}`, bearer(account.authUserId))).status).toBe(
-      200,
+      403,
     );
+    expect((await call("GET", "/onboarding/me", bearer(account.authUserId))).status).toBe(200);
     expect((await call("GET", `/employees/${invitedId}`, hr.headers)).status).toBe(404);
   });
 

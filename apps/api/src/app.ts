@@ -6,7 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { type ActorLoader, loadActor } from "./core/access/index.ts";
+import { type ActorLoader, enforceOnboardingLock, loadActor } from "./core/access/index.ts";
 import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
 import { createLogSender, createSmtpSender, type EmailSender } from "./core/email.ts";
@@ -199,7 +199,12 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerHealth(app, deps.checkDatabase);
 
   // Endpoint terproteksi: verifikasi JWT → muat akun, role, grant dari DB (D-008).
-  const protect = [authenticate(deps.tokenVerifier), loadActor(deps.actorLoader)];
+  // D-045 b: calon onboarding yang belum disetujui hanya boleh memakai endpoint wizard.
+  const protect = [
+    authenticate(deps.tokenVerifier),
+    loadActor(deps.actorLoader),
+    enforceOnboardingLock(),
+  ];
   registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });

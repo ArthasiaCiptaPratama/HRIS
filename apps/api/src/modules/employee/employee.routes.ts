@@ -240,6 +240,8 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   registerEmployeeImportRoutes(app, { protect: deps.protect, ctx });
   registerOnboardingRoutes(app, {
     protect: deps.protect,
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
     invitations: deps.invitations ?? {
       authAdmin: deps.authAdmin,
       redirectTo: "http://localhost:5173/auth/callback",

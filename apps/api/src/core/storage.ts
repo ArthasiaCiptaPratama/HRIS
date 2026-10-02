@@ -8,6 +8,10 @@ import { BusinessRuleError } from "./errors.ts";
 export const EMPLOYEE_PHOTO_BUCKET = "employee-photos";
 export const EMPLOYEE_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 export const EMPLOYEE_PHOTO_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+// D-045 b: dokumen karyawan (KTP, KK, ijazah, buku rekening, …) — bucket private terpisah.
+export const EMPLOYEE_DOCUMENT_BUCKET = "employee-documents";
+export const EMPLOYEE_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024;
+export const EMPLOYEE_DOCUMENT_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
 
 export interface BucketConfig {
   id: string;

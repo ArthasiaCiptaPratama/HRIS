@@ -142,6 +142,10 @@ model Employee {
   onboardingBatchId            String?                @map("onboarding_batch_id") @db.Uuid
   onboardingBatch              OnboardingBatch?       @relation(fields: [onboardingBatchId], references: [id], onDelete: SetNull)
   onboardingInvitations        OnboardingInvitation[]
+  // D-045 b: karyawan existing (completion_required) sudah mengirim data untuk direview.
+  completionSubmittedAt        DateTime?              @map("completion_submitted_at") @db.Timestamptz(6)
+  documents                    EmployeeDocument[]
+  workExperiences              WorkExperience[]
   onboardingEvents             OnboardingEvent[]
   // PLAN §4.5: karyawan nonaktif tidak bisa login; data tetap diarsip (tidak dihapus).
   isActive                     Boolean                @default(true) @map("is_active")
@@ -244,6 +248,10 @@ model EmployeePersonal {
   bpjsHealthNumber     String?        @map("bpjs_health_number") @db.VarChar(20)
   ptkpStatus           PtkpStatus?    @map("ptkp_status")
   originCity           String?        @map("origin_city") @db.VarChar(100)
+  // D-045 b: "belum punya" (nomor kosong) — wajib diisi nomor ATAU dicentang di wizard onboarding.
+  npwpAbsent           Boolean        @default(false) @map("npwp_absent")
+  bpjsEmploymentAbsent Boolean        @default(false) @map("bpjs_employment_absent")
+  bpjsHealthAbsent     Boolean        @default(false) @map("bpjs_health_absent")
   createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -396,6 +404,60 @@ model OnboardingEvent {
 
   @@index([employeeId, occurredAt])
   @@map("onboarding_events")
+  @@schema("employee")
+}
+
+// D-045 b: jenis dokumen karyawan (onboarding & arsip "File").
+enum EmployeeDocumentType {
+  KTP
+  KK
+  DIPLOMA
+  BANK_BOOK
+  NPWP
+  BPJS_EMPLOYMENT
+  BPJS_HEALTH
+  CERTIFICATE
+  CV
+  OTHER
+
+  @@schema("employee")
+}
+
+// D-045 b: dokumen di bucket private `employee-documents` (path, bukan URL; baca via signed URL).
+model EmployeeDocument {
+  id          String               @id @default(uuid()) @db.Uuid
+  employeeId  String               @map("employee_id") @db.Uuid
+  employee    Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        EmployeeDocumentType
+  storagePath String               @map("storage_path") @db.VarChar(255)
+  mimeType    String               @map("mime_type") @db.VarChar(100)
+  sizeBytes   Int                  @map("size_bytes")
+  // Akun pengunggah (iam.accounts.id, tanpa FK — iam bukan modul inti).
+  uploadedBy  String               @map("uploaded_by") @db.Uuid
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt   DateTime?            @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([storagePath])
+  @@index([employeeId, type])
+  @@map("employee_documents")
+  @@schema("employee")
+}
+
+// D-045 b: riwayat kerja (opsional di wizard; dasar menu Arsip "Riwayat Kerja").
+model WorkExperience {
+  id          String   @id @default(uuid()) @db.Uuid
+  employeeId  String   @map("employee_id") @db.Uuid
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companyName String   @map("company_name") @db.VarChar(150)
+  position    String   @db.VarChar(100)
+  startYear   Int      @map("start_year") @db.SmallInt
+  endYear     Int?     @map("end_year") @db.SmallInt
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId])
+  @@map("work_experiences")
   @@schema("employee")
 }
 
