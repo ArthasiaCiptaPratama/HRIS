@@ -2,6 +2,9 @@ import { describe, expect, test } from "bun:test";
 import {
   formatEmployeeNumber,
   nextEmployeeNumberSequence,
+  onboardingDecisionSchema,
+  REVIEW_SECTION_LABELS,
+  REVIEW_SECTIONS,
   suggestEmployeeNumbers,
 } from "../src/onboarding.ts";
 
@@ -38,5 +41,57 @@ describe("nomor induk otomatis", () => {
 
   test("tanggal tidak valid ditolak", () => {
     expect(() => formatEmployeeNumber("2026-13-01", "ACP", 1)).toThrow();
+  });
+});
+
+// D-045 c / D-047: keputusan reviewer.
+describe("onboardingDecisionSchema", () => {
+  test("setujui: PTKP wajib; koreksi data kerja opsional", () => {
+    expect(onboardingDecisionSchema.safeParse({ decision: "APPROVED" }).success).toBe(false);
+    const ok = onboardingDecisionSchema.safeParse({
+      decision: "APPROVED",
+      ptkpStatus: "TK0",
+      work: { positionId: "00000000-0000-4000-8000-000000000001", joinDate: "2026-11-25" },
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  test("minta revisi: minimal satu catatan bagian yang terisi", () => {
+    expect(
+      onboardingDecisionSchema.safeParse({ decision: "REVISION_REQUESTED", sectionNotes: {} })
+        .success,
+    ).toBe(false);
+    expect(
+      onboardingDecisionSchema.safeParse({
+        decision: "REVISION_REQUESTED",
+        sectionNotes: { bank: "   " },
+      }).success,
+    ).toBe(false);
+    const parsed = onboardingDecisionSchema.parse({
+      decision: "REVISION_REQUESTED",
+      sectionNotes: { bank: " Nomor rekening tidak terbaca ", documents: "KTP buram" },
+    });
+    expect(parsed).toEqual({
+      decision: "REVISION_REQUESTED",
+      sectionNotes: { bank: "Nomor rekening tidak terbaca", documents: "KTP buram" },
+    });
+    expect(
+      onboardingDecisionSchema.safeParse({
+        decision: "REVISION_REQUESTED",
+        sectionNotes: { gaji: "x" },
+      }).success,
+    ).toBe(false);
+  });
+
+  test("batalkan: alasan wajib", () => {
+    expect(onboardingDecisionSchema.safeParse({ decision: "CANCELLED" }).success).toBe(false);
+    expect(
+      onboardingDecisionSchema.safeParse({ decision: "CANCELLED", reason: "Mengundurkan diri" })
+        .success,
+    ).toBe(true);
+  });
+
+  test("label tiap bagian review tersedia", () => {
+    for (const s of REVIEW_SECTIONS) expect(REVIEW_SECTION_LABELS[s]).toBeTruthy();
   });
 });

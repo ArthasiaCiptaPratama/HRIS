@@ -12,6 +12,7 @@ import {
   canReadBank,
   canReadOrgStructure,
   canReadPersonal,
+  canReviewOnboarding,
   canRunOnboarding,
   canViewDashboard,
   canViewEmployee,
@@ -306,5 +307,22 @@ describe("D-045 onboarding — penerimaan & undangan", () => {
 
   test("grant apa pun tidak memberi MANAGER hak penerimaan", () => {
     expect(canRunOnboarding(actor("MGR", ["employee.personal.write"]))).toBe(false);
+  });
+});
+
+// D-047: review & keputusan data onboarding — SA; HR_ADMIN hanya dengan grant & di PT yang ditugaskan.
+describe("D-047 review onboarding", () => {
+  const R: Permission = "employee.onboarding.review";
+  test.each([
+    ["SA", [], null, "co-B", true],
+    ["HR", [R], ["co-A"], "co-A", true],
+    ["HR", [], ["co-A"], "co-A", false],
+    ["HR", [R], ["co-A"], "co-B", false],
+    ["HR", ["employee.personal.read" as Permission], ["co-A"], "co-A", false],
+    ["MGR", [R], ["co-A"], "co-A", false],
+    ["EMP", [], ["co-A"], "co-A", false],
+  ] as const)("%s grant %j PT %j → %s: %s", (who, grants, companies, company, allowed) => {
+    const a = actor(who, [...grants], `emp-${who}`, companies === null ? null : [...companies]);
+    expect(canReviewOnboarding(a, company)).toBe(allowed);
   });
 });

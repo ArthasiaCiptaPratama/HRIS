@@ -20,6 +20,7 @@ const mine = (over: Record<string, unknown> = {}) => ({
   mode: "candidate",
   editable: true,
   submittedAt: null,
+  revision: null,
   personal: {
     fullName: "Ani Calon",
     gender: null,
@@ -178,5 +179,26 @@ describe("Wizard onboarding (D-045 b)", () => {
     expect(
       within(document.body).getAllByRole("link", { name: "Kembali ke aplikasi" }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("revisi: hanya bagian bertanda tampil, catatan HR terlihat", async () => {
+    mockFetch(
+      {
+        ...candidateMe,
+        onboarding: { ...candidateMe.onboarding, status: "REVISION_REQUESTED" },
+      },
+      mine({
+        status: "REVISION_REQUESTED",
+        revision: { notes: { bank: "Nomor rekening salah" }, decidedAt: "2026-10-02T00:00:00Z" },
+      }),
+    );
+    renderAt("/onboarding");
+    expect(await screen.findByText("Nomor rekening salah")).toBeInTheDocument();
+    const steps = screen.getByRole("list", { name: "Langkah pengisian" });
+    expect(
+      within(steps)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["1 Rekening", "2 Ringkasan & kirim"]);
   });
 });

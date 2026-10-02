@@ -4,6 +4,7 @@ import {
   type DocumentType,
   type OnboardingBatchInput,
   type OnboardingCandidateInput,
+  type OnboardingDecisionInput,
   type OnboardingSection,
   type OnboardingStatus,
 } from "@hris/shared";
@@ -19,6 +20,7 @@ import {
   inviteExistingResultSchema,
   type MyOnboarding,
   myOnboardingSchema,
+  onboardingReviewSchema,
   one,
   previewSchema,
   processResultSchema,
@@ -30,6 +32,7 @@ export const onboardingKeys = {
   all: ["onboarding"] as const,
   list: (params: Record<string, unknown>) => ["onboarding", "list", params] as const,
   batch: (id: string) => ["onboarding", "batch", id] as const,
+  review: (employeeId: string) => ["onboarding", "review", employeeId] as const,
 };
 
 export interface CandidateListParams {
@@ -127,6 +130,36 @@ export function useInviteExisting() {
         schema: one(inviteExistingResultSchema),
       }).then((r) => r.data),
     onSuccess: invalidate,
+  });
+}
+
+// ── D-045 c: review ─────────────────────────────────────────────────────────────────────────────
+
+export function useOnboardingReview(employeeId: string) {
+  return useQuery({
+    queryKey: onboardingKeys.review(employeeId),
+    queryFn: ({ signal }) =>
+      api(`/onboarding/${employeeId}`, { schema: one(onboardingReviewSchema), signal }).then(
+        (r) => r.data,
+      ),
+    // Data sensitif: jangan disimpan lama di cache.
+    gcTime: 0,
+  });
+}
+
+export function useDecideOnboarding(employeeId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OnboardingDecisionInput) =>
+      api(`/onboarding/${employeeId}/decision`, {
+        method: "POST",
+        body,
+        schema: one(z.object({ employeeId: z.string(), decision: z.string() })),
+      }).then((r) => r.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: onboardingKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
   });
 }
 

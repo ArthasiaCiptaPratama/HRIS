@@ -44,6 +44,7 @@ export const PERMISSION_CODE: Record<DbPermission, Permission> = {
   EMPLOYEE_DOCUMENTS_WRITE: "employee.documents.write",
   CONTRACT_MANAGE: "contract.manage",
   PAYROLL_PERIOD_PREPARE: "payroll.period.prepare",
+  EMPLOYEE_ONBOARDING_REVIEW: "employee.onboarding.review",
 };
 const DB_PERMISSION = Object.fromEntries(
   Object.entries(PERMISSION_CODE).map(([db, code]) => [code, db]),
@@ -1014,6 +1015,21 @@ export interface EmployeeAccountState {
 }
 
 /** Status akun per karyawan (daftar penerimaan & kirim ulang). */
+/**
+ * D-047: penerima notifikasi "data onboarding menunggu review" — semua SUPER_ADMIN aktif + HR_ADMIN
+ * aktif yang ditugaskan di PT itu dan memegang grant `employee.onboarding.review` yang berlaku.
+ */
+export async function listOnboardingReviewers(
+  companyId: string,
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const [admins, hrs] = await Promise.all([
+    repository.listActiveSuperAdmins(),
+    repository.findOnboardingReviewerHrs(companyId, now),
+  ]);
+  return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
+}
+
 export async function getEmployeeAccountStates(
   employeeIds: string[],
 ): Promise<EmployeeAccountState[]> {

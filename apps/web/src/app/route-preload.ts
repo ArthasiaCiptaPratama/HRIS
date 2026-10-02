@@ -38,6 +38,11 @@ export const pages = {
     import("@/features/onboarding/pages/onboarding-import-page").then((m) => ({
       Component: m.OnboardingImportPage,
     })),
+  onboardingReview: () =>
+    import("@/features/onboarding/pages/onboarding-review-page").then((m) => ({
+      Component: m.OnboardingReviewPage,
+    })),
+  ess: () => import("@/features/ess/pages/ess-page").then((m) => ({ Component: m.EssPage })),
   onboardingWizard: () =>
     import("@/features/onboarding/pages/onboarding-wizard-page").then((m) => ({
       Component: m.OnboardingWizardPage,
@@ -66,7 +71,9 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/laporan", pages.maintenance],
   ["/master-data", pages.masterData],
   ["/penerimaan/impor", pages.onboardingImport],
+  ["/penerimaan/", pages.onboardingReview],
   ["/penerimaan", pages.onboarding],
+  ["/ess", pages.ess],
 ];
 
 export function preloadRoute(path: string): void {

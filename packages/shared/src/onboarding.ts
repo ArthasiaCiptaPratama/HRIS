@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { genderSchema } from "./employee.ts";
+import { genderSchema, ptkpStatusSchema } from "./employee.ts";
+import { ONBOARDING_SECTIONS } from "./onboarding-form.ts";
 
 // D-045: onboarding karyawan baru — status, nomor induk otomatis, input penerimaan (API & web).
 
@@ -128,3 +129,56 @@ export const onboardingBatchInputSchema = z.object({
     .max(ONBOARDING_MAX_ROWS),
 });
 export type OnboardingBatchInput = z.input<typeof onboardingBatchInputSchema>;
+
+// ── D-045 c / D-047: keputusan reviewer ───────────────────────────────────────────────────────
+
+/** Bagian yang bisa diberi catatan revisi (bagian wizard + dokumen). */
+export const REVIEW_SECTIONS = [...ONBOARDING_SECTIONS, "documents"] as const;
+export type ReviewSection = (typeof REVIEW_SECTIONS)[number];
+export const REVIEW_SECTION_LABELS: Record<ReviewSection, string> = {
+  personal: "Data pribadi",
+  emergency: "Kontak darurat",
+  family: "Keluarga",
+  bank: "Rekening",
+  professional: "Pendidikan & pengalaman",
+  documents: "Dokumen",
+};
+
+export const ONBOARDING_DECISIONS = ["APPROVED", "REVISION_REQUESTED", "CANCELLED"] as const;
+export type OnboardingDecision = (typeof ONBOARDING_DECISIONS)[number];
+
+const sectionNotesSchema = z
+  .partialRecord(z.enum(REVIEW_SECTIONS), z.string().trim().max(500))
+  .transform((notes) =>
+    Object.fromEntries(Object.entries(notes).filter(([, note]) => note && note.length > 0)),
+  )
+  .refine((notes) => Object.keys(notes).length > 0, "Beri catatan minimal pada satu bagian.")
+  .pipe(z.partialRecord(z.enum(REVIEW_SECTIONS), z.string()));
+
+export const onboardingDecisionSchema = z.discriminatedUnion("decision", [
+  z.object({
+    decision: z.literal("APPROVED"),
+    ptkpStatus: ptkpStatusSchema,
+    /** Koreksi data kerja oleh reviewer (hanya calon baru). */
+    work: z
+      .object({
+        joinDate: isoDate.optional(),
+        employmentStatusId: z.uuid().optional(),
+        positionId: z.uuid().optional(),
+        workLocationId: optionalUuid,
+        gradeId: optionalUuid,
+        managerId: optionalUuid,
+      })
+      .optional(),
+  }),
+  z.object({
+    decision: z.literal("REVISION_REQUESTED"),
+    sectionNotes: sectionNotesSchema,
+  }),
+  z.object({
+    decision: z.literal("CANCELLED"),
+    reason: z.string().trim().min(3, "Alasan wajib diisi.").max(500),
+  }),
+]);
+export type OnboardingDecisionInput = z.input<typeof onboardingDecisionSchema>;
+export type OnboardingDecisionBody = z.output<typeof onboardingDecisionSchema>;

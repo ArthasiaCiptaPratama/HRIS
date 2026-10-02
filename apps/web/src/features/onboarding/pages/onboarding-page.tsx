@@ -1,6 +1,6 @@
 import { ONBOARDING_STATUS_LABELS, ONBOARDING_STATUSES, type OnboardingStatus } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { FileUp, MailPlus, SearchX, Send, UserPlus, X } from "lucide-react";
+import { ClipboardCheck, FileUp, MailPlus, SearchX, Send, UserPlus, X } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useMe } from "@/features/auth/api";
 import { useEmployee } from "@/features/employee/api";
 import { EmployeePicker } from "@/features/employee/components/employee-picker";
+import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -60,6 +62,8 @@ const INVITE_ERROR: Record<string, string> = {
 };
 
 export function OnboardingPage() {
+  const me = useMe().data;
+  const canReview = me ? access.reviewOnboarding(me) : false;
   const [tab, setTab] = useState<OnboardingStatus | "ALL">("ALL");
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search);
@@ -169,22 +173,41 @@ export function OnboardingPage() {
       meta: { className: "text-right" },
       cell: ({ row }) => {
         const r = row.original;
+        // D-045 c: review — data yang sudah/pernah diisi (Menunggu review, Perlu revisi, lengkapi data).
+        const reviewable =
+          canReview &&
+          (["FILLING", "SUBMITTED", "REVISION_REQUESTED"].includes(r.onboardingStatus) ||
+            (r.onboardingStatus === "APPROVED" && r.completionRequired));
+        const reviewLink = reviewable ? (
+          <Button
+            size="sm"
+            variant={r.onboardingStatus === "SUBMITTED" ? "default" : "outline"}
+            asChild
+          >
+            <Link to={`/penerimaan/${r.id}`}>
+              <ClipboardCheck /> {r.onboardingStatus === "SUBMITTED" ? "Periksa" : "Lihat data"}
+            </Link>
+          </Button>
+        ) : null;
         const canInvite =
           !r.account?.hasLoggedIn &&
           r.invitation?.status !== "QUEUED" &&
           (r.onboardingStatus === "NOT_INVITED" ||
             r.onboardingStatus === "INVITED" ||
             (r.onboardingStatus === "APPROVED" && r.completionRequired));
-        if (!canInvite) return null;
+        if (!canInvite) return reviewLink;
         return (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={resend.isPending}
-            onClick={() => onResend(r)}
-          >
-            <Send /> {r.onboardingStatus === "NOT_INVITED" ? "Undang" : "Kirim ulang"}
-          </Button>
+          <div className="flex justify-end gap-2">
+            {reviewLink}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={resend.isPending}
+              onClick={() => onResend(r)}
+            >
+              <Send /> {r.onboardingStatus === "NOT_INVITED" ? "Undang" : "Kirim ulang"}
+            </Button>
+          </div>
         );
       },
     }),

@@ -11,6 +11,8 @@ import {
   RELIGION_LABELS,
   RELIGIONS,
   REQUIRED_DOCUMENTS,
+  REVIEW_SECTION_LABELS,
+  type ReviewSection,
 } from "@hris/shared";
 import { CheckCircle2, Clock, FileText, LogOut, Plus, Trash2, Upload } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
@@ -114,9 +116,16 @@ export function OnboardingWizardPage() {
     );
   }
 
-  const index = STEPS.findIndex((s) => s.key === step);
-  const next = () => setStep(STEPS[Math.min(index + 1, STEPS.length - 1)]?.key ?? "summary");
-  const back = () => setStep(STEPS[Math.max(index - 1, 0)]?.key ?? "personal");
+  // D-045 c: revisi — hanya bagian yang diberi catatan HR yang ditampilkan & bisa diubah.
+  const revision = data.revision;
+  const steps = revision
+    ? STEPS.filter((s) => s.key === "summary" || revision.notes[s.key as ReviewSection])
+    : STEPS;
+  const current = steps.some((s) => s.key === step) ? step : (steps[0]?.key ?? "summary");
+  const index = steps.findIndex((s) => s.key === current);
+  const next = () => setStep(steps[Math.min(index + 1, steps.length - 1)]?.key ?? "summary");
+  const back = () => setStep(steps[Math.max(index - 1, 0)]?.key ?? "summary");
+  const note = revision?.notes[current as ReviewSection];
   const missingIn = (key: StepKey) =>
     data.missing.filter((m) => m.section === key || (key === "personal" && m.field === "photo"));
 
@@ -128,18 +137,29 @@ export function OnboardingWizardPage() {
           ? "Isi data yang masih kosong. Data yang sudah ada hanya bisa dikoreksi lewat HR."
           : "Isi semua data wajib, lalu kirim untuk diperiksa HR. Draf tersimpan setiap langkah."}
       </p>
+      {revision ? (
+        <Alert className="mt-4">
+          <AlertDescription>
+            HR meminta perbaikan pada:{" "}
+            {Object.keys(revision.notes)
+              .map((k) => REVIEW_SECTION_LABELS[k as ReviewSection])
+              .join(", ")}
+            . Bagian lain tidak perlu diubah.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <ol className="my-5 flex gap-1 overflow-x-auto pb-1 text-xs" aria-label="Langkah pengisian">
-        {STEPS.map((s, i) => {
+        {steps.map((s, i) => {
           const incomplete = missingIn(s.key).length > 0;
           return (
             <li key={s.key}>
               <button
                 type="button"
-                aria-current={s.key === step ? "step" : undefined}
+                aria-current={s.key === current ? "step" : undefined}
                 onClick={() => setStep(s.key)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-3 py-1 whitespace-nowrap",
-                  s.key === step
+                  s.key === current
                     ? "border-foreground bg-foreground text-background"
                     : "hover:bg-muted",
                 )}
@@ -151,15 +171,22 @@ export function OnboardingWizardPage() {
           );
         })}
       </ol>
-      {step === "personal" ? <PersonalStep data={data} onDone={next} /> : null}
-      {step === "emergency" ? <EmergencyStep data={data} onDone={next} onBack={back} /> : null}
-      {step === "family" ? <FamilyStep data={data} onDone={next} onBack={back} /> : null}
-      {step === "bank" ? <BankStep data={data} onDone={next} onBack={back} /> : null}
-      {step === "professional" ? (
+      {note ? (
+        <Alert className="mb-4 border-amber-300">
+          <AlertDescription>
+            <span className="font-medium">Catatan HR:</span> {note}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {current === "personal" ? <PersonalStep data={data} onDone={next} /> : null}
+      {current === "emergency" ? <EmergencyStep data={data} onDone={next} onBack={back} /> : null}
+      {current === "family" ? <FamilyStep data={data} onDone={next} onBack={back} /> : null}
+      {current === "bank" ? <BankStep data={data} onDone={next} onBack={back} /> : null}
+      {current === "professional" ? (
         <ProfessionalStep data={data} onDone={next} onBack={back} />
       ) : null}
-      {step === "documents" ? <DocumentsStep data={data} onDone={next} onBack={back} /> : null}
-      {step === "summary" ? <SummaryStep data={data} onBack={back} onGoTo={setStep} /> : null}
+      {current === "documents" ? <DocumentsStep data={data} onDone={next} onBack={back} /> : null}
+      {current === "summary" ? <SummaryStep data={data} onBack={back} onGoTo={setStep} /> : null}
     </Shell>
   );
 }

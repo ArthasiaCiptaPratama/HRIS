@@ -10,6 +10,7 @@ import {
   onboardingCompleteness,
   personalSectionSchema,
   professionalSectionSchema,
+  type ReviewSection,
 } from "@hris/shared";
 import type { z } from "zod";
 import type { Actor } from "../../core/access/index.ts";
@@ -28,6 +29,8 @@ import {
   type StorageAdmin,
   UNCONFIGURED_STORAGE,
 } from "../../core/storage.ts";
+import { listOnboardingReviewers } from "../iam/index.ts";
+import { notify } from "../notification/index.ts";
 import * as employeeRepo from "./employee.repository.ts";
 import * as onboardingRepo from "./onboarding.repository.ts";
 import * as repo from "./onboarding-wizard.repository.ts";
@@ -86,17 +89,43 @@ function modeOf(row: repo.SelfRow): { mode: Mode | null; editable: boolean } {
   return { mode: "candidate", editable };
 }
 
+/**
+ * D-045 c: catatan revisi yang sedang berlaku — calon berstatus Perlu revisi, atau karyawan existing
+ * yang kirimannya dikembalikan (keputusan terbaru mode lengkapi = revisi). null = tidak sedang revisi.
+ */
+export function activeRevision(
+  row: repo.SelfRow,
+): { notes: Partial<Record<ReviewSection, string>>; decidedAt: string } | null {
+  const { mode, editable } = modeOf(row);
+  if (!mode || !editable) return null;
+  const latest = row.onboardingReviews.find((r) => r.completion === (mode === "completion"));
+  const current =
+    latest?.decision === "REVISION_REQUESTED" &&
+    (mode === "completion" || row.onboardingStatus === "REVISION_REQUESTED");
+  if (!latest || !current) return null;
+  return {
+    notes: (latest.sectionNotes ?? {}) as Partial<Record<ReviewSection, string>>,
+    decidedAt: latest.decidedAt.toISOString(),
+  };
+}
+
 async function loadMine(ctx: WizardContext) {
   if (!ctx.actor.employeeId) throw new NotFoundError("Akun ini tidak tertaut data karyawan.");
   const row = await repo.loadSelf(ctx.actor.employeeId);
   if (!row) throw new NotFoundError("Data karyawan tidak ditemukan.");
-  return { row, ...modeOf(row) };
+  return { row, ...modeOf(row), revision: activeRevision(row) };
 }
 
-function assertEditable(state: { mode: Mode | null; editable: boolean }) {
+type MineState = Awaited<ReturnType<typeof loadMine>>;
+
+function assertEditable(state: MineState, section?: ReviewSection) {
   if (!state.mode) throw new ForbiddenError("Tidak ada data onboarding yang perlu dilengkapi.");
   if (!state.editable) {
     throw new BusinessRuleError("Data sudah dikirim dan sedang direview; tidak bisa diubah.");
+  }
+  // Revisi: hanya bagian yang diberi catatan reviewer yang terbuka (design §7).
+  if (section && state.revision && !state.revision.notes[section]) {
+    throw new BusinessRuleError("Bagian ini tidak diminta diperbaiki oleh HR.");
   }
 }
 
@@ -159,7 +188,7 @@ function personalOf(row: repo.SelfRow) {
   };
 }
 
-function snapshotOf(row: repo.SelfRow): OnboardingSnapshot {
+export function snapshotOf(row: repo.SelfRow): OnboardingSnapshot {
   return {
     personal: personalOf(row),
     emergency: {
@@ -182,8 +211,22 @@ function snapshotOf(row: repo.SelfRow): OnboardingSnapshot {
 }
 
 export async function getMyOnboarding(ctx: WizardContext) {
-  const { row, mode, editable } = await loadMine(ctx);
-  const storage = storageOf(ctx);
+  const { row } = await loadMine(ctx);
+  return describeOnboarding(row, storageOf(ctx), ctx.actor.accountId);
+}
+
+/**
+ * Tampilan isian onboarding satu karyawan (wizard pemilik & halaman review). `viewerAccountId` = pemilik
+ * data (boleh menghapus dokumen sendiri) — reviewer memberi null.
+ */
+export async function describeOnboarding(
+  row: repo.SelfRow,
+  storage: StorageAdmin,
+  viewerAccountId: string | null,
+) {
+  const { mode, editable: rawEditable } = modeOf(row);
+  const editable = viewerAccountId !== null && rawEditable;
+  const revision = activeRevision(row);
   const [docUrls, photoUrls] = await Promise.all([
     row.documents.length > 0
       ? storage.createSignedUrls(
@@ -203,6 +246,7 @@ export async function getMyOnboarding(ctx: WizardContext) {
     mode,
     editable,
     submittedAt: row.completionSubmittedAt?.toISOString() ?? null,
+    revision,
     personal: personalOf(row),
     emergency: {
       name: row.emergencyContactName,
@@ -244,19 +288,22 @@ export async function getMyOnboarding(ctx: WizardContext) {
       sizeBytes: d.sizeBytes,
       url: docUrls.get(d.storagePath) ?? null,
       // Mode lengkapi: dokumen lama (bukan unggahan sendiri) tidak bisa dihapus sendiri.
-      removable: editable && (mode === "candidate" || d.uploadedBy === ctx.actor.accountId),
+      removable:
+        editable &&
+        (!revision || Boolean(revision.notes.documents)) &&
+        (mode === "candidate" || d.uploadedBy === viewerAccountId),
     })),
     photoUrl: row.photoPath ? (photoUrls.get(row.photoPath) ?? null) : null,
     missing,
   };
 }
-export type MyOnboarding = Awaited<ReturnType<typeof getMyOnboarding>>;
+export type MyOnboarding = Awaited<ReturnType<typeof describeOnboarding>>;
 
 // ── Simpan draf per bagian ──────────────────────────────────────────────────────────────────
 
 export async function saveSection(ctx: WizardContext, section: OnboardingSection, body: unknown) {
   const state = await loadMine(ctx);
-  assertEditable(state);
+  assertEditable(state, section);
   const { row, mode } = state;
   const completion = mode === "completion";
   await employeeRepo.withTransaction(async (tx) => {
@@ -378,7 +425,7 @@ export async function createDocumentUploadUrl(
   input: { type: DocumentType; contentType: (typeof EMPLOYEE_DOCUMENT_MIME_TYPES)[number] },
 ) {
   const state = await loadMine(ctx);
-  assertEditable(state);
+  assertEditable(state, "documents");
   const path = `${documentDir(ctx, state.row.id)}${crypto.randomUUID()}.${EXTENSION[input.contentType]}`;
   const upload = await storageOf(ctx).createSignedUploadUrl(EMPLOYEE_DOCUMENT_BUCKET, path);
   return {
@@ -396,7 +443,7 @@ export async function confirmDocument(
   now = new Date(),
 ) {
   const state = await loadMine(ctx);
-  assertEditable(state);
+  assertEditable(state, "documents");
   const { row, mode } = state;
   // Path wajib milik karyawan ini di lingkungan ini (pola D-037).
   if (!input.path.startsWith(documentDir(ctx, row.id))) {
@@ -456,7 +503,7 @@ export async function confirmDocument(
 
 export async function deleteDocument(ctx: WizardContext, documentId: string, now = new Date()) {
   const state = await loadMine(ctx);
-  assertEditable(state);
+  assertEditable(state, "documents");
   const doc = await repo.findDocument(documentId);
   if (!doc || doc.employeeId !== state.row.id || doc.deletedAt) {
     throw new NotFoundError("Dokumen tidak ditemukan.");
@@ -508,6 +555,18 @@ export async function submitMyOnboarding(ctx: WizardContext, now = new Date()) {
       },
       tx,
     );
+  });
+  // Setelah commit; notify() tidak pernah melempar. Tanpa data sensitif (nama & nomor induk saja).
+  const reviewers = await listOnboardingReviewers(state.row.companyId);
+  await notify({
+    recipients: reviewers.filter((r) => r.accountId !== ctx.actor.accountId),
+    type: "employee.onboarding_submitted",
+    title: "Data onboarding menunggu review",
+    body: `${state.row.fullName} (${state.row.employeeNumber}) mengirim data ${
+      state.mode === "candidate" ? "calon karyawan" : "kelengkapan karyawan"
+    } untuk diperiksa.`,
+    link: `/penerimaan/${state.row.id}`,
+    email: true,
   });
   return getMyOnboarding(ctx);
 }

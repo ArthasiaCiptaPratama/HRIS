@@ -294,3 +294,22 @@ export async function findAccountsForEmployees(employeeIds: string[]) {
     select: { id: true, employeeId: true, email: true, lastLoginAt: true, isActive: true },
   });
 }
+
+/** D-047: penerima notifikasi review onboarding — HR_ADMIN aktif ber-grant aktif di PT itu. */
+export async function findOnboardingReviewerHrs(companyId: string, now: Date) {
+  return getPrisma().account.findMany({
+    where: {
+      role: "HR_ADMIN",
+      isActive: true,
+      companies: { some: { companyId } },
+      grants: {
+        some: {
+          permission: "EMPLOYEE_ONBOARDING_REVIEW",
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      },
+    },
+    select: { id: true, email: true },
+  });
+}

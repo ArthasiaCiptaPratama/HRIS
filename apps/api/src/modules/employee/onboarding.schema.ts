@@ -4,6 +4,8 @@ import {
   ONBOARDING_MAX_ROWS,
   onboardingInvitationStatusSchema,
   onboardingStatusSchema,
+  ptkpStatusSchema,
+  REVIEW_SECTIONS,
 } from "@hris/shared";
 
 // D-045 bagian a: DTO penerimaan karyawan baru (pratinjau, batch, antrean undangan, daftar calon).
@@ -140,6 +142,13 @@ export const myOnboardingSchema = z
     mode: z.enum(["candidate", "completion"]).nullable(),
     editable: z.boolean(),
     submittedAt: z.iso.datetime().nullable(),
+    /** D-045 c: catatan revisi yang berlaku (bagian bertanda saja yang terbuka). */
+    revision: z
+      .object({
+        notes: z.partialRecord(z.enum(REVIEW_SECTIONS), z.string()),
+        decidedAt: z.iso.datetime(),
+      })
+      .nullable(),
     personal: z.object({
       fullName: z.string(),
       gender: nullableString,
@@ -242,3 +251,42 @@ export const documentConfirmBodySchema = z
   .openapi("DocumentConfirmBody");
 
 export const documentIdParamSchema = z.object({ id: z.uuid() });
+
+// ── D-045 c: review ─────────────────────────────────────────────────────────────────────────────
+
+export const onboardingReviewSchema = myOnboardingSchema
+  .extend({
+    reviewMode: z.enum(["candidate", "completion"]),
+    employeeNumber: z.string(),
+    personalEmail: nullableString,
+    work: z.object({
+      companyId: z.uuid(),
+      employmentStatusId: z.uuid(),
+      positionId: z.uuid(),
+      workLocationId: z.uuid().nullable(),
+      gradeId: z.uuid().nullable(),
+      managerId: z.uuid().nullable(),
+      joinDate: z.string(),
+    }),
+    ptkpStatus: ptkpStatusSchema.nullable(),
+    canDecide: z.boolean(),
+    reviews: z.array(
+      z.object({
+        id: z.uuid(),
+        decision: z.enum(["APPROVED", "REVISION_REQUESTED", "CANCELLED"]),
+        completion: z.boolean(),
+        sectionNotes: z.partialRecord(z.enum(REVIEW_SECTIONS), z.string()).nullable(),
+        reason: nullableString,
+        decidedAt: z.iso.datetime(),
+        reviewerEmail: nullableString,
+      }),
+    ),
+  })
+  .openapi("OnboardingReview");
+
+export const decisionResultSchema = z
+  .object({
+    employeeId: z.uuid(),
+    decision: z.enum(["APPROVED", "REVISION_REQUESTED", "CANCELLED"]),
+  })
+  .openapi("OnboardingDecisionResult");

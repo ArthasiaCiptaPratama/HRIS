@@ -105,6 +105,12 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, lazy: pages.onboarding },
               { path: "impor", lazy: pages.onboardingImport },
+              {
+                // D-045 c: review isian calon (SA / HR + grant; cakupan PT dicek API).
+                path: ":employeeId",
+                element: <RequireAccessRoute check={access.reviewOnboarding} />,
+                children: [{ index: true, lazy: pages.onboardingReview }],
+              },
             ],
           },
           {
@@ -116,6 +122,8 @@ export const routes: RouteObject[] = [
               { path: ":kind", lazy: pages.masterData },
             ],
           },
+          // D-045 c: Layanan Mandiri (placeholder sampai Time Management).
+          { path: "ess", lazy: pages.ess },
           { path: "notifikasi", Component: NotificationsPage },
           { path: "profil", Component: ProfilePage },
           { path: "*", Component: NotFoundPage },

@@ -237,3 +237,37 @@ export async function activateIfInvited(employeeId: string) {
     return count > 0;
   });
 }
+
+// ── D-045 c: review ─────────────────────────────────────────────────────────────────────────────
+
+export async function createReview(
+  tx: EmployeeTx,
+  data: {
+    employeeId: string;
+    decision: "APPROVED" | "REVISION_REQUESTED" | "CANCELLED";
+    reviewerAccountId: string;
+    sectionNotes: Record<string, string> | null;
+    reason: string | null;
+    completion: boolean;
+    decidedAt: Date;
+  },
+) {
+  const { sectionNotes, ...rest } = data;
+  return tx.onboardingReview.create({
+    data: { ...rest, ...(sectionNotes ? { sectionNotes } : {}) },
+    select: { id: true },
+  });
+}
+
+/** PTKP ditetapkan reviewer saat menyetujui (calon tidak mengisinya sendiri). */
+export async function setPtkpStatus(
+  tx: EmployeeTx,
+  employeeId: string,
+  ptkpStatus: Prisma.EmployeePersonalUncheckedCreateInput["ptkpStatus"],
+) {
+  return tx.employeePersonal.upsert({
+    where: { employeeId },
+    create: { employeeId, ptkpStatus },
+    update: { ptkpStatus },
+  });
+}

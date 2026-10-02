@@ -1,4 +1,10 @@
-import { onboardingInvitationStatusSchema, onboardingStatusSchema } from "@hris/shared";
+import {
+  ONBOARDING_DECISIONS,
+  onboardingInvitationStatusSchema,
+  onboardingStatusSchema,
+  ptkpStatusSchema,
+  REVIEW_SECTIONS,
+} from "@hris/shared";
 import { z } from "zod";
 
 // D-045 bagian a: bentuk respons API penerimaan (sama dengan onboarding.schema.ts di api).
@@ -86,6 +92,14 @@ export const myOnboardingSchema = z.object({
   mode: z.enum(["candidate", "completion"]).nullable(),
   editable: z.boolean(),
   submittedAt: ns,
+  // D-045 c: catatan revisi yang berlaku (hanya bagian bertanda yang terbuka).
+  revision: z
+    .object({
+      notes: z.partialRecord(z.enum(REVIEW_SECTIONS), z.string()),
+      decidedAt: z.string(),
+    })
+    .nullable()
+    .default(null),
   personal: z.object({
     fullName: z.string(),
     gender: ns,
@@ -144,6 +158,36 @@ export const myOnboardingSchema = z.object({
   missing: z.array(z.object({ section: z.string(), field: z.string(), message: z.string() })),
 });
 export type MyOnboarding = z.infer<typeof myOnboardingSchema>;
+
+// D-045 c: halaman review (SA / HR + grant).
+export const onboardingReviewSchema = myOnboardingSchema.extend({
+  reviewMode: z.enum(["candidate", "completion"]),
+  employeeNumber: z.string(),
+  personalEmail: ns,
+  work: z.object({
+    companyId: z.string(),
+    employmentStatusId: z.string(),
+    positionId: z.string(),
+    workLocationId: ns,
+    gradeId: ns,
+    managerId: ns,
+    joinDate: z.string(),
+  }),
+  ptkpStatus: ptkpStatusSchema.nullable(),
+  canDecide: z.boolean(),
+  reviews: z.array(
+    z.object({
+      id: z.string(),
+      decision: z.enum(ONBOARDING_DECISIONS),
+      completion: z.boolean(),
+      sectionNotes: z.partialRecord(z.enum(REVIEW_SECTIONS), z.string()).nullable(),
+      reason: ns,
+      decidedAt: z.string(),
+      reviewerEmail: ns,
+    }),
+  ),
+});
+export type OnboardingReview = z.infer<typeof onboardingReviewSchema>;
 
 export const documentUploadUrlSchema = z.object({
   bucket: z.string(),

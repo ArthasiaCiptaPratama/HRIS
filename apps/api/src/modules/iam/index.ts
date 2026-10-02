@@ -18,6 +18,7 @@ export {
   type IamEmployeeScope,
   inviteEmployeeAccount,
   listManagerEmployeeIds,
+  listOnboardingReviewers,
   loadActor,
   notifyExpiringGrants,
   provisionAccount,

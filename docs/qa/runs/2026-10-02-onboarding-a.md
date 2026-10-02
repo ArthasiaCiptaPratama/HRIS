@@ -32,3 +32,18 @@
 
 **Belum:** bucket `employee-documents` di Supabase staging (butuh `storage:setup`), uji browser.
 
+
+## Tambahan — bagian c1 (review HR, keputusan, notifikasi, ESS)
+- Test ditulis dulu & merah (policy `canReviewOnboarding`, `onboardingDecisionSchema`) → hijau. `bun run test` ✔ (shared 104 · api 434 · web 121) · typecheck ✔ · biome ✔ (285 file) · boundaries ✔ (250 modul) · `db:check` ✔ · build ✔.
+
+| ID | Hasil | Bukti |
+|---|---|---|
+| TC-EMP-109 | LULUS | INT `onboarding-review.test.ts` "akses review" (4), POL "D-047 review onboarding", WEB (HR tanpa grant) |
+| TC-EMP-110 | LULUS | INT "setujui", WEB (dialog Setujui → `{decision, ptkpStatus}`) |
+| TC-EMP-111 | LULUS | INT "minta revisi", WEB (dialog revisi; wizard hanya langkah bertanda + catatan) |
+| TC-EMP-112 | LULUS | INT "batalkan" (AuthAdmin tiruan mencatat ban) |
+| TC-EMP-113 | LULUS | INT "karyawan existing" |
+| TC-EMP-114 | LULUS | INT "input divalidasi", "belum dikirim", "master data tidak valid" |
+| TC-EMP-115 | BELUM | manual (browser) |
+
+**Belum diverifikasi:** browser, email sungguhan. c1 **tidak dirilis tanpa c2**.

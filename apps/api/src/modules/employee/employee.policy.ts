@@ -122,3 +122,14 @@ export function canRunOnboarding(actor: Actor): boolean {
 export function canOnboardInCompany(actor: Actor, companyId: string): boolean {
   return canCreateInCompany(actor, companyId);
 }
+
+// D-047: review & keputusan data onboarding — SUPER_ADMIN; HR_ADMIN hanya dengan grant
+// `employee.onboarding.review` dan untuk PT yang ditugaskan (D-040). Termasuk melihat data sensitif calon.
+export function canReviewOnboarding(actor: Actor, companyId: string): boolean {
+  if (actor.role === ROLE.SUPER_ADMIN) return true;
+  return (
+    actor.role === ROLE.HR_ADMIN &&
+    hasPermission(actor, "employee.onboarding.review") &&
+    isInCompanyScope(actor, { companyId })
+  );
+}

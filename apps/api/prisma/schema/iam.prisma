@@ -12,14 +12,16 @@ enum Role {
 
 // PLAN §4.2: daftar tetap; harus sama dengan PERMISSIONS di packages/shared/src/permissions.ts.
 enum Permission {
-  EMPLOYEE_PERSONAL_READ   @map("employee.personal.read")
-  EMPLOYEE_PERSONAL_WRITE  @map("employee.personal.write")
-  EMPLOYEE_BANK_READ       @map("employee.bank.read")
-  EMPLOYEE_BANK_WRITE      @map("employee.bank.write")
-  EMPLOYEE_DOCUMENTS_READ  @map("employee.documents.read")
-  EMPLOYEE_DOCUMENTS_WRITE @map("employee.documents.write")
-  CONTRACT_MANAGE          @map("contract.manage")
-  PAYROLL_PERIOD_PREPARE   @map("payroll.period.prepare")
+  EMPLOYEE_PERSONAL_READ     @map("employee.personal.read")
+  EMPLOYEE_PERSONAL_WRITE    @map("employee.personal.write")
+  EMPLOYEE_BANK_READ         @map("employee.bank.read")
+  EMPLOYEE_BANK_WRITE        @map("employee.bank.write")
+  EMPLOYEE_DOCUMENTS_READ    @map("employee.documents.read")
+  EMPLOYEE_DOCUMENTS_WRITE   @map("employee.documents.write")
+  CONTRACT_MANAGE            @map("contract.manage")
+  PAYROLL_PERIOD_PREPARE     @map("payroll.period.prepare")
+  // D-047: review data onboarding calon.
+  EMPLOYEE_ONBOARDING_REVIEW @map("employee.onboarding.review")
 
   @@schema("iam")
 }

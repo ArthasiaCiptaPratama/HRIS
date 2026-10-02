@@ -5,6 +5,7 @@ import {
   BriefcaseBusiness,
   Building2,
   ChartColumn,
+  Clock,
   Contact,
   FileClock,
   FileUp,
@@ -295,7 +296,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Akun Saya",
     icon: UserRound,
     to: "/profil",
-    match: (p) => p.startsWith("/profil") || p.startsWith("/notifikasi"),
+    match: (p) => p.startsWith("/profil") || p.startsWith("/notifikasi") || p.startsWith("/ess"),
     visible: () => true,
     inTopNav: false,
     sections: [
@@ -305,6 +306,13 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           { id: "profile", label: "Profil", to: "/profil", icon: UserRound },
           { id: "notifications", label: "Notifikasi", to: "/notifikasi", icon: Bell },
+          {
+            id: "ess",
+            label: "Layanan Mandiri",
+            to: "/ess",
+            icon: Clock,
+            keywords: "ess absensi cuti slip gaji",
+          },
         ],
       },
     ],

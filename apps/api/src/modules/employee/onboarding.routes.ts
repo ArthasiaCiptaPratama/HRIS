@@ -9,6 +9,7 @@ import {
   batchSchema,
   candidateListQuerySchema,
   candidateSchema,
+  decisionResultSchema,
   documentConfirmBodySchema,
   documentIdParamSchema,
   documentUploadUrlBodySchema,
@@ -17,6 +18,7 @@ import {
   inviteExistingBodySchema,
   inviteExistingResultSchema,
   myOnboardingSchema,
+  onboardingReviewSchema,
   previewBodySchema,
   previewResultSchema,
   processResultSchema,
@@ -24,6 +26,7 @@ import {
   statusCountsSchema,
 } from "./onboarding.schema.ts";
 import * as service from "./onboarding.service.ts";
+import * as review from "./onboarding-review.service.ts";
 import * as wizard from "./onboarding-wizard.service.ts";
 
 // D-045 bagian a: Penerimaan Karyawan Baru (SA semua PT, HR PT ditugaskan — policy di service).
@@ -228,6 +231,40 @@ const wizardRoutes = {
   }),
 };
 
+// D-045 c: review (SA, atau HR_ADMIN ber-grant `employee.onboarding.review` di PT calon).
+const reviewRoutes = {
+  detail: createRoute({
+    method: "get",
+    path: `${P}/onboarding/{employeeId}`,
+    tags: TAGS,
+    summary: "Review: isian lengkap + dokumen calon (akses data sensitif diaudit)",
+    security,
+    request: { params: employeeIdParamSchema },
+    responses: {
+      200: json("Review", dataEnvelope(onboardingReviewSchema)),
+      ...errors(401, 403, 404, 500),
+    },
+  }),
+  decide: createRoute({
+    method: "post",
+    path: `${P}/onboarding/{employeeId}/decision`,
+    tags: TAGS,
+    summary: "Review: setujui (+ PTKP, koreksi data kerja) / minta revisi / batalkan penerimaan",
+    security,
+    request: {
+      params: employeeIdParamSchema,
+      body: {
+        content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Keputusan", dataEnvelope(decisionResultSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+};
+
 export function registerOnboardingRoutes(
   app: OpenAPIHono,
   deps: {
@@ -307,5 +344,23 @@ export function registerOnboardingRoutes(
   );
   app.openapi(guard(wizardRoutes.submit), async (c) =>
     c.json(ok(await wizard.submitMyOnboarding(wctx(c))), 200),
+  );
+
+  const reviewDeps = { authAdmin: deps.invitations.authAdmin, storage: deps.storage };
+  app.openapi(guard(reviewRoutes.detail), async (c) =>
+    c.json(ok(await review.getReview(ctx(c), c.req.valid("param").employeeId, reviewDeps)), 200),
+  );
+  app.openapi(guard(reviewRoutes.decide), async (c) =>
+    c.json(
+      ok(
+        await review.decide(
+          ctx(c),
+          c.req.valid("param").employeeId,
+          c.req.valid("json"),
+          reviewDeps,
+        ),
+      ),
+      200,
+    ),
   );
 }
