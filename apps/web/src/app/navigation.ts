@@ -236,7 +236,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Administrasi",
     icon: KeyRound,
     to: "/akun",
-    match: (p) => ["/akun", "/grant", "/audit", "/master-data"].some((base) => p.startsWith(base)),
+    match: (p) =>
+      ["/akun", "/grant", "/audit", "/master-data", "/penerimaan"].some((base) =>
+        p.startsWith(base),
+      ),
     visible: access.listAccounts,
     inTopNav: true,
     sections: [

@@ -77,9 +77,13 @@ interface WorkData {
 
 interface CandidateState {
   row: SourceRow;
+  /** Kosong = ikut data kerja bawaan. */
   positionId: string;
+  /** Kosong = ikut tanggal masuk bawaan. */
   joinDate: string;
   employeeNumber: string;
+  /** true = nomor induk hasil usulan pratinjau (dihapus bila tanggal/PT berubah). */
+  numberSuggested: boolean;
   invite: boolean;
 }
 
@@ -217,9 +221,10 @@ export function OnboardingImportPage() {
     setCandidates(
       chosen.map((row) => ({
         row,
-        positionId: work.positionId,
-        joinDate: work.joinDate,
+        positionId: "",
+        joinDate: "",
         employeeNumber: "",
+        numberSuggested: false,
         invite: true,
       })),
     );
@@ -255,7 +260,7 @@ export function OnboardingImportPage() {
         list.map((c) => {
           const row = result.rows.find((r) => r.sourceRow === c.row.sourceRow);
           return row?.employeeNumber && !c.employeeNumber
-            ? { ...c, employeeNumber: row.employeeNumber }
+            ? { ...c, employeeNumber: row.employeeNumber, numberSuggested: true }
             : c;
         }),
       );
@@ -264,11 +269,27 @@ export function OnboardingImportPage() {
       toast.error(errorMessage(error));
     }
   };
+  /**
+   * Data kerja berubah → pratinjau lama tidak berlaku lagi. Nomor induk usulan bergantung pada tanggal
+   * masuk & PT, jadi ikut dihapus (nomor ketikan pengguna dipertahankan).
+   */
+  const changeWork = (patch: Partial<WorkData>) => {
+    setWork((w) => ({ ...w, ...patch }));
+    setPreview(null);
+    if ("joinDate" in patch || "companyId" in patch) {
+      setCandidates((list) =>
+        list.map((c) =>
+          c.numberSuggested ? { ...c, employeeNumber: "", numberSuggested: false } : c,
+        ),
+      );
+    }
+  };
   const issuesOf = (sourceRow: number) =>
     preview?.rows.find((r) => r.sourceRow === sourceRow)?.issues ?? [];
 
   // ── Langkah 5–6: simpan & progres ─────────────────────────────────────────
   const create = useCreateOnboardingBatch();
+  const inviteCount = candidates.filter((c) => c.invite).length;
   const save = async () => {
     try {
       const batch = await create.mutateAsync({
@@ -467,14 +488,14 @@ export function OnboardingImportPage() {
               id="w-company"
               label="Perusahaan"
               value={work.companyId}
-              onChange={(v) => setWork((w) => ({ ...w, companyId: v }))}
+              onChange={(v) => changeWork({ companyId: v })}
               options={scope.companies.map((c) => ({ value: c.id, label: c.code, hint: c.name }))}
             />
             <SelectField
               id="w-status"
               label="Status kepegawaian"
               value={work.employmentStatusId}
-              onChange={(v) => setWork((w) => ({ ...w, employmentStatusId: v }))}
+              onChange={(v) => changeWork({ employmentStatusId: v })}
               options={(master.data?.employmentStatuses ?? []).map((s) => ({
                 value: s.id,
                 label: s.name,
@@ -486,14 +507,14 @@ export function OnboardingImportPage() {
                 id="w-join"
                 type="date"
                 value={work.joinDate}
-                onChange={(e) => setWork((w) => ({ ...w, joinDate: e.target.value }))}
+                onChange={(e) => changeWork({ joinDate: e.target.value })}
               />
             </div>
             <SelectField
               id="w-unit"
               label="Unit organisasi"
               value={work.departmentId}
-              onChange={(v) => setWork((w) => ({ ...w, departmentId: v, positionId: "" }))}
+              onChange={(v) => changeWork({ departmentId: v, positionId: "" })}
               options={(master.data?.departments ?? []).map((d) => ({
                 value: d.id,
                 label: d.name,
@@ -504,7 +525,7 @@ export function OnboardingImportPage() {
               id="w-position"
               label="Jabatan"
               value={work.positionId}
-              onChange={(v) => setWork((w) => ({ ...w, positionId: v }))}
+              onChange={(v) => changeWork({ positionId: v })}
               options={positionsIn(work.departmentId).map((p) => ({ value: p.id, label: p.name }))}
             />
             <SelectField
@@ -512,7 +533,7 @@ export function OnboardingImportPage() {
               label="Lokasi kerja"
               optional
               value={work.workLocationId}
-              onChange={(v) => setWork((w) => ({ ...w, workLocationId: v }))}
+              onChange={(v) => changeWork({ workLocationId: v })}
               options={(master.data?.workLocations ?? []).map((l) => ({
                 value: l.id,
                 label: l.name,
@@ -533,8 +554,10 @@ export function OnboardingImportPage() {
               <tbody className="divide-y">
                 {candidates.map((c, i) => {
                   const issues = issuesOf(c.row.sourceRow);
-                  const update = (patch: Partial<CandidateState>) =>
+                  const update = (patch: Partial<CandidateState>) => {
+                    setPreview(null);
                     setCandidates((list) => list.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                  };
                   const dept = departmentOf(c.positionId || work.positionId) || work.departmentId;
                   return (
                     <tr key={c.row.sourceRow}>
@@ -556,7 +579,14 @@ export function OnboardingImportPage() {
                           type="date"
                           aria-label={`Tanggal masuk ${c.row.fullName}`}
                           value={c.joinDate || work.joinDate}
-                          onChange={(e) => update({ joinDate: e.target.value, employeeNumber: "" })}
+                          onChange={(e) =>
+                            update({
+                              joinDate: e.target.value,
+                              ...(c.numberSuggested
+                                ? { employeeNumber: "", numberSuggested: false }
+                                : {}),
+                            })
+                          }
                         />
                       </td>
                       <td className="min-w-44 p-2">
@@ -565,7 +595,9 @@ export function OnboardingImportPage() {
                           className="font-mono"
                           placeholder="Otomatis saat pratinjau"
                           value={c.employeeNumber}
-                          onChange={(e) => update({ employeeNumber: e.target.value })}
+                          onChange={(e) =>
+                            update({ employeeNumber: e.target.value, numberSuggested: false })
+                          }
                         />
                       </td>
                       <td className="p-2 text-xs">
@@ -663,7 +695,9 @@ export function OnboardingImportPage() {
             <Button variant="brand" disabled={create.isPending} onClick={save}>
               {create.isPending
                 ? "Menyimpan…"
-                : `Simpan & kirim ${candidates.filter((c) => c.invite).length} undangan`}
+                : inviteCount === 0
+                  ? "Simpan tanpa mengirim undangan"
+                  : `Simpan & kirim ${inviteCount} undangan`}
             </Button>
           </div>
         </section>
@@ -711,7 +745,7 @@ function SelectField({
 function ProgressStep({ batchId }: { batchId: string }) {
   const batch = useOnboardingBatch(batchId);
   const process = useProcessInvitations();
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState<"rate" | "error" | null>(null);
   const running = useRef(false);
   const queued = batch.data?.invitations.queued ?? 0;
 
@@ -721,9 +755,9 @@ function ProgressStep({ batchId }: { batchId: string }) {
     const timer = window.setTimeout(async () => {
       try {
         const result = await process.mutateAsync();
-        if (result.rateLimited) setPaused(true);
+        if (result.rateLimited) setPaused("rate");
       } catch {
-        setPaused(true);
+        setPaused("error");
       } finally {
         running.current = false;
         void batch.refetch();
@@ -742,27 +776,39 @@ function ProgressStep({ batchId }: { batchId: string }) {
         {queued === 0 ? <CheckCircle2 className="text-success-soft-foreground" /> : <MailCheck />}
         {createdCount} calon disimpan
       </div>
-      <div>
-        <div className="mb-1 flex justify-between text-sm">
-          <span>Undangan terkirim</span>
-          <span className="tabular-nums">
-            {invitations.sent}/{invitedCount}
-          </span>
-        </div>
-        <div
-          className="bg-muted h-2 overflow-hidden rounded-full"
-          role="progressbar"
-          aria-valuenow={percent}
-        >
-          <div className="bg-brand h-full transition-all" style={{ width: `${percent}%` }} />
-        </div>
-        <p className="text-muted-foreground mt-2 text-sm">
-          Antre {invitations.queued} · Gagal {invitations.failed}
-          {paused && queued > 0
-            ? " · Batas kirim per jam tercapai; sisa dikirim otomatis nanti (boleh tinggalkan halaman)."
-            : ""}
+      {invitedCount === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          Tidak ada undangan yang dikirim. Calon tersimpan dengan status "Belum diundang"; kirim
+          undangan kapan saja dari daftar penerimaan (tombol Undang).
         </p>
-      </div>
+      ) : (
+        <div>
+          <div className="mb-1 flex justify-between text-sm">
+            <span>Undangan terkirim</span>
+            <span className="tabular-nums">
+              {invitations.sent}/{invitedCount}
+            </span>
+          </div>
+          <div
+            className="bg-muted h-2 overflow-hidden rounded-full"
+            role="progressbar"
+            aria-label="Progres pengiriman undangan"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+          >
+            <div className="bg-brand h-full transition-all" style={{ width: `${percent}%` }} />
+          </div>
+          <p className="text-muted-foreground mt-2 text-sm">
+            Antre {invitations.queued} · Gagal {invitations.failed}
+            {paused && queued > 0
+              ? paused === "rate"
+                ? " · Batas kirim per jam tercapai; sisa dikirim otomatis nanti (boleh tinggalkan halaman)."
+                : " · Pengiriman tertunda karena gangguan; sisa dikirim otomatis nanti (boleh tinggalkan halaman)."
+              : ""}
+          </p>
+        </div>
+      )}
       <Button variant="brand" asChild>
         <Link to="/penerimaan">Ke daftar penerimaan</Link>
       </Button>

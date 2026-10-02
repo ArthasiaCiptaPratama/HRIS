@@ -185,7 +185,7 @@ export async function decide(
   const completion = mode === "completion";
   if (input.decision === "CANCELLED" && completion) {
     throw new BusinessRuleError(
-      "Karyawan existing tidak bisa dibatalkan dari sini; gunakan Nonaktifkan karyawan.",
+      "Karyawan terdaftar tidak bisa dibatalkan dari sini; gunakan Nonaktifkan karyawan.",
     );
   }
   if (input.decision === "APPROVED") {
@@ -193,7 +193,7 @@ export async function decide(
     if (missing.length > 0) throw new BusinessRuleError("Data belum lengkap.", missing);
     if (input.work && completion) {
       throw new BusinessRuleError(
-        "Data kerja karyawan existing diubah lewat menu Karyawan (tercatat di riwayat).",
+        "Data kerja karyawan terdaftar diubah lewat menu Karyawan (tercatat di riwayat).",
       );
     }
     if (input.work) await assertWorkRefs(input.work, row);

@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMasterData } from "@/features/employee/api";
+import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { useDecideOnboarding, useOnboardingReview } from "../api";
@@ -61,7 +62,11 @@ export function OnboardingReviewPage() {
   if (review.isError) {
     return (
       <div className="space-y-3">
-        <p>{errorMessage(review.error)}</p>
+        <p>
+          {review.error instanceof ApiError && review.error.status === 404
+            ? "Data ini tidak sedang dalam proses onboarding (mungkin sudah disetujui atau di luar cakupan Anda). Karyawan yang sudah disetujui ada di Data Karyawan."
+            : errorMessage(review.error)}
+        </p>
         <BackLink />
       </div>
     );
@@ -69,7 +74,7 @@ export function OnboardingReviewPage() {
   const data = review.data;
 
   return (
-    <div className="pb-24">
+    <div>
       <PageHeader
         eyebrow={<BackLink />}
         title={data.personal.fullName}
@@ -78,7 +83,7 @@ export function OnboardingReviewPage() {
             <span className="font-mono">{data.employeeNumber}</span>
             <Badge variant="warning">{ONBOARDING_STATUS_LABELS[data.status]}</Badge>
             {data.reviewMode === "completion" ? (
-              <Badge variant="secondary">Karyawan existing — lengkapi data</Badge>
+              <Badge variant="secondary">Karyawan terdaftar — lengkapi data</Badge>
             ) : null}
           </span>
         }
@@ -218,8 +223,9 @@ export function OnboardingReviewPage() {
       </div>
 
       {data.canDecide ? (
-        <div className="bg-background/95 fixed inset-x-0 bottom-0 z-10 border-t backdrop-blur">
-          <div className="mx-auto flex max-w-6xl flex-wrap justify-end gap-2 px-4 py-3">
+        // Menempel di bawah kolom isi (tidak menutupi sidebar).
+        <div className="bg-background/95 sticky bottom-0 z-10 -mx-4 mt-6 border-t backdrop-blur md:-mx-8">
+          <div className="flex flex-wrap justify-end gap-2 px-4 py-3 md:px-8">
             {data.reviewMode === "candidate" ? (
               <Button variant="outline" onClick={() => setDialog("cancel")}>
                 <X /> Batalkan penerimaan

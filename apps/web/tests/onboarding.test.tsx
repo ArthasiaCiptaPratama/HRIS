@@ -194,6 +194,19 @@ describe("Penerimaan Karyawan Baru (D-045)", () => {
     await user.click(await screen.findByRole("option", { name: "Operator" }));
     await user.click(screen.getByRole("button", { name: /Pratinjau & isi nomor induk/ }));
     expect(await screen.findByDisplayValue("25.11.ACP.021")).toBeInTheDocument();
+    // Regresi QA 2026-10-02: ubah tanggal masuk bawaan → semua baris ikut, nomor usulan & pratinjau
+    // lama dibatalkan (nomor induk bergantung pada tanggal masuk).
+    const defaultDate = screen.getByLabelText("Tanggal masuk");
+    await user.clear(defaultDate);
+    await user.type(defaultDate, "2026-12-01");
+    expect(screen.getByLabelText("Tanggal masuk Ani Calon")).toHaveValue("2026-12-01");
+    expect(screen.queryByDisplayValue("25.11.ACP.021")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Lanjut ke konfirmasi/ })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /Pratinjau & isi nomor induk/ }));
+    expect(await screen.findByDisplayValue("25.11.ACP.021")).toBeInTheDocument();
+    const lastPreview = calls.filter((c) => c.path === "/onboarding-batches/preview").at(-1)
+      ?.body as { candidates: { joinDate: string }[] };
+    expect(lastPreview.candidates.map((c) => c.joinDate)).toEqual(["2026-12-01", "2026-12-01"]);
     await user.click(screen.getByRole("button", { name: /Lanjut ke konfirmasi/ }));
 
     // Konfirmasi undangan: lepas centang Budi → disimpan "Belum diundang".
@@ -224,5 +237,5 @@ describe("Penerimaan Karyawan Baru (D-045)", () => {
       { timeout: 4000 },
     );
     expect(await screen.findByText("1/1")).toBeInTheDocument();
-  });
+  }, 15_000);
 });

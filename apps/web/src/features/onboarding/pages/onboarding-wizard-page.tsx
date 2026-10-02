@@ -148,7 +148,10 @@ export function OnboardingWizardPage() {
           </AlertDescription>
         </Alert>
       ) : null}
-      <ol className="my-5 flex gap-1 overflow-x-auto pb-1 text-xs" aria-label="Langkah pengisian">
+      <ol
+        className="my-5 flex gap-1 overflow-x-auto pb-1 text-xs sm:flex-wrap sm:overflow-visible"
+        aria-label="Langkah pengisian"
+      >
         {steps.map((s, i) => {
           const incomplete = missingIn(s.key).length > 0;
           return (

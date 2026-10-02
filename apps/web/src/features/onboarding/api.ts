@@ -157,7 +157,12 @@ export function useDecideOnboarding(employeeId: string) {
         schema: one(z.object({ employeeId: z.string(), decision: z.string() })),
       }).then((r) => r.data),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: onboardingKeys.all });
+      // Data review tidak dimuat ulang: setelah disetujui calon bukan lagi objek onboarding (404).
+      queryClient.removeQueries({ queryKey: onboardingKeys.review(employeeId) });
+      void queryClient.invalidateQueries({
+        queryKey: onboardingKeys.all,
+        predicate: (query) => query.queryKey[1] !== "review",
+      });
       void queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });

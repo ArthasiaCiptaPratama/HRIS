@@ -42,7 +42,7 @@ const column = createColumnHelper<typeof tableFeaturesNone, OnboardingCandidateR
 const col = (def: Parameters<typeof column.display>[0]) =>
   column.display(def) as DataColumn<OnboardingCandidateRow>;
 
-/** Tab yang ditampilkan (Disetujui hanya relevan untuk karyawan existing yang diundang). */
+/** Tab yang ditampilkan (Disetujui hanya relevan untuk karyawan terdaftar yang diundang). */
 const TABS: (OnboardingStatus | "ALL")[] = ["ALL", ...ONBOARDING_STATUSES];
 
 const STATUS_VARIANT: Record<OnboardingStatus, "muted" | "warning" | "success" | "brand"> = {
@@ -221,7 +221,7 @@ export function OnboardingPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setInviteOpen(true)}>
-              <UserPlus /> Undang karyawan existing
+              <UserPlus /> Undang Karyawan Terdaftar
             </Button>
             <Button variant="brand" asChild>
               <Link to="/penerimaan/impor">
@@ -317,7 +317,7 @@ export function OnboardingPage() {
   );
 }
 
-// ── Undang karyawan existing (D-045 poin 9) ──────────────────────────────────────────────────────
+// ── Undang karyawan terdaftar (D-045 poin 9) ──────────────────────────────────────────────────────
 
 function InviteExistingDialog({
   open,
@@ -332,9 +332,11 @@ function InviteExistingDialog({
   const [items, setItems] = useState<{ employeeId: string; name: string; email: string }[]>([]);
   const selected = useEmployee(selectedId, "work", open && Boolean(selectedId));
 
+  // Karyawan yang sudah punya akun login tidak perlu diundang (API juga melewatinya).
+  const hasAccount = Boolean(selected.data?.account);
   const add = () => {
     const value = email.trim().toLowerCase();
-    if (!selectedId || !selected.data) return;
+    if (!selectedId || !selected.data || hasAccount) return;
     if (!/^\S+@\S+\.\S+$/.test(value)) {
       toast.error("Email tidak valid.");
       return;
@@ -370,67 +372,77 @@ function InviteExistingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
+      {/* Footer selalu terlihat: hanya isi dialog yang bergulir. */}
+      <DialogContent className="flex max-h-[92dvh] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Undang karyawan existing</DialogTitle>
+          <DialogTitle>Undang Karyawan Terdaftar</DialogTitle>
           <DialogDescription>
-            Untuk karyawan aktif yang belum punya akun login. Setelah aktivasi, mereka diminta
-            melengkapi data yang masih kosong; data mereka tetap tampil sebagai karyawan aktif.
+            Untuk karyawan aktif yang belum punya akun login. Pilih karyawan, isi email pribadinya,
+            lalu tambahkan ke daftar. Setelah aktivasi, mereka diminta melengkapi data yang masih
+            kosong; data mereka tetap tampil sebagai karyawan aktif.
           </DialogDescription>
         </DialogHeader>
-        <EmployeePicker
-          active
-          selectedId={selectedId}
-          onSelect={(id) => {
-            setSelectedId(id);
-            setEmail("");
-          }}
-          title="Pilih karyawan"
-        />
-        {selectedId ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="invite-existing-email">
-                Email pribadi {selected.data ? `— ${selected.data.fullName}` : ""}
-              </Label>
-              <Input
-                id="invite-existing-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="nama@gmail.com"
-              />
+        <div className="-mx-6 min-h-0 flex-1 space-y-4 overflow-y-auto px-6">
+          <EmployeePicker
+            active
+            selectedId={selectedId}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setEmail("");
+            }}
+            title="Pilih karyawan"
+            className="max-h-72 min-h-0"
+          />
+          {selectedId && hasAccount ? (
+            <p className="text-muted-foreground rounded-lg border border-dashed p-3 text-sm">
+              {selected.data?.fullName} sudah punya akun login — tidak perlu diundang.
+            </p>
+          ) : null}
+          {selectedId && !hasAccount ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="invite-existing-email">
+                  Email pribadi {selected.data ? `— ${selected.data.fullName}` : ""}
+                </Label>
+                <Input
+                  id="invite-existing-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="nama@gmail.com"
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={add} disabled={!selected.data}>
+                Tambah ke daftar
+              </Button>
             </div>
-            <Button type="button" variant="outline" onClick={add}>
-              Tambah ke daftar
-            </Button>
-          </div>
-        ) : null}
-        {items.length > 0 ? (
-          <ul className="divide-y rounded-lg border text-sm" aria-label="Akan diundang">
-            {items.map((item) => (
-              <li
-                key={item.employeeId}
-                className="flex items-center justify-between gap-2 px-3 py-2"
-              >
-                <span>
-                  <span className="font-medium">{item.name}</span>{" "}
-                  <span className="text-muted-foreground">{item.email}</span>
-                </span>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  aria-label={`Hapus ${item.name}`}
-                  onClick={() =>
-                    setItems((list) => list.filter((i) => i.employeeId !== item.employeeId))
-                  }
+          ) : null}
+          {items.length > 0 ? (
+            <ul className="divide-y rounded-lg border text-sm" aria-label="Akan diundang">
+              {items.map((item) => (
+                <li
+                  key={item.employeeId}
+                  className="flex items-center justify-between gap-2 px-3 py-2"
                 >
-                  <X />
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+                  <span>
+                    <span className="font-medium">{item.name}</span>{" "}
+                    <span className="text-muted-foreground">{item.email}</span>
+                  </span>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Hapus ${item.name}`}
+                    onClick={() =>
+                      setItems((list) => list.filter((i) => i.employeeId !== item.employeeId))
+                    }
+                  >
+                    <X />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Batal

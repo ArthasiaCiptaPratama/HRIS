@@ -142,7 +142,7 @@ const routes = {
     method: "post",
     path: `${P}/onboarding/invite-existing`,
     tags: TAGS,
-    summary: "Undang karyawan existing tanpa akun (diminta melengkapi data kosong)",
+    summary: "Undang karyawan terdaftar tanpa akun (diminta melengkapi data kosong)",
     security,
     request: body(inviteExistingBodySchema),
     responses: {

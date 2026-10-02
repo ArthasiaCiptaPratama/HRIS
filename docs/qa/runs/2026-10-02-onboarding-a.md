@@ -57,6 +57,6 @@
 | TC-EMP-117 | LULUS | INT "tanpa LOGIN_EMAIL_DOMAIN", "ubah nomor induk" |
 | TC-EMP-118 | LULUS | WEB `auth-routing.test.tsx` (login NIK, validasi) |
 | TC-EMP-119 | LULUS | INT "lupa password" (3), WEB (lupa password lewat API) |
-| TC-EMP-120 | BELUM | butuh izin: 1 user uji di Supabase Auth staging |
+| TC-EMP-120 | LULUS | staging Auth 2026-10-02 (izin): buat/ganti email `.invalid`, login 200, alamat lama 400, recovery link OK; user uji di-ban |
 
 **Temuan (diperbaiki):** kunci audit `nikLogin` tersaring redaksi → `loginByEmployeeNumber`.
