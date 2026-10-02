@@ -47,3 +47,16 @@
 | TC-EMP-115 | BELUM | manual (browser) |
 
 **Belum diverifikasi:** browser, email sungguhan. c1 **tidak dirilis tanpa c2**.
+
+## Tambahan — bagian c2 (login NIK, lupa password via API)
+- Test ditulis dulu & merah (shared `login.test.ts`) → hijau. `bun run test` ✔ (shared 108 · api 442 · web 122) · typecheck ✔ · biome ✔ (291 file) · boundaries ✔ (252 modul) · `db:check` ✔ · build ✔.
+
+| ID | Hasil | Bukti |
+|---|---|---|
+| TC-EMP-116 | LULUS | INT `iam/login-nik.test.ts` "email Auth diganti", "Supabase gagal" (AuthAdmin tiruan) |
+| TC-EMP-117 | LULUS | INT "tanpa LOGIN_EMAIL_DOMAIN", "ubah nomor induk" |
+| TC-EMP-118 | LULUS | WEB `auth-routing.test.tsx` (login NIK, validasi) |
+| TC-EMP-119 | LULUS | INT "lupa password" (3), WEB (lupa password lewat API) |
+| TC-EMP-120 | BELUM | butuh izin: 1 user uji di Supabase Auth staging |
+
+**Temuan (diperbaiki):** kunci audit `nikLogin` tersaring redaksi → `loginByEmployeeNumber`.

@@ -2,6 +2,7 @@
 export { type EmployeeRouteDeps, registerEmployeeRoutes } from "./employee.routes.ts";
 export type { EmployeeDetail, EmployeeListItem } from "./employee.schema.ts";
 export {
+  employeeLoginDirectory,
   employeeMasterDataSupport,
   employeeScopeForIam,
   withEmployeeCompanyScope,

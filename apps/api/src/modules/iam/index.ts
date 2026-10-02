@@ -25,3 +25,9 @@ export {
   type RequestContext,
   recoverPrimarySuperAdmin,
 } from "./iam.service.ts";
+export {
+  applyNikLogin,
+  type LoginContactDirectory,
+  type NikLoginDeps,
+  type NikLoginOutcome,
+} from "./login.service.ts";

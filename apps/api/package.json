@@ -18,7 +18,8 @@
     "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts",
     "recover:primary-admin": "bun --env-file=../../.env scripts/recover-primary-admin.ts",
     "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts",
-    "storage:setup": "bun --env-file=../../.env scripts/setup-storage.ts"
+    "storage:setup": "bun --env-file=../../.env scripts/setup-storage.ts",
+    "auth:migrate-login-nik": "bun --env-file=../../.env scripts/migrate-login-nik.ts"
   },
   "dependencies": {
     "@hono/swagger-ui": "0.6.1",

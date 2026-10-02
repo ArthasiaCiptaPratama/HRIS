@@ -40,6 +40,8 @@ export interface EmployeeRouteDeps {
   storagePathPrefix?: string;
   /** D-045: undangan aktivasi (tautan kembali ke web, batas per jam). */
   invitations?: OnboardingInvitationDeps;
+  /** D-048: domain alamat login NIK lingkungan ini (kosong = nonaktif). */
+  loginEmailDomain?: string | undefined;
 }
 
 const P = API_BASE_PATH;
@@ -234,6 +236,7 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     ...ctxOf(c),
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
+    nikLogin: { authAdmin: deps.authAdmin, domain: deps.loginEmailDomain },
   });
 
   // D-042: import karyawan (/employee-imports/*).
@@ -242,6 +245,7 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     protect: deps.protect,
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
+    loginEmailDomain: deps.loginEmailDomain,
     invitations: deps.invitations ?? {
       authAdmin: deps.authAdmin,
       redirectTo: "http://localhost:5173/auth/callback",

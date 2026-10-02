@@ -311,3 +311,33 @@ export async function reassignMasterRef(
   }
   return { employees: employees.count, histories };
 }
+
+// ── D-048: lupa password (dipakai iam lewat employeeLoginDirectory) ──────────────────────────
+
+/** Karyawan disetujui berdasarkan nomor induk (tanpa beda huruf besar/kecil). */
+export async function findApprovedIdByNumber(employeeNumber: string) {
+  const row = await getPrisma().employee.findFirst({
+    where: {
+      employeeNumber: { equals: employeeNumber, mode: "insensitive" },
+      onboardingStatus: "APPROVED",
+    },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
+export async function findIdByPersonalEmail(email: string) {
+  const row = await getPrisma().employee.findUnique({
+    where: { personalEmail: email },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
+export async function findPersonalEmail(id: string) {
+  const row = await getPrisma().employee.findUnique({
+    where: { id },
+    select: { personalEmail: true },
+  });
+  return row?.personalEmail ?? null;
+}

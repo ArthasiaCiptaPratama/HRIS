@@ -15,6 +15,13 @@ export interface AuthAdmin {
   sendPasswordSetupEmail(email: string, redirectTo: string): Promise<void>;
   /** PLAN §3.2.7: user Auth tidak dihapus; akun nonaktif di-ban agar tidak bisa login. */
   setBanned(userId: string, banned: boolean): Promise<void>;
+  /**
+   * D-048: ganti email login user Auth (alamat turunan NIK) tanpa konfirmasi & tanpa mengirim email
+   * ke alamat baru (`email_confirm: true`).
+   */
+  updateUserEmail(userId: string, email: string): Promise<void>;
+  /** D-048: tautan atur ulang password (recovery) — dikirim aplikasi ke email pribadi, bukan Supabase. */
+  generateRecoveryLink(email: string, redirectTo: string): Promise<string>;
 }
 
 // Durasi ban "selamanya" (± 100 tahun); dibuka dengan "none".
@@ -64,6 +71,23 @@ export function createSupabaseAdmin(supabaseUrl: string, serviceRoleKey: string)
       });
       if (error) throw new Error(`Supabase updateUserById failed: ${error.message}`);
     },
+
+    async updateUserEmail(userId, email) {
+      const { error } = await auth.updateUserById(userId, { email, email_confirm: true });
+      if (error) throw new Error(`Supabase updateUserById(email) failed: ${error.message}`);
+    },
+
+    async generateRecoveryLink(email, redirectTo) {
+      const { data, error } = await auth.generateLink({
+        type: "recovery",
+        email,
+        options: { redirectTo },
+      });
+      const link = data?.properties?.action_link;
+      if (error || !link)
+        throw new Error(`Supabase generateLink failed: ${error?.message ?? "no link"}`);
+      return link;
+    },
   };
 }
 
@@ -74,6 +98,8 @@ export const UNCONFIGURED_AUTH_ADMIN: AuthAdmin = {
   createConfirmedUser: notConfigured,
   sendPasswordSetupEmail: notConfigured,
   setBanned: notConfigured,
+  updateUserEmail: notConfigured,
+  generateRecoveryLink: notConfigured,
 };
 
 async function notConfigured(): Promise<never> {

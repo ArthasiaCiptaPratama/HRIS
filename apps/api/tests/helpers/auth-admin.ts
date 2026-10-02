@@ -7,6 +7,9 @@ export function createFakeAuthAdmin() {
   const passwordSetup: string[] = [];
   const failInviteFor = new Set<string>();
   const banned = new Map<string, boolean>();
+  const emailChanges: { userId: string; email: string }[] = [];
+  const recoveryLinks: string[] = [];
+  let failEmailUpdate = false;
   let failBan = false;
 
   const admin: AuthAdmin = {
@@ -33,6 +36,14 @@ export function createFakeAuthAdmin() {
       if (failBan) throw new Error("fake ban failure");
       banned.set(userId, isBanned);
     },
+    async updateUserEmail(userId, email) {
+      if (failEmailUpdate) throw new Error("fake email update failure");
+      emailChanges.push({ userId, email });
+    },
+    async generateRecoveryLink(email, redirectTo) {
+      recoveryLinks.push(email.toLowerCase());
+      return `https://auth.test/recover?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(redirectTo)}`;
+    },
   };
 
   return {
@@ -40,6 +51,13 @@ export function createFakeAuthAdmin() {
     invited,
     passwordSetup,
     banned,
+    /** D-048: email Auth yang diganti (alamat turunan NIK). */
+    emailChanges,
+    /** D-048: email Auth yang dibuatkan tautan recovery. */
+    recoveryLinks,
+    setFailEmailUpdate(value: boolean) {
+      failEmailUpdate = value;
+    },
     /** Undangan ke email ini gagal (uji antrean FAILED). */
     failInviteFor(email: string) {
       failInviteFor.add(email.toLowerCase());

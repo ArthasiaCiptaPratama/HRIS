@@ -6,6 +6,7 @@ import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
+import { completeData } from "../../helpers/onboarding.ts";
 import { createFakeStorage } from "../../helpers/storage.ts";
 
 // D-045 c / D-047: review isian onboarding — akses (SA / HR + grant di PT), keputusan setujui
@@ -54,69 +55,6 @@ const ids = {
   filling: "",
   existing: "",
 };
-
-/** Isian lengkap (lolos onboardingCompleteness) langsung di DB — wizard diuji di onboarding-wizard.test. */
-const digits16 = () =>
-  `62${Array.from({ length: 14 }, () => Math.floor(Math.random() * 10)).join("")}`;
-
-async function completeData(employeeId: string, accountId: string) {
-  const ktpNumber = digits16();
-  await prisma.employee.update({
-    where: { id: employeeId },
-    data: {
-      gender: "FEMALE",
-      phoneNumber: "081234567890",
-      emergencyContactName: "Budi",
-      emergencyContactRelationship: "Ayah",
-      emergencyPhone: "081298765432",
-      photoPath: `employees/${employeeId}/photo.jpg`,
-      personal: {
-        upsert: {
-          create: {
-            birthPlace: "Palangka Raya",
-            birthDate: new Date("2001-02-03T00:00:00.000Z"),
-            ktpNumber,
-            kkNumber: digits16(),
-            religion: "ISLAM",
-            maritalStatus: "SINGLE",
-            ktpAddress: "Jl. Contoh 1",
-            domicileAddress: "Jl. Contoh 2",
-            originCity: "Kuala Kapuas",
-            npwpAbsent: true,
-            bpjsEmploymentAbsent: true,
-            bpjsHealthAbsent: true,
-          },
-          update: {
-            birthPlace: "Palangka Raya",
-            birthDate: new Date("2001-02-03T00:00:00.000Z"),
-            kkNumber: digits16(),
-            religion: "ISLAM",
-            maritalStatus: "SINGLE",
-            ktpAddress: "Jl. Contoh 1",
-            domicileAddress: "Jl. Contoh 2",
-            originCity: "Kuala Kapuas",
-            npwpAbsent: true,
-            bpjsEmploymentAbsent: true,
-            bpjsHealthAbsent: true,
-          },
-        },
-      },
-      bankAccount: {
-        create: { bankName: "BRI", accountNumber: "1234567890", accountHolder: "Ani" },
-      },
-      educations: { create: [{ level: "S1", schoolName: "Universitas Contoh" }] },
-      documents: {
-        create: ["KTP", "KK", "DIPLOMA", "BANK_BOOK"].map((type) => ({
-          type: type as "KTP",
-          storagePath: `employees/${employeeId}/documents/${type}.pdf`,
-          mimeType: "application/pdf",
-          sizeBytes: 1000,
-          uploadedBy: accountId,
-        })),
-      },
-    },
-  });
-}
 
 beforeAll(async () => {
   ids.company = await acpCompanyId();

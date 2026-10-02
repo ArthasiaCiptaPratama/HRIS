@@ -25,13 +25,16 @@ export type Me = z.infer<typeof meSchema>;
 
 export const meResponseSchema = z.object({ data: meSchema });
 
+// D-048: satu kolom "NIK atau email" (dipetakan ke email Supabase di halaman login).
 export const loginFormSchema = z.object({
-  email: z.email("Email tidak valid."),
+  identifier: z.string().trim().min(1, "Isi NIK atau email."),
   password: z.string().min(1, "Password wajib diisi."),
 });
 export type LoginForm = z.infer<typeof loginFormSchema>;
 
-export const forgotPasswordFormSchema = z.object({ email: z.email("Email tidak valid.") });
+export const forgotPasswordFormSchema = z.object({
+  identifier: z.string().trim().min(1, "Isi NIK atau email.").max(254),
+});
 export type ForgotPasswordForm = z.infer<typeof forgotPasswordFormSchema>;
 
 // Minimal 12 karakter, sama dengan script bootstrap (PLAN §4.4).

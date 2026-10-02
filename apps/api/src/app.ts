@@ -28,6 +28,7 @@ import {
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
 import {
+  employeeLoginDirectory,
   employeeMasterDataSupport,
   employeeScopeForIam,
   processOnboardingInvitations,
@@ -53,6 +54,8 @@ export interface AppDeps {
   cronSecret: string | undefined;
   /** D-045: batas undangan aktivasi per jam. */
   onboardingInvitesPerHour: number;
+  /** D-048: domain alamat login NIK (per lingkungan; kosong = nonaktif). */
+  loginEmailDomain: string | undefined;
 }
 
 // Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
@@ -146,6 +149,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
     onboardingInvitesPerHour:
       overrides.onboardingInvitesPerHour ?? getEnv().ONBOARDING_INVITES_PER_HOUR,
+    loginEmailDomain:
+      "loginEmailDomain" in overrides ? overrides.loginEmailDomain : getEnv().LOGIN_EMAIL_DOMAIN,
   };
   // D-045: undangan aktivasi kembali ke /auth/callback web (atur password).
   const invitations = {
@@ -205,7 +210,16 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     loadActor(deps.actorLoader),
     enforceOnboardingLock(),
   ];
-  registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
+  registerIamRoutes(app, {
+    protect,
+    authAdmin: deps.authAdmin,
+    appUrl: deps.appUrl,
+    passwordReset: {
+      emailSender: deps.emailSender,
+      directory: employeeLoginDirectory,
+      logger: deps.logger,
+    },
+  });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
   registerEmployeeRoutes(app, {
@@ -214,6 +228,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
     invitations,
+    loginEmailDomain: deps.loginEmailDomain,
   });
   registerCronRoutes(app, {
     cronSecret: deps.cronSecret,

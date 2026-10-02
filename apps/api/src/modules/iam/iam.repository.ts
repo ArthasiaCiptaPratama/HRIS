@@ -313,3 +313,42 @@ export async function findOnboardingReviewerHrs(companyId: string, now: Date) {
     select: { id: true, email: true },
   });
 }
+
+// ── D-048: login NIK & lupa password ────────────────────────────────────────
+
+/** Akun lain yang sudah memakai alamat ini sebagai email kontak atau email login. */
+export async function findAccountUsingAddress(tx: IamTx, address: string, excludeId: string) {
+  return tx.account.findFirst({
+    where: { id: { not: excludeId }, OR: [{ email: address }, { loginEmail: address }] },
+    select: { id: true },
+  });
+}
+
+export async function setLoginEmail(tx: IamTx, accountId: string, loginEmail: string | null) {
+  return tx.account.update({ where: { id: accountId }, data: { loginEmail } });
+}
+
+export async function findAccountForReset(where: { email: string } | { employeeId: string }) {
+  return getPrisma().account.findFirst({
+    where,
+    select: {
+      id: true,
+      email: true,
+      loginEmail: true,
+      employeeId: true,
+      isActive: true,
+    },
+  });
+}
+
+/** Catat percobaan lalu kembalikan jumlah percobaan sebelumnya dalam jendela waktu (satu transaksi). */
+export async function recordResetAttempt(keyHash: string, since: Date, purgeBefore: Date) {
+  return getPrisma().$transaction(async (tx) => {
+    await tx.passwordResetAttempt.deleteMany({ where: { createdAt: { lt: purgeBefore } } });
+    const previous = await tx.passwordResetAttempt.count({
+      where: { keyHash, createdAt: { gte: since } },
+    });
+    await tx.passwordResetAttempt.create({ data: { keyHash } });
+    return previous;
+  });
+}

@@ -272,6 +272,7 @@ export function registerOnboardingRoutes(
     invitations: service.InvitationDeps;
     storage?: StorageAdmin | undefined;
     storagePathPrefix?: string | undefined;
+    loginEmailDomain?: string | undefined;
   },
 ): void {
   const guard = <R extends object>(route: R) => ({ ...route, middleware: deps.protect });
@@ -346,7 +347,11 @@ export function registerOnboardingRoutes(
     c.json(ok(await wizard.submitMyOnboarding(wctx(c))), 200),
   );
 
-  const reviewDeps = { authAdmin: deps.invitations.authAdmin, storage: deps.storage };
+  const reviewDeps = {
+    authAdmin: deps.invitations.authAdmin,
+    storage: deps.storage,
+    loginEmailDomain: deps.loginEmailDomain,
+  };
   app.openapi(guard(reviewRoutes.detail), async (c) =>
     c.json(ok(await review.getReview(ctx(c), c.req.valid("param").employeeId, reviewDeps)), 200),
   );

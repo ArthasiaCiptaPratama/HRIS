@@ -16,6 +16,7 @@ import type { StorageAdmin } from "../../core/storage.ts";
 import { UNCONFIGURED_STORAGE } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import {
+  applyNikLogin,
   deactivateAccountOfEmployee,
   getAccountSummaries,
   getEmployeeAccountStates,
@@ -36,6 +37,8 @@ import { describeOnboarding, snapshotOf } from "./onboarding-wizard.service.ts";
 export interface ReviewDeps {
   authAdmin: AuthAdmin;
   storage?: StorageAdmin | undefined;
+  /** D-048: domain alamat login NIK (kosong = login NIK nonaktif di lingkungan ini). */
+  loginEmailDomain?: string | undefined;
 }
 
 type Row = wizardRepo.SelfRow;
@@ -196,6 +199,7 @@ export async function decide(
     if (input.work) await assertWorkRefs(input.work, row);
   }
 
+  let nikLogin = false;
   await employeeRepo.withTransaction(async (tx) => {
     let toStatus = row.onboardingStatus;
     if (input.decision === "APPROVED") {
@@ -227,6 +231,14 @@ export async function decide(
           changedBy: ctx.actor.accountId,
         });
       }
+      // D-048: sejak disetujui akun login dengan NIK (email Auth → alamat turunan). Gagal → batal semua.
+      const outcome = await applyNikLogin(
+        row.id,
+        row.employeeNumber,
+        { authAdmin: deps.authAdmin, domain: deps.loginEmailDomain },
+        tx,
+      );
+      nikLogin = outcome === "switched" || outcome === "unchanged";
     } else if (input.decision === "REVISION_REQUESTED") {
       if (completion) {
         await employeeRepo.updateEmployee(tx, row.id, { completionSubmittedAt: null });
@@ -269,7 +281,9 @@ export async function decide(
           ...(input.decision === "REVISION_REQUESTED"
             ? { sections: Object.keys(input.sectionNotes) }
             : {}),
-          ...(input.decision === "APPROVED" ? { workCorrected: Boolean(input.work) } : {}),
+          ...(input.decision === "APPROVED"
+            ? { workCorrected: Boolean(input.work), loginByEmployeeNumber: nikLogin }
+            : {}),
         },
         reason: input.decision === "CANCELLED" ? input.reason : null,
       },
@@ -277,12 +291,12 @@ export async function decide(
     );
   });
 
-  await notifyOwner(row, input);
+  await notifyOwner(row, input, nikLogin);
   return { employeeId: row.id, decision: input.decision };
 }
 
 /** Email + notifikasi ke pemilik data (setelah commit). Tanpa nilai data — hanya nama bagian. */
-async function notifyOwner(row: Row, input: OnboardingDecisionBody) {
+async function notifyOwner(row: Row, input: OnboardingDecisionBody, nikLogin: boolean) {
   const [account] = await getEmployeeAccountStates([row.id]);
   if (!account) return;
   // Tujuan email: email pribadi (setelah login NIK, email akun bukan alamat nyata — D-048).
@@ -291,7 +305,9 @@ async function notifyOwner(row: Row, input: OnboardingDecisionBody) {
     input.decision === "APPROVED"
       ? {
           title: "Data Anda diterima",
-          body: "HR telah menyetujui data Anda. Silakan masuk ke aplikasi Akselerasi Arthasia.",
+          body: nikLogin
+            ? `HR telah menyetujui data Anda. Mulai sekarang masuk ke Akselerasi Arthasia dengan NIK ${row.employeeNumber} dan password Anda (email tidak lagi dipakai untuk masuk).`
+            : "HR telah menyetujui data Anda. Silakan masuk ke aplikasi Akselerasi Arthasia.",
           link: "/ess",
         }
       : input.decision === "REVISION_REQUESTED"

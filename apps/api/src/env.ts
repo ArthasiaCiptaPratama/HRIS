@@ -40,6 +40,18 @@ const envSchema = z
     ONBOARDING_INVITES_PER_HOUR: optionalString
       .transform((value) => (value === undefined ? 25 : Number(value)))
       .pipe(z.number().int().min(1).max(1000)),
+    // D-048: domain alamat login turunan NIK, PER LINGKUNGAN (Auth staging dipakai bersama lokal, D-023):
+    // lokal `dev-<nama>.login.akselerasi.invalid`, staging `stg.login.akselerasi.invalid`. Kosong = login
+    // NIK nonaktif (persetujuan onboarding tidak mengganti email Auth).
+    LOGIN_EMAIL_DOMAIN: optionalString.pipe(
+      z
+        .string()
+        .regex(
+          /^(?=.{3,200}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/,
+          "lowercase hostname, e.g. stg.login.akselerasi.invalid",
+        )
+        .optional(),
+    ),
     // PLAN §3.3: lokal `dev/<nama-developer>/` (bucket staging dipakai bersama); staging/produksi kosong.
     STORAGE_PATH_PREFIX: z
       .string()

@@ -22,10 +22,12 @@ import {
 } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import {
+  applyNikLogin,
   deactivateAccountOfEmployee,
   getAccountLinksForEmployees,
   getAccountSummaries,
   listManagerEmployeeIds,
+  type NikLoginDeps,
 } from "../iam/index.ts";
 import {
   getMasterLookup,
@@ -66,6 +68,8 @@ export interface RequestContext {
   storage?: StorageAdmin | undefined;
   /** PLAN §3.3: prefix path objek (lokal `dev/<nama>/`; staging/produksi kosong). */
   storagePathPrefix?: string | undefined;
+  /** D-048: ubah nomor induk → alamat login NIK ikut diperbarui. */
+  nikLogin?: NikLoginDeps | undefined;
 }
 
 // URL baca foto berlaku singkat: cukup untuk satu sesi melihat halaman; setelahnya diminta ulang.
@@ -127,6 +131,13 @@ export const employeeScopeForIam = {
     const rows = await repository.findManyByIds(employeeIds);
     return new Map(rows.map((row) => [row.id, `${row.fullName} (${row.employeeNumber})`]));
   },
+};
+
+/** D-048: pencarian karyawan untuk lupa password (disuntik ke route iam lewat app.ts). */
+export const employeeLoginDirectory = {
+  employeeIdByNumber: (employeeNumber: string) => repository.findApprovedIdByNumber(employeeNumber),
+  employeeIdByPersonalEmail: (email: string) => repository.findIdByPersonalEmail(email),
+  personalEmailOf: (employeeId: string) => repository.findPersonalEmail(employeeId),
 };
 
 export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
@@ -819,6 +830,14 @@ export async function updateEmployee(
         gradeId: nullable(input.gradeId),
         managerId: nullable(input.managerId),
       });
+      // D-048: nomor induk berubah → alamat login NIK ikut (gagal di Supabase → seluruh perubahan batal).
+      if (
+        input.employeeNumber !== undefined &&
+        input.employeeNumber !== before.employeeNumber &&
+        ctx.nikLogin
+      ) {
+        await applyNikLogin(id, input.employeeNumber, ctx.nikLogin, tx, "refresh");
+      }
       if (companyChanged) {
         // D-039: pindah perusahaan dalam grup tercatat di riwayat.
         await repository.createHistory(tx, {
