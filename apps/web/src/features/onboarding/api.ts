@@ -133,6 +133,20 @@ export function useInviteExisting() {
   });
 }
 
+// ── D-045 d: pulihkan calon batal ─────────────────────────────────────────────────────────────
+
+export function useRestoreOnboarding() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (employeeId: string) =>
+      api(`/onboarding/${employeeId}/restore`, {
+        method: "POST",
+        schema: one(z.object({ employeeId: z.string(), status: z.string() })),
+      }).then((r) => r.data),
+    onSuccess: invalidate,
+  });
+}
+
 // ── D-045 c: review ─────────────────────────────────────────────────────────────────────────────
 
 export function useOnboardingReview(employeeId: string) {

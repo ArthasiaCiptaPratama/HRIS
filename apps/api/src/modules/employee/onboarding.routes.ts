@@ -1,5 +1,5 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
-import { onboardingBatchInputSchema } from "@hris/shared";
+import { onboardingBatchInputSchema, onboardingStatusSchema } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
@@ -245,6 +245,22 @@ const reviewRoutes = {
       ...errors(401, 403, 404, 500),
     },
   }),
+  restore: createRoute({
+    method: "post",
+    path: `${P}/onboarding/{employeeId}/restore`,
+    tags: TAGS,
+    summary:
+      "Pulihkan penerimaan yang dibatalkan (≤ 30 hari) ke status sebelumnya; akun aktif lagi",
+    security,
+    request: { params: employeeIdParamSchema },
+    responses: {
+      200: json(
+        "Dipulihkan",
+        dataEnvelope(z.object({ employeeId: z.uuid(), status: onboardingStatusSchema })),
+      ),
+      ...errors(401, 403, 404, 422, 500),
+    },
+  }),
   decide: createRoute({
     method: "post",
     path: `${P}/onboarding/{employeeId}/decision`,
@@ -354,6 +370,12 @@ export function registerOnboardingRoutes(
   };
   app.openapi(guard(reviewRoutes.detail), async (c) =>
     c.json(ok(await review.getReview(ctx(c), c.req.valid("param").employeeId, reviewDeps)), 200),
+  );
+  app.openapi(guard(reviewRoutes.restore), async (c) =>
+    c.json(
+      ok(await review.restoreCandidate(ctx(c), c.req.valid("param").employeeId, reviewDeps)),
+      200,
+    ),
   );
   app.openapi(guard(reviewRoutes.decide), async (c) =>
     c.json(

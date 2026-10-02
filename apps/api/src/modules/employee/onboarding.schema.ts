@@ -88,6 +88,10 @@ export const candidateSchema = z
       })
       .nullable(),
     account: z.object({ hasLoggedIn: z.boolean() }).nullable(),
+    /** D-045 d: calon Dibatalkan — kapan dibatalkan & batas pemulihan (lalu dihapus permanen). */
+    cancellation: z
+      .object({ cancelledAt: z.iso.datetime(), restorableUntil: z.iso.datetime() })
+      .nullable(),
   })
   .openapi("OnboardingCandidate");
 export type OnboardingCandidateDto = z.infer<typeof candidateSchema>;

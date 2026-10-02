@@ -24,3 +24,6 @@ SA: Penerimaan → Undang Karyawan Terdaftar → Impor calon (unggah → pemetaa
 Tidak bermasalah: kunci akses calon, ringkasan kekurangan, revisi per bagian, notifikasi HR, login NIK, tampilan mobile wizard & review.
 
 **Catatan data uji:** master data sisa test terputus (`Dept/Jab/Status RV 3E04FA`) terlihat di pilihan; dibersihkan bersama data QA. User uji di Auth staging di-ban setelah selesai.
+
+## Tambahan — bagian d (browser)
+HR membatalkan calon 2 → tab Dibatalkan menampilkan "Dihapus permanen dalam 30 hari" + tombol Pulihkan → dialog konfirmasi → status kembali Menunggu review → calon 2 login lagi dan melihat layar menunggu review ✔ (screenshot 50–53). Hapus permanen & pengingat diuji lewat integration (`onboarding-maintenance.test.ts`, TC-EMP-121–123 LULUS).

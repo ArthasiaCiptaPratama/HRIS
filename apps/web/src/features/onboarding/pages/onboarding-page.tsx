@@ -1,6 +1,15 @@
 import { ONBOARDING_STATUS_LABELS, ONBOARDING_STATUSES, type OnboardingStatus } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { ClipboardCheck, FileUp, MailPlus, SearchX, Send, UserPlus, X } from "lucide-react";
+import {
+  ClipboardCheck,
+  FileUp,
+  MailPlus,
+  RotateCcw,
+  SearchX,
+  Send,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -33,6 +42,7 @@ import {
   useOnboardingCandidates,
   useProcessInvitations,
   useResendInvitation,
+  useRestoreOnboarding,
 } from "../api";
 import type { OnboardingCandidateRow } from "../schemas";
 
@@ -78,6 +88,18 @@ export function OnboardingPage() {
   });
   const process = useProcessInvitations();
   const resend = useResendInvitation();
+  const restore = useRestoreOnboarding();
+  const [restoreTarget, setRestoreTarget] = useState<OnboardingCandidateRow | null>(null);
+  const onRestore = async () => {
+    if (!restoreTarget) return;
+    try {
+      await restore.mutateAsync(restoreTarget.id);
+      toast.success(`Penerimaan ${restoreTarget.fullName} dipulihkan.`);
+      setRestoreTarget(null);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
   const counts = list.data?.meta.counts;
   const total = list.data?.meta.total ?? 0;
   const queuedOnPage = (list.data?.data ?? []).some((r) => r.invitation?.status === "QUEUED");
@@ -142,6 +164,11 @@ export function OnboardingPage() {
           {row.original.completionRequired ? (
             <Badge variant="secondary">Lengkapi data</Badge>
           ) : null}
+          {row.original.cancellation ? (
+            <span className="text-muted-foreground w-full text-xs">
+              {daysLeftLabel(row.original.cancellation.restorableUntil)}
+            </span>
+          ) : null}
         </div>
       ),
     }),
@@ -195,6 +222,14 @@ export function OnboardingPage() {
           (r.onboardingStatus === "NOT_INVITED" ||
             r.onboardingStatus === "INVITED" ||
             (r.onboardingStatus === "APPROVED" && r.completionRequired));
+        // D-045 d: pulihkan penerimaan yang dibatalkan (≤ 30 hari, SA / HR + grant review).
+        if (r.cancellation && canReview && daysLeft(r.cancellation.restorableUntil) > 0) {
+          return (
+            <Button size="sm" variant="outline" onClick={() => setRestoreTarget(r)}>
+              <RotateCcw /> Pulihkan
+            </Button>
+          );
+        }
         if (!canInvite) return reviewLink;
         return (
           <div className="flex justify-end gap-2">
@@ -313,8 +348,38 @@ export function OnboardingPage() {
         />
       </ListPanel>
       <InviteExistingDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <Dialog
+        open={restoreTarget !== null}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pulihkan penerimaan</DialogTitle>
+            <DialogDescription>
+              {restoreTarget?.fullName} kembali ke status sebelum dibatalkan dan akunnya aktif lagi.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRestoreTarget(null)}>
+              Batal
+            </Button>
+            <Button variant="brand" disabled={restore.isPending} onClick={onRestore}>
+              Pulihkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+// D-045 d: calon batal dihapus permanen setelah 30 hari kecuali dipulihkan.
+function daysLeft(untilIso: string): number {
+  return Math.ceil((new Date(untilIso).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
+function daysLeftLabel(untilIso: string): string {
+  const days = daysLeft(untilIso);
+  return days > 0 ? `Dihapus permanen dalam ${days} hari` : "Menunggu dihapus permanen";
 }
 
 // ── Undang karyawan terdaftar (D-045 poin 9) ──────────────────────────────────────────────────────

@@ -75,8 +75,15 @@ function mockFetch(role: ReturnType<typeof me>) {
           candidateRow(2, "INVITED", {
             invitation: { status: "SENT", sentAt: "2026-10-02T03:00:00.000Z", errorCode: null },
           }),
+          candidateRow(3, "CANCELLED", {
+            account: { hasLoggedIn: true },
+            cancellation: {
+              cancelledAt: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+              restorableUntil: new Date(Date.now() + 25 * 86_400_000).toISOString(),
+            },
+          }),
         ],
-        meta: { page: 1, pageSize: 20, total: 2, counts },
+        meta: { page: 1, pageSize: 20, total: 3, counts },
       });
     if (path === "/onboarding-batches/preview")
       return json(200, {
@@ -122,6 +129,8 @@ function mockFetch(role: ReturnType<typeof me>) {
         data: { processed: 1, sent: 1, failed: 0, remaining: 0, rateLimited: false },
       });
     }
+    if (path.endsWith("/restore"))
+      return json(200, { data: { employeeId: ID(8), status: "SUBMITTED" } });
     if (path.endsWith("/resend-invitation"))
       return json(200, { data: { employeeId: ID(6), queued: true } });
     return json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
@@ -151,6 +160,21 @@ describe("Penerimaan Karyawan Baru (D-045)", () => {
     await user.click(within(table).getByRole("button", { name: /Undang/ }));
     await waitFor(() =>
       expect(calls.some((c) => c.path === `/onboarding/${ID(6)}/resend-invitation`)).toBe(true),
+    );
+  });
+
+  it("D-045 d: calon batal menampilkan sisa hari & bisa dipulihkan (dengan konfirmasi)", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(me("SUPER_ADMIN", true));
+    renderAt("/penerimaan");
+    expect(await screen.findByText("Dihapus permanen dalam 25 hari")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pulihkan" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Pulihkan" }));
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === "POST" && c.path === `/onboarding/${ID(8)}/restore`),
+      ).toBe(true),
     );
   });
 

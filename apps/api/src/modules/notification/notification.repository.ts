@@ -85,3 +85,12 @@ export async function markEmailRetry(
     },
   });
 }
+
+/** D-045 d: data akun dihapus permanen → notifikasi & antrean email ke alamatnya ikut dihapus. */
+export async function deleteForRecipient(accountId: string, emails: string[]) {
+  const prisma = getPrisma();
+  await prisma.$transaction([
+    prisma.notification.deleteMany({ where: { recipientAccountId: accountId } }),
+    prisma.emailOutbox.deleteMany({ where: { toEmail: { in: emails } } }),
+  ]);
+}

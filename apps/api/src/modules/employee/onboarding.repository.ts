@@ -271,3 +271,55 @@ export async function setPtkpStatus(
     update: { ptkpStatus },
   });
 }
+
+// ── D-045 d: pemulihan, retensi, pengingat ──────────────────────────────────────────────────────
+
+/** Jejak pembatalan terbaru (waktu & status sebelum batal) per calon. */
+export async function latestCancellations(employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
+  return getPrisma().onboardingEvent.findMany({
+    where: { employeeId: { in: employeeIds }, toStatus: "CANCELLED" },
+    orderBy: { occurredAt: "desc" },
+    select: { employeeId: true, fromStatus: true, occurredAt: true },
+  });
+}
+
+/** Calon berstatus Dibatalkan yang pembatalan terakhirnya sebelum `cutoff`. */
+export async function findCancelledBefore(cutoff: Date, take: number) {
+  const rows = await getPrisma().employee.findMany({
+    where: {
+      onboardingStatus: "CANCELLED",
+      onboardingEvents: { some: { toStatus: "CANCELLED", occurredAt: { lt: cutoff } } },
+    },
+    take,
+    select: {
+      id: true,
+      photoPath: true,
+      documents: { select: { storagePath: true } },
+      onboardingEvents: {
+        where: { toStatus: "CANCELLED" },
+        orderBy: { occurredAt: "desc" },
+        take: 1,
+        select: { occurredAt: true },
+      },
+    },
+  });
+  // Dibatalkan lagi setelah dipulihkan → hitung dari pembatalan TERAKHIR.
+  return rows.filter((r) => (r.onboardingEvents[0]?.occurredAt ?? cutoff) < cutoff);
+}
+
+/** Calon masih Diundang yang undangannya terkirim sebelum `cutoff` (pengingat ke HR). */
+export async function findStaleInvited(cutoff: Date, take: number) {
+  return getPrisma().employee.findMany({
+    where: {
+      onboardingStatus: "INVITED",
+      onboardingInvitations: { some: { status: "SENT", sentAt: { lt: cutoff } } },
+    },
+    take,
+    select: { id: true, fullName: true, employeeNumber: true, companyId: true },
+  });
+}
+
+export async function deleteEmployee(tx: EmployeeTx, id: string) {
+  return tx.employee.delete({ where: { id } });
+}

@@ -64,6 +64,11 @@ export const candidateSchema = z.object({
     })
     .nullable(),
   account: z.object({ hasLoggedIn: z.boolean() }).nullable(),
+  // D-045 d: calon Dibatalkan — batas pemulihan sebelum dihapus permanen.
+  cancellation: z
+    .object({ cancelledAt: z.string(), restorableUntil: z.string() })
+    .nullable()
+    .default(null),
 });
 export type OnboardingCandidateRow = z.infer<typeof candidateSchema>;
 

@@ -21,6 +21,7 @@ import {
   getAccountSummaries,
   getEmployeeAccountStates,
   listManagerEmployeeIds,
+  reactivateAccountOfEmployee,
 } from "../iam/index.ts";
 import { notify } from "../notification/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
@@ -328,4 +329,50 @@ async function notifyOwner(row: Row, input: OnboardingDecisionBody, nikLogin: bo
     ...message,
     email: true,
   });
+}
+
+// ── D-045 d: pulihkan calon batal (≤ 30 hari) ─────────────────────────────────────────────────
+
+export const CANCELLED_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export async function restoreCandidate(
+  ctx: OnboardingContext,
+  employeeId: string,
+  deps: ReviewDeps,
+  now = new Date(),
+) {
+  const { row } = await loadForReview(ctx, employeeId);
+  if (row.onboardingStatus !== "CANCELLED") {
+    throw new BusinessRuleError("Hanya penerimaan yang dibatalkan yang bisa dipulihkan.");
+  }
+  const [cancel] = await repo.latestCancellations([row.id]);
+  if (!cancel || now.getTime() - cancel.occurredAt.getTime() > CANCELLED_RETENTION_DAYS * DAY_MS) {
+    throw new BusinessRuleError(
+      `Batas pemulihan ${CANCELLED_RETENTION_DAYS} hari sudah lewat; data akan dihapus permanen.`,
+    );
+  }
+  // Kembali ke status sebelum dibatalkan (umumnya Menunggu review).
+  const toStatus =
+    cancel.fromStatus && cancel.fromStatus !== "CANCELLED" ? cancel.fromStatus : "SUBMITTED";
+  await employeeRepo.withTransaction(async (tx) => {
+    await repo.setStatus(tx, row.id, toStatus);
+    await repo.addEvent(tx, {
+      employeeId: row.id,
+      fromStatus: "CANCELLED",
+      toStatus,
+      actorAccountId: ctx.actor.accountId,
+    });
+    await reactivateAccountOfEmployee(ctx, row.id, { authAdmin: deps.authAdmin }, tx);
+    await writeAudit(
+      {
+        ...auditBase(ctx, row.id),
+        action: "employee.onboarding.restore",
+        before: { status: "CANCELLED" },
+        after: { status: toStatus },
+      },
+      tx,
+    );
+  });
+  return { employeeId: row.id, status: toStatus };
 }

@@ -32,7 +32,9 @@ import {
   employeeMasterDataSupport,
   employeeScopeForIam,
   processOnboardingInvitations,
+  purgeCancelledCandidates,
   registerEmployeeRoutes,
+  remindStaleInvitations,
   withEmployeeCompanyScope,
 } from "./modules/employee/index.ts";
 import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
@@ -234,7 +236,20 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     cronSecret: deps.cronSecret,
     logger: deps.logger,
     // D-045: cadangan pemroses antrean undangan (Vercel Hobby: maks 1×/hari).
-    extraJobs: { "onboarding-invitations": () => processOnboardingInvitations(null, invitations) },
+    // D-045 d: satu cron harian onboarding — hapus calon batal > 30 hari, pengingat undangan > 14 hari,
+    // lalu sisa antrean undangan (Vercel Hobby: maks 1×/hari per cron).
+    extraJobs: {
+      "onboarding-maintenance": async () => ({
+        purge: await purgeCancelledCandidates({
+          authAdmin: deps.authAdmin,
+          storage: deps.storage,
+          anonymousDomain: deps.loginEmailDomain ?? "deleted.akselerasi.invalid",
+          logger: deps.logger,
+        }),
+        reminders: await remindStaleInvitations(),
+        invitations: await processOnboardingInvitations(null, invitations),
+      }),
+    },
   });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));

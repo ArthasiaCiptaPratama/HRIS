@@ -112,6 +112,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Notifikasi "menunggu review" juga sampai ke SA lokal lain — bersihkan.
+  await prisma.notification.deleteMany({
+    where: { type: { startsWith: "employee.onboarding_" }, body: { contains: RUN } },
+  });
   const all = Object.values(ids).filter(Boolean);
   await auth.cleanup();
   await prisma.auditLog.deleteMany({ where: { entityId: { in: all } } });

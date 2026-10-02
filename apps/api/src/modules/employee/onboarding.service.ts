@@ -53,6 +53,8 @@ export interface InvitationDeps {
 }
 
 const PROCESS_BATCH = 10;
+/** D-045 d: calon batal bisa dipulihkan & dihapus permanen setelah 30 hari (design §11). */
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const ISSUE_MESSAGES: Record<string, string> = {
   EMAIL_DUPLICATE_IN_BATCH: "Email pribadi ganda di daftar ini.",
   EMAIL_TAKEN: "Email sudah dipakai karyawan atau akun lain.",
@@ -567,10 +569,15 @@ export async function listCandidates(ctx: OnboardingContext, query: CandidateLis
     repo.countCandidatesByStatus(base),
   ]);
   const ids = rows.map((r) => r.id);
-  const [invitations, accounts] = await Promise.all([
+  const cancelledIds = rows.filter((r) => r.onboardingStatus === "CANCELLED").map((r) => r.id);
+  const [invitations, accounts, cancellations] = await Promise.all([
     repo.latestInvitations(ids),
     getEmployeeAccountStates(ids),
+    repo.latestCancellations(cancelledIds),
   ]);
+  const cancelledAt = new Map<string, Date>();
+  for (const c of cancellations)
+    if (!cancelledAt.has(c.employeeId)) cancelledAt.set(c.employeeId, c.occurredAt);
   const latest = new Map<string, (typeof invitations)[number]>();
   for (const inv of invitations) if (!latest.has(inv.employeeId)) latest.set(inv.employeeId, inv);
   const accountOf = new Map(accounts.map((a) => [a.employeeId, a]));
@@ -600,6 +607,14 @@ export async function listCandidates(ctx: OnboardingContext, query: CandidateLis
             }
           : null,
         account: account ? { hasLoggedIn: account.hasLoggedIn } : null,
+        cancellation: cancelledAt.has(r.id)
+          ? {
+              cancelledAt: (cancelledAt.get(r.id) as Date).toISOString(),
+              restorableUntil: new Date(
+                (cancelledAt.get(r.id) as Date).getTime() + RETENTION_MS,
+              ).toISOString(),
+            }
+          : null,
       };
     }),
     total,

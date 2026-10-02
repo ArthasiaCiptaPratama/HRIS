@@ -352,3 +352,10 @@ export async function recordResetAttempt(keyHash: string, since: Date, purgeBefo
     return previous;
   });
 }
+
+/** D-045 d: hapus permanen akun (grant & penugasan PT ikut). */
+export async function deleteAccount(tx: IamTx, accountId: string) {
+  await tx.permissionGrant.deleteMany({ where: { accountId } });
+  await tx.accountCompany.deleteMany({ where: { accountId } });
+  await tx.account.delete({ where: { id: accountId } });
+}

@@ -22,7 +22,9 @@ export {
   loadActor,
   notifyExpiringGrants,
   provisionAccount,
+  purgeAccountOfEmployee,
   type RequestContext,
+  reactivateAccountOfEmployee,
   recoverPrimarySuperAdmin,
 } from "./iam.service.ts";
 export {

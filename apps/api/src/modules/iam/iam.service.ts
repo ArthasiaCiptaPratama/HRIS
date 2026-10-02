@@ -943,6 +943,56 @@ export async function deactivateAccountOfEmployee(
   return "deactivated";
 }
 
+/** D-045 d: calon dipulihkan → akun calon aktif lagi (+ ban Supabase dibuka), di transaksi pemanggil. */
+export async function reactivateAccountOfEmployee(
+  ctx: RequestContext,
+  employeeId: string,
+  deps: { authAdmin: AuthAdmin },
+  tx: repository.IamTx,
+): Promise<"none" | "already_active" | "reactivated"> {
+  const account = await repository.findAccountByEmployeeId(tx, employeeId);
+  if (!account) return "none";
+  if (account.isActive) return "already_active";
+  await repository.setAccountActive(tx, account.id, true);
+  await writeAudit(
+    {
+      ...auditBase(ctx),
+      action: "iam.account.reactivate",
+      entityType: "iam.account",
+      entityId: account.id,
+      before: { isActive: false },
+      after: { isActive: true, cause: "employee.onboarding.restore" },
+    },
+    tx,
+  );
+  await deps.authAdmin.setBanned(account.authUserId, false);
+  return "reactivated";
+}
+
+/**
+ * D-045 d (design §11): hapus permanen akun calon batal > 30 hari. User Supabase Auth TIDAK dihapus
+ * (PLAN §3.2.7): tetap di-ban & emailnya diganti alamat anonim supaya email pribadi bisa dipakai lagi.
+ * Mengembalikan alamat yang pernah dipakai akun (untuk membersihkan notifikasi/antrean email).
+ */
+export async function purgeAccountOfEmployee(
+  employeeId: string,
+  deps: { authAdmin: AuthAdmin; anonymousDomain: string },
+  tx: repository.IamTx,
+): Promise<{ accountId: string; emails: string[] } | null> {
+  const account = await repository.findAccountByEmployeeId(tx, employeeId);
+  if (!account) return null;
+  await repository.deleteAccount(tx, account.id);
+  await deps.authAdmin.setBanned(account.authUserId, true);
+  await deps.authAdmin.updateUserEmail(
+    account.authUserId,
+    `deleted-${crypto.randomUUID()}@${deps.anonymousDomain}`,
+  );
+  return {
+    accountId: account.id,
+    emails: [account.email, account.loginEmail].filter((e): e is string => Boolean(e)),
+  };
+}
+
 // ── D-045: undangan akun untuk calon/karyawan dari onboarding (dipanggil modul employee) ─────────
 
 export type EmployeeInviteOutcome =

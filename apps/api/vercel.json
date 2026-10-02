@@ -16,7 +16,7 @@
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/cron/onboarding-invitations",
+      "path": "/api/cron/onboarding-maintenance",
       "schedule": "0 3 * * *"
     }
   ]

@@ -8,3 +8,7 @@ export {
   withEmployeeCompanyScope,
 } from "./employee.service.ts";
 export { processInvitations as processOnboardingInvitations } from "./onboarding.service.ts";
+export {
+  purgeCancelledCandidates,
+  remindStaleInvitations,
+} from "./onboarding-maintenance.service.ts";
