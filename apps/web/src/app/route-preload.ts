@@ -38,6 +38,10 @@ export const pages = {
     import("@/features/onboarding/pages/onboarding-import-page").then((m) => ({
       Component: m.OnboardingImportPage,
     })),
+  onboardingWizard: () =>
+    import("@/features/onboarding/pages/onboarding-wizard-page").then((m) => ({
+      Component: m.OnboardingWizardPage,
+    })),
   masterData: () =>
     import("@/features/organization/pages/master-data-page").then((m) => ({
       Component: m.MasterDataPage,

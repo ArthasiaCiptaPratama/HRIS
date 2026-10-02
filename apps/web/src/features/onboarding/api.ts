@@ -1,15 +1,24 @@
-import type {
-  OnboardingBatchInput,
-  OnboardingCandidateInput,
-  OnboardingStatus,
+import {
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_MIME_TYPES,
+  type DocumentType,
+  type OnboardingBatchInput,
+  type OnboardingCandidateInput,
+  type OnboardingSection,
+  type OnboardingStatus,
 } from "@hris/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
+import { authKeys } from "@/features/auth/api";
 import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import {
   batchSchema,
   candidatePageSchema,
+  documentUploadUrlSchema,
   inviteExistingResultSchema,
+  type MyOnboarding,
+  myOnboardingSchema,
   one,
   previewSchema,
   processResultSchema,
@@ -118,5 +127,94 @@ export function useInviteExisting() {
         schema: one(inviteExistingResultSchema),
       }).then((r) => r.data),
     onSuccess: invalidate,
+  });
+}
+
+// ── D-045 b: wizard milik sendiri ───────────────────────────────────────────────────────────────
+// Kunci di bawah "employees" supaya unggah/hapus foto profil (useUploadPhoto) ikut menyegarkannya.
+export const myOnboardingKey = ["employees", "onboarding-me"] as const;
+
+export function useMyOnboarding() {
+  return useQuery({
+    queryKey: myOnboardingKey,
+    queryFn: ({ signal }) =>
+      api("/onboarding/me", { schema: one(myOnboardingSchema), signal }).then((r) => r.data),
+  });
+}
+
+function useRefreshMine() {
+  const queryClient = useQueryClient();
+  return (data?: MyOnboarding) => {
+    if (data) queryClient.setQueryData(myOnboardingKey, data);
+    else void queryClient.invalidateQueries({ queryKey: myOnboardingKey });
+    void queryClient.invalidateQueries({ queryKey: authKeys.me });
+  };
+}
+
+export function useSaveOnboardingSection() {
+  const refresh = useRefreshMine();
+  return useMutation({
+    mutationFn: ({ section, body }: { section: OnboardingSection; body: unknown }) =>
+      api(`/onboarding/me/${section}`, {
+        method: "PUT",
+        body,
+        schema: one(myOnboardingSchema),
+      }).then((r) => r.data),
+    onSuccess: (data) => refresh(data),
+  });
+}
+
+export class DocumentUploadError extends Error {}
+
+export function useUploadDocument() {
+  const refresh = useRefreshMine();
+  return useMutation({
+    mutationFn: async ({ type, file }: { type: DocumentType; file: File }) => {
+      if (!(DOCUMENT_MIME_TYPES as readonly string[]).includes(file.type)) {
+        throw new DocumentUploadError("Format harus PDF, JPG, atau PNG.");
+      }
+      if (file.size > DOCUMENT_MAX_BYTES) {
+        throw new DocumentUploadError("Ukuran maksimal 5 MB.");
+      }
+      const { data: upload } = await api("/onboarding/me/documents/upload-url", {
+        method: "POST",
+        body: { type, contentType: file.type },
+        schema: one(documentUploadUrlSchema),
+      });
+      const { error } = await supabase.storage
+        .from(upload.bucket)
+        .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type });
+      if (error)
+        throw new DocumentUploadError("Dokumen gagal diunggah. Periksa koneksi lalu coba lagi.");
+      return api("/onboarding/me/documents", {
+        method: "POST",
+        body: { type, path: upload.path },
+        schema: one(z.object({ id: z.string() })),
+      });
+    },
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useDeleteDocument() {
+  const refresh = useRefreshMine();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/onboarding/me/documents/${id}`, {
+        method: "DELETE",
+        schema: one(z.object({ id: z.string() })),
+      }),
+    onSuccess: () => refresh(),
+  });
+}
+
+export function useSubmitOnboarding() {
+  const refresh = useRefreshMine();
+  return useMutation({
+    mutationFn: () =>
+      api("/onboarding/me/submit", { method: "POST", schema: one(myOnboardingSchema) }).then(
+        (r) => r.data,
+      ),
+    onSuccess: (data) => refresh(data),
   });
 }

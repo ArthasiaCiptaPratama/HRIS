@@ -10,6 +10,16 @@ export const meSchema = z.object({
   employeeId: z.string().nullable(),
   lastLoginAt: z.string().nullable(),
   grants: z.array(z.object({ permission: permissionSchema, expiresAt: z.string().nullable() })),
+  // D-045 b: status onboarding (locked = calon belum disetujui → hanya wizard).
+  onboarding: z
+    .object({
+      status: z.string(),
+      completionRequired: z.boolean(),
+      submitted: z.boolean(),
+      locked: z.boolean(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Me = z.infer<typeof meSchema>;
 

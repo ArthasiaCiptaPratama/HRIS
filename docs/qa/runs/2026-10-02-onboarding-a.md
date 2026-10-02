@@ -18,3 +18,17 @@
 
 **Kesimpulan:** kriteria otomatis terpenuhi di lokal. **Bug terbuka:** tidak ada.
 **Belum diverifikasi:** browser, email undangan sungguhan (Supabase staging), staging. Bagian a **tidak dirilis sendirian**.
+
+## Tambahan — bagian b (wizard, dokumen, kunci akses)
+- `bun run test` ✔ (shared 98 · api 416 · web 117) · typecheck ✔ · biome ✔ · boundaries ✔ · `db:check` ✔ · build ✔.
+
+| ID | Hasil | Bukti |
+|---|---|---|
+| TC-EMP-104 | LULUS | INT "kunci akses" (2), UNIT daftar izin (12), WEB (calon diarahkan; existing banner) |
+| TC-EMP-105 | LULUS | INT "simpan draf", SH `onboarding-form.test.ts`, WEB (PUT personal) |
+| TC-EMP-106 | LULUS | INT "dokumen" (storage tiruan) |
+| TC-EMP-107 | LULUS | INT "kirim" (422 / Menunggu review), WEB (ringkasan, layar menunggu) |
+| TC-EMP-108 | LULUS | INT "karyawan existing" (2), WEB (field terisi nonaktif) |
+
+**Belum:** bucket `employee-documents` di Supabase staging (butuh `storage:setup`), uji browser.
+

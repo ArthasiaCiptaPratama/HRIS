@@ -42,6 +42,10 @@ export function RequireAuth() {
         : "Tidak dapat memuat akun. Coba muat ulang halaman.";
     return <FullPageMessage>{message}</FullPageMessage>;
   }
+  // D-045 b: calon yang belum disetujui hanya memakai wizard (API juga menolak endpoint lain).
+  if (me.data.onboarding?.locked && !location.pathname.startsWith("/onboarding")) {
+    return <Navigate to="/onboarding" replace />;
+  }
   return <Outlet />;
 }
 

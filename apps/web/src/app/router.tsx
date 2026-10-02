@@ -32,6 +32,8 @@ export const routes: RouteObject[] = [
     HydrateFallback: RouteHydrateFallback,
     ErrorBoundary: ErrorPage,
     children: [
+      // D-045 b: wizard isi data (halaman mandiri; calon terkunci di sini sampai disetujui).
+      { path: "/onboarding", lazy: pages.onboardingWizard },
       {
         path: "/",
         Component: AppLayout,

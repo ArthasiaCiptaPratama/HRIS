@@ -6,3 +6,4 @@
 - **Lingkungan:** lokal Linux — PostgreSQL 17 (DB `hris`), bun test + Vitest. Browser belum.
 - **Kriteria lulus:** semua P1 & P2 otomatis LULUS; typecheck, lint, boundaries, `db:check`, seluruh test, build hijau.
 - **Suite:** [cases/employee.md](../cases/employee.md) TC-EMP-096 s.d. TC-EMP-103.
+- **Tambahan bagian b (2026-10-02):** wizard isi data (draf, validasi, kelengkapan), dokumen (bucket private, path berprefix, ganti versi), kirim, kunci akses calon (API + web), mode lengkapi karyawan existing (hanya field kosong, tidak dikunci). Suite: TC-EMP-104 s.d. TC-EMP-108.
