@@ -14,6 +14,18 @@ describe("parseEnv", () => {
     expect(env.SUPABASE_URL).toBe("https://project.supabase.co");
   });
 
+  test("D-045: ONBOARDING_INVITES_PER_HOUR kosong → 25; angka dipakai; 0/bukan angka ditolak", () => {
+    expect(parseEnv({ ...BASE }).ONBOARDING_INVITES_PER_HOUR).toBe(25);
+    expect(parseEnv({ ...BASE, ONBOARDING_INVITES_PER_HOUR: "" }).ONBOARDING_INVITES_PER_HOUR).toBe(
+      25,
+    );
+    expect(
+      parseEnv({ ...BASE, ONBOARDING_INVITES_PER_HOUR: "10" }).ONBOARDING_INVITES_PER_HOUR,
+    ).toBe(10);
+    expect(() => parseEnv({ ...BASE, ONBOARDING_INVITES_PER_HOUR: "0" })).toThrow();
+    expect(() => parseEnv({ ...BASE, ONBOARDING_INVITES_PER_HOUR: "x" })).toThrow();
+  });
+
   test("string kosong dianggap tidak diisi", () => {
     expect(parseEnv({ ...BASE, SMTP_HOST: "" }).SMTP_HOST).toBeUndefined();
   });

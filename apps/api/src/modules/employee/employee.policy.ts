@@ -112,3 +112,13 @@ export function canWriteSensitiveViaImport(actor: Actor, section: "personal" | "
 export function canViewDashboard(actor: Actor): boolean {
   return canManageEmployees(actor);
 }
+
+// D-045 / PLAN §4.3 "Penerimaan karyawan baru": SA semua PT, HR_ADMIN PT yang ditugaskan (D-040),
+// tanpa grant (data dari portal belum sensitif; data sensitif diisi calon sendiri, D-046).
+export function canRunOnboarding(actor: Actor): boolean {
+  return canManageEmployees(actor);
+}
+
+export function canOnboardInCompany(actor: Actor, companyId: string): boolean {
+  return canCreateInCompany(actor, companyId);
+}

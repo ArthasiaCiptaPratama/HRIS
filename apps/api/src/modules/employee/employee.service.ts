@@ -56,6 +56,7 @@ import type {
   SummaryQuery,
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
+import { markActivatedOnLogin } from "./onboarding.service.ts";
 
 export interface RequestContext {
   actor: Actor;
@@ -129,9 +130,12 @@ export const employeeScopeForIam = {
 };
 
 export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
-  if (actor.role === "SUPER_ADMIN" || actor.role === "HR_ADMIN" || !actor.employeeId) return actor;
-  const companyId = await repository.findCompanyId(actor.employeeId);
-  return { ...actor, companyIds: new Set(companyId ? [companyId] : []) };
+  if (!actor.employeeId) return actor;
+  const employee = await repository.findActorEmployee(actor.employeeId);
+  // D-045: request pertama setelah calon mengatur password → status "Mengisi data".
+  if (employee?.onboardingStatus === "INVITED") await markActivatedOnLogin(actor.employeeId);
+  if (actor.role === "SUPER_ADMIN" || actor.role === "HR_ADMIN") return actor;
+  return { ...actor, companyIds: new Set(employee ? [employee.companyId] : []) };
 }
 
 function nameRef<T extends { id: string; name: string }>(map: Map<string, T>, id: string | null) {
@@ -197,7 +201,8 @@ function assertCanManage(actor: Actor) {
 /** Karyawan yang boleh dilihat aktor; di luar cakupan (mis. PT lain, D-040) = 404 (PROMPT §5). */
 async function loadInScope(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
   const row = await loadEmployee(id, tx);
-  if (!policy.canViewEmployee(ctx.actor, targetOf(row))) {
+  // D-045: calon onboarding dikelola lewat menu Penerimaan, bukan endpoint karyawan biasa.
+  if (row.onboardingStatus !== "APPROVED" || !policy.canViewEmployee(ctx.actor, targetOf(row))) {
     throw new NotFoundError("Karyawan tidak ditemukan.");
   }
   return row;
@@ -226,17 +231,26 @@ function rethrowUnique(error: unknown): never {
 
 const NO_MATCH = "00000000-0000-0000-0000-000000000000";
 
+// D-045: calon yang belum disetujui bukan "karyawan" bagi fitur lain (daftar, ringkasan, dashboard,
+// struktur, pilihan atasan, detail) — mereka hanya terlihat di menu Penerimaan.
+const APPROVED_ONLY = { onboardingStatus: "APPROVED" } as const;
+
+/** Calon belum disetujui hanya terlihat oleh dirinya sendiri (wizard onboarding, D-045 bagian b). */
+function visibleToActor(actor: Actor, row: { id: string; onboardingStatus: string }) {
+  return row.onboardingStatus === "APPROVED" || actor.employeeId === row.id;
+}
+
 function scopeWhere(actor: Actor): repository.EmployeeWhere {
   const scope = policy.employeeListScope(actor);
   if (scope === null) throw new ForbiddenError();
   // D-035: MANAGER hanya tim (bawahan langsung, D-009).
-  if (scope === "team") return { managerId: actor.employeeId };
+  if (scope === "team") return { ...APPROVED_ONLY, managerId: actor.employeeId };
   // D-040: HR hanya PT yang ditugaskan (tanpa penugasan → tidak ada).
   if (scope === "companies") {
     const ids = [...(actor.companyIds ?? [])];
-    return { companyId: { in: ids.length > 0 ? ids : [NO_MATCH] } };
+    return { ...APPROVED_ONLY, companyId: { in: ids.length > 0 ? ids : [NO_MATCH] } };
   }
-  return {};
+  return { ...APPROVED_ONLY };
 }
 
 function buildWhere(
@@ -505,7 +519,12 @@ export async function getEmployee(
   const row = await repository.findEmployee(id);
   const target = row ? targetOf(row) : null;
   // PROMPT §5: 404 juga untuk data yang tidak boleh diketahui keberadaannya.
-  if (!row || !target || !policy.canViewEmployee(ctx.actor, target)) {
+  if (
+    !row ||
+    !target ||
+    !visibleToActor(ctx.actor, row) ||
+    !policy.canViewEmployee(ctx.actor, target)
+  ) {
     throw new NotFoundError("Karyawan tidak ditemukan.");
   }
   const access = {
@@ -650,7 +669,11 @@ async function assertManager(
     repository.findEmployee(managerId, tx),
     listManagerEmployeeIds(),
   ]);
-  if (!manager?.isActive || !allowed.includes(managerId)) {
+  if (
+    !manager?.isActive ||
+    manager.onboardingStatus !== "APPROVED" ||
+    !allowed.includes(managerId)
+  ) {
     throw new BusinessRuleError(
       "Atasan harus karyawan aktif yang memiliki akun Manager atau Super Admin.",
     );
@@ -1005,7 +1028,9 @@ export async function getOrgStructure(ctx: RequestContext): Promise<OrgStructure
 export async function listManagerOptions(ctx: RequestContext): Promise<ManagerOption[]> {
   assertCanManage(ctx.actor);
   const [lookup, ids] = await Promise.all([getMasterLookup(), listManagerEmployeeIds()]);
-  const rows = await repository.findManyByIds(ids);
+  const rows = (await repository.findManyByIds(ids)).filter(
+    (row) => row.onboardingStatus === "APPROVED",
+  );
   return rows
     .filter((row) => row.isActive)
     .map((row) => ({
@@ -1030,7 +1055,12 @@ const PHOTO_EXTENSION: Record<PhotoUploadUrlInput["contentType"], string> = {
 async function loadPhotoTarget(ctx: RequestContext, id: string) {
   const row = await repository.findEmployee(id);
   const target = row ? targetOf(row) : null;
-  if (!row || !target || !policy.canViewEmployee(ctx.actor, target)) {
+  if (
+    !row ||
+    !target ||
+    !visibleToActor(ctx.actor, row) ||
+    !policy.canViewEmployee(ctx.actor, target)
+  ) {
     throw new NotFoundError("Karyawan tidak ditemukan.");
   }
   if (!policy.canChangePhoto(ctx.actor, target)) {

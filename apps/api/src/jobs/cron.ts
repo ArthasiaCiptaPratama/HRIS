@@ -31,10 +31,15 @@ export const CRON_JOBS = {
 
 export function registerCronRoutes(
   app: OpenAPIHono,
-  deps: { cronSecret: string | undefined; logger: Logger },
+  deps: {
+    cronSecret: string | undefined;
+    logger: Logger;
+    /** Job yang butuh dependency (mis. Supabase Admin) dirakit di app.ts. */
+    extraJobs?: Record<string, () => Promise<unknown>>;
+  },
 ): void {
   const guard = requireCronSecret(deps.cronSecret);
-  for (const [name, run] of Object.entries(CRON_JOBS)) {
+  for (const [name, run] of Object.entries({ ...CRON_JOBS, ...deps.extraJobs })) {
     app.get(`/api/cron/${name}`, guard, async (c) => {
       const startedAt = performance.now();
       const result = await run();

@@ -239,6 +239,8 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   KTP_TAKEN: "NIK KTP sudah dipakai karyawan lain",
   EMAIL_TAKEN: "Email sudah dipakai karyawan lain",
   EXISTING_OUT_OF_SCOPE: "Karyawan ini ada di perusahaan di luar cakupan akun Anda",
+  ONBOARDING_IN_PROGRESS:
+    "Nomor induk ini milik calon yang sedang onboarding (dikelola di menu Penerimaan Karyawan Baru)",
   SENSITIVE_OWN_ROW: "Data sensitif milik akun Anda sendiri tidak diubah lewat import",
   EXIT_BEFORE_JOIN: "Tanggal keluar sebelum tanggal masuk",
   MANAGER_NOT_FOUND: "Atasan tidak ditemukan",

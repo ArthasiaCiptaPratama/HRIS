@@ -940,3 +940,88 @@ export async function deactivateAccountOfEmployee(
   await deps.authAdmin.setBanned(account.authUserId, true);
   return "deactivated";
 }
+
+// ── D-045: undangan akun untuk calon/karyawan dari onboarding (dipanggil modul employee) ─────────
+
+export type EmployeeInviteOutcome =
+  | { ok: true; accountId: string; emailSent: boolean }
+  | { ok: false; code: "EMAIL_HAS_ACCOUNT" | "EMPLOYEE_HAS_ACCOUNT" | "INVITE_FAILED" };
+
+/**
+ * Undang lewat Supabase Auth lalu buat akun EMPLOYEE yang tertaut karyawan (satu transaksi + audit).
+ * Hasil berupa kode (bukan exception) supaya antrean undangan mencatat kegagalan per calon. User Auth
+ * yang sudah ada (lingkungan lain berbagi Auth staging, D-023) dipakai ulang tanpa email.
+ */
+export async function inviteEmployeeAccount(input: {
+  email: string;
+  employeeId: string;
+  actorAccountId: string | null;
+  authAdmin: AuthAdmin;
+  redirectTo: string;
+  requestId?: string | null;
+}): Promise<EmployeeInviteOutcome> {
+  const email = input.email.trim().toLowerCase();
+  if (await repository.findAccountByEmail(email)) return { ok: false, code: "EMAIL_HAS_ACCOUNT" };
+  const linked = await repository.findAccountsForEmployees([input.employeeId]);
+  if (linked.length > 0) return { ok: false, code: "EMPLOYEE_HAS_ACCOUNT" };
+  let authUser: { id: string };
+  let emailSent = false;
+  try {
+    const existing = await input.authAdmin.findUserByEmail(email);
+    if (existing) authUser = existing;
+    else {
+      authUser = await input.authAdmin.inviteUser(email, input.redirectTo);
+      emailSent = true;
+    }
+  } catch {
+    return { ok: false, code: "INVITE_FAILED" };
+  }
+  const account = await repository.withTransaction(async (tx) => {
+    const created = await repository.createEmployeeAccount(tx, {
+      authUserId: authUser.id,
+      email,
+      employeeId: input.employeeId,
+    });
+    await writeAudit(
+      {
+        actorAccountId: input.actorAccountId,
+        requestId: input.requestId ?? null,
+        action: "iam.account.invite",
+        entityType: "iam.account",
+        entityId: created.id,
+        after: { role: "EMPLOYEE", employeeId: input.employeeId, source: "onboarding", emailSent },
+      },
+      tx,
+    );
+    return created;
+  });
+  return { ok: true, accountId: account.id, emailSent };
+}
+
+/** Email login yang sudah dipakai akun lain (pratinjau penerimaan, D-045). */
+export async function accountEmailsInUse(emails: string[]): Promise<Set<string>> {
+  const rows = await repository.findAccountEmails(emails.map((e) => e.toLowerCase()));
+  return new Set(rows.map((row) => row.email.toLowerCase()));
+}
+
+export interface EmployeeAccountState {
+  employeeId: string;
+  accountId: string;
+  email: string;
+  hasLoggedIn: boolean;
+  isActive: boolean;
+}
+
+/** Status akun per karyawan (daftar penerimaan & kirim ulang). */
+export async function getEmployeeAccountStates(
+  employeeIds: string[],
+): Promise<EmployeeAccountState[]> {
+  const rows = await repository.findAccountsForEmployees(employeeIds);
+  return rows.map((row) => ({
+    employeeId: row.employeeId as string,
+    accountId: row.id,
+    email: row.email,
+    hasLoggedIn: row.lastLoginAt !== null,
+    isActive: row.isActive,
+  }));
+}

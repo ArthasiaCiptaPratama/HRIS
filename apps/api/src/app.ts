@@ -30,6 +30,7 @@ import { registerCronRoutes } from "./jobs/cron.ts";
 import {
   employeeMasterDataSupport,
   employeeScopeForIam,
+  processOnboardingInvitations,
   registerEmployeeRoutes,
   withEmployeeCompanyScope,
 } from "./modules/employee/index.ts";
@@ -50,6 +51,8 @@ export interface AppDeps {
   appUrl: string;
   emailSender: EmailSender;
   cronSecret: string | undefined;
+  /** D-045: batas undangan aktivasi per jam. */
+  onboardingInvitesPerHour: number;
 }
 
 // Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
@@ -141,6 +144,14 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
     emailSender: overrides.emailSender ?? selectEmailSender(getEnv(), logger),
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
+    onboardingInvitesPerHour:
+      overrides.onboardingInvitesPerHour ?? getEnv().ONBOARDING_INVITES_PER_HOUR,
+  };
+  // D-045: undangan aktivasi kembali ke /auth/callback web (atur password).
+  const invitations = {
+    authAdmin: deps.authAdmin,
+    redirectTo: `${deps.appUrl.replace(/\/+$/, "")}/auth/callback`,
+    perHour: deps.onboardingInvitesPerHour,
   };
   configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
   configureIam({ employeeScope: employeeScopeForIam });
@@ -197,8 +208,14 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     authAdmin: deps.authAdmin,
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
+    invitations,
   });
-  registerCronRoutes(app, { cronSecret: deps.cronSecret, logger: deps.logger });
+  registerCronRoutes(app, {
+    cronSecret: deps.cronSecret,
+    logger: deps.logger,
+    // D-045: cadangan pemroses antrean undangan (Vercel Hobby: maks 1×/hari).
+    extraJobs: { "onboarding-invitations": () => processOnboardingInvitations(null, invitations) },
+  });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));
 

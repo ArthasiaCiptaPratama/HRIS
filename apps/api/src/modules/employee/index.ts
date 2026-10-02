@@ -6,3 +6,4 @@ export {
   employeeScopeForIam,
   withEmployeeCompanyScope,
 } from "./employee.service.ts";
+export { processInvitations as processOnboardingInvitations } from "./onboarding.service.ts";

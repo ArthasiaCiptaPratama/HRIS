@@ -27,6 +27,8 @@ import {
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
+import { registerOnboardingRoutes } from "./onboarding.routes.ts";
+import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
 
 export interface EmployeeRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
@@ -36,6 +38,8 @@ export interface EmployeeRouteDeps {
   storage: StorageAdmin;
   /** PLAN §3.3: prefix path objek Storage (lokal `dev/<nama>/`). */
   storagePathPrefix?: string;
+  /** D-045: undangan aktivasi (tautan kembali ke web, batas per jam). */
+  invitations?: OnboardingInvitationDeps;
 }
 
 const P = API_BASE_PATH;
@@ -234,6 +238,14 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
 
   // D-042: import karyawan (/employee-imports/*).
   registerEmployeeImportRoutes(app, { protect: deps.protect, ctx });
+  registerOnboardingRoutes(app, {
+    protect: deps.protect,
+    invitations: deps.invitations ?? {
+      authAdmin: deps.authAdmin,
+      redirectTo: "http://localhost:5173/auth/callback",
+      perHour: 25,
+    },
+  });
 
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>

@@ -36,6 +36,10 @@ const envSchema = z
     SMTP_USER: optionalString,
     SMTP_PASS: optionalString,
     EMAIL_FROM: optionalString,
+    // D-045: batas undangan aktivasi per jam (di bawah limit email Supabase Auth ± 30/jam).
+    ONBOARDING_INVITES_PER_HOUR: optionalString
+      .transform((value) => (value === undefined ? 25 : Number(value)))
+      .pipe(z.number().int().min(1).max(1000)),
     // PLAN §3.3: lokal `dev/<nama-developer>/` (bucket staging dipakai bersama); staging/produksi kosong.
     STORAGE_PATH_PREFIX: z
       .string()

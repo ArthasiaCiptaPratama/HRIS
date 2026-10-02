@@ -8,6 +8,11 @@ export interface AuthAdmin {
   /** Mengirim email undangan (SMTP Supabase, D-032) dan mengembalikan user Auth baru. */
   inviteUser(email: string, redirectTo: string): Promise<{ id: string }>;
   createConfirmedUser(email: string, password: string): Promise<{ id: string }>;
+  /**
+   * D-045: kirim ulang tautan atur password ke user Auth yang sudah ada (undangan ulang ditolak
+   * Supabase untuk email terdaftar). Email dikirim SMTP Supabase; tautan kembali ke `redirectTo`.
+   */
+  sendPasswordSetupEmail(email: string, redirectTo: string): Promise<void>;
   /** PLAN §3.2.7: user Auth tidak dihapus; akun nonaktif di-ban agar tidak bisa login. */
   setBanned(userId: string, banned: boolean): Promise<void>;
 }
@@ -48,6 +53,11 @@ export function createSupabaseAdmin(supabaseUrl: string, serviceRoleKey: string)
       return { id: data.user.id };
     },
 
+    async sendPasswordSetupEmail(email, redirectTo) {
+      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw new Error(`Supabase resetPasswordForEmail failed: ${error.message}`);
+    },
+
     async setBanned(userId, banned) {
       const { error } = await auth.updateUserById(userId, {
         ban_duration: banned ? BAN_FOREVER : "none",
@@ -62,6 +72,7 @@ export const UNCONFIGURED_AUTH_ADMIN: AuthAdmin = {
   findUserByEmail: notConfigured,
   inviteUser: notConfigured,
   createConfirmedUser: notConfigured,
+  sendPasswordSetupEmail: notConfigured,
   setBanned: notConfigured,
 };
 

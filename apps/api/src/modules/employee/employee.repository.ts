@@ -67,6 +67,7 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
       emergencyPhone: true,
       emergencyContactName: true,
       emergencyContactRelationship: true,
+      onboardingStatus: true,
     },
   });
 }
@@ -126,7 +127,14 @@ export async function findManyByIds(ids: string[]) {
   if (ids.length === 0) return [];
   return getPrisma().employee.findMany({
     where: { id: { in: ids } },
-    select: { id: true, fullName: true, employeeNumber: true, positionId: true, isActive: true },
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      positionId: true,
+      isActive: true,
+      onboardingStatus: true,
+    },
     orderBy: { fullName: "asc" },
   });
 }
@@ -155,6 +163,8 @@ export async function listActiveForStructure(companyIds: readonly string[] | nul
   return getPrisma().employee.findMany({
     where: {
       isActive: true,
+      // D-045: calon onboarding belum masuk struktur organisasi.
+      onboardingStatus: "APPROVED",
       ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
     },
     select: { id: true, fullName: true, employeeNumber: true, positionId: true, managerId: true },
@@ -185,6 +195,14 @@ export async function findIdsInCompanies(companyIds: string[]) {
 export async function findCompanyId(id: string) {
   const row = await getPrisma().employee.findUnique({ where: { id }, select: { companyId: true } });
   return row?.companyId ?? null;
+}
+
+/** PT + status onboarding karyawan milik aktor (dimuat setiap request). */
+export async function findActorEmployee(id: string) {
+  return getPrisma().employee.findUnique({
+    where: { id },
+    select: { companyId: true, onboardingStatus: true },
+  });
 }
 
 export async function createEmployee(tx: EmployeeTx, data: Prisma.EmployeeUncheckedCreateInput) {
@@ -241,7 +259,7 @@ const MASTER_REF_COLUMN = {
 export async function countByMasterRef(kind: MasterRefKind) {
   const column = MASTER_REF_COLUMN[kind];
   const rows = await getPrisma().employee.groupBy({
-    by: [column, "isActive"],
+    by: [column, "isActive", "onboardingStatus"],
     _count: { _all: true },
   });
   const result = new Map<string, { active: number; total: number }>();
@@ -249,8 +267,9 @@ export async function countByMasterRef(kind: MasterRefKind) {
     const id = (row as Record<string, unknown>)[column];
     if (typeof id !== "string") continue;
     const entry = result.get(id) ?? { active: 0, total: 0 };
+    // `total` termasuk calon onboarding (nomor induknya memakai kode PT, D-045); `active` tidak.
     entry.total += row._count._all;
-    if (row.isActive) entry.active += row._count._all;
+    if (row.isActive && row.onboardingStatus === "APPROVED") entry.active += row._count._all;
     result.set(id, entry);
   }
   return result;

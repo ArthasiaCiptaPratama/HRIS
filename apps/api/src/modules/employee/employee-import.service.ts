@@ -229,6 +229,9 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       };
       if (!policy.canViewEmployee(ctx.actor, target)) {
         plan.issues.push(issue("employeeNumber", "EXISTING_OUT_OF_SCOPE"));
+      } else if (existing.onboardingStatus !== "APPROVED") {
+        // D-045: data calon diisi sendiri lewat onboarding; import tidak boleh menimpanya.
+        plan.issues.push(issue("employeeNumber", "ONBOARDING_IN_PROGRESS"));
       } else if (body.mode === "CREATE_ONLY") {
         plan.action = "SKIP";
         plan.issues.push(issue("employeeNumber", "EXISTS_SKIPPED", "WARNING"));

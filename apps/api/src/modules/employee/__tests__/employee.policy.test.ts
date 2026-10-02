@@ -7,10 +7,12 @@ import {
   canDeactivateEmployee,
   canImportEmployees,
   canManageEmployees,
+  canOnboardInCompany,
   canPrintEmployee,
   canReadBank,
   canReadOrgStructure,
   canReadPersonal,
+  canRunOnboarding,
   canViewDashboard,
   canViewEmployee,
   canWriteSensitiveViaImport,
@@ -281,5 +283,28 @@ describe("Dashboard", () => {
     ["EMP", false],
   ] as const)("canViewDashboard %s = %s", (who, allowed) => {
     expect(canViewDashboard(actor(who))).toBe(allowed);
+  });
+});
+
+// D-045: penerimaan karyawan baru (impor calon, undangan, undang karyawan existing).
+describe("D-045 onboarding — penerimaan & undangan", () => {
+  test.each([
+    ["SA", null, "co-B", true, true],
+    ["HR", ["co-A"], "co-A", true, true],
+    ["HR", ["co-A"], "co-B", true, false],
+    ["HR", [], "co-A", true, false],
+    ["MGR", ["co-A"], "co-A", false, false],
+    ["EMP", ["co-A"], "co-A", false, false],
+  ] as const)(
+    "%s PT %j → %s: menu = %s, terima di PT = %s",
+    (who, companies, company, menu, inCompany) => {
+      const a = actor(who, [], `emp-${who}`, companies === null ? null : [...companies]);
+      expect(canRunOnboarding(a)).toBe(menu);
+      expect(canOnboardInCompany(a, company)).toBe(inCompany);
+    },
+  );
+
+  test("grant apa pun tidak memberi MANAGER hak penerimaan", () => {
+    expect(canRunOnboarding(actor("MGR", ["employee.personal.write"]))).toBe(false);
   });
 });

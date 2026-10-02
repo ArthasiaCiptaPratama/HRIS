@@ -266,3 +266,31 @@ export async function replaceCompanyAssignments(
     });
   }
 }
+
+// ── D-045: undangan akun dari onboarding ────────────────────────────────────
+
+export async function findAccountEmails(emails: string[]) {
+  if (emails.length === 0) return [];
+  return getPrisma().account.findMany({
+    where: { email: { in: emails } },
+    select: { email: true, employeeId: true },
+  });
+}
+
+export async function createEmployeeAccount(
+  tx: IamTx,
+  data: { authUserId: string; email: string; employeeId: string },
+) {
+  return tx.account.create({
+    data: { ...data, role: "EMPLOYEE" },
+    select: { id: true },
+  });
+}
+
+export async function findAccountsForEmployees(employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
+  return getPrisma().account.findMany({
+    where: { employeeId: { in: employeeIds } },
+    select: { id: true, employeeId: true, email: true, lastLoginAt: true, isActive: true },
+  });
+}
