@@ -1,7 +1,7 @@
 # Desain — Onboarding Karyawan Baru (Penerimaan → Aktivasi → Lengkapi Data → Review → Login NIK)
 
 > Keputusan: **D-045** (onboarding), **D-046** (pengecualian OD-6 saat onboarding), **D-047** (grant `employee.onboarding.review`), **D-048** (login dengan NIK) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Terkait: D-034 (aturan akun), D-037 (pola unggah Storage), D-039/D-040 (multi-PT & cakupan), D-042 (mesin import).
-> Status: **[planned]** — hasil grill pemilik projek 2026-10-01. Dikerjakan **setelah** Tahap 3 CRUD Master Data; menggantikan Tahap 5 ("undangan akun dari data karyawan"). Checklist: PROGRESS Fase 4 → "Onboarding karyawan".
+> Status: **bagian a [done] lokal 2026-10-02** (penerimaan & undangan; penyimpangan: template contoh berupa CSV `public/template/Template-calon-karyawan.csv`, pilihan atasan per batch belum ada di UI — API sudah menerima `managerId`); bagian b–d [planned]. Hasil grill pemilik projek 2026-10-01. Dikerjakan **setelah** Tahap 3 CRUD Master Data; menggantikan Tahap 5 ("undangan akun dari data karyawan"). Checklist: PROGRESS Fase 4 → "Onboarding karyawan".
 > Dokumen ini tidak memuat data asli. Contoh nama/nomor fiktif.
 
 ## 1. Tujuan & prinsip

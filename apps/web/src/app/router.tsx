@@ -97,6 +97,15 @@ export const routes: RouteObject[] = [
             ),
           },
           {
+            // D-045: Administrasi › Penerimaan Karyawan Baru (SA & HR).
+            path: "penerimaan",
+            element: <RequireAccessRoute check={access.runOnboarding} />,
+            children: [
+              { index: true, lazy: pages.onboarding },
+              { path: "impor", lazy: pages.onboardingImport },
+            ],
+          },
+          {
             // D-049: Administrasi › Master Data (SA kelola, HR lihat).
             path: "master-data",
             element: <RequireAccessRoute check={access.viewMasterData} />,

@@ -30,6 +30,14 @@ export const pages = {
     import("@/features/employee/pages/inactive-employees-page").then((m) => ({
       Component: m.InactiveEmployeesPage,
     })),
+  onboarding: () =>
+    import("@/features/onboarding/pages/onboarding-page").then((m) => ({
+      Component: m.OnboardingPage,
+    })),
+  onboardingImport: () =>
+    import("@/features/onboarding/pages/onboarding-import-page").then((m) => ({
+      Component: m.OnboardingImportPage,
+    })),
   masterData: () =>
     import("@/features/organization/pages/master-data-page").then((m) => ({
       Component: m.MasterDataPage,
@@ -53,6 +61,8 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/arsip", pages.maintenance],
   ["/personal/laporan", pages.maintenance],
   ["/master-data", pages.masterData],
+  ["/penerimaan/impor", pages.onboardingImport],
+  ["/penerimaan", pages.onboarding],
 ];
 
 export function preloadRoute(path: string): void {

@@ -28,6 +28,8 @@ export const access = {
   // D-049 (modules/organization/organization.policy.ts): SA kelola, HR lihat.
   viewMasterData: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
   manageMasterData: (me: Me) => isSuperAdmin(me),
+  // D-045 (employee.policy canRunOnboarding): penerimaan karyawan baru — SA & HR (PT ditugaskan).
+  runOnboarding: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
 
   // Modul employee (apps/api/src/modules/employee/employee.policy.ts, D-035).
   /** Menu Personal Management: SA & HR penuh; MANAGER baca tim (butuh data karyawan). */

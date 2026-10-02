@@ -19,6 +19,7 @@ import {
   Network,
   Package,
   TriangleAlert,
+  UserPlus,
   UserRound,
   UserRoundCheck,
   Users,
@@ -256,6 +257,21 @@ export const NAV_GROUPS: NavGroup[] = [
             to: "/audit",
             icon: FileClock,
             visible: access.readAuditLogs,
+          },
+        ],
+      },
+      {
+        // D-045: penerimaan karyawan baru (SA & HR).
+        id: "recruitment",
+        label: "Penerimaan",
+        items: [
+          {
+            id: "onboarding",
+            label: "Penerimaan Karyawan Baru",
+            to: "/penerimaan",
+            icon: UserPlus,
+            visible: access.runOnboarding,
+            keywords: "onboarding calon karyawan undangan aktivasi impor portal maganghub",
           },
         ],
       },
