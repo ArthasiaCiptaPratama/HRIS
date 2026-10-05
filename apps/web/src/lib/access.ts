@@ -15,6 +15,8 @@ export const access = {
     return isHrAdmin(me) ? ["EMPLOYEE"] : [];
   },
   changeRole: (me: Me) => isSuperAdmin(me),
+  // D-040: penugasan perusahaan akun HR_ADMIN hanya oleh SUPER_ADMIN.
+  assignCompanies: (me: Me) => isSuperAdmin(me),
   setActive: (me: Me, target: { id: string; role: string; isPrimarySuperAdmin: boolean }) => {
     if (target.id === me.id || target.isPrimarySuperAdmin) return false;
     if (isSuperAdmin(me)) return target.role !== ROLE.SUPER_ADMIN || me.isPrimarySuperAdmin;
@@ -23,6 +25,9 @@ export const access = {
   transferPrimary: (me: Me) => me.isPrimarySuperAdmin,
   manageGrants: (me: Me) => isSuperAdmin(me),
   readAuditLogs: (me: Me) => isSuperAdmin(me),
+  // D-049 (modules/organization/organization.policy.ts): SA kelola, HR lihat.
+  viewMasterData: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
+  manageMasterData: (me: Me) => isSuperAdmin(me),
 
   // Modul employee (apps/api/src/modules/employee/employee.policy.ts, D-035).
   /** Menu Personal Management: SA & HR penuh; MANAGER baca tim (butuh data karyawan). */

@@ -39,6 +39,7 @@ function base(overrides: Partial<EmployeeDetail> = {}): EmployeeDetail {
     isActive: true,
     exitReason: null,
     employmentStatus: { id: "s1", name: "PKWT", category: "PKWT" },
+    company: { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" },
     position: { id: "p1", name: "GA Staff" },
     department: { id: "d1", name: "Human Resources & GA" },
     workLocation: { id: "l1", name: "Kantor Pusat Jakarta" },
@@ -175,6 +176,14 @@ function readSheet(bytes: Uint8Array) {
 }
 
 describe("buildPrintCells (data pegawai → sel template)", () => {
+  it("kop formulir (B2) memakai nama perusahaan karyawan (D-039)", () => {
+    const cells = buildPrintCells(
+      base({ company: { id: "co-cd2", code: "CD2", name: "PT Contoh Dua" } }),
+      "2026-09-30",
+    );
+    expect(cells.B2).toBe("PT CONTOH DUA");
+  });
+
   it("biodata, kontak, program (periode tgl masuk s/d keluar), departemen & posisi", () => {
     const cells = buildPrintCells(withPersonal(), "2026-09-29");
     expect(cells).toMatchObject({
@@ -304,11 +313,12 @@ describe("fillXlsxTemplate (template asli)", () => {
     expect(filled.value("L9")).toBe("Nama Lengkap");
     expect(filled.value("D66")).toBe("Isteri");
     expect(filled.value("R23")).toBe("MagangHub Bacth II Tahun 2026");
-    expect(filled.value("B2")).toBe("PT. ARTHASIA CIPTA PRATAMA");
+    // Kop B2 diisi nama perusahaan karyawan (D-039), bukan label tetap template.
+    expect(filled.value("B2")).toBe("PT ARTHASIA CIPTA PRATAMA");
   });
 
   it("gaya sel (border/font) dipertahankan", () => {
-    for (const ref of ["R9", "G66", "U30", "AB76"]) {
+    for (const ref of ["B2", "R9", "G66", "U30", "AB76"]) {
       expect(filled.cells.get(ref)?.getAttribute("s")).toBe(
         original.cells.get(ref)?.getAttribute("s"),
       );

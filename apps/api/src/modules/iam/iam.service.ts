@@ -17,10 +17,12 @@ import {
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import type { Permission as DbPermission } from "../../generated/prisma/client.ts";
 import { notify } from "../notification/index.ts";
+import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./iam.policy.ts";
 import * as repository from "./iam.repository.ts";
 import type {
   AccountDto,
+  AssignCompaniesInput,
   AuditLogDto,
   CreateGrantInput,
   GrantDto,
@@ -50,6 +52,27 @@ const DB_PERMISSION = Object.fromEntries(
 /** D-033: serah-terima Utama butuh password dimasukkan ulang paling lama 5 menit sebelumnya. */
 export const PASSWORD_REAUTH_WINDOW_MS = 5 * 60 * 1000;
 
+// D-040: cakupan PT untuk akun yang tertaut karyawan. Data ada di modul employee, yang sudah
+// meng-import iam — jadi disuntik lewat app.ts (PLAN §3.2: iam tidak membaca tabel employee).
+export interface IamEmployeeScope {
+  companyOfEmployees(employeeIds: string[]): Promise<Map<string, string>>;
+  employeeIdsInCompanies(companyIds: string[]): Promise<string[]>;
+  /** Label karyawan untuk audit log: "Nama (nomor induk)". */
+  employeeLabels(employeeIds: string[]): Promise<Map<string, string>>;
+}
+
+let employeeScope: IamEmployeeScope | undefined;
+
+export function configureIam(next: { employeeScope: IamEmployeeScope }): void {
+  employeeScope = next.employeeScope;
+}
+
+function scopeSource(): IamEmployeeScope {
+  // Gagal tertutup: tanpa konfigurasi, cakupan HR tidak bisa dipastikan.
+  if (!employeeScope) throw new Error("iam: employeeScope belum dikonfigurasi (configureIam)");
+  return employeeScope;
+}
+
 export interface RequestContext {
   actor: Actor;
   requestId?: string | undefined;
@@ -59,14 +82,35 @@ export interface RequestContext {
 type AccountRow = NonNullable<Awaited<ReturnType<typeof repository.findAccountById>>>;
 type GrantRow = NonNullable<Awaited<ReturnType<typeof repository.findGrantById>>>;
 
-const toTarget = (a: AccountRow): policy.AccountTarget => ({
+const toTarget = (a: AccountRow, companyId: string | null = null): policy.AccountTarget => ({
   accountId: a.id,
   role: a.role,
   isPrimarySuperAdmin: a.isPrimarySuperAdmin,
   isActive: a.isActive,
+  companyId,
 });
 
-export function toAccountDto(a: AccountRow): AccountDto {
+/** Target lengkap dengan PT karyawan tertaut (D-040). */
+async function scopedTarget(a: AccountRow): Promise<policy.AccountTarget> {
+  if (!a.employeeId) return toTarget(a);
+  const companies = await scopeSource().companyOfEmployees([a.employeeId]);
+  return toTarget(a, companies.get(a.employeeId) ?? null);
+}
+
+/** DTO akun + penugasan PT (satu query untuk banyak akun). */
+async function accountDtos(rows: AccountRow[], tx?: repository.IamTx): Promise<AccountDto[]> {
+  const assignments = await repository.findCompanyAssignments(
+    rows.map((row) => row.id),
+    tx,
+  );
+  const byAccount = new Map<string, string[]>();
+  for (const { accountId, companyId } of assignments) {
+    byAccount.set(accountId, [...(byAccount.get(accountId) ?? []), companyId]);
+  }
+  return rows.map((row) => toAccountDto(row, byAccount.get(row.id) ?? []));
+}
+
+export function toAccountDto(a: AccountRow, companyIds: string[] = []): AccountDto {
   return {
     id: a.id,
     email: a.email,
@@ -74,6 +118,7 @@ export function toAccountDto(a: AccountRow): AccountDto {
     isActive: a.isActive,
     isPrimarySuperAdmin: a.isPrimarySuperAdmin,
     employeeId: a.employeeId,
+    companyIds,
     lastLoginAt: a.lastLoginAt?.toISOString() ?? null,
     createdAt: a.createdAt.toISOString(),
   };
@@ -206,6 +251,14 @@ export async function loadActor(authUserId: string, now: Date = new Date()): Pro
         .filter((grant) => isGrantActive(grant, now))
         .map((g) => PERMISSION_CODE[g.permission]),
     ),
+    // D-040: SUPER_ADMIN semua PT; HR_ADMIN PT yang ditugaskan. MANAGER/EMPLOYEE dilengkapi modul
+    // employee (PT tempat ia terdaftar) lewat app.ts — iam tidak membaca tabel employee (PLAN §3.2).
+    companyIds:
+      account.role === "SUPER_ADMIN"
+        ? null
+        : account.role === "HR_ADMIN"
+          ? new Set(account.companies.map((c) => c.companyId))
+          : new Set<string>(),
   };
 }
 
@@ -233,21 +286,36 @@ export async function getMe(actor: Actor, now: Date = new Date()): Promise<MeRes
 export async function listAccounts(ctx: RequestContext, query: ListAccountsQuery) {
   if (!policy.canListAccounts(ctx.actor)) throw new ForbiddenError();
   const { skip, take } = skipTake(query);
+  // D-040: HR hanya akun karyawan di PT yang ditugaskan (+ akun yang belum tertaut karyawan).
+  const employeeScopeFilter =
+    ctx.actor.role === ROLE.HR_ADMIN
+      ? {
+          employeeScope: {
+            employeeIds: await scopeSource().employeeIdsInCompanies([
+              ...(ctx.actor.companyIds ?? []),
+            ]),
+          },
+        }
+      : {};
   const { rows, total } = await repository.listAccounts(
-    { role: query.role, isActive: query.isActive, q: query.q },
+    { role: query.role, isActive: query.isActive, q: query.q, ...employeeScopeFilter },
     skip,
     take,
   );
   return {
-    data: rows.map(toAccountDto),
+    data: await accountDtos(rows),
     meta: { page: query.page, pageSize: query.pageSize, total },
   };
 }
 
 export async function getAccount(ctx: RequestContext, id: string): Promise<AccountDto> {
   const account = await loadTarget(id);
-  if (!policy.canViewAccount(ctx.actor, toTarget(account))) throw new ForbiddenError();
-  return toAccountDto(account);
+  if (!policy.canViewAccount(ctx.actor, await scopedTarget(account))) {
+    // PROMPT §5: akun di luar cakupan PT HR = tidak boleh diketahui keberadaannya.
+    if (policy.canListAccounts(ctx.actor)) throw new NotFoundError("Akun tidak ditemukan.");
+    throw new ForbiddenError();
+  }
+  return (await accountDtos([account]))[0] as AccountDto;
 }
 
 export async function inviteAccount(
@@ -311,6 +379,14 @@ export async function changeRole(ctx: RequestContext, id: string, newRole: Role,
       ctx.actor.accountId,
       now,
     );
+    // D-040: penugasan PT hanya berarti untuk HR_ADMIN → dicabut bila role berubah dari HR_ADMIN.
+    const removedCompanies =
+      newRole === ROLE.HR_ADMIN
+        ? []
+        : (await repository.findCompanyAssignments([target.id], tx)).map((a) => a.companyId);
+    if (removedCompanies.length > 0) {
+      await repository.replaceCompanyAssignments(tx, target.id, [], ctx.actor.accountId);
+    }
     await writeAudit(
       {
         ...auditBase(ctx),
@@ -318,11 +394,15 @@ export async function changeRole(ctx: RequestContext, id: string, newRole: Role,
         entityType: "iam.account",
         entityId: target.id,
         before: { role: target.role },
-        after: { role: newRole, revokedGrants: stale.map((g) => PERMISSION_CODE[g.permission]) },
+        after: {
+          role: newRole,
+          revokedGrants: stale.map((g) => PERMISSION_CODE[g.permission]),
+          ...(removedCompanies.length > 0 ? { removedCompanyIds: removedCompanies } : {}),
+        },
       },
       tx,
     );
-    return toAccountDto(updated);
+    return (await accountDtos([updated], tx))[0] as AccountDto;
   });
   // PLAN §4.4: perubahan role SUPER_ADMIN → notifikasi ke semua SUPER_ADMIN.
   if (previousRole === ROLE.SUPER_ADMIN || newRole === ROLE.SUPER_ADMIN) {
@@ -342,7 +422,9 @@ export async function setAccountActive(
 ): Promise<AccountDto> {
   const result = await repository.withTransaction(async (tx) => {
     const target = await loadTarget(id, tx);
-    if (!policy.canSetActive(ctx.actor, toTarget(target))) throw new ForbiddenError();
+    const scoped = await scopedTarget(target);
+    if (!policy.canViewAccount(ctx.actor, scoped)) throw new NotFoundError("Akun tidak ditemukan.");
+    if (!policy.canSetActive(ctx.actor, scoped)) throw new ForbiddenError();
     if (target.isActive === isActive) {
       throw new ConflictError(isActive ? "Akun sudah aktif." : "Akun sudah nonaktif.");
     }
@@ -362,7 +444,7 @@ export async function setAccountActive(
     );
     // Di dalam transaksi: bila ban/unban Supabase gagal, perubahan DB & audit ikut dibatalkan.
     await deps.authAdmin.setBanned(target.authUserId, !isActive);
-    return toAccountDto(updated);
+    return (await accountDtos([updated], tx))[0] as AccountDto;
   });
   if (result.role === ROLE.SUPER_ADMIN) {
     await notifySuperAdmins(
@@ -371,6 +453,66 @@ export async function setAccountActive(
     );
   }
   return result;
+}
+
+// D-040: set penugasan PT akun HR_ADMIN (hanya SUPER_ADMIN) + audit + notifikasi ke akun itu.
+export async function assignCompanies(
+  ctx: RequestContext,
+  id: string,
+  input: AssignCompaniesInput,
+): Promise<AccountDto> {
+  const lookup = await getMasterLookup();
+  for (const companyId of input.companyIds) {
+    const company = lookup.companies.get(companyId);
+    if (!company || company.deleted) {
+      throw new BusinessRuleError("Perusahaan tidak ditemukan atau sudah tidak aktif.");
+    }
+  }
+  const { dto, changed } = await repository.withTransaction(async (tx) => {
+    const target = await loadTarget(id, tx);
+    if (!policy.canAssignCompanies(ctx.actor, toTarget(target))) throw new ForbiddenError();
+    const before = (await repository.findCompanyAssignments([target.id], tx)).map(
+      (a) => a.companyId,
+    );
+    const same =
+      before.length === input.companyIds.length &&
+      input.companyIds.every((companyId) => before.includes(companyId));
+    if (!same) {
+      await repository.replaceCompanyAssignments(
+        tx,
+        target.id,
+        input.companyIds,
+        ctx.actor.accountId,
+      );
+      await writeAudit(
+        {
+          ...auditBase(ctx),
+          action: "iam.account.assign_companies",
+          entityType: "iam.account",
+          entityId: target.id,
+          before: { companyIds: before },
+          after: { companyIds: input.companyIds },
+        },
+        tx,
+      );
+    }
+    return { dto: toAccountDto(target, input.companyIds), changed: !same };
+  });
+  if (changed) {
+    const codes = input.companyIds.map((companyId) => lookup.companies.get(companyId)?.code ?? "?");
+    await notify({
+      recipients: [{ accountId: dto.id, email: dto.email }],
+      type: "iam.companies_assigned",
+      title: "Penugasan perusahaan Anda diperbarui",
+      body:
+        codes.length > 0
+          ? `Anda sekarang mengelola karyawan perusahaan: ${codes.join(", ")}.`
+          : "Anda tidak lagi ditugaskan ke perusahaan mana pun.",
+      link: "/personal/pegawai-aktif/semua",
+      email: true,
+    });
+  }
+  return dto;
 }
 
 export async function transferPrimary(
@@ -533,12 +675,35 @@ export async function listAuditLogs(ctx: RequestContext, query: ListAuditLogsQue
     skip,
     take,
   );
+  // Label terbaca: email aktor & akun (tabel milik iam); nama karyawan lewat penyaring yang disuntik.
+  const accountIds = new Set<string>();
+  const employeeIds = new Set<string>();
+  for (const row of rows) {
+    if (row.actorAccountId) accountIds.add(row.actorAccountId);
+    if (row.entityId && row.entityType === "iam.account") accountIds.add(row.entityId);
+    if (row.entityId && row.entityType === "employee.employee") employeeIds.add(row.entityId);
+  }
+  const [accounts, employees] = await Promise.all([
+    repository.findAccountsByIds([...accountIds]),
+    employeeIds.size > 0
+      ? scopeSource().employeeLabels([...employeeIds])
+      : new Map<string, string>(),
+  ]);
+  const emailOf = new Map(accounts.map((a) => [a.id, a.email]));
+  const entityLabel = (type: string, id: string | null) => {
+    if (!id) return null;
+    if (type === "iam.account") return emailOf.get(id) ?? null;
+    if (type === "employee.employee") return employees.get(id) ?? null;
+    return null;
+  };
   const data: AuditLogDto[] = rows.map((row) => ({
     id: row.id,
     actorAccountId: row.actorAccountId,
+    actorEmail: row.actorAccountId ? (emailOf.get(row.actorAccountId) ?? null) : null,
     action: row.action,
     entityType: row.entityType,
     entityId: row.entityId,
+    entityLabel: entityLabel(row.entityType, row.entityId),
     before: row.before ?? null,
     after: row.after ?? null,
     reason: row.reason,

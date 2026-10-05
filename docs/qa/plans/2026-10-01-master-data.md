@@ -1,0 +1,8 @@
+# Rencana Uji — CRUD Master Data (Tahap 3, D-049, 2026-10-01)
+
+- **Ruang lingkup:** kelola 6 master data (perusahaan, departemen, jabatan, status kepegawaian, grade, site/lokasi) di Administrasi › Master Data: tambah, ubah, arsip, pulihkan, hapus permanen (hanya bila belum pernah dipakai), gabungkan (kecuali perusahaan); geofence lokasi berupa angka. Dampak ke fitur terkait: form ubah karyawan (nilai terarsip), import karyawan (nama terarsip, baris UPDATE), dialog "Atur PT" (PT terarsip), pilihan `/master-data`.
+- **Aturan yang diuji:** D-049, PLAN §4.3 "Kebijakan" (SA ✅, HR 👁), D-040 (HR melihat PT ditugaskan), D-045 (kode PT di nomor induk), D-038 (satu kategori satu status), PLAN §3.2 (organization tidak membaca tabel employee — injeksi lewat `configureOrganization`).
+- **Di luar lingkup:** kalender libur & pengaturan sistem (dipindah ke Fase 5), pemilih peta geofence (Fase 5), staging.
+- **Lingkungan:** lokal Linux — PostgreSQL 17 (DB `hris`), bun test + Vitest. Uji browser (Playwright, login sungguhan) **belum** — butuh password akun uji dari pemilik projek.
+- **Kriteria lulus:** semua P1 & P2 otomatis LULUS; typecheck, lint, boundaries, `db:check`, seluruh test, build hijau; perbaikan dampak terbukti lewat uji mutasi.
+- **Suite:** [cases/administrasi.md](../cases/administrasi.md) TC-ADM-015 s.d. TC-ADM-027; [cases/employee.md](../cases/employee.md) TC-EMP-094, TC-EMP-095.

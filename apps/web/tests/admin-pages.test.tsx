@@ -24,6 +24,7 @@ const account = {
   isActive: true,
   isPrimarySuperAdmin: false,
   employeeId: null,
+  companyIds: [],
   lastLoginAt: null,
   createdAt: "2026-09-28T00:00:00.000Z",
 };
@@ -42,6 +43,8 @@ const grant = {
 const auditLog = {
   id: "a1",
   actorAccountId: "acc-SUPER_ADMIN",
+  actorEmail: "super_admin@example.test",
+  entityLabel: "hr.uji@example.test",
   action: "iam.grant.create",
   entityType: "permission_grant",
   entityId: "g1",
@@ -119,6 +122,10 @@ describe("Administrasi", () => {
     await expectHeader("Audit log", "Administrasi");
     const table = await screen.findByRole("table", { name: "Daftar audit log" });
     expect(await within(table).findByText("iam.grant.create")).toBeInTheDocument();
+    // Terbaca: label aksi Indonesia + email aktor + label entitas (audit UI 2026-09-30).
+    expect(await within(table).findByText("Beri grant izin")).toBeInTheDocument();
+    expect(within(table).getByText("super_admin@example.test")).toBeInTheDocument();
+    expect(within(table).getByText("hr.uji@example.test")).toBeInTheDocument();
   });
 
   it("Audit log kosong → EmptyState", async () => {

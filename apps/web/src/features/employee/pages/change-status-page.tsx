@@ -1,6 +1,6 @@
 import { EXIT_REASON_LABELS, EXIT_REASONS, type ExitReason } from "@hris/shared";
 import { ArrowLeftRight, ArrowRight, Power, TriangleAlert, UserRoundSearch } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -126,8 +126,18 @@ function ActionPanel({
   onActionChange: (action: "status" | "deactivate") => void;
   onDone: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Mobile/tablet: panel ada di bawah daftar karyawan → gulir ke panel setelah karyawan dipilih.
+  useEffect(() => {
+    if (window.matchMedia?.("(max-width: 1023px)").matches) {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
   return (
-    <div className="bg-card animate-fade-up overflow-hidden rounded-2xl border">
+    <div
+      ref={panelRef}
+      className="bg-card animate-fade-up scroll-mt-4 overflow-hidden rounded-2xl border"
+    >
       <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:p-6">
         <EmployeeAvatar name={employee.fullName} photoUrl={employee.photoUrl} size="lg" />
         <div className="min-w-0 flex-1">

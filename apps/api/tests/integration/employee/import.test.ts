@@ -5,6 +5,7 @@ import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
+import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
 
 // D-042: import karyawan CSV/Excel — pratinjau (tanpa tulis), simpan (satu transaksi), cakupan PT
 // (D-040), grant kolom sensitif (§4.2), resign → nonaktif, UPSERT tanpa menimpa sel kosong.
@@ -32,12 +33,16 @@ const data = async (res: Response) => ((await res.json()) as { data: any }).data
 
 type Login = Awaited<ReturnType<typeof auth.loginAs>>;
 const ids = {
+  acp: "",
+  other: "",
+  otherCode: `I${RUN}`,
   department: "",
   position: "",
   permanent: "",
   pkwt: "",
   createdStatuses: [] as string[],
   existing: "",
+  otherEmp: "",
 };
 let sa: Login;
 let hr: Login;
@@ -67,15 +72,19 @@ const baseRow = (n: string, extra: Record<string, unknown> = {}) => ({
   positionName: POS,
   ...extra,
 });
+// PT bawaan ACP: SA melihat semua PT sehingga wajib memilih PT untuk baris tanpa kolom perusahaan.
 const body = (rows: unknown[], extra: Record<string, unknown> = {}) => ({
   fileName: "uji.xlsx",
   fileSha256: SHA,
   mode: "UPSERT",
+  companyId: ids.acp,
   rows,
   ...extra,
 });
 
 beforeAll(async () => {
+  ids.acp = await acpCompanyId();
+  ids.other = await createTestCompany(ids.otherCode, `PT Impor ${RUN}`);
   ids.department = (await prisma.department.create({ data: { name: DEPT } })).id;
   ids.position = (
     await prisma.position.create({ data: { name: POS, departmentId: ids.department } })
@@ -85,6 +94,7 @@ beforeAll(async () => {
   ids.existing = (
     await prisma.employee.create({
       data: {
+        companyId: ids.acp,
         employeeNumber: NUM("E1"),
         fullName: `Impor ${RUN} Lama`,
         phoneNumber: "081200001111",
@@ -94,8 +104,20 @@ beforeAll(async () => {
       },
     })
   ).id;
+  ids.otherEmp = (
+    await prisma.employee.create({
+      data: {
+        companyId: ids.other,
+        employeeNumber: NUM("O1"),
+        fullName: `Impor ${RUN} PT Lain`,
+        joinDate: new Date("2024-01-02T00:00:00.000Z"),
+        employmentStatusId: ids.pkwt,
+        positionId: ids.position,
+      },
+    })
+  ).id;
   sa = await auth.loginAs("SUPER_ADMIN");
-  hr = await auth.loginAs("HR_ADMIN"); // tanpa grant
+  hr = await auth.loginAs("HR_ADMIN"); // ACP, tanpa grant
   hrGranted = await auth.loginAs("HR_ADMIN", {
     grants: [{ permission: "EMPLOYEE_PERSONAL_WRITE" }, { permission: "EMPLOYEE_BANK_WRITE" }],
   });
@@ -155,6 +177,7 @@ afterAll(async () => {
   await prisma.grade.deleteMany({ where: { id: { in: grades.map((g) => g.id) } } });
   await prisma.workLocation.deleteMany({ where: { id: { in: locations.map((l) => l.id) } } });
   await prisma.employmentStatus.deleteMany({ where: { id: { in: ids.createdStatuses } } });
+  await prisma.company.delete({ where: { id: ids.other } });
   await disconnectPrisma();
 });
 
@@ -282,6 +305,7 @@ describe("POST /employee-imports (simpan)", () => {
       where: { employeeNumber: NUM("C1") },
       include: { personal: true, bankAccount: true, educations: true, histories: true },
     });
+    expect(c1.companyId).toBe(ids.acp);
     expect(c1.employmentStatusId).toBe(ids.pkwt);
     expect(c1.personal).toMatchObject({
       ktpNumber: "6271011205800911",
@@ -399,16 +423,27 @@ describe("POST /employee-imports (simpan)", () => {
     expect(h2.bankAccount?.bankName).toBe("BRI");
   });
 
-  test("kolom perusahaan dikenali tetapi belum disimpan (multi-perusahaan belum dirilis)", async () => {
+  test("cakupan PT: HR ACP tidak bisa menulis ke PT lain atau mengubah karyawan PT lain", async () => {
     const preview = await data(
       await call(
         "POST",
         "/employee-imports/preview",
         hr.headers,
-        body([row(6, baseRow("P1", { companyCode: "ZZZ" }))]),
+        body([
+          row(6, baseRow("P1", { companyCode: ids.otherCode })),
+          row(7, { employeeNumber: NUM("O1"), fullName: "Ganti" }),
+          row(8, baseRow("P2", { companyCode: "ZZZ" })),
+        ]),
       ),
     );
-    expect(preview.rows[0]).toMatchObject({ action: "CREATE", issues: [] });
+    const issuesOf = (r: number) =>
+      preview.rows
+        .find((x: { sourceRow: number }) => x.sourceRow === r)
+        .issues.map((i: { code: string }) => i.code);
+    expect(issuesOf(6)).toContain("COMPANY_OUT_OF_SCOPE");
+    expect(issuesOf(7)).toContain("EXISTING_OUT_OF_SCOPE");
+    expect(issuesOf(8)).toContain("COMPANY_UNKNOWN");
+    expect(preview.counts.error).toBe(3);
   });
 
   test("previewHash basi (data berubah sejak pratinjau) → 409", async () => {
@@ -428,6 +463,22 @@ describe("POST /employee-imports (simpan)", () => {
         }),
       ),
     ).toBe("CONFLICT");
+  });
+});
+
+describe("PT bawaan", () => {
+  test("SA tanpa PT bawaan & tanpa kolom perusahaan → COMPANY_REQUIRED; HR 1 PT → otomatis PT-nya", async () => {
+    const noCompany = { ...body([row(6, baseRow("D1"))]), companyId: undefined };
+    const saPreview = await data(
+      await call("POST", "/employee-imports/preview", sa.headers, noCompany),
+    );
+    expect(saPreview.rows[0].issues.map((i: { code: string }) => i.code)).toContain(
+      "COMPANY_REQUIRED",
+    );
+    const hrPreview = await data(
+      await call("POST", "/employee-imports/preview", hr.headers, noCompany),
+    );
+    expect(hrPreview.rows[0]).toMatchObject({ action: "CREATE", companyCode: "ACP" });
   });
 });
 

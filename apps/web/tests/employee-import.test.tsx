@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setSelectedCompany } from "@/features/employee/company-scope";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -9,6 +10,8 @@ vi.mock("@/lib/supabase", async () => ({
 
 // D-042 (web): halaman Import Data Karyawan — unggah → pemetaan otomatis → pratinjau → simpan.
 // Validasi & penulisan sesungguhnya diuji di api (tests/integration/employee/import.test.ts).
+const ACP = { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" };
+const CD2 = { id: "co-cd2", code: "CD2", name: "PT Contoh Dua (Dummy)" };
 
 const CSV = [
   "NO;NIK KARYAWAN;NAMA;JABATAN;DEPARTEMEN",
@@ -24,6 +27,7 @@ const preview = {
       action: "CREATE",
       employeeNumber: "ACP-9001",
       fullName: "Ani Contoh",
+      companyCode: "ACP",
       changes: [],
       issues: [],
     },
@@ -32,6 +36,7 @@ const preview = {
       action: "ERROR",
       employeeNumber: "ACP-9002",
       fullName: "Budi Contoh",
+      companyCode: "ACP",
       changes: [],
       issues: [{ field: "workEmail", code: "EMAIL_TAKEN", severity: "ERROR" }],
     },
@@ -51,9 +56,11 @@ const json = (status: number, body: unknown) =>
 
 function mockBackend({
   role = "HR_ADMIN" as "SUPER_ADMIN" | "HR_ADMIN" | "EMPLOYEE",
+  companies = [ACP],
   commitStatus = [201],
 }: {
   role?: "SUPER_ADMIN" | "HR_ADMIN" | "EMPLOYEE";
+  companies?: (typeof ACP)[];
   commitStatus?: number[];
 } = {}) {
   const requests: { method: string; path: string; body: unknown }[] = [];
@@ -72,7 +79,10 @@ function mockBackend({
       if (path === "/master-data")
         return json(200, {
           data: {
-            departments: [{ id: "d1", name: "Operasional", parentId: null }],
+            companies,
+            departments: [
+              { id: "d1", name: "Operasional", parentId: null, unitType: "DEPARTMENT" },
+            ],
             positions: [],
             employmentStatuses: [],
             grades: [],
@@ -101,12 +111,13 @@ const csvFile = (name = "karyawan.csv", content = CSV) =>
 
 beforeEach(() => {
   authState.session = { access_token: "t", user: { id: "u" } };
+  setSelectedCompany(null);
   vi.clearAllMocks();
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Import Data Karyawan", () => {
-  it("HR: unggah CSV → kolom dikenali otomatis → pratinjau → simpan", async () => {
+  it("HR: unggah CSV → kolom dikenali otomatis → pratinjau → simpan; PT tunggal terisi otomatis", async () => {
     const requests = mockBackend();
     const user = userEvent.setup();
     renderAt("/personal/import?dari=pkwt");
@@ -124,10 +135,11 @@ describe("Import Data Karyawan", () => {
     const previewReq = requests.find((r) => r.path === "/employee-imports/preview");
     const body = previewReq?.body as {
       mode: string;
+      companyId?: string;
       rows: { sourceRow: number; raw: Record<string, unknown> }[];
     };
     expect(body.mode).toBe("UPSERT");
-    expect(body).not.toHaveProperty("companyId");
+    expect(body.companyId).toBe(ACP.id);
     expect(body.rows).toHaveLength(2);
     expect(body.rows[0]).toEqual({
       sourceRow: 2,
@@ -193,6 +205,12 @@ describe("Import Data Karyawan", () => {
     );
     expect(await screen.findByText(/wajib dipetakan/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Lanjut ke pratinjau/ })).toBeDisabled();
+  });
+
+  it("SA dengan 2 PT memilih perusahaan bawaan", async () => {
+    mockBackend({ role: "SUPER_ADMIN", companies: [ACP, CD2] });
+    renderAt("/personal/import");
+    expect(await screen.findByText("Perusahaan bawaan")).toBeInTheDocument();
   });
 
   it("Data Karyawan Aktif menampilkan tombol Import untuk HR; EMPLOYEE tidak bisa membuka halaman import", async () => {

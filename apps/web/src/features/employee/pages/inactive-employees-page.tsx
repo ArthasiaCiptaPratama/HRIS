@@ -1,11 +1,16 @@
 import { useMemo } from "react";
 import { PageHeader } from "@/components/page-header";
+import { useCompanyScope } from "../api";
 import { EmployeeDetailSheet, useEmployeeSheet } from "../components/employee-detail-sheet";
 import { EmployeeListView, employeeColumns } from "../components/employee-list-view";
 
 export function InactiveEmployeesPage() {
   const sheet = useEmployeeSheet();
-  const columns = useMemo(() => employeeColumns("inactive"), []);
+  const { showCompany } = useCompanyScope();
+  const columns = useMemo(
+    () => employeeColumns("inactive", undefined, { showCompany }),
+    [showCompany],
+  );
 
   return (
     <>

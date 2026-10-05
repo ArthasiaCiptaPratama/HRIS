@@ -15,7 +15,7 @@ import {
   LEGACY_SLUGS,
   siblingViews,
 } from "../active-views";
-import { useEmployeeSummary, useMasterData } from "../api";
+import { useCompanyScope, useEmployeeSummary, useMasterData } from "../api";
 import { EmployeeDetailSheet, useEmployeeSheet } from "../components/employee-detail-sheet";
 import { EmployeeFormDialog } from "../components/employee-form-dialog";
 import { EmployeeListView, employeeColumns } from "../components/employee-list-view";
@@ -33,7 +33,11 @@ export function ActiveEmployeesPage() {
     employee: null,
   });
 
-  const columns = useMemo(() => employeeColumns("active"), []);
+  const { showCompany } = useCompanyScope();
+  const columns = useMemo(
+    () => employeeColumns("active", undefined, { showCompany }),
+    [showCompany],
+  );
   const view = findActiveView(slug);
   if (!view) {
     const legacy = LEGACY_SLUGS[slug];
@@ -90,7 +94,7 @@ export function ActiveEmployeesPage() {
             }
           >
             {chip.label}
-            <span className="font-mono text-xs tabular-nums opacity-70">{chip.count ?? "·"}</span>
+            <span className="font-mono text-xs tabular-nums">{chip.count ?? "·"}</span>
           </NavLink>
         ))}
       </nav>

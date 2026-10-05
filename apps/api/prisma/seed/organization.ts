@@ -1,4 +1,8 @@
-import type { EmploymentCategory, PrismaClient } from "../../src/generated/prisma/client.ts";
+import type {
+  EmploymentCategory,
+  PositionLevel,
+  PrismaClient,
+} from "../../src/generated/prisma/client.ts";
 
 // Master data dummy (PLAN §5.7). Idempoten: upsert berdasarkan kunci unik.
 export const DEPARTMENTS: Record<string, string[]> = {
@@ -7,6 +11,40 @@ export const DEPARTMENTS: Record<string, string[]> = {
   "Teknologi Informasi": ["IT Manager", "Software Engineer", "IT Support"],
   Operasional: ["Operations Manager", "Operations Staff"],
   "Penjualan & Pemasaran": ["Sales Manager", "Sales Executive"],
+};
+
+// D-050: contoh direktorat dengan jabatan direksi langsung di unit direktorat (tanpa departemen).
+// Departemen dummy di atas ditaruh di bawah direktorat HANYA saat baru dibuat (DB lama tidak dipindah).
+export const DIRECTORATES: Array<{
+  name: string;
+  parent: string | null;
+  positions: Array<{ name: string; level: PositionLevel }>;
+  departments: string[];
+}> = [
+  {
+    name: "Direktorat Utama",
+    parent: null,
+    positions: [
+      { name: "Direktur Utama", level: "DIRECTOR" },
+      { name: "Sekretaris Direksi", level: "STAFF" },
+    ],
+    departments: ["Human Resources & GA", "Keuangan & Akuntansi", "Teknologi Informasi"],
+  },
+  {
+    name: "Direktorat Operasional",
+    parent: "Direktorat Utama",
+    positions: [{ name: "Direktur Operasional", level: "DIRECTOR" }],
+    departments: ["Operasional", "Penjualan & Pemasaran"],
+  },
+];
+
+/** D-050: level jabatan dummy (dipakai hanya saat jabatan baru dibuat). */
+const POSITION_LEVELS_SEED: Record<string, PositionLevel> = {
+  "HR Manager": "MANAGER",
+  "Finance Manager": "MANAGER",
+  "IT Manager": "MANAGER",
+  "Operations Manager": "MANAGER",
+  "Sales Manager": "MANAGER",
 };
 
 // D-035/D-038: satu status per kategori navigasi. `legacyNames` = nama seed lama yang diganti (DB developer
@@ -23,6 +61,11 @@ export const EMPLOYMENT_STATUSES: Array<{
   { name: "Magang", category: "INTERNSHIP", legacyNames: ["Internship"] },
   { name: "Outsourcing", category: "OUTSOURCING", legacyNames: [] },
   { name: "Vendor", category: "VENDOR", legacyNames: [] },
+];
+// D-039: ACP dibuat migrasi (data referensi); CD2 = perusahaan DUMMY untuk menguji batas akses per PT (D-040).
+export const COMPANIES = [
+  { code: "ACP", name: "PT Arthasia Cipta Pratama" },
+  { code: "CD2", name: "PT Contoh Dua (Dummy)" },
 ];
 export const GRADES = ["Staf", "Staf Senior", "Supervisor", "Manajer", "Direktur"];
 
@@ -46,6 +89,7 @@ export const WORK_LOCATIONS = [
 ];
 
 export interface OrganizationIds {
+  companies: Map<string, string>;
   positions: Map<string, string>;
   statuses: Map<string, string>;
   grades: Map<string, string>;
@@ -53,18 +97,52 @@ export interface OrganizationIds {
 }
 
 export async function seedOrganization(prisma: PrismaClient): Promise<OrganizationIds> {
+  const companies = new Map<string, string>();
+  for (const { code, name } of COMPANIES) {
+    const company = await prisma.company.upsert({
+      where: { code },
+      update: {},
+      create: { code, name },
+    });
+    companies.set(code, company.id);
+  }
+
   const positions = new Map<string, string>();
+  const directorates = new Map<string, string>();
+  const parentOfDepartment = new Map<string, string>();
+  for (const directorate of DIRECTORATES) {
+    const parentId = directorate.parent ? (directorates.get(directorate.parent) ?? null) : null;
+    const unit = await prisma.department.upsert({
+      where: { name: directorate.name },
+      update: {},
+      create: { name: directorate.name, unitType: "DIRECTORATE", parentId },
+    });
+    directorates.set(directorate.name, unit.id);
+    for (const { name, level } of directorate.positions) {
+      const position = await prisma.position.upsert({
+        where: { departmentId_name: { departmentId: unit.id, name } },
+        update: {},
+        create: { name, departmentId: unit.id, level },
+      });
+      positions.set(name, position.id);
+    }
+    for (const department of directorate.departments) parentOfDepartment.set(department, unit.id);
+  }
   for (const [departmentName, positionNames] of Object.entries(DEPARTMENTS)) {
     const department = await prisma.department.upsert({
       where: { name: departmentName },
       update: {},
-      create: { name: departmentName },
+      create: { name: departmentName, parentId: parentOfDepartment.get(departmentName) ?? null },
     });
     for (const name of positionNames) {
       const position = await prisma.position.upsert({
         where: { departmentId_name: { departmentId: department.id, name } },
         update: {},
-        create: { name, departmentId: department.id },
+        create: {
+          name,
+          departmentId: department.id,
+          level: POSITION_LEVELS_SEED[name] ?? null,
+        },
       });
       positions.set(name, position.id);
     }
@@ -92,7 +170,7 @@ export async function seedOrganization(prisma: PrismaClient): Promise<Organizati
     locations.set(location.name, row.id);
   }
 
-  return { positions, statuses, grades, locations };
+  return { companies, positions, statuses, grades, locations };
 }
 
 // Cari berdasarkan kategori → nama baru/lama → buat. Nama lama yang tersisa (mis. "Masa Percobaan")

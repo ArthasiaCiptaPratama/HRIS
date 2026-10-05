@@ -3,6 +3,7 @@ import {
   EMPLOYMENT_CATEGORIES,
   EMPLOYMENT_CATEGORY_LABELS,
   type EmploymentCategory,
+  POSITION_LEVELS,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
@@ -52,6 +53,7 @@ import type {
   PhotoUploadUrl,
   PhotoUploadUrlInput,
   ReactivateInput,
+  SummaryQuery,
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
 
@@ -98,15 +100,49 @@ function auditBase(ctx: RequestContext) {
   };
 }
 
-const targetOf = (row: { id: string; managerId: string | null }): EmployeeTarget => ({
+const targetOf = (row: {
+  id: string;
+  managerId: string | null;
+  companyId: string;
+}): EmployeeTarget => ({
   employeeId: row.id,
   managerId: row.managerId,
+  companyId: row.companyId,
 });
+
+/**
+ * D-040: lengkapi cakupan PT aktor MANAGER/EMPLOYEE dengan PT tempat ia terdaftar (dipakai direktori).
+ * SUPER_ADMIN (semua) & HR_ADMIN (penugasan) sudah diisi iam. Dirakit di app.ts (iam tidak membaca
+ * tabel employee, PLAN §3.2).
+ */
+/** D-040: penyaring cakupan akun untuk iam (disuntik lewat configureIam di app.ts). */
+export const employeeScopeForIam = {
+  async companyOfEmployees(employeeIds: string[]): Promise<Map<string, string>> {
+    const rows = await repository.findCompanyIds(employeeIds);
+    return new Map(rows.map((row) => [row.id, row.companyId]));
+  },
+  employeeIdsInCompanies: (companyIds: string[]) => repository.findIdsInCompanies(companyIds),
+  async employeeLabels(employeeIds: string[]): Promise<Map<string, string>> {
+    const rows = await repository.findManyByIds(employeeIds);
+    return new Map(rows.map((row) => [row.id, `${row.fullName} (${row.employeeNumber})`]));
+  },
+};
+
+export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
+  if (actor.role === "SUPER_ADMIN" || actor.role === "HR_ADMIN" || !actor.employeeId) return actor;
+  const companyId = await repository.findCompanyId(actor.employeeId);
+  return { ...actor, companyIds: new Set(companyId ? [companyId] : []) };
+}
 
 function nameRef<T extends { id: string; name: string }>(map: Map<string, T>, id: string | null) {
   if (!id) return null;
   const row = map.get(id);
   return row ? { id: row.id, name: row.name } : null;
+}
+
+function companyRef(lookup: MasterLookup, id: string) {
+  const company = lookup.companies.get(id);
+  return { id, code: company?.code ?? "—", name: company?.name ?? "—" };
 }
 
 function toListItem(
@@ -132,6 +168,7 @@ function toListItem(
       name: status?.name ?? "—",
       category: status?.category ?? null,
     },
+    company: companyRef(lookup, row.companyId),
     position: { id: row.positionId, name: position?.name ?? "—" },
     department: nameRef(lookup.departments, position?.departmentId ?? null),
     workLocation: nameRef(lookup.locations, row.workLocationId),
@@ -157,6 +194,21 @@ function assertCanManage(actor: Actor) {
   if (!policy.canManageEmployees(actor)) throw new ForbiddenError();
 }
 
+/** Karyawan yang boleh dilihat aktor; di luar cakupan (mis. PT lain, D-040) = 404 (PROMPT §5). */
+async function loadInScope(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
+  const row = await loadEmployee(id, tx);
+  if (!policy.canViewEmployee(ctx.actor, targetOf(row))) {
+    throw new NotFoundError("Karyawan tidak ditemukan.");
+  }
+  return row;
+}
+
+function assertCanCreateIn(actor: Actor, companyId: string) {
+  if (!policy.canCreateInCompany(actor, companyId)) {
+    throw new ForbiddenError("Anda tidak berhak mengelola karyawan di perusahaan ini.");
+  }
+}
+
 /** Prisma P2002 (unik) → 409 dengan pesan yang bisa dipahami pengguna. */
 function rethrowUnique(error: unknown): never {
   if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
@@ -178,7 +230,13 @@ function scopeWhere(actor: Actor): repository.EmployeeWhere {
   const scope = policy.employeeListScope(actor);
   if (scope === null) throw new ForbiddenError();
   // D-035: MANAGER hanya tim (bawahan langsung, D-009).
-  return scope === "team" ? { managerId: actor.employeeId } : {};
+  if (scope === "team") return { managerId: actor.employeeId };
+  // D-040: HR hanya PT yang ditugaskan (tanpa penugasan → tidak ada).
+  if (scope === "companies") {
+    const ids = [...(actor.companyIds ?? [])];
+    return { companyId: { in: ids.length > 0 ? ids : [NO_MATCH] } };
+  }
+  return {};
 }
 
 function buildWhere(
@@ -195,6 +253,7 @@ function buildWhere(
     const ids = statusIdsForCategories(lookup, categories);
     and.push({ employmentStatusId: { in: ids.length > 0 ? ids : [NO_MATCH] } });
   }
+  if (query.companyId) and.push({ companyId: query.companyId });
   if (query.statusId) and.push({ employmentStatusId: query.statusId });
   if (query.departmentId) {
     const ids = positionIdsInDepartment(lookup, query.departmentId);
@@ -243,11 +302,14 @@ export async function listEmployees(ctx: RequestContext, query: ListEmployeesQue
   };
 }
 
-export async function getSummary(ctx: RequestContext): Promise<EmployeeSummary> {
-  const [lookup, groups] = await Promise.all([
-    getMasterLookup(),
-    repository.countByStatus(scopeWhere(ctx.actor)),
-  ]);
+export async function getSummary(
+  ctx: RequestContext,
+  query: SummaryQuery = {},
+): Promise<EmployeeSummary> {
+  const where: repository.EmployeeWhere = query.companyId
+    ? { AND: [scopeWhere(ctx.actor), { companyId: query.companyId }] }
+    : scopeWhere(ctx.actor);
+  const [lookup, groups] = await Promise.all([getMasterLookup(), repository.countByStatus(where)]);
   const byCategory = Object.fromEntries(EMPLOYMENT_CATEGORIES.map((c) => [c, 0])) as Record<
     EmploymentCategory,
     number
@@ -304,7 +366,11 @@ export async function getDashboard(
   now = new Date(),
 ): Promise<EmployeeDashboard> {
   if (!policy.canViewDashboard(ctx.actor)) throw new ForbiddenError();
-  const [lookup, rows] = await Promise.all([getMasterLookup(), repository.listForDashboard()]);
+  // D-040: HR hanya PT yang ditugaskan; SA semua PT.
+  const [lookup, rows] = await Promise.all([
+    getMasterLookup(),
+    repository.listForDashboard(scopeWhere(ctx.actor)),
+  ]);
   const active = rows.filter((row) => row.isActive);
   const today = toDate(todayInJakarta(now)).getTime();
 
@@ -507,6 +573,8 @@ export async function getEmployee(
       toStatus: nameRef(lookup.statuses, h.toStatusId),
       fromPosition: nameRef(lookup.positions, h.fromPositionId),
       toPosition: nameRef(lookup.positions, h.toPositionId),
+      fromCompany: nameRef(lookup.companies, h.fromCompanyId),
+      toCompany: nameRef(lookup.companies, h.toCompanyId),
       exitReason: h.exitReason,
       note: h.note,
       changedBy: h.changedBy ? (changers.get(h.changedBy) ?? null) : null,
@@ -545,6 +613,7 @@ export async function getEmployee(
 // ── Validasi referensi ──────────────────────────────────────────────────────
 
 interface RefInput {
+  companyId?: string | undefined;
   employmentStatusId?: string | undefined;
   positionId?: string | undefined;
   workLocationId?: string | null | undefined;
@@ -563,6 +632,7 @@ function assertRefs(lookup: MasterLookup, input: RefInput) {
       throw new BusinessRuleError(`${label} tidak ditemukan atau sudah tidak dipakai.`);
     }
   };
+  check(lookup.companies, input.companyId, "Perusahaan");
   check(lookup.statuses, input.employmentStatusId, "Status kepegawaian");
   check(lookup.positions, input.positionId, "Jabatan");
   check(lookup.locations, input.workLocationId, "Lokasi kerja");
@@ -612,11 +682,13 @@ export async function createEmployee(
   input: CreateEmployeeInput,
 ): Promise<EmployeeListItem> {
   assertCanManage(ctx.actor);
+  assertCanCreateIn(ctx.actor, input.companyId);
   assertRefs(await getMasterLookup(), input);
   const id = await repository
     .withTransaction(async (tx) => {
       if (input.managerId) await assertManager(input.managerId, null, tx);
       const created = await repository.createEmployee(tx, {
+        companyId: input.companyId,
         employeeNumber: input.employeeNumber,
         fullName: input.fullName,
         workEmail: input.workEmail?.toLowerCase() ?? null,
@@ -638,6 +710,7 @@ export async function createEmployee(
         effectiveDate: toDate(input.joinDate),
         toStatusId: input.employmentStatusId,
         toPositionId: input.positionId,
+        toCompanyId: input.companyId,
         changedBy: ctx.actor.accountId,
       });
       await writeAudit(
@@ -647,6 +720,7 @@ export async function createEmployee(
           entityId: created.id,
           after: {
             employeeNumber: input.employeeNumber,
+            companyId: input.companyId,
             employmentStatusId: input.employmentStatusId,
             positionId: input.positionId,
             managerId: input.managerId ?? null,
@@ -667,15 +741,28 @@ export async function updateEmployee(
   now = new Date(),
 ): Promise<EmployeeListItem> {
   assertCanManage(ctx.actor);
-  assertRefs(await getMasterLookup(), input);
+  const lookup = await getMasterLookup();
   await repository
     .withTransaction(async (tx) => {
-      const before = await loadEmployee(id, tx);
+      const before = await loadInScope(ctx, id, tx);
+      // D-049: hanya rujukan yang BERUBAH yang harus aktif; nilai lama yang sudah diarsipkan tetap boleh
+      // dikirim ulang oleh form supaya field lain masih bisa diubah.
+      const changed = <T>(next: T | undefined, current: T): T | undefined =>
+        next !== undefined && next !== current ? next : undefined;
+      assertRefs(lookup, {
+        companyId: changed(input.companyId, before.companyId),
+        positionId: changed(input.positionId, before.positionId),
+        workLocationId: changed(input.workLocationId, before.workLocationId),
+        gradeId: changed(input.gradeId, before.gradeId),
+      });
       if (!before.isActive) {
         throw new BusinessRuleError(
           "Data karyawan nonaktif hanya arsip. Aktifkan kembali untuk mengubah.",
         );
       }
+      // D-040: memindahkan karyawan hanya ke PT dalam cakupan aktor.
+      const companyChanged = input.companyId !== undefined && input.companyId !== before.companyId;
+      if (companyChanged) assertCanCreateIn(ctx.actor, input.companyId as string);
       if (input.managerId && input.managerId !== before.managerId) {
         await assertManager(input.managerId, id, tx);
       }
@@ -690,11 +777,23 @@ export async function updateEmployee(
         emergencyContactRelationship: nullable(input.emergencyContactRelationship),
         gender: nullable(input.gender),
         joinDate: input.joinDate ? toDate(input.joinDate) : undefined,
+        companyId: input.companyId,
         positionId: input.positionId,
         workLocationId: nullable(input.workLocationId),
         gradeId: nullable(input.gradeId),
         managerId: nullable(input.managerId),
       });
+      if (companyChanged) {
+        // D-039: pindah perusahaan dalam grup tercatat di riwayat.
+        await repository.createHistory(tx, {
+          employeeId: id,
+          changeType: "COMPANY_CHANGED",
+          effectiveDate: toDate(todayInJakarta(now)),
+          fromCompanyId: before.companyId,
+          toCompanyId: input.companyId as string,
+          changedBy: ctx.actor.accountId,
+        });
+      }
       if (input.positionId && input.positionId !== before.positionId) {
         await repository.createHistory(tx, {
           employeeId: id,
@@ -712,6 +811,7 @@ export async function updateEmployee(
           action: "employee.employee.update",
           entityId: id,
           before: {
+            companyId: before.companyId,
             positionId: before.positionId,
             managerId: before.managerId,
             workLocationId: before.workLocationId,
@@ -734,7 +834,7 @@ export async function changeStatus(
   assertCanManage(ctx.actor);
   assertRefs(await getMasterLookup(), input);
   await repository.withTransaction(async (tx) => {
-    const before = await loadEmployee(id, tx);
+    const before = await loadInScope(ctx, id, tx);
     if (!before.isActive) {
       throw new BusinessRuleError("Karyawan nonaktif. Gunakan menu Pengaktifan Karyawan.");
     }
@@ -774,7 +874,7 @@ export async function deactivateEmployee(
   deps: { authAdmin: AuthAdmin },
 ): Promise<EmployeeListItem> {
   await repository.withTransaction(async (tx) => {
-    const before = await loadEmployee(id, tx);
+    const before = await loadInScope(ctx, id, tx);
     if (!policy.canDeactivateEmployee(ctx.actor, targetOf(before))) throw new ForbiddenError();
     if (!before.isActive) throw new ConflictError("Karyawan sudah nonaktif.");
     assertNotBeforeJoin(input.effectiveDate, before.joinDate);
@@ -822,7 +922,7 @@ export async function reactivateEmployee(
   assertCanManage(ctx.actor);
   assertRefs(await getMasterLookup(), input);
   await repository.withTransaction(async (tx) => {
-    const before = await loadEmployee(id, tx);
+    const before = await loadInScope(ctx, id, tx);
     if (before.isActive) throw new ConflictError("Karyawan sudah aktif.");
     assertNotBeforeJoin(input.effectiveDate, before.joinDate);
     const statusId = input.employmentStatusId ?? before.employmentStatusId;
@@ -861,9 +961,11 @@ export async function reactivateEmployee(
 
 export async function getOrgStructure(ctx: RequestContext): Promise<OrgStructure> {
   if (!policy.canReadOrgStructure(ctx.actor)) throw new ForbiddenError();
+  // D-040: direktori per PT (SA semua; HR penugasan; MANAGER/EMPLOYEE PT sendiri).
+  const companies = policy.directoryCompanyIds(ctx.actor);
   const [lookup, employees] = await Promise.all([
     getMasterLookup(),
-    repository.listActiveForStructure(),
+    repository.listActiveForStructure(companies === null ? null : [...companies]),
   ]);
   const byPosition = new Map<string, typeof employees>();
   for (const employee of employees) {
@@ -878,13 +980,22 @@ export async function getOrgStructure(ctx: RequestContext): Promise<OrgStructure
       id: department.id,
       name: department.name,
       parentId: department.parentId,
+      unitType: department.unitType,
       positions: positions
         .filter((p) => p.departmentId === department.id)
         // Jabatan yang dihapus tetap tampil bila masih ada pemegangnya.
         .filter((p) => !p.deleted || byPosition.has(p.id))
+        // D-050: urut level (Direksi → Helper), lalu nama; tanpa level di akhir.
+        .sort(
+          (a, b) =>
+            (a.level ? POSITION_LEVELS.indexOf(a.level) : POSITION_LEVELS.length) -
+              (b.level ? POSITION_LEVELS.indexOf(b.level) : POSITION_LEVELS.length) ||
+            a.name.localeCompare(b.name, "id"),
+        )
         .map((p) => ({
           id: p.id,
           name: p.name,
+          level: p.level,
           employees: (byPosition.get(p.id) ?? []).map(({ positionId: _p, ...rest }) => rest),
         })),
     }));
@@ -1004,3 +1115,17 @@ async function removeQuietly(storage: StorageAdmin, path: string) {
     // Objek yatim tidak berbahaya (bucket private); tidak ada data pribadi yang dicatat di sini.
   }
 }
+
+// ── D-049: dukungan master data untuk modul organization (disuntik di app.ts) ──────────────────
+// Organization tidak boleh membaca tabel employee (PLAN §3.2.4); data yang dibutuhkannya disediakan
+// di sini tanpa data per orang (hanya jumlah) dan pemindahan rujukan saat gabungkan.
+
+export const employeeMasterDataSupport = {
+  countByMasterRef: (kind: repository.MasterRefKind) => repository.countByMasterRef(kind),
+  reassignMasterRef: (
+    tx: repository.EmployeeTx,
+    kind: Exclude<repository.MasterRefKind, "company">,
+    fromId: string,
+    toId: string,
+  ) => repository.reassignMasterRef(tx, kind, fromId, toId),
+};

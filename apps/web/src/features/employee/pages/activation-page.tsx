@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { useEmployee } from "../api";
+import { useCompanyScope, useEmployee } from "../api";
 import { EmployeeListView, employeeColumns } from "../components/employee-list-view";
 import { ReactivateDialog } from "../components/reactivate-dialog";
 import type { EmployeeListItem } from "../schemas";
@@ -19,21 +19,26 @@ export function ActivationPage() {
     if (preselect.data && !preselect.data.isActive) setTarget(preselect.data);
   }, [preselect.data]);
 
+  const { showCompany } = useCompanyScope();
   const columns = useMemo(
     () =>
-      employeeColumns("inactive", (row) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={(event) => {
-            event.stopPropagation();
-            setTarget(row);
-          }}
-        >
-          <RotateCcw /> Aktifkan
-        </Button>
-      )),
-    [],
+      employeeColumns(
+        "inactive",
+        (row) => (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(event) => {
+              event.stopPropagation();
+              setTarget(row);
+            }}
+          >
+            <RotateCcw /> Aktifkan
+          </Button>
+        ),
+        { showCompany },
+      ),
+    [showCompany],
   );
 
   return (

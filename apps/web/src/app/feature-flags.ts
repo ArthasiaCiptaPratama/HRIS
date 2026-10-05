@@ -4,7 +4,7 @@
 export const FEATURES = {
   // Personal Management menu b–e: aktif sejak 2026-09-30 (Tahap 1, permintaan pemilik projek).
   changeStatus: true, // b. Ubah Status Karyawan
-  activation: false, // c. Pengaktifan Karyawan
-  inactiveEmployees: false, // d. Data Karyawan Tidak Aktif
-  orgStructure: false, // e. Struktur Organisasi
+  activation: true, // c. Pengaktifan Karyawan
+  inactiveEmployees: true, // d. Data Karyawan Tidak Aktif
+  orgStructure: true, // e. Struktur Organisasi
 } as const;

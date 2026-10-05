@@ -21,6 +21,7 @@ export const LIST_SELECT = {
   isActive: true,
   exitReason: true,
   employmentStatusId: true,
+  companyId: true,
   positionId: true,
   workLocationId: true,
   gradeId: true,
@@ -149,12 +150,41 @@ export async function findManagerId(id: string, tx: EmployeeTx = getPrisma()) {
   return row?.managerId ?? null;
 }
 
-export async function listActiveForStructure() {
+/** Direktori: `companyIds` null = semua PT (D-040). */
+export async function listActiveForStructure(companyIds: readonly string[] | null) {
   return getPrisma().employee.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
+    },
     select: { id: true, fullName: true, employeeNumber: true, positionId: true, managerId: true },
     orderBy: { fullName: "asc" },
   });
+}
+
+/** D-040: PT per karyawan (cakupan akun di iam). */
+export async function findCompanyIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  return getPrisma().employee.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, companyId: true },
+  });
+}
+
+/** D-040: id karyawan di perusahaan tertentu (cakupan akun HR di iam). */
+export async function findIdsInCompanies(companyIds: string[]) {
+  if (companyIds.length === 0) return [];
+  const rows = await getPrisma().employee.findMany({
+    where: { companyId: { in: companyIds } },
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
+}
+
+/** D-040: PT tempat karyawan terdaftar (untuk cakupan direktori MANAGER/EMPLOYEE). */
+export async function findCompanyId(id: string) {
+  const row = await getPrisma().employee.findUnique({ where: { id }, select: { companyId: true } });
+  return row?.companyId ?? null;
 }
 
 export async function createEmployee(tx: EmployeeTx, data: Prisma.EmployeeUncheckedCreateInput) {
@@ -180,9 +210,10 @@ export async function countActiveSubordinates(id: string) {
   return getPrisma().employee.count({ where: { managerId: id, isActive: true } });
 }
 
-/** Dashboard: baris minimal seluruh karyawan (agregat dihitung di service; skala ribuan baris). */
-export async function listForDashboard() {
+/** Dashboard: baris minimal karyawan dalam cakupan (agregat dihitung di service; skala ribuan baris). */
+export async function listForDashboard(where: EmployeeWhere) {
   return getPrisma().employee.findMany({
+    where,
     select: {
       isActive: true,
       joinDate: true,
@@ -192,4 +223,67 @@ export async function listForDashboard() {
       educations: { select: { level: true } },
     },
   });
+}
+
+// ── D-049: dukungan master data untuk modul organization (lewat index.ts, disuntik di app.ts) ──
+
+export type MasterRefKind = "company" | "position" | "status" | "grade" | "location";
+
+const MASTER_REF_COLUMN = {
+  company: "companyId",
+  position: "positionId",
+  status: "employmentStatusId",
+  grade: "gradeId",
+  location: "workLocationId",
+} as const;
+
+/** Jumlah karyawan (aktif & total) per id master data. */
+export async function countByMasterRef(kind: MasterRefKind) {
+  const column = MASTER_REF_COLUMN[kind];
+  const rows = await getPrisma().employee.groupBy({
+    by: [column, "isActive"],
+    _count: { _all: true },
+  });
+  const result = new Map<string, { active: number; total: number }>();
+  for (const row of rows) {
+    const id = (row as Record<string, unknown>)[column];
+    if (typeof id !== "string") continue;
+    const entry = result.get(id) ?? { active: 0, total: 0 };
+    entry.total += row._count._all;
+    if (row.isActive) entry.active += row._count._all;
+    result.set(id, entry);
+  }
+  return result;
+}
+
+/** Pindahkan rujukan karyawan (+ riwayat untuk jabatan/status) dari satu master data ke yang lain. */
+export async function reassignMasterRef(
+  tx: EmployeeTx,
+  kind: Exclude<MasterRefKind, "company">,
+  fromId: string,
+  toId: string,
+) {
+  const column = MASTER_REF_COLUMN[kind];
+  const employees = await tx.employee.updateMany({
+    where: { [column]: fromId },
+    data: { [column]: toId },
+  });
+  let histories = 0;
+  if (kind === "position" || kind === "status") {
+    const [from, to] =
+      kind === "position" ? ["fromPositionId", "toPositionId"] : ["fromStatusId", "toStatusId"];
+    histories += (
+      await tx.employmentHistory.updateMany({
+        where: { [from as string]: fromId },
+        data: { [from as string]: toId },
+      })
+    ).count;
+    histories += (
+      await tx.employmentHistory.updateMany({
+        where: { [to as string]: fromId },
+        data: { [to as string]: toId },
+      })
+    ).count;
+  }
+  return { employees: employees.count, histories };
 }

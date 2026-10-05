@@ -96,6 +96,15 @@ export const routes: RouteObject[] = [
               </RequireAccess>
             ),
           },
+          {
+            // D-049: Administrasi › Master Data (SA kelola, HR lihat).
+            path: "master-data",
+            element: <RequireAccessRoute check={access.viewMasterData} />,
+            children: [
+              { index: true, element: <Navigate to="perusahaan" replace /> },
+              { path: ":kind", lazy: pages.masterData },
+            ],
+          },
           { path: "notifikasi", Component: NotificationsPage },
           { path: "profil", Component: ProfilePage },
           { path: "*", Component: NotFoundPage },

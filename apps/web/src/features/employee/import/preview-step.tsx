@@ -223,6 +223,7 @@ export function PreviewStep({
               <TableRow>
                 <TableHead className="w-16">Baris</TableHead>
                 <TableHead>Karyawan</TableHead>
+                <TableHead className="w-16">PT</TableHead>
                 <TableHead className="w-28">Aksi</TableHead>
                 <TableHead className="min-w-[260px]">Perubahan / masalah</TableHead>
               </TableRow>
@@ -237,6 +238,7 @@ export function PreviewStep({
                       {r.employeeNumber ?? "—"}
                     </p>
                   </TableCell>
+                  <TableCell className="font-mono text-xs">{r.companyCode ?? "—"}</TableCell>
                   <TableCell>
                     <Badge variant={ACTION_BADGE[r.action]}>{ACTION_LABELS[r.action]}</Badge>
                   </TableCell>
@@ -266,7 +268,7 @@ export function PreviewStep({
               ))}
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-muted-foreground py-10 text-center">
+                  <TableCell colSpan={5} className="text-muted-foreground py-10 text-center">
                     Tidak ada baris pada kategori ini.
                   </TableCell>
                 </TableRow>

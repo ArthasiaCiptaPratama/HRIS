@@ -38,11 +38,7 @@ const SECTION_HINT: Record<string, string> = {
 const FIELD_OPTIONS = IMPORT_FIELD_KEYS.map((key) => ({
   value: key,
   label: IMPORT_FIELDS[key].label,
-  // Field tanpa tempat di DB (kontrak; perusahaan sebelum multi-PT dirilis) ditandai jelas.
-  hint:
-    "notStored" in IMPORT_FIELDS[key] && IMPORT_FIELDS[key].section !== "contract"
-      ? "Belum disimpan"
-      : SECTION_HINT[IMPORT_FIELDS[key].section],
+  hint: SECTION_HINT[IMPORT_FIELDS[key].section],
 }));
 
 function sampleOf(rows: DataRow[], column: number, field: ImportFieldKey | null): string {

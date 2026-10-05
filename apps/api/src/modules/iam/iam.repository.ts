@@ -17,7 +17,8 @@ function activeGrantsInclude(now: Date) {
 export async function findActiveAccountByAuthUserId(authUserId: string, now: Date) {
   return getPrisma().account.findFirst({
     where: { authUserId, isActive: true },
-    include: activeGrantsInclude(now),
+    // D-040: PT yang ditugaskan (tabel milik iam).
+    include: { ...activeGrantsInclude(now), companies: { select: { companyId: true } } },
   });
 }
 
@@ -61,6 +62,8 @@ export interface AccountFilter {
   role?: Prisma.AccountWhereInput["role"];
   isActive?: boolean;
   q?: string;
+  /** D-040: cakupan HR — akun tertaut karyawan di daftar ini, atau belum tertaut karyawan. */
+  employeeScope?: { employeeIds: string[] };
 }
 
 function accountWhere(filter: AccountFilter): Prisma.AccountWhereInput {
@@ -68,6 +71,11 @@ function accountWhere(filter: AccountFilter): Prisma.AccountWhereInput {
     ...(filter.role ? { role: filter.role } : {}),
     ...(filter.isActive === undefined ? {} : { isActive: filter.isActive }),
     ...(filter.q ? { email: { contains: filter.q, mode: "insensitive" } } : {}),
+    ...(filter.employeeScope
+      ? {
+          OR: [{ employeeId: null }, { employeeId: { in: filter.employeeScope.employeeIds } }],
+        }
+      : {}),
   };
 }
 
@@ -231,4 +239,30 @@ export async function findEmployeeIdsByRoles(roles: NonNullable<Prisma.AccountWh
 
 export async function findAccountByEmployeeId(tx: IamTx, employeeId: string) {
   return tx.account.findUnique({ where: { employeeId } });
+}
+
+// ── D-040: penugasan perusahaan akun HR_ADMIN ───────────────────────────────
+
+export async function findCompanyAssignments(accountIds: string[], tx: IamTx = getPrisma()) {
+  if (accountIds.length === 0) return [];
+  return tx.accountCompany.findMany({
+    where: { accountId: { in: accountIds } },
+    select: { accountId: true, companyId: true },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** Ganti seluruh penugasan (set baru), dalam transaksi pemanggil. */
+export async function replaceCompanyAssignments(
+  tx: IamTx,
+  accountId: string,
+  companyIds: string[],
+  assignedBy: string,
+) {
+  await tx.accountCompany.deleteMany({ where: { accountId } });
+  if (companyIds.length > 0) {
+    await tx.accountCompany.createMany({
+      data: companyIds.map((companyId) => ({ accountId, companyId, assignedBy })),
+    });
+  }
 }

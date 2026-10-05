@@ -1,10 +1,39 @@
 // Modul organization (PLAN §1.2) — master data. ERD minggu 2026-09-28 (D-026).
 // Modul inti: modul lain boleh FK ke tabel di sini (PLAN §3.2).
 
+// D-039: perusahaan dalam grup (multi-entitas, satu sistem). Master data lain (departemen, jabatan,
+// grade, status, site) berlaku untuk seluruh grup; perusahaan menempel di karyawan.
+model Company {
+  id               String              @id @default(uuid()) @db.Uuid
+  // Kode singkat unik yang dipakai di file kantor & UI, mis. "ACP", "PNR".
+  code             String              @db.VarChar(10)
+  name             String              @db.VarChar(150)
+  npwpNumber       String?             @map("npwp_number") @db.VarChar(20)
+  address          String?
+  isActive         Boolean             @default(true) @map("is_active")
+  employees        Employee[]
+  historiesFrom    EmploymentHistory[] @relation("HistoryFromCompany")
+  historiesTo      EmploymentHistory[] @relation("HistoryToCompany")
+  // Sisi balik iam.account_companies (wajib Prisma); jangan di-include dari modul organization.
+  accountCompanies AccountCompany[]
+  // Sisi balik employee.import_jobs (D-042).
+  importJobs       ImportJob[]
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?           @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([code])
+  @@unique([name])
+  @@map("companies")
+  @@schema("organization")
+}
+
 model Department {
   id        String       @id @default(uuid()) @db.Uuid
   name      String       @db.VarChar(100)
-  // CODEMAP §6.3: departemen berhierarki (opsional; ERD awal belum memakainya).
+  // D-050: tabel ini menyimpan semua UNIT ORGANISASI (nama tabel tetap "departments" supaya rilis aman).
+  unitType  OrgUnitType  @default(DEPARTMENT) @map("unit_type")
+  // CODEMAP §6.3: unit berhierarki; jenis induk yang sah dijaga service (D-050).
   parentId  String?      @map("parent_id") @db.Uuid
   parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children  Department[] @relation("DepartmentHierarchy")
@@ -23,6 +52,8 @@ model Position {
   id                      String              @id @default(uuid()) @db.Uuid
   name                    String              @db.VarChar(100)
   departmentId            String              @map("department_id") @db.Uuid
+  // D-050: level jabatan (opsional) — berbeda dari Grade (golongan, D-026).
+  level                   PositionLevel?
   department              Department          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   employees               Employee[]
   employmentHistoriesFrom EmploymentHistory[] @relation("HistoryFromPosition")
@@ -40,6 +71,30 @@ model Position {
 // D-035/D-038: kategori tetap untuk navigasi "Data Karyawan Aktif" (grup Internal: Tetap, Percobaan, PKWT,
 // Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
+// D-050: jenis unit organisasi. Departemen boleh langsung di bawah Direktorat (tanpa Divisi).
+enum OrgUnitType {
+  DIRECTORATE
+  DIVISION
+  DEPARTMENT
+  SECTION
+
+  @@schema("organization")
+}
+
+// D-050: level jabatan untuk urutan bagan & laporan (bukan golongan gaji).
+enum PositionLevel {
+  DIRECTOR
+  GENERAL_MANAGER
+  MANAGER
+  SUPERINTENDENT
+  SUPERVISOR
+  FOREMAN
+  STAFF
+  NON_STAFF
+
+  @@schema("organization")
+}
+
 enum EmploymentCategory {
   PERMANENT
   PKWT

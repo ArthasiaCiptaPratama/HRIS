@@ -28,6 +28,7 @@ const base = {
   isActive: true,
   exitReason: null,
   employmentStatus: STATUSES[1],
+  company: { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" },
   position: { id: "p1", name: "HR Staff" },
   department: { id: "d1", name: "Human Resources & GA" },
   workLocation: null,
@@ -97,6 +98,7 @@ function mockBackend(employee: ReturnType<typeof detail>) {
       if (key === "/master-data")
         return json(200, {
           data: {
+            companies: [],
             departments: [],
             positions: [],
             employmentStatuses: STATUSES,
