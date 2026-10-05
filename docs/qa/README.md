@@ -17,8 +17,9 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-01-master-data.md](plans/2026-10-01-master-data.md) | Tahap 3: CRUD Master Data (D-049) + dampak ke form karyawan, import, Atur PT |
 | Rencana | [plans/2026-10-02-onboarding-a.md](plans/2026-10-02-onboarding-a.md) | Onboarding bagian a: penerimaan calon & undangan aktivasi (D-045); bagian b (wizard) ditambahkan di file yang sama |
 | Rencana | [plans/2026-10-05-org-chart.md](plans/2026-10-05-org-chart.md) | Bagan organisasi interaktif: pos jabatan, unit per PT, atasan otomatis (D-051–D-053) |
+| Rencana | [plans/2026-10-05-arsip-1a.md](plans/2026-10-05-arsip-1a.md) | Arsip karyawan gelombang 1a: Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja (D-054) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
-| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-108 |
+| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-135 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-052 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18) |
@@ -34,6 +35,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-01-master-data.md](runs/2026-10-01-master-data.md) | Lokal: shared 73 · api 370 · web 105 (+1 dilewati), mutasi 3 perbaikan terkait tertangkap; + D-050 & peta; staging 2026-10-05 browser 4 role LULUS (BUG-002 P3 terbuka) — **LEGIT** |
 | Hasil | [runs/2026-10-02-onboarding-a.md](runs/2026-10-02-onboarding-a.md) | Lokal a+b: shared 98 · api 416 · web 117 — LULUS otomatis; browser, email sungguhan & bucket dokumen belum |
 | Hasil | [runs/2026-10-05-org-chart.md](runs/2026-10-05-org-chart.md) | Lokal: shared 118 · api 458 · web 179, Playwright 21/21 (4 temuan diperbaiki, termasuk tombol kotak bagan tak bisa diklik) — LULUS lokal (staging belum) |
+| Hasil | [runs/2026-10-05-arsip-1a.md](runs/2026-10-05-arsip-1a.md) | Lokal: shared 125 · api 474 · web 184, Playwright 22/22 (bug dialog tambah saat daftar kosong diperbaiki) — LULUS lokal |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `d4d66f1` (staging menyusul): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

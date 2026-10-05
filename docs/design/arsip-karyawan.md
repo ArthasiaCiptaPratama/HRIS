@@ -1,7 +1,7 @@
 # Desain — Arsip Karyawan (Data Kontak … Riwayat Peringatan) & Laporan
 
 > Keputusan: **D-054** (bentuk menu Arsip & pengajuan perubahan data — menjawab **OD-6**), **D-055** (dokumen bermasa berlaku & jenis dokumen sebagai master data), **D-056** (aset inventaris + serah-terima), **D-057** (surat peringatan/SP), **D-058** (ekspor/impor/cetak per kategori & laporan awal) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Keputusan terbuka baru: **OD-11** (masa simpan data karyawan keluar).
-> Status: **RENCANA** (hasil grill pemilik projek 2026-10-05). Belum ada kode. Checklist: PROGRESS Fase 4 → "Arsip karyawan".
+> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail; tanpa dokumen/pengajuan/ekspor — menyusul 1b–1d). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
 > Dokumen ini tidak memuat data asli. Contoh nama/nomor fiktif.
 
 ## 1. Tujuan & prinsip
