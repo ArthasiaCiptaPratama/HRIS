@@ -12,6 +12,7 @@ import {
   canPrintEmployee,
   canReadArchive,
   canReadBank,
+  canReadDocuments,
   canReadOrgStructure,
   canReadPersonal,
   canReviewOnboarding,
@@ -19,9 +20,11 @@ import {
   canSeeArchiveCost,
   canViewDashboard,
   canViewEmployee,
+  canWriteDocuments,
   canWriteSensitiveViaImport,
   directoryCompanyIds,
   employeeListScope,
+  seesAllSensitiveDocuments,
 } from "../employee.policy.ts";
 
 // Matriks akses karyawan (PLAN §4.3 "Karyawan", §4.2 grant; D-035: MANAGER hanya baca tim).
@@ -353,5 +356,59 @@ describe("Arsip (D-054)", () => {
   }
   test("MANAGER tanpa keterhubungan data karyawan tidak bisa membuka Arsip", () => {
     expect(canReadArchive(actor("MGR", [], null))).toBe(false);
+  });
+});
+
+// D-055 (Arsip 1b, design §8 "Dokumen"): jenis biasa = cakupan lihat karyawan; jenis sensitif butuh
+// grant `employee.documents.read` (SA & diri sendiri selalu). Tulis = kelola Arsip (SA/HR) + jenis
+// sensitif butuh `employee.documents.write` (SA selalu).
+describe("Dokumen (D-055)", () => {
+  type Row = [Who, Permission[], Rel, string, boolean, boolean, boolean, boolean];
+  const rows: Row[] = [
+    // who, grant, relasi, PT, baca biasa, baca sensitif, tulis biasa, tulis sensitif
+    ["SA", [], "other", "co-B", true, true, true, true],
+    ["HR", [], "other", "co-A", true, false, true, false],
+    ["HR", ["employee.documents.read"], "other", "co-A", true, true, true, false],
+    [
+      "HR",
+      ["employee.documents.read", "employee.documents.write"],
+      "other",
+      "co-A",
+      true,
+      true,
+      true,
+      true,
+    ],
+    [
+      "HR",
+      ["employee.documents.read", "employee.documents.write"],
+      "other",
+      "co-B",
+      false,
+      false,
+      false,
+      false,
+    ],
+    ["MGR", [], "team", "co-A", true, false, false, false],
+    ["MGR", ["employee.documents.read"], "team", "co-A", true, true, false, false],
+    ["MGR", ["employee.documents.read"], "other", "co-A", false, false, false, false],
+    ["EMP", [], "self", "co-A", true, true, false, false],
+    ["EMP", [], "other", "co-A", false, false, false, false],
+  ];
+  for (const [who, grants, rel, company, read, readS, write, writeS] of rows) {
+    test(`${who} ${grants.join("+") || "tanpa grant"} ${rel} ${company}`, () => {
+      const a = actor(who, grants);
+      const t = target(who, rel, company);
+      expect(canReadDocuments(a, t, false)).toBe(read);
+      expect(canReadDocuments(a, t, true)).toBe(readS);
+      expect(canWriteDocuments(a, t, false)).toBe(write);
+      expect(canWriteDocuments(a, t, true)).toBe(writeS);
+    });
+  }
+  test("tabel Data File: jenis sensitif tampil hanya untuk SA / pemegang grant baca", () => {
+    expect(seesAllSensitiveDocuments(actor("SA"))).toBe(true);
+    expect(seesAllSensitiveDocuments(actor("HR"))).toBe(false);
+    expect(seesAllSensitiveDocuments(actor("HR", ["employee.documents.read"]))).toBe(true);
+    expect(seesAllSensitiveDocuments(actor("MGR", ["employee.documents.read"]))).toBe(true);
   });
 });

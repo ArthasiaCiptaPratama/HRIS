@@ -5,6 +5,7 @@ import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import { registerArchiveRoutes } from "./archive.routes.ts";
+import { registerDocumentRoutes } from "./document.routes.ts";
 import {
   changeStatusBodySchema,
   createEmployeeBodySchema,
@@ -270,6 +271,8 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
 
   // D-054: Arsip karyawan (/archive/*, /employees/{id}/<kategori>).
   registerArchiveRoutes(app, { protect: deps.protect, ctx });
+  // D-055: dokumen karyawan & jenis dokumen (/document-types, /archive/documents, /employees/{id}/documents).
+  registerDocumentRoutes(app, { protect: deps.protect, ctx });
   // D-042: import karyawan (/employee-imports/*).
   registerEmployeeImportRoutes(app, { protect: deps.protect, ctx });
   registerOnboardingRoutes(app, {

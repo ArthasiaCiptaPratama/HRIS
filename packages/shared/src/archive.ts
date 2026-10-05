@@ -14,10 +14,10 @@ export const ARCHIVE_CATEGORIES = [
 export const archiveCategorySchema = z.enum(ARCHIVE_CATEGORIES);
 export type ArchiveCategory = z.infer<typeof archiveCategorySchema>;
 
-/** Menu Arsip yang sudah aktif (slug web ↔ kategori API), urut seperti menu. */
+/** Menu Arsip yang sudah aktif (slug web ↔ kategori API), urut seperti menu. "documents" = D-055 (1b). */
 export const ARCHIVE_SECTIONS: readonly {
   slug: string;
-  category: ArchiveCategory;
+  category: ArchiveCategory | "documents";
   label: string;
 }[] = [
   { slug: "kontak", category: "contacts", label: "Data Kontak" },
@@ -25,6 +25,7 @@ export const ARCHIVE_SECTIONS: readonly {
   { slug: "riwayat-jabatan", category: "position-histories", label: "Riwayat Jabatan" },
   { slug: "pelatihan", category: "trainings", label: "Data Pelatihan" },
   { slug: "riwayat-kerja", category: "work-experiences", label: "Data Riwayat Kerja" },
+  { slug: "file", category: "documents", label: "Data File" },
 ];
 
 export const TRAINING_TYPES = ["INTERNAL", "EXTERNAL"] as const;

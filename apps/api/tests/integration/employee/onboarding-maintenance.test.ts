@@ -67,6 +67,7 @@ async function candidate(key: string, status: "CANCELLED" | "INVITED", daysAgo: 
               mimeType: "application/pdf",
               sizeBytes: 100,
               uploadedBy: sa.account.id,
+              documentType: { connect: { legacyType: "KTP" } },
             },
           ],
         },

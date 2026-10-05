@@ -257,6 +257,8 @@ model EmploymentHistory {
   createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  documents EmployeeDocument[]
+
   @@index([employeeId, effectiveDate(sort: Desc)])
   @@index([fromStatusId])
   @@index([toStatusId])
@@ -365,6 +367,8 @@ model Training {
   cost          Decimal?      @db.Decimal(15, 2)
   createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  documents EmployeeDocument[]
 
   @@index([employeeId])
   @@map("trainings")
@@ -496,21 +500,108 @@ enum EmployeeDocumentType {
 }
 
 // D-045 b: dokumen di bucket private `employee-documents` (path, bukan URL; baca via signed URL).
+// D-055 (Arsip 1b): kategori jenis dokumen, lingkup wajib, status verifikasi.
+enum DocumentCategory {
+  IDENTITY
+  EDUCATION
+  COMPETENCY
+  HEALTH
+  EMPLOYMENT
+  FINANCE
+  OTHER
+
+  @@schema("employee")
+}
+
+enum DocumentRequirement {
+  NONE
+  ALL
+  SITE
+  POSITIONS
+
+  @@schema("employee")
+}
+
+enum DocumentStatus {
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+
+  @@schema("employee")
+}
+
+// D-055: jenis dokumen = master data dikelola SUPER_ADMIN (design/arsip-karyawan.md §4).
+model DocumentType {
+  id                    String                @id @default(uuid()) @db.Uuid
+  code                  String                @unique @db.VarChar(30)
+  name                  String                @db.VarChar(100)
+  category              DocumentCategory
+  hasExpiry             Boolean               @default(false) @map("has_expiry")
+  defaultValidityMonths Int?                  @map("default_validity_months")
+  reminderDays          Int[]                 @default([]) @map("reminder_days")
+  requiredScope         DocumentRequirement   @default(NONE) @map("required_scope")
+  // Jabatan (organization.positions.id) untuk lingkup POSITIONS; tanpa FK (array).
+  requiredPositionIds   String[]              @default([]) @map("required_position_ids") @db.Uuid
+  multiple              Boolean               @default(false)
+  employeeCanUpload     Boolean               @default(false) @map("employee_can_upload")
+  sensitive             Boolean               @default(false)
+  maxSizeMb             Int                   @default(5) @map("max_size_mb")
+  allowedMimeTypes      String[]              @default(["application/pdf", "image/jpeg", "image/png"]) @map("allowed_mime_types")
+  // Padanan enum lama (onboarding) — dokumen wizard dipetakan ke jenis ini.
+  legacyType            EmployeeDocumentType? @unique @map("legacy_type")
+  sortOrder             Int                   @default(0) @map("sort_order")
+  createdAt             DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt             DateTime?             @map("deleted_at") @db.Timestamptz(6)
+  documents             EmployeeDocument[]
+
+  @@index([category, sortOrder])
+  @@map("document_types")
+  @@schema("employee")
+}
+
 model EmployeeDocument {
-  id          String               @id @default(uuid()) @db.Uuid
-  employeeId  String               @map("employee_id") @db.Uuid
-  employee    Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type        EmployeeDocumentType
-  storagePath String               @map("storage_path") @db.VarChar(255)
-  mimeType    String               @map("mime_type") @db.VarChar(100)
-  sizeBytes   Int                  @map("size_bytes")
+  id             String               @id @default(uuid()) @db.Uuid
+  employeeId     String               @map("employee_id") @db.Uuid
+  employee       Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // Enum lama dipertahankan (expand → contract); jenis sebenarnya = documentTypeId (D-055).
+  type           EmployeeDocumentType
+  documentTypeId String               @map("document_type_id") @db.Uuid
+  documentType   DocumentType         @relation(fields: [documentTypeId], references: [id])
+  documentNumber String?              @map("document_number") @db.VarChar(60)
+  issuedAt       DateTime?            @map("issued_at") @db.Date
+  expiresAt      DateTime?            @map("expires_at") @db.Date
+  version        Int                  @default(1)
+  isCurrent      Boolean              @default(true) @map("is_current")
+  replacesId     String?              @map("replaces_id") @db.Uuid
+  replaces       EmployeeDocument?    @relation("DocumentVersions", fields: [replacesId], references: [id], onDelete: SetNull)
+  replacedBy     EmployeeDocument[]   @relation("DocumentVersions")
+  status         DocumentStatus       @default(VERIFIED)
+  // Akun pemverifikasi (iam.accounts.id, tanpa FK).
+  verifiedBy     String?              @map("verified_by") @db.Uuid
+  verifiedAt     DateTime?            @map("verified_at") @db.Timestamptz(6)
+  note           String?              @db.VarChar(500)
+  // D-055: lampiran item Arsip — sertifikat pelatihan / SK riwayat jabatan.
+  trainingId     String?              @map("training_id") @db.Uuid
+  training       Training?            @relation(fields: [trainingId], references: [id], onDelete: SetNull)
+  historyId      String?              @map("history_id") @db.Uuid
+  history        EmploymentHistory?   @relation(fields: [historyId], references: [id], onDelete: SetNull)
+  storagePath    String               @map("storage_path") @db.VarChar(255)
+  mimeType       String               @map("mime_type") @db.VarChar(100)
+  sizeBytes      Int                  @map("size_bytes")
   // Akun pengunggah (iam.accounts.id, tanpa FK — iam bukan modul inti).
-  uploadedBy  String               @map("uploaded_by") @db.Uuid
-  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  deletedAt   DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  uploadedBy     String               @map("uploaded_by") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?            @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([storagePath])
   @@index([employeeId, type])
+  @@index([employeeId, documentTypeId, isCurrent])
+  @@index([documentTypeId])
+  @@index([replacesId])
+  @@index([trainingId])
+  @@index([historyId])
   @@map("employee_documents")
   @@schema("employee")
 }

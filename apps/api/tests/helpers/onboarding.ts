@@ -58,6 +58,7 @@ export async function completeData(employeeId: string, accountId: string) {
           mimeType: "application/pdf",
           sizeBytes: 1000,
           uploadedBy: accountId,
+          documentType: { connect: { legacyType: type as "KTP" } },
         })),
       },
     },

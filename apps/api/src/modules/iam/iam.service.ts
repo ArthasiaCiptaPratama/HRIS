@@ -1080,6 +1080,24 @@ export async function listOnboardingReviewers(
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }
 
+/**
+ * D-055: penerima pengingat kedaluwarsa dokumen di sisi HR — HR PT terkait (jenis sensitif: hanya
+ * pemegang grant `employee.documents.read`); bila tidak ada, SUPER_ADMIN aktif.
+ */
+export async function listDocumentReminderRecipients(
+  companyId: string,
+  sensitive: boolean,
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const hrs = await repository.findCompanyHrs(
+    companyId,
+    sensitive ? "EMPLOYEE_DOCUMENTS_READ" : null,
+    now,
+  );
+  const rows = hrs.length > 0 ? hrs : await repository.listActiveSuperAdmins();
+  return rows.map((a) => ({ accountId: a.id, email: a.email }));
+}
+
 export async function getEmployeeAccountStates(
   employeeIds: string[],
 ): Promise<EmployeeAccountState[]> {

@@ -45,7 +45,8 @@ export async function loadSelf(employeeId: string) {
       trainings: { orderBy: { createdAt: "asc" } },
       workExperiences: { orderBy: { createdAt: "asc" } },
       documents: {
-        where: { deletedAt: null },
+        // D-055: hanya versi aktif (versi lama dari Arsip tetap tersimpan, tidak ikut wizard).
+        where: { deletedAt: null, isCurrent: true },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
@@ -177,17 +178,25 @@ export async function replaceProfessional(
     });
 }
 
+/** D-055: jenis dokumen (master data) dipetakan dari enum lama wizard. */
 export async function createDocument(
   tx: EmployeeTx,
-  data: Prisma.EmployeeDocumentUncheckedCreateInput,
+  data: Omit<Prisma.EmployeeDocumentUncheckedCreateInput, "documentTypeId">,
 ) {
-  return tx.employeeDocument.create({ data, select: { id: true } });
+  const documentType = await tx.documentType.findUniqueOrThrow({
+    where: { legacyType: data.type },
+    select: { id: true },
+  });
+  return tx.employeeDocument.create({
+    data: { ...data, documentTypeId: documentType.id },
+    select: { id: true },
+  });
 }
 
 /** Dokumen aktif sejenis (untuk jenis yang hanya boleh satu, mis. KTP). */
 export async function findActiveDocuments(employeeId: string, type: EmployeeDocumentType) {
   return getPrisma().employeeDocument.findMany({
-    where: { employeeId, type, deletedAt: null },
+    where: { employeeId, type, deletedAt: null, isCurrent: true },
     select: { id: true, storagePath: true, uploadedBy: true },
   });
 }

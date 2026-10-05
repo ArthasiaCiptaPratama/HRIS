@@ -314,6 +314,33 @@ export async function findOnboardingReviewerHrs(companyId: string, now: Date) {
   });
 }
 
+/** D-055: HR aktif yang ditugaskan di PT (opsional: hanya pemegang grant aktif tertentu). */
+export async function findCompanyHrs(
+  companyId: string,
+  permission: Prisma.EnumPermissionFilter["equals"] | null,
+  now: Date,
+) {
+  return getPrisma().account.findMany({
+    where: {
+      role: "HR_ADMIN",
+      isActive: true,
+      companies: { some: { companyId } },
+      ...(permission
+        ? {
+            grants: {
+              some: {
+                permission,
+                revokedAt: null,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+              },
+            },
+          }
+        : {}),
+    },
+    select: { id: true, email: true },
+  });
+}
+
 // ── D-048: login NIK & lupa password ────────────────────────────────────────
 
 /** Akun lain yang sudah memakai alamat ini sebagai email kontak atau email login. */

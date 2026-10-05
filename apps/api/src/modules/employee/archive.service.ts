@@ -32,14 +32,14 @@ import {
 // D-054 (Arsip gelombang 1a, design/arsip-karyawan.md): tabel lintas karyawan per kategori + kelola
 // item per karyawan. Cakupan = cakupan daftar karyawan; tulis = SA/HR atas karyawan yang boleh dilihat.
 
-const toIso = (date: Date) => date.toISOString().slice(0, 10);
-const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
-const contains = (q: string) => ({ contains: q, mode: "insensitive" as const });
+export const toIso = (date: Date) => date.toISOString().slice(0, 10);
+export const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+export const contains = (q: string) => ({ contains: q, mode: "insensitive" as const });
 
 /** Riwayat jabatan = masuk, pindah jabatan, pindah PT (otomatis) + riwayat lama (manual). */
 const POSITION_CHANGE_TYPES = ["HIRED", "POSITION_CHANGED", "COMPANY_CHANGED"] as const;
 
-function parse<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
+export function parse<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
   const result = schema.safeParse(body);
   if (!result.success) {
     throw new ValidationError(
@@ -53,7 +53,11 @@ function parse<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
   return result.data;
 }
 
-function employeeFilters(ctx: RequestContext, query: ArchiveListQuery, lookup: MasterLookup) {
+export function employeeFilters(
+  ctx: RequestContext,
+  query: Pick<ArchiveListQuery, "companyId" | "departmentId" | "employees">,
+  lookup: MasterLookup,
+) {
   if (!policy.canReadArchive(ctx.actor)) throw new ForbiddenError();
   return archiveEmployeeWhere(
     ctx.actor,
@@ -66,9 +70,12 @@ function employeeFilters(ctx: RequestContext, query: ArchiveListQuery, lookup: M
   );
 }
 
-const employeeText = (q: string) => [{ fullName: contains(q) }, { employeeNumber: contains(q) }];
+export const employeeText = (q: string) => [
+  { fullName: contains(q) },
+  { employeeNumber: contains(q) },
+];
 
-async function employeeRefs(
+export async function employeeRefs(
   ctx: RequestContext,
   lookup: MasterLookup,
   rows: archive.ArchiveEmployee[],
@@ -92,11 +99,11 @@ async function employeeRefs(
   };
 }
 
-const paging = (query: ArchiveListQuery) => ({
+export const paging = (query: Pick<ArchiveListQuery, "page" | "pageSize">) => ({
   skip: (query.page - 1) * query.pageSize,
   take: query.pageSize,
 });
-const meta = (query: ArchiveListQuery, total: number) => ({
+export const meta = (query: Pick<ArchiveListQuery, "page" | "pageSize">, total: number) => ({
   page: query.page,
   pageSize: query.pageSize,
   total,

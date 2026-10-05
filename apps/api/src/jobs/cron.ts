@@ -3,6 +3,7 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { MiddlewareHandler } from "hono";
 import { UnauthenticatedError } from "../core/errors.ts";
 import type { Logger } from "../core/logger.ts";
+import { remindExpiringDocuments } from "../modules/employee/index.ts";
 import { notifyExpiringGrants } from "../modules/iam/index.ts";
 import { retryEmailOutbox } from "../modules/notification/index.ts";
 
@@ -27,6 +28,8 @@ export function requireCronSecret(secret: string | undefined): MiddlewareHandler
 export const CRON_JOBS = {
   "grant-expiry": () => notifyExpiringGrants(),
   "email-retry": () => retryEmailOutbox(),
+  // D-055: pengingat dokumen kedaluwarsa (60/30/7 hari & sudah lewat).
+  "document-expiry": () => remindExpiringDocuments(),
 } as const;
 
 export function registerCronRoutes(

@@ -17,6 +17,7 @@ export {
   getEmployeeAccountStates,
   type IamEmployeeScope,
   inviteEmployeeAccount,
+  listDocumentReminderRecipients,
   listManagerEmployeeIds,
   listOnboardingReviewers,
   loadActor,
