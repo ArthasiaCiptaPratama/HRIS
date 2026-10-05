@@ -170,10 +170,11 @@ const coordinate = (min: number, max: number, label: string) =>
     .nullable()
     .optional();
 
-export const GEOFENCE_RADIUS_MIN = 10;
+// Minimal 1 m (permintaan pemilik projek 2026-10-05, D-049 poin 5).
+export const GEOFENCE_RADIUS_MIN = 1;
 export const GEOFENCE_RADIUS_MAX = 10_000;
 
-// PLAN §5.4 geofence: diisi angka (peta menyusul Fase 5). Latitude, longitude, radius diisi semua atau
+// PLAN §5.4 geofence: angka atau pemilih peta (D-049 poin 5). Latitude, longitude, radius diisi semua atau
 // dikosongkan semua (dicek juga oleh API setelah digabung dengan nilai lama pada PATCH).
 export const workLocationBaseSchema = z.object({
   name: name(100),

@@ -73,7 +73,7 @@ export const MASTER_DATA_PAGES: MasterDataPageConfig[] = [
     noun: "lokasi",
     icon: MapPin,
     description:
-      "Site/lokasi kerja. Titik geofence (latitude, longitude, radius) dipakai absensi; pemilih peta menyusul.",
+      "Site/lokasi kerja. Titik geofence (latitude, longitude, radius) dipakai absensi; pilih titik di peta atau isi angka.",
   },
 ];
 
