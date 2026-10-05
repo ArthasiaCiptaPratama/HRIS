@@ -2,6 +2,7 @@ import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type { MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import { registerOrgPostRoutes } from "./org-post.routes.ts";
 import {
   companySchema,
   departmentSchema,
@@ -52,4 +53,5 @@ export function registerOrganizationRoutes(app: OpenAPIHono, deps: OrganizationR
     c.json(ok(await service.listMasterData(c.get("actor"))), 200),
   );
   registerOrganizationAdminRoutes(app, deps.protect);
+  registerOrgPostRoutes(app, deps.protect);
 }

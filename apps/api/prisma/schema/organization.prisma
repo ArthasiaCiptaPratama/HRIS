@@ -20,6 +20,8 @@ model Company {
   importJobs        ImportJob[]
   // Sisi balik employee.onboarding_batches (D-045).
   onboardingBatches OnboardingBatch[]
+  // D-052: unit organisasi milik PT ini.
+  departments       Department[]
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
@@ -39,6 +41,10 @@ model Department {
   parentId  String?      @map("parent_id") @db.Uuid
   parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children  Department[] @relation("DepartmentHierarchy")
+  // D-052: PT pemilik unit; kosong = fungsi korporat/unit lintas grup (dipakai semua PT). Nama unit tetap
+  // unik di seluruh grup (pencocokan nama import D-042).
+  companyId String?      @map("company_id") @db.Uuid
+  company   Company?     @relation(fields: [companyId], references: [id], onDelete: Restrict)
   positions Position[]
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -46,6 +52,7 @@ model Department {
 
   @@unique([name])
   @@index([parentId])
+  @@index([companyId])
   @@map("departments")
   @@schema("organization")
 }
@@ -60,6 +67,7 @@ model Position {
   employees               Employee[]
   employmentHistoriesFrom EmploymentHistory[] @relation("HistoryFromPosition")
   employmentHistoriesTo   EmploymentHistory[] @relation("HistoryToPosition")
+  orgPosts                OrgPost[]
   createdAt               DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt               DateTime?           @map("deleted_at") @db.Timestamptz(6)
@@ -67,6 +75,38 @@ model Position {
   @@unique([departmentId, name])
   @@index([departmentId])
   @@map("positions")
+  @@schema("organization")
+}
+
+// D-051: pos jabatan = kursi di bagan organisasi. Satu jabatan (katalog nama) bisa punya banyak pos,
+// mis. tiga "Assisten Bor" di bawah operator berbeda. PT pos = PT unit jabatannya (D-052).
+model OrgPost {
+  id                    String     @id @default(uuid()) @db.Uuid
+  // Kode stabil opsional (mis. "ACP-KTT") untuk mencocokkan data dari file (seed/import lokal).
+  code                  String?    @db.VarChar(40)
+  positionId            String     @map("position_id") @db.Uuid
+  position              Position   @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  // Garis tegas: atasan struktural. Siklus & aturan PT dijaga service (shared org-chart.ts).
+  reportsToId           String?    @map("reports_to_id") @db.Uuid
+  reportsTo             OrgPost?   @relation("OrgPostReportsTo", fields: [reportsToId], references: [id], onDelete: Restrict)
+  directReports         OrgPost[]  @relation("OrgPostReportsTo")
+  // Garis putus-putus: atasan fungsional (boleh ke fungsi korporat grup).
+  functionalReportsToId String?    @map("functional_reports_to_id") @db.Uuid
+  functionalReportsTo   OrgPost?   @relation("OrgPostFunctional", fields: [functionalReportsToId], references: [id], onDelete: Restrict)
+  functionalReports     OrgPost[]  @relation("OrgPostFunctional")
+  // Jumlah slot (headcount); slot tanpa pemegang tampil "Kosong".
+  headcount             Int        @default(1) @db.SmallInt
+  sortOrder             Int        @default(0) @map("sort_order") @db.SmallInt
+  employees             Employee[]
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt             DateTime?  @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([code])
+  @@index([positionId])
+  @@index([reportsToId])
+  @@index([functionalReportsToId])
+  @@map("org_posts")
   @@schema("organization")
 }
 

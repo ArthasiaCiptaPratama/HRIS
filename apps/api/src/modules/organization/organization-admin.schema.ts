@@ -33,6 +33,9 @@ export const departmentAdminSchema = z
     unitType: orgUnitTypeSchema,
     parentId: z.uuid().nullable(),
     parentName: z.string().nullable(),
+    // D-052: PT pemilik (null = fungsi korporat / lintas grup).
+    companyId: z.uuid().nullable(),
+    companyCode: z.string().nullable(),
     positionCount: z.number().int(),
   })
   .openapi("DepartmentAdmin");

@@ -59,6 +59,12 @@ import type {
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
 import { markActivatedOnLogin } from "./onboarding.service.ts";
+import {
+  assertPositionCompany,
+  employeePostSupport,
+  resolvePostPlacement,
+  syncPostManagers,
+} from "./org-post-assignment.ts";
 
 export interface RequestContext {
   actor: Actor;
@@ -79,7 +85,7 @@ const photoDir = (ctx: RequestContext, id: string) =>
   `${ctx.storagePathPrefix ?? ""}employees/${id}/`;
 
 /** path foto → URL bertanda tangan (satu panggilan untuk semua baris). */
-async function signPhotoUrls(
+export async function signPhotoUrls(
   ctx: RequestContext | undefined,
   paths: (string | null)[],
 ): Promise<Map<string, string>> {
@@ -202,6 +208,8 @@ function toListItem(
     workLocation: nameRef(lookup.locations, row.workLocationId),
     grade: nameRef(lookup.grades, row.gradeId),
     manager: row.manager ? { id: row.manager.id, name: row.manager.fullName } : null,
+    orgPostId: row.orgPostId,
+    managerOverride: row.managerOverride,
     photoUrl: row.photoPath ? (photoUrls.get(row.photoPath) ?? null) : null,
   };
 }
@@ -734,6 +742,17 @@ export async function createEmployee(
   const id = await repository
     .withTransaction(async (tx) => {
       if (input.managerId) await assertManager(input.managerId, null, tx);
+      await assertPositionCompany(input.positionId, input.companyId);
+      if (input.orgPostId) {
+        await resolvePostPlacement(tx, {
+          employeeId: null,
+          companyId: input.companyId,
+          orgPostId: input.orgPostId,
+          positionId: input.positionId,
+        });
+      }
+      // D-053: tanpa nilai eksplisit, atasan yang dikirim bersama pos = diatur manual.
+      const managerOverride = input.managerOverride ?? Boolean(input.orgPostId && input.managerId);
       const created = await repository.createEmployee(tx, {
         companyId: input.companyId,
         employeeNumber: input.employeeNumber,
@@ -750,7 +769,10 @@ export async function createEmployee(
         workLocationId: input.workLocationId ?? null,
         gradeId: input.gradeId ?? null,
         managerId: input.managerId ?? null,
+        orgPostId: input.orgPostId ?? null,
+        managerOverride,
       });
+      if (input.orgPostId) await syncPostManagers(tx);
       await repository.createHistory(tx, {
         employeeId: created.id,
         changeType: "HIRED",
@@ -771,6 +793,8 @@ export async function createEmployee(
             employmentStatusId: input.employmentStatusId,
             positionId: input.positionId,
             managerId: input.managerId ?? null,
+            orgPostId: input.orgPostId ?? null,
+            managerOverride,
           },
         },
         tx,
@@ -813,6 +837,33 @@ export async function updateEmployee(
       if (input.managerId && input.managerId !== before.managerId) {
         await assertManager(input.managerId, id, tx);
       }
+      // D-051/D-052: jabatan sesuai PT; pos ikut jabatan & PT (pindah jabatan/PT tanpa pos baru →
+      // pos lama dilepas); atasan otomatis dihitung ulang (D-053).
+      const companyId = input.companyId ?? before.companyId;
+      const positionChanged =
+        input.positionId !== undefined && input.positionId !== before.positionId;
+      if (positionChanged || companyChanged) {
+        await assertPositionCompany(input.positionId ?? before.positionId, companyId);
+      }
+      let orgPostId: string | null | undefined = input.orgPostId;
+      let nextPositionId = input.positionId;
+      if (orgPostId === undefined && (positionChanged || companyChanged) && before.orgPostId) {
+        orgPostId = null;
+      }
+      if (orgPostId && (orgPostId !== before.orgPostId || positionChanged || companyChanged)) {
+        const placed = await resolvePostPlacement(tx, {
+          employeeId: id,
+          companyId,
+          orgPostId,
+          positionId: input.positionId ?? (input.orgPostId ? undefined : before.positionId),
+        });
+        if (input.positionId === undefined && placed.positionId !== before.positionId) {
+          nextPositionId = placed.positionId;
+        }
+      }
+      const managerOverride =
+        input.managerOverride ??
+        (input.managerId !== undefined && (orgPostId ?? before.orgPostId) ? true : undefined);
       await repository.updateEmployee(tx, id, {
         employeeNumber: input.employeeNumber,
         fullName: input.fullName,
@@ -825,11 +876,14 @@ export async function updateEmployee(
         gender: nullable(input.gender),
         joinDate: input.joinDate ? toDate(input.joinDate) : undefined,
         companyId: input.companyId,
-        positionId: input.positionId,
+        positionId: nextPositionId,
         workLocationId: nullable(input.workLocationId),
         gradeId: nullable(input.gradeId),
         managerId: nullable(input.managerId),
+        orgPostId,
+        managerOverride,
       });
+      if (before.orgPostId || orgPostId) await syncPostManagers(tx);
       // D-048: nomor induk berubah → alamat login NIK ikut (gagal di Supabase → seluruh perubahan batal).
       if (
         input.employeeNumber !== undefined &&
@@ -849,13 +903,13 @@ export async function updateEmployee(
           changedBy: ctx.actor.accountId,
         });
       }
-      if (input.positionId && input.positionId !== before.positionId) {
+      if (nextPositionId && nextPositionId !== before.positionId) {
         await repository.createHistory(tx, {
           employeeId: id,
           changeType: "POSITION_CHANGED",
           effectiveDate: toDate(todayInJakarta(now)),
           fromPositionId: before.positionId,
-          toPositionId: input.positionId,
+          toPositionId: nextPositionId,
           changedBy: ctx.actor.accountId,
         });
       }
@@ -869,6 +923,8 @@ export async function updateEmployee(
             companyId: before.companyId,
             positionId: before.positionId,
             managerId: before.managerId,
+            orgPostId: before.orgPostId,
+            managerOverride: before.managerOverride,
             workLocationId: before.workLocationId,
             gradeId: before.gradeId,
           },
@@ -937,7 +993,10 @@ export async function deactivateEmployee(
       isActive: false,
       endDate: toDate(input.effectiveDate),
       exitReason: input.exitReason,
+      // D-051: slot pos dilepas (pos menjadi Kosong); bawahan dihitung ulang atasannya (D-053).
+      orgPostId: null,
     });
+    if (before.orgPostId) await syncPostManagers(tx);
     await repository.createHistory(tx, {
       employeeId: id,
       changeType: "DEACTIVATED",
@@ -1183,6 +1242,7 @@ async function removeQuietly(storage: StorageAdmin, path: string) {
 // di sini tanpa data per orang (hanya jumlah) dan pemindahan rujukan saat gabungkan.
 
 export const employeeMasterDataSupport = {
+  ...employeePostSupport,
   countByMasterRef: (kind: repository.MasterRefKind) => repository.countByMasterRef(kind),
   reassignMasterRef: (
     tx: repository.EmployeeTx,

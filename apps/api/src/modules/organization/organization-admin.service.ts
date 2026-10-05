@@ -26,6 +26,7 @@ import {
   ValidationError,
 } from "../../core/errors.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
+import { assertUnitCompanyChange } from "./org-post.service.ts";
 import * as policy from "./organization.policy.ts";
 import * as repository from "./organization.repository.ts";
 import { masterKey } from "./organization.service.ts";
@@ -39,38 +40,21 @@ import type {
   PositionAdmin,
   WorkLocationAdmin,
 } from "./organization-admin.schema.ts";
+import {
+  employeeSupport,
+  type MasterRefKind,
+  type RequestContext,
+} from "./organization-support.ts";
 
 // D-049: kelola master data. Organization tidak membaca tabel employee (PLAN §3.2.4): jumlah karyawan &
 // pemindahan rujukan saat gabungkan disuntikkan dari modul employee lewat configureOrganization (app.ts).
 
-export type MasterRefKind = "company" | "position" | "status" | "grade" | "location";
-export interface EmployeeMasterDataSupport {
-  countByMasterRef(kind: MasterRefKind): Promise<Map<string, { active: number; total: number }>>;
-  reassignMasterRef(
-    tx: repository.OrganizationTx,
-    kind: Exclude<MasterRefKind, "company">,
-    fromId: string,
-    toId: string,
-  ): Promise<{ employees: number; histories: number }>;
-}
-
-let support: EmployeeMasterDataSupport | undefined;
-
-export function configureOrganization(next: { employeeSupport: EmployeeMasterDataSupport }): void {
-  support = next.employeeSupport;
-}
-
-function employees(): EmployeeMasterDataSupport {
-  // Gagal tertutup: tanpa konfigurasi, jumlah pemakai & gabungkan tidak bisa dipastikan benar.
-  if (!support) throw new Error("organization: employeeSupport belum dikonfigurasi");
-  return support;
-}
-
-export interface RequestContext {
-  actor: Actor;
-  requestId?: string | undefined;
-  ip?: string | undefined;
-}
+export {
+  configureOrganization,
+  type EmployeeMasterDataSupport,
+  type MasterRefKind,
+  type RequestContext,
+} from "./organization-support.ts";
 
 const ENTITY: Record<MasterDataKind, repository.ArchivableEntity> = {
   companies: "company",
@@ -195,7 +179,7 @@ export async function listAdmin(
 
   switch (kind) {
     case "companies": {
-      const usage = await employees().countByMasterRef("company");
+      const usage = await employeeSupport().countByMasterRef("company");
       return (
         rows.companies
           // D-040: HR hanya melihat PT yang ditugaskan; SA semua.
@@ -214,8 +198,9 @@ export async function listAdmin(
       );
     }
     case "departments": {
-      const usage = await employees().countByMasterRef("position");
+      const usage = await employeeSupport().countByMasterRef("position");
       const names = new Map(rows.departments.map((d) => [d.id, d.name]));
+      const codes = new Map(rows.companies.map((c) => [c.id, c.code]));
       return rows.departments
         .filter((d) => keep(d.deletedAt !== null, d.name))
         .map((d) => {
@@ -226,6 +211,8 @@ export async function listAdmin(
             unitType: d.unitType,
             parentId: d.parentId,
             parentName: d.parentId ? (names.get(d.parentId) ?? null) : null,
+            companyId: d.companyId,
+            companyCode: d.companyId ? (codes.get(d.companyId) ?? null) : null,
             positionCount: positions.filter((p) => p.deletedAt === null).length,
             archived: d.deletedAt !== null,
             employeeCount: positions.reduce((sum, p) => sum + active(usage, p.id), 0),
@@ -233,7 +220,7 @@ export async function listAdmin(
         });
     }
     case "positions": {
-      const usage = await employees().countByMasterRef("position");
+      const usage = await employeeSupport().countByMasterRef("position");
       const names = new Map(rows.departments.map((d) => [d.id, d.name]));
       return rows.positions
         .map((p) => ({ ...p, departmentName: names.get(p.departmentId) ?? "" }))
@@ -249,7 +236,7 @@ export async function listAdmin(
         }));
     }
     case "employment-statuses": {
-      const usage = await employees().countByMasterRef("status");
+      const usage = await employeeSupport().countByMasterRef("status");
       return rows.statuses
         .filter((s) => keep(s.deletedAt !== null, s.name))
         .map((s) => ({
@@ -261,7 +248,7 @@ export async function listAdmin(
         }));
     }
     case "grades": {
-      const usage = await employees().countByMasterRef("grade");
+      const usage = await employeeSupport().countByMasterRef("grade");
       return rows.grades
         .filter((g) => keep(g.deletedAt !== null, g.name))
         .map((g) => ({
@@ -272,7 +259,7 @@ export async function listAdmin(
         }));
     }
     case "work-locations": {
-      const usage = await employees().countByMasterRef("location");
+      const usage = await employeeSupport().countByMasterRef("location");
       return rows.locations
         .filter((l) => keep(l.deletedAt !== null, l.name, l.city))
         .map((l) => ({
@@ -338,6 +325,43 @@ function assertUnitPlacement(
   if (invalidChild) {
     throw new BusinessRuleError(
       `Sub-unit "${invalidChild.name}" (${ORG_UNIT_TYPE_LABELS[invalidChild.unitType]}) tidak bisa berada di bawah ${ORG_UNIT_TYPE_LABELS[unitType]}. Pindahkan sub-unitnya dulu.`,
+    );
+  }
+}
+
+/**
+ * D-052: PT unit harus aktif; unit di bawah induk ber-PT harus PT yang sama (induk tanpa PT boleh
+ * berisi unit ber-PT mana pun); sub-unit ber-PT lain tidak boleh tertinggal di bawahnya.
+ */
+function assertUnitCompany(
+  rows: Rows,
+  id: string | null,
+  companyId: string | null,
+  parentId: string | null,
+) {
+  if (companyId) {
+    const company = rows.companies.find((c) => c.id === companyId);
+    if (!company || company.deletedAt !== null) {
+      throw new BusinessRuleError("Perusahaan tidak ditemukan atau sudah diarsipkan.");
+    }
+  }
+  const parent = parentId ? rows.departments.find((d) => d.id === parentId) : null;
+  if (parent?.companyId && parent.companyId !== companyId) {
+    throw new BusinessRuleError(
+      "Unit induk milik perusahaan lain. Pilih PT yang sama dengan induknya.",
+    );
+  }
+  if (!id || companyId === null) return;
+  const stray = rows.departments.find(
+    (d) =>
+      d.parentId === id &&
+      d.deletedAt === null &&
+      d.companyId !== null &&
+      d.companyId !== companyId,
+  );
+  if (stray) {
+    throw new BusinessRuleError(
+      `Sub-unit "${stray.name}" milik perusahaan lain. Pindahkan sub-unitnya dulu.`,
     );
   }
 }
@@ -411,12 +435,20 @@ export async function createItem(
           if (input.parentId) activeDepartment(rows, input.parentId, "Unit induk");
           const unitType = input.unitType ?? "DEPARTMENT";
           assertUnitPlacement(rows, null, unitType, input.parentId ?? null);
+          // D-052: tanpa PT di input → ikut PT induk (unit puncak tanpa PT = fungsi korporat).
+          const parent = input.parentId
+            ? rows.departments.find((d) => d.id === input.parentId)
+            : null;
+          const companyId =
+            input.companyId !== undefined ? input.companyId : (parent?.companyId ?? null);
+          assertUnitCompany(rows, null, companyId, input.parentId ?? null);
           created = await repository.departmentRepo.create(tx, {
             name: input.name,
             unitType,
             parentId: input.parentId ?? null,
+            companyId,
           });
-          after = { name: input.name, unitType, parentId: input.parentId ?? null };
+          after = { name: input.name, unitType, parentId: input.parentId ?? null, companyId };
           break;
         }
         case "positions": {
@@ -497,7 +529,7 @@ export async function updateItem(
           const current = rows.companies.find((c) => c.id === id);
           if (input.code !== undefined && input.code !== current?.code) {
             // D-045: kode PT dipakai nomor induk karyawan → terkunci setelah ada karyawan.
-            const total = (await employees().countByMasterRef("company")).get(id)?.total ?? 0;
+            const total = (await employeeSupport().countByMasterRef("company")).get(id)?.total ?? 0;
             if (total > 0) {
               throw new BusinessRuleError(
                 "Kode perusahaan tidak bisa diubah karena sudah dipakai karyawan (nomor induk).",
@@ -522,11 +554,25 @@ export async function updateItem(
               input.parentId !== undefined ? input.parentId : (current?.parentId ?? null),
             );
           }
+          if (input.companyId !== undefined || input.parentId !== undefined) {
+            const companyId =
+              input.companyId !== undefined ? input.companyId : (current?.companyId ?? null);
+            assertUnitCompany(
+              rows,
+              id,
+              companyId,
+              input.parentId !== undefined ? input.parentId : (current?.parentId ?? null),
+            );
+            if (companyId !== (current?.companyId ?? null)) {
+              await assertUnitCompanyChange(tx, id, companyId);
+            }
+          }
           await repository.departmentRepo.update(tx, id, input);
           before = {
             name: current?.name,
             unitType: current?.unitType,
             parentId: current?.parentId,
+            companyId: current?.companyId,
           };
           after = input;
           break;
@@ -607,7 +653,7 @@ export async function archiveItem(
   const row = findRow(rows, kind, id);
   if (row.deletedAt !== null) throw new ConflictError(`${LABEL[kind]} sudah diarsipkan.`);
   if (kind === "companies") {
-    const active = (await employees().countByMasterRef("company")).get(id)?.active ?? 0;
+    const active = (await employeeSupport().countByMasterRef("company")).get(id)?.active ?? 0;
     if (active > 0) {
       throw new BusinessRuleError(
         `Perusahaan masih punya ${active} karyawan aktif. Pindahkan atau nonaktifkan karyawannya dulu.`,
@@ -738,7 +784,7 @@ export async function mergeItem(
       let movedPositions = 0;
       const refKind = REF_KIND[kind];
       if (refKind) {
-        const moved = await employees().reassignMasterRef(tx, refKind, id, targetId);
+        const moved = await employeeSupport().reassignMasterRef(tx, refKind, id, targetId);
         movedEmployees = moved.employees;
         movedHistories = moved.histories;
       } else {
@@ -751,7 +797,12 @@ export async function mergeItem(
         for (const position of rows.positions.filter((p) => p.departmentId === id)) {
           const same = targetPositions.get(masterKey(position.name));
           if (same) {
-            const moved = await employees().reassignMasterRef(tx, "position", position.id, same.id);
+            const moved = await employeeSupport().reassignMasterRef(
+              tx,
+              "position",
+              position.id,
+              same.id,
+            );
             movedEmployees += moved.employees;
             movedHistories += moved.histories;
             if (same.deletedAt !== null && position.deletedAt === null) {

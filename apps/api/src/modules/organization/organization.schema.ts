@@ -8,6 +8,8 @@ export const departmentSchema = z
     parentId: z.uuid().nullable(),
     // D-050: jenis unit organisasi (Direktorat/Divisi/Departemen/Seksi).
     unitType: orgUnitTypeSchema,
+    // D-052: PT pemilik; null = fungsi korporat / unit lintas grup.
+    companyId: z.uuid().nullable(),
   })
   .openapi("Department");
 

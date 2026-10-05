@@ -137,6 +137,8 @@ export const departmentInputSchema = z.object({
   /** D-050: jenis unit; tanpa nilai saat tambah = Departemen. */
   unitType: orgUnitTypeSchema.optional(),
   parentId: z.uuid().nullable().optional(),
+  /** D-052: PT pemilik; kosong = fungsi korporat / unit lintas grup. */
+  companyId: z.uuid().nullable().optional(),
 });
 export type DepartmentInput = z.infer<typeof departmentInputSchema>;
 

@@ -71,6 +71,9 @@ export const employeeListItemSchema = z
     workLocation: ref.nullable(),
     grade: ref.nullable(),
     manager: ref.nullable(),
+    // D-051/D-053: pos jabatan di bagan; atasan diatur manual (bukan otomatis dari pos).
+    orgPostId: z.uuid().nullable(),
+    managerOverride: z.boolean(),
     // D-037: URL baca bertanda tangan (berlaku singkat) untuk foto profil; null = belum ada foto.
     photoUrl: z.string().nullable(),
   })
@@ -258,6 +261,11 @@ export const createEmployeeBodySchema = z
     workLocationId: nullableUuid,
     gradeId: nullableUuid,
     managerId: nullableUuid,
+    // D-051: pos jabatan (opsional); jabatan harus sama dengan jabatan pos.
+    orgPostId: nullableUuid,
+    // D-053: true = atasan diisi manual (managerId); false = otomatis dari pos. Tanpa nilai: managerId
+    // yang dikirim berarti manual.
+    managerOverride: z.boolean().optional(),
   })
   .openapi("CreateEmployee");
 export type CreateEmployeeInput = z.infer<typeof createEmployeeBodySchema>;

@@ -29,6 +29,8 @@ import * as service from "./employee.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
 import { registerOnboardingRoutes } from "./onboarding.routes.ts";
 import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
+import { orgChartQuerySchema, orgChartSchema, orgPersonCardSchema } from "./org-chart.schema.ts";
+import * as orgChart from "./org-chart.service.ts";
 
 export interface EmployeeRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
@@ -136,6 +138,32 @@ const routes = {
     responses: {
       200: json("Struktur organisasi", dataEnvelope(orgStructureSchema)),
       ...errors(401, 403, 500),
+    },
+  }),
+  orgChart: createRoute({
+    method: "get",
+    path: `${P}/org-chart`,
+    tags: TAGS,
+    summary:
+      "Bagan organisasi per PT (D-051): pos jabatan, garis atasan & fungsional, pemegang (kolom direktori), panel fungsi korporat — semua role",
+    security,
+    request: { query: orgChartQuerySchema },
+    responses: {
+      200: json("Bagan organisasi", dataEnvelope(orgChartSchema)),
+      ...errors(400, 401, 403, 404, 500),
+    },
+  }),
+  orgPersonCard: createRoute({
+    method: "get",
+    path: `${P}/org-chart/people/{id}`,
+    tags: TAGS,
+    summary:
+      "Kartu profil kerja orang di bagan (nama, foto, jabatan, unit, PT, lokasi, email kantor)",
+    security,
+    request: { params: idParamSchema },
+    responses: {
+      200: json("Kartu profil kerja", dataEnvelope(orgPersonCardSchema)),
+      ...errors(400, 401, 403, 404, 500),
     },
   }),
   get: createRoute({
@@ -268,6 +296,12 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   );
   app.openapi(guard(routes.orgStructure), async (c) =>
     c.json(ok(await service.getOrgStructure(ctx(c))), 200),
+  );
+  app.openapi(guard(routes.orgChart), async (c) =>
+    c.json(ok(await orgChart.getOrgChart(ctx(c), c.req.valid("query"))), 200),
+  );
+  app.openapi(guard(routes.orgPersonCard), async (c) =>
+    c.json(ok(await orgChart.getPersonCard(ctx(c), c.req.valid("param").id)), 200),
   );
   app.openapi(guard(routes.get), async (c) =>
     c.json(

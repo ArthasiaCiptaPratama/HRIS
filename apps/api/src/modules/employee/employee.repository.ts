@@ -26,6 +26,9 @@ export const LIST_SELECT = {
   workLocationId: true,
   gradeId: true,
   managerId: true,
+  // D-051/D-053: pos jabatan & atasan manual.
+  orgPostId: true,
+  managerOverride: true,
   photoPath: true,
   manager: { select: { id: true, fullName: true } },
 } satisfies Prisma.EmployeeSelect;

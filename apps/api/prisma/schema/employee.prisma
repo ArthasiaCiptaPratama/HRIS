@@ -133,6 +133,9 @@ model Employee {
   gradeId                      String?                @map("grade_id") @db.Uuid
   // Tidak di ERD; PLAN §4.1 & D-009: tim MANAGER = bawahan langsung.
   managerId                    String?                @map("manager_id") @db.Uuid
+  // D-051/D-053: pos jabatan di bagan; atasan langsung dihitung dari pos kecuali diatur manual.
+  orgPostId                    String?                @map("org_post_id") @db.Uuid
+  managerOverride              Boolean                @default(false) @map("manager_override")
   // D-045: status onboarding; data lama = APPROVED. Belum APPROVED → tidak tampil di fitur karyawan.
   onboardingStatus             OnboardingStatus       @default(APPROVED) @map("onboarding_status")
   // D-045 poin 9: karyawan existing yang diundang diminta melengkapi field wajib yang kosong.
@@ -162,6 +165,7 @@ model Employee {
   workLocation     WorkLocation?        @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
   grade            Grade?               @relation(fields: [gradeId], references: [id], onDelete: Restrict)
   manager          Employee?            @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
+  orgPost          OrgPost?             @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
   subordinates     Employee[]           @relation("EmployeeManager")
   personal         EmployeePersonal?
   bankAccount      EmployeeBankAccount?
@@ -188,6 +192,7 @@ model Employee {
   @@index([workLocationId])
   @@index([gradeId])
   @@index([managerId])
+  @@index([orgPostId])
   // Urutan default daftar pegawai aktif/nonaktif berdasarkan nama.
   @@index([isActive, fullName])
   @@map("employees")

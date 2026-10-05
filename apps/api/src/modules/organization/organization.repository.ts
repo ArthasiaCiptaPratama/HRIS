@@ -12,7 +12,14 @@ export async function loadMasterData() {
   const [departments, positions, statuses, grades, locations, companies] =
     await prisma.$transaction([
       prisma.department.findMany({
-        select: { id: true, name: true, parentId: true, unitType: true, deletedAt: true },
+        select: {
+          id: true,
+          name: true,
+          parentId: true,
+          unitType: true,
+          companyId: true,
+          deletedAt: true,
+        },
         orderBy: { name: "asc" },
       }),
       prisma.position.findMany({
@@ -79,7 +86,7 @@ export async function listAdminRows() {
         orderBy: { code: "asc" },
       }),
       prisma.department.findMany({
-        select: { ...ADMIN_SELECT, parentId: true, unitType: true },
+        select: { ...ADMIN_SELECT, parentId: true, unitType: true, companyId: true },
         orderBy: { name: "asc" },
       }),
       prisma.position.findMany({
@@ -132,12 +139,22 @@ export const companyRepo = {
 export const departmentRepo = {
   create: (
     tx: OrganizationTx,
-    data: { name: string; parentId: string | null; unitType: OrgUnitType },
+    data: {
+      name: string;
+      parentId: string | null;
+      unitType: OrgUnitType;
+      companyId: string | null;
+    },
   ) => tx.department.create({ data, select: { id: true } }),
   update: (
     tx: OrganizationTx,
     id: string,
-    data: { name?: string; parentId?: string | null; unitType?: OrgUnitType },
+    data: {
+      name?: string;
+      parentId?: string | null;
+      unitType?: OrgUnitType;
+      companyId?: string | null;
+    },
   ) => tx.department.update({ where: { id }, data, select: { id: true } }),
   /** Pindahkan sub-departemen ke induk lain (gabungkan departemen). */
   reparentChildren: (tx: OrganizationTx, fromId: string, toId: string) =>
@@ -230,3 +247,56 @@ export async function hardDelete(tx: OrganizationTx, entity: ArchivableEntity, i
       return tx.workLocation.delete({ where, select: { id: true } });
   }
 }
+
+// ── D-051: pos jabatan ─────────────────────────────────────────────────────────
+
+const POST_SELECT = {
+  id: true,
+  code: true,
+  positionId: true,
+  reportsToId: true,
+  functionalReportsToId: true,
+  headcount: true,
+  sortOrder: true,
+  deletedAt: true,
+  position: {
+    select: {
+      name: true,
+      level: true,
+      deletedAt: true,
+      departmentId: true,
+      department: {
+        select: { name: true, unitType: true, companyId: true, parentId: true, deletedAt: true },
+      },
+    },
+  },
+} as const;
+
+/** Semua pos (aktif & arsip) beserta jabatan & unitnya; tabel kecil (ratusan baris) → tanpa paginasi. */
+export function listPostRows(tx?: OrganizationTx) {
+  return (tx ?? getPrisma()).orgPost.findMany({
+    select: POST_SELECT,
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+}
+export type PostRow = Awaited<ReturnType<typeof listPostRows>>[number];
+
+export interface PostData {
+  code?: string | null;
+  positionId?: string;
+  reportsToId?: string | null;
+  functionalReportsToId?: string | null;
+  headcount?: number;
+  sortOrder?: number;
+}
+
+export const postRepo = {
+  create: (tx: OrganizationTx, data: PostData & { positionId: string }) =>
+    tx.orgPost.create({ data, select: { id: true } }),
+  update: (tx: OrganizationTx, id: string, data: PostData) =>
+    tx.orgPost.update({ where: { id }, data, select: { id: true } }),
+  setArchived: (tx: OrganizationTx, id: string, at: Date | null) =>
+    tx.orgPost.update({ where: { id }, data: { deletedAt: at }, select: { id: true } }),
+  delete: (tx: OrganizationTx, id: string) =>
+    tx.orgPost.delete({ where: { id }, select: { id: true } }),
+};
