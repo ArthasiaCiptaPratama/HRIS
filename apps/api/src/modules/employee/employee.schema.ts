@@ -7,12 +7,14 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  movementTypeSchema,
   orgUnitTypeSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
   positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
+  trainingTypeSchema,
 } from "@hris/shared";
 
 // Tanggal murni (PROMPT §4): "YYYY-MM-DD".
@@ -144,6 +146,12 @@ const historySchema = z.object({
   toCompany: ref.nullable(),
   exitReason: exitReasonSchema.nullable(),
   note: z.string().nullable(),
+  // D-054 (Arsip 1a): asal riwayat & keterangan perpindahan.
+  source: z.enum(["SYSTEM", "MANUAL"]),
+  movementType: movementTypeSchema.nullable(),
+  decreeNumber: z.string().nullable(),
+  toPositionName: z.string().nullable(),
+  toDepartmentName: z.string().nullable(),
   // Pelaku perubahan (null = data awal/seed atau akun sudah tidak ada). name = nama pegawai
   // milik akun itu, atau email akun bila akun tidak terhubung ke data pegawai (mis. Super Admin).
   changedBy: z
@@ -190,6 +198,23 @@ export const employeeDetailSchema = employeeListItemSchema
         organizer: z.string().nullable(),
         duration: z.string().nullable(),
         trainingYear: z.number().int().nullable(),
+        // D-054 (Arsip 1a)
+        type: trainingTypeSchema.nullable(),
+        startDate: isoDate.nullable(),
+        endDate: isoDate.nullable(),
+        hours: z.number().int().nullable(),
+        /** Rupiah; hanya ada untuk SA/HR. */
+        cost: z.number().nullable().optional(),
+      }),
+    ),
+    workExperiences: z.array(
+      z.object({
+        id: z.uuid(),
+        companyName: z.string(),
+        position: z.string(),
+        startYear: z.number().int(),
+        endYear: z.number().int().nullable(),
+        description: z.string().nullable(),
       }),
     ),
     histories: z.array(historySchema),

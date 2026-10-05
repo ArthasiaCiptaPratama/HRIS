@@ -78,7 +78,7 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
 export async function findEmployeeParts(id: string, include: { personal: boolean; bank: boolean }) {
   const prisma = getPrisma();
   // Bagian sensitif hanya di-query bila boleh (tidak dibaca lalu dibuang).
-  const [educations, trainings, histories, personal, familyMembers, bankAccount] =
+  const [educations, trainings, histories, personal, familyMembers, bankAccount, workExperiences] =
     await Promise.all([
       prisma.education.findMany({
         where: { employeeId: id },
@@ -93,6 +93,12 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
           organizer: true,
           duration: true,
           trainingYear: true,
+          // D-054 (Arsip 1a)
+          type: true,
+          startDate: true,
+          endDate: true,
+          hours: true,
+          cost: true,
         },
         orderBy: [{ trainingYear: "desc" }, { createdAt: "desc" }],
       }),
@@ -122,8 +128,29 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
             select: { bankName: true, accountNumber: true, accountHolder: true },
           })
         : null,
+      // D-054 (Arsip 1a): riwayat kerja sebelum bergabung (data kerja, bukan sensitif).
+      prisma.workExperience.findMany({
+        where: { employeeId: id },
+        select: {
+          id: true,
+          companyName: true,
+          position: true,
+          startYear: true,
+          endYear: true,
+          description: true,
+        },
+        orderBy: [{ startYear: "desc" }, { createdAt: "desc" }],
+      }),
     ]);
-  return { educations, trainings, histories, personal, familyMembers, bankAccount };
+  return {
+    educations,
+    trainings,
+    histories,
+    personal,
+    familyMembers,
+    bankAccount,
+    workExperiences,
+  };
 }
 
 export async function findManyByIds(ids: string[]) {

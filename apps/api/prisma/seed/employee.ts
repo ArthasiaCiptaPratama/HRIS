@@ -706,6 +706,7 @@ export async function seedEmployees(
       await tx.education.deleteMany({ where: { employeeId: row.id } });
       await tx.training.deleteMany({ where: { employeeId: row.id } });
       await tx.employmentHistory.deleteMany({ where: { employeeId: row.id } });
+      await tx.workExperience.deleteMany({ where: { employeeId: row.id } });
       // D-035: riwayat minimal — masuk kerja, lalu nonaktif bila pegawai arsip.
       await tx.employmentHistory.create({
         data: {
@@ -739,7 +740,50 @@ export async function seedEmployees(
       }
       await tx.education.create({ data: { employeeId: row.id, ...employee.education } });
       if (employee.training) {
-        await tx.training.create({ data: { employeeId: row.id, ...employee.training } });
+        // D-054 (Arsip 1a): jenis, periode, jam, biaya contoh.
+        const y = employee.training.trainingYear;
+        await tx.training.create({
+          data: {
+            employeeId: row.id,
+            ...employee.training,
+            type: index % 2 === 0 ? "EXTERNAL" : "INTERNAL",
+            startDate: date(`${y}-03-0${1 + (index % 5)}`),
+            endDate: date(`${y}-03-0${3 + (index % 5)}`),
+            hours: 16 + (index % 4) * 8,
+            cost: index % 2 === 0 ? `${(index + 1) * 750000}.00` : null,
+          },
+        });
+      }
+      // D-054 (Arsip 1a): riwayat kerja sebelum bergabung & riwayat jabatan lama (manual, fiktif).
+      if (index < 8) {
+        const joinYear = Number(employee.joinDate.slice(0, 4));
+        await tx.workExperience.create({
+          data: {
+            employeeId: row.id,
+            companyName: `PT Contoh Sebelumnya ${index + 1}`,
+            position: index % 2 === 0 ? "Staf Administrasi" : "Operator",
+            startYear: joinYear - 4,
+            endYear: joinYear - 1,
+            description: "Data contoh (dummy).",
+          },
+        });
+      }
+      if (index < 4 && !employee.exit) {
+        const joinYear = Number(employee.joinDate.slice(0, 4));
+        await tx.employmentHistory.create({
+          data: {
+            employeeId: row.id,
+            changeType: "POSITION_CHANGED",
+            source: "MANUAL",
+            effectiveDate: date(`${joinYear + 1}-07-01`),
+            movementType: index % 2 === 0 ? "PROMOTION" : "ROTATION",
+            toPositionName:
+              index % 2 === 0 ? "Staf Senior (jabatan lama)" : "Koordinator (jabatan lama)",
+            toDepartmentName: "Unit lama (contoh)",
+            decreeNumber: `SK/DMY/${String(index + 1).padStart(3, "0")}/${joinYear + 1}`,
+            note: "Riwayat contoh sebelum HRIS (dummy).",
+          },
+        });
       }
       return row.id;
     });

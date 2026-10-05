@@ -6,14 +6,17 @@ import {
   canCreateInCompany,
   canDeactivateEmployee,
   canImportEmployees,
+  canManageArchive,
   canManageEmployees,
   canOnboardInCompany,
   canPrintEmployee,
+  canReadArchive,
   canReadBank,
   canReadOrgStructure,
   canReadPersonal,
   canReviewOnboarding,
   canRunOnboarding,
+  canSeeArchiveCost,
   canViewDashboard,
   canViewEmployee,
   canWriteSensitiveViaImport,
@@ -324,5 +327,31 @@ describe("D-047 review onboarding", () => {
   ] as const)("%s grant %j PT %j → %s: %s", (who, grants, companies, company, allowed) => {
     const a = actor(who, [...grants], `emp-${who}`, companies === null ? null : [...companies]);
     expect(canReviewOnboarding(a, company)).toBe(allowed);
+  });
+});
+
+// D-054 (Arsip 1a, matriks design/arsip-karyawan.md §8): tabel lintas karyawan SA semua, HR PT
+// ditugaskan, MANAGER tim (kolom kerja), EMPLOYEE tidak; kelola per karyawan SA/HR dalam cakupan.
+describe("Arsip (D-054)", () => {
+  const rows: [Who, Rel, string, boolean, boolean, boolean][] = [
+    // who, relasi, PT target, baca menu, kelola item, lihat biaya pelatihan
+    ["SA", "other", "co-B", true, true, true],
+    ["HR", "other", "co-A", true, true, true],
+    ["HR", "other", "co-B", true, false, false],
+    ["MGR", "team", "co-A", true, false, false],
+    ["MGR", "other", "co-A", true, false, false],
+    ["EMP", "self", "co-A", false, false, false],
+  ];
+  for (const [who, rel, company, read, manage, cost] of rows) {
+    test(`${who} ${rel} ${company}: baca=${read} kelola=${manage} biaya=${cost}`, () => {
+      const a = actor(who);
+      const t = target(who, rel, company);
+      expect(canReadArchive(a)).toBe(read);
+      expect(canManageArchive(a, t)).toBe(manage);
+      expect(canSeeArchiveCost(a, t)).toBe(cost);
+    });
+  }
+  test("MANAGER tanpa keterhubungan data karyawan tidak bisa membuka Arsip", () => {
+    expect(canReadArchive(actor("MGR", [], null))).toBe(false);
   });
 });

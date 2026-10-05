@@ -1,3 +1,4 @@
+export * from "./archive.ts";
 export * from "./employee.ts";
 export * from "./enums.ts";
 export * from "./import/index.ts";

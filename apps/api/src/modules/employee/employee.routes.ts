@@ -4,6 +4,7 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
+import { registerArchiveRoutes } from "./archive.routes.ts";
 import {
   changeStatusBodySchema,
   createEmployeeBodySchema,
@@ -267,6 +268,8 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     nikLogin: { authAdmin: deps.authAdmin, domain: deps.loginEmailDomain },
   });
 
+  // D-054: Arsip karyawan (/archive/*, /employees/{id}/<kategori>).
+  registerArchiveRoutes(app, { protect: deps.protect, ctx });
   // D-042: import karyawan (/employee-imports/*).
   registerEmployeeImportRoutes(app, { protect: deps.protect, ctx });
   registerOnboardingRoutes(app, {

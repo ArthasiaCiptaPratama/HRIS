@@ -168,13 +168,16 @@ export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
   return { ...withOnboarding, companyIds: new Set(employee ? [employee.companyId] : []) };
 }
 
-function nameRef<T extends { id: string; name: string }>(map: Map<string, T>, id: string | null) {
+export function nameRef<T extends { id: string; name: string }>(
+  map: Map<string, T>,
+  id: string | null,
+) {
   if (!id) return null;
   const row = map.get(id);
   return row ? { id: row.id, name: row.name } : null;
 }
 
-function companyRef(lookup: MasterLookup, id: string) {
+export function companyRef(lookup: MasterLookup, id: string) {
   const company = lookup.companies.get(id);
   return { id, code: company?.code ?? "—", name: company?.name ?? "—" };
 }
@@ -318,6 +321,35 @@ function buildWhere(
   }
   return { AND: and };
 }
+
+/**
+ * D-054 (Arsip): penyaring karyawan untuk tabel lintas karyawan — cakupan aktor (sama dengan daftar
+ * karyawan) + filter PT/unit/aktif. Pencarian teks digabung dengan kolom kategori oleh pemanggil.
+ */
+export function archiveEmployeeWhere(
+  actor: Actor,
+  filters: {
+    companyId?: string | undefined;
+    departmentId?: string | undefined;
+    active?: boolean | undefined;
+  },
+  lookup: MasterLookup,
+): repository.EmployeeWhere {
+  const and: repository.EmployeeWhere[] = [scopeWhere(actor)];
+  if (filters.active !== undefined) and.push({ isActive: filters.active });
+  if (filters.companyId) and.push({ companyId: filters.companyId });
+  if (filters.departmentId) {
+    const ids = positionIdsInDepartment(lookup, filters.departmentId);
+    and.push({ positionId: { in: ids.length > 0 ? ids : [NO_MATCH] } });
+  }
+  return { AND: and };
+}
+
+export const employeeTargetOf = (row: {
+  id: string;
+  managerId: string | null;
+  companyId: string;
+}) => targetOf(row);
 
 function buildOrderBy(sort: string): repository.EmployeeOrderBy[] {
   const [field, direction] = sort.split(":") as [string, "asc" | "desc"];
@@ -615,7 +647,16 @@ export async function getEmployee(
     account: link ? { role: link.role, isActive: link.isActive } : null,
     access,
     educations: parts.educations,
-    trainings: parts.trainings,
+    trainings: parts.trainings.map(({ cost, startDate, endDate, ...training }) => ({
+      ...training,
+      startDate: startDate ? toIso(startDate) : null,
+      endDate: endDate ? toIso(endDate) : null,
+      // D-054: biaya pelatihan hanya untuk SA/HR (bukan need-to-know MANAGER/diri sendiri).
+      ...(policy.canSeeArchiveCost(ctx.actor, targetOf(row))
+        ? { cost: cost ? cost.toNumber() : null }
+        : {}),
+    })),
+    workExperiences: parts.workExperiences,
     histories: parts.histories.map((h) => ({
       id: h.id,
       changeType: h.changeType,
@@ -628,6 +669,11 @@ export async function getEmployee(
       toCompany: nameRef(lookup.companies, h.toCompanyId),
       exitReason: h.exitReason,
       note: h.note,
+      source: h.source,
+      movementType: h.movementType,
+      decreeNumber: h.decreeNumber,
+      toPositionName: h.toPositionName,
+      toDepartmentName: h.toDepartmentName,
       changedBy: h.changedBy ? (changers.get(h.changedBy) ?? null) : null,
       createdAt: h.createdAt.toISOString(),
     })),

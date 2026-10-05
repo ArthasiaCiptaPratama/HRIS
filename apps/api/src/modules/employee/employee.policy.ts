@@ -133,3 +133,19 @@ export function canReviewOnboarding(actor: Actor, companyId: string): boolean {
     isInCompanyScope(actor, { companyId })
   );
 }
+
+// D-054 (Arsip 1a, design/arsip-karyawan.md §8): tabel lintas karyawan memakai cakupan daftar karyawan
+// (SA semua, HR PT ditugaskan, MANAGER tim — kolom kerja saja); EMPLOYEE tidak (data sendiri lewat
+// detail/ESS). Kelola item per karyawan: SA/HR atas karyawan yang boleh mereka lihat.
+export function canReadArchive(actor: Actor): boolean {
+  return employeeListScope(actor) !== null;
+}
+
+export function canManageArchive(actor: Actor, target: EmployeeTarget): boolean {
+  return canManageEmployees(actor) && canViewEmployee(actor, target);
+}
+
+/** Biaya pelatihan: data administrasi SA/HR (bukan need-to-know MANAGER). */
+export function canSeeArchiveCost(actor: Actor, target: EmployeeTarget): boolean {
+  return canManageArchive(actor, target);
+}

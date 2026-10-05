@@ -98,6 +98,31 @@ enum EmployeeExitReason {
   @@schema("employee")
 }
 
+// D-054 (Arsip 1a): pelatihan internal/eksternal, asal riwayat jabatan, jenis perpindahan.
+enum TrainingType {
+  INTERNAL
+  EXTERNAL
+
+  @@schema("employee")
+}
+
+enum HistorySource {
+  SYSTEM
+  MANUAL
+
+  @@schema("employee")
+}
+
+enum MovementType {
+  PROMOTION
+  MUTATION
+  DEMOTION
+  ROTATION
+  OTHER
+
+  @@schema("employee")
+}
+
 enum EmploymentChangeType {
   HIRED
   STATUS_CHANGED
@@ -202,27 +227,35 @@ model Employee {
 // D-035: riwayat perubahan kepegawaian (masuk, ubah status, nonaktif, aktif kembali).
 // Dasar menu arsip "Riwayat Jabatan" nanti. changed_by = iam.accounts.id tanpa FK (iam bukan modul inti).
 model EmploymentHistory {
-  id             String               @id @default(uuid()) @db.Uuid
-  employeeId     String               @map("employee_id") @db.Uuid
-  employee       Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  changeType     EmploymentChangeType @map("change_type")
-  effectiveDate  DateTime             @map("effective_date") @db.Date
-  fromStatusId   String?              @map("from_status_id") @db.Uuid
-  fromStatus     EmploymentStatus?    @relation("HistoryFromStatus", fields: [fromStatusId], references: [id], onDelete: Restrict)
-  toStatusId     String?              @map("to_status_id") @db.Uuid
-  toStatus       EmploymentStatus?    @relation("HistoryToStatus", fields: [toStatusId], references: [id], onDelete: Restrict)
-  fromPositionId String?              @map("from_position_id") @db.Uuid
-  fromPosition   Position?            @relation("HistoryFromPosition", fields: [fromPositionId], references: [id], onDelete: Restrict)
-  toPositionId   String?              @map("to_position_id") @db.Uuid
-  toPosition     Position?            @relation("HistoryToPosition", fields: [toPositionId], references: [id], onDelete: Restrict)
-  fromCompanyId  String?              @map("from_company_id") @db.Uuid
-  fromCompany    Company?             @relation("HistoryFromCompany", fields: [fromCompanyId], references: [id], onDelete: Restrict)
-  toCompanyId    String?              @map("to_company_id") @db.Uuid
-  toCompany      Company?             @relation("HistoryToCompany", fields: [toCompanyId], references: [id], onDelete: Restrict)
-  exitReason     EmployeeExitReason?  @map("exit_reason")
-  note           String?              @db.VarChar(500)
-  changedBy      String?              @map("changed_by") @db.Uuid
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  id               String               @id @default(uuid()) @db.Uuid
+  employeeId       String               @map("employee_id") @db.Uuid
+  employee         Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  changeType       EmploymentChangeType @map("change_type")
+  effectiveDate    DateTime             @map("effective_date") @db.Date
+  fromStatusId     String?              @map("from_status_id") @db.Uuid
+  fromStatus       EmploymentStatus?    @relation("HistoryFromStatus", fields: [fromStatusId], references: [id], onDelete: Restrict)
+  toStatusId       String?              @map("to_status_id") @db.Uuid
+  toStatus         EmploymentStatus?    @relation("HistoryToStatus", fields: [toStatusId], references: [id], onDelete: Restrict)
+  fromPositionId   String?              @map("from_position_id") @db.Uuid
+  fromPosition     Position?            @relation("HistoryFromPosition", fields: [fromPositionId], references: [id], onDelete: Restrict)
+  toPositionId     String?              @map("to_position_id") @db.Uuid
+  toPosition       Position?            @relation("HistoryToPosition", fields: [toPositionId], references: [id], onDelete: Restrict)
+  fromCompanyId    String?              @map("from_company_id") @db.Uuid
+  fromCompany      Company?             @relation("HistoryFromCompany", fields: [fromCompanyId], references: [id], onDelete: Restrict)
+  toCompanyId      String?              @map("to_company_id") @db.Uuid
+  toCompany        Company?             @relation("HistoryToCompany", fields: [toCompanyId], references: [id], onDelete: Restrict)
+  exitReason       EmployeeExitReason?  @map("exit_reason")
+  note             String?              @db.VarChar(500)
+  changedBy        String?              @map("changed_by") @db.Uuid
+  // D-054 (Arsip 1a): SYSTEM = dicatat otomatis (isi tidak bisa diubah, hanya keterangan);
+  // MANUAL = riwayat lama sebelum HRIS (jabatan dari master atau teks bebas) yang diinput HR.
+  source           HistorySource        @default(SYSTEM)
+  movementType     MovementType?        @map("movement_type")
+  decreeNumber     String?              @map("decree_number") @db.VarChar(60)
+  toPositionName   String?              @map("to_position_name") @db.VarChar(100)
+  toDepartmentName String?              @map("to_department_name") @db.VarChar(100)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([employeeId, effectiveDate(sort: Desc)])
   @@index([fromStatusId])
@@ -317,15 +350,21 @@ model Education {
 }
 
 model Training {
-  id            String   @id @default(uuid()) @db.Uuid
-  employeeId    String   @map("employee_id") @db.Uuid
-  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  trainingField String   @map("training_field") @db.VarChar(150)
-  organizer     String?  @db.VarChar(150)
-  duration      String?  @db.VarChar(50)
-  trainingYear  Int?     @map("training_year") @db.SmallInt
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id            String        @id @default(uuid()) @db.Uuid
+  employeeId    String        @map("employee_id") @db.Uuid
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  trainingField String        @map("training_field") @db.VarChar(150)
+  organizer     String?       @db.VarChar(150)
+  duration      String?       @db.VarChar(50)
+  trainingYear  Int?          @map("training_year") @db.SmallInt
+  // D-054 (Arsip 1a): jenis, periode, jam, biaya (Rupiah, bukan gaji).
+  type          TrainingType?
+  startDate     DateTime?     @map("start_date") @db.Date
+  endDate       DateTime?     @map("end_date") @db.Date
+  hours         Int?          @db.SmallInt
+  cost          Decimal?      @db.Decimal(15, 2)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([employeeId])
   @@map("trainings")
