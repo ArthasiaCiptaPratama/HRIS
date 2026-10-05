@@ -390,6 +390,16 @@ describe("dampak ke fitur lain", () => {
   });
 
   test("import: nama jabatan terarsip → error baris MASTER_ARCHIVED (bukan 500)", async () => {
+    // Baris "PKWT …" butuh status berkategori PKWT; DB CI kosong (tanpa seed), jadi dibuat sendiri.
+    const pkwt = await prisma.employmentStatus.findFirst({
+      where: { category: "PKWT", deletedAt: null },
+    });
+    if (!pkwt) {
+      const created = await prisma.employmentStatus.create({
+        data: { name: N("Status PKWT"), category: "PKWT" },
+      });
+      ids.statuses.push(created.id);
+    }
     const dept = await create("/departments", { name: N("Dept Impor") }, "departments");
     const pos = await create(
       "/positions",
