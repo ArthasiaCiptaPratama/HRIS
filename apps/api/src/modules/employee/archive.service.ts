@@ -320,7 +320,7 @@ export type ItemCategory = Exclude<ArchiveCategory, "contacts">;
 /** Karyawan target harus terlihat (404 bila tidak) dan boleh dikelola aktor (403). */
 async function loadTarget(ctx: RequestContext, employeeId: string, tx: employees.EmployeeTx) {
   const row = await employees.findEmployee(employeeId, tx);
-  if (!row || row.onboardingStatus !== "APPROVED") {
+  if (row?.onboardingStatus !== "APPROVED") {
     throw new NotFoundError("Karyawan tidak ditemukan.");
   }
   const target = employeeTargetOf(row);
