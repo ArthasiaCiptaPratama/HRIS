@@ -13,6 +13,7 @@ import {
   BriefcaseBusiness,
   Building2,
   CircleUser,
+  FolderArchive,
   GraduationCap,
   HeartHandshake,
   History,
@@ -40,11 +41,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  DECREE_CODES,
   EducationSection,
   TrainingSection,
   usePositionHistoryEditor,
   WorkExperienceSection,
 } from "@/features/archive/components/archive-sections";
+import { AttachmentList, DocumentsTab } from "@/features/documents/components/documents-tab";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -252,6 +255,9 @@ function DetailBody({
             <TabsTrigger value="education">
               <GraduationCap /> Pendidikan
             </TabsTrigger>
+            <TabsTrigger value="documents">
+              <FolderArchive /> Dokumen
+            </TabsTrigger>
             <TabsTrigger value="bank">
               <Landmark /> Rekening
             </TabsTrigger>
@@ -276,6 +282,9 @@ function DetailBody({
           </TabsContent>
           <TabsContent value="education">
             <EducationTab employee={employee} />
+          </TabsContent>
+          <TabsContent value="documents">
+            <DocumentsTab employeeId={employee.id} />
           </TabsContent>
           <TabsContent value="bank">
             <SensitiveGate allowed={access.bank} what="Rekening bank" query={full}>
@@ -603,6 +612,14 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
                 </p>
                 {h.decreeNumber ? (
                   <p className="text-muted-foreground mt-0.5 text-xs">No. SK {h.decreeNumber}</p>
+                ) : null}
+                {POSITION_HISTORY_TYPES.includes(h.changeType) ? (
+                  <AttachmentList
+                    employeeId={employee.id}
+                    link={{ historyId: h.id }}
+                    typeCodes={DECREE_CODES}
+                    label="SK"
+                  />
                 ) : null}
                 <ChangedBy changedBy={h.changedBy} />
                 {h.note ? (

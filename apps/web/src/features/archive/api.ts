@@ -17,15 +17,20 @@ export interface ArchiveParams {
   type?: string | undefined;
   movementType?: string | undefined;
   source?: string | undefined;
+  documentTypeId?: string | undefined;
+  expiry?: string | undefined;
 }
+
+/** Kategori tabel Arsip: kategori 1a + Data File (D-055). */
+export type ArchiveListCategory = ArchiveCategory | "documents";
 
 export const archiveKeys = {
   all: ["archive"] as const,
-  list: (category: ArchiveCategory, params: ArchiveParams) =>
+  list: (category: ArchiveListCategory, params: ArchiveParams) =>
     ["archive", category, params] as const,
 };
 
-export function useArchiveList(category: ArchiveCategory, params: ArchiveParams) {
+export function useArchiveList(category: ArchiveListCategory, params: ArchiveParams) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") search.set(key, String(value));

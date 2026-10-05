@@ -57,6 +57,10 @@ export const pages = {
     import("@/features/organization/pages/org-posts-page").then((m) => ({
       Component: m.OrgPostsPage,
     })),
+  documentTypes: () =>
+    import("@/features/documents/pages/document-types-page").then((m) => ({
+      Component: m.DocumentTypesPage,
+    })),
   orgStructure: () =>
     import("@/features/employee/pages/org-structure-page").then((m) => ({
       Component: m.OrgStructurePage,
@@ -76,6 +80,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/arsip", pages.archive],
   ["/personal/laporan", pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
+  ["/master-data/jenis-dokumen", pages.documentTypes],
   ["/master-data", pages.masterData],
   ["/penerimaan/impor", pages.onboardingImport],
   ["/penerimaan/", pages.onboardingReview],

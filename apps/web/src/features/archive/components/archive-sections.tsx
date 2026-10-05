@@ -42,11 +42,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AttachmentList } from "@/features/documents/components/documents-tab";
 import { useMasterData } from "@/features/employee/api";
 import type { EmployeeDetail } from "@/features/employee/schemas";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatRupiah } from "@/lib/format";
 import { type ItemCategory, useArchiveItem } from "../api";
+
+/** D-055: jenis dokumen yang bisa dilampirkan ke pelatihan & riwayat jabatan. */
+const CERTIFICATE_CODES = ["CERT_K3", "CERT_POP", "CERT_POM", "CERT_POU", "SIO", "CERT_OTHER"];
+export const DECREE_CODES = ["DECREE"];
 
 // D-054 (Arsip 1a): kelola pendidikan, pelatihan, riwayat kerja, riwayat jabatan di detail karyawan.
 // Tombol kelola hanya untuk SA/HR (access.manage); API tetap penentu akses.
@@ -295,11 +300,14 @@ function Item({
   title,
   meta,
   actions,
+  extra,
 }: {
   icon: typeof Award;
   title: ReactNode;
   meta: ReactNode;
   actions?: ReactNode;
+  /** Mis. lampiran sertifikat (D-055). */
+  extra?: ReactNode;
 }) {
   return (
     <li className="flex items-start gap-3">
@@ -309,6 +317,7 @@ function Item({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{title}</p>
         <p className="text-muted-foreground text-xs">{meta}</p>
+        {extra}
       </div>
       {actions}
     </li>
@@ -513,6 +522,14 @@ export function TrainingSection({
             icon={Award}
             title={training.trainingField}
             meta={trainingMeta(training)}
+            extra={
+              <AttachmentList
+                employeeId={employee.id}
+                link={{ trainingId: training.id }}
+                typeCodes={CERTIFICATE_CODES}
+                label="sertifikat"
+              />
+            }
             actions={
               canManage ? (
                 <RowMenu
@@ -529,7 +546,7 @@ export function TrainingSection({
         open={editor.editing !== null}
         onOpenChange={(open) => !open && editor.setEditing(null)}
         title={current ? "Ubah pelatihan" : "Tambah pelatihan"}
-        description="Sertifikat (mis. POP/POM/K3) bisa dilampirkan setelah fitur Data File tersedia."
+        description="Sertifikat (mis. POP/POM/K3) dilampirkan dari daftar pelatihan setelah disimpan."
         fields={TRAINING_FIELDS}
         initial={{
           trainingField: s(current?.trainingField),

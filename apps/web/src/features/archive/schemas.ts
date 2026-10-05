@@ -1,6 +1,9 @@
 import {
+  documentCategorySchema,
+  documentStatusSchema,
   educationLevelSchema,
   employmentChangeTypeSchema,
+  expiryStateSchema,
   movementTypeSchema,
   trainingTypeSchema,
 } from "@hris/shared";
@@ -64,6 +67,23 @@ export const archiveRowSchema = z
     toCompany: z.object({ id: z.string(), code: z.string() }).nullable().optional(),
     decreeNumber: z.string().nullable().optional(),
     note: z.string().nullable().optional(),
+    // Data File (D-055)
+    documentType: z
+      .object({
+        id: z.string(),
+        code: z.string(),
+        name: z.string(),
+        category: documentCategorySchema,
+        sensitive: z.boolean(),
+      })
+      .optional(),
+    documentNumber: z.string().nullable().optional(),
+    issuedAt: z.string().nullable().optional(),
+    expiresAt: z.string().nullable().optional(),
+    expiryState: expiryStateSchema.optional(),
+    daysLeft: z.number().nullable().optional(),
+    version: z.number().optional(),
+    status: documentStatusSchema.optional(),
   });
 export type ArchiveRow = z.infer<typeof archiveRowSchema>;
 

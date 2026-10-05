@@ -122,6 +122,8 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="perusahaan" replace /> },
               // D-051: pos jabatan (bagan organisasi).
               { path: "pos-jabatan", lazy: pages.orgPosts },
+              // D-055: jenis dokumen karyawan.
+              { path: "jenis-dokumen", lazy: pages.documentTypes },
               { path: ":kind", lazy: pages.masterData },
             ],
           },

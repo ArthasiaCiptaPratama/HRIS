@@ -9,6 +9,7 @@ import {
   Clock,
   Contact,
   FileClock,
+  FileText,
   FileUp,
   FolderArchive,
   GraduationCap,
@@ -305,6 +306,15 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: Workflow,
             visible: access.viewMasterData,
             keywords: "pos jabatan bagan org chart slot vacant kosong atasan fungsional",
+          },
+          {
+            // D-055: katalog jenis dokumen karyawan (masa berlaku, sensitif, wajib).
+            id: "master-document-types",
+            label: "Jenis dokumen",
+            to: `${MASTER_DATA_BASE}/jenis-dokumen`,
+            icon: FileText,
+            visible: access.viewMasterData,
+            keywords: "jenis dokumen berkas file sertifikat masa berlaku kedaluwarsa",
           },
         ],
       },

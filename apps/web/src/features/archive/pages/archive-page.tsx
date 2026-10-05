@@ -15,7 +15,7 @@ import { MaintenancePage } from "@/features/system/pages/maintenance-page";
 import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { type ArchiveParams, useArchiveList } from "../api";
-import { type ArchiveSectionConfig, archivePage } from "../config";
+import { type ArchiveFilter, type ArchiveSectionConfig, archivePage } from "../config";
 
 // D-054 (Arsip 1a): Personal Management › Arsip › <menu>. Tabel lintas karyawan (cakupan API:
 // SA semua PT, HR PT ditugaskan, MANAGER tim); klik baris → detail karyawan di tab terkait.
@@ -37,7 +37,7 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
   const q = useDeferredValue(search.trim());
   const [departmentId, setDepartmentId] = useState("");
   const [employees, setEmployees] = useState<ArchiveParams["employees"]>("active");
-  const [filter, setFilter] = useState("");
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
@@ -48,7 +48,7 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
     companyId: scope.selectedId,
     departmentId: departmentId || undefined,
     employees,
-    ...(config.filter && filter ? { [config.filter.key]: filter } : {}),
+    ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
   };
   const list = useArchiveList(config.category, params);
   const columns = useMemo(
@@ -94,17 +94,17 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
                 label: d.name,
               }))}
             />
-            {config.filter ? (
-              <FormSelect
-                aria-label={config.filter.label}
-                className="h-9 lg:w-48"
-                value={filter}
-                onChange={reset(setFilter)}
-                placeholder={`Semua ${config.filter.label.toLowerCase()}`}
-                noneLabel={`Semua ${config.filter.label.toLowerCase()}`}
-                options={config.filter.options}
+            {(config.filters ?? []).map((filter) => (
+              <ArchiveFilterSelect
+                key={filter.key}
+                filter={filter}
+                value={filters[filter.key] ?? ""}
+                onChange={(value) => {
+                  setFilters((current) => ({ ...current, [filter.key]: value }));
+                  setPage(1);
+                }}
               />
-            ) : null}
+            ))}
             <FormSelect
               aria-label="Status karyawan"
               className="h-9 lg:w-44"
@@ -147,18 +147,43 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
               : {
                   icon: config.icon,
                   title:
-                    q || filter || departmentId
+                    q || Object.values(filters).some(Boolean) || departmentId
                       ? "Tidak ada yang cocok"
                       : `Belum ada ${config.noun}`,
                   description:
                     config.category === "contacts"
                       ? undefined
-                      : "Tambahkan dari detail karyawan (tab Pendidikan / Riwayat).",
+                      : config.category === "documents"
+                        ? "Unggah dari detail karyawan (tab Dokumen)."
+                        : "Tambahkan dari detail karyawan (tab Pendidikan / Riwayat).",
                 }
           }
         />
       </ListPanel>
       <EmployeeDetailSheet />
     </div>
+  );
+}
+
+function ArchiveFilterSelect({
+  filter,
+  value,
+  onChange,
+}: {
+  filter: ArchiveFilter;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const dynamic = filter.useOptions?.();
+  return (
+    <FormSelect
+      aria-label={filter.label}
+      className="h-9 lg:w-48"
+      value={value}
+      onChange={onChange}
+      placeholder={`Semua ${filter.label.toLowerCase()}`}
+      noneLabel={`Semua ${filter.label.toLowerCase()}`}
+      options={dynamic ?? filter.options ?? []}
+    />
   );
 }

@@ -1,8 +1,9 @@
 import {
-  type ArchiveCategory,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
   EMPLOYMENT_CHANGE_LABELS,
+  EXPIRY_STATE_LABELS,
+  EXPIRY_STATES,
   MOVEMENT_TYPE_LABELS,
   MOVEMENT_TYPES,
   TRAINING_TYPE_LABELS,
@@ -13,15 +14,20 @@ import {
   Award,
   BriefcaseBusiness,
   Contact,
+  FolderArchive,
   GraduationCap,
   History,
+  Lock,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DataColumn, tableFeaturesNone } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
+import { useDocumentTypes } from "@/features/documents/api";
+import { ExpiryBadge } from "@/features/documents/components/documents-tab";
 import { EmployeeAvatar } from "@/features/employee/components/employee-avatar";
 import { formatDate, formatRupiah } from "@/lib/format";
+import type { ArchiveListCategory } from "./api";
 import type { ArchiveRow } from "./schemas";
 
 // D-054 (Arsip 1a): konfigurasi 5 menu Arsip aktif — kolom tabel, filter khusus, tab detail tujuan.
@@ -31,22 +37,25 @@ const col = (def: Parameters<typeof column.display>[0]) =>
   column.display(def) as DataColumn<ArchiveRow>;
 const muted = (value: ReactNode) => <span className="text-muted-foreground">{value ?? "—"}</span>;
 
+type FilterOption = { value: string; label: string };
 export interface ArchiveFilter {
-  key: "level" | "type" | "movementType" | "source";
+  key: "level" | "type" | "movementType" | "source" | "documentTypeId" | "expiry";
   label: string;
-  options: { value: string; label: string }[];
+  options?: FilterOption[];
+  /** Pilihan dari API (mis. jenis dokumen); hook dipanggil konsisten per halaman. */
+  useOptions?: () => FilterOption[];
 }
 
 export interface ArchiveSectionConfig {
   slug: string;
-  category: ArchiveCategory;
+  category: ArchiveListCategory;
   label: string;
   noun: string;
   icon: LucideIcon;
   description: string;
   /** Tab detail karyawan yang dibuka saat baris diklik. */
-  tab: "work" | "education" | "history";
-  filter?: ArchiveFilter;
+  tab: "work" | "education" | "history" | "documents";
+  filters?: ArchiveFilter[];
   columns: (opts: { showCost: boolean }) => DataColumn<ArchiveRow>[];
 }
 
@@ -138,11 +147,13 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
     description:
       "Riwayat pendidikan formal semua karyawan. Klik baris untuk mengelola di detail karyawan.",
     tab: "education",
-    filter: {
-      key: "level",
-      label: "Jenjang",
-      options: EDUCATION_LEVELS.map((l) => ({ value: l, label: EDUCATION_LEVEL_LABELS[l] })),
-    },
+    filters: [
+      {
+        key: "level",
+        label: "Jenjang",
+        options: EDUCATION_LEVELS.map((l) => ({ value: l, label: EDUCATION_LEVEL_LABELS[l] })),
+      },
+    ],
     columns: () => [
       employeeColumn,
       col({
@@ -169,11 +180,13 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
     description:
       "Masuk, mutasi, promosi, pindah PT — tercatat otomatis; riwayat sebelum HRIS ditambahkan di tab Riwayat detail karyawan.",
     tab: "history",
-    filter: {
-      key: "movementType",
-      label: "Jenis perpindahan",
-      options: MOVEMENT_TYPES.map((m) => ({ value: m, label: MOVEMENT_TYPE_LABELS[m] })),
-    },
+    filters: [
+      {
+        key: "movementType",
+        label: "Jenis perpindahan",
+        options: MOVEMENT_TYPES.map((m) => ({ value: m, label: MOVEMENT_TYPE_LABELS[m] })),
+      },
+    ],
     columns: () => [
       employeeColumn,
       col({
@@ -220,11 +233,13 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
     icon: Award,
     description: "Pelatihan & sertifikasi karyawan. Biaya hanya terlihat oleh Super Admin & HR.",
     tab: "education",
-    filter: {
-      key: "type",
-      label: "Jenis",
-      options: TRAINING_TYPES.map((t) => ({ value: t, label: TRAINING_TYPE_LABELS[t] })),
-    },
+    filters: [
+      {
+        key: "type",
+        label: "Jenis",
+        options: TRAINING_TYPES.map((t) => ({ value: t, label: TRAINING_TYPE_LABELS[t] })),
+      },
+    ],
     columns: ({ showCost }) => [
       employeeColumn,
       col({
@@ -297,6 +312,70 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
             {row.original.startYear}–{row.original.endYear ?? "sekarang"}
           </span>
         ),
+      }),
+    ],
+  },
+  {
+    slug: "file",
+    category: "documents",
+    label: "Data File",
+    noun: "dokumen",
+    icon: FolderArchive,
+    description:
+      "Dokumen versi aktif semua karyawan beserta masa berlakunya. Jenis sensitif (KTP, KK, rekening, MCU, …) hanya tampil bila Anda diberi izin.",
+    tab: "documents",
+    filters: [
+      {
+        key: "documentTypeId",
+        label: "Jenis dokumen",
+        useOptions: () =>
+          (useDocumentTypes().data ?? []).map((t) => ({ value: t.id, label: t.name })),
+      },
+      {
+        key: "expiry",
+        label: "Masa berlaku",
+        options: EXPIRY_STATES.map((e) => ({ value: e, label: EXPIRY_STATE_LABELS[e] })),
+      },
+    ],
+    columns: () => [
+      employeeColumn,
+      col({
+        id: "document",
+        header: "Dokumen",
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 truncate">
+              {row.original.documentType?.sensitive ? (
+                <Lock className="text-muted-foreground size-3.5 shrink-0" aria-label="Sensitif" />
+              ) : null}
+              {row.original.documentType?.name ?? "—"}
+            </p>
+            <p className="text-muted-foreground truncate text-xs">
+              {row.original.documentNumber ?? ""}
+            </p>
+          </div>
+        ),
+      }),
+      col({
+        id: "expires",
+        header: "Berlaku s.d.",
+        cell: ({ row }) =>
+          row.original.expiresAt ? (
+            <div className="flex flex-col items-start gap-1 text-xs whitespace-nowrap">
+              {formatDate(row.original.expiresAt)}
+              <ExpiryBadge
+                state={row.original.expiryState ?? "NONE"}
+                daysLeft={row.original.daysLeft ?? null}
+              />
+            </div>
+          ) : (
+            muted(null)
+          ),
+      }),
+      col({
+        id: "version",
+        header: "Versi",
+        cell: ({ row }) => muted(row.original.version ?? 1),
       }),
     ],
   },
