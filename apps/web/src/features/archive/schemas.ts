@@ -67,6 +67,13 @@ export const archiveRowSchema = z
     toCompany: z.object({ id: z.string(), code: z.string() }).nullable().optional(),
     decreeNumber: z.string().nullable().optional(),
     note: z.string().nullable().optional(),
+    // Data Keluarga & Data Bank (Arsip 1c)
+    name: z.string().optional(),
+    relationship: z.string().optional(),
+    birthDate: z.string().nullable().optional(),
+    bankName: z.string().nullable().optional(),
+    accountNumber: z.string().nullable().optional(),
+    accountHolder: z.string().nullable().optional(),
     // Data File (D-055)
     documentType: z
       .object({

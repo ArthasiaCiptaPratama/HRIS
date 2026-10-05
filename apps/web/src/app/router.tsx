@@ -127,6 +127,12 @@ export const routes: RouteObject[] = [
               { path: ":kind", lazy: pages.masterData },
             ],
           },
+          {
+            // D-054 / OD-6: Administrasi › Pengajuan Perubahan Data (SA / HR ber-grant).
+            path: "pengajuan-data",
+            element: <RequireAccessRoute check={access.reviewDataChanges} />,
+            children: [{ index: true, lazy: pages.dataChanges }],
+          },
           // D-045 c: Layanan Mandiri (placeholder sampai Time Management).
           { path: "ess", lazy: pages.ess },
           { path: "notifikasi", Component: NotificationsPage },

@@ -179,9 +179,9 @@ describe("Arsip › Data Pelatihan (D-054)", () => {
     expect(within(table).queryByRole("columnheader", { name: "Biaya" })).toBeNull();
   });
 
-  it("menu Arsip yang belum dikerjakan (Keluarga) tetap Maintenance", async () => {
+  it("menu Arsip yang belum dikerjakan (Aset) tetap Maintenance", async () => {
     mockFetch(me("SUPER_ADMIN", true));
-    renderAt("/personal/arsip/keluarga");
+    renderAt("/personal/arsip/aset");
     expect(await screen.findByRole("heading", { name: /sedang disiapkan/ })).toBeInTheDocument();
   });
 });

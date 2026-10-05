@@ -85,12 +85,16 @@ describe("navigation.ts (satu sumber menu per role)", () => {
         "Pengaktifan Karyawan",
         "Data Karyawan Tidak Aktif",
         "Struktur Organisasi",
-        "Data Keluarga",
+        "Data Kontak",
         "Riwayat Peringatan",
         "Laporan",
       ])
         expect(items).toContain(label);
     }
+    // Arsip 1c: Data Keluarga & Data Bank (sensitif) hanya SA / pemegang grant baca.
+    expect(labels("SUPER_ADMIN")).toEqual(expect.arrayContaining(["Data Keluarga", "Data Bank"]));
+    expect(labels("HR_ADMIN")).not.toContain("Data Keluarga");
+    expect(labels("HR_ADMIN")).not.toContain("Data Bank");
   });
 
   it("MANAGER (punya data karyawan): hanya baca — tanpa ubah status, arsip, laporan", () => {
@@ -300,9 +304,9 @@ describe("halaman Personal Management", () => {
       "/notifications": [200, emptyNotifications],
       "/employees/summary": [200, summary],
     });
-    renderAt("/personal/arsip/keluarga");
+    renderAt("/personal/arsip/aset");
     expect(
-      await screen.findByRole("heading", { name: "Data Keluarga sedang disiapkan" }),
+      await screen.findByRole("heading", { name: "Data Assets sedang disiapkan" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Maintenance")).toBeInTheDocument();
   });

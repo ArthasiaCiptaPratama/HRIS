@@ -4,6 +4,8 @@ import {
   EMPLOYMENT_CHANGE_LABELS,
   EXPIRY_STATE_LABELS,
   EXPIRY_STATES,
+  FAMILY_RELATIONSHIP_LABELS,
+  FAMILY_RELATIONSHIPS,
   MOVEMENT_TYPE_LABELS,
   MOVEMENT_TYPES,
   TRAINING_TYPE_LABELS,
@@ -16,7 +18,9 @@ import {
   Contact,
   FolderArchive,
   GraduationCap,
+  HeartHandshake,
   History,
+  Landmark,
   Lock,
   type LucideIcon,
 } from "lucide-react";
@@ -39,7 +43,7 @@ const muted = (value: ReactNode) => <span className="text-muted-foreground">{val
 
 type FilterOption = { value: string; label: string };
 export interface ArchiveFilter {
-  key: "level" | "type" | "movementType" | "source" | "documentTypeId" | "expiry";
+  key: "level" | "type" | "movementType" | "source" | "documentTypeId" | "expiry" | "relationship";
   label: string;
   options?: FilterOption[];
   /** Pilihan dari API (mis. jenis dokumen); hook dipanggil konsisten per halaman. */
@@ -54,7 +58,7 @@ export interface ArchiveSectionConfig {
   icon: LucideIcon;
   description: string;
   /** Tab detail karyawan yang dibuka saat baris diklik. */
-  tab: "work" | "education" | "history" | "documents";
+  tab: "work" | "education" | "history" | "documents" | "family" | "bank";
   filters?: ArchiveFilter[];
   columns: (opts: { showCost: boolean }) => DataColumn<ArchiveRow>[];
 }
@@ -136,6 +140,51 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
             <span className="text-muted-foreground text-xs">Terbatas</span>
           ),
       }),
+    ],
+  },
+  {
+    slug: "keluarga",
+    category: "families",
+    label: "Data Keluarga",
+    noun: "anggota keluarga",
+    icon: HeartHandshake,
+    description:
+      "Anggota keluarga karyawan (data pribadi pihak ketiga). Hanya untuk akun ber-izin lihat data pribadi; setiap pembukaan tercatat di audit log. Karyawan mengubahnya lewat pengajuan.",
+    tab: "family",
+    filters: [
+      {
+        key: "relationship",
+        label: "Hubungan",
+        options: FAMILY_RELATIONSHIPS.map((r) => ({
+          value: r,
+          label: FAMILY_RELATIONSHIP_LABELS[r],
+        })),
+      },
+    ],
+    columns: () => [
+      employeeColumn,
+      col({ id: "name", header: "Nama", cell: ({ row }) => row.original.name ?? "—" }),
+      col({
+        id: "relationship",
+        header: "Hubungan",
+        cell: ({ row }) =>
+          row.original.relationship ? (
+            <Badge variant="secondary">
+              {FAMILY_RELATIONSHIP_LABELS[
+                row.original.relationship as keyof typeof FAMILY_RELATIONSHIP_LABELS
+              ] ?? row.original.relationship}
+            </Badge>
+          ) : (
+            muted(null)
+          ),
+      }),
+      col({
+        id: "birthDate",
+        header: "Tanggal lahir",
+        cell: ({ row }) =>
+          muted(row.original.birthDate ? formatDate(row.original.birthDate) : null),
+      }),
+      col({ id: "phone", header: "No. HP", cell: ({ row }) => muted(row.original.phoneNumber) }),
     ],
   },
   {
@@ -376,6 +425,32 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
         id: "version",
         header: "Versi",
         cell: ({ row }) => muted(row.original.version ?? 1),
+      }),
+    ],
+  },
+  {
+    slug: "bank",
+    category: "bank-accounts",
+    label: "Data Bank",
+    noun: "rekening",
+    icon: Landmark,
+    description:
+      "Rekening gaji karyawan. Hanya untuk akun ber-izin lihat rekening; setiap pembukaan tercatat di audit log. Karyawan mengubahnya lewat pengajuan + buku tabungan.",
+    tab: "bank",
+    columns: () => [
+      employeeColumn,
+      col({ id: "bankName", header: "Bank", cell: ({ row }) => row.original.bankName ?? "—" }),
+      col({
+        id: "accountNumber",
+        header: "Nomor rekening",
+        cell: ({ row }) => (
+          <span className="font-mono text-[13px]">{row.original.accountNumber ?? "—"}</span>
+        ),
+      }),
+      col({
+        id: "holder",
+        header: "Atas nama",
+        cell: ({ row }) => muted(row.original.accountHolder),
       }),
     ],
   },

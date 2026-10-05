@@ -57,6 +57,10 @@ export const pages = {
     import("@/features/organization/pages/org-posts-page").then((m) => ({
       Component: m.OrgPostsPage,
     })),
+  dataChanges: () =>
+    import("@/features/data-changes/pages/data-changes-page").then((m) => ({
+      Component: m.DataChangesPage,
+    })),
   documentTypes: () =>
     import("@/features/documents/pages/document-types-page").then((m) => ({
       Component: m.DocumentTypesPage,
@@ -86,6 +90,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/penerimaan/", pages.onboardingReview],
   ["/penerimaan", pages.onboarding],
   ["/ess", pages.ess],
+  ["/pengajuan-data", pages.dataChanges],
 ];
 
 export function preloadRoute(path: string): void {

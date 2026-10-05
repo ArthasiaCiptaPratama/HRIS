@@ -9,6 +9,7 @@ import {
   Clock,
   Contact,
   FileClock,
+  FilePen,
   FileText,
   FileUp,
   FolderArchive,
@@ -100,12 +101,17 @@ const manage = access.manageEmployees;
 // D-054 (Arsip 1a): menu yang sudah aktif terbuka juga untuk MANAGER (tim, kolom kerja); sisanya
 // Maintenance & hanya SA/HR sampai gelombangnya dikerjakan.
 const ARCHIVE_READY = new Set(ARCHIVE_SECTIONS.map((section) => section.slug));
+// D-054 / OD-6 (Arsip 1c): Keluarga & Bank = data sensitif → hanya SA / pemegang grant baca.
+const ARCHIVE_GRANTED: Record<string, (me: Me) => boolean> = {
+  keluarga: access.readFamilyArchive,
+  bank: access.readBankArchive,
+};
 const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem => ({
   id,
   label,
   to: `/personal/arsip/${id}`,
   icon,
-  visible: ARCHIVE_READY.has(id) ? access.personalMenu : manage,
+  visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
   maintenance: !ARCHIVE_READY.has(id),
   keywords,
 });
@@ -243,7 +249,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: KeyRound,
     to: "/akun",
     match: (p) =>
-      ["/akun", "/grant", "/audit", "/master-data", "/penerimaan"].some((base) =>
+      ["/akun", "/grant", "/audit", "/master-data", "/penerimaan", "/pengajuan-data"].some((base) =>
         p.startsWith(base),
       ),
     visible: access.listAccounts,
@@ -282,6 +288,15 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: UserPlus,
             visible: access.runOnboarding,
             keywords: "onboarding calon karyawan undangan aktivasi impor portal maganghub",
+          },
+          {
+            // D-054 / OD-6: pengajuan perubahan data diri (ESS) menunggu persetujuan.
+            id: "data-changes",
+            label: "Pengajuan Perubahan Data",
+            to: "/pengajuan-data",
+            icon: FilePen,
+            visible: access.reviewDataChanges,
+            keywords: "pengajuan perubahan data ess persetujuan rekening keluarga alamat dokumen",
           },
         ],
       },
@@ -340,7 +355,8 @@ export const NAV_GROUPS: NavGroup[] = [
             label: "Layanan Mandiri",
             to: "/ess",
             icon: Clock,
-            keywords: "ess absensi cuti slip gaji",
+            keywords:
+              "ess absensi cuti slip gaji data diri pengajuan perubahan rekening keluarga dokumen",
           },
         ],
       },

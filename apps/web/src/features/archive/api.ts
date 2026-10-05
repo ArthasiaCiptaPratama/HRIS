@@ -19,10 +19,11 @@ export interface ArchiveParams {
   source?: string | undefined;
   documentTypeId?: string | undefined;
   expiry?: string | undefined;
+  relationship?: string | undefined;
 }
 
 /** Kategori tabel Arsip: kategori 1a + Data File (D-055). */
-export type ArchiveListCategory = ArchiveCategory | "documents";
+export type ArchiveListCategory = ArchiveCategory | "documents" | "families" | "bank-accounts";
 
 export const archiveKeys = {
   all: ["archive"] as const,
