@@ -45,6 +45,7 @@ export const PERMISSION_CODE: Record<DbPermission, Permission> = {
   CONTRACT_MANAGE: "contract.manage",
   PAYROLL_PERIOD_PREPARE: "payroll.period.prepare",
   EMPLOYEE_ONBOARDING_REVIEW: "employee.onboarding.review",
+  EMPLOYEE_CHANGES_REVIEW: "employee.changes.review",
 };
 const DB_PERMISSION = Object.fromEntries(
   Object.entries(PERMISSION_CODE).map(([db, code]) => [code, db]),
@@ -1096,6 +1097,26 @@ export async function listDocumentReminderRecipients(
   );
   const rows = hrs.length > 0 ? hrs : await repository.listActiveSuperAdmins();
   return rows.map((a) => ({ accountId: a.id, email: a.email }));
+}
+
+/**
+ * D-054 / OD-6: pemeriksa pengajuan perubahan data — SUPER_ADMIN aktif + HR PT karyawan yang memegang
+ * `employee.changes.review` dan grant bagian yang diminta (mis. `employee.bank.read` + `.write`).
+ */
+export async function listDataChangeReviewers(
+  companyId: string,
+  sectionGrants: readonly Permission[],
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const [admins, hrs] = await Promise.all([
+    repository.listActiveSuperAdmins(),
+    repository.findCompanyHrsWithAll(
+      companyId,
+      ["EMPLOYEE_CHANGES_REVIEW", ...sectionGrants.map((p) => DB_PERMISSION[p])],
+      now,
+    ),
+  ]);
+  return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }
 
 export async function getEmployeeAccountStates(

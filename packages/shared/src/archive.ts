@@ -17,15 +17,17 @@ export type ArchiveCategory = z.infer<typeof archiveCategorySchema>;
 /** Menu Arsip yang sudah aktif (slug web ↔ kategori API), urut seperti menu. "documents" = D-055 (1b). */
 export const ARCHIVE_SECTIONS: readonly {
   slug: string;
-  category: ArchiveCategory | "documents";
+  category: ArchiveCategory | "documents" | "families" | "bank-accounts";
   label: string;
 }[] = [
   { slug: "kontak", category: "contacts", label: "Data Kontak" },
+  { slug: "keluarga", category: "families", label: "Data Keluarga" },
   { slug: "pendidikan", category: "educations", label: "Data Pendidikan" },
   { slug: "riwayat-jabatan", category: "position-histories", label: "Riwayat Jabatan" },
   { slug: "pelatihan", category: "trainings", label: "Data Pelatihan" },
   { slug: "riwayat-kerja", category: "work-experiences", label: "Data Riwayat Kerja" },
   { slug: "file", category: "documents", label: "Data File" },
+  { slug: "bank", category: "bank-accounts", label: "Data Bank" },
 ];
 
 export const TRAINING_TYPES = ["INTERNAL", "EXTERNAL"] as const;

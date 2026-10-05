@@ -164,7 +164,7 @@ function assertOnlyEmpty(current: Record<string, unknown>, incoming: Record<stri
 
 // ── Snapshot & DTO ────────────────────────────────────────────────────────────────────────────
 
-function personalOf(row: repo.SelfRow) {
+export function personalOf(row: repo.SelfRow) {
   const p = row.personal;
   return {
     fullName: row.fullName,

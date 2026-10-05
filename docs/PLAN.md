@@ -183,6 +183,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `contract.manage`                | Buat, perpanjang, terminasi kontrak; lihat daftar kontrak                         | HR_ADMIN              |
 | `payroll.period.prepare`         | Menutup periode absensi & menandai input payroll siap (**tanpa** melihat nominal) | HR_ADMIN              |
 | `employee.onboarding.review`     | Lihat data sensitif & dokumen calon/karyawan yang sedang onboarding, lalu setujui / minta revisi / batalkan (D-047) | HR_ADMIN              |
+| `employee.changes.review`        | Setujui/tolak pengajuan perubahan data karyawan di PT yang ditugaskan; bagian sensitif tetap butuh grant lihat & ubah bagian itu (D-054, Arsip 1c) | HR_ADMIN              |
 
 Sifat grant:
 - **Cakupan:** untuk HR_ADMIN berlaku atas **semua karyawan**; untuk MANAGER hanya atas **timnya**.
@@ -226,6 +227,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Import karyawan (CSV/Excel) (D-042) | ✅ | ✅ PT sendiri; kolom sensitif hanya dengan grant `*.write` | ❌ | ❌ |
 | Penerimaan karyawan baru: import calon, kirim undangan, undang karyawan existing (D-045) | ✅ | ✅ PT sendiri | ❌ | ❌ |
 | Review & keputusan data onboarding (D-045, D-047) | ✅ | 🔑 `employee.onboarding.review` (PT sendiri) | ❌ | ❌ |
+| Setujui pengajuan perubahan data diri (D-054) | ✅ | 🔑 `employee.changes.review` (PT sendiri) + grant bagian sensitif | ❌ | ❌ (mengajukan untuk diri sendiri) |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
 | **Kontrak** | | | | |
 | Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |

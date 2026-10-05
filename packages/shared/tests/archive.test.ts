@@ -12,14 +12,16 @@ import {
 const TODAY = "2026-10-05";
 
 describe("ARCHIVE_SECTIONS", () => {
-  test("menu gelombang 1a + Data File (1b) dengan slug web & kategori API", () => {
+  test("menu gelombang 1a + Data File (1b) + Keluarga & Bank (1c) dengan slug web & kategori API", () => {
     expect(ARCHIVE_SECTIONS.map((s) => [s.slug, s.category])).toEqual([
       ["kontak", "contacts"],
+      ["keluarga", "families"],
       ["pendidikan", "educations"],
       ["riwayat-jabatan", "position-histories"],
       ["pelatihan", "trainings"],
       ["riwayat-kerja", "work-experiences"],
       ["file", "documents"],
+      ["bank", "bank-accounts"],
     ]);
   });
 });

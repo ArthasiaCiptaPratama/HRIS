@@ -22,6 +22,8 @@ enum Permission {
   PAYROLL_PERIOD_PREPARE     @map("payroll.period.prepare")
   // D-047: review data onboarding calon.
   EMPLOYEE_ONBOARDING_REVIEW @map("employee.onboarding.review")
+  // D-054 / OD-6: pengajuan perubahan data karyawan.
+  EMPLOYEE_CHANGES_REVIEW    @map("employee.changes.review")
 
   @@schema("iam")
 }

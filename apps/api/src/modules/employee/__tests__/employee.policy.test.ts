@@ -15,10 +15,13 @@ import {
   canReadDocuments,
   canReadOrgStructure,
   canReadPersonal,
+  canReviewDataChange,
   canReviewOnboarding,
   canRunOnboarding,
   canSeeArchiveCost,
+  canSubmitDataChange,
   canViewDashboard,
+  canViewDataChangeQueue,
   canViewEmployee,
   canWriteDocuments,
   canWriteSensitiveViaImport,
@@ -411,4 +414,88 @@ describe("Dokumen (D-055)", () => {
     expect(seesAllSensitiveDocuments(actor("HR", ["employee.documents.read"]))).toBe(true);
     expect(seesAllSensitiveDocuments(actor("MGR", ["employee.documents.read"]))).toBe(true);
   });
+});
+
+// D-054 / OD-6 (Arsip 1c, design §8 "Setujui pengajuan"): karyawan mengajukan perubahan data dirinya;
+// pemeriksa SA, atau HR ber-grant `employee.changes.review` di PT-nya + grant bagian sensitif (lihat &
+// ubah). Tidak ada yang memeriksa pengajuannya sendiri.
+describe("Pengajuan perubahan data (OD-6)", () => {
+  const REVIEW = "employee.changes.review" as const;
+  test("mengajukan: hanya untuk data sendiri", () => {
+    expect(canSubmitDataChange(actor("EMP"), target("EMP", "self"))).toBe(true);
+    expect(canSubmitDataChange(actor("HR"), target("HR", "self"))).toBe(true);
+    expect(canSubmitDataChange(actor("SA"), target("SA", "other"))).toBe(false);
+  });
+  test("antrean: SA & HR ber-grant", () => {
+    expect(canViewDataChangeQueue(actor("SA"))).toBe(true);
+    expect(canViewDataChangeQueue(actor("HR"))).toBe(false);
+    expect(canViewDataChangeQueue(actor("HR", [REVIEW]))).toBe(true);
+    expect(canViewDataChangeQueue(actor("MGR", [REVIEW]))).toBe(false);
+  });
+  type Row = [
+    Who,
+    Permission[],
+    Rel,
+    string,
+    "PERSONAL" | "EMERGENCY" | "FAMILY" | "BANK" | "DOCUMENT",
+    boolean,
+    boolean,
+  ];
+  const rows: Row[] = [
+    // who, grant, relasi, PT, bagian, dokumen sensitif, boleh memeriksa
+    ["SA", [], "other", "co-B", "BANK", false, true],
+    ["SA", [], "self", "co-A", "EMERGENCY", false, false],
+    ["HR", [], "other", "co-A", "EMERGENCY", false, false],
+    ["HR", [REVIEW], "other", "co-A", "EMERGENCY", false, true],
+    ["HR", [REVIEW], "other", "co-B", "EMERGENCY", false, false],
+    ["HR", [REVIEW], "other", "co-A", "PERSONAL", false, false],
+    ["HR", [REVIEW, "employee.personal.read"], "other", "co-A", "PERSONAL", false, false],
+    [
+      "HR",
+      [REVIEW, "employee.personal.read", "employee.personal.write"],
+      "other",
+      "co-A",
+      "FAMILY",
+      false,
+      true,
+    ],
+    [
+      "HR",
+      [REVIEW, "employee.personal.read", "employee.personal.write"],
+      "other",
+      "co-A",
+      "BANK",
+      false,
+      false,
+    ],
+    [
+      "HR",
+      [REVIEW, "employee.bank.read", "employee.bank.write"],
+      "other",
+      "co-A",
+      "BANK",
+      false,
+      true,
+    ],
+    ["HR", [REVIEW], "other", "co-A", "DOCUMENT", false, true],
+    ["HR", [REVIEW], "other", "co-A", "DOCUMENT", true, false],
+    [
+      "HR",
+      [REVIEW, "employee.documents.read", "employee.documents.write"],
+      "other",
+      "co-A",
+      "DOCUMENT",
+      true,
+      true,
+    ],
+    ["HR", [REVIEW], "self", "co-A", "EMERGENCY", false, false],
+    ["MGR", [REVIEW], "team", "co-A", "EMERGENCY", false, false],
+  ];
+  for (const [who, grants, rel, company, section, sensitive, allowed] of rows) {
+    test(`${who} ${grants.join("+") || "tanpa grant"} ${rel} ${company} ${section}${sensitive ? " (sensitif)" : ""} → ${allowed}`, () => {
+      expect(
+        canReviewDataChange(actor(who, grants), target(who, rel, company), section, sensitive),
+      ).toBe(allowed);
+    });
+  }
 });

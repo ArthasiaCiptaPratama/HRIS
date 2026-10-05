@@ -1,4 +1,4 @@
-import { ROLE } from "@hris/shared";
+import { type Permission, ROLE } from "@hris/shared";
 import {
   type Actor,
   type EmployeeTarget,
@@ -184,4 +184,53 @@ export function seesAllSensitiveDocuments(actor: Actor): boolean {
 // Jenis dokumen (master data): kelola SA saja; daftar dibaca semua akun (nama jenis bukan data sensitif).
 export function canManageDocumentTypes(actor: Actor): boolean {
   return actor.role === ROLE.SUPER_ADMIN;
+}
+
+// D-054 / OD-6 (Arsip 1c, design §8): perubahan data diri lewat pengajuan. Pengaju = pemilik data (role
+// apa pun yang terhubung ke data karyawan). Pemeriksa: SA; HR ber-grant `employee.changes.review` di PT
+// karyawan + grant lihat & ubah bagian sensitif (pribadi/keluarga → personal, rekening → bank, dokumen
+// sensitif → documents). Tidak ada yang memeriksa pengajuannya sendiri.
+export type DataChangeSectionKey = "PERSONAL" | "EMERGENCY" | "FAMILY" | "BANK" | "DOCUMENT";
+
+export function canSubmitDataChange(actor: Actor, target: EmployeeTarget): boolean {
+  return isSelf(actor, target);
+}
+
+export function canViewDataChangeQueue(actor: Actor): boolean {
+  if (actor.role === ROLE.SUPER_ADMIN) return true;
+  return actor.role === ROLE.HR_ADMIN && hasPermission(actor, "employee.changes.review");
+}
+
+const SECTION_GRANTS: Record<DataChangeSectionKey, readonly Permission[]> = {
+  PERSONAL: ["employee.personal.read", "employee.personal.write"],
+  FAMILY: ["employee.personal.read", "employee.personal.write"],
+  BANK: ["employee.bank.read", "employee.bank.write"],
+  EMERGENCY: [],
+  DOCUMENT: [],
+};
+
+export function canReviewDataChange(
+  actor: Actor,
+  target: EmployeeTarget,
+  section: DataChangeSectionKey,
+  sensitiveDocument: boolean,
+): boolean {
+  if (isSelf(actor, target)) return false;
+  if (actor.role === ROLE.SUPER_ADMIN) return true;
+  if (!canViewDataChangeQueue(actor) || !isInCompanyScope(actor, target)) return false;
+  const needed: readonly Permission[] =
+    section === "DOCUMENT" && sensitiveDocument
+      ? ["employee.documents.read", "employee.documents.write"]
+      : SECTION_GRANTS[section];
+  return needed.every((permission) => hasPermission(actor, permission));
+}
+
+// Arsip › Data Keluarga & Data Bank: daftar lintas karyawan hanya untuk SA atau pemegang grant baca
+// (cakupan baris tetap per role); setiap pembacaan diaudit.
+export function seesFamilyArchive(actor: Actor): boolean {
+  return actor.role === ROLE.SUPER_ADMIN || hasPermission(actor, "employee.personal.read");
+}
+
+export function seesBankArchive(actor: Actor): boolean {
+  return actor.role === ROLE.SUPER_ADMIN || hasPermission(actor, "employee.bank.read");
 }

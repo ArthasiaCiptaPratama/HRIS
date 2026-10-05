@@ -173,6 +173,7 @@ model Employee {
   // D-045 b: karyawan existing (completion_required) sudah mengirim data untuk direview.
   completionSubmittedAt        DateTime?              @map("completion_submitted_at") @db.Timestamptz(6)
   documents                    EmployeeDocument[]
+  dataChangeRequests           DataChangeRequest[]
   workExperiences              WorkExperience[]
   onboardingEvents             OnboardingEvent[]
   onboardingReviews            OnboardingReview[]
@@ -576,6 +577,7 @@ model EmployeeDocument {
   replacesId     String?              @map("replaces_id") @db.Uuid
   replaces       EmployeeDocument?    @relation("DocumentVersions", fields: [replacesId], references: [id], onDelete: SetNull)
   replacedBy     EmployeeDocument[]   @relation("DocumentVersions")
+  changeRequests DataChangeRequest[]
   status         DocumentStatus       @default(VERIFIED)
   // Akun pemverifikasi (iam.accounts.id, tanpa FK).
   verifiedBy     String?              @map("verified_by") @db.Uuid
@@ -603,6 +605,54 @@ model EmployeeDocument {
   @@index([trainingId])
   @@index([historyId])
   @@map("employee_documents")
+  @@schema("employee")
+}
+
+// D-054 / OD-6 (Arsip 1c): pengajuan perubahan data diri (ESS) → disetujui SA / HR ber-grant.
+enum DataChangeSection {
+  PERSONAL
+  EMERGENCY
+  FAMILY
+  BANK
+  DOCUMENT
+
+  @@schema("employee")
+}
+
+enum DataChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("employee")
+}
+
+model DataChangeRequest {
+  id          String            @id @default(uuid()) @db.Uuid
+  employeeId  String            @map("employee_id") @db.Uuid
+  employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  section     DataChangeSection
+  status      DataChangeStatus  @default(PENDING)
+  // Nilai usulan (hanya field yang berubah; keluarga = daftar lengkap). SENSITIF — dibaca lewat policy.
+  payload     Json
+  // Nilai lama field yang sama, dicatat saat disetujui (jejak perubahan).
+  previous    Json?
+  // Lampiran: buku tabungan (BANK) atau dokumen yang diajukan (DOCUMENT).
+  documentId  String?           @map("document_id") @db.Uuid
+  document    EmployeeDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  // Akun pengaju & pemeriksa (iam.accounts.id, tanpa FK).
+  submittedBy String            @map("submitted_by") @db.Uuid
+  reviewedBy  String?           @map("reviewed_by") @db.Uuid
+  reviewedAt  DateTime?         @map("reviewed_at") @db.Timestamptz(6)
+  reviewNote  String?           @map("review_note") @db.VarChar(500)
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, status])
+  @@index([status, createdAt])
+  @@index([documentId])
+  @@map("data_change_requests")
   @@schema("employee")
 }
 

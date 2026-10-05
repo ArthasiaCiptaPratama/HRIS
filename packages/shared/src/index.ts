@@ -1,4 +1,5 @@
 export * from "./archive.ts";
+export * from "./data-changes.ts";
 export * from "./documents.ts";
 export * from "./employee.ts";
 export * from "./enums.ts";

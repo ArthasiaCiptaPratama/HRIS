@@ -341,6 +341,31 @@ export async function findCompanyHrs(
   });
 }
 
+/** D-054 / OD-6: HR aktif di PT yang memegang SEMUA grant aktif yang diminta. */
+export async function findCompanyHrsWithAll(
+  companyId: string,
+  permissions: NonNullable<Prisma.EnumPermissionFilter["equals"]>[],
+  now: Date,
+) {
+  return getPrisma().account.findMany({
+    where: {
+      role: "HR_ADMIN",
+      isActive: true,
+      companies: { some: { companyId } },
+      AND: permissions.map((permission) => ({
+        grants: {
+          some: {
+            permission,
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          },
+        },
+      })),
+    },
+    select: { id: true, email: true },
+  });
+}
+
 // ── D-048: login NIK & lupa password ────────────────────────────────────────
 
 /** Akun lain yang sudah memakai alamat ini sebagai email kontak atau email login. */
