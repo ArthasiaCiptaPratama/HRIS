@@ -27,7 +27,7 @@ Otomasi: `apps/api/tests/integration/organization/master-data.test.ts` (MD), `ap
 |---|---|---|---|---|---|---|---|
 | TC-ADM-015 | P1 | D-049 akses | SA / HR / MGR / EMP / tanpa token | — | GET `/<jenis>`; POST `/<jenis>` | Daftar: SA & HR 200, MGR/EMP 403, tanpa token 401; tulis: hanya SA (HR/MGR/EMP 403); grant apa pun tidak memberi HR hak kelola | MD, POL |
 | TC-ADM-016 | P1 | D-040 | HR | HR ditugaskan ACP, ada PT lain | GET /companies | HR hanya melihat PT yang ditugaskan | MD |
-| TC-ADM-017 | P2 | D-049 validasi | SA | — | Nama kosong, kode PT `A.B`, NPWP 3 digit, geofence sebagian, radius 5 m | 400 `VALIDATION_ERROR`; form web menampilkan pesan tanpa mengirim request | MD, SH, WMD |
+| TC-ADM-017 | P2 | D-049 validasi | SA | — | Nama kosong, kode PT `A.B`, NPWP 3 digit, geofence sebagian, radius 0 m (minimal 1 m sejak 2026-10-05) | 400 `VALIDATION_ERROR`; form web menampilkan pesan tanpa mengirim request | MD, SH, WMD |
 | TC-ADM-018 | P2 | D-049 nama unik | SA | grade "X" ada (aktif/arsip) | Tambah "X" lagi | 409 `CONFLICT` "… pulihkan saja" | MD |
 | TC-ADM-019 | P1 | D-049 arsip & pulihkan | SA | grade dipakai | Arsipkan → cek /master-data → pulihkan | Hilang dari pilihan (/master-data) tetapi tampil di "Diarsipkan"; ubah item terarsip 422; arsip ulang 409; pulihkan kembali tampil; audit `organization.grade.archive` | MD, WMD |
 | TC-ADM-020 | P1 | D-049 hapus permanen | SA | item belum/sudah dipakai | DELETE | Belum dipakai 200 (hilang); sudah dipakai 409 "arsipkan saja", data & audit tidak berubah | MD |
@@ -43,3 +43,5 @@ Otomasi: `apps/api/tests/integration/organization/master-data.test.ts` (MD), `ap
 | TC-ADM-030 | P2 | D-050 ubah jenis & gabungkan | SA | Divisi berisi Departemen | Ubah Divisi → Seksi; gabungkan Departemen ke Direktorat | 422 (sub-unit tidak sah / beda jenis); Divisi → Direktorat berhasil | MD |
 | TC-ADM-031 | P2 | D-050 level jabatan | SA | — | Tambah jabatan ber-level di unit Direktorat | Tersimpan; kolom Level tampil; `/master-data` & `/org-structure` membawa level; struktur mengurut jabatan menurut level | MD, WMD |
 | TC-ADM-032 | P3 | D-050 slug lama | SA | — | Buka `/master-data/departemen` | Dialihkan ke `/master-data/unit-organisasi` (judul "Unit organisasi") | WMD |
+| TC-ADM-033 | P3 | Aksesibilitas (PROMPT §7, axe) | SA | — | Buka dialog Tambah lokasi; periksa elemen peta | Elemen peta punya nama aksesibel (`aria-label` "Peta lokasi kerja: klik untuk menaruh titik") | WEB `tests/geofence-map.test.tsx` + Playwright staging GF-03 (`QA/2026-10-05-gelombang-1-staging/ui.ts`) |
+| TC-ADM-034 | P2 | D-049 poin 5 radius minimal 1 m (2026-10-05) | SA | — | Simpan lokasi radius 1 m; ubah ke 0 m | 1 m tersimpan; 0 m → 400 `VALIDATION_ERROR` (form & API) | SH `organization.test.ts`, MD "radius minimal 1 m" |

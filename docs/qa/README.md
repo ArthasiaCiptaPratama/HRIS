@@ -18,19 +18,20 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-02-onboarding-a.md](plans/2026-10-02-onboarding-a.md) | Onboarding bagian a: penerimaan calon & undangan aktivasi (D-045); bagian b (wizard) ditambahkan di file yang sama |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
 | Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-108 |
-| Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-032 |
+| Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-034 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18) |
 | Hasil | [runs/2026-09-29-detail-print.md](runs/2026-09-29-detail-print.md) | Lokal, Linux: test api 248 · web 54, Playwright lokal 31/31 + staging 18/18 LULUS; 3 temuan diperbaiki saat uji |
 | Hasil | [runs/2026-09-29-foto-profil.md](runs/2026-09-29-foto-profil.md) | Lokal + Storage staging: api 265 · web 64, smoke Storage, Playwright lokal 9/9 + staging 6/6 LULUS |
 | Hasil | [runs/2026-09-30-seragam-admin.md](runs/2026-09-30-seragam-admin.md) | Lokal: api 271 · web 72 (SMTP terisi), Playwright 31/31; staging `b7828a0` 31/31; unggah foto berprefix sungguhan ✔ — LULUS |
 | Hasil | [runs/2026-09-30-grup-kategori.md](runs/2026-09-30-grup-kategori.md) | Lokal: api 272 · web 82, Playwright 19/19; staging `1da5e2d` 19/19 (seed ulang master data) — LULUS |
-| Hasil | [runs/2026-09-30-menu-be.md](runs/2026-09-30-menu-be.md) | Lokal: web 84 (+1 dilewati), Playwright 15/15 (alur tulis sungguhan, data dikembalikan); staging `c30ef30` 9/9 (hanya baca) — LULUS |
-| Hasil | [runs/2026-09-30-multi-pt.md](runs/2026-09-30-multi-pt.md) | Lokal: api 318 · web 88, Playwright 16/16; bug CORS PUT diperbaiki — LULUS (staging belum) |
+| Hasil | [runs/2026-09-30-menu-be.md](runs/2026-09-30-menu-be.md) | Lokal: web 84 (+1 dilewati), Playwright 15/15 (alur tulis sungguhan, data dikembalikan); staging `c30ef30` 9/9 (hanya baca); menu c–e aktif di staging 2026-10-05 — LULUS |
+| Hasil | [runs/2026-09-30-multi-pt.md](runs/2026-09-30-multi-pt.md) | Lokal: api 318 · web 88, Playwright 16/16; bug CORS PUT diperbaiki; staging 2026-10-05 (gelombang 1) LULUS — **LEGIT** |
 | Hasil | [runs/2026-09-30-audit-ui.md](runs/2026-09-30-audit-ui.md) | Audit UI menyeluruh 106 keadaan (axe + keluar wadah + konsol): 90 → 0 temuan setelah Paket A |
-| Hasil | [runs/2026-09-30-import-karyawan.md](runs/2026-09-30-import-karyawan.md) | Lokal: shared 63 · api 341 · web 96, Playwright 13/13 (template dummy, data dibersihkan) — LULUS (staging belum) |
+| Hasil | [runs/2026-09-30-import-karyawan.md](runs/2026-09-30-import-karyawan.md) | Lokal: shared 63 · api 341 · web 96, Playwright 13/13 (template dummy, data dibersihkan); staging 2026-10-05 s.d. pratinjau LULUS — **LEGIT** |
 | Hasil | [runs/2026-09-30-rilis-import.md](runs/2026-09-30-rilis-import.md) | Lokal (DB `hris_release`): shared 63 · api 301 · web 93, Playwright 15/15 — LULUS; staging menyusul |
-| Hasil | [runs/2026-10-01-master-data.md](runs/2026-10-01-master-data.md) | Lokal: shared 73 · api 370 · web 105 (+1 dilewati), mutasi 3 perbaikan terkait tertangkap — LULUS otomatis; browser belum |
+| Hasil | [runs/2026-10-01-master-data.md](runs/2026-10-01-master-data.md) | Lokal: shared 73 · api 370 · web 105 (+1 dilewati), mutasi 3 perbaikan terkait tertangkap; + D-050 & peta; staging 2026-10-05 browser 4 role LULUS (BUG-002 P3 terbuka) — **LEGIT** |
 | Hasil | [runs/2026-10-02-onboarding-a.md](runs/2026-10-02-onboarding-a.md) | Lokal a+b: shared 98 · api 416 · web 117 — LULUS otomatis; browser, email sungguhan & bucket dokumen belum |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
+| Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `e3323a7` (staging menyusul): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

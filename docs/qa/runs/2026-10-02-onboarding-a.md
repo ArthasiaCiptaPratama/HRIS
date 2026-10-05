@@ -1,6 +1,6 @@
 # Hasil Uji — Onboarding bagian a (2026-10-02)
 
-- **Commit:** a1 `0d743e8` + a2 (web) · **Branch:** `HRIS/Oatse/Linux-Windows` · **Env:** lokal Linux · **Bun/PG:** 1.4.2 / PostgreSQL 17
+- **Commit:** a1 `fef27b9` (semula `0d743e8` sebelum rebase 2026-10-05) + a2 `9b935e4` · **Branch:** `HRIS/Oatse/Linux-Windows` · **Env:** lokal Linux · **Bun/PG:** 1.4.2 / PostgreSQL 17
 - **Perintah & ringkasan:** test ditulis dulu & merah (nomor induk di shared, policy onboarding) → hijau; `bun run typecheck` ✔ · `bunx biome ci .` ✔ (271 file) · `bun run check:boundaries` ✔ (241 modul) · `db:check` ✔ · `bun run test` ✔ (shared 92 · api 396 · web 112) · `bun run build` ✔.
 
 | ID | Hasil | Bukti |

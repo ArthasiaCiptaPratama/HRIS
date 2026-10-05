@@ -41,3 +41,5 @@
 
 **Kesimpulan:** memenuhi kriteria rencana. **Bug terbuka:** tidak ada.
 **Belum diverifikasi:** browser selain Chromium; Windows; nama pengubah di staging (riwayat staging hanya data seed). File .xlsx sudah dicek pemilik projek di Excel.
+
+**Arsip Drive:** `hris-qa:2026-09-29-detail-print` — 25 file, 2026-10-05 (fitur LEGIT: lokal + staging).
