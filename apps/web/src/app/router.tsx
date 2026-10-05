@@ -47,6 +47,8 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="pegawai-aktif/semua" replace /> },
               { path: "pegawai-aktif", element: <Navigate to="semua" replace /> },
               { path: "pegawai-aktif/:category", lazy: pages.activeEmployees },
+              // D-054: Arsip — tabel lintas karyawan (MANAGER: tim, kolom kerja; API penentu akses).
+              { path: "arsip/:section", lazy: pages.archive },
               {
                 path: "struktur-organisasi",
                 lazy: FEATURES.orgStructure ? pages.orgStructure : pages.maintenance,
@@ -68,7 +70,6 @@ export const routes: RouteObject[] = [
                     path: "pegawai-tidak-aktif",
                     lazy: FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
                   },
-                  { path: "arsip/:section", lazy: pages.maintenance },
                   { path: "laporan", lazy: pages.maintenance },
                 ],
               },

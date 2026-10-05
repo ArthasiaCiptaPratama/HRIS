@@ -1,3 +1,4 @@
+import { ARCHIVE_SECTIONS } from "@hris/shared";
 import {
   ArrowLeftRight,
   Award,
@@ -95,13 +96,16 @@ const GROUP_ICONS: Record<string, LucideIcon> = {
 
 const manage = access.manageEmployees;
 
+// D-054 (Arsip 1a): menu yang sudah aktif terbuka juga untuk MANAGER (tim, kolom kerja); sisanya
+// Maintenance & hanya SA/HR sampai gelombangnya dikerjakan.
+const ARCHIVE_READY = new Set(ARCHIVE_SECTIONS.map((section) => section.slug));
 const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem => ({
   id,
   label,
   to: `/personal/arsip/${id}`,
   icon,
-  visible: manage,
-  maintenance: true,
+  visible: ARCHIVE_READY.has(id) ? access.personalMenu : manage,
+  maintenance: !ARCHIVE_READY.has(id),
   keywords,
 });
 

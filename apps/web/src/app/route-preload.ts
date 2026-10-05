@@ -51,6 +51,8 @@ export const pages = {
     import("@/features/organization/pages/master-data-page").then((m) => ({
       Component: m.MasterDataPage,
     })),
+  archive: () =>
+    import("@/features/archive/pages/archive-page").then((m) => ({ Component: m.ArchivePage })),
   orgPosts: () =>
     import("@/features/organization/pages/org-posts-page").then((m) => ({
       Component: m.OrgPostsPage,
@@ -71,7 +73,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
     FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
   ],
   ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
-  ["/personal/arsip", pages.maintenance],
+  ["/personal/arsip", pages.archive],
   ["/personal/laporan", pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
   ["/master-data", pages.masterData],

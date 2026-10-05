@@ -4,11 +4,13 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  movementTypeSchema,
   orgUnitTypeSchema,
   paginationMetaSchema,
   positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
+  trainingTypeSchema,
 } from "@hris/shared";
 import { z } from "zod";
 
@@ -156,8 +158,27 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       organizer: z.string().nullable(),
       duration: z.string().nullable(),
       trainingYear: z.number().nullable(),
+      // D-054 (Arsip 1a); opsional agar respons lama tetap terbaca.
+      type: trainingTypeSchema.nullable().optional(),
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
+      hours: z.number().nullable().optional(),
+      /** Hanya ada untuk SA/HR. */
+      cost: z.number().nullable().optional(),
     }),
   ),
+  workExperiences: z
+    .array(
+      z.object({
+        id: z.string(),
+        companyName: z.string(),
+        position: z.string(),
+        startYear: z.number(),
+        endYear: z.number().nullable(),
+        description: z.string().nullable(),
+      }),
+    )
+    .optional(),
   histories: z.array(
     z.object({
       id: z.string(),
@@ -171,6 +192,12 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       toCompany: ref.nullable(),
       exitReason: exitReasonSchema.nullable(),
       note: z.string().nullable(),
+      // D-054 (Arsip 1a)
+      source: z.enum(["SYSTEM", "MANUAL"]).optional(),
+      movementType: movementTypeSchema.nullable().optional(),
+      decreeNumber: z.string().nullable().optional(),
+      toPositionName: z.string().nullable().optional(),
+      toDepartmentName: z.string().nullable().optional(),
       changedBy: z
         .object({ name: z.string(), role: roleSchema, workLocation: z.string().nullable() })
         .nullable(),

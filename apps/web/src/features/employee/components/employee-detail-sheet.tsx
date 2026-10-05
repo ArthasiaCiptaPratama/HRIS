@@ -1,16 +1,15 @@
 import {
-  EDUCATION_LEVEL_LABELS,
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
   GENDER_LABELS,
+  MOVEMENT_TYPE_LABELS,
   PTKP_LABELS,
   ROLE_LABELS,
 } from "@hris/shared";
 import {
   ArrowLeft,
   ArrowLeftRight,
-  Award,
   BriefcaseBusiness,
   Building2,
   CircleUser,
@@ -21,6 +20,7 @@ import {
   Lock,
   MapPin,
   Pencil,
+  Plus,
   Power,
   RotateCcw,
   UserRoundCheck,
@@ -39,6 +39,12 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  EducationSection,
+  TrainingSection,
+  usePositionHistoryEditor,
+  WorkExperienceSection,
+} from "@/features/archive/components/archive-sections";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -149,7 +155,9 @@ function DetailBody({
   onEdit?: ((employee: EmployeeDetail) => void) | undefined;
 }) {
   const { access } = employee;
-  const [tab, setTab] = useState("work");
+  // D-054: menu Arsip membuka detail langsung di tab terkait (?tab=education|history).
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(() => params.get("tab") ?? "work");
   // Data sensitif diambil hanya saat tabnya dibuka (dan hanya bila berhak).
   const wantsSensitive =
     (["personal", "family"].includes(tab) && access.personal) || (tab === "bank" && access.bank);
@@ -477,63 +485,13 @@ function FamilyTab({ employee }: { employee: EmployeeDetail }) {
 }
 
 function EducationTab({ employee }: { employee: EmployeeDetail }) {
+  // D-054 (Arsip 1a): SA/HR mengelola pendidikan, pelatihan, riwayat kerja langsung dari sini.
+  const canManage = employee.access.manage;
   return (
     <div className="space-y-8">
-      <section>
-        <SectionTitle>Pendidikan</SectionTitle>
-        {employee.educations.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Belum ada data pendidikan.</p>
-        ) : (
-          <ul className="space-y-3">
-            {employee.educations.map((edu) => (
-              <li key={edu.id} className="flex items-start gap-3">
-                <span className="bg-muted text-muted-foreground mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg">
-                  <GraduationCap className="size-4" aria-hidden />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">
-                    {edu.level ? (
-                      <span className="text-muted-foreground mr-1.5 font-mono text-xs">
-                        {EDUCATION_LEVEL_LABELS[edu.level]}
-                      </span>
-                    ) : null}
-                    {edu.schoolName}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    {[edu.major, edu.graduationYear ? `Lulus ${edu.graduationYear}` : null]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section>
-        <SectionTitle>Pelatihan</SectionTitle>
-        {employee.trainings.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Belum ada data pelatihan.</p>
-        ) : (
-          <ul className="space-y-3">
-            {employee.trainings.map((training) => (
-              <li key={training.id} className="flex items-start gap-3">
-                <span className="bg-muted text-muted-foreground mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg">
-                  <Award className="size-4" aria-hidden />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{training.trainingField}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {[training.organizer, training.duration, training.trainingYear]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <EducationSection employee={employee} canManage={canManage} />
+      <TrainingSection employee={employee} canManage={canManage} />
+      <WorkExperienceSection employee={employee} canManage={canManage} />
     </div>
   );
 }
@@ -563,57 +521,105 @@ const HISTORY_ICON: Record<EmploymentChangeType, typeof History> = {
   COMPANY_CHANGED: Building2,
 };
 
+/** Riwayat yang termasuk "Riwayat Jabatan" Arsip (bisa diberi keterangan / riwayat lama). */
+const POSITION_HISTORY_TYPES: EmploymentChangeType[] = [
+  "HIRED",
+  "POSITION_CHANGED",
+  "COMPANY_CHANGED",
+];
+
 function HistoryTab({ employee }: { employee: EmployeeDetail }) {
+  const canManage = employee.access.manage;
+  const editor = usePositionHistoryEditor(employee);
+  const add = canManage ? (
+    <div className="mb-6 flex justify-end">
+      <Button size="sm" variant="outline" onClick={editor.add}>
+        <Plus /> Tambah riwayat jabatan lama
+      </Button>
+    </div>
+  ) : null;
   if (employee.histories.length === 0)
-    return <EmptyState icon={History} title="Belum ada riwayat kepegawaian" />;
+    return (
+      <>
+        {add}
+        <EmptyState icon={History} title="Belum ada riwayat kepegawaian" />
+        {editor.dialog}
+      </>
+    );
   return (
-    <ol className="relative space-y-6 before:absolute before:top-2 before:bottom-2 before:left-[15px] before:w-px before:bg-border">
-      {employee.histories.map((h) => {
-        const Icon = HISTORY_ICON[h.changeType];
-        const detail =
-          h.changeType === "STATUS_CHANGED"
-            ? `${h.fromStatus?.name ?? "—"} → ${h.toStatus?.name ?? "—"}`
-            : h.changeType === "POSITION_CHANGED"
-              ? `${h.fromPosition?.name ?? "—"} → ${h.toPosition?.name ?? "—"}`
-              : h.changeType === "COMPANY_CHANGED"
-                ? `${h.fromCompany?.name ?? "—"} → ${h.toCompany?.name ?? "—"}`
-                : h.changeType === "DEACTIVATED"
-                  ? h.exitReason
-                    ? EXIT_REASON_LABELS[h.exitReason]
-                    : null
-                  : h.changeType === "HIRED"
-                    ? [h.toPosition?.name, h.toStatus?.name].filter(Boolean).join(" · ")
-                    : h.toStatus?.name;
-        return (
-          <li key={h.id} className="relative flex gap-4">
-            <span
-              className={cn(
-                "bg-background relative grid size-8 shrink-0 place-items-center rounded-full border",
-                h.changeType === "DEACTIVATED" && "text-destructive",
-                h.changeType === "REACTIVATED" && "text-success",
-              )}
-            >
-              <Icon className="size-3.5" aria-hidden />
-            </span>
-            <div className="min-w-0 pt-1">
-              <p className="text-sm font-medium">{EMPLOYMENT_CHANGE_LABELS[h.changeType]}</p>
-              {detail ? <p className="text-sm">{detail}</p> : null}
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                Efektif {formatDate(h.effectiveDate)}
-                <span aria-hidden> · </span>
-                dicatat {formatDateTime(h.createdAt)}
-              </p>
-              <ChangedBy changedBy={h.changedBy} />
-              {h.note ? (
-                <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
-                  {h.note}
+    <>
+      {add}
+      <ol className="relative space-y-6 before:absolute before:top-2 before:bottom-2 before:left-[15px] before:w-px before:bg-border">
+        {employee.histories.map((h) => {
+          const Icon = HISTORY_ICON[h.changeType];
+          const detail =
+            h.changeType === "STATUS_CHANGED"
+              ? `${h.fromStatus?.name ?? "—"} → ${h.toStatus?.name ?? "—"}`
+              : h.changeType === "POSITION_CHANGED"
+                ? h.source === "MANUAL"
+                  ? [h.toPosition?.name ?? h.toPositionName, h.toDepartmentName]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : `${h.fromPosition?.name ?? "—"} → ${h.toPosition?.name ?? "—"}`
+                : h.changeType === "COMPANY_CHANGED"
+                  ? `${h.fromCompany?.name ?? "—"} → ${h.toCompany?.name ?? "—"}`
+                  : h.changeType === "DEACTIVATED"
+                    ? h.exitReason
+                      ? EXIT_REASON_LABELS[h.exitReason]
+                      : null
+                    : h.changeType === "HIRED"
+                      ? [h.toPosition?.name, h.toStatus?.name].filter(Boolean).join(" · ")
+                      : h.toStatus?.name;
+          return (
+            <li key={h.id} className="relative flex gap-4">
+              <span
+                className={cn(
+                  "bg-background relative grid size-8 shrink-0 place-items-center rounded-full border",
+                  h.changeType === "DEACTIVATED" && "text-destructive",
+                  h.changeType === "REACTIVATED" && "text-success",
+                )}
+              >
+                <Icon className="size-3.5" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1 pt-1">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                  {EMPLOYMENT_CHANGE_LABELS[h.changeType]}
+                  {h.movementType ? (
+                    <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px]">
+                      {MOVEMENT_TYPE_LABELS[h.movementType]}
+                    </span>
+                  ) : null}
+                  {h.source === "MANUAL" ? (
+                    <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px]">
+                      Riwayat lama
+                    </span>
+                  ) : null}
                 </p>
-              ) : null}
-            </div>
-          </li>
-        );
-      })}
-    </ol>
+                {detail ? <p className="text-sm">{detail}</p> : null}
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  Efektif {formatDate(h.effectiveDate)}
+                  <span aria-hidden> · </span>
+                  dicatat {formatDateTime(h.createdAt)}
+                </p>
+                {h.decreeNumber ? (
+                  <p className="text-muted-foreground mt-0.5 text-xs">No. SK {h.decreeNumber}</p>
+                ) : null}
+                <ChangedBy changedBy={h.changedBy} />
+                {h.note ? (
+                  <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
+                    {h.note}
+                  </p>
+                ) : null}
+              </div>
+              {canManage && POSITION_HISTORY_TYPES.includes(h.changeType)
+                ? editor.menu(h, EMPLOYMENT_CHANGE_LABELS[h.changeType])
+                : null}
+            </li>
+          );
+        })}
+      </ol>
+      {editor.dialog}
+    </>
   );
 }
 

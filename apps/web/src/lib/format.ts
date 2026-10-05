@@ -21,3 +21,10 @@ export function formatDate(iso: string | null | undefined): string {
 export function formatDateTime(iso: string | null | undefined): string {
   return iso ? DATE_TIME.format(new Date(iso)) : "—";
 }
+
+const RUPIAH = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 });
+
+/** PROMPT §7: uang `Rp 1.234.567` (desimal hanya bila ada). */
+export function formatRupiah(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : `Rp ${RUPIAH.format(value)}`;
+}
