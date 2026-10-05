@@ -314,6 +314,83 @@ Table employee.trainings {
   }
 }
 
+// D-055 (Arsip 1b): jenis dokumen = master data SA; dokumen karyawan berversi & bermasa berlaku.
+Enum employee.document_category {
+  IDENTITY
+  EDUCATION
+  COMPETENCY
+  HEALTH
+  EMPLOYMENT
+  FINANCE
+  OTHER
+}
+
+Enum employee.document_requirement {
+  NONE
+  ALL
+  SITE
+  POSITIONS
+}
+
+Enum employee.document_status {
+  PENDING_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+Table employee.document_types {
+  id uuid [pk, default: `gen_random_uuid()`]
+  code varchar(30) [not null, unique]
+  name varchar(100) [not null]
+  category employee.document_category [not null]
+  has_expiry boolean [not null, default: false]
+  default_validity_months int [note: '1–120 (CHECK)']
+  reminder_days "int[]" [note: 'bawaan [60,30,7]']
+  required_scope employee.document_requirement [not null, default: 'NONE']
+  required_position_ids "uuid[]" [note: 'organization.positions.id, tanpa FK']
+  multiple boolean [not null, default: false]
+  employee_can_upload boolean [not null, default: false]
+  sensitive boolean [not null, default: false, note: 'butuh grant employee.documents.read']
+  max_size_mb int [not null, default: 5, note: '1–5 (CHECK)']
+  allowed_mime_types "text[]"
+  legacy_type varchar [unique, note: 'padanan enum lama wizard onboarding']
+  sort_order int [not null, default: 0]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [note: 'diarsipkan']
+}
+
+Table employee.employee_documents {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  type varchar [not null, note: 'enum lama (expand → contract)']
+  document_type_id uuid [not null, ref: > employee.document_types.id]
+  document_number varchar(60)
+  issued_at date
+  expires_at date [note: 'CHECK ≥ issued_at']
+  version int [not null, default: 1]
+  is_current boolean [not null, default: true]
+  replaces_id uuid [ref: > employee.employee_documents.id, note: 'versi sebelumnya']
+  status employee.document_status [not null, default: 'VERIFIED']
+  verified_by uuid
+  verified_at timestamptz
+  note varchar(500)
+  training_id uuid [ref: > employee.trainings.id, note: 'lampiran sertifikat']
+  history_id uuid [ref: > employee.employment_histories.id, note: 'lampiran SK']
+  storage_path varchar(255) [not null, unique, note: 'bucket private employee-documents']
+  mime_type varchar(100) [not null]
+  size_bytes int [not null]
+  uploaded_by uuid [not null, note: 'iam.accounts.id, tanpa FK']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz
+
+  indexes {
+    (employee_id, document_type_id, is_current)
+    expires_at [note: 'parsial: is_current & belum dihapus (cron document-expiry)']
+  }
+}
+
 //// ---------- Skema: iam (D-028: satu akun satu role) ----------
 
 Enum iam.role {

@@ -1,7 +1,7 @@
 # Desain — Arsip Karyawan (Data Kontak … Riwayat Peringatan) & Laporan
 
 > Keputusan: **D-054** (bentuk menu Arsip & pengajuan perubahan data — menjawab **OD-6**), **D-055** (dokumen bermasa berlaku & jenis dokumen sebagai master data), **D-056** (aset inventaris + serah-terima), **D-057** (surat peringatan/SP), **D-058** (ekspor/impor/cetak per kategori & laporan awal) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Keputusan terbuka baru: **OD-11** (masa simpan data karyawan keluar).
-> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail; tanpa dokumen/pengajuan/ekspor — menyusul 1b–1d). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
+> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail) · **gelombang 1b [done] lokal 2026-10-05** (Data File: jenis dokumen master data, dokumen berversi & bermasa berlaku, tautan baca singkat, lampiran sertifikat/SK, cron `document-expiry`; catatan implementasi §12.1). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
 > Dokumen ini tidak memuat data asli. Contoh nama/nomor fiktif.
 
 ## 1. Tujuan & prinsip
@@ -236,6 +236,15 @@ Data karyawan keluar **disimpan** (kewajiban ketenagakerjaan & pajak), akses dib
 | 2a | Aset | modul `asset`, inventaris, serah-terima, BAST, peringatan saat nonaktif | 2 sesi |
 | 2b | SP | `warning_letters`, PDF template, konfirmasi, cron masa berlaku | 2 sesi |
 | 3 | Laporan | 10 laporan §10 + ekspor | 2–3 sesi |
+
+### 12.1 Catatan implementasi gelombang 1b (2026-10-05)
+
+- **Jenis tunggal vs jamak** (`multiple`): jenis tunggal (KTP, SIMPER, MCU, …) — unggahan baru otomatis menjadi versi baru & versi lama `is_current=false`; jenis jamak (SIM, sertifikat lain, SK, SP, kontrak, BAST, lainnya) — unggahan baru berdiri sendiri, versi baru lewat "Unggah versi baru" pada dokumen tertentu (`replaces_id`).
+- **Sensitif** (katalog awal): KTP, KK, NPWP, BPJS TK/Kes, SKCK, MCU, kontrak, SP, surat resign/PHK, buku tabungan. Jenis biasa terbaca dalam cakupan lihat karyawan (HR PT, MANAGER tim); jenis sensitif butuh grant `employee.documents.read` (SA & pemilik selalu); tulis jenis sensitif butuh `employee.documents.write`. Membuka file sensitif diaudit `employee.sensitive.read` (tanpa isi).
+- **Masa berlaku**: tanggal kedaluwarsa wajib bila jenis `has_expiry`; terisi otomatis dari tanggal terbit + `default_validity_months`. Lencana & filter "Akan kedaluwarsa" memakai ambang tetap 60 hari (`EXPIRY_WARN_DAYS`); pengingat memakai `reminder_days` per jenis + sekali "sudah kedaluwarsa" (≤ 30 hari setelahnya). Penerima pengingat: karyawan (akun aktif) + HR PT terkait (sensitif: HR ber-grant), tanpa HR → SA.
+- **Hapus** satu versi = hapus file di Storage + baris ditandai `deleted_at`; bila versi aktif, versi sebelumnya aktif kembali. Hapus jenis dokumen hanya bila belum pernah dipakai & bukan padanan wizard onboarding (`legacy_type`) — selain itu arsipkan.
+- **Lampiran**: `employee_documents.training_id` (sertifikat: K3, POP, POM, POU, SIO, sertifikat lain) & `history_id` (SK) — item dihapus → tautan dilepas, dokumen tetap.
+- **Belum**: unggah oleh karyawan (`employee_can_upload`, status `PENDING_REVIEW`) menunggu gelombang 1c (pengajuan); laporan kelengkapan dokumen (`required_scope`) di gelombang 3; kolom enum lama `type` dilepas (contract) setelah semua pembaca pindah.
 
 Setiap paket: migrasi tambah-saja, policy TDD (matriks §8), integration test (sukses/400/401/403/404 cakupan PT), web test, QA lokal + staging, dokumen QA, arsip Drive bila LEGIT. Fase 5 Time Management bisa disisipkan di antara gelombang sesuai prioritas pemilik projek.
 
