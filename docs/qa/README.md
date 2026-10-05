@@ -35,5 +35,5 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-02-onboarding-a.md](runs/2026-10-02-onboarding-a.md) | Lokal a+b: shared 98 · api 416 · web 117 — LULUS otomatis; browser, email sungguhan & bucket dokumen belum |
 | Hasil | [runs/2026-10-05-org-chart.md](runs/2026-10-05-org-chart.md) | Lokal: shared 118 · api 458 · web 179, Playwright 21/21 (4 temuan diperbaiki, termasuk tombol kotak bagan tak bisa diklik) — LULUS lokal (staging belum) |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
-| Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `e3323a7` (staging menyusul): elemen peta geofence tanpa `aria-label` |
+| Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `d4d66f1` (staging menyusul): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |
