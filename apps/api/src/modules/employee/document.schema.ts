@@ -89,7 +89,12 @@ export const employeeDocumentSchema = z
 export const employeeDocumentsSchema = z
   .object({
     documents: z.array(employeeDocumentSchema),
-    access: z.object({ write: z.boolean(), writeSensitive: z.boolean() }),
+    access: z.object({
+      write: z.boolean(),
+      writeSensitive: z.boolean(),
+      /** Buku tabungan: grant tulis dokumen ATAU rekening. */
+      writeBankBook: z.boolean(),
+    }),
   })
   .openapi("EmployeeDocuments");
 

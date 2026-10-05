@@ -87,7 +87,6 @@ function documentMeta(doc: EmployeeDocument) {
 
 export function DocumentsTab({ employeeId }: { employeeId: string }) {
   const query = useEmployeeDocuments(employeeId);
-  const { remove } = useEmployeeDocumentMutations(employeeId);
   const [mode, setMode] = useState<DocumentDialogMode | null>(null);
   const [deleting, setDeleting] = useState<EmployeeDocument | null>(null);
 
@@ -112,30 +111,8 @@ export function DocumentsTab({ employeeId }: { employeeId: string }) {
   }
   const { documents, access } = query.data;
   const current = documents.filter((d) => d.isCurrent);
-  const olderOf = (doc: EmployeeDocument) => {
-    const chain: EmployeeDocument[] = [];
-    let next = doc.replacesId;
-    while (next) {
-      const prev = documents.find((d) => d.id === next);
-      if (!prev) break;
-      chain.push(prev);
-      next = prev.replacesId;
-    }
-    return chain;
-  };
-  const canWrite = (doc: EmployeeDocument) =>
-    doc.documentType.sensitive ? access.writeSensitive : access.write;
-
-  const confirmDelete = async () => {
-    if (!deleting) return;
-    try {
-      await remove.mutateAsync(deleting.id);
-      toast.success("Dokumen dihapus.");
-      setDeleting(null);
-    } catch (error) {
-      toast.error(errorMessage(error));
-    }
-  };
+  const olderOf = (doc: EmployeeDocument) => olderChain(documents, doc);
+  const canWrite = (doc: EmployeeDocument) => canWriteDocument(access, doc);
 
   return (
     <div className="space-y-8">
@@ -184,35 +161,151 @@ export function DocumentsTab({ employeeId }: { employeeId: string }) {
         mode={mode}
         onClose={() => setMode(null)}
         canWriteSensitive={access.writeSensitive}
+        canWriteBankBook={access.writeBankBook}
       />
-      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              Hapus {deleting?.documentType.name} versi {deleting?.version}?
-            </DialogTitle>
-            <DialogDescription>
-              File dihapus permanen.{" "}
-              {deleting?.isCurrent && deleting.replacesId
-                ? "Versi sebelumnya akan menjadi versi aktif."
-                : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleting(null)}>
-              Batal
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={remove.isPending}
-              onClick={() => void confirmDelete()}
-            >
-              {remove.isPending ? "Menghapus…" : "Hapus"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteDocumentDialog
+        employeeId={employeeId}
+        document={deleting}
+        onClose={() => setDeleting(null)}
+      />
     </div>
+  );
+}
+
+type DocumentAccess = { write: boolean; writeSensitive: boolean; writeBankBook: boolean };
+
+/** Jenis sensitif butuh grant tulis dokumen; buku tabungan juga boleh dengan grant tulis rekening. */
+function canWriteDocument(access: DocumentAccess, doc: EmployeeDocument) {
+  if (!doc.documentType.sensitive) return access.write;
+  return doc.documentType.code === "BANK_BOOK"
+    ? access.writeSensitive || access.writeBankBook
+    : access.writeSensitive;
+}
+
+function olderChain(documents: EmployeeDocument[], doc: EmployeeDocument) {
+  const chain: EmployeeDocument[] = [];
+  let next = doc.replacesId;
+  while (next) {
+    const prev = documents.find((d) => d.id === next);
+    if (!prev) break;
+    chain.push(prev);
+    next = prev.replacesId;
+  }
+  return chain;
+}
+
+function DeleteDocumentDialog({
+  employeeId,
+  document,
+  onClose,
+}: {
+  employeeId: string;
+  document: EmployeeDocument | null;
+  onClose: () => void;
+}) {
+  const { remove } = useEmployeeDocumentMutations(employeeId);
+  const confirm = async () => {
+    if (!document) return;
+    try {
+      await remove.mutateAsync(document.id);
+      toast.success("Dokumen dihapus.");
+      onClose();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+  return (
+    <Dialog open={document !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Hapus {document?.documentType.name} versi {document?.version}?
+          </DialogTitle>
+          <DialogDescription>
+            File dihapus permanen.{" "}
+            {document?.isCurrent && document.replacesId
+              ? "Versi sebelumnya akan menjadi versi aktif."
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>
+            Batal
+          </Button>
+          <Button variant="destructive" disabled={remove.isPending} onClick={() => void confirm()}>
+            {remove.isPending ? "Menghapus…" : "Hapus"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Buku tabungan di tab Rekening (permintaan pemilik projek 2026-10-05): versi aktif + riwayat versi,
+ * lihat, unggah/ganti (SA, HR ber-grant tulis dokumen atau rekening). Karyawan menggantinya lewat
+ * pengajuan rekening di Layanan Mandiri.
+ */
+export function BankBookPanel({ employeeId }: { employeeId: string }) {
+  const query = useEmployeeDocuments(employeeId);
+  const [mode, setMode] = useState<DocumentDialogMode | null>(null);
+  const [deleting, setDeleting] = useState<EmployeeDocument | null>(null);
+  if (query.isPending) return <Skeleton className="h-16" />;
+  if (!query.data) return null;
+  const { documents, access } = query.data;
+  const books = documents.filter((d) => d.isCurrent && d.documentType.code === "BANK_BOOK");
+  const canUpload = access.writeSensitive || access.writeBankBook;
+  return (
+    <section aria-label="Buku tabungan" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+          Buku tabungan / bukti rekening
+        </h3>
+        {canUpload && books.length === 0 ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setMode({ kind: "new", typeCodes: ["BANK_BOOK"], title: "Unggah buku tabungan" })
+            }
+          >
+            <FileUp /> Unggah buku tabungan
+          </Button>
+        ) : null}
+      </div>
+      {books.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          Belum ada buku tabungan. Wajib dilampirkan untuk memastikan rekening atas nama karyawan.
+        </p>
+      ) : (
+        <ul className="divide-y rounded-xl border">
+          {books.map((doc) => (
+            <DocumentRow
+              key={doc.id}
+              employeeId={employeeId}
+              doc={doc}
+              older={olderChain(documents, doc)}
+              canWrite={canWriteDocument(access, doc)}
+              onVersion={() => setMode({ kind: "version", document: doc })}
+              onEdit={(target) => setMode({ kind: "edit", document: target })}
+              onDelete={setDeleting}
+            />
+          ))}
+        </ul>
+      )}
+      <DocumentDialog
+        employeeId={employeeId}
+        mode={mode}
+        onClose={() => setMode(null)}
+        canWriteSensitive={access.writeSensitive}
+        canWriteBankBook={access.writeBankBook}
+      />
+      <DeleteDocumentDialog
+        employeeId={employeeId}
+        document={deleting}
+        onClose={() => setDeleting(null)}
+      />
+    </section>
   );
 }
 
@@ -395,6 +488,7 @@ export function AttachmentList({
         mode={mode}
         onClose={() => setMode(null)}
         canWriteSensitive={access.writeSensitive}
+        canWriteBankBook={access.writeBankBook}
       />
     </span>
   );

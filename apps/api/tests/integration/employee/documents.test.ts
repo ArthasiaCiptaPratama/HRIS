@@ -102,7 +102,7 @@ const docsOf = async (who: Login, employeeId: string) =>
       documentType: { code: string };
       expiryState: string;
     }[];
-    access: { write: boolean; writeSensitive: boolean };
+    access: { write: boolean; writeSensitive: boolean; writeBankBook: boolean };
   };
 const typeId = async (code: string) =>
   (await prisma.documentType.findUniqueOrThrow({ where: { code } })).id;
@@ -281,8 +281,16 @@ describe("dokumen per karyawan", () => {
     expect(await codes(hrRead)).toContain("KTP");
     expect(await codes(mgr)).not.toContain("KTP");
     expect(await codes(emp)).toContain("KTP"); // pemilik dokumen
-    expect((await docsOf(hr, ids.team)).access).toEqual({ write: true, writeSensitive: false });
-    expect((await docsOf(mgr, ids.team)).access).toEqual({ write: false, writeSensitive: false });
+    expect((await docsOf(hr, ids.team)).access).toEqual({
+      write: true,
+      writeSensitive: false,
+      writeBankBook: false,
+    });
+    expect((await docsOf(mgr, ids.team)).access).toEqual({
+      write: false,
+      writeSensitive: false,
+      writeBankBook: false,
+    });
     expect(
       (await call("GET", `/employees/${ids.team}/documents/${ktpId}/url`, hr.headers)).status,
     ).toBe(404);

@@ -167,6 +167,7 @@ function MyDataCards({
       </Card>
       <Card title="Rekening bank" icon={Landmark} section="BANK" data={data} onChange={onChange}>
         <Fields value={data.bank} keys={["bankName", "accountNumber", "accountHolder"]} />
+        <MyBankBook employeeId={data.employeeId} />
       </Card>
       <div className="lg:col-span-2">
         <Card
@@ -189,6 +190,24 @@ function MyDataCards({
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Buku tabungan yang tersimpan (diganti lewat pengajuan rekening). */
+function MyBankBook({ employeeId }: { employeeId: string }) {
+  const docs = useEmployeeDocuments(employeeId);
+  const book = docs.data?.documents.find((d) => d.isCurrent && d.documentType.code === "BANK_BOOK");
+  return (
+    <div className="mt-4 flex items-center justify-between gap-2 border-t pt-3 text-sm">
+      <span className="text-muted-foreground">
+        Buku tabungan: {book ? `diunggah ${formatDate(book.uploadedAt.slice(0, 10))}` : "belum ada"}
+      </span>
+      {book ? (
+        <Button size="sm" variant="ghost" onClick={() => void openDocument(employeeId, book.id)}>
+          Lihat buku tabungan
+        </Button>
+      ) : null}
     </div>
   );
 }

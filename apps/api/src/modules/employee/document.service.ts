@@ -280,11 +280,19 @@ export async function listEmployeeDocuments(ctx: RequestContext, employeeId: str
   const rows = await repo.listOfEmployee(employeeId);
   return {
     documents: rows
-      .filter((row) => policy.canReadDocuments(ctx.actor, target, row.documentType.sensitive))
+      .filter((row) =>
+        policy.canReadDocuments(
+          ctx.actor,
+          target,
+          row.documentType.sensitive,
+          row.documentType.code,
+        ),
+      )
       .map((row) => documentDto(row, today)),
     access: {
       write: policy.canWriteDocuments(ctx.actor, target, false),
       writeSensitive: policy.canWriteDocuments(ctx.actor, target, true),
+      writeBankBook: policy.canWriteDocuments(ctx.actor, target, true, "BANK_BOOK"),
     },
   };
 }
@@ -297,7 +305,9 @@ async function writableType(
 ) {
   const type = await repo.findType(documentTypeId, tx);
   if (!type || type.deletedAt) throw new NotFoundError("Jenis dokumen tidak ditemukan.");
-  if (!policy.canWriteDocuments(ctx.actor, target, type.sensitive)) throw new ForbiddenError();
+  if (!policy.canWriteDocuments(ctx.actor, target, type.sensitive, type.code)) {
+    throw new ForbiddenError();
+  }
   return type;
 }
 
@@ -460,7 +470,9 @@ export async function updateDocument(
   const target = await loadEmployee(ctx, employeeId);
   return employees.withTransaction(async (tx) => {
     const doc = await loadOwnDocument(tx, employeeId, documentId);
-    if (!policy.canReadDocuments(ctx.actor, target, doc.documentType.sensitive)) {
+    if (
+      !policy.canReadDocuments(ctx.actor, target, doc.documentType.sensitive, doc.documentType.code)
+    ) {
       throw new NotFoundError("Dokumen tidak ditemukan.");
     }
     const type = await writableType(ctx, target, doc.documentType.id, tx);
@@ -488,10 +500,19 @@ export async function deleteDocument(ctx: RequestContext, employeeId: string, do
   const target = await loadEmployee(ctx, employeeId);
   const doc = await employees.withTransaction(async (tx) => {
     const doc = await loadOwnDocument(tx, employeeId, documentId);
-    if (!policy.canReadDocuments(ctx.actor, target, doc.documentType.sensitive)) {
+    if (
+      !policy.canReadDocuments(ctx.actor, target, doc.documentType.sensitive, doc.documentType.code)
+    ) {
       throw new NotFoundError("Dokumen tidak ditemukan.");
     }
-    if (!policy.canWriteDocuments(ctx.actor, target, doc.documentType.sensitive)) {
+    if (
+      !policy.canWriteDocuments(
+        ctx.actor,
+        target,
+        doc.documentType.sensitive,
+        doc.documentType.code,
+      )
+    ) {
       throw new ForbiddenError();
     }
     await repo.updateDocument(tx, documentId, { deletedAt: new Date(), isCurrent: false });
@@ -516,7 +537,9 @@ export async function deleteDocument(ctx: RequestContext, employeeId: string, do
 export async function documentUrl(ctx: RequestContext, employeeId: string, documentId: string) {
   const target = await loadEmployee(ctx, employeeId);
   const doc = await loadOwnDocument(undefined, employeeId, documentId);
-  if (!policy.canReadDocuments(ctx.actor, target, doc.documentType.sensitive)) {
+  if (
+    !policy.canReadDocuments(ctx.actor, target, doc.documentType.sensitive, doc.documentType.code)
+  ) {
     throw new NotFoundError("Dokumen tidak ditemukan.");
   }
   const urls = await storageOf(ctx).createSignedUrls(

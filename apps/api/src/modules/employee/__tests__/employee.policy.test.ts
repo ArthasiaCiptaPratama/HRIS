@@ -408,6 +408,30 @@ describe("Dokumen (D-055)", () => {
       expect(canWriteDocuments(a, t, true)).toBe(writeS);
     });
   }
+  test("buku tabungan: pemegang grant rekening boleh lihat & ganti (tab Rekening)", () => {
+    const t = target("HR", "other", "co-A");
+    const bank = actor("HR", ["employee.bank.read", "employee.bank.write"]);
+    expect(canReadDocuments(bank, t, true, "BANK_BOOK")).toBe(true);
+    expect(canWriteDocuments(bank, t, true, "BANK_BOOK")).toBe(true);
+    expect(canReadDocuments(bank, t, true, "KTP")).toBe(false);
+    expect(canReadDocuments(actor("HR"), t, true, "BANK_BOOK")).toBe(false);
+    expect(
+      canReadDocuments(
+        actor("MGR", ["employee.bank.read"]),
+        target("MGR", "team"),
+        true,
+        "BANK_BOOK",
+      ),
+    ).toBe(true);
+    expect(
+      canWriteDocuments(
+        actor("MGR", ["employee.bank.write"]),
+        target("MGR", "team"),
+        true,
+        "BANK_BOOK",
+      ),
+    ).toBe(false);
+  });
   test("tabel Data File: jenis sensitif tampil hanya untuk SA / pemegang grant baca", () => {
     expect(seesAllSensitiveDocuments(actor("SA"))).toBe(true);
     expect(seesAllSensitiveDocuments(actor("HR"))).toBe(false);

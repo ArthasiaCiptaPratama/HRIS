@@ -340,6 +340,24 @@ describe("rekening & dokumen", () => {
     expect(bank.accountNumber).toBe("9999888877");
     const active = await prisma.employeeDocument.findFirstOrThrow({ where: { storagePath: path } });
     expect([active.status, active.isCurrent, active.version]).toEqual(["VERIFIED", true, 1]);
+    // Buku tabungan tampil di tab Rekening bagi pemegang grant rekening (tanpa grant dokumen).
+    const bankDocs = (
+      await body(await call("GET", `/employees/${ids.self}/documents`, hrBank.headers))
+    ).data as {
+      documents: { id: string; documentType: { code: string } }[];
+      access: { writeBankBook: boolean };
+    };
+    const book = bankDocs.documents.find((d) => d.documentType.code === "BANK_BOOK");
+    expect(book?.id).toBe(active.id);
+    expect(bankDocs.access.writeBankBook).toBe(true);
+    expect(
+      (await call("GET", `/employees/${ids.self}/documents/${active.id}/url`, hrBank.headers))
+        .status,
+    ).toBe(200);
+    const plain = (
+      await body(await call("GET", `/employees/${ids.self}/documents`, hrPlain.headers))
+    ).data as { documents: { documentType: { code: string } }[] };
+    expect(plain.documents.some((d) => d.documentType.code === "BANK_BOOK")).toBe(false);
   });
 
   test("dokumen: hanya jenis yang boleh diunggah karyawan; kedaluwarsa wajib; tolak → file dihapus", async () => {

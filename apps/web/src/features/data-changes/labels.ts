@@ -26,10 +26,14 @@ export const FIELD_LABELS: Record<string, string> = {
   accountNumber: "Nomor rekening",
   accountHolder: "Atas nama",
   members: "Anggota keluarga",
+  documentNumber: "Nomor dokumen",
+  issuedAt: "Tanggal terbit",
+  expiresAt: "Berlaku sampai",
+  note: "Catatan",
   document: "Dokumen",
 };
 
-const DATE_FIELDS = new Set(["birthDate"]);
+const DATE_FIELDS = new Set(["birthDate", "issuedAt", "expiresAt"]);
 
 export function formatValue(field: string, value: unknown): string {
   if (value === null || value === undefined || value === "") return "—";

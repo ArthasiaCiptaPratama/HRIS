@@ -47,11 +47,14 @@ export function DocumentDialog({
   mode,
   onClose,
   canWriteSensitive,
+  canWriteBankBook = false,
 }: {
   employeeId: string;
   mode: DocumentDialogMode | null;
   onClose: () => void;
   canWriteSensitive: boolean;
+  /** Buku tabungan boleh juga dengan grant tulis rekening. */
+  canWriteBankBook?: boolean;
 }) {
   const types = useDocumentTypes();
   const { upload, update } = useEmployeeDocumentMutations(employeeId);
@@ -89,10 +92,10 @@ export function DocumentDialog({
     const all = types.data ?? [];
     return all.filter(
       (t) =>
-        (canWriteSensitive || !t.sensitive) &&
+        (canWriteSensitive || !t.sensitive || (t.code === "BANK_BOOK" && canWriteBankBook)) &&
         (mode?.kind !== "new" || !mode.typeCodes || mode.typeCodes.includes(t.code)),
     );
-  }, [types.data, canWriteSensitive, mode]);
+  }, [types.data, canWriteSensitive, canWriteBankBook, mode]);
   const type: DocumentType | undefined = (types.data ?? []).find((t) => t.id === typeId);
   const needsFile = mode?.kind !== "edit";
 

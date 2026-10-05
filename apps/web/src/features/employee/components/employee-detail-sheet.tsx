@@ -47,7 +47,11 @@ import {
   usePositionHistoryEditor,
   WorkExperienceSection,
 } from "@/features/archive/components/archive-sections";
-import { AttachmentList, DocumentsTab } from "@/features/documents/components/documents-tab";
+import {
+  AttachmentList,
+  BankBookPanel,
+  DocumentsTab,
+} from "@/features/documents/components/documents-tab";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -509,7 +513,20 @@ function BankTab({ employee }: { employee: EmployeeDetail }) {
   if (!employee.access.bank || employee.bankAccount === undefined)
     return <Locked what="Rekening bank" />;
   const bank = employee.bankAccount;
-  if (!bank) return <EmptyState icon={Landmark} title="Rekening belum diisi" />;
+  return (
+    <div className="space-y-8">
+      {bank ? (
+        <BankCard bank={bank} />
+      ) : (
+        <EmptyState icon={Landmark} title="Rekening belum diisi" />
+      )}
+      {/* Permintaan pemilik projek 2026-10-05: buku tabungan tampil bersama rekening. */}
+      <BankBookPanel employeeId={employee.id} />
+    </div>
+  );
+}
+
+function BankCard({ bank }: { bank: NonNullable<EmployeeDetail["bankAccount"]> }) {
   return (
     <div className="bg-card relative overflow-hidden rounded-2xl border p-6">
       <div className="bg-brand/5 absolute -top-16 -right-16 size-48 rounded-full" aria-hidden />

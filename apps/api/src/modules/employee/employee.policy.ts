@@ -153,13 +153,17 @@ export function canSeeArchiveCost(actor: Actor, target: EmployeeTarget): boolean
 // D-055 (Arsip 1b, design §8 "Dokumen"): jenis biasa (sertifikat, ijazah, SK) mengikuti cakupan lihat
 // karyawan; jenis sensitif (KTP, KK, rekening, MCU, kontrak, SP, …) butuh grant baca — SA & pemilik
 // dokumen selalu boleh. Tulis: SA/HR atas karyawan dalam cakupan; jenis sensitif butuh grant tulis.
+// Buku tabungan (BANK_BOOK) bagian dari data rekening: pemegang grant rekening juga boleh (permintaan
+// pemilik projek 2026-10-05 — ditampilkan di tab Rekening).
 export function canReadDocuments(
   actor: Actor,
   target: EmployeeTarget,
   sensitive: boolean,
+  code?: string,
 ): boolean {
   if (!canViewEmployee(actor, target)) return false;
   if (!sensitive || actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
+  if (code === "BANK_BOOK" && canReadBank(actor, target)) return true;
   return hasPermission(actor, "employee.documents.read");
 }
 
@@ -167,13 +171,12 @@ export function canWriteDocuments(
   actor: Actor,
   target: EmployeeTarget,
   sensitive: boolean,
+  code?: string,
 ): boolean {
   if (!canManageArchive(actor, target)) return false;
-  return (
-    !sensitive ||
-    actor.role === ROLE.SUPER_ADMIN ||
-    hasPermission(actor, "employee.documents.write")
-  );
+  if (!sensitive || actor.role === ROLE.SUPER_ADMIN) return true;
+  if (code === "BANK_BOOK" && hasPermission(actor, "employee.bank.write")) return true;
+  return hasPermission(actor, "employee.documents.write");
 }
 
 /** Tabel lintas karyawan Data File: jenis sensitif disertakan (cakupan baris tetap per role). */

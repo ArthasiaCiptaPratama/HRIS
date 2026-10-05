@@ -66,6 +66,22 @@ const doc = (id: string, version: number, isCurrent: boolean, replacesId: string
   historyId: null,
   uploadedAt: "2025-10-01T03:00:00.000Z",
 });
+const bankBook = {
+  ...doc("d3", 1, true, null),
+  documentType: {
+    id: "7c1f3a52-8c1e-4d3a-9f21-2a7c5e9d1b41",
+    code: "BANK_BOOK",
+    name: "Buku tabungan / bukti rekening",
+    category: "FINANCE",
+    sensitive: true,
+    hasExpiry: false,
+    multiple: false,
+  },
+  documentNumber: null,
+  expiresAt: null,
+  expiryState: "NONE",
+  daysLeft: null,
+};
 const detail = {
   id: "e1",
   employeeNumber: "ACP-2023-0007",
@@ -89,11 +105,12 @@ const detail = {
   emergencyContactName: null,
   emergencyContactRelationship: null,
   account: null,
+  bankAccount: { bankName: "BRI", accountNumber: "1111222233", accountHolder: "Agus" },
   access: {
     manage: true,
     deactivate: true,
     personal: false,
-    bank: false,
+    bank: true,
     print: false,
     photo: false,
   },
@@ -154,8 +171,8 @@ function mockFetch(role: ReturnType<typeof me>, write = true) {
       if (path === "/employees/e1/documents" && method === "GET")
         return json(200, {
           data: {
-            documents: [doc("d2", 2, true, "d1"), doc("d1", 1, false, null)],
-            access: { write, writeSensitive: false },
+            documents: [doc("d2", 2, true, "d1"), doc("d1", 1, false, null), bankBook],
+            access: { write, writeSensitive: false, writeBankBook: write },
           },
         });
       if (path === "/employees/e1/documents/upload-url")
@@ -253,6 +270,29 @@ describe("Detail karyawan › tab Dokumen", () => {
     expect(within(panel).queryByRole("button", { name: /Unggah dokumen/ })).toBeNull();
     expect(within(panel).queryByRole("button", { name: /Aksi untuk SIMPER/ })).toBeNull();
     expect(within(panel).getByRole("button", { name: /Lihat SIMPER/ })).toBeInTheDocument();
+  });
+});
+
+describe("Detail karyawan › tab Rekening: buku tabungan", () => {
+  it("HR ber-grant rekening: rekening + buku tabungan (lihat, ganti versi)", async () => {
+    mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/arsip/file?pegawai=e1&tab=bank");
+    const panel = await screen.findByRole("tabpanel");
+    expect(await within(panel).findByText("1111222233")).toBeInTheDocument();
+    const book = await within(panel).findByRole("region", { name: "Buku tabungan" });
+    expect(within(book).getByRole("button", { name: /Lihat Buku tabungan/ })).toBeInTheDocument();
+    await userEvent.click(within(book).getByRole("button", { name: /Aksi untuk Buku tabungan/ }));
+    expect(await screen.findByRole("menuitem", { name: /Unggah versi baru/ })).toBeInTheDocument();
+  });
+
+  it("tanpa hak tulis: buku tabungan hanya bisa dilihat", async () => {
+    mockFetch(me("MANAGER", false, "e-mgr"), false);
+    renderAt("/personal/arsip/file?pegawai=e1&tab=bank");
+    const book = await screen.findByRole("region", { name: "Buku tabungan" });
+    expect(
+      await within(book).findByRole("button", { name: /Lihat Buku tabungan/ }),
+    ).toBeInTheDocument();
+    expect(within(book).queryByRole("button", { name: /Aksi untuk/ })).toBeNull();
   });
 });
 

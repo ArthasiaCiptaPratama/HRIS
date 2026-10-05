@@ -61,7 +61,11 @@ export type EmployeeDocument = z.infer<typeof employeeDocumentSchema>;
 export const employeeDocumentsSchema = z.object({
   data: z.object({
     documents: z.array(employeeDocumentSchema),
-    access: z.object({ write: z.boolean(), writeSensitive: z.boolean() }),
+    access: z.object({
+      write: z.boolean(),
+      writeSensitive: z.boolean(),
+      writeBankBook: z.boolean().default(false),
+    }),
   }),
 });
 export type EmployeeDocuments = z.infer<typeof employeeDocumentsSchema>["data"];

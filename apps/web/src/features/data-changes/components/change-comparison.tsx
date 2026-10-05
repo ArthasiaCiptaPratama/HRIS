@@ -50,22 +50,8 @@ export function ChangeComparison({ detail }: { detail: DataChangeDetail }) {
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         {["documentNumber", "issuedAt", "expiresAt", "note"].map((key) => (
           <div key={key}>
-            <dt className="text-muted-foreground text-xs">
-              {
-                {
-                  documentNumber: "Nomor dokumen",
-                  issuedAt: "Tanggal terbit",
-                  expiresAt: "Berlaku sampai",
-                  note: "Catatan",
-                }[key]
-              }
-            </dt>
-            <dd>
-              {formatValue(
-                key === "note" || key === "documentNumber" ? key : "birthDate",
-                proposed[key],
-              )}
-            </dd>
+            <dt className="text-muted-foreground text-xs">{FIELD_LABELS[key]}</dt>
+            <dd>{formatValue(key, proposed[key])}</dd>
           </div>
         ))}
       </dl>
