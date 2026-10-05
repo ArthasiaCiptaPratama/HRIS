@@ -27,13 +27,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
@@ -235,28 +228,28 @@ function CreateGrantDialog({
         <DialogHeader>
           <DialogTitle>Beri grant izin</DialogTitle>
           <DialogDescription>
-            Untuk HR Admin berlaku atas semua karyawan; untuk Manager hanya timnya.
+            HR Admin: berlaku atas karyawan di perusahaan yang ditugaskan. Manager: hanya timnya.
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
           <div className="space-y-2">
-            <Label>Akun</Label>
+            <Label htmlFor="grant-account">Akun</Label>
             <Controller
               control={form.control}
               name="accountId"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger aria-label="Akun penerima">
-                    <SelectValue placeholder="Pilih HR Admin / Manager" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {recipients.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.email} ({a.role === "HR_ADMIN" ? "HR Admin" : "Manager"})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormSelect
+                  id="grant-account"
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pilih HR Admin / Manager"
+                  invalid={Boolean(form.formState.errors.accountId)}
+                  options={recipients.map((a) => ({
+                    value: a.id,
+                    label: a.email,
+                    hint: a.role === "HR_ADMIN" ? "HR Admin" : "Manager",
+                  }))}
+                />
               )}
             />
             {form.formState.errors.accountId ? (
@@ -264,23 +257,18 @@ function CreateGrantDialog({
             ) : null}
           </div>
           <div className="space-y-2">
-            <Label>Izin</Label>
+            <Label htmlFor="grant-permission">Izin</Label>
             <Controller
               control={form.control}
               name="permission"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={(v) => field.onChange(v as Permission)}>
-                  <SelectTrigger aria-label="Izin">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {permissions.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {PERMISSION_LABELS[p]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormSelect
+                  id="grant-permission"
+                  value={field.value}
+                  onChange={(v) => field.onChange(v as Permission)}
+                  placeholder="Pilih izin"
+                  options={permissions.map((p) => ({ value: p, label: PERMISSION_LABELS[p] }))}
+                />
               )}
             />
           </div>
@@ -293,8 +281,11 @@ function CreateGrantDialog({
             <Textarea id="reason" rows={2} {...form.register("reason")} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={create.isPending}>
-              Beri grant
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Batal
+            </Button>
+            <Button type="submit" variant="brand" disabled={create.isPending}>
+              {create.isPending ? "Menyimpan…" : "Beri grant"}
             </Button>
           </DialogFooter>
         </form>

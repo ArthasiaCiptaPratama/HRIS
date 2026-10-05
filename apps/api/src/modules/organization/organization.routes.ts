@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import {
+  companySchema,
   departmentSchema,
   employmentStatusSchema,
   gradeSchema,
@@ -10,6 +11,7 @@ import {
   workLocationSchema,
 } from "./organization.schema.ts";
 import * as service from "./organization.service.ts";
+import { registerOrganizationAdminRoutes } from "./organization-admin.routes.ts";
 
 export interface OrganizationRouteDeps {
   protect: MiddlewareHandler[];
@@ -17,6 +19,7 @@ export interface OrganizationRouteDeps {
 
 const masterDataSchema = z
   .object({
+    companies: z.array(companySchema),
     departments: z.array(departmentSchema),
     positions: z.array(positionSchema),
     employmentStatuses: z.array(employmentStatusSchema),
@@ -31,7 +34,7 @@ const masterDataRoute = createRoute({
   path: `${API_BASE_PATH}/master-data`,
   tags: ["Organization"],
   summary:
-    "Master data organisasi yang aktif: departemen, jabatan, status, grade, lokasi (semua role)",
+    "Master data organisasi yang aktif: perusahaan (sesuai cakupan PT), departemen, jabatan, status, grade, lokasi (semua role)",
   security: [{ [BEARER_SCHEME]: [] }],
   responses: {
     200: {
@@ -48,4 +51,5 @@ export function registerOrganizationRoutes(app: OpenAPIHono, deps: OrganizationR
   app.openapi({ ...masterDataRoute, middleware: deps.protect }, async (c) =>
     c.json(ok(await service.listMasterData(c.get("actor"))), 200),
   );
+  registerOrganizationAdminRoutes(app, deps.protect);
 }

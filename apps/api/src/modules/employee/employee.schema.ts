@@ -7,8 +7,10 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  orgUnitTypeSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
+  positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
 } from "@hris/shared";
@@ -39,6 +41,8 @@ export const listEmployeesQuerySchema = z.object({
   category: employmentCategorySchema.optional(),
   // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
   group: employmentCategoryGroupSchema.optional(),
+  // D-040: filter perusahaan (tetap dibatasi cakupan PT aktor).
+  companyId: z.uuid().optional(),
   statusId: z.uuid().optional(),
   departmentId: z.uuid().optional(),
   positionId: z.uuid().optional(),
@@ -60,6 +64,8 @@ export const employeeListItemSchema = z
     isActive: z.boolean(),
     exitReason: exitReasonSchema.nullable(),
     employmentStatus: ref.extend({ category: employmentCategorySchema.nullable() }),
+    // D-039: perusahaan dalam grup.
+    company: ref.extend({ code: z.string() }),
     position: ref,
     department: ref.nullable(),
     workLocation: ref.nullable(),
@@ -70,6 +76,9 @@ export const employeeListItemSchema = z
   })
   .openapi("EmployeeListItem");
 export type EmployeeListItem = z.infer<typeof employeeListItemSchema>;
+
+export const summaryQuerySchema = z.object({ companyId: z.uuid().optional() });
+export type SummaryQuery = z.infer<typeof summaryQuerySchema>;
 
 export const employeeSummarySchema = z
   .object({
@@ -128,6 +137,8 @@ const historySchema = z.object({
   toStatus: ref.nullable(),
   fromPosition: ref.nullable(),
   toPosition: ref.nullable(),
+  fromCompany: ref.nullable(),
+  toCompany: ref.nullable(),
   exitReason: exitReasonSchema.nullable(),
   note: z.string().nullable(),
   // Pelaku perubahan (null = data awal/seed atau akun sudah tidak ada). name = nama pegawai
@@ -240,6 +251,8 @@ export const createEmployeeBodySchema = z
     emergencyContactRelationship: z.string().trim().max(50).nullable().optional(),
     gender: genderSchema.nullable().optional(),
     joinDate: isoDate,
+    // D-039: wajib; harus perusahaan dalam cakupan aktor (D-040).
+    companyId: z.uuid(),
     employmentStatusId: z.uuid(),
     positionId: z.uuid(),
     workLocationId: nullableUuid,
@@ -285,10 +298,13 @@ export const orgStructureSchema = z
         id: z.uuid(),
         name: z.string(),
         parentId: z.uuid().nullable(),
+        // D-050: jenis unit organisasi.
+        unitType: orgUnitTypeSchema,
         positions: z.array(
           z.object({
             id: z.uuid(),
             name: z.string(),
+            level: positionLevelSchema.nullable(),
             employees: z.array(
               z.object({
                 id: z.uuid(),

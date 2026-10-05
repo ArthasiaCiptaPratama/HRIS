@@ -10,6 +10,7 @@ import { z } from "zod";
 import { api } from "@/lib/api";
 import { prepareProfilePhoto } from "@/lib/image";
 import { supabase } from "@/lib/supabase";
+import { useStoredCompanyId } from "./company-scope";
 import {
   dashboardSchema,
   employeeDetailSchema,
@@ -31,7 +32,7 @@ import {
 export const employeeKeys = {
   all: ["employees"] as const,
   list: (params: EmployeeListParams) => ["employees", "list", params] as const,
-  summary: ["employees", "summary"] as const,
+  summary: (companyId: string | undefined) => ["employees", "summary", companyId ?? "all"] as const,
   dashboard: ["employees", "dashboard"] as const,
   detail: (id: string, view: DetailView) => ["employees", "detail", id, view] as const,
   structure: ["employees", "structure"] as const,
@@ -46,6 +47,8 @@ export interface EmployeeListParams {
   q?: string | undefined;
   category?: EmploymentCategory | undefined;
   group?: EmploymentCategoryGroup | undefined;
+  /** D-040: perusahaan terpilih di top bar (tanpa = semua dalam cakupan). */
+  companyId?: string | undefined;
   departmentId?: string | undefined;
   workLocationId?: string | undefined;
   sort: string;
@@ -81,16 +84,20 @@ export function prefetchEmployees(queryClient: QueryClient, params: EmployeeList
 }
 
 export function useEmployeeSummary(enabled = true) {
+  const { selectedId } = useCompanyScope(enabled);
   return useQuery({
-    queryKey: employeeKeys.summary,
+    queryKey: employeeKeys.summary(selectedId),
     queryFn: ({ signal }) =>
-      api("/employees/summary", { schema: one(summarySchema), signal }).then((r) => r.data),
+      api(`/employees/summary${selectedId ? `?companyId=${selectedId}` : ""}`, {
+        schema: one(summarySchema),
+        signal,
+      }).then((r) => r.data),
     enabled,
     staleTime: 60_000,
   });
 }
 
-/** Dashboard SA/HR; kunci di bawah "employees" sehingga ikut segar setelah mutasi/import. */
+/** Dashboard SA/HR (cakupan PT aktor, D-040); kunci di bawah "employees" sehingga ikut segar setelah mutasi/import. */
 export function useDashboard(enabled = true) {
   return useQuery({
     queryKey: employeeKeys.dashboard,
@@ -99,6 +106,18 @@ export function useDashboard(enabled = true) {
     enabled,
     staleTime: 60_000,
   });
+}
+
+/**
+ * D-040: perusahaan yang boleh dilihat (dari /master-data, sudah disaring API) + pilihan top bar.
+ * `showCompany` = pengguna melihat > 1 perusahaan → kolom/label perusahaan ditampilkan.
+ */
+export function useCompanyScope(enabled = true) {
+  const master = useMasterData(enabled);
+  const stored = useStoredCompanyId();
+  const companies = master.data?.companies ?? [];
+  const selectedId = stored && companies.some((c) => c.id === stored) ? stored : undefined;
+  return { companies, selectedId, showCompany: companies.length > 1 };
 }
 
 export type DetailView = "work" | "full";
@@ -130,11 +149,12 @@ export function fetchEmployeeForPrint(id: string) {
   );
 }
 
-export function useMasterData() {
+export function useMasterData(enabled = true) {
   return useQuery({
     queryKey: employeeKeys.masterData,
     queryFn: ({ signal }) =>
       api("/master-data", { schema: one(masterDataSchema), signal }).then((r) => r.data),
+    enabled,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });
@@ -184,6 +204,8 @@ export interface EmployeeWriteBody {
   emergencyContactRelationship: string | null;
   gender: "MALE" | "FEMALE" | null;
   joinDate: string;
+  /** D-039: wajib saat tambah; saat ubah = pindah perusahaan bila berbeda. */
+  companyId: string;
   employmentStatusId?: string;
   positionId: string;
   workLocationId: string | null;

@@ -9,6 +9,8 @@ export const accountSchema = z.object({
   isActive: z.boolean(),
   isPrimarySuperAdmin: z.boolean(),
   employeeId: z.string().nullable(),
+  /** D-040: perusahaan yang ditugaskan (HR_ADMIN). */
+  companyIds: z.array(z.string()),
   lastLoginAt: z.string().nullable(),
   createdAt: z.string(),
 });
@@ -31,9 +33,11 @@ export type Grant = z.infer<typeof grantSchema>;
 export const auditLogSchema = z.object({
   id: z.string(),
   actorAccountId: z.string().nullable(),
+  actorEmail: z.string().nullable(),
   action: z.string(),
   entityType: z.string(),
   entityId: z.string().nullable(),
+  entityLabel: z.string().nullable(),
   before: z.unknown().nullable(),
   after: z.unknown().nullable(),
   reason: z.string().nullable(),

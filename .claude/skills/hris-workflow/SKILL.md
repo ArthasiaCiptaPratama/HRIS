@@ -16,6 +16,7 @@ Menjalankan PROMPT §2 (Orientasi → Rencana → Kerjakan → Verifikasi → Ca
 | Semua tugas lain (kode, dokumen, konfigurasi, skema, deploy) | **Rencana dulu, tunggu persetujuan.** |
 | Aksi keluar: commit, push, PR/merge, deploy, tulis ke Supabase/GitHub/Vercel/akun luar | **Tanya tepat sebelum menjalankan, setiap aksi**, walau rencana sudah disetujui. |
 | Branch `main` | Tidak disentuh sama sekali kecuali pengguna memintanya eksplisit. |
+| Jalur rilis (D-043): merge develop ke `HRIS/Oatse/rilis`, ubah `FEATURES` di rilis, perbaikan di folder `HRIS-rilis` | Persiapan rilis/presentasi → **rencana dulu**; aksi keluarnya tetap ditanya satu per satu. Cek dulu folder/branch yang aktif (`git worktree list`). |
 | Keputusan terbuka (OD) atau mengubah keputusan PLAN | Berhenti, jelaskan opsi + rekomendasi, tunggu jawaban. |
 | Temuan di luar cakupan tugas (masalah lama, migrasi/perbaikan tambahan) | Jangan dikerjakan; laporkan di "Temuan" dan usulkan. |
 | Cek gagal pada perubahan milik tugas ini | Perbaiki sebagai bagian tugas; bila tidak bisa, berhenti dan laporkan. |

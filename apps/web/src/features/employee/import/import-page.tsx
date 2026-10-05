@@ -15,6 +15,7 @@ import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Upload, Users } fro
 import { type DragEvent, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { FormSelect } from "@/components/form-select";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { buildXlsx, downloadBytes } from "@/lib/xlsx-write";
-import { useMasterData } from "../api";
+import { useCompanyScope, useMasterData } from "../api";
 import { ChoiceCard } from "../components/choice-card";
 import {
   fetchSavedMapping,
@@ -85,6 +86,7 @@ function Stepper({ current }: { current: Step }) {
 export function ImportEmployeesPage() {
   const [params] = useSearchParams();
   const back = params.get("dari") ?? "semua";
+  const scope = useCompanyScope();
   const master = useMasterData();
   const previewMutation = usePreviewImport();
   const commitMutation = useCommitImport();
@@ -92,6 +94,7 @@ export function ImportEmployeesPage() {
 
   const [step, setStep] = useState<Step>("upload");
   const [mode, setMode] = useState<"UPSERT" | "CREATE_ONLY">("UPSERT");
+  const [companyId, setCompanyId] = useState<string>("");
   const [dragging, setDragging] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -106,6 +109,12 @@ export function ImportEmployeesPage() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [masterMap, setMasterMap] = useState<MasterMap>(EMPTY_MAP);
   const [result, setResult] = useState<ImportPreview["counts"] | null>(null);
+
+  const effectiveCompany =
+    companyId ||
+    scope.selectedId ||
+    (scope.companies.length === 1 ? scope.companies[0]?.id : "") ||
+    "";
 
   async function analyzeSheet(book: ParsedWorkbook, index: number | null) {
     const chosen =
@@ -182,6 +191,7 @@ export function ImportEmployeesPage() {
       fileName: workbook.fileName,
       fileSha256: workbook.sha256,
       mode,
+      ...(effectiveCompany ? { companyId: effectiveCompany } : {}),
       rows,
       masterDataMapping: map,
     };
@@ -364,6 +374,26 @@ export function ImportEmployeesPage() {
                 />
               </div>
             </div>
+            {scope.companies.length > 1 ? (
+              <div className="grid gap-2">
+                <Label htmlFor="import-company">Perusahaan bawaan</Label>
+                <FormSelect
+                  id="import-company"
+                  value={effectiveCompany}
+                  onChange={setCompanyId}
+                  placeholder="Pilih perusahaan"
+                  options={scope.companies.map((c) => ({
+                    value: c.id,
+                    label: c.code,
+                    hint: c.name,
+                  }))}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Dipakai untuk baris tanpa kolom perusahaan. Kolom perusahaan di file (mis. ACP)
+                  tetap diutamakan.
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

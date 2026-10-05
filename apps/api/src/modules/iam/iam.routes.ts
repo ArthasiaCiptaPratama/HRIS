@@ -7,6 +7,7 @@ import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import { canReadOwnAccount } from "./iam.policy.ts";
 import {
   accountSchema,
+  assignCompaniesBodySchema,
   auditLogSchema,
   changeRoleBodySchema,
   createGrantBodySchema,
@@ -109,6 +110,18 @@ const routes = {
     responses: {
       200: json("Role diubah", dataEnvelope(accountSchema)),
       ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  assignCompanies: createRoute({
+    method: "put",
+    path: `${P}/accounts/{id}/companies`,
+    tags: ["IAM"],
+    summary: "Set penugasan perusahaan akun HR_ADMIN (SUPER_ADMIN; D-040) — menggantikan yang lama",
+    security,
+    request: { params: idParamSchema, ...body(assignCompaniesBodySchema) },
+    responses: {
+      200: json("Penugasan diperbarui", dataEnvelope(accountSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
     },
   }),
   deactivate: createRoute({
@@ -226,6 +239,12 @@ export function registerIamRoutes(app: OpenAPIHono, deps: IamRouteDeps): void {
         }),
       ),
       201,
+    ),
+  );
+  app.openapi(guard(routes.assignCompanies), async (c) =>
+    c.json(
+      ok(await service.assignCompanies(ctxOf(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
     ),
   );
   app.openapi(guard(routes.changeRole), async (c) =>

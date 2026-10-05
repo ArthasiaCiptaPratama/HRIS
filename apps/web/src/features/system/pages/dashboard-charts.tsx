@@ -554,8 +554,8 @@ export function DashboardCharts({ data, me }: { data: EmployeeDashboard; me: Me 
         />
         <BarChartCard
           total={overview.active}
-          title="Distribusi Departemen"
-          description="Jumlah karyawan aktif per departemen"
+          title="Distribusi Unit Organisasi"
+          description="Jumlah karyawan aktif per unit organisasi"
           data={deptData}
           config={barChartConfig}
         />

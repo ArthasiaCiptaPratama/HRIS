@@ -5,6 +5,7 @@ import { ForbiddenError } from "../../core/errors.ts";
 import * as policy from "./organization.policy.ts";
 import * as repository from "./organization.repository.ts";
 import type {
+  CompanyDto,
   DepartmentDto,
   EmploymentStatusDto,
   GradeDto,
@@ -19,6 +20,7 @@ type Row<T> = T & { deletedAt: Date | null };
  * (`deleted: true`) supaya data lama tetap punya nama, tapi tidak boleh dipilih untuk data baru.
  */
 export interface MasterLookup {
+  companies: Map<string, CompanyDto & { deleted: boolean }>;
   departments: Map<string, DepartmentDto & { deleted: boolean }>;
   positions: Map<string, PositionDto & { deleted: boolean }>;
   statuses: Map<string, EmploymentStatusDto & { deleted: boolean }>;
@@ -35,6 +37,12 @@ function toMap<T extends { id: string }>(rows: Row<T>[]) {
 export async function getMasterLookup(): Promise<MasterLookup> {
   const data = await repository.loadMasterData();
   return {
+    companies: toMap(
+      data.companies.map(({ isActive, deletedAt, ...rest }) => ({
+        ...rest,
+        deletedAt: isActive ? deletedAt : (deletedAt ?? new Date(0)),
+      })),
+    ),
     departments: toMap(data.departments),
     positions: toMap(data.positions),
     statuses: toMap(data.statuses),
@@ -70,6 +78,10 @@ export async function listMasterData(actor: Actor) {
   assertCanRead(actor);
   const lookup = await getMasterLookup();
   return {
+    // D-040: pilihan perusahaan hanya yang dalam cakupan aktor (SUPER_ADMIN semua).
+    companies: active(lookup.companies).filter(
+      (company) => actor.companyIds === null || actor.companyIds.has(company.id),
+    ),
     departments: active(lookup.departments),
     positions: active(lookup.positions),
     employmentStatuses: active(lookup.statuses),
@@ -110,6 +122,34 @@ export function masterIndex(lookup: MasterLookup) {
     positions,
     grades: new Map(live(lookup.grades).map((g) => [masterKey(g.name), g.id])),
     workLocations: new Map(live(lookup.locations).map((l) => [masterKey(l.name), l.id])),
+  };
+}
+
+/**
+ * D-049: kunci nama yang hanya ada di ARSIP (tidak ada padanan aktif). Import tidak boleh membuat item
+ * baru bernama sama (nama unik termasuk arsip) dan tidak boleh diam-diam memulihkannya.
+ */
+export function archivedMasterIndex(lookup: MasterLookup) {
+  const live = masterIndex(lookup);
+  const keys = <T extends { name: string; deleted: boolean }>(
+    map: Map<string, T>,
+    active: Map<string, string>,
+    key: (row: T) => string = (row) => masterKey(row.name),
+  ) =>
+    new Set(
+      [...map.values()]
+        .filter((row) => row.deleted)
+        .map(key)
+        .filter((k) => !active.has(k)),
+    );
+  const departmentName = new Map([...lookup.departments.values()].map((d) => [d.id, d.name]));
+  return {
+    departments: keys(lookup.departments, live.departments),
+    positions: keys(lookup.positions, live.positions, (p) =>
+      positionKey(departmentName.get(p.departmentId) ?? "", p.name),
+    ),
+    grades: keys(lookup.grades, live.grades),
+    workLocations: keys(lookup.locations, live.workLocations),
   };
 }
 

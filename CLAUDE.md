@@ -6,7 +6,8 @@ Ringkasnya:
 1. Baca `docs/PROMPT.md` → `docs/PROGRESS.md` §2 → bagian relevan `docs/PLAN.md` dan `docs/CODEMAP.md`.
 2. Kerjakan fase aktif saja; jangan memutuskan keputusan terbuka (OD) sendiri.
 3. Akhiri setiap sesi dengan memperbarui `docs/PROGRESS.md` dan `docs/CODEMAP.md`.
-4. Ikuti skill **`hris-workflow`**: rencana selalu menunggu persetujuan; setiap commit/push/PR/deploy ditanyakan dulu; `main` tidak disentuh tanpa permintaan eksplisit.
+4. **Dua jalur (D-043):** folder `HRIS` = develop, folder `HRIS-rilis` = rilis/staging; isinya sengaja berbeda. Cek PROGRESS §2 "Antrean push / rilis" sebelum push/rilis apa pun.
+5. Ikuti skill **`hris-workflow`**: rencana selalu menunggu persetujuan; setiap commit/push/PR/deploy ditanyakan dulu; `main` tidak disentuh tanpa permintaan eksplisit.
 
 ## Skill projek (`.claude/skills/`)
 

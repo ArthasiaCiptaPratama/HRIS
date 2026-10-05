@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { GENDER_LABELS } from "@hris/shared";
+import { GENDER_LABELS, ORG_UNIT_TYPE_LABELS } from "@hris/shared";
 import { Info } from "lucide-react";
 import { type ReactNode, useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -21,6 +21,7 @@ import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import {
   type EmployeeWriteBody,
+  useCompanyScope,
   useCreateEmployee,
   useManagerOptions,
   useMasterData,
@@ -39,6 +40,7 @@ const EMPTY: EmployeeForm = {
   emergencyContactRelationship: "",
   gender: "",
   joinDate: todayIso(),
+  companyId: "",
   employmentStatusId: "",
   departmentId: "",
   positionId: "",
@@ -58,6 +60,7 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     emergencyContactRelationship: employee.emergencyContactRelationship ?? "",
     gender: employee.gender ?? "",
     joinDate: employee.joinDate,
+    companyId: employee.company.id,
     employmentStatusId: employee.employmentStatus.id,
     departmentId: employee.department?.id ?? "",
     positionId: employee.position.id,
@@ -85,6 +88,7 @@ export function EmployeeFormDialog({
 }) {
   const editing = Boolean(employee);
   const master = useMasterData();
+  const scope = useCompanyScope();
   const managers = useManagerOptions(open);
   const create = useCreateEmployee();
   const update = useUpdateEmployee();
@@ -97,15 +101,32 @@ export function EmployeeFormDialog({
   const { register, handleSubmit, control, watch, setValue, reset, formState } = form;
   const errors = formState.errors;
 
+  // Hanya saat dialog dibuka / data dasar berubah — nilai scope dibaca saat reset saja.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scope sengaja tidak jadi pemicu reset
   useEffect(() => {
     if (open) {
       reset(
         employee
           ? fromDetail(employee)
-          : { ...EMPTY, joinDate: todayIso(), employmentStatusId: defaultStatusId ?? "" },
+          : {
+              ...EMPTY,
+              joinDate: todayIso(),
+              employmentStatusId: defaultStatusId ?? "",
+              // D-040: perusahaan terpilih di top bar; satu-satunya PT dalam cakupan diisi otomatis.
+              companyId:
+                scope.selectedId ??
+                (scope.companies.length === 1 ? (scope.companies[0]?.id ?? "") : ""),
+            },
       );
     }
   }, [open, employee, defaultStatusId, reset]);
+
+  // Master data datang setelah dialog terbuka: isi PT otomatis bila hanya ada satu pilihan.
+  useEffect(() => {
+    if (open && !editing && !form.getValues("companyId") && scope.companies.length === 1) {
+      setValue("companyId", scope.companies[0]?.id ?? "");
+    }
+  }, [open, editing, scope.companies, form, setValue]);
 
   const departmentId = watch("departmentId");
   const positions = useMemo(
@@ -124,6 +145,7 @@ export function EmployeeFormDialog({
       emergencyContactRelationship: orNull(values.emergencyContactRelationship),
       gender: values.gender === "" ? null : values.gender,
       joinDate: values.joinDate,
+      companyId: values.companyId,
       positionId: values.positionId,
       workLocationId: orNull(values.workLocationId),
       gradeId: orNull(values.gradeId),
@@ -148,6 +170,14 @@ export function EmployeeFormDialog({
     }
   });
 
+  // D-049: nilai lama yang sudah diarsipkan tetap ditampilkan (tidak bisa dipilih untuk data lain).
+  const keepCurrent = <O extends { value: string; label: string }>(
+    options: O[],
+    current: { id: string; name: string } | null | undefined,
+  ): (O | { value: string; label: string })[] =>
+    editing && current && !options.some((o) => o.value === current.id)
+      ? [...options, { value: current.id, label: `${current.name} (diarsipkan)` }]
+      : options;
   const statusOptions = (master.data?.employmentStatuses ?? []).map((s) => ({
     value: s.id,
     label: s.name,
@@ -217,6 +247,33 @@ export function EmployeeFormDialog({
             </FormSection>
 
             <FormSection title="Penempatan">
+              {scope.showCompany || !scope.companies.some((c) => c.id === watch("companyId")) ? (
+                <FormField label="Perusahaan" error={errors.companyId?.message} htmlFor="f-company">
+                  <Controller
+                    control={control}
+                    name="companyId"
+                    render={({ field }) => (
+                      <FormSelect
+                        id="f-company"
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Pilih perusahaan"
+                        options={keepCurrent(
+                          scope.companies.map((c) => ({
+                            value: c.id,
+                            label: c.code,
+                            hint: c.name,
+                          })),
+                          employee
+                            ? { id: employee.company.id, name: employee.company.code }
+                            : null,
+                        )}
+                        invalid={Boolean(errors.companyId)}
+                      />
+                    )}
+                  />
+                </FormField>
+              ) : null}
               {editing ? (
                 <div className="sm:col-span-2">
                   <Alert>
@@ -251,7 +308,11 @@ export function EmployeeFormDialog({
                   />
                 </FormField>
               )}
-              <FormField label="Departemen" error={errors.departmentId?.message} htmlFor="f-dept">
+              <FormField
+                label="Unit organisasi"
+                error={errors.departmentId?.message}
+                htmlFor="f-dept"
+              >
                 <Controller
                   control={control}
                   name="departmentId"
@@ -263,11 +324,15 @@ export function EmployeeFormDialog({
                         field.onChange(value);
                         setValue("positionId", "", { shouldValidate: false });
                       }}
-                      placeholder="Pilih departemen"
-                      options={(master.data?.departments ?? []).map((d) => ({
-                        value: d.id,
-                        label: d.name,
-                      }))}
+                      placeholder="Pilih unit"
+                      options={keepCurrent(
+                        (master.data?.departments ?? []).map((d) => ({
+                          value: d.id,
+                          label: d.name,
+                          hint: ORG_UNIT_TYPE_LABELS[d.unitType],
+                        })),
+                        employee?.department,
+                      )}
                       invalid={Boolean(errors.departmentId)}
                     />
                   )}
@@ -282,9 +347,14 @@ export function EmployeeFormDialog({
                       id="f-position"
                       value={field.value}
                       onChange={field.onChange}
-                      placeholder={departmentId ? "Pilih jabatan" : "Pilih departemen dulu"}
+                      placeholder={departmentId ? "Pilih jabatan" : "Pilih unit dulu"}
                       disabled={!departmentId}
-                      options={positions.map((p) => ({ value: p.id, label: p.name }))}
+                      options={keepCurrent(
+                        positions.map((p) => ({ value: p.id, label: p.name })),
+                        employee && departmentId === employee.department?.id
+                          ? employee.position
+                          : null,
+                      )}
                       invalid={Boolean(errors.positionId)}
                     />
                   )}
@@ -301,10 +371,10 @@ export function EmployeeFormDialog({
                       onChange={field.onChange}
                       placeholder="Pilih grade"
                       noneLabel="Tanpa grade"
-                      options={(master.data?.grades ?? []).map((g) => ({
-                        value: g.id,
-                        label: g.name,
-                      }))}
+                      options={keepCurrent(
+                        (master.data?.grades ?? []).map((g) => ({ value: g.id, label: g.name })),
+                        employee?.grade,
+                      )}
                     />
                   )}
                 />
@@ -320,11 +390,14 @@ export function EmployeeFormDialog({
                       onChange={field.onChange}
                       placeholder="Pilih lokasi"
                       noneLabel="Belum ditentukan"
-                      options={(master.data?.workLocations ?? []).map((l) => ({
-                        value: l.id,
-                        label: l.name,
-                        ...(l.city ? { hint: l.city } : {}),
-                      }))}
+                      options={keepCurrent(
+                        (master.data?.workLocations ?? []).map((l) => ({
+                          value: l.id,
+                          label: l.name,
+                          ...(l.city ? { hint: l.city } : {}),
+                        })),
+                        employee?.workLocation,
+                      )}
                     />
                   )}
                 />

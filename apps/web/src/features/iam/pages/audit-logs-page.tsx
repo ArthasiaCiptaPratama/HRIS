@@ -12,6 +12,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
 import { useAuditLogs } from "../api";
+import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS } from "../audit-labels";
 import type { AuditLog } from "../schemas";
 
 const helper = createColumnHelper<typeof tableFeaturesNone, AuditLog>();
@@ -26,17 +27,31 @@ const columns: DataColumn<AuditLog>[] = [
   helper.display({
     id: "action",
     header: "Aksi",
-    meta: { className: "font-mono text-xs align-top" },
-    cell: ({ row }) => row.original.action,
+    meta: { className: "align-top min-w-[180px]" },
+    cell: ({ row }) => (
+      <div>
+        <p className="text-sm">{AUDIT_ACTION_LABELS[row.original.action] ?? row.original.action}</p>
+        <p className="text-muted-foreground font-mono text-[11px]">{row.original.action}</p>
+      </div>
+    ),
   }) as DataColumn<AuditLog>,
   helper.display({
     id: "entity",
     header: "Entitas",
-    meta: { className: "text-xs align-top" },
+    meta: { className: "text-sm align-top min-w-[180px]" },
     cell: ({ row }) => (
       <div>
-        <p>{row.original.entityType}</p>
-        <p className="text-muted-foreground font-mono">{row.original.entityId?.slice(0, 8)}</p>
+        <p>
+          {row.original.entityLabel ??
+            AUDIT_ENTITY_LABELS[row.original.entityType] ??
+            row.original.entityType}
+        </p>
+        <p className="text-muted-foreground text-xs">
+          {AUDIT_ENTITY_LABELS[row.original.entityType] ?? row.original.entityType}
+          {row.original.entityLabel ? null : (
+            <span className="font-mono"> · {row.original.entityId?.slice(0, 8)}</span>
+          )}
+        </p>
       </div>
     ),
   }) as DataColumn<AuditLog>,
@@ -45,10 +60,15 @@ const columns: DataColumn<AuditLog>[] = [
     header: "Aktor",
     meta: {
       headerClassName: "hidden md:table-cell",
-      className: "hidden md:table-cell font-mono text-xs align-top",
+      className: "hidden md:table-cell text-sm align-top",
     },
     cell: ({ row }) =>
-      row.original.actorAccountId ? row.original.actorAccountId.slice(0, 8) : "sistem/script",
+      row.original.actorEmail ??
+      (row.original.actorAccountId ? (
+        <span className="font-mono text-xs">{row.original.actorAccountId.slice(0, 8)}</span>
+      ) : (
+        <span className="text-muted-foreground">Sistem / script</span>
+      )),
   }) as DataColumn<AuditLog>,
   helper.display({
     id: "detail",

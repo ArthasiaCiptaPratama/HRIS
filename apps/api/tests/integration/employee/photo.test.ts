@@ -6,6 +6,7 @@ import { createLogger } from "../../../src/core/logger.ts";
 import { EMPLOYEE_PHOTO_BUCKET as BUCKET } from "../../../src/core/storage.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
+import { acpCompanyId } from "../../helpers/company.ts";
 import { createFakeStorage } from "../../helpers/storage.ts";
 
 // D-037: foto profil pegawai — signed upload URL → unggah langsung → konfirmasi; akses PLAN §4.3.
@@ -70,6 +71,7 @@ async function makeEmployee(n: string, managerId: string | null = null) {
   const row = await prisma.employee.create({
     data: {
       employeeNumber: `P-${RUN}-${n}`,
+      companyId: await acpCompanyId(),
       fullName: `Foto ${RUN} ${n}`,
       joinDate: new Date("2024-01-02T00:00:00.000Z"),
       employmentStatusId: ids.status,

@@ -173,6 +173,8 @@ export function buildPrintCells(
   const personal = employee.personal ?? null;
   const family = employee.familyMembers ?? [];
   const cells: Record<string, CellValue> = {
+    // Kop formulir mengikuti perusahaan karyawan (D-039); template berisi "PT. ARTHASIA CIPTA PRATAMA".
+    B2: employee.company.name.toUpperCase(),
     R9: employee.fullName,
     R11: personal
       ? [personal.birthPlace, personal.birthDate ? formatDate(personal.birthDate) : null]

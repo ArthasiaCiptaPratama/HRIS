@@ -34,7 +34,14 @@ const summary = {
   },
 };
 const masterData = {
-  data: { departments: [], positions: [], employmentStatuses: [], grades: [], workLocations: [] },
+  data: {
+    companies: [],
+    departments: [],
+    positions: [],
+    employmentStatuses: [],
+    grades: [],
+    workLocations: [],
+  },
 };
 const employee = (id: string, name: string) => ({
   id,
@@ -48,6 +55,7 @@ const employee = (id: string, name: string) => ({
   isActive: true,
   exitReason: null,
   employmentStatus: { id: "st-pkwt", name: "PKWT", category: "PKWT" },
+  company: { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" },
   position: { id: "p1", name: "Sales Executive" },
   department: { id: "d1", name: "Penjualan & Pemasaran" },
   workLocation: null,

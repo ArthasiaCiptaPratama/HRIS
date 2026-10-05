@@ -1,4 +1,5 @@
 import type { EmploymentCategory, EmploymentCategoryGroup } from "@hris/shared";
+import { ORG_UNIT_TYPE_LABELS } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Search, SearchX, Users, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { formatDate } from "@/lib/format";
-import { type EmployeeListParams, useEmployees, useMasterData } from "../api";
+import { type EmployeeListParams, useCompanyScope, useEmployees, useMasterData } from "../api";
 import { tenure } from "../labels";
 import type { EmployeeListItem } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
@@ -29,6 +30,7 @@ export type ListVariant = "active" | "inactive";
 export function employeeColumns(
   variant: ListVariant,
   action?: (row: EmployeeListItem) => ReactNode,
+  options: { showCompany?: boolean } = {},
 ): DataColumn<EmployeeListItem>[] {
   const columns: DataColumn<EmployeeListItem>[] = [
     helper.display({
@@ -75,6 +77,24 @@ export function employeeColumns(
       ),
     }) as DataColumn<EmployeeListItem>,
   ];
+
+  // D-040: kolom perusahaan hanya bila pengguna melihat lebih dari satu PT.
+  if (options.showCompany) {
+    columns.push(
+      helper.display({
+        id: "company",
+        header: "Perusahaan",
+        cell: ({ row }) => (
+          <span
+            className="bg-muted rounded-md px-1.5 py-0.5 font-mono text-xs"
+            title={row.original.company.name}
+          >
+            {row.original.company.code}
+          </span>
+        ),
+      }) as DataColumn<EmployeeListItem>,
+    );
+  }
 
   if (variant === "active") {
     columns.push(
@@ -199,6 +219,7 @@ export function EmployeeListView({
 }) {
   const list = useListParams({ sort: variant === "active" ? "fullName:asc" : "endDate:desc" });
   const master = useMasterData();
+  const { selectedId: companyId } = useCompanyScope();
   const [search, setSearch] = useState(list.q);
   const debounced = useDebouncedValue(search, 300);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -234,6 +255,7 @@ export function EmployeeListView({
       q: list.q || undefined,
       category,
       group,
+      companyId,
       departmentId: list.departmentId || undefined,
       workLocationId: list.workLocationId || undefined,
       sort: list.sort,
@@ -247,6 +269,7 @@ export function EmployeeListView({
       list.sort,
       category,
       group,
+      companyId,
       variant,
     ],
   );
@@ -295,13 +318,17 @@ export function EmployeeListView({
         </div>
         <div className="grid grid-cols-1 gap-2 sm:flex">
           <FormSelect
-            aria-label="Filter departemen"
+            aria-label="Filter unit organisasi"
             className="h-9 sm:w-52"
             value={list.departmentId}
             onChange={(value) => list.update({ dept: value })}
-            placeholder="Semua departemen"
-            noneLabel="Semua departemen"
-            options={(master.data?.departments ?? []).map((d) => ({ value: d.id, label: d.name }))}
+            placeholder="Semua unit"
+            noneLabel="Semua unit"
+            options={(master.data?.departments ?? []).map((d) => ({
+              value: d.id,
+              label: d.name,
+              hint: ORG_UNIT_TYPE_LABELS[d.unitType],
+            }))}
           />
           <FormSelect
             aria-label="Filter lokasi"

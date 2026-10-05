@@ -29,6 +29,7 @@ export const previewSchema = z.object({
       action: z.enum(["CREATE", "UPDATE", "SKIP", "ERROR"]),
       employeeNumber: z.string().nullable(),
       fullName: z.string().nullable(),
+      companyCode: z.string().nullable(),
       changes: z.array(z.string()),
       issues: z.array(issueSchema),
     }),
@@ -56,6 +57,7 @@ export interface ImportRequest {
   fileName: string;
   fileSha256: string;
   mode: "CREATE_ONLY" | "UPSERT";
+  companyId?: string | undefined;
   rows: { sourceRow: number; raw: Partial<Record<ImportFieldKey, ImportCell>> }[];
   masterDataMapping?: {
     departments?: Record<string, string>;

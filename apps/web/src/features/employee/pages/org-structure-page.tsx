@@ -1,3 +1,4 @@
+import { ORG_UNIT_TYPE_LABELS, POSITION_LEVEL_LABELS } from "@hris/shared";
 import {
   Building2,
   ChevronDown,
@@ -70,7 +71,7 @@ export function OrgStructurePage() {
     <>
       <PageHeader
         title="Struktur Organisasi"
-        description="Departemen, jabatan, dan pemegangnya, serta bagan hubungan atasan–bawahan langsung."
+        description="Unit organisasi (direktorat, divisi, departemen, seksi), jabatan, dan pemegangnya, serta bagan hubungan atasan–bawahan langsung."
       />
       {structure.isPending ? (
         <StructureSkeleton />
@@ -89,7 +90,7 @@ export function OrgStructurePage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <TabsList className="w-auto border-b-0">
                 <TabsTrigger value="departments">
-                  <Building2 /> Per departemen
+                  <Building2 /> Per unit
                 </TabsTrigger>
                 <TabsTrigger value="chart">
                   <Network /> Bagan atasan
@@ -103,7 +104,7 @@ export function OrgStructurePage() {
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Cari nama, jabatan, departemen…"
+                  placeholder="Cari nama, jabatan, unit…"
                   aria-label="Cari di struktur"
                   className="h-9 pl-9"
                 />
@@ -151,7 +152,7 @@ function Stats({ data, people }: { data: OrgStructure; people: Person[] }) {
   const positions = data.departments.reduce((sum, d) => sum + d.positions.length, 0);
   const items = [
     { label: "Karyawan aktif", value: data.totalEmployees },
-    { label: "Departemen", value: data.departments.length },
+    { label: "Unit organisasi", value: data.departments.length },
     { label: "Jabatan", value: positions },
     { label: "Atasan langsung", value: managers },
   ];
@@ -239,7 +240,9 @@ function DepartmentView({
               <h2 className="truncate text-sm font-semibold">
                 <Highlight text={department.name} query={query} />
               </h2>
-              <p className="text-muted-foreground text-xs">{department.positions.length} jabatan</p>
+              <p className="text-muted-foreground text-xs">
+                {ORG_UNIT_TYPE_LABELS[department.unitType]} · {department.positions.length} jabatan
+              </p>
             </div>
             <span className="text-muted-foreground inline-flex items-center gap-1 font-mono text-xs tabular-nums">
               <Users className="size-3.5" aria-hidden /> {department.headcount}
@@ -251,6 +254,11 @@ function DepartmentView({
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-sm font-medium">
                     <Highlight text={position.name} query={query} />
+                    {position.level ? (
+                      <span className="text-muted-foreground ml-2 text-xs font-normal">
+                        {POSITION_LEVEL_LABELS[position.level]}
+                      </span>
+                    ) : null}
                   </p>
                   <span className="text-muted-foreground font-mono text-xs tabular-nums">
                     {position.employees.length}

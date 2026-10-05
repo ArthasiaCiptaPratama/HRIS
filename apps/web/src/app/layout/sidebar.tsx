@@ -6,7 +6,7 @@ import { activeTrail, type NavGroup, type NavItem, type SummaryKey } from "@/app
 import { preloadRoute } from "@/app/route-preload";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ACTIVE_BASE, activeCount } from "@/features/employee/active-views";
-import { prefetchEmployees, useEmployeeSummary } from "@/features/employee/api";
+import { prefetchEmployees, useCompanyScope, useEmployeeSummary } from "@/features/employee/api";
 import type { EmployeeSummary } from "@/features/employee/schemas";
 import { useHealth } from "@/features/system/api";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,7 @@ export function SidebarContent({
   const queryClient = useQueryClient();
   const trail = activeTrail(groups, pathname);
   const summary = useEmployeeSummary(group.id === "personal").data;
+  const { selectedId: companyId } = useCompanyScope(group.id === "personal");
 
   // Prefetch kode halaman + halaman pertama data saat kursor/fokus di atas menu.
   const warm = (item: NavItem) => {
@@ -59,6 +60,7 @@ export function SidebarContent({
         active: true,
         category: filter.category,
         group: filter.group,
+        companyId,
         sort: "fullName:asc",
       });
     }
@@ -81,7 +83,7 @@ export function SidebarContent({
           {collapsed ? (
             <div className="bg-border mx-auto my-2 h-px w-6" aria-hidden />
           ) : (
-            <p className="text-muted-foreground/80 px-2.5 pb-1.5 text-[11px] font-medium tracking-[0.08em] uppercase">
+            <p className="text-muted-foreground px-2.5 pb-1.5 text-[11px] font-medium tracking-[0.08em] uppercase">
               {section.label}
             </p>
           )}
@@ -166,7 +168,7 @@ function SidebarItem({
         </span>
       )}
       {!collapsed && item.maintenance ? (
-        <span className="text-muted-foreground/70 ml-auto text-[10px] tracking-wide uppercase">
+        <span className="text-muted-foreground ml-auto text-[10px] tracking-wide uppercase">
           Segera
         </span>
       ) : null}

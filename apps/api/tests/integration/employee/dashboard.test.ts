@@ -4,6 +4,7 @@ import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
+import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
 
 // Dashboard (D-035 lanjutan): agregat kepegawaian SA/HR — jumlah saja, tanpa data per orang.
 const RUN = crypto.randomUUID().slice(0, 6).toUpperCase();
@@ -32,14 +33,25 @@ const kuliah = (d: Dashboard) =>
     0,
   );
 
-const ids = { status: "", department: "", position: "", location: "", employees: [] as string[] };
+const ids = {
+  status: "",
+  department: "",
+  position: "",
+  location: "",
+  otherCompany: "",
+  employees: [] as string[],
+};
 let headers: Record<Role, Record<string, string>>;
+let hrOtherHeaders: Record<string, string>;
 type Role = "SUPER_ADMIN" | "HR_ADMIN" | "MANAGER" | "EMPLOYEE";
 
 beforeAll(async () => {
   headers = {} as Record<Role, Record<string, string>>;
   for (const role of ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"] as const)
     headers[role] = (await auth.loginAs(role)).headers;
+  // D-040: HR yang hanya ditugaskan ke PT lain tidak boleh ikut menghitung karyawan ACP.
+  ids.otherCompany = await createTestCompany(`D${RUN}`, `PT Dash ${RUN}`);
+  hrOtherHeaders = (await auth.loginAs("HR_ADMIN", { companies: [ids.otherCompany] })).headers;
 });
 
 afterAll(async () => {
@@ -49,6 +61,7 @@ afterAll(async () => {
   if (ids.location) await prisma.workLocation.delete({ where: { id: ids.location } });
   if (ids.status) await prisma.employmentStatus.delete({ where: { id: ids.status } });
   await auth.cleanup();
+  if (ids.otherCompany) await prisma.company.delete({ where: { id: ids.otherCompany } });
   await disconnectPrisma();
 });
 
@@ -63,6 +76,7 @@ describe("GET /dashboard", () => {
 
   test("agregat bertambah sesuai karyawan baru; nonaktif hanya di overview; tanpa nama orang", async () => {
     const before = await read(await get(headers.HR_ADMIN));
+    const otherBefore = await read(await get(hrOtherHeaders));
     // Status sendiri (tanpa kategori): CI menjalankan test di DB kosong tanpa seed.
     ids.status = (await prisma.employmentStatus.create({ data: { name: `Dash ${RUN}` } })).id;
     ids.department = (await prisma.department.create({ data: { name: `Dash ${RUN}` } })).id;
@@ -75,6 +89,7 @@ describe("GET /dashboard", () => {
       await prisma.workLocation.create({ data: { name: `Lok Dash ${RUN}`, city: "Palangka Raya" } })
     ).id;
     const base = {
+      companyId: await acpCompanyId(),
       employmentStatusId: ids.status,
       positionId: ids.position,
       workLocationId: ids.location,
@@ -128,5 +143,8 @@ describe("GET /dashboard", () => {
     expect(after.overview.avgTenureYears).not.toBeNull();
     expect(text).not.toContain("Rahasia");
     expect(text).not.toContain(`DSH-${RUN}`);
+    // D-040: karyawan ACP tidak terhitung untuk HR yang hanya ditugaskan ke PT lain.
+    const otherAfter = await read(await get(hrOtherHeaders));
+    expect(otherAfter.overview.total).toBe(otherBefore.overview.total);
   });
 });

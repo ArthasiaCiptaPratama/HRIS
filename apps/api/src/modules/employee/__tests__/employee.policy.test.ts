@@ -3,6 +3,7 @@ import type { Permission, Role } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../../core/access/index.ts";
 import {
   canChangePhoto,
+  canCreateInCompany,
   canDeactivateEmployee,
   canImportEmployees,
   canManageEmployees,
@@ -13,6 +14,7 @@ import {
   canViewDashboard,
   canViewEmployee,
   canWriteSensitiveViaImport,
+  directoryCompanyIds,
   employeeListScope,
 } from "../employee.policy.ts";
 
@@ -27,10 +29,12 @@ const ROLE_OF: Record<Who, Role> = {
   EMP: "EMPLOYEE",
 };
 
+// D-040: default semua aktor non-SA berada/ditugaskan di PT "co-A"; target juga di "co-A".
 function actor(
   who: Who,
   grants: Permission[] = [],
   employeeId: string | null = `emp-${who}`,
+  companyIds: string[] | null = who === "SA" ? null : ["co-A"],
 ): Actor {
   return {
     accountId: `acc-${who}`,
@@ -40,19 +44,20 @@ function actor(
     employeeId,
     isPrimarySuperAdmin: false,
     grants: new Set(grants),
+    companyIds: companyIds === null ? null : new Set(companyIds),
   };
 }
 
-function target(who: Who, rel: Rel): EmployeeTarget {
-  if (rel === "self") return { employeeId: `emp-${who}`, managerId: null };
-  if (rel === "team") return { employeeId: "emp-team", managerId: `emp-${who}` };
-  return { employeeId: "emp-other", managerId: "emp-someone-else" };
+function target(who: Who, rel: Rel, companyId = "co-A"): EmployeeTarget {
+  if (rel === "self") return { employeeId: `emp-${who}`, managerId: null, companyId };
+  if (rel === "team") return { employeeId: "emp-team", managerId: `emp-${who}`, companyId };
+  return { employeeId: "emp-other", managerId: "emp-someone-else", companyId };
 }
 
 describe("employeeListScope", () => {
   test.each([
     ["SA", "all"],
-    ["HR", "all"],
+    ["HR", "companies"],
     ["MGR", "team"],
     ["EMP", null],
   ] as const)("%s → %s", (who, scope) => {
@@ -176,6 +181,69 @@ describe("canReadBank (rekening)", () => {
 describe("canReadOrgStructure (direktori: semua role 👁)", () => {
   test.each(["SA", "HR", "MGR", "EMP"] as const)("%s = true", (who) => {
     expect(canReadOrgStructure(actor(who))).toBe(true);
+  });
+});
+
+// D-040: cakupan perusahaan. HR hanya PT yang ditugaskan; SA semua; MANAGER tim lintas PT; EMPLOYEE diri sendiri.
+describe("D-040 cakupan perusahaan", () => {
+  const P: Permission = "employee.personal.read";
+  const B: Permission = "employee.bank.read";
+
+  test.each([
+    // [aktor, PT aktor, relasi, PT target, boleh lihat?]
+    ["SA", null, "other", "co-B", true],
+    ["HR", ["co-A"], "other", "co-A", true],
+    ["HR", ["co-A"], "other", "co-B", false],
+    ["HR", ["co-A", "co-B"], "other", "co-B", true],
+    ["HR", [], "other", "co-A", false],
+    ["MGR", ["co-A"], "team", "co-B", true],
+    ["MGR", ["co-A"], "other", "co-A", false],
+    ["EMP", ["co-A"], "self", "co-A", true],
+    ["EMP", ["co-A"], "other", "co-A", false],
+  ] as const)("%s PT %j → %s di %s: lihat = %s", (who, companies, rel, company, allowed) => {
+    const a = actor(who, [], `emp-${who}`, companies === null ? null : [...companies]);
+    expect(canViewEmployee(a, target(who, rel, company))).toBe(allowed);
+  });
+
+  test("HR di luar cakupan: tidak bisa foto, print, nonaktifkan, atau baca data sensitif walau ber-grant", () => {
+    const hr = actor("HR", [P, B], "emp-HR", ["co-A"]);
+    const outside = target("HR", "other", "co-B");
+    expect(canChangePhoto(hr, outside)).toBe(false);
+    expect(canPrintEmployee(hr, outside)).toBe(false);
+    expect(canDeactivateEmployee(hr, outside)).toBe(false);
+    expect(canReadPersonal(hr, outside)).toBe(false);
+    expect(canReadBank(hr, outside)).toBe(false);
+    // Di dalam cakupan tetap boleh.
+    const inside = target("HR", "other", "co-A");
+    expect(canPrintEmployee(hr, inside)).toBe(true);
+    expect(canReadPersonal(hr, inside)).toBe(true);
+  });
+
+  test("MANAGER ber-grant membaca data sensitif timnya walau beda PT", () => {
+    const mgr = actor("MGR", [P], "emp-MGR", ["co-A"]);
+    expect(canReadPersonal(mgr, target("MGR", "team", "co-B"))).toBe(true);
+  });
+
+  test.each([
+    ["SA", null, "co-B", true],
+    ["HR", ["co-A"], "co-A", true],
+    ["HR", ["co-A"], "co-B", false],
+    ["HR", [], "co-A", false],
+    ["MGR", ["co-A"], "co-A", false],
+    ["EMP", ["co-A"], "co-A", false],
+  ] as const)("canCreateInCompany %s PT %j → %s = %s", (who, companies, company, allowed) => {
+    const a = actor(who, [], `emp-${who}`, companies === null ? null : [...companies]);
+    expect(canCreateInCompany(a, company)).toBe(allowed);
+  });
+
+  test("directoryCompanyIds: SA semua (null); lainnya PT miliknya", () => {
+    expect(directoryCompanyIds(actor("SA"))).toBeNull();
+    expect([...(directoryCompanyIds(actor("HR", [], "emp-HR", ["co-A", "co-B"])) ?? [])]).toEqual([
+      "co-A",
+      "co-B",
+    ]);
+    expect([...(directoryCompanyIds(actor("EMP")) ?? [])]).toEqual(["co-A"]);
+    expect([...(directoryCompanyIds(actor("EMP", [], null, [])) ?? [])]).toEqual([]);
   });
 });
 

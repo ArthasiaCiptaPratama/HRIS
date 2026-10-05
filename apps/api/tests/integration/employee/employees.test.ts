@@ -5,6 +5,7 @@ import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
+import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
 
 // Modul employee & organization (D-035): daftar/ringkasan/detail/tulis + matriks akses PLAN §4.3.
 const RUN = crypto.randomUUID().slice(0, 8);
@@ -44,6 +45,10 @@ const ids = {
   otherEmp: "",
   hrEmp: "",
   location: "",
+  // D-039/D-040: ACP (dari migrasi) + PT uji kedua.
+  acp: "",
+  otherCompany: "",
+  otherCompanyEmp: "",
 };
 let sa: Login;
 let hr: Login;
@@ -51,13 +56,21 @@ let hrGranted: Login;
 let mgr: Login;
 let emp: Login;
 let teamAccount: Login;
+let hrOther: Login;
+let hrNone: Login;
 
 async function makeEmployee(
   n: string,
-  extra: { managerId?: string; statusId?: string; workLocationId?: string } = {},
+  extra: {
+    managerId?: string;
+    statusId?: string;
+    workLocationId?: string;
+    companyId?: string;
+  } = {},
 ) {
   const row = await prisma.employee.create({
     data: {
+      companyId: extra.companyId ?? ids.acp,
       employeeNumber: NUM(n),
       fullName: `Uji ${RUN} ${n}`,
       joinDate: new Date("2024-01-02T00:00:00.000Z"),
@@ -105,10 +118,13 @@ beforeAll(async () => {
 
   ids.location = (await prisma.workLocation.create({ data: { name: `Lok ${RUN}` } })).id;
 
+  ids.acp = await acpCompanyId();
+  ids.otherCompany = await createTestCompany(`T${RUN.slice(0, 6)}`, `PT Uji ${RUN}`);
   ids.managerEmp = await makeEmployee("M1");
   ids.teamEmp = await makeEmployee("T1", { managerId: ids.managerEmp });
   ids.otherEmp = await makeEmployee("O1", { statusId: ids.categoryStatus });
   ids.hrEmp = await makeEmployee("H1", { workLocationId: ids.location });
+  ids.otherCompanyEmp = await makeEmployee("C1", { companyId: ids.otherCompany });
 
   sa = await auth.loginAs("SUPER_ADMIN");
   hr = await auth.loginAs("HR_ADMIN", { employeeId: ids.hrEmp });
@@ -118,6 +134,8 @@ beforeAll(async () => {
   mgr = await auth.loginAs("MANAGER", { employeeId: ids.managerEmp });
   emp = await auth.loginAs("EMPLOYEE", { employeeId: ids.otherEmp });
   teamAccount = await auth.loginAs("EMPLOYEE", { employeeId: ids.teamEmp });
+  hrOther = await auth.loginAs("HR_ADMIN", { companies: [ids.otherCompany] });
+  hrNone = await auth.loginAs("HR_ADMIN", { companies: [] });
 });
 
 afterAll(async () => {
@@ -134,6 +152,7 @@ afterAll(async () => {
     data: { managerId: null },
   });
   await prisma.employee.deleteMany({ where: { id: { in: employeeIds } } });
+  await prisma.company.delete({ where: { id: ids.otherCompany } });
   await prisma.workLocation.delete({ where: { id: ids.location } });
   await prisma.position.deleteMany({ where: { departmentId: ids.department } });
   await prisma.department.delete({ where: { id: ids.department } });
@@ -153,7 +172,8 @@ describe("GET /employees (daftar)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     const { data, meta } = await body(res);
-    expect(meta.total).toBe(4);
+    // SA melihat semua PT: 4 karyawan ACP + 1 karyawan PT uji (D-040).
+    expect(meta.total).toBe(5);
     const row = data.find((r: { id: string }) => r.id === ids.teamEmp);
     expect(row.position.name).toBe(`Jab ${RUN}`);
     expect(row.department.name).toBe(`Dept ${RUN}`);
@@ -301,6 +321,7 @@ describe("POST /employees & PATCH /employees/:id", () => {
     fullName: `Uji ${RUN} Baru`,
     workEmail: `Baru-${RUN}@Example.Test`,
     joinDate: "2026-09-01",
+    companyId: ids.acp,
     employmentStatusId: ids.status,
     positionId: ids.position,
   });
@@ -317,6 +338,15 @@ describe("POST /employees & PATCH /employees/:id", () => {
         where: { action: "employee.employee.create", entityId: data.id },
       }),
     ).toBe(1);
+    // Audit log menampilkan label karyawan yang terbaca (audit UI 2026-09-30).
+    const logs = await body(
+      await call(
+        "GET",
+        `/audit-logs?entityId=${data.id}&action=employee.employee.create`,
+        sa.headers,
+      ),
+    );
+    expect(logs.data[0].entityLabel).toBe(`Uji ${RUN} Baru (${NUM("N1")})`);
   });
 
   test("nomor induk duplikat 409; atasan bukan akun MANAGER 422; MANAGER 403; body salah 400", async () => {
@@ -515,6 +545,7 @@ describe("Riwayat: pelaku perubahan (diubah oleh)", () => {
       employeeNumber: NUM("R1"),
       fullName: `Uji ${RUN} Riwayat`,
       joinDate: "2026-09-01",
+      companyId: ids.acp,
       employmentStatusId: ids.status,
       positionId: ids.position,
     });
@@ -623,5 +654,161 @@ describe("GET /employees/:id?view=print (formulir data pegawai .xlsx)", () => {
         },
       }),
     ).toBe(0);
+  });
+});
+
+// D-039/D-040: cakupan perusahaan. HR hanya PT yang ditugaskan; di luar cakupan = 404 (PROMPT §5).
+describe("D-040 cakupan perusahaan", () => {
+  const listIds = async (headers: Record<string, string>, query = "") =>
+    (await body(await call("GET", `/employees?q=${RUN}&pageSize=50${query}`, headers))).data.map(
+      (r: { id: string }) => r.id,
+    );
+
+  test("daftar: HR ACP tanpa karyawan PT lain; HR PT lain hanya PT-nya; HR tanpa penugasan kosong; SA semua", async () => {
+    expect(await listIds(hr.headers)).not.toContain(ids.otherCompanyEmp);
+    expect(await listIds(hrOther.headers)).toEqual([ids.otherCompanyEmp]);
+    expect(await listIds(hrNone.headers)).toEqual([]);
+    expect(await listIds(sa.headers)).toContain(ids.otherCompanyEmp);
+    expect(await listIds(sa.headers, `&companyId=${ids.otherCompany}`)).toEqual([
+      ids.otherCompanyEmp,
+    ]);
+    // Filter PT lain oleh HR tetap dibatasi cakupannya.
+    expect(await listIds(hr.headers, `&companyId=${ids.otherCompany}`)).toEqual([]);
+    const row = (await body(await call("GET", `/employees?q=${RUN}-C1`, sa.headers))).data[0];
+    expect(row.company).toEqual({
+      id: ids.otherCompany,
+      code: `T${RUN.slice(0, 6)}`,
+      name: `PT Uji ${RUN}`,
+    });
+  });
+
+  test("detail & aksi tulis untuk karyawan PT lain → 404 bagi HR ACP", async () => {
+    const id = ids.otherCompanyEmp;
+    expect((await call("GET", `/employees/${id}`, hr.headers)).status).toBe(404);
+    expect((await call("PATCH", `/employees/${id}`, hr.headers, { fullName: "X Y" })).status).toBe(
+      404,
+    );
+    expect(
+      (
+        await call("POST", `/employees/${id}/status-change`, hr.headers, {
+          employmentStatusId: ids.status2,
+          effectiveDate: "2026-09-01",
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await call("POST", `/employees/${id}/deactivate`, hr.headers, {
+          effectiveDate: "2026-09-01",
+          exitReason: "RESIGNATION",
+        })
+      ).status,
+    ).toBe(404);
+    expect((await call("GET", `/employees/${id}?view=print`, hr.headers)).status).toBe(404);
+    // HR yang ditugaskan ke PT itu boleh.
+    expect((await call("GET", `/employees/${id}`, hrOther.headers)).status).toBe(200);
+  });
+
+  test("ringkasan per cakupan; SA bisa memfilter ?companyId=", async () => {
+    const summary = async (headers: Record<string, string>, query = "") =>
+      (await body(await call("GET", `/employees/summary${query}`, headers))).data;
+    expect((await summary(hrOther.headers)).active.total).toBe(1);
+    expect((await summary(hrNone.headers)).active.total).toBe(0);
+    expect((await summary(sa.headers, `?companyId=${ids.otherCompany}`)).active.total).toBe(1);
+  });
+
+  test("tambah karyawan hanya di PT dalam cakupan (HR ACP → PT lain 403; HR PT lain 201)", async () => {
+    const base = {
+      fullName: `Uji ${RUN} Lintas`,
+      joinDate: "2026-09-01",
+      employmentStatusId: ids.status,
+      positionId: ids.position,
+    };
+    expect(
+      await code(
+        await call("POST", "/employees", hr.headers, {
+          ...base,
+          employeeNumber: NUM("X1"),
+          companyId: ids.otherCompany,
+        }),
+      ),
+    ).toBe("FORBIDDEN");
+    const res = await call("POST", "/employees", hrOther.headers, {
+      ...base,
+      employeeNumber: NUM("X2"),
+      companyId: ids.otherCompany,
+    });
+    expect(res.status).toBe(201);
+    const history = await prisma.employmentHistory.findFirst({
+      where: { employeeId: (await body(res)).data.id, changeType: "HIRED" },
+    });
+    expect(history?.toCompanyId).toBe(ids.otherCompany);
+    // companyId wajib.
+    expect(
+      await code(
+        await call("POST", "/employees", sa.headers, { ...base, employeeNumber: NUM("X3") }),
+      ),
+    ).toBe("VALIDATION_ERROR");
+  });
+
+  test("pindah PT: SA → riwayat COMPANY_CHANGED + audit; HR ACP tidak bisa memindahkan ke PT lain", async () => {
+    const created = await body(
+      await call("POST", "/employees", sa.headers, {
+        employeeNumber: NUM("X4"),
+        fullName: `Uji ${RUN} Pindah`,
+        joinDate: "2026-09-01",
+        companyId: ids.acp,
+        employmentStatusId: ids.status,
+        positionId: ids.position,
+      }),
+    );
+    const id = created.data.id;
+    expect(
+      await code(
+        await call("PATCH", `/employees/${id}`, hr.headers, { companyId: ids.otherCompany }),
+      ),
+    ).toBe("FORBIDDEN");
+    const moved = await call("PATCH", `/employees/${id}`, sa.headers, {
+      companyId: ids.otherCompany,
+    });
+    expect(moved.status).toBe(200);
+    expect((await body(moved)).data.company.id).toBe(ids.otherCompany);
+    const history = await prisma.employmentHistory.findFirst({
+      where: { employeeId: id, changeType: "COMPANY_CHANGED" },
+    });
+    expect(history).toMatchObject({ fromCompanyId: ids.acp, toCompanyId: ids.otherCompany });
+    const audit = await prisma.auditLog.findFirst({
+      where: { action: "employee.employee.update", entityId: id },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(audit?.before).toMatchObject({ companyId: ids.acp });
+    // Setelah pindah, HR ACP tidak lagi melihatnya.
+    expect((await call("GET", `/employees/${id}`, hr.headers)).status).toBe(404);
+  });
+
+  test("master data: HR hanya PT penugasan; SA semua", async () => {
+    const companies = async (headers: Record<string, string>) =>
+      (await body(await call("GET", "/master-data", headers))).data.companies.map(
+        (c: { id: string }) => c.id,
+      );
+    expect(await companies(hr.headers)).toEqual([ids.acp]);
+    expect(await companies(hrOther.headers)).toEqual([ids.otherCompany]);
+    expect(await companies(sa.headers)).toEqual(
+      expect.arrayContaining([ids.acp, ids.otherCompany]),
+    );
+  });
+
+  test("direktori (struktur): EMPLOYEE & HR hanya PT sendiri", async () => {
+    const structureIds = async (headers: Record<string, string>) =>
+      (await body(await call("GET", "/org-structure", headers))).data.departments
+        .flatMap((d: { positions: { employees: { id: string }[] }[] }) => d.positions)
+        .flatMap((p: { employees: { id: string }[] }) => p.employees)
+        .map((e: { id: string }) => e.id);
+    expect(await structureIds(emp.headers)).not.toContain(ids.otherCompanyEmp);
+    expect(await structureIds(emp.headers)).toContain(ids.teamEmp);
+    const other = await structureIds(hrOther.headers);
+    expect(other).toContain(ids.otherCompanyEmp);
+    expect(other).not.toContain(ids.teamEmp);
+    expect(await structureIds(sa.headers)).toContain(ids.otherCompanyEmp);
   });
 });

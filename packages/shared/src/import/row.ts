@@ -234,6 +234,8 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   STATUS_NOT_CONFIGURED: "Belum ada status kepegawaian untuk kategori ini",
   JOIN_DATE_REQUIRED: "Tanggal masuk wajib untuk karyawan baru",
   POSITION_REQUIRED: "Jabatan & departemen wajib untuk karyawan baru",
+  MASTER_ARCHIVED:
+    "Master data ini diarsipkan: pulihkan di Administrasi › Master Data atau petakan ke yang lain",
   KTP_TAKEN: "NIK KTP sudah dipakai karyawan lain",
   EMAIL_TAKEN: "Email sudah dipakai karyawan lain",
   EXISTING_OUT_OF_SCOPE: "Karyawan ini ada di perusahaan di luar cakupan akun Anda",

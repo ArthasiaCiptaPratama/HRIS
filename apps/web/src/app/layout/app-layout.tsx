@@ -19,6 +19,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useMe } from "@/features/auth/api";
 import { useAuth } from "@/features/auth/auth-provider";
 import type { Me } from "@/features/auth/schemas";
+import { CompanySwitcher } from "@/features/employee/components/company-switcher";
 import { NotificationBell } from "@/features/notification/components/notification-bell";
 import { access } from "@/lib/access";
 import { cn } from "@/lib/utils";
@@ -141,6 +142,11 @@ export function AppLayout() {
             </nav>
 
             <div className="ml-auto flex items-center gap-1">
+              {/* Pemilih PT hanya berpengaruh pada data Personal Management (D-040). */}
+              <CompanySwitcher
+                enabled={access.personalMenu(me) && current?.id === "personal"}
+                className="hidden md:flex"
+              />
               <button
                 type="button"
                 onClick={() => setPaletteOpen(true)}
@@ -199,6 +205,10 @@ export function AppLayout() {
 
           <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
             <div key={pathname} className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
+              <CompanySwitcher
+                enabled={access.personalMenu(me) && current?.id === "personal"}
+                className="mb-4 md:hidden"
+              />
               <Outlet />
             </div>
           </main>
@@ -305,7 +315,8 @@ function UserMenu({
   onSignOut: () => Promise<void>;
 }) {
   return (
-    <DropdownMenu>
+    // modal={false}: halaman di belakang tidak diberi aria-hidden selama menu terbuka (axe aria-hidden-focus).
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"

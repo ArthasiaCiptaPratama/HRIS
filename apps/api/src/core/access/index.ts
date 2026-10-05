@@ -6,6 +6,7 @@ export {
   hasPermission,
   hasRole,
   isGrantActive,
+  isInCompanyScope,
   isInTeam,
   isSelf,
 } from "./rules.ts";

@@ -15,6 +15,8 @@ export const importBodySchema = z
     fileName: z.string().trim().min(1).max(255),
     fileSha256: z.string().regex(/^[a-f0-9]{64}$/, "SHA-256 heksadesimal"),
     mode: z.enum(["CREATE_ONLY", "UPSERT"]),
+    /** PT bawaan untuk baris tanpa kolom perusahaan (D-040). */
+    companyId: z.uuid().optional(),
     rows: z
       .array(
         z.object({
@@ -65,6 +67,7 @@ export const previewSchema = z
         action: z.enum(["CREATE", "UPDATE", "SKIP", "ERROR"]),
         employeeNumber: z.string().nullable(),
         fullName: z.string().nullable(),
+        companyCode: z.string().nullable(),
         changes: z.array(z.string()),
         issues: z.array(issueSchema),
       }),
@@ -86,6 +89,7 @@ export const importJobSchema = z
   .object({
     id: z.uuid(),
     actorAccountId: z.uuid(),
+    companyId: z.uuid().nullable(),
     fileName: z.string(),
     mode: z.enum(["CREATE_ONLY", "UPSERT"]),
     totalRows: z.number().int(),
