@@ -21,6 +21,9 @@ export const departmentAdminSchema = z.object({
   unitType: orgUnitTypeSchema,
   parentId: z.string().nullable(),
   parentName: z.string().nullable(),
+  // D-052: PT pemilik; null = fungsi korporat / lintas grup.
+  companyId: z.string().nullable().optional(),
+  companyCode: z.string().nullable().optional(),
   positionCount: z.number(),
 });
 export const positionAdminSchema = z.object({
@@ -58,6 +61,8 @@ export const masterDataItemSchema = z.object({
   address: z.string().nullable().optional(),
   totalEmployeeCount: z.number().optional(),
   unitType: orgUnitTypeSchema.optional(),
+  companyId: z.string().nullable().optional(),
+  companyCode: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   parentName: z.string().nullable().optional(),
   positionCount: z.number().optional(),
@@ -81,3 +86,26 @@ export const mergeResultSchema = z.object({
 });
 
 export const one = <T extends z.ZodType>(item: T) => z.object({ data: item });
+
+// D-051: pos jabatan (Master Data › Pos jabatan).
+export const orgPostAdminSchema = z.object({
+  id: z.string(),
+  code: z.string().nullable(),
+  positionId: z.string(),
+  positionName: z.string(),
+  level: positionLevelSchema.nullable(),
+  departmentId: z.string(),
+  departmentName: z.string(),
+  unitType: orgUnitTypeSchema,
+  companyId: z.string().nullable(),
+  companyCode: z.string().nullable(),
+  reportsToId: z.string().nullable(),
+  reportsToLabel: z.string().nullable(),
+  functionalReportsToId: z.string().nullable(),
+  functionalReportsToLabel: z.string().nullable(),
+  headcount: z.number(),
+  holderCount: z.number(),
+  sortOrder: z.number(),
+  archived: z.boolean(),
+});
+export type OrgPostAdmin = z.infer<typeof orgPostAdminSchema>;

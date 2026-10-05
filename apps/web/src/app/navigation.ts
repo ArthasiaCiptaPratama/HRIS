@@ -25,6 +25,7 @@ import {
   UserRoundCheck,
   Users,
   UserX,
+  Workflow,
 } from "lucide-react";
 import type { Me } from "@/features/auth/schemas";
 import {
@@ -283,14 +284,25 @@ export const NAV_GROUPS: NavGroup[] = [
         // D-049: master data organisasi (SA kelola, HR lihat).
         id: "master-data",
         label: "Master Data",
-        items: MASTER_DATA_PAGES.map((page) => ({
-          id: `master-${page.kind}`,
-          label: page.label,
-          to: `${MASTER_DATA_BASE}/${page.slug}`,
-          icon: page.icon,
-          visible: access.viewMasterData,
-          keywords: "master data organisasi",
-        })),
+        items: [
+          ...MASTER_DATA_PAGES.map((page) => ({
+            id: `master-${page.kind}`,
+            label: page.label,
+            to: `${MASTER_DATA_BASE}/${page.slug}`,
+            icon: page.icon,
+            visible: access.viewMasterData,
+            keywords: "master data organisasi",
+          })),
+          {
+            // D-051: kursi di bagan organisasi (atasan, garis fungsional, slot).
+            id: "master-org-posts",
+            label: "Pos jabatan",
+            to: `${MASTER_DATA_BASE}/pos-jabatan`,
+            icon: Workflow,
+            visible: access.viewMasterData,
+            keywords: "pos jabatan bagan org chart slot vacant kosong atasan fungsional",
+          },
+        ],
       },
     ],
   },

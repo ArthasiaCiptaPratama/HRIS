@@ -119,6 +119,8 @@ export const routes: RouteObject[] = [
             element: <RequireAccessRoute check={access.viewMasterData} />,
             children: [
               { index: true, element: <Navigate to="perusahaan" replace /> },
+              // D-051: pos jabatan (bagan organisasi).
+              { path: "pos-jabatan", lazy: pages.orgPosts },
               { path: ":kind", lazy: pages.masterData },
             ],
           },

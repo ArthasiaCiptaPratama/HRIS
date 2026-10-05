@@ -19,6 +19,8 @@ import {
   managerOptionSchema,
   masterDataSchema,
   one,
+  orgChartSchema,
+  orgPersonCardSchema,
   orgStructureSchema,
   summarySchema,
 } from "./schemas";
@@ -36,6 +38,8 @@ export const employeeKeys = {
   dashboard: ["employees", "dashboard"] as const,
   detail: (id: string, view: DetailView) => ["employees", "detail", id, view] as const,
   structure: ["employees", "structure"] as const,
+  chart: (companyId: string | null) => ["employees", "org-chart", companyId ?? "default"] as const,
+  card: (id: string) => ["employees", "org-chart", "card", id] as const,
   managerOptions: ["employees", "manager-options"] as const,
   masterData: ["master-data"] as const,
 };
@@ -169,6 +173,33 @@ export function useOrgStructure() {
   });
 }
 
+/** D-051: bagan organisasi per PT (kolom direktori; foto URL bertanda tangan berlaku singkat). */
+export function useOrgChart(companyId: string | null) {
+  return useQuery({
+    queryKey: employeeKeys.chart(companyId),
+    queryFn: ({ signal }) =>
+      api(`/org-chart${companyId ? `?companyId=${companyId}` : ""}`, {
+        schema: one(orgChartSchema),
+        signal,
+      }).then((r) => r.data),
+    placeholderData: (previous) => previous,
+    staleTime: 60_000,
+  });
+}
+
+/** D-051: kartu profil kerja untuk role yang tidak membuka detail karyawan lengkap. */
+export function useOrgPersonCard(id: string | null) {
+  return useQuery({
+    queryKey: employeeKeys.card(id ?? ""),
+    queryFn: ({ signal }) =>
+      api(`/org-chart/people/${id}`, { schema: one(orgPersonCardSchema), signal }).then(
+        (r) => r.data,
+      ),
+    enabled: id !== null,
+    staleTime: 60_000,
+  });
+}
+
 export function useManagerOptions(enabled = true) {
   return useQuery({
     queryKey: employeeKeys.managerOptions,
@@ -210,7 +241,12 @@ export interface EmployeeWriteBody {
   positionId: string;
   workLocationId: string | null;
   gradeId: string | null;
-  managerId: string | null;
+  /** Tanpa field = tidak diubah (mode atasan otomatis dari pos, D-053). */
+  managerId?: string | null;
+  /** D-051: pos jabatan; null = lepas dari pos. */
+  orgPostId?: string | null;
+  /** D-053: true = atasan manual; false = otomatis dari pos. */
+  managerOverride?: boolean;
 }
 
 export const useCreateEmployee = () =>

@@ -36,6 +36,9 @@ export const employeeListItemSchema = z.object({
   workLocation: ref.nullable(),
   grade: ref.nullable(),
   manager: ref.nullable(),
+  // D-051/D-053: pos jabatan & atasan manual (data lama tanpa field ini tetap terbaca).
+  orgPostId: z.string().nullable().optional(),
+  managerOverride: z.boolean().optional(),
   /** D-037: URL baca bertanda tangan (berlaku ±10 menit); null = belum ada foto. */
   photoUrl: z.string().nullable(),
 });
@@ -262,5 +265,58 @@ export const employeeFormSchema = z.object({
   workLocationId: z.string(),
   gradeId: z.string(),
   managerId: z.string(),
+  // D-051/D-053: pos jabatan (opsional) & atasan diatur manual.
+  orgPostId: z.string(),
+  managerManual: z.boolean(),
 });
 export type EmployeeForm = z.infer<typeof employeeFormSchema>;
+
+// ── D-051: bagan organisasi (kanvas) ────────────────────────────────────────
+const chartCompany = z.object({ id: z.string(), code: z.string(), name: z.string() });
+
+export const orgChartSchema = z.object({
+  company: chartCompany,
+  companies: z.array(chartCompany),
+  units: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      unitType: orgUnitTypeSchema,
+      parentId: z.string().nullable(),
+      corporate: z.boolean(),
+    }),
+  ),
+  posts: z.array(
+    z.object({
+      id: z.string(),
+      positionName: z.string(),
+      level: positionLevelSchema.nullable(),
+      departmentId: z.string(),
+      corporate: z.boolean(),
+      reportsToId: z.string().nullable(),
+      functionalReportsToId: z.string().nullable(),
+      headcount: z.number(),
+      sortOrder: z.number(),
+      holders: z.array(
+        z.object({ id: z.string(), fullName: z.string(), photoUrl: z.string().nullable() }),
+      ),
+    }),
+  ),
+  unplacedCount: z.number(),
+  canOpenDetail: z.boolean(),
+  canManage: z.boolean(),
+});
+export type OrgChart = z.infer<typeof orgChartSchema>;
+export type OrgChartPost = OrgChart["posts"][number];
+
+export const orgPersonCardSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  photoUrl: z.string().nullable(),
+  position: z.string(),
+  department: z.string().nullable(),
+  company: z.object({ code: z.string(), name: z.string() }),
+  workLocation: z.string().nullable(),
+  workEmail: z.string().nullable(),
+});
+export type OrgPersonCard = z.infer<typeof orgPersonCardSchema>;
