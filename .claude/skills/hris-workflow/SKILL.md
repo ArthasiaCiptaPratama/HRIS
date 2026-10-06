@@ -26,6 +26,9 @@ Menjalankan PROMPT §2 (Orientasi → Rencana → Kerjakan → Verifikasi → Ca
 ```
 1. Orientasi   baca PROMPT §3, PROGRESS §2 + checklist fase aktif, PLAN/CODEMAP yang relevan
 2. Rencana     templat "Rencana" (TEMPLATES.md) → TUNGGU persetujuan
+               - bila tool `mcp__hris-guardrail__progress` tersedia (mod sidebar Progres): setelah
+                 disetujui, kirim seluruh poin rencana; kirim ulang setiap poin mulai/selesai
+                 (tepat satu `active`); `clear: true` setelah laporan akhir
 3. Kerjakan    poin demi poin; setelah tiap poin:
                - jalankan cek relevan (tabel di bawah)
                - ubah checklist PROGRESS ([ ]→[~]→[x]) begitu poin selesai & terverifikasi
