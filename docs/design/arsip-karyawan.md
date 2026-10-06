@@ -1,7 +1,7 @@
 # Desain — Arsip Karyawan (Data Kontak … Riwayat Peringatan) & Laporan
 
 > Keputusan: **D-054** (bentuk menu Arsip & pengajuan perubahan data — menjawab **OD-6**), **D-055** (dokumen bermasa berlaku & jenis dokumen sebagai master data), **D-056** (aset inventaris + serah-terima), **D-057** (surat peringatan/SP), **D-058** (ekspor/impor/cetak per kategori & laporan awal) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Keputusan terbuka baru: **OD-11** (masa simpan data karyawan keluar).
-> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail) · **gelombang 1b [done] lokal 2026-10-05** (Data File: jenis dokumen master data, dokumen berversi & bermasa berlaku, tautan baca singkat, lampiran sertifikat/SK, cron `document-expiry`; catatan implementasi §12.1). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
+> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail) · **gelombang 1b [done] lokal 2026-10-05** (Data File: jenis dokumen master data, dokumen berversi & bermasa berlaku, tautan baca singkat, lampiran sertifikat/SK, cron `document-expiry`; catatan implementasi §12.1) · **gelombang 1c [wip] lokal 2026-10-05** (pengajuan perubahan data diri lewat ESS, antrean HR `/pengajuan-data`, Arsip Keluarga & Bank, buku tabungan; kode di-commit, verifikasi penuh & QA belum; catatan §12.2). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
 > Dokumen ini tidak memuat data asli. Contoh nama/nomor fiktif.
 
 ## 1. Tujuan & prinsip
@@ -245,6 +245,15 @@ Data karyawan keluar **disimpan** (kewajiban ketenagakerjaan & pajak), akses dib
 - **Hapus** satu versi = hapus file di Storage + baris ditandai `deleted_at`; bila versi aktif, versi sebelumnya aktif kembali. Hapus jenis dokumen hanya bila belum pernah dipakai & bukan padanan wizard onboarding (`legacy_type`) — selain itu arsipkan.
 - **Lampiran**: `employee_documents.training_id` (sertifikat: K3, POP, POM, POU, SIO, sertifikat lain) & `history_id` (SK) — item dihapus → tautan dilepas, dokumen tetap.
 - **Belum**: unggah oleh karyawan (`employee_can_upload`, status `PENDING_REVIEW`) menunggu gelombang 1c (pengajuan); laporan kelengkapan dokumen (`required_scope`) di gelombang 3; kolom enum lama `type` dilepas (contract) setelah semua pembaca pindah.
+
+### 12.2 Catatan implementasi gelombang 1c (2026-10-05)
+
+- **Bagian pengajuan**: Data pribadi (tanpa nama & jenis kelamin — diubah HR lewat data kerja), Kontak darurat, Data keluarga, Rekening bank (wajib lampiran buku tabungan), Dokumen (jenis yang `employee_can_upload`). Skema isian memakai skema bagian wizard onboarding agar aturan format sama.
+- **Satu pengajuan menunggu** per karyawan per bagian (index unik parsial; Dokumen boleh beberapa sekaligus). Pemilik dapat membatalkan selama `PENDING`.
+- **Keputusan**: SA atau HR ber-grant `employee.changes.review` dalam cakupan PT; bagian sensitif tetap butuh grant bagian itu. Pemilik tidak memeriksa pengajuannya sendiri (403); di luar cakupan → 404. Setuju = perubahan diterapkan dalam satu transaksi, nilai lama disimpan di `previous`; dokumen berlampiran menjadi versi aktif terverifikasi; tolak = lampiran dibuang dari Storage.
+- **Notifikasi & email** hanya menyebut nama bagian, tanpa isi data (PROMPT §3.7). Semua aksi diaudit `employee.data_change.*`.
+- **Arsip Keluarga & Bank**: tabel lintas karyawan sensitif, hanya SA / pemegang grant baca; setiap pembacaan diaudit. Buku tabungan tampil di tab Rekening detail karyawan.
+- **Belum**: verifikasi penuh (typecheck/lint/boundaries/test/build) dan QA lokal (plan/run/Playwright) setelah commit — sesi 2026-10-07 di Windows tidak bisa menjalankannya karena `node_modules` dipasang dari Linux.
 
 Setiap paket: migrasi tambah-saja, policy TDD (matriks §8), integration test (sukses/400/401/403/404 cakupan PT), web test, QA lokal + staging, dokumen QA, arsip Drive bila LEGIT. Fase 5 Time Management bisa disisipkan di antara gelombang sesuai prioritas pemilik projek.
 
