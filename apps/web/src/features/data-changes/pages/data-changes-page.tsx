@@ -166,7 +166,7 @@ export function DataChangesPage() {
                 setSearch(value);
                 setPage(1);
               }}
-              placeholder="Cari nama atau nomor induk…"
+              placeholder="Cari nama atau NIP…"
               aria-label="Cari pengajuan"
             />
             <FormSelect

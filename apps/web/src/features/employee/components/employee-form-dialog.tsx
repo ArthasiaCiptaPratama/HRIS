@@ -231,7 +231,7 @@ export function EmployeeFormDialog({
           <div className="max-h-[calc(92dvh-11rem)] space-y-7 overflow-y-auto px-6 py-6">
             <FormSection title="Identitas">
               <FormField
-                label="Nomor induk karyawan"
+                label="NIP (nomor induk pegawai)"
                 error={errors.employeeNumber?.message}
                 htmlFor="f-number"
               >

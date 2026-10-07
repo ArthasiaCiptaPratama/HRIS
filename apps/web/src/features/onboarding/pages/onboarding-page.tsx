@@ -310,7 +310,7 @@ export function OnboardingPage() {
               setSearch(value);
               setPage(1);
             }}
-            placeholder="Cari nama, nomor induk, email…"
+            placeholder="Cari nama, NIP, email…"
             aria-label="Cari calon"
           />
         }

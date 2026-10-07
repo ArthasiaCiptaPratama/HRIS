@@ -79,7 +79,7 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
             <SearchField
               value={search}
               onChange={reset(setSearch)}
-              placeholder={`Cari nama, nomor induk, ${config.noun}…`}
+              placeholder={`Cari nama, NIP, ${config.noun}…`}
               aria-label={`Cari ${config.noun}`}
             />
             <FormSelect

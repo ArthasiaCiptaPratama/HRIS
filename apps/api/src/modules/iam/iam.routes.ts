@@ -67,7 +67,7 @@ const routes = {
     path: `${P}/auth/password-reset`,
     tags: ["IAM"],
     summary:
-      "Lupa password (publik): NIK atau email → tautan ke email pribadi; respons selalu sama",
+      "Lupa password (publik): NIP atau email → tautan ke email pribadi; respons selalu sama",
     request: {
       body: {
         content: { "application/json": { schema: passwordResetBodySchema } },

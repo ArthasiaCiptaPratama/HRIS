@@ -271,7 +271,7 @@ export const employeeFormSchema = z.object({
   employeeNumber: z
     .string()
     .trim()
-    .min(1, "Nomor induk wajib diisi.")
+    .min(1, "NIP wajib diisi.")
     .max(30, "Maksimal 30 karakter.")
     .regex(/^[A-Za-z0-9./-]+$/, "Hanya huruf, angka, titik, garis miring, dan tanda hubung."),
   fullName: z.string().trim().min(2, "Nama minimal 2 karakter.").max(150),

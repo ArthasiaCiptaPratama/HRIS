@@ -256,7 +256,7 @@ function rethrowUnique(error: unknown): never {
     throw new ConflictError(
       target.includes("work_email") || target.includes("workEmail")
         ? "Email kantor sudah dipakai karyawan lain."
-        : "Nomor induk karyawan sudah dipakai.",
+        : "NIP sudah dipakai.",
     );
   }
   throw error;

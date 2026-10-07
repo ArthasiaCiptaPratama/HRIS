@@ -36,9 +36,7 @@ export async function applyNikLogin(
   const address = loginEmailFor(employeeNumber, deps.domain);
   if (account.loginEmail === address) return "unchanged";
   if (await repository.findAccountUsingAddress(tx, address, account.id)) {
-    throw new BusinessRuleError(
-      "Alamat login NIK bentrok dengan akun lain. Periksa nomor induk karyawan.",
-    );
+    throw new BusinessRuleError("Alamat login NIP bentrok dengan akun lain. Periksa NIP karyawan.");
   }
   await repository.setLoginEmail(tx, account.id, address);
   await deps.authAdmin.updateUserEmail(account.authUserId, address);

@@ -58,7 +58,7 @@ export function EmployeePicker({
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari nama atau nomor induk…"
+            placeholder="Cari nama atau NIP…"
             aria-label="Cari karyawan"
             className="h-9 pl-9"
           />

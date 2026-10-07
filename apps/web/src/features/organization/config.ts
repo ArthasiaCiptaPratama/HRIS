@@ -28,7 +28,7 @@ export const MASTER_DATA_PAGES: MasterDataPageConfig[] = [
     noun: "perusahaan",
     icon: Building2,
     description:
-      "Perusahaan dalam grup (D-039). Kode dipakai di nomor induk karyawan dan terkunci setelah ada karyawan.",
+      "Perusahaan dalam grup (D-039). Kode dipakai di NIP karyawan dan terkunci setelah ada karyawan.",
   },
   {
     kind: "departments",

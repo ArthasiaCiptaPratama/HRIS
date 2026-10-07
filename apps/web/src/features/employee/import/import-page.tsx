@@ -370,7 +370,7 @@ export function ImportEmployeesPage() {
                   selected={mode === "CREATE_ONLY"}
                   onSelect={() => setMode("CREATE_ONLY")}
                   title="Tambah baru saja"
-                  description="Karyawan yang nomor induknya sudah ada dilewati."
+                  description="Karyawan yang NIP-nya sudah ada dilewati."
                 />
               </div>
             </div>

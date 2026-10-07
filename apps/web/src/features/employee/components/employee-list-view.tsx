@@ -297,7 +297,7 @@ export function EmployeeListView({
             ref={searchRef}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari nama, nomor induk, email…"
+            placeholder="Cari nama, NIP, email…"
             aria-label="Cari karyawan"
             className="h-9 pr-9 pl-9 sm:pr-16"
           />

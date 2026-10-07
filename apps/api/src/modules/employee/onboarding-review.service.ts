@@ -307,7 +307,7 @@ async function notifyOwner(row: Row, input: OnboardingDecisionBody, nikLogin: bo
       ? {
           title: "Data Anda diterima",
           body: nikLogin
-            ? `HR telah menyetujui data Anda. Mulai sekarang masuk ke Akselerasi Arthasia dengan NIK ${row.employeeNumber} dan password Anda (email tidak lagi dipakai untuk masuk).`
+            ? `HR telah menyetujui data Anda. Mulai sekarang masuk ke Akselerasi Arthasia dengan NIP ${row.employeeNumber} dan password Anda (email tidak lagi dipakai untuk masuk).`
             : "HR telah menyetujui data Anda. Silakan masuk ke aplikasi Akselerasi Arthasia.",
           link: "/ess",
         }

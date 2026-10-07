@@ -532,7 +532,7 @@ export async function updateItem(
             const total = (await employeeSupport().countByMasterRef("company")).get(id)?.total ?? 0;
             if (total > 0) {
               throw new BusinessRuleError(
-                "Kode perusahaan tidak bisa diubah karena sudah dipakai karyawan (nomor induk).",
+                "Kode perusahaan tidak bisa diubah karena sudah dipakai karyawan (NIP).",
               );
             }
           }

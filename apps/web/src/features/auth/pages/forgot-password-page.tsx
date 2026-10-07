@@ -56,7 +56,7 @@ export function ForgotPasswordPage() {
             </Alert>
           ) : null}
           <div className="space-y-2">
-            <Label htmlFor="identifier">{nik ? "NIK atau email" : "Email"}</Label>
+            <Label htmlFor="identifier">{nik ? "NIP atau email" : "Email"}</Label>
             <Input
               id="identifier"
               autoComplete="username"

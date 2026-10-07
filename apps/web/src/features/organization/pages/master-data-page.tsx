@@ -578,8 +578,8 @@ function MasterDataFormDialog({
                 }),
                 {
                   hint: codeLocked
-                    ? "Terkunci: sudah dipakai nomor induk karyawan."
-                    : "2–10 huruf besar/angka; dipakai di nomor induk (mis. 25.11.ACP.023).",
+                    ? "Terkunci: sudah dipakai NIP karyawan."
+                    : "2–10 huruf besar/angka; dipakai di NIP (mis. 25.11.ACP.023).",
                 },
               )
             : null}

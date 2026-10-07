@@ -63,14 +63,14 @@ export function LoginPage() {
     const email = resolveLoginEmail(identifier, env.VITE_LOGIN_EMAIL_DOMAIN);
     if (!email) {
       form.setError("identifier", {
-        message: nik ? "Masukkan NIK atau email yang valid." : "Email tidak valid.",
+        message: nik ? "Masukkan NIP atau email yang valid." : "Email tidak valid.",
       });
       return;
     }
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     // Pesan generik: tidak membedakan akun tidak terdaftar vs password salah.
     if (signInError)
-      setError(`${nik ? "NIK/email" : "Email"} atau password salah, atau akun belum aktif.`);
+      setError(`${nik ? "NIP/email" : "Email"} atau password salah, atau akun belum aktif.`);
   });
 
   return (
@@ -78,7 +78,7 @@ export function LoginPage() {
       title="Masuk ke Akselerasi Arthasia"
       description={
         nik
-          ? "Gunakan NIK (nomor induk karyawan) atau email, dan password akun Anda."
+          ? "Gunakan NIP (nomor induk pegawai) atau email, dan password akun Anda."
           : "Gunakan email dan password akun Anda."
       }
     >
@@ -89,7 +89,7 @@ export function LoginPage() {
           </Alert>
         ) : null}
         <div className="space-y-2">
-          <Label htmlFor="identifier">{nik ? "NIK atau email" : "Email"}</Label>
+          <Label htmlFor="identifier">{nik ? "NIP atau email" : "Email"}</Label>
           <Input
             id="identifier"
             autoComplete="username"

@@ -547,7 +547,7 @@ export function OnboardingImportPage() {
                   <th className="p-2">Calon</th>
                   <th className="p-2">Jabatan</th>
                   <th className="p-2">Tanggal masuk</th>
-                  <th className="p-2">Nomor induk</th>
+                  <th className="p-2">NIP</th>
                   <th className="p-2">Catatan</th>
                 </tr>
               </thead>
@@ -591,7 +591,7 @@ export function OnboardingImportPage() {
                       </td>
                       <td className="min-w-44 p-2">
                         <Input
-                          aria-label={`Nomor induk ${c.row.fullName}`}
+                          aria-label={`NIP ${c.row.fullName}`}
                           className="font-mono"
                           placeholder="Otomatis saat pratinjau"
                           value={c.employeeNumber}
@@ -628,7 +628,7 @@ export function OnboardingImportPage() {
               disabled={!workReady || runPreview.isPending}
               onClick={doPreview}
             >
-              {runPreview.isPending ? "Memeriksa…" : "Pratinjau & isi nomor induk"}
+              {runPreview.isPending ? "Memeriksa…" : "Pratinjau & isi NIP"}
             </Button>
             <Button
               variant="brand"
@@ -659,7 +659,7 @@ export function OnboardingImportPage() {
                   </th>
                   <th className="p-2">Nama</th>
                   <th className="p-2">Email tujuan</th>
-                  <th className="p-2">Nomor induk</th>
+                  <th className="p-2">NIP</th>
                   <th className="p-2">Tanggal masuk</th>
                 </tr>
               </thead>

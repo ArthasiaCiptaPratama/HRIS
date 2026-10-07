@@ -162,8 +162,8 @@ export function MappingStep({
         <Alert variant="destructive">
           <TriangleAlert />
           <AlertDescription>
-            Kolom <strong>Nomor induk karyawan</strong> wajib dipetakan — dipakai untuk mengenali
-            karyawan yang sudah ada.
+            Kolom <strong>NIP (nomor induk pegawai)</strong> wajib dipetakan — dipakai untuk
+            mengenali karyawan yang sudah ada.
           </AlertDescription>
         </Alert>
       ) : null}

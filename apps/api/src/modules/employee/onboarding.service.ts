@@ -58,8 +58,8 @@ const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const ISSUE_MESSAGES: Record<string, string> = {
   EMAIL_DUPLICATE_IN_BATCH: "Email pribadi ganda di daftar ini.",
   EMAIL_TAKEN: "Email sudah dipakai karyawan atau akun lain.",
-  NUMBER_DUPLICATE_IN_BATCH: "Nomor induk ganda di daftar ini.",
-  NUMBER_TAKEN: "Nomor induk sudah dipakai.",
+  NUMBER_DUPLICATE_IN_BATCH: "NIP ganda di daftar ini.",
+  NUMBER_TAKEN: "NIP sudah dipakai.",
   COMPANY_OUT_OF_SCOPE: "Perusahaan di luar cakupan akun Anda.",
   COMPANY_INVALID: "Perusahaan tidak ditemukan atau diarsipkan.",
   STATUS_INVALID: "Status kepegawaian tidak ditemukan atau diarsipkan.",
@@ -67,7 +67,7 @@ const ISSUE_MESSAGES: Record<string, string> = {
   LOCATION_INVALID: "Lokasi kerja tidak ditemukan atau diarsipkan.",
   GRADE_INVALID: "Grade tidak ditemukan atau diarsipkan.",
   MANAGER_INVALID: "Atasan harus karyawan aktif yang memiliki akun Manager/Super Admin.",
-  NUMBER_REQUIRED: "Nomor induk wajib diisi.",
+  NUMBER_REQUIRED: "NIP wajib diisi.",
 };
 
 function assertCanRun(actor: Actor) {
@@ -318,7 +318,7 @@ export async function createBatch(
       error !== null &&
       (error as { code?: string }).code === "P2002"
     ) {
-      throw new ConflictError("Nomor induk atau email sudah dipakai. Muat ulang pratinjau.");
+      throw new ConflictError("NIP atau email sudah dipakai. Muat ulang pratinjau.");
     }
     throw error;
   }

@@ -31,6 +31,6 @@ export function resolveLoginEmail(input: string, domain: string | undefined): st
 }
 
 export const passwordResetBodySchema = z.object({
-  identifier: z.string().trim().min(1, "Isi NIK atau email.").max(254),
+  identifier: z.string().trim().min(1, "Isi NIP atau email.").max(254),
 });
 export type PasswordResetBody = z.infer<typeof passwordResetBodySchema>;

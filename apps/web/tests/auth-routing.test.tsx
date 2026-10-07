@@ -92,31 +92,31 @@ describe("halaman login", () => {
     renderAt("/login");
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Masuk" }));
-    expect(await screen.findByText("Isi NIK atau email.")).toBeInTheDocument();
+    expect(await screen.findByText("Isi NIP atau email.")).toBeInTheDocument();
     expect(supabaseMock.auth.signInWithPassword).not.toHaveBeenCalled();
 
-    await user.type(screen.getByLabelText("NIK atau email"), "Budi@Example.test");
+    await user.type(screen.getByLabelText("NIP atau email"), "Budi@Example.test");
     await user.type(screen.getByLabelText("Password"), "salah-password");
     await user.click(screen.getByRole("button", { name: "Masuk" }));
-    expect(await screen.findByText(/NIK\/email atau password salah/)).toBeInTheDocument();
+    expect(await screen.findByText(/NIP\/email atau password salah/)).toBeInTheDocument();
     expect(supabaseMock.auth.signInWithPassword).toHaveBeenCalledWith({
       email: "budi@example.test",
       password: "salah-password",
     });
   });
 
-  it("D-048: NIK dipetakan ke alamat login turunan; masukan tidak sah ditolak di client", async () => {
+  it("D-048: NIP dipetakan ke alamat login turunan; masukan tidak sah ditolak di client", async () => {
     mockApi({});
     renderAt("/login");
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("NIK atau email"), "bukan nik!");
+    await user.type(await screen.findByLabelText("NIP atau email"), "bukan nik!");
     await user.type(screen.getByLabelText("Password"), "rahasia-panjang");
     await user.click(screen.getByRole("button", { name: "Masuk" }));
-    expect(await screen.findByText("Masukkan NIK atau email yang valid.")).toBeInTheDocument();
+    expect(await screen.findByText("Masukkan NIP atau email yang valid.")).toBeInTheDocument();
     expect(supabaseMock.auth.signInWithPassword).not.toHaveBeenCalled();
 
-    await user.clear(screen.getByLabelText("NIK atau email"));
-    await user.type(screen.getByLabelText("NIK atau email"), "25.11.ACP.023");
+    await user.clear(screen.getByLabelText("NIP atau email"));
+    await user.type(screen.getByLabelText("NIP atau email"), "25.11.ACP.023");
     await user.click(screen.getByRole("button", { name: "Masuk" }));
     await waitFor(() =>
       expect(supabaseMock.auth.signInWithPassword).toHaveBeenCalledWith({
@@ -126,11 +126,11 @@ describe("halaman login", () => {
     );
   });
 
-  it("lupa password lewat API (NIK/email); pesan selalu sama", async () => {
+  it("lupa password lewat API (NIP/email); pesan selalu sama", async () => {
     const fetchMock = mockApi({ "/auth/password-reset": [200, { data: { accepted: true } }] });
     renderAt("/lupa-password");
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText("NIK atau email"), "25.11.ACP.023");
+    await user.type(await screen.findByLabelText("NIP atau email"), "25.11.ACP.023");
     await user.click(screen.getByRole("button", { name: "Kirim tautan" }));
     expect(await screen.findByText(/Jika akun tersebut terdaftar/)).toBeInTheDocument();
     const [url, init] = fetchMock.mock.calls.at(-1) as unknown as [string, RequestInit];

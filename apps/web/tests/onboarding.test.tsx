@@ -216,7 +216,7 @@ describe("Penerimaan Karyawan Baru (D-045)", () => {
     await user.click(await screen.findByRole("option", { name: /Operasional/ }));
     await user.click(screen.getByLabelText("Jabatan"));
     await user.click(await screen.findByRole("option", { name: "Operator" }));
-    await user.click(screen.getByRole("button", { name: /Pratinjau & isi nomor induk/ }));
+    await user.click(screen.getByRole("button", { name: /Pratinjau & isi NIP/ }));
     expect(await screen.findByDisplayValue("25.11.ACP.021")).toBeInTheDocument();
     // Regresi QA 2026-10-02: ubah tanggal masuk bawaan → semua baris ikut, nomor usulan & pratinjau
     // lama dibatalkan (nomor induk bergantung pada tanggal masuk).
@@ -226,7 +226,7 @@ describe("Penerimaan Karyawan Baru (D-045)", () => {
     expect(screen.getByLabelText("Tanggal masuk Ani Calon")).toHaveValue("2026-12-01");
     expect(screen.queryByDisplayValue("25.11.ACP.021")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Lanjut ke konfirmasi/ })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: /Pratinjau & isi nomor induk/ }));
+    await user.click(screen.getByRole("button", { name: /Pratinjau & isi NIP/ }));
     expect(await screen.findByDisplayValue("25.11.ACP.021")).toBeInTheDocument();
     const lastPreview = calls.filter((c) => c.path === "/onboarding-batches/preview").at(-1)
       ?.body as { candidates: { joinDate: string }[] };
