@@ -2,6 +2,7 @@
 // Dijalankan di web (pratinjau) dan di api (validasi ulang, sumber kebenaran).
 
 import type { EducationLevel, EmploymentCategory, Gender, PtkpStatus } from "../employee.ts";
+import type { DrivingLicenseType } from "../personal-fields.ts";
 import type { ImportFieldKey } from "./fields.ts";
 import {
   type ImportMaritalStatus,
@@ -9,9 +10,11 @@ import {
   maritalFromPtkp,
   type Normalized,
   parseAccountNumber,
+  parseBloodTypeCell,
   parseBpjs,
   parseCompanyCode,
   parseDate,
+  parseDrivingLicenseCell,
   parseEducation,
   parseEmail,
   parseEmployeeNumber,
@@ -19,8 +22,10 @@ import {
   parseExitMarker,
   parseGender,
   parseMaritalStatus,
+  parseNationality,
   parseNik16,
   parseNpwp,
+  parseOptionalText,
   parsePhone,
   parsePtkp,
   parseReligion,
@@ -48,6 +53,8 @@ export interface NormalizedImportRow {
   workLocationName?: string;
   gradeName?: string;
   workEmail?: string;
+  /** D-059: email pribadi (unik). */
+  personalEmail?: string;
   phoneNumber?: string;
   emergencyPhone?: string;
   emergencyContactName?: string;
@@ -68,6 +75,12 @@ export interface NormalizedImportRow {
     bpjsHealthNumber?: string;
     ktpAddress?: string;
     domicileAddress?: string;
+    nickname?: string;
+    nationality?: string;
+    ethnicity?: string;
+    bloodType?: string;
+    drivingLicenseTypes?: DrivingLicenseType[];
+    drivingLicenseNumber?: string;
   };
   bank: { bankName?: string; accountNumber?: string; accountHolder?: string };
   education?: { level: EducationLevel; schoolName: string | null };
@@ -76,7 +89,13 @@ export interface NormalizedImportRow {
 }
 
 // Masalah yang hanya peringatan (baris tetap diimpor tanpa field itu).
-const WARNING_CODES = new Set(["BPJS_NOT_A_NUMBER", "UNKNOWN_RELIGION", "UNKNOWN_MARITAL_STATUS"]);
+const WARNING_CODES = new Set([
+  "BPJS_NOT_A_NUMBER",
+  "UNKNOWN_RELIGION",
+  "UNKNOWN_MARITAL_STATUS",
+  "UNKNOWN_BLOOD_TYPE",
+  "UNKNOWN_DRIVING_LICENSE",
+]);
 
 /**
  * Baris tanpa identitas (nama & nomor induk kosong) = baris sisa formula/format → dilewati diam-diam,
@@ -122,6 +141,7 @@ export function normalizeImportRow(raw: RawImportRow): {
   set("workLocationName", take("workLocationName", parseText(raw.workLocationName, 100)));
   set("gradeName", take("gradeName", parseText(raw.gradeName, 50)));
   set("workEmail", take("workEmail", parseEmail(raw.workEmail)));
+  set("personalEmail", take("personalEmail", parseEmail(raw.personalEmail)));
   set("phoneNumber", take("phoneNumber", parsePhone(raw.phoneNumber)));
   set("emergencyPhone", take("emergencyPhone", parsePhone(raw.emergencyPhone)));
   set(
@@ -174,6 +194,24 @@ export function normalizeImportRow(raw: RawImportRow): {
   setP("bpjsHealthNumber", take("bpjsHealthNumber", parseBpjs(raw.bpjsHealthNumber)));
   setP("ktpAddress", take("ktpAddress", parseText(raw.ktpAddress, 500)));
   setP("domicileAddress", take("domicileAddress", parseText(raw.domicileAddress, 500)));
+  setP("nickname", take("nickname", parseOptionalText(raw.nickname, 50)));
+  setP("nationality", take("nationality", parseNationality(raw.nationality)));
+  setP("ethnicity", take("ethnicity", parseOptionalText(raw.ethnicity, 50)));
+  setP("bloodType", take("bloodType", parseBloodTypeCell(raw.bloodType)));
+  const licenses = parseDrivingLicenseCell(raw.drivingLicenseTypes);
+  if (licenses) {
+    if (licenses.types.length > 0) p.drivingLicenseTypes = licenses.types;
+    if (licenses.unknown)
+      issues.push({
+        field: "drivingLicenseTypes",
+        code: "UNKNOWN_DRIVING_LICENSE",
+        severity: "WARNING",
+      });
+  }
+  setP(
+    "drivingLicenseNumber",
+    take("drivingLicenseNumber", parseOptionalText(raw.drivingLicenseNumber, 30)),
+  );
 
   const bankName = take("bankName", parseText(raw.bankName, 100));
   if (bankName) row.bank.bankName = bankName;
@@ -215,15 +253,19 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   UNKNOWN_GENDER: "Jenis kelamin tidak dikenali",
   UNKNOWN_RELIGION: "Agama tidak dikenali (dilewati)",
   UNKNOWN_MARITAL_STATUS: "Status pernikahan tidak dikenali (dilewati)",
+  UNKNOWN_BLOOD_TYPE: "Golongan darah tidak dikenali (A/B/AB/O ± rhesus; dilewati)",
+  UNKNOWN_DRIVING_LICENSE: "Sebagian jenis SIM tidak dikenali (dilewati)",
+  DUPLICATE_PERSONAL_EMAIL_IN_FILE: "Email pribadi ganda di dalam file",
+  PERSONAL_EMAIL_TAKEN: "Email pribadi sudah dipakai karyawan lain",
   UNKNOWN_PTKP: "Status PTKP tidak dikenali (TK/0–K/3)",
   UNKNOWN_EMPLOYMENT_STATUS: "Status karyawan tidak dikenali",
   INVALID_COMPANY_CODE: "Kode perusahaan tidak valid",
-  INVALID_EMPLOYEE_NUMBER: "Nomor induk hanya huruf, angka, titik, garis miring, tanda hubung",
+  INVALID_EMPLOYEE_NUMBER: "NIP hanya huruf, angka, titik, garis miring, tanda hubung",
   INVALID_ACCOUNT_NUMBER: "Nomor rekening harus 6–20 digit",
   BANK_NAME_REQUIRED: "Nama bank wajib bila nomor rekening diisi",
   TOO_LONG: "Terlalu panjang",
   EXIT_DATE_REQUIRED: "Tanggal keluar wajib untuk karyawan resign",
-  DUPLICATE_IN_FILE: "Nomor induk ganda di dalam file",
+  DUPLICATE_IN_FILE: "NIP ganda di dalam file",
   DUPLICATE_KTP_IN_FILE: "NIK KTP ganda di dalam file",
   DUPLICATE_EMAIL_IN_FILE: "Email ganda di dalam file",
   EXISTS_SKIPPED: "Sudah ada di sistem (mode tambah saja: dilewati)",
@@ -240,7 +282,7 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   EMAIL_TAKEN: "Email sudah dipakai karyawan lain",
   EXISTING_OUT_OF_SCOPE: "Karyawan ini ada di perusahaan di luar cakupan akun Anda",
   ONBOARDING_IN_PROGRESS:
-    "Nomor induk ini milik calon yang sedang onboarding (dikelola di menu Penerimaan Karyawan Baru)",
+    "NIP ini milik calon yang sedang onboarding (dikelola di menu Penerimaan Karyawan Baru)",
   SENSITIVE_OWN_ROW: "Data sensitif milik akun Anda sendiri tidak diubah lewat import",
   EXIT_BEFORE_JOIN: "Tanggal keluar sebelum tanggal masuk",
   MANAGER_NOT_FOUND: "Atasan tidak ditemukan",

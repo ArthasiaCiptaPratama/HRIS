@@ -520,3 +520,97 @@ describe("Riwayat & profil pemetaan", () => {
     ).toBe("VALIDATION_ERROR");
   });
 });
+
+// D-059: Sheet respons Google Form "Formulir Data Karyawan" → Import (jalur utama pendataan existing).
+describe("Field Formulir Data Karyawan (D-059)", () => {
+  const formRow = (n: string, extra: Record<string, unknown> = {}) =>
+    baseRow(n, {
+      // 2 + 10 + 4 = 16 digit, unik per run.
+      ktpNumber: `64${String(Number.parseInt(RUN, 36)).padStart(10, "0").slice(-10)}${n.slice(1).padStart(4, "0")}`,
+      personalEmail: `form.${RUN.toLowerCase()}.${n.toLowerCase()}@Example.test`,
+      nickname: "Dummy",
+      nationality: "WNI",
+      ethnicity: "Banjar",
+      bloodType: "o positif",
+      drivingLicenseTypes: "SIM A, C",
+      drivingLicenseNumber: "0000-0000-0301",
+      ...extra,
+    });
+
+  test("buat karyawan dengan email pribadi & data pribadi Form; ganda/terpakai ditolak; update jenis SIM", async () => {
+    const preview = await data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        sa.headers,
+        body([
+          row(2, formRow("F1")),
+          row(3, formRow("F2", { personalEmail: `form.${RUN.toLowerCase()}.f1@example.test` })),
+          row(4, formRow("F3", { bloodType: "Z", drivingLicenseTypes: "A, truk" })),
+        ]),
+      ),
+    );
+    expect(preview.rows[0].issues).toEqual([]);
+    expect(preview.rows[1].issues).toContainEqual({
+      field: "personalEmail",
+      code: "DUPLICATE_PERSONAL_EMAIL_IN_FILE",
+      severity: "ERROR",
+    });
+    expect(preview.rows[2].issues).toEqual([
+      { field: "bloodType", code: "UNKNOWN_BLOOD_TYPE", severity: "WARNING" },
+      { field: "drivingLicenseTypes", code: "UNKNOWN_DRIVING_LICENSE", severity: "WARNING" },
+    ]);
+
+    const ok = body([row(2, formRow("F1")), row(4, formRow("F3", { bloodType: "Z" }))]);
+    const okPreview = await data(await call("POST", "/employee-imports/preview", sa.headers, ok));
+    const saved = await call("POST", "/employee-imports", sa.headers, {
+      ...ok,
+      previewHash: okPreview.previewHash,
+    });
+    expect(saved.status).toBe(201);
+    const f1 = await prisma.employee.findFirstOrThrow({
+      where: { employeeNumber: NUM("F1") },
+      include: { personal: true },
+    });
+    expect(f1.personalEmail).toBe(`form.${RUN.toLowerCase()}.f1@example.test`);
+    expect(f1.personal).toMatchObject({
+      nickname: "Dummy",
+      nationality: "Indonesia",
+      ethnicity: "Banjar",
+      bloodType: "O+",
+      drivingLicenseTypes: ["A", "C"],
+      drivingLicenseNumber: "0000-0000-0301",
+    });
+
+    // Email pribadi milik karyawan lain → ditolak; jenis SIM berubah → hanya field itu yang berubah.
+    const next = await data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        sa.headers,
+        body([
+          row(2, {
+            employeeNumber: NUM("F3"),
+            personalEmail: `FORM.${RUN}.F1@example.test`,
+          }),
+          row(3, { employeeNumber: NUM("F1"), drivingLicenseTypes: "A, C, B1 Umum" }),
+        ]),
+      ),
+    );
+    expect(next.rows[0].issues).toContainEqual({
+      field: "personalEmail",
+      code: "PERSONAL_EMAIL_TAKEN",
+      severity: "ERROR",
+    });
+    expect(next.rows[1].changes).toEqual(["drivingLicenseTypes"]);
+    const same = await data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        sa.headers,
+        body([row(3, { employeeNumber: NUM("F1"), drivingLicenseTypes: "C, A" })]),
+      ),
+    );
+    expect(same.rows[0].changes).toEqual([]);
+  });
+});

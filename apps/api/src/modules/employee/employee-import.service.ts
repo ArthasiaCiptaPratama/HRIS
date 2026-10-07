@@ -77,6 +77,13 @@ const PERSONAL_KEYS = [
   "bpjsHealthNumber",
   "ktpAddress",
   "domicileAddress",
+  // D-059: field Formulir Data Karyawan.
+  "nickname",
+  "nationality",
+  "ethnicity",
+  "bloodType",
+  "drivingLicenseTypes",
+  "drivingLicenseNumber",
 ] as const;
 // Kunci data pribadi → field import (untuk daftar perubahan). maritalStatus bisa turunan PTKP.
 const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
@@ -93,6 +100,12 @@ const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
   bpjsHealthNumber: "bpjsHealthNumber",
   ktpAddress: "ktpAddress",
   domicileAddress: "domicileAddress",
+  nickname: "nickname",
+  nationality: "nationality",
+  ethnicity: "ethnicity",
+  bloodType: "bloodType",
+  drivingLicenseTypes: "drivingLicenseTypes",
+  drivingLicenseNumber: "drivingLicenseNumber",
 };
 
 const EXIT_REASON = {
@@ -164,10 +177,14 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   const emailOwners = await importRepo.findEmailOwners(
     normalized.flatMap((n) => (n.row.workEmail ? [n.row.workEmail] : [])),
   );
+  const personalEmailOwners = await importRepo.findPersonalEmailOwners(
+    normalized.flatMap((n) => (n.row.personalEmail ? [n.row.personalEmail] : [])),
+  );
 
   const seenNumber = new Set<string>();
   const seenKtp = new Set<string>();
   const seenEmail = new Set<string>();
+  const seenPersonalEmail = new Set<string>();
   const plans: RowPlan[] = normalized.map(({ sourceRow, row, issues }) => {
     const plan: RowPlan = { sourceRow, action: "CREATE", row, issues: [...issues], changes: [] };
     const number = row.employeeNumber;
@@ -184,6 +201,11 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       if (seenEmail.has(row.workEmail))
         plan.issues.push(issue("workEmail", "DUPLICATE_EMAIL_IN_FILE"));
       seenEmail.add(row.workEmail);
+    }
+    if (row.personalEmail) {
+      if (seenPersonalEmail.has(row.personalEmail))
+        plan.issues.push(issue("personalEmail", "DUPLICATE_PERSONAL_EMAIL_IN_FILE"));
+      seenPersonalEmail.add(row.personalEmail);
     }
     const existing = number ? existingByNumber.get(number) : undefined;
     if (existing) plan.existing = existing;
@@ -220,6 +242,12 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       emailOwners.get(row.workEmail) !== existing?.id
     )
       plan.issues.push(issue("workEmail", "EMAIL_TAKEN"));
+    if (
+      row.personalEmail &&
+      personalEmailOwners.has(row.personalEmail) &&
+      personalEmailOwners.get(row.personalEmail) !== existing?.id
+    )
+      plan.issues.push(issue("personalEmail", "PERSONAL_EMAIL_TAKEN"));
 
     if (existing) {
       const target = {
@@ -368,10 +396,16 @@ function diff(
   plan: RowPlan,
 ): ImportFieldKey[] {
   const changes: ImportFieldKey[] = [];
+  // Array (jenis SIM) dibandingkan isinya, bukan rujukannya.
+  const same = (a: unknown, b: unknown) =>
+    Array.isArray(a) || Array.isArray(b)
+      ? JSON.stringify(a ?? []) === JSON.stringify(b ?? [])
+      : a === b;
   const differs = (value: unknown, current: unknown) =>
-    value !== undefined && value !== (current ?? undefined);
+    value !== undefined && !same(value, current ?? undefined);
   if (differs(row.fullName, e.fullName)) changes.push("fullName");
   if (differs(row.workEmail, e.workEmail)) changes.push("workEmail");
+  if (differs(row.personalEmail, e.personalEmail)) changes.push("personalEmail");
   if (differs(row.phoneNumber, e.phoneNumber)) changes.push("phoneNumber");
   if (differs(row.emergencyPhone, e.emergencyPhone)) changes.push("emergencyPhone");
   if (differs(row.emergencyContactName, e.emergencyContactName))
@@ -473,6 +507,7 @@ export async function commit(
           employeeNumber: row.employeeNumber as string,
           fullName: row.fullName as string,
           workEmail: row.workEmail ?? null,
+          personalEmail: row.personalEmail ?? null,
           phoneNumber: row.phoneNumber ?? null,
           emergencyPhone: row.emergencyPhone ?? null,
           emergencyContactName: row.emergencyContactName ?? null,
@@ -561,6 +596,7 @@ export async function commit(
         await repository.updateEmployee(tx, e.id, {
           ...(has("fullName") ? { fullName: row.fullName } : {}),
           ...(has("workEmail") ? { workEmail: row.workEmail } : {}),
+          ...(has("personalEmail") ? { personalEmail: row.personalEmail } : {}),
           ...(has("phoneNumber") ? { phoneNumber: row.phoneNumber } : {}),
           ...(has("emergencyPhone") ? { emergencyPhone: row.emergencyPhone } : {}),
           ...(has("emergencyContactName")

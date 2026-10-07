@@ -234,6 +234,13 @@ function contentScores(p: ContentProfile): Partial<Record<ImportFieldKey, number
   };
 }
 
+const KTP_HEADER = /nomor induk kependudukan/i;
+const FORMS_TIMESTAMP = new Set(["stempel waktu", "timestamp", "cap waktu"]);
+const FORMS_ACCOUNT_EMAIL = new Set(["alamat email", "email address"]);
+
+// Kolom milik anggota keluarga: "(Anak 1)", "(Saudara Kandung 2)", "Nama Istri/Suami", "Nama Lengkap Ayah".
+const FAMILY_HEADER = /\b(anak|saudara|suami|istri|pasangan|ayah|ibu|orang tua)\b/i;
+
 // Field yang punya pola isi: isi yang jelas-jelas tidak cocok menurunkan skor header.
 const CONTENT_TYPED = new Set<ImportFieldKey>([
   "ktpNumber",
@@ -272,8 +279,35 @@ function headerScores(header: string): Partial<Record<ImportFieldKey, number>> {
  * header "STATUS" berisi TK/0…K/3 → ptkpStatus.
  */
 export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
+  // Ekspor Sheet respons Google Form: kolom pertama "Stempel waktu"/"Timestamp"; kolom otomatis
+  // "Alamat email" = akun Google pengisi, bukan email kantor → diabaikan.
+  const formsExport = FORMS_TIMESTAMP.has(normalizeHeader(detected.headers[0]));
+  // Header yang muncul lebih dari sekali (Sheet Form: "Pendidikan" ayah & ibu, "No. HP" karyawan &
+  // kontak darurat) kurang meyakinkan → skornya diturunkan supaya kalah dari header unik yang setara;
+  // kemunculan pertama tetap terpilih bila tidak ada pesaing (urutan kolom).
+  const headerCount = new Map<string, number>();
+  for (const h of detected.headers) {
+    if (FAMILY_HEADER.test(String(h ?? ""))) continue; // kolom keluarga diabaikan, bukan pesaing
+    const key = normalizeHeader(h);
+    headerCount.set(key, (headerCount.get(key) ?? 0) + 1);
+  }
   const columns = detected.headers.map((header, column) => {
     const values = detected.rows.map((row) => row.cells[column] ?? null);
+    // D-059 (Sheet respons Google Form): kolom berisi tautan (unggahan file di Drive) dan kolom milik
+    // anggota keluarga — "Nama Lengkap (Anak 1)", "Pendidikan (Saudara Kandung 2)" — bukan data
+    // karyawan; isi kurung dibuang normalizeHeader, jadi dicek dari header asli.
+    const linkColumn =
+      profile(values).ratio((v) => /^https?:\/\//i.test(String(v ?? "").trim())) >= 0.5;
+    const familyColumn = FAMILY_HEADER.test(String(header ?? ""));
+    const formsAccountColumn = formsExport && FORMS_ACCOUNT_EMAIL.has(normalizeHeader(header));
+    if (linkColumn || familyColumn || formsAccountColumn) {
+      return {
+        column,
+        header,
+        derived: false,
+        combined: {} as Partial<Record<ImportFieldKey, number>>,
+      };
+    }
     const derived = DERIVED.has(normalizeHeader(header));
     const byHeader = headerScores(header);
     const byContent = contentScores(profile(values));
@@ -296,6 +330,17 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
     if ((byHeader.employeeNumber ?? 0) >= 0.8 && (byContent.ktpNumber ?? 0) >= 0.6) {
       combined.ktpNumber = 1;
       combined.employeeNumber = 0;
+    }
+    // Header menyebut kependudukan/KTP secara eksplisit (mis. "NIK (Nomor Induk Kependudukan)") = NIK KTP
+    // walau isinya belum berformat (isi salah tetap ditandai saat pratinjau).
+    if (KTP_HEADER.test(String(header ?? ""))) {
+      combined.ktpNumber = 1;
+      combined.employeeNumber = 0;
+    }
+    if ((headerCount.get(normalizeHeader(header)) ?? 0) > 1) {
+      for (const key of Object.keys(combined) as ImportFieldKey[]) {
+        combined[key] = (combined[key] ?? 0) - 0.25;
+      }
     }
     return { column, header, derived, combined };
   });

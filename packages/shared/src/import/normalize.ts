@@ -2,6 +2,11 @@
 // web (pratinjau) dan api (sumber kebenaran). Hasil `undefined` = sel kosong; `{ issue }` = tidak valid.
 
 import type { EducationLevel, EmploymentCategory, Gender, PtkpStatus } from "../employee.ts";
+import {
+  type DrivingLicenseType,
+  parseBloodType,
+  parseDrivingLicenseTypes,
+} from "../personal-fields.ts";
 
 export type Normalized<T> = { value: T } | { issue: string } | undefined;
 
@@ -213,7 +218,9 @@ export function parseMaritalStatus(value: unknown): Normalized<ImportMaritalStat
   if (!key) return undefined;
   if (["belummenikah", "belumkawin", "lajang", "single", "tk", "tidakkawin"].includes(key))
     return { value: "SINGLE" };
-  if (["menikah", "kawin", "married", "k"].includes(key)) return { value: "MARRIED" };
+  // "Sudah Menikah" = pilihan Google Form Formulir Data Karyawan (D-059).
+  if (["menikah", "sudahmenikah", "kawin", "sudahkawin", "married", "k"].includes(key))
+    return { value: "MARRIED" };
   if (["cerai", "ceraihidup", "divorced"].includes(key)) return { value: "DIVORCED" };
   if (["ceraimati", "janda", "duda", "widowed"].includes(key)) return { value: "WIDOWED" };
   return { issue: "UNKNOWN_MARITAL_STATUS" };
@@ -342,4 +349,39 @@ export function parseText(value: unknown, max: number): Normalized<string> {
   const text = cleanText(numericText(value));
   if (!text) return undefined;
   return text.length <= max ? { value: text } : { issue: "TOO_LONG" };
+}
+
+// D-059: field Formulir Data Karyawan (Sheet respons Google Form → Import); parser di `personal-fields.ts`.
+const EMPTY_LIKE =
+  /^(-+|–|—|\.|tidak (ada|tahu|punya)|belum (ada|punya)|n\/?a|none|kosong|nihil)$/i;
+
+export function parseBloodTypeCell(value: unknown): Normalized<string> {
+  const text = cleanText(value);
+  if (!text || EMPTY_LIKE.test(text)) return undefined;
+  const parsed = parseBloodType(text);
+  return parsed ? { value: parsed } : { issue: "UNKNOWN_BLOOD_TYPE" };
+}
+
+/** Jenis SIM jamak; sebagian tidak dikenali → nilai yang dikenali + peringatan. */
+export function parseDrivingLicenseCell(
+  value: unknown,
+): { types: DrivingLicenseType[]; unknown: boolean } | undefined {
+  const text = cleanText(value);
+  if (!text || EMPTY_LIKE.test(text)) return undefined;
+  const { types, unknown } = parseDrivingLicenseTypes(text);
+  return { types, unknown: unknown.length > 0 };
+}
+
+export function parseNationality(value: unknown): Normalized<string> {
+  const text = cleanText(value);
+  if (!text || EMPTY_LIKE.test(text)) return undefined;
+  if (text.length > 50) return { issue: "TOO_LONG" };
+  return { value: /^(wni|indonesia|warga negara indonesia)$/i.test(text) ? "Indonesia" : text };
+}
+
+/** Teks pendek opsional dengan isian kosong-semacam ("-", "tidak ada") dianggap kosong. */
+export function parseOptionalText(value: unknown, max: number): Normalized<string> {
+  const text = cleanText(value);
+  if (!text || EMPTY_LIKE.test(text)) return undefined;
+  return parseText(text, max);
 }

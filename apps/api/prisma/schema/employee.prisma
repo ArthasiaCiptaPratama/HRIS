@@ -273,29 +273,36 @@ model EmploymentHistory {
 
 // SENSITIF (PLAN §4.2 employee.personal.*): NIK KTP, NPWP, KK, lahir, alamat, status nikah, agama.
 model EmployeePersonal {
-  employeeId           String         @id @map("employee_id") @db.Uuid
-  employee             Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  ktpNumber            String?        @map("ktp_number") @db.VarChar(16)
-  npwpNumber           String?        @map("npwp_number") @db.VarChar(20)
+  employeeId           String               @id @map("employee_id") @db.Uuid
+  employee             Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  ktpNumber            String?              @map("ktp_number") @db.VarChar(16)
+  npwpNumber           String?              @map("npwp_number") @db.VarChar(20)
   // Tidak di ERD; tercantum di PLAN §4.2.
-  kkNumber             String?        @map("kk_number") @db.VarChar(16)
-  birthPlace           String?        @map("birth_place") @db.VarChar(100)
-  birthDate            DateTime?      @map("birth_date") @db.Date
-  ktpAddress           String?        @map("ktp_address")
-  domicileAddress      String?        @map("domicile_address")
-  maritalStatus        MaritalStatus? @map("marital_status")
+  kkNumber             String?              @map("kk_number") @db.VarChar(16)
+  birthPlace           String?              @map("birth_place") @db.VarChar(100)
+  birthDate            DateTime?            @map("birth_date") @db.Date
+  ktpAddress           String?              @map("ktp_address")
+  domicileAddress      String?              @map("domicile_address")
+  maritalStatus        MaritalStatus?       @map("marital_status")
   religion             Religion?
   // D-041 (sensitif, grant employee.personal.*): BPJS, PTKP, kota asal.
-  bpjsEmploymentNumber String?        @map("bpjs_employment_number") @db.VarChar(20)
-  bpjsHealthNumber     String?        @map("bpjs_health_number") @db.VarChar(20)
-  ptkpStatus           PtkpStatus?    @map("ptkp_status")
-  originCity           String?        @map("origin_city") @db.VarChar(100)
+  bpjsEmploymentNumber String?              @map("bpjs_employment_number") @db.VarChar(20)
+  bpjsHealthNumber     String?              @map("bpjs_health_number") @db.VarChar(20)
+  ptkpStatus           PtkpStatus?          @map("ptkp_status")
+  originCity           String?              @map("origin_city") @db.VarChar(100)
   // D-045 b: "belum punya" (nomor kosong) — wajib diisi nomor ATAU dicentang di wizard onboarding.
-  npwpAbsent           Boolean        @default(false) @map("npwp_absent")
-  bpjsEmploymentAbsent Boolean        @default(false) @map("bpjs_employment_absent")
-  bpjsHealthAbsent     Boolean        @default(false) @map("bpjs_health_absent")
-  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  npwpAbsent           Boolean              @default(false) @map("npwp_absent")
+  bpjsEmploymentAbsent Boolean              @default(false) @map("bpjs_employment_absent")
+  bpjsHealthAbsent     Boolean              @default(false) @map("bpjs_health_absent")
+  // D-059: data pribadi tambahan dari Formulir Data Karyawan (Google Form). Suku = sensitif.
+  nickname             String?              @db.VarChar(50)
+  nationality          String?              @db.VarChar(50)
+  ethnicity            String?              @db.VarChar(50)
+  bloodType            String?              @map("blood_type") @db.VarChar(3)
+  drivingLicenseTypes  DrivingLicenseType[] @default([]) @map("driving_license_types")
+  drivingLicenseNumber String?              @map("driving_license_number") @db.VarChar(30)
+  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([ktpNumber])
   @@map("employee_personal")
@@ -726,5 +733,23 @@ model ImportMapping {
 
   @@unique([signature])
   @@map("import_mappings")
+  @@schema("employee")
+}
+
+// D-059: jenis SIM (Formulir Data Karyawan → Import), daftar baku jamak di `employee_personal`.
+
+enum DrivingLicenseType {
+  A
+  A_UMUM
+  B1
+  B1_UMUM
+  B2
+  B2_UMUM
+  C
+  C1
+  C2
+  D
+  D1
+
   @@schema("employee")
 }

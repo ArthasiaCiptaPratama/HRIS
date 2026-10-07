@@ -23,9 +23,11 @@ export interface ImportFieldDef {
 
 export const IMPORT_FIELDS = {
   employeeNumber: {
-    label: "Nomor induk karyawan",
+    label: "NIP (nomor induk pegawai)",
     section: "identity",
     synonyms: [
+      "nip",
+      "nomor induk pegawai",
       "nik",
       "nik karyawan",
       "no induk",
@@ -141,7 +143,15 @@ export const IMPORT_FIELDS = {
       "phone",
       "mobile",
       "no telepon",
+      "no telp",
+      "nomor telepon",
     ],
+  },
+  // D-059: email pribadi (tujuan undangan aplikasi & lupa password; unik).
+  personalEmail: {
+    label: "Email pribadi",
+    section: "contact",
+    synonyms: ["email pribadi", "alamat email pribadi", "personal email", "email aktif"],
   },
   emergencyPhone: {
     label: "Telepon kontak darurat",
@@ -153,12 +163,20 @@ export const IMPORT_FIELDS = {
       "telepon darurat",
       "emergency phone",
       "kontak darurat",
+      "no hp kontak darurat",
+      "no telp kontak darurat",
+      "nomor hp kontak darurat",
     ],
   },
   emergencyContactName: {
     label: "Nama kontak darurat",
     section: "contact",
-    synonyms: ["nama e cont", "nama kontak darurat", "emergency contact name"],
+    synonyms: [
+      "nama e cont",
+      "nama kontak darurat",
+      "nama lengkap kontak darurat",
+      "emergency contact name",
+    ],
   },
   emergencyContactRelationship: {
     label: "Hubungan kontak darurat",
@@ -166,6 +184,7 @@ export const IMPORT_FIELDS = {
     synonyms: [
       "hubungan e cont",
       "hubungan kontak darurat",
+      "hubungan",
       "emergency relationship",
       "relationship",
     ],
@@ -244,6 +263,43 @@ export const IMPORT_FIELDS = {
       "kis",
     ],
   },
+  // D-059: data pribadi tambahan dari Formulir Data Karyawan.
+  nickname: {
+    label: "Nama panggilan",
+    section: "personal",
+    synonyms: ["nama panggilan", "panggilan", "nickname", "nick name"],
+  },
+  nationality: {
+    label: "Kebangsaan",
+    section: "personal",
+    synonyms: ["kebangsaan", "kewarganegaraan", "warga negara", "nationality"],
+  },
+  ethnicity: {
+    label: "Suku",
+    section: "personal",
+    synonyms: ["suku", "suku bangsa", "etnis", "ethnicity", "tribe"],
+  },
+  bloodType: {
+    label: "Golongan darah",
+    section: "personal",
+    synonyms: ["golongan darah", "gol darah", "goldar", "blood type", "blood group"],
+  },
+  drivingLicenseTypes: {
+    label: "Jenis SIM",
+    section: "personal",
+    synonyms: [
+      "jenis sim",
+      "tipe sim",
+      "golongan sim",
+      "type of driving licenses",
+      "driving license type",
+    ],
+  },
+  drivingLicenseNumber: {
+    label: "No. SIM",
+    section: "personal",
+    synonyms: ["no sim", "nomor sim", "driving license no", "driving license number"],
+  },
   ktpAddress: {
     label: "Alamat KTP",
     section: "personal",
@@ -257,7 +313,13 @@ export const IMPORT_FIELDS = {
   educationText: {
     label: "Pendidikan terakhir",
     section: "education",
-    synonyms: ["pendidikan", "pendidikan terakhir", "education", "jenjang pendidikan"],
+    synonyms: [
+      "pendidikan",
+      "pendidikan terakhir",
+      "pendidikan terakhir pertama",
+      "education",
+      "jenjang pendidikan",
+    ],
   },
   bankName: {
     label: "Nama bank",
@@ -272,7 +334,7 @@ export const IMPORT_FIELDS = {
   bankAccountHolder: {
     label: "Atas nama rekening",
     section: "bank",
-    synonyms: ["atas nama", "nama pemilik rekening", "account holder"],
+    synonyms: ["atas nama", "nama pemilik rekening", "nama pemilik", "account holder"],
   },
   exitMarker: {
     label: "Keterangan (resign)",

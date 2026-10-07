@@ -45,6 +45,16 @@ export async function findEmailOwners(emails: string[]) {
   return new Map(rows.map((r) => [r.workEmail as string, r.id]));
 }
 
+/** D-059: pemilik email pribadi (unik, perbandingan huruf kecil). */
+export async function findPersonalEmailOwners(emails: string[]) {
+  if (emails.length === 0) return new Map<string, string>();
+  const rows = await getPrisma().employee.findMany({
+    where: { personalEmail: { in: emails, mode: "insensitive" } },
+    select: { personalEmail: true, id: true },
+  });
+  return new Map(rows.map((r) => [(r.personalEmail as string).toLowerCase(), r.id]));
+}
+
 export async function upsertPersonal(
   tx: EmployeeTx,
   employeeId: string,
