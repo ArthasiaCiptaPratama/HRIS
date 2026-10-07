@@ -1,7 +1,7 @@
 # Desain — Arsip Karyawan (Data Kontak … Riwayat Peringatan) & Laporan
 
 > Keputusan: **D-054** (bentuk menu Arsip & pengajuan perubahan data — menjawab **OD-6**), **D-055** (dokumen bermasa berlaku & jenis dokumen sebagai master data), **D-056** (aset inventaris + serah-terima), **D-057** (surat peringatan/SP), **D-058** (ekspor/impor/cetak per kategori & laporan awal) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Keputusan terbuka baru: **OD-11** (masa simpan data karyawan keluar).
-> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail) · **gelombang 1b [done] lokal 2026-10-05** (Data File: jenis dokumen master data, dokumen berversi & bermasa berlaku, tautan baca singkat, lampiran sertifikat/SK, cron `document-expiry`; catatan implementasi §12.1) · **gelombang 1c [wip] lokal 2026-10-05** (pengajuan perubahan data diri lewat ESS, antrean HR `/pengajuan-data`, Arsip Keluarga & Bank, buku tabungan; kode di-commit, verifikasi penuh & QA belum; catatan §12.2). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
+> Status: **gelombang 1a [done] lokal 2026-10-05** (Kontak, Pendidikan, Riwayat Jabatan, Pelatihan, Riwayat Kerja: tabel lintas karyawan + kelola di detail) · **gelombang 1b [done] lokal 2026-10-05** (Data File: jenis dokumen master data, dokumen berversi & bermasa berlaku, tautan baca singkat, lampiran sertifikat/SK, cron `document-expiry`; catatan implementasi §12.1) · **gelombang 1c [done] lokal 2026-10-05, QA lokal 19/19 2026-10-07** (pengajuan perubahan data diri lewat ESS, antrean HR `/pengajuan-data`, Arsip Keluarga & Bank, buku tabungan; kode di-commit, verifikasi penuh & QA lokal ✔ 2026-10-07; catatan §12.2). Gelombang lain: **RENCANA** (hasil grill pemilik projek 2026-10-05). Checklist: PROGRESS Fase 4 → "Arsip karyawan".
 > Dokumen ini tidak memuat data asli. Contoh nama/nomor fiktif.
 
 ## 1. Tujuan & prinsip
@@ -253,7 +253,7 @@ Data karyawan keluar **disimpan** (kewajiban ketenagakerjaan & pajak), akses dib
 - **Keputusan**: SA atau HR ber-grant `employee.changes.review` dalam cakupan PT; bagian sensitif tetap butuh grant bagian itu. Pemilik tidak memeriksa pengajuannya sendiri (403); di luar cakupan → 404. Setuju = perubahan diterapkan dalam satu transaksi, nilai lama disimpan di `previous`; dokumen berlampiran menjadi versi aktif terverifikasi; tolak = lampiran dibuang dari Storage.
 - **Notifikasi & email** hanya menyebut nama bagian, tanpa isi data (PROMPT §3.7). Semua aksi diaudit `employee.data_change.*`.
 - **Arsip Keluarga & Bank**: tabel lintas karyawan sensitif, hanya SA / pemegang grant baca; setiap pembacaan diaudit. Buku tabungan tampil di tab Rekening detail karyawan.
-- **Belum**: verifikasi penuh (typecheck/lint/boundaries/test/build) dan QA lokal (plan/run/Playwright) setelah commit — sesi 2026-10-07 di Windows tidak bisa menjalankannya karena `node_modules` dipasang dari Linux.
+- **Verifikasi (2026-10-07, Linux):** typecheck, biome, boundaries, `db:check`, test shared 140 · api 521 · web 199, build ✔; QA lokal Playwright 19/19 (`docs/qa/runs/2026-10-07-arsip-1c.md`). Staging menyusul (tidak dirilis).
 
 Setiap paket: migrasi tambah-saja, policy TDD (matriks §8), integration test (sukses/400/401/403/404 cakupan PT), web test, QA lokal + staging, dokumen QA, arsip Drive bila LEGIT. Fase 5 Time Management bisa disisipkan di antara gelombang sesuai prioritas pemilik projek.
 
