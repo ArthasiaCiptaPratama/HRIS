@@ -21,6 +21,9 @@ export async function findByEmployeeNumbers(numbers: string[]) {
       personal: true,
       bankAccount: true,
       educations: { select: { id: true, schoolName: true, level: true } },
+      // D-059: pencocokan impor ulang (tambah yang belum ada).
+      familyMembers: { select: { relationship: true, name: true } },
+      trainings: { select: { trainingField: true } },
     },
   });
 }
@@ -90,6 +93,17 @@ export async function upsertBank(
 
 export async function createEducation(tx: EmployeeTx, data: Prisma.EducationUncheckedCreateInput) {
   await tx.education.create({ data });
+}
+
+export async function createFamilyMember(
+  tx: EmployeeTx,
+  data: Prisma.FamilyMemberUncheckedCreateInput,
+) {
+  await tx.familyMember.create({ data });
+}
+
+export async function createTraining(tx: EmployeeTx, data: Prisma.TrainingUncheckedCreateInput) {
+  await tx.training.create({ data });
 }
 
 export async function createJob(

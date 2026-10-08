@@ -2,6 +2,7 @@
 // pemetaan kolom (sinonim + kemiripan teks + isi kolom) dengan skor keyakinan. Fungsi murni.
 
 import { DERIVED_HEADERS, IMPORT_FIELDS, type ImportFieldKey } from "./fields.ts";
+import { CERTIFICATIONS, type CertificationKey } from "./groups.ts";
 import {
   cleanText,
   normalizeHeader,
@@ -273,6 +274,126 @@ function headerScores(header: string): Partial<Record<ImportFieldKey, number>> {
   return scores;
 }
 
+// ── D-059: kolom berkelompok Formulir Data Karyawan ─────────────────────────────────────────
+
+type GroupContext =
+  | { kind: "spouse" }
+  | { kind: "parent"; who: "father" | "mother" }
+  | { kind: "education"; slot: number }
+  | { kind: "cert"; key: CertificationKey }
+  | { kind: "emergency" }
+  | null;
+
+const SLOT_ATTR: Record<string, string> = {
+  "nama lengkap": "Name",
+  "jenis kelamin": "Gender",
+  "tempat lahir": "BirthPlace",
+  "tanggal lahir": "BirthDate",
+  pendidikan: "Education",
+  usia: "Age",
+  pekerjaan: "Occupation",
+};
+const ORDINAL: Record<string, number> = { pertama: 1, kedua: 2, ketiga: 3 };
+// normalizeHeader membuang isi kurung di kedua sisi ("… Pertama (POP)" → "… pertama").
+const CERT_BY_TEXT = CERTIFICATIONS.map((c) => ({ key: c.key, text: normalizeHeader(c.name) }));
+
+/**
+ * Kolom berulang ekspor Sheet Form dikenali dari kolom penandanya: "Nama Istri/Suami" → kolom pasangan
+ * berikutnya; "Nama Lengkap Ayah/Ibu" → usia/pendidikan/pekerjaan; "(Anak n)"/"(Saudara Kandung n)" →
+ * slot; "Pendidikan Terakhir Pertama…Ketiga" → sekolah & tahun; nama sertifikasi → No. & tahun; kolom
+ * "Nama Lengkap" tepat sebelum "Hubungan" → kontak darurat. Header lain menutup kelompok.
+ */
+function formGroupMapping(headers: readonly GridCell[]): Map<number, ImportFieldKey> {
+  const result = new Map<number, ImportFieldKey>();
+  const raw = headers.map((h) =>
+    String(h ?? "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+  const norm = raw.map((h) => normalizeHeader(h));
+  let ctx: GroupContext = null;
+  const set = (column: number, field: string) => result.set(column, field as ImportFieldKey);
+  for (let i = 0; i < raw.length; i++) {
+    const h = raw[i] as string;
+    const n = norm[i] as string;
+    const slot = /\((anak|saudara kandung)\s*(\d)\)/i.exec(h);
+    const base = normalizeHeader(h.replace(/\(.*\)/, ""));
+    if (slot) {
+      const attr = SLOT_ATTR[base];
+      const prefix = slot[1]?.toLowerCase() === "anak" ? "child" : "sibling";
+      if (attr) set(i, `${prefix}${slot[2]}${attr}`);
+      ctx = null;
+      continue;
+    }
+    if (/\b(istri|suami)\b/i.test(h) && n.startsWith("nama")) {
+      set(i, "spouseName");
+      ctx = { kind: "spouse" };
+      continue;
+    }
+    const parent = /^nama lengkap (ayah|ibu)$/.exec(n);
+    if (parent) {
+      const who = parent[1] === "ayah" ? "father" : "mother";
+      set(i, `${who}Name`);
+      ctx = { kind: "parent", who };
+      continue;
+    }
+    const edu = /^pendidikan terakhir (pertama|kedua|ketiga)$/.exec(n);
+    if (edu) {
+      const slotNo = ORDINAL[edu[1] as string] as number;
+      set(i, `education${slotNo}Level`);
+      ctx = { kind: "education", slot: slotNo };
+      continue;
+    }
+    const cert = CERT_BY_TEXT.find((c) => n === c.text || n === `sertifikasi ${c.text}`);
+    if (cert) {
+      ctx = { kind: "cert", key: cert.key }; // kolom ini = unggahan file (tautan) → tidak dipetakan
+      continue;
+    }
+    const sim = /^no\.?\s*sim\s+(a|b1|b2|c|c1|c2|d|d1)(\s+umum)?$/i.exec(h);
+    if (sim) {
+      set(i, `simNumber${(sim[1] as string).toUpperCase()}${sim[2] ? "_UMUM" : ""}`);
+      ctx = null;
+      continue;
+    }
+    if (n === "hubungan") {
+      set(i, "emergencyContactRelationship");
+      if (norm[i - 1] === "nama lengkap" && !result.has(i - 1)) set(i - 1, "emergencyContactName");
+      ctx = { kind: "emergency" };
+      continue;
+    }
+    // Atribut di dalam kelompok aktif.
+    let field: string | undefined;
+    if (ctx?.kind === "spouse") {
+      field = {
+        pekerjaan: "spouseOccupation",
+        "alamat kerja": "spouseWorkAddress",
+        "tempat lahir": "spouseBirthPlace",
+        "tanggal lahir": "spouseBirthDate",
+      }[n];
+    } else if (ctx?.kind === "parent") {
+      const attr = { usia: "Age", pendidikan: "Education", pekerjaan: "Occupation" }[n];
+      if (attr) field = `${ctx.who}${attr}`;
+    } else if (ctx?.kind === "education") {
+      if (n.startsWith("nama sekolah")) field = `education${ctx.slot}School`;
+      else if (n === "tahun masuk") field = `education${ctx.slot}EntryYear`;
+      else if (n === "tahun lulus") field = `education${ctx.slot}GraduationYear`;
+    } else if (ctx?.kind === "cert") {
+      if (n === "no sertifikasi" || n === "nomor sertifikasi") field = `cert${ctx.key}Number`;
+      else if (n === "tahun terbit") field = `cert${ctx.key}Year`;
+    } else if (ctx?.kind === "emergency") {
+      field = {
+        "no hp": "emergencyPhone",
+        "no telp": "emergencyPhone",
+        "alamat lengkap": "emergencyContactAddress",
+        alamat: "emergencyContactAddress",
+      }[n];
+    }
+    if (field) set(i, field);
+    else ctx = null;
+  }
+  return result;
+}
+
 /**
  * Saran pemetaan kolom → field, satu-ke-satu (serakah dari skor tertinggi). Kolom turunan ditandai.
  * Kasus khusus file kantor: header "NIK" berisi nomor induk (bukan 16 digit) → employeeNumber;
@@ -282,6 +403,9 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
   // Ekspor Sheet respons Google Form: kolom pertama "Stempel waktu"/"Timestamp"; kolom otomatis
   // "Alamat email" = akun Google pengisi, bukan email kantor → diabaikan.
   const formsExport = FORMS_TIMESTAMP.has(normalizeHeader(detected.headers[0]));
+  // Kolom berkelompok Form (D-059): hanya untuk ekspor Form / file dengan ≥ 2 kolom penanda.
+  const grouped = formGroupMapping(detected.headers);
+  const useGroups = formsExport || new Set(grouped.values()).size >= 2;
   // Header yang muncul lebih dari sekali (Sheet Form: "Pendidikan" ayah & ibu, "No. HP" karyawan &
   // kontak darurat) kurang meyakinkan → skornya diturunkan supaya kalah dari header unik yang setara;
   // kemunculan pertama tetap terpilih bila tidak ada pesaing (urutan kolom).
@@ -299,6 +423,15 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
     const linkColumn =
       profile(values).ratio((v) => /^https?:\/\//i.test(String(v ?? "").trim())) >= 0.5;
     const familyColumn = FAMILY_HEADER.test(String(header ?? ""));
+    const groupField = useGroups ? grouped.get(column) : undefined;
+    if (groupField) {
+      return {
+        column,
+        header,
+        derived: false,
+        combined: { [groupField]: 1 } as Partial<Record<ImportFieldKey, number>>,
+      };
+    }
     const formsAccountColumn = formsExport && FORMS_ACCOUNT_EMAIL.has(normalizeHeader(header));
     if (linkColumn || familyColumn || formsAccountColumn) {
       return {
@@ -385,6 +518,20 @@ export function buildRawRows(
       if (field && !isEmpty(cell)) raw[field] = cell;
     });
     return { sourceRow: row.sourceRow, raw };
+  });
+}
+
+/**
+ * Kunci profil pemetaan per kolom: header ternormalisasi; kemunculan ke-2 dst. header yang sama diberi
+ * akhiran "#n" (Sheet Form: "Usia", "Pekerjaan", "Tahun Masuk" muncul berkali-kali, D-059).
+ */
+export function profileKeys(headers: readonly GridCell[]): string[] {
+  const seen = new Map<string, number>();
+  return headers.map((h) => {
+    const key = normalizeHeader(h);
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    return n === 1 ? key : `${key}#${n}`;
   });
 }
 

@@ -117,6 +117,17 @@ const personalSchema = z.object({
   bpjsHealthNumber: z.string().nullable(),
   ptkpStatus: ptkpStatusSchema.nullable(),
   originCity: z.string().nullable(),
+  // D-059 (Formulir Data Karyawan → Import).
+  personalEmail: z.string().nullable(),
+  nickname: z.string().nullable(),
+  nationality: z.string().nullable(),
+  ethnicity: z.string().nullable(),
+  bloodType: z.string().nullable(),
+  drivingLicenseTypes: z.array(z.string()),
+  drivingLicenseNumber: z.string().nullable(),
+  /** Nomor per jenis SIM, mis. {"A": "…"}. */
+  drivingLicenseNumbers: z.record(z.string(), z.string()).nullable(),
+  emergencyContactAddress: z.string().nullable(),
 });
 
 const familyMemberSchema = z.object({
@@ -126,6 +137,14 @@ const familyMemberSchema = z.object({
   address: z.string().nullable(),
   birthDate: isoDate.nullable(),
   phoneNumber: z.string().nullable(),
+  // D-059
+  gender: genderSchema.nullable(),
+  birthPlace: z.string().nullable(),
+  education: z.string().nullable(),
+  occupation: z.string().nullable(),
+  /** Usia saat didata (Form tidak menanyakan tanggal lahir orang tua/saudara). */
+  ageAtEntry: z.number().int().nullable(),
+  workAddress: z.string().nullable(),
 });
 
 const bankAccountSchema = z.object({
@@ -189,6 +208,7 @@ export const employeeDetailSchema = employeeListItemSchema
         major: z.string().nullable(),
         graduationYear: z.number().int().nullable(),
         level: educationLevelSchema.nullable(),
+        entryYear: z.number().int().nullable(),
       }),
     ),
     trainings: z.array(
@@ -205,6 +225,7 @@ export const employeeDetailSchema = employeeListItemSchema
         hours: z.number().int().nullable(),
         /** Rupiah; hanya ada untuk SA/HR. */
         cost: z.number().nullable().optional(),
+        certificateNumber: z.string().nullable(),
       }),
     ),
     workExperiences: z.array(

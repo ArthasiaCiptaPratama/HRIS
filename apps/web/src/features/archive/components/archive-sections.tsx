@@ -412,7 +412,16 @@ export function EducationSection({
                 {edu.schoolName}
               </>
             }
-            meta={[edu.major, edu.graduationYear ? `Lulus ${edu.graduationYear}` : null]
+            meta={[
+              edu.major,
+              edu.entryYear && edu.graduationYear
+                ? `${edu.entryYear}–${edu.graduationYear}`
+                : edu.graduationYear
+                  ? `Lulus ${edu.graduationYear}`
+                  : edu.entryYear
+                    ? `Masuk ${edu.entryYear}`
+                    : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
             actions={
@@ -489,6 +498,7 @@ function trainingMeta(t: Training) {
           : null;
   return [
     t.type ? TRAINING_TYPE_LABELS[t.type] : null,
+    t.certificateNumber ? `No. ${t.certificateNumber}` : null,
     t.organizer,
     period,
     t.hours ? `${t.hours} jam` : t.duration,

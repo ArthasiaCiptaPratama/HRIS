@@ -1,27 +1,13 @@
+import { GROUP_IMPORT_FIELDS, type GroupFieldKey } from "./groups.ts";
+
 // D-042: kamus field import karyawan — satu sumber untuk deteksi kolom (web), normalisasi & validasi
 // (web + api), dan penyaringan kolom sensitif (api). Menambah field = tambah entri di sini + normalizer.
 
-/** Bagian tujuan data. `personal`/`bank` = sensitif (PLAN §4.2, grant `*.write`). */
-export type ImportSection =
-  | "identity"
-  | "work"
-  | "contact"
-  | "personal"
-  | "bank"
-  | "education"
-  | "exit"
-  | "contract";
+import type { ImportFieldDef } from "./types.ts";
 
-export interface ImportFieldDef {
-  label: string;
-  section: ImportSection;
-  /** Sinonim header (sudah dinormalisasi: huruf kecil, tanpa tanda baca/isi kurung). */
-  synonyms: readonly string[];
-  /** Belum punya tempat di DB (Fase 7): dipakai sebagai petunjuk, tidak disimpan. */
-  notStored?: boolean;
-}
+export type { ImportFieldDef, ImportSection } from "./types.ts";
 
-export const IMPORT_FIELDS = {
+const BASE_IMPORT_FIELDS = {
   employeeNumber: {
     label: "NIP (nomor induk pegawai)",
     section: "identity",
@@ -374,6 +360,9 @@ export const IMPORT_FIELDS = {
   },
 } as const satisfies Record<string, ImportFieldDef>;
 
+export const IMPORT_FIELDS: Record<keyof typeof BASE_IMPORT_FIELDS, ImportFieldDef> &
+  Record<GroupFieldKey, ImportFieldDef> = { ...BASE_IMPORT_FIELDS, ...GROUP_IMPORT_FIELDS };
+
 export type ImportFieldKey = keyof typeof IMPORT_FIELDS;
 export const IMPORT_FIELD_KEYS = Object.keys(IMPORT_FIELDS) as ImportFieldKey[];
 
@@ -397,7 +386,7 @@ export function fieldPermission(
   key: ImportFieldKey,
 ): "employee.personal.write" | "employee.bank.write" | null {
   const section = IMPORT_FIELDS[key].section;
-  if (section === "personal") return "employee.personal.write";
+  if (section === "personal" || section === "family") return "employee.personal.write";
   if (section === "bank") return "employee.bank.write";
   return null;
 }

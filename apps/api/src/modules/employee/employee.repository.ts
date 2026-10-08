@@ -82,7 +82,15 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
     await Promise.all([
       prisma.education.findMany({
         where: { employeeId: id },
-        select: { id: true, schoolName: true, major: true, graduationYear: true, level: true },
+        select: {
+          id: true,
+          schoolName: true,
+          major: true,
+          graduationYear: true,
+          level: true,
+          // D-059
+          entryYear: true,
+        },
         orderBy: [{ graduationYear: "desc" }, { createdAt: "desc" }],
       }),
       prisma.training.findMany({
@@ -99,6 +107,8 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
           endDate: true,
           hours: true,
           cost: true,
+          // D-059: nomor sertifikat (sertifikasi dari Formulir Data Karyawan).
+          certificateNumber: true,
         },
         orderBy: [{ trainingYear: "desc" }, { createdAt: "desc" }],
       }),
@@ -118,6 +128,13 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
               address: true,
               birthDate: true,
               phoneNumber: true,
+              // D-059: data keluarga lengkap dari Formulir Data Karyawan.
+              gender: true,
+              birthPlace: true,
+              education: true,
+              occupation: true,
+              ageAtEntry: true,
+              workAddress: true,
             },
             orderBy: { createdAt: "asc" },
           })

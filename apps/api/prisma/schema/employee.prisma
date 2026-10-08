@@ -273,36 +273,40 @@ model EmploymentHistory {
 
 // SENSITIF (PLAN §4.2 employee.personal.*): NIK KTP, NPWP, KK, lahir, alamat, status nikah, agama.
 model EmployeePersonal {
-  employeeId           String               @id @map("employee_id") @db.Uuid
-  employee             Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  ktpNumber            String?              @map("ktp_number") @db.VarChar(16)
-  npwpNumber           String?              @map("npwp_number") @db.VarChar(20)
+  employeeId              String               @id @map("employee_id") @db.Uuid
+  employee                Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  ktpNumber               String?              @map("ktp_number") @db.VarChar(16)
+  npwpNumber              String?              @map("npwp_number") @db.VarChar(20)
   // Tidak di ERD; tercantum di PLAN §4.2.
-  kkNumber             String?              @map("kk_number") @db.VarChar(16)
-  birthPlace           String?              @map("birth_place") @db.VarChar(100)
-  birthDate            DateTime?            @map("birth_date") @db.Date
-  ktpAddress           String?              @map("ktp_address")
-  domicileAddress      String?              @map("domicile_address")
-  maritalStatus        MaritalStatus?       @map("marital_status")
-  religion             Religion?
+  kkNumber                String?              @map("kk_number") @db.VarChar(16)
+  birthPlace              String?              @map("birth_place") @db.VarChar(100)
+  birthDate               DateTime?            @map("birth_date") @db.Date
+  ktpAddress              String?              @map("ktp_address")
+  domicileAddress         String?              @map("domicile_address")
+  maritalStatus           MaritalStatus?       @map("marital_status")
+  religion                Religion?
   // D-041 (sensitif, grant employee.personal.*): BPJS, PTKP, kota asal.
-  bpjsEmploymentNumber String?              @map("bpjs_employment_number") @db.VarChar(20)
-  bpjsHealthNumber     String?              @map("bpjs_health_number") @db.VarChar(20)
-  ptkpStatus           PtkpStatus?          @map("ptkp_status")
-  originCity           String?              @map("origin_city") @db.VarChar(100)
+  bpjsEmploymentNumber    String?              @map("bpjs_employment_number") @db.VarChar(20)
+  bpjsHealthNumber        String?              @map("bpjs_health_number") @db.VarChar(20)
+  ptkpStatus              PtkpStatus?          @map("ptkp_status")
+  originCity              String?              @map("origin_city") @db.VarChar(100)
   // D-045 b: "belum punya" (nomor kosong) — wajib diisi nomor ATAU dicentang di wizard onboarding.
-  npwpAbsent           Boolean              @default(false) @map("npwp_absent")
-  bpjsEmploymentAbsent Boolean              @default(false) @map("bpjs_employment_absent")
-  bpjsHealthAbsent     Boolean              @default(false) @map("bpjs_health_absent")
+  npwpAbsent              Boolean              @default(false) @map("npwp_absent")
+  bpjsEmploymentAbsent    Boolean              @default(false) @map("bpjs_employment_absent")
+  bpjsHealthAbsent        Boolean              @default(false) @map("bpjs_health_absent")
   // D-059: data pribadi tambahan dari Formulir Data Karyawan (Google Form). Suku = sensitif.
-  nickname             String?              @db.VarChar(50)
-  nationality          String?              @db.VarChar(50)
-  ethnicity            String?              @db.VarChar(50)
-  bloodType            String?              @map("blood_type") @db.VarChar(3)
-  drivingLicenseTypes  DrivingLicenseType[] @default([]) @map("driving_license_types")
-  drivingLicenseNumber String?              @map("driving_license_number") @db.VarChar(30)
-  createdAt            DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  nickname                String?              @db.VarChar(50)
+  nationality             String?              @db.VarChar(50)
+  ethnicity               String?              @db.VarChar(50)
+  bloodType               String?              @map("blood_type") @db.VarChar(3)
+  drivingLicenseTypes     DrivingLicenseType[] @default([]) @map("driving_license_types")
+  drivingLicenseNumber    String?              @map("driving_license_number") @db.VarChar(30)
+  // Nomor per jenis SIM, mis. {"A": "…", "C": "…"}; driving_license_number = nomor pertama.
+  drivingLicenseNumbers   Json?                @map("driving_license_numbers")
+  // Alamat kontak darurat (sensitif: alamat, PLAN §4.2) — nama/hubungan/HP ada di `employees`.
+  emergencyContactAddress String?              @map("emergency_contact_address")
+  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([ktpNumber])
   @@map("employee_personal")
@@ -334,6 +338,14 @@ model FamilyMember {
   // ERD memakai `age int`; disimpan tanggal lahir supaya umur tidak basi (dihitung saat dibaca).
   birthDate    DateTime?          @map("birth_date") @db.Date
   phoneNumber  String?            @map("phone_number") @db.VarChar(30)
+  // D-059 (Formulir Data Karyawan): data keluarga lengkap dari Import Sheet Form.
+  gender       Gender?
+  birthPlace   String?            @map("birth_place") @db.VarChar(100)
+  education    String?            @db.VarChar(50)
+  occupation   String?            @db.VarChar(100)
+  // Usia saat didata — Form hanya menanyakan usia orang tua/saudara; tanggal lahir tetap diutamakan.
+  ageAtEntry   Int?               @map("age_at_entry") @db.SmallInt
+  workAddress  String?            @map("work_address")
   createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -349,6 +361,8 @@ model Education {
   schoolName     String          @map("school_name") @db.VarChar(150)
   major          String?         @db.VarChar(100)
   graduationYear Int?            @map("graduation_year") @db.SmallInt
+  // D-059: tahun masuk (Formulir Data Karyawan).
+  entryYear      Int?            @map("entry_year") @db.SmallInt
   // D-041: jenjang (SD…S3); nama sekolah tetap di school_name.
   level          EducationLevel?
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -360,21 +374,23 @@ model Education {
 }
 
 model Training {
-  id            String        @id @default(uuid()) @db.Uuid
-  employeeId    String        @map("employee_id") @db.Uuid
-  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  trainingField String        @map("training_field") @db.VarChar(150)
-  organizer     String?       @db.VarChar(150)
-  duration      String?       @db.VarChar(50)
-  trainingYear  Int?          @map("training_year") @db.SmallInt
+  id                String        @id @default(uuid()) @db.Uuid
+  employeeId        String        @map("employee_id") @db.Uuid
+  employee          Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  trainingField     String        @map("training_field") @db.VarChar(150)
+  organizer         String?       @db.VarChar(150)
+  duration          String?       @db.VarChar(50)
+  trainingYear      Int?          @map("training_year") @db.SmallInt
   // D-054 (Arsip 1a): jenis, periode, jam, biaya (Rupiah, bukan gaji).
-  type          TrainingType?
-  startDate     DateTime?     @map("start_date") @db.Date
-  endDate       DateTime?     @map("end_date") @db.Date
-  hours         Int?          @db.SmallInt
-  cost          Decimal?      @db.Decimal(15, 2)
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  type              TrainingType?
+  startDate         DateTime?     @map("start_date") @db.Date
+  endDate           DateTime?     @map("end_date") @db.Date
+  hours             Int?          @db.SmallInt
+  cost              Decimal?      @db.Decimal(15, 2)
+  // D-059: nomor sertifikat (sertifikasi dari Formulir Data Karyawan; file dilampirkan terpisah).
+  certificateNumber String?       @map("certificate_number") @db.VarChar(60)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   documents EmployeeDocument[]
 

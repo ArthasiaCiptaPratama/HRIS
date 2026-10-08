@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import {
   fieldPermission,
   IMPORT_FIELD_KEYS,
+  type ImportCertification,
+  type ImportEducation,
+  type ImportFamilyMember,
   type ImportFieldKey,
   type ImportRowIssue,
   isBlankImportRow,
@@ -52,6 +55,74 @@ interface RowPlan {
   statusId?: string;
   /** Departemen untuk jabatan (dari file atau departemen jabatan saat ini). */
   departmentName?: string;
+  /** D-059: keluarga/pendidikan/sertifikasi dari file yang belum ada di karyawan (ditambahkan). */
+  repeated?: RepeatedRows;
+}
+
+interface RepeatedRows {
+  family: ImportFamilyMember[];
+  educations: ImportEducation[];
+  certifications: ImportCertification[];
+}
+
+const textKey = (v: string | null | undefined) =>
+  (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * D-059: impor ulang = tambah yang belum ada (tidak menghapus/menimpa). Cocok bila keluarga: hubungan +
+ * nama; pendidikan: jenjang + sekolah; sertifikasi: nama = bidang pelatihan.
+ */
+function missingRepeated(row: NormalizedImportRow, e?: importRepo.ExistingEmployee): RepeatedRows {
+  const family = e?.familyMembers ?? [];
+  const educations = e?.educations ?? [];
+  const trainings = e?.trainings ?? [];
+  return {
+    family: (row.family ?? []).filter(
+      (m) =>
+        !family.some(
+          (f) => f.relationship === m.relationship && textKey(f.name) === textKey(m.name),
+        ),
+    ),
+    educations: (row.educations ?? []).filter(
+      (ed) =>
+        !educations.some(
+          (x) =>
+            (ed.level === undefined || x.level === ed.level) &&
+            masterKey(x.schoolName) === masterKey(ed.schoolName ?? ed.level ?? ""),
+        ),
+    ),
+    certifications: (row.certifications ?? []).filter(
+      (c) => !trainings.some((t) => textKey(t.trainingField) === textKey(c.name)),
+    ),
+  };
+}
+
+async function writeRepeated(
+  tx: Parameters<typeof importRepo.createEducation>[0],
+  employeeId: string,
+  r: RepeatedRows,
+) {
+  for (const { source: _source, birthDate, ...m } of r.family)
+    await importRepo.createFamilyMember(tx, {
+      employeeId,
+      ...m,
+      ...(birthDate ? { birthDate: toDate(birthDate) } : {}),
+    });
+  for (const ed of r.educations)
+    await importRepo.createEducation(tx, {
+      employeeId,
+      level: ed.level ?? null,
+      schoolName: ed.schoolName ?? (ed.level as string),
+      entryYear: ed.entryYear ?? null,
+      graduationYear: ed.graduationYear ?? null,
+    });
+  for (const c of r.certifications)
+    await importRepo.createTraining(tx, {
+      employeeId,
+      trainingField: c.name,
+      trainingYear: c.year ?? null,
+      certificateNumber: c.number ?? null,
+    });
 }
 
 interface Analysis {
@@ -84,6 +155,8 @@ const PERSONAL_KEYS = [
   "bloodType",
   "drivingLicenseTypes",
   "drivingLicenseNumber",
+  "drivingLicenseNumbers",
+  "emergencyContactAddress",
 ] as const;
 // Kunci data pribadi → field import (untuk daftar perubahan). maritalStatus bisa turunan PTKP.
 const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
@@ -106,6 +179,8 @@ const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
   bloodType: "bloodType",
   drivingLicenseTypes: "drivingLicenseTypes",
   drivingLicenseNumber: "drivingLicenseNumber",
+  drivingLicenseNumbers: "drivingLicenseNumber",
+  emergencyContactAddress: "emergencyContactAddress",
 };
 
 const EXIT_REASON = {
@@ -269,14 +344,18 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
         // OD-6 (belum diputuskan): data sensitif milik akun sendiri tidak diubah lewat import.
         if (ctx.actor.employeeId === existing.id) {
           const hadSensitive =
-            Object.keys(row.personal).length > 0 || Object.keys(row.bank).length > 0;
+            Object.keys(row.personal).length > 0 ||
+            Object.keys(row.bank).length > 0 ||
+            (row.family?.length ?? 0) > 0;
           row.personal = {};
           row.bank = {};
+          delete row.family;
           if (hadSensitive) plan.issues.push(issue(null, "SENSITIVE_OWN_ROW", "WARNING"));
         }
         plan.departmentName =
           row.departmentName ??
           (row.positionName ? departmentNameOf(lookup, existing.positionId) : undefined);
+        plan.repeated = missingRepeated(row, existing);
         plan.changes = diff(row, existing, lookup, plan);
         if (plan.changes.length === 0) plan.action = "SKIP";
       }
@@ -396,10 +475,10 @@ function diff(
   plan: RowPlan,
 ): ImportFieldKey[] {
   const changes: ImportFieldKey[] = [];
-  // Array (jenis SIM) dibandingkan isinya, bukan rujukannya.
+  // Array (jenis SIM) & objek (nomor SIM per jenis) dibandingkan isinya, bukan rujukannya.
   const same = (a: unknown, b: unknown) =>
-    Array.isArray(a) || Array.isArray(b)
-      ? JSON.stringify(a ?? []) === JSON.stringify(b ?? [])
+    (a !== null && typeof a === "object") || (b !== null && typeof b === "object")
+      ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
       : a === b;
   const differs = (value: unknown, current: unknown) =>
     value !== undefined && !same(value, current ?? undefined);
@@ -452,6 +531,14 @@ function diff(
     )
   )
     changes.push("educationText");
+  if (plan.repeated) {
+    for (const item of [
+      ...plan.repeated.family,
+      ...plan.repeated.educations,
+      ...plan.repeated.certifications,
+    ])
+      changes.push(item.source);
+  }
   return changes;
 }
 
@@ -495,6 +582,7 @@ export async function commit(
       const sensitiveSections = [
         Object.keys(row.personal).length > 0 && "personal",
         (row.bank.accountNumber || row.bank.bankName) && "bank",
+        (row.family?.length ?? 0) > 0 && "family",
       ].filter(Boolean);
 
       if (plan.action === "CREATE") {
@@ -536,6 +624,7 @@ export async function commit(
             level: row.education.level,
             schoolName: row.education.schoolName ?? row.education.level,
           });
+        await writeRepeated(tx, created.id, missingRepeated(row));
         await repository.createHistory(tx, {
           employeeId: created.id,
           changeType: "HIRED",
@@ -663,6 +752,7 @@ export async function commit(
             level: row.education.level,
             schoolName: row.education.schoolName ?? row.education.level,
           });
+        if (plan.repeated) await writeRepeated(tx, e.id, plan.repeated);
         await writeAudit(
           {
             ...audit,
@@ -680,6 +770,7 @@ export async function commit(
         );
         const sections = [
           personalChanges.length > 0 && "personal",
+          (plan.repeated?.family.length ?? 0) > 0 && "family",
           (has("bankName") || has("bankAccountNumber") || has("bankAccountHolder")) && "bank",
         ].filter(Boolean);
         if (sections.length > 0)

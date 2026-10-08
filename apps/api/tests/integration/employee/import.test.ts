@@ -614,3 +614,138 @@ describe("Field Formulir Data Karyawan (D-059)", () => {
     expect(same.rows[0].changes).toEqual([]);
   });
 });
+
+// D-059 lanjutan: bagian berulang Formulir Data Karyawan — keluarga, pendidikan 1–3, sertifikasi,
+// alamat kontak darurat, No. SIM per jenis. Impor ulang = tambah yang belum ada.
+describe("Bagian berulang Formulir Data Karyawan (D-059)", () => {
+  const groupRow = (n: string, extra: Record<string, unknown> = {}) =>
+    baseRow(n, {
+      spouseName: "Pasangan Dummy",
+      spouseOccupation: "Guru",
+      spouseBirthDate: "01/01/1996",
+      child1Name: "Anak Satu",
+      child1Gender: "Perempuan",
+      child1Education: "Belum Sekolah",
+      fatherName: "Ayah Dummy",
+      fatherAge: "60",
+      fatherOccupation: "Pensiunan",
+      education1Level: "S1",
+      education1School: "Universitas Dummy",
+      education1EntryYear: "2012",
+      education1GraduationYear: "2016",
+      education2Level: "SMA",
+      education2School: "SMA Dummy",
+      certK3UmumNumber: "K3-001",
+      certK3UmumYear: "2022",
+      emergencyContactName: "Kontak Dummy",
+      emergencyContactRelationship: "Saudara",
+      emergencyPhone: "081200000399",
+      emergencyContactAddress: "Jl. Darurat 1",
+      drivingLicenseTypes: "SIM A, C",
+      simNumberA: "1111-2222",
+      simNumberC: "3333-4444",
+      ...extra,
+    });
+  const preview = async (who: Login, rows: unknown[]) =>
+    data(await call("POST", "/employee-imports/preview", who.headers, body(rows)));
+  const commit = async (who: Login, rows: unknown[]) => {
+    const p = await preview(who, rows);
+    const res = await call("POST", "/employee-imports", who.headers, {
+      ...body(rows),
+      previewHash: p.previewHash,
+    });
+    expect(res.status).toBe(201);
+    return p;
+  };
+  const load = (n: string) =>
+    prisma.employee.findFirstOrThrow({
+      where: { employeeNumber: NUM(n) },
+      include: { personal: true, familyMembers: true, educations: true, trainings: true },
+    });
+
+  test("buat karyawan: keluarga, pendidikan, sertifikasi → pelatihan, kontak darurat, SIM per jenis", async () => {
+    await commit(sa, [row(2, groupRow("G1"))]);
+    const e = await load("G1");
+    expect(e.emergencyContactName).toBe("Kontak Dummy");
+    expect(e.personal).toMatchObject({
+      emergencyContactAddress: "Jl. Darurat 1",
+      drivingLicenseNumbers: { A: "1111-2222", C: "3333-4444" },
+      drivingLicenseNumber: "1111-2222",
+      drivingLicenseTypes: ["A", "C"],
+    });
+    const family = e.familyMembers.map((f) => [
+      f.relationship,
+      f.name,
+      f.gender,
+      f.education,
+      f.occupation,
+      f.ageAtEntry,
+    ]);
+    expect(family).toEqual(
+      expect.arrayContaining([
+        ["SPOUSE", "Pasangan Dummy", null, null, "Guru", null],
+        ["CHILD", "Anak Satu", "FEMALE", "Belum Sekolah", null, null],
+        ["FATHER", "Ayah Dummy", null, null, "Pensiunan", 60],
+      ]),
+    );
+    expect(e.familyMembers).toHaveLength(3);
+    expect(e.educations.map((x) => [x.level, x.schoolName, x.entryYear, x.graduationYear])).toEqual(
+      expect.arrayContaining([
+        ["S1", "Universitas Dummy", 2012, 2016],
+        ["SMA", "SMA Dummy", null, null],
+      ]),
+    );
+    expect(e.trainings.map((t) => [t.trainingField, t.certificateNumber, t.trainingYear])).toEqual([
+      ["Sertifikasi K3 Umum", "K3-001", 2022],
+    ]);
+    // Detail karyawan memuat field baru (bagian pribadi hanya untuk yang berhak).
+    const detail = await data(await call("GET", `/employees/${e.id}?view=full`, sa.headers));
+    expect(detail.personal).toMatchObject({
+      emergencyContactAddress: "Jl. Darurat 1",
+      drivingLicenseNumbers: { A: "1111-2222", C: "3333-4444" },
+    });
+    expect(
+      detail.familyMembers.find((f: { relationship: string }) => f.relationship === "FATHER"),
+    ).toMatchObject({
+      ageAtEntry: 60,
+      occupation: "Pensiunan",
+    });
+    expect(detail.educations.find((x: { level: string }) => x.level === "S1")).toMatchObject({
+      entryYear: 2012,
+    });
+    expect(detail.trainings[0]).toMatchObject({ certificateNumber: "K3-001" });
+    const work = await data(await call("GET", `/employees/${e.id}?view=work`, sa.headers));
+    expect(work.personal).toBeUndefined();
+  });
+
+  test("impor ulang: hanya yang belum ada ditambah; yang sudah ada tidak diduplikasi", async () => {
+    const same = await preview(sa, [row(2, groupRow("G1"))]);
+    expect(same.rows[0].changes).toEqual([]);
+    const more = groupRow("G1", {
+      child2Name: "Anak Dua",
+      certPopNumber: "POP-9",
+      education3Level: "SMP",
+      education3School: "SMP Dummy",
+    });
+    const p = await commit(sa, [row(2, more)]);
+    expect(p.rows[0].changes).toEqual(
+      expect.arrayContaining(["child2Name", "certPopNumber", "education3Level"]),
+    );
+    const e = await load("G1");
+    expect(e.familyMembers).toHaveLength(4);
+    expect(e.educations).toHaveLength(3);
+    expect(e.trainings).toHaveLength(2);
+  });
+
+  test("HR tanpa grant data pribadi: keluarga & alamat darurat dilewati; pendidikan & sertifikasi tetap", async () => {
+    const p = await commit(hr, [row(2, groupRow("G2"))]);
+    expect(p.skippedFields).toEqual(
+      expect.arrayContaining(["spouseName", "child1Name", "emergencyContactAddress"]),
+    );
+    const e = await load("G2");
+    expect(e.familyMembers).toHaveLength(0);
+    expect(e.personal?.emergencyContactAddress ?? null).toBeNull();
+    expect(e.educations).toHaveLength(2);
+    expect(e.trainings).toHaveLength(1);
+  });
+});

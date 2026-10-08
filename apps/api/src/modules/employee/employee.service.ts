@@ -681,6 +681,8 @@ export async function getEmployee(
   // Key sensitif hanya ada bila boleh (bukan null).
   if (include.personal) {
     const p = parts.personal;
+    // D-059: email pribadi (kolom `employees`, bukan daftar) hanya dibaca bersama bagian data pribadi.
+    const personalEmail = await repository.findPersonalEmail(id);
     detail.personal = p
       ? {
           ktpNumber: p.ktpNumber,
@@ -696,6 +698,15 @@ export async function getEmployee(
           bpjsHealthNumber: p.bpjsHealthNumber,
           ptkpStatus: p.ptkpStatus,
           originCity: p.originCity,
+          personalEmail,
+          nickname: p.nickname,
+          nationality: p.nationality,
+          ethnicity: p.ethnicity,
+          bloodType: p.bloodType,
+          drivingLicenseTypes: p.drivingLicenseTypes,
+          drivingLicenseNumber: p.drivingLicenseNumber,
+          drivingLicenseNumbers: (p.drivingLicenseNumbers as Record<string, string> | null) ?? null,
+          emergencyContactAddress: p.emergencyContactAddress,
         }
       : null;
     detail.familyMembers = (parts.familyMembers ?? []).map((f) => ({

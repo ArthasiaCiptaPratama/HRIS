@@ -2,9 +2,11 @@
 // Dijalankan di web (pratinjau) dan di api (validasi ulang, sumber kebenaran).
 
 import type { EducationLevel, EmploymentCategory, Gender, PtkpStatus } from "../employee.ts";
-import type { DrivingLicenseType } from "../personal-fields.ts";
+import { DRIVING_LICENSE_TYPES, type DrivingLicenseType } from "../personal-fields.ts";
 import type { ImportFieldKey } from "./fields.ts";
+import { CERTIFICATIONS, EDUCATION_SLOTS, FAMILY_SLOTS } from "./groups.ts";
 import {
+  cleanText,
   type ImportMaritalStatus,
   type ImportReligion,
   maritalFromPtkp,
@@ -81,11 +83,48 @@ export interface NormalizedImportRow {
     bloodType?: string;
     drivingLicenseTypes?: DrivingLicenseType[];
     drivingLicenseNumber?: string;
+    /** Nomor per jenis SIM ("A" → nomor). */
+    drivingLicenseNumbers?: Partial<Record<DrivingLicenseType, string>>;
+    emergencyContactAddress?: string;
   };
+  /** D-059: anggota keluarga dari Formulir Data Karyawan (sensitif). */
+  family?: ImportFamilyMember[];
+  /** D-059: riwayat pendidikan 1–3 (Formulir Data Karyawan). */
+  educations?: ImportEducation[];
+  /** D-059: sertifikasi → Arsip › Pelatihan (bidang = nama sertifikasi). */
+  certifications?: ImportCertification[];
   bank: { bankName?: string; accountNumber?: string; accountHolder?: string };
   education?: { level: EducationLevel; schoolName: string | null };
   /** Fase 7 (tidak disimpan sekarang): akhir kontrak & nomor offering. */
   contract: { endDate?: string; permanentHint?: boolean; offeringNumber?: string };
+}
+
+export interface ImportFamilyMember {
+  /** Field asal (kolom nama) — untuk daftar perubahan di pratinjau. */
+  source: ImportFieldKey;
+  relationship: "SPOUSE" | "CHILD" | "FATHER" | "MOTHER" | "SIBLING";
+  name: string;
+  gender?: Gender;
+  birthPlace?: string;
+  birthDate?: string;
+  education?: string;
+  occupation?: string;
+  ageAtEntry?: number;
+  workAddress?: string;
+}
+export interface ImportEducation {
+  source: ImportFieldKey;
+  level?: EducationLevel;
+  schoolName?: string;
+  entryYear?: number;
+  graduationYear?: number;
+}
+export interface ImportCertification {
+  source: ImportFieldKey;
+  key: string;
+  name: string;
+  number?: string;
+  year?: number;
 }
 
 // Masalah yang hanya peringatan (baris tetap diimpor tanpa field itu).
@@ -95,6 +134,11 @@ const WARNING_CODES = new Set([
   "UNKNOWN_MARITAL_STATUS",
   "UNKNOWN_BLOOD_TYPE",
   "UNKNOWN_DRIVING_LICENSE",
+  "FAMILY_NAME_REQUIRED",
+  "INVALID_AGE",
+  "INVALID_YEAR",
+  "ENTRY_AFTER_GRADUATION",
+  "UNKNOWN_EDUCATION_LEVEL",
 ]);
 
 /**
@@ -226,6 +270,139 @@ export function normalizeImportRow(raw: RawImportRow): {
   const education = take("educationText", parseEducation(raw.educationText));
   if (education) row.education = education;
 
+  // ── D-059: bagian berulang Formulir Data Karyawan ──────────────────────────────────────────
+  const warn = (field: ImportFieldKey, code: string) =>
+    issues.push({ field, code, severity: "WARNING" });
+  const text = (key: ImportFieldKey, max: number) => take(key, parseOptionalText(raw[key], max));
+  const age = (key: ImportFieldKey) => {
+    const t = cleanText(raw[key]);
+    if (!t) return undefined;
+    const n = Number(/^\d{1,3}/.exec(t)?.[0] ?? Number.NaN);
+    if (Number.isInteger(n) && n >= 0 && n <= 130) return n;
+    warn(key, "INVALID_AGE");
+    return undefined;
+  };
+  const year = (key: ImportFieldKey) => {
+    const t = cleanText(raw[key]);
+    if (!t) return undefined;
+    const n = Number(t);
+    if (Number.isInteger(n) && n >= 1940 && n <= 2100) return n;
+    warn(key, "INVALID_YEAR");
+    return undefined;
+  };
+  const date = (key: ImportFieldKey) => {
+    const r = parseDate(raw[key]);
+    if (r && "issue" in r) {
+      warn(key, r.issue);
+      return undefined;
+    }
+    return r?.value;
+  };
+  const family: ImportFamilyMember[] = [];
+  const member = (
+    relationship: ImportFamilyMember["relationship"],
+    keys: Partial<Record<keyof Omit<ImportFamilyMember, "relationship">, ImportFieldKey>>,
+  ) => {
+    const nameKey = keys.name as ImportFieldKey;
+    const name = text(nameKey, 150);
+    const entry: Partial<ImportFamilyMember> = {};
+    if (keys.gender) {
+      const g = cleanText(raw[keys.gender]) ? parseGender(raw[keys.gender]) : undefined;
+      if (g && "value" in g) entry.gender = g.value;
+    }
+    if (keys.birthPlace) entry.birthPlace = text(keys.birthPlace, 100);
+    if (keys.birthDate) entry.birthDate = date(keys.birthDate);
+    if (keys.education) entry.education = text(keys.education, 50);
+    if (keys.occupation) entry.occupation = text(keys.occupation, 100);
+    if (keys.ageAtEntry) entry.ageAtEntry = age(keys.ageAtEntry);
+    if (keys.workAddress) entry.workAddress = text(keys.workAddress, 500);
+    const filled = Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined));
+    if (name) family.push({ source: nameKey, relationship, name, ...filled });
+    else if (Object.keys(filled).length > 0) warn(nameKey, "FAMILY_NAME_REQUIRED");
+  };
+  member("SPOUSE", {
+    name: "spouseName",
+    occupation: "spouseOccupation",
+    workAddress: "spouseWorkAddress",
+    birthPlace: "spouseBirthPlace",
+    birthDate: "spouseBirthDate",
+  });
+  for (const n of FAMILY_SLOTS)
+    member("CHILD", {
+      name: `child${n}Name`,
+      gender: `child${n}Gender`,
+      birthPlace: `child${n}BirthPlace`,
+      birthDate: `child${n}BirthDate`,
+      education: `child${n}Education`,
+    });
+  for (const [rel, who] of [
+    ["FATHER", "father"],
+    ["MOTHER", "mother"],
+  ] as const)
+    member(rel, {
+      name: `${who}Name`,
+      ageAtEntry: `${who}Age`,
+      education: `${who}Education`,
+      occupation: `${who}Occupation`,
+    });
+  for (const n of FAMILY_SLOTS)
+    member("SIBLING", {
+      name: `sibling${n}Name`,
+      ageAtEntry: `sibling${n}Age`,
+      education: `sibling${n}Education`,
+      occupation: `sibling${n}Occupation`,
+    });
+  if (family.length > 0) row.family = family;
+
+  const educations: ImportEducation[] = [];
+  for (const n of EDUCATION_SLOTS) {
+    const entry: ImportEducation = { source: `education${n}Level` };
+    const levelText = cleanText(raw[`education${n}Level`]);
+    if (levelText) {
+      const parsed = parseEducation(levelText);
+      if (parsed && "value" in parsed) entry.level = parsed.value.level;
+      else warn(`education${n}Level`, "UNKNOWN_EDUCATION_LEVEL");
+    }
+    const school = text(`education${n}School`, 150);
+    if (school) entry.schoolName = school;
+    const graduation = year(`education${n}GraduationYear`);
+    const entryYear = year(`education${n}EntryYear`);
+    if (graduation !== undefined) entry.graduationYear = graduation;
+    if (entryYear !== undefined) {
+      if (graduation !== undefined && entryYear > graduation)
+        warn(`education${n}EntryYear`, "ENTRY_AFTER_GRADUATION");
+      else entry.entryYear = entryYear;
+    }
+    if (entry.level || entry.schoolName) educations.push(entry);
+  }
+  if (educations.length > 0) row.educations = educations;
+
+  const certifications: ImportCertification[] = [];
+  for (const c of CERTIFICATIONS) {
+    const number = text(`cert${c.key}Number`, 60);
+    const certYear = year(`cert${c.key}Year`);
+    if (number || certYear !== undefined)
+      certifications.push({
+        source: `cert${c.key}Number`,
+        key: c.key,
+        name: c.name,
+        ...(number ? { number } : {}),
+        ...(certYear !== undefined ? { year: certYear } : {}),
+      });
+  }
+  if (certifications.length > 0) row.certifications = certifications;
+
+  setP("emergencyContactAddress", text("emergencyContactAddress", 500));
+  const simNumbers: Partial<Record<DrivingLicenseType, string>> = {};
+  for (const type of DRIVING_LICENSE_TYPES) {
+    const number = text(`simNumber${type}`, 30);
+    if (number) simNumbers[type] = number;
+  }
+  if (Object.keys(simNumbers).length > 0) {
+    p.drivingLicenseNumbers = simNumbers;
+    p.drivingLicenseNumber ??= Object.values(simNumbers)[0];
+  }
+
   const exit = take("exitMarker", parseExitMarker(raw.exitMarker));
   const exitDate = take("exitDate", parseDate(raw.exitDate));
   if (exit) row.exit = exitDate ? { reason: exit, date: exitDate } : { reason: exit };
@@ -255,6 +432,11 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   UNKNOWN_MARITAL_STATUS: "Status pernikahan tidak dikenali (dilewati)",
   UNKNOWN_BLOOD_TYPE: "Golongan darah tidak dikenali (A/B/AB/O ± rhesus; dilewati)",
   UNKNOWN_DRIVING_LICENSE: "Sebagian jenis SIM tidak dikenali (dilewati)",
+  FAMILY_NAME_REQUIRED: "Data anggota keluarga tanpa nama (dilewati)",
+  INVALID_AGE: "Usia tidak dikenali (dilewati)",
+  INVALID_YEAR: "Tahun tidak dikenali (dilewati)",
+  ENTRY_AFTER_GRADUATION: "Tahun masuk setelah tahun lulus (tahun masuk dilewati)",
+  UNKNOWN_EDUCATION_LEVEL: "Jenjang pendidikan tidak dikenali (dilewati)",
   DUPLICATE_PERSONAL_EMAIL_IN_FILE: "Email pribadi ganda di dalam file",
   PERSONAL_EMAIL_TAKEN: "Email pribadi sudah dipakai karyawan lain",
   UNKNOWN_PTKP: "Status PTKP tidak dikenali (TK/0–K/3)",

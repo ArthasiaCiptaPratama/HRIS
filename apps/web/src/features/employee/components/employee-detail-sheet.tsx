@@ -1,4 +1,6 @@
 import {
+  DRIVING_LICENSE_LABELS,
+  type DrivingLicenseType,
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
@@ -471,8 +473,34 @@ function PersonalTab({ employee }: { employee: EmployeeDetail }) {
       <Field label="BPJS Kesehatan" mono>
         {p.bpjsHealthNumber}
       </Field>
+      {/* D-059: Formulir Data Karyawan (Google Form → Import). */}
+      <Field label="Email pribadi">{p.personalEmail ?? null}</Field>
+      <Field label="Nama panggilan">{p.nickname ?? null}</Field>
+      <Field label="Kebangsaan">{p.nationality ?? null}</Field>
+      <Field label="Suku">{p.ethnicity ?? null}</Field>
+      <Field label="Golongan darah">{p.bloodType ?? null}</Field>
+      <Field label="SIM" mono>
+        {drivingLicenseText(p.drivingLicenseTypes, p.drivingLicenseNumbers, p.drivingLicenseNumber)}
+      </Field>
+      <Field label="Alamat kontak darurat">{p.emergencyContactAddress ?? null}</Field>
     </FieldGrid>
   );
+}
+
+/** "A: 1234 · C: 5678"; jenis tanpa nomor tetap ditampilkan. */
+function drivingLicenseText(
+  types: string[] | undefined,
+  numbers: Record<string, string> | null | undefined,
+  single: string | null | undefined,
+): string | null {
+  const all = [...new Set([...(types ?? []), ...Object.keys(numbers ?? {})])];
+  if (all.length === 0) return single ?? null;
+  return all
+    .map((t) => {
+      const label = DRIVING_LICENSE_LABELS[t as DrivingLicenseType] ?? t;
+      return numbers?.[t] ? `${label}: ${numbers[t]}` : label;
+    })
+    .join(" · ");
 }
 
 function FamilyTab({ employee }: { employee: EmployeeDetail }) {
@@ -487,9 +515,26 @@ function FamilyTab({ employee }: { employee: EmployeeDetail }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{member.name}</p>
             <p className="text-muted-foreground text-xs">
-              {RELATIONSHIP_LABELS[member.relationship] ?? member.relationship}
-              {member.birthDate ? ` · lahir ${formatDate(member.birthDate)}` : ""}
+              {[
+                RELATIONSHIP_LABELS[member.relationship] ?? member.relationship,
+                member.gender === "MALE"
+                  ? "Laki-laki"
+                  : member.gender === "FEMALE"
+                    ? "Perempuan"
+                    : null,
+                member.birthPlace || member.birthDate
+                  ? `lahir ${[member.birthPlace, member.birthDate ? formatDate(member.birthDate) : null].filter(Boolean).join(", ")}`
+                  : null,
+                member.ageAtEntry != null ? `usia ${member.ageAtEntry} th (saat didata)` : null,
+                member.education,
+                member.occupation,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
+            {member.workAddress ? (
+              <p className="text-muted-foreground text-xs">Alamat kerja: {member.workAddress}</p>
+            ) : null}
           </div>
         </li>
       ))}

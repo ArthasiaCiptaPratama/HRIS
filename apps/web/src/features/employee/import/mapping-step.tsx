@@ -33,13 +33,22 @@ const SECTION_HINT: Record<string, string> = {
   education: "Pendidikan",
   exit: "Keluar/resign",
   contract: "Kontrak · belum disimpan",
+  family: "Keluarga · butuh izin",
+  training: "Pelatihan",
 };
 
-const FIELD_OPTIONS = IMPORT_FIELD_KEYS.map((key) => ({
-  value: key,
-  label: IMPORT_FIELDS[key].label,
-  hint: SECTION_HINT[IMPORT_FIELDS[key].section],
-}));
+// D-059: field berkelompok (keluarga, pendidikan 1–3, sertifikasi, SIM) tampil di bawah judul grupnya;
+// field lain dikelompokkan per bagian. Urutan kunci kamus field menjaga grup tetap berurutan.
+const FIELD_OPTIONS = IMPORT_FIELD_KEYS.map((key) => {
+  const def = IMPORT_FIELDS[key];
+  return {
+    value: key,
+    // Label lengkap ("Ayah: Usia") supaya kolom terpilih tetap jelas di tabel pemetaan.
+    label: def.label,
+    hint: def.group ? undefined : SECTION_HINT[def.section],
+    group: def.group ?? "Data karyawan",
+  };
+});
 
 function sampleOf(rows: DataRow[], column: number, field: ImportFieldKey | null): string {
   const values: string[] = [];

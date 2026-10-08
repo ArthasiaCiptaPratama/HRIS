@@ -119,6 +119,16 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       bpjsHealthNumber: z.string().nullable(),
       ptkpStatus: ptkpStatusSchema.nullable(),
       originCity: z.string().nullable(),
+      // D-059 (Formulir Data Karyawan → Import); opsional agar respons lama tetap terbaca.
+      personalEmail: z.string().nullable().optional(),
+      nickname: z.string().nullable().optional(),
+      nationality: z.string().nullable().optional(),
+      ethnicity: z.string().nullable().optional(),
+      bloodType: z.string().nullable().optional(),
+      drivingLicenseTypes: z.array(z.string()).optional(),
+      drivingLicenseNumber: z.string().nullable().optional(),
+      drivingLicenseNumbers: z.record(z.string(), z.string()).nullable().optional(),
+      emergencyContactAddress: z.string().nullable().optional(),
     })
     .nullable()
     .optional(),
@@ -131,6 +141,13 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
         address: z.string().nullable(),
         birthDate: z.string().nullable(),
         phoneNumber: z.string().nullable(),
+        // D-059
+        gender: z.string().nullable().optional(),
+        birthPlace: z.string().nullable().optional(),
+        education: z.string().nullable().optional(),
+        occupation: z.string().nullable().optional(),
+        ageAtEntry: z.number().nullable().optional(),
+        workAddress: z.string().nullable().optional(),
       }),
     )
     .optional(),
@@ -149,6 +166,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       major: z.string().nullable(),
       graduationYear: z.number().nullable(),
       level: educationLevelSchema.nullable(),
+      entryYear: z.number().nullable().optional(),
     }),
   ),
   trainings: z.array(
@@ -165,6 +183,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       hours: z.number().nullable().optional(),
       /** Hanya ada untuk SA/HR. */
       cost: z.number().nullable().optional(),
+      certificateNumber: z.string().nullable().optional(),
     }),
   ),
   workExperiences: z

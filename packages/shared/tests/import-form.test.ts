@@ -92,7 +92,7 @@ describe("pemetaan Sheet respons Form", () => {
     expect(office["Alamat Email"]).toBe("workEmail");
   });
 
-  test("kolom keluarga dalam kurung (Anak/Saudara) tidak dipetakan ke data karyawan", () => {
+  test("kolom keluarga dalam kurung (Anak/Saudara) dipetakan ke field keluarga, bukan data karyawan", () => {
     const headers = [
       ...PRIBADI,
       "Nama Lengkap (Anak 1)",
@@ -101,8 +101,8 @@ describe("pemetaan Sheet respons Form", () => {
     ];
     const rows = [1, 2, 3].map((i) => [...pribadi(i), `Anak ${i}`, "SD", "SMA"]);
     const map = mapOf(headers, rows);
-    expect(map["Nama Lengkap (Anak 1)"]).toBeNull();
-    expect(map["Pendidikan (Anak 1)"]).toBeNull();
+    expect(map["Nama Lengkap (Anak 1)"]).toBe("child1Name");
+    expect(map["Pendidikan (Anak 1)"]).toBe("child1Education");
     expect(map["Pendidikan Terakhir"]).toBe("educationText");
   });
 
@@ -265,17 +265,17 @@ describe("pemetaan ekspor Sheet sungguhan", () => {
     const at = (col: number) => fields[col]?.[2];
     expect(at(1)).toBe("fullName"); // bukan "Nama Istri/Suami"
     expect(at(2)).toBe("gender");
-    expect(at(12)).toBeNull(); // Nama Istri/Suami
-    expect(at(16)).toBeNull(); // Nama Lengkap Ayah
+    expect(at(12)).toBe("spouseName"); // Nama Istri/Suami
+    expect(at(16)).toBe("fatherName"); // Nama Lengkap Ayah
     expect(at(3)).toBe("employeeNumber");
     expect(at(4)).toBe("ktpNumber");
     expect(at(6)).toBe("phoneNumber"); // No. HP pertama = karyawan
     expect(at(8)).toBe("birthPlace"); // Tempat Lahir pertama = karyawan
-    expect(at(14)).toBeNull(); // Tempat Lahir pasangan
-    expect(at(18)).toBeNull(); // Pendidikan ayah
-    expect(at(22)).toBeNull(); // Pendidikan ibu
+    expect(at(14)).toBe("spouseBirthPlace"); // Tempat Lahir pasangan
+    expect(at(18)).toBe("fatherEducation"); // Pendidikan ayah
+    expect(at(22)).toBe("motherEducation"); // Pendidikan ibu
     expect(at(25)).toBe("emergencyContactRelationship");
-    expect(at(28)).toBe("educationText");
+    expect(at(28)).toBe("education1Level");
     expect(at(29)).toBe("bankName");
     expect(at(30)).toBe("bankAccountNumber");
     expect(at(31)).toBe("bankAccountHolder");

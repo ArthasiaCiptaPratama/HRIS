@@ -13,7 +13,9 @@ export const fieldLabel = (key: string | null) =>
 
 export const isSensitiveField = (key: ImportFieldKey | null) =>
   key !== null &&
-  (IMPORT_FIELDS[key].section === "personal" || IMPORT_FIELDS[key].section === "bank");
+  (IMPORT_FIELDS[key].section === "personal" ||
+    IMPORT_FIELDS[key].section === "bank" ||
+    IMPORT_FIELDS[key].section === "family");
 
 /** "••••1234" untuk contoh isi kolom sensitif (tetap bisa dikenali tanpa menampilkan utuh). */
 export function maskValue(value: string): string {

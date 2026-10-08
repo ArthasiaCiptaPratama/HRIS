@@ -7,8 +7,8 @@ import {
   IMPORT_ISSUE_MESSAGES,
   IMPORT_MAX_ROWS,
   type ImportFieldKey,
-  normalizeHeader,
   pickSheet,
+  profileKeys,
   suggestMapping,
 } from "@hris/shared";
 import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Upload, Users } from "lucide-react";
@@ -144,10 +144,9 @@ export function ImportEmployeesPage() {
     try {
       const saved = await fetchSavedMapping(sig);
       if (saved) {
-        next = chosen.detected.headers.map((h, i) => {
-          const key = normalizeHeader(h);
-          return key in saved ? (saved[key] ?? null) : (next[i] ?? null);
-        });
+        // Kunci per kemunculan (D-059): profil lama tanpa "#n" hanya berlaku untuk kemunculan pertama.
+        const keys = profileKeys(chosen.detected.headers);
+        next = keys.map((key, i) => (key in saved ? (saved[key] ?? null) : (next[i] ?? null)));
         fromProfile = true;
       }
     } catch {
@@ -207,7 +206,7 @@ export function ImportEmployeesPage() {
     try {
       if (saveProfile && detected) {
         const profile = Object.fromEntries(
-          detected.headers.map((h, i) => [normalizeHeader(h), mapping[i] ?? null]),
+          profileKeys(detected.headers).map((key, i) => [key, mapping[i] ?? null]),
         );
         void saveMapping(signature, profile).catch(() => undefined);
       }
