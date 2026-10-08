@@ -50,7 +50,7 @@ const pribadi = (i: number) => [
 ];
 
 describe("pemetaan Sheet respons Form", () => {
-  test("field data pribadi Form dikenali; Golongan Darah bukan Grade; kolom tautan Drive diabaikan", () => {
+  test("field data pribadi Form dikenali; Golongan Darah bukan Grade; kolom tautan Drive = lampiran", () => {
     const headers = [...PRIBADI, "Buku Rekening (Hal 1)"];
     const rows = [1, 2, 3].map((i) => [...pribadi(i), `https://drive.google.com/open?id=rek${i}`]);
     const map = mapOf(headers, rows);
@@ -70,8 +70,8 @@ describe("pemetaan Sheet respons Form", () => {
       "No SIM": "drivingLicenseNumber",
       Agama: "religion",
       Suku: "ethnicity",
-      "Foto Karyawan": null,
-      "Buku Rekening (Hal 1)": null,
+      "Foto Karyawan": "attachPhoto",
+      "Buku Rekening (Hal 1)": "attachBankBook",
     });
   });
 
@@ -279,6 +279,6 @@ describe("pemetaan ekspor Sheet sungguhan", () => {
     expect(at(29)).toBe("bankName");
     expect(at(30)).toBe("bankAccountNumber");
     expect(at(31)).toBe("bankAccountHolder");
-    expect(at(32)).toBeNull();
+    expect(at(32)).toBe("attachBankBook");
   });
 });

@@ -1,4 +1,5 @@
 import {
+  applySavedMapping,
   buildRawRows,
   type ColumnSuggestion,
   type DetectedSheet,
@@ -34,8 +35,10 @@ import {
   useCommitImport,
   usePreviewImport,
 } from "./api";
+import { AttachmentsPanel } from "./attachments-panel";
 import { fieldLabel } from "./labels";
 import { MappingStep } from "./mapping-step";
+import { OpenAttachments } from "./open-attachments";
 import { type ParsedWorkbook, parseImportFile, serializeCell, signatureOf } from "./parse-file";
 import { type MasterMap, PreviewStep } from "./preview-step";
 
@@ -109,6 +112,8 @@ export function ImportEmployeesPage() {
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [masterMap, setMasterMap] = useState<MasterMap>(EMPTY_MAP);
   const [result, setResult] = useState<ImportPreview["counts"] | null>(null);
+  // D-060: import yang lampirannya sedang diproses (hasil simpan, atau dilanjutkan dari langkah Unggah).
+  const [attachmentJobId, setAttachmentJobId] = useState<string | null>(null);
 
   const effectiveCompany =
     companyId ||
@@ -145,8 +150,8 @@ export function ImportEmployeesPage() {
       const saved = await fetchSavedMapping(sig);
       if (saved) {
         // Kunci per kemunculan (D-059): profil lama tanpa "#n" hanya berlaku untuk kemunculan pertama.
-        const keys = profileKeys(chosen.detected.headers);
-        next = keys.map((key, i) => (key in saved ? (saved[key] ?? null) : (next[i] ?? null)));
+        // D-060: profil sebelum ada field lampiran tidak mematikan kolom tautan Drive.
+        next = applySavedMapping(chosen.detected.headers, saved, next);
         fromProfile = true;
       }
     } catch {
@@ -226,6 +231,7 @@ export function ImportEmployeesPage() {
         previewHash: preview.previewHash,
       });
       setResult(saved.counts);
+      setAttachmentJobId(saved.counts.attachments > 0 ? saved.jobId : null);
       setStep("done");
       toast.success("Import selesai.");
     } catch (error) {
@@ -276,6 +282,7 @@ export function ImportEmployeesPage() {
     setDetected(null);
     setPreview(null);
     setResult(null);
+    setAttachmentJobId(null);
     setMasterMap(EMPTY_MAP);
     if (fileInput.current) fileInput.current.value = "";
   }
@@ -300,6 +307,15 @@ export function ImportEmployeesPage() {
         }
       />
       <Stepper current={step} />
+
+      {step === "upload" ? (
+        <OpenAttachments activeJobId={attachmentJobId} onOpen={setAttachmentJobId} />
+      ) : null}
+      {step === "upload" && attachmentJobId ? (
+        <div className="mb-5">
+          <AttachmentsPanel key={attachmentJobId} jobId={attachmentJobId} />
+        </div>
+      ) : null}
 
       {step === "upload" ? (
         <div className="grid gap-5 lg:grid-cols-[1fr_minmax(280px,360px)]">
@@ -443,6 +459,11 @@ export function ImportEmployeesPage() {
               {result.create} karyawan dibuat · {result.update} diperbarui · {result.skip} dilewati
               {result.error ? ` · ${result.error} baris error tidak diimpor` : ""}.
             </p>
+            {result.attachments > 0 ? (
+              <p className="text-muted-foreground text-sm">
+                {result.attachments} lampiran Google Drive diproses di bawah.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-col justify-center gap-2 sm:flex-row">
             <Button variant="brand" asChild>
@@ -459,6 +480,11 @@ export function ImportEmployeesPage() {
               <RotateCcw /> Import file lain
             </Button>
           </div>
+        </div>
+      ) : null}
+      {step === "done" && attachmentJobId ? (
+        <div className="mt-5">
+          <AttachmentsPanel key={attachmentJobId} jobId={attachmentJobId} />
         </div>
       ) : null}
 

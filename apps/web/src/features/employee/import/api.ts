@@ -1,5 +1,5 @@
 import { IMPORT_FIELD_KEYS, type ImportFieldKey } from "@hris/shared";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
 import { ApiError } from "@/lib/api-client";
@@ -22,6 +22,7 @@ export const previewSchema = z.object({
     skip: z.number(),
     error: z.number(),
     blank: z.number(),
+    attachments: z.number(),
   }),
   rows: z.array(
     z.object({
@@ -32,6 +33,7 @@ export const previewSchema = z.object({
       companyCode: z.string().nullable(),
       changes: z.array(z.string()),
       issues: z.array(issueSchema),
+      attachments: z.number(),
     }),
   ),
   masterData: z.object({
@@ -116,4 +118,86 @@ export function saveMapping(signature: string, mapping: Record<string, ImportFie
     body: { mapping },
     schema: one(mappingSchema),
   });
+}
+
+// ── D-060: lampiran Google Drive ─────────────────────────────────────────────
+
+export const attachmentsSchema = z.object({
+  jobId: z.string(),
+  driveConfigured: z.boolean(),
+  counts: z.object({
+    total: z.number(),
+    pending: z.number(),
+    done: z.number(),
+    skipped: z.number(),
+    failed: z.number(),
+  }),
+  items: z.array(
+    z.object({
+      id: z.string(),
+      sourceRow: z.number(),
+      employeeNumber: z.string(),
+      fullName: z.string(),
+      field: z.string(),
+      target: z.string(),
+      fileCount: z.number(),
+      status: z.enum(["PENDING", "PROCESSING", "DONE", "SKIPPED", "FAILED"]),
+      reason: z.string().nullable(),
+    }),
+  ),
+});
+export type ImportAttachments = z.infer<typeof attachmentsSchema>;
+
+const openJobsSchema = z.array(
+  z.object({
+    jobId: z.string(),
+    fileName: z.string(),
+    createdAt: z.string(),
+    pending: z.number(),
+    failed: z.number(),
+  }),
+);
+
+export const importKeys = {
+  attachments: (jobId: string) => ["employee-imports", jobId, "attachments"] as const,
+  openAttachments: ["employee-imports", "attachments-open"] as const,
+};
+
+export function useImportAttachments(jobId: string) {
+  return useQuery({
+    queryKey: importKeys.attachments(jobId),
+    queryFn: ({ signal }) =>
+      api(`/employee-imports/${jobId}/attachments`, {
+        schema: one(attachmentsSchema),
+        signal,
+      }).then((r) => r.data),
+  });
+}
+
+export function useOpenAttachmentJobs() {
+  return useQuery({
+    queryKey: importKeys.openAttachments,
+    queryFn: ({ signal }) =>
+      api("/employee-imports/attachments/open", { schema: one(openJobsSchema), signal }).then(
+        (r) => r.data,
+      ),
+  });
+}
+
+/** Proses / ulangi lampiran: hasil langsung menggantikan cache status lampiran import itu. */
+export function useAttachmentActions(jobId: string) {
+  const queryClient = useQueryClient();
+  const onSuccess = (data: ImportAttachments) => {
+    queryClient.setQueryData(importKeys.attachments(jobId), data);
+    void queryClient.invalidateQueries({ queryKey: importKeys.openAttachments });
+  };
+  const post = (action: "process" | "retry") =>
+    api(`/employee-imports/${jobId}/attachments/${action}`, {
+      method: "POST",
+      schema: one(attachmentsSchema),
+    }).then((r) => r.data);
+  return {
+    process: useMutation({ mutationFn: () => post("process"), onSuccess }),
+    retry: useMutation({ mutationFn: () => post("retry"), onSuccess }),
+  };
 }

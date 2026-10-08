@@ -36,6 +36,9 @@ export function issueText(
   return `${where}${fieldLabel(issue.field)}: ${message}`;
 }
 
+/** D-060: tujuan lampiran → teks. */
+export const attachmentTargetLabel = (field: string) => fieldLabel(field).replace(/^File /, "");
+
 export const ACTION_LABELS = {
   CREATE: "Dibuat",
   UPDATE: "Diperbarui",

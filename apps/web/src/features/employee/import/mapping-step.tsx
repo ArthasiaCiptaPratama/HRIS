@@ -35,6 +35,7 @@ const SECTION_HINT: Record<string, string> = {
   contract: "Kontrak · belum disimpan",
   family: "Keluarga · butuh izin",
   training: "Pelatihan",
+  attachment: "Lampiran Drive",
 };
 
 // D-059: field berkelompok (keluarga, pendidikan 1–3, sertifikasi, SIM) tampil di bawah judul grupnya;

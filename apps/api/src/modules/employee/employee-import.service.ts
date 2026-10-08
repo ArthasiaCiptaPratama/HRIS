@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   fieldPermission,
   IMPORT_FIELD_KEYS,
+  type ImportAttachment,
   type ImportCertification,
   type ImportEducation,
   type ImportFamilyMember,
@@ -123,6 +124,15 @@ async function writeRepeated(
       trainingYear: c.year ?? null,
       certificateNumber: c.number ?? null,
     });
+}
+
+/**
+ * D-060: lampiran baris ini yang masuk antrean — baris error dan baris yang dilewati karena mode
+ * "hanya tambah baru" (karyawan sudah ada) tidak ikut; baris tanpa perubahan data tetap ikut.
+ */
+function queuedAttachments(plan: RowPlan): ImportAttachment[] {
+  if (plan.action === "ERROR" || plan.issues.some((i) => i.code === "EXISTS_SKIPPED")) return [];
+  return plan.row.attachments ?? [];
 }
 
 interface Analysis {
@@ -346,10 +356,12 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
           const hadSensitive =
             Object.keys(row.personal).length > 0 ||
             Object.keys(row.bank).length > 0 ||
-            (row.family?.length ?? 0) > 0;
+            (row.family?.length ?? 0) > 0 ||
+            (row.attachments?.length ?? 0) > 0;
           row.personal = {};
           row.bank = {};
           delete row.family;
+          delete row.attachments;
           if (hadSensitive) plan.issues.push(issue(null, "SENSITIVE_OWN_ROW", "WARNING"));
         }
         plan.departmentName =
@@ -429,8 +441,17 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   }
   const missing = missingMasterData(lookup, names);
 
-  const counts = { total: rows.length, create: 0, update: 0, skip: 0, error: 0, blank };
+  const counts = {
+    total: rows.length,
+    create: 0,
+    update: 0,
+    skip: 0,
+    error: 0,
+    blank,
+    attachments: 0,
+  };
   for (const p of plans) {
+    counts.attachments += queuedAttachments(p).length;
     if (p.action === "CREATE") counts.create++;
     else if (p.action === "UPDATE") counts.update++;
     else if (p.action === "SKIP") counts.skip++;
@@ -444,6 +465,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     companyCode: p.companyId ? (lookup.companies.get(p.companyId)?.code ?? null) : null,
     changes: p.changes,
     issues: p.issues,
+    attachments: queuedAttachments(p).length,
   }));
   const skippedFields = IMPORT_FIELD_KEYS.filter((k) => skipped.has(k));
   // Hash pratinjau: berubah bila hasil analisis ATAU data karyawan terkait berubah sejak pratinjau.
@@ -568,6 +590,20 @@ export async function commit(
   };
   const map = body.masterDataMapping ?? {};
 
+  const attachments: importRepo.AttachmentInput[] = [];
+  const queue = (plan: RowPlan, employeeId: string) => {
+    for (const a of queuedAttachments(plan))
+      attachments.push({
+        employeeId,
+        sourceRow: plan.sourceRow,
+        field: a.source,
+        target: a.target,
+        note: a.note,
+        documentNumber: a.documentNumber ?? null,
+        driveFileIds: a.fileIds,
+      });
+  };
+
   const jobId = await importRepo.withLongTransaction(async (tx) => {
     const index = await createMissingMasterData(tx, lookup, missing, audit);
     const positionId = (dept: string, name: string) =>
@@ -625,6 +661,7 @@ export async function commit(
             schoolName: row.education.schoolName ?? row.education.level,
           });
         await writeRepeated(tx, created.id, missingRepeated(row));
+        queue(plan, created.id);
         await repository.createHistory(tx, {
           employeeId: created.id,
           changeType: "HIRED",
@@ -753,6 +790,7 @@ export async function commit(
             schoolName: row.education.schoolName ?? row.education.level,
           });
         if (plan.repeated) await writeRepeated(tx, e.id, plan.repeated);
+        queue(plan, e.id);
         await writeAudit(
           {
             ...audit,
@@ -787,6 +825,9 @@ export async function commit(
       }
     }
 
+    // Karyawan tanpa perubahan data (UPSERT) tetap boleh mendapat lampiran.
+    for (const plan of plans)
+      if (plan.action === "SKIP" && plan.existing) queue(plan, plan.existing.id);
     const id = await importRepo.createJob(
       tx,
       {
@@ -812,6 +853,7 @@ export async function commit(
         })),
       ),
     );
+    await importRepo.createAttachments(tx, id, attachments);
     await writeAudit(
       {
         ...audit,
@@ -829,6 +871,7 @@ export async function commit(
             workLocations: missing.workLocations.length,
           },
           skippedFields: result.skippedFields,
+          attachments: attachments.length,
         },
       },
       tx,

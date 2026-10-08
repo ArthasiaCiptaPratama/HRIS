@@ -185,22 +185,23 @@ model Employee {
   // (bukan URL; URL bertanda tangan dibuat API saat dibaca). Null = belum ada foto.
   photoPath                    String?                @map("photo_path") @db.VarChar(255)
 
-  employmentStatus EmploymentStatus     @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
-  company          Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  position         Position             @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  workLocation     WorkLocation?        @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
-  grade            Grade?               @relation(fields: [gradeId], references: [id], onDelete: Restrict)
-  manager          Employee?            @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
-  orgPost          OrgPost?             @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
-  subordinates     Employee[]           @relation("EmployeeManager")
-  personal         EmployeePersonal?
-  bankAccount      EmployeeBankAccount?
-  familyMembers    FamilyMember[]
-  educations       Education[]
-  trainings        Training[]
-  histories        EmploymentHistory[]
+  employmentStatus  EmploymentStatus      @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
+  company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position          Position              @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  workLocation      WorkLocation?         @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
+  grade             Grade?                @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  manager           Employee?             @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
+  orgPost           OrgPost?              @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
+  subordinates      Employee[]            @relation("EmployeeManager")
+  personal          EmployeePersonal?
+  bankAccount       EmployeeBankAccount?
+  familyMembers     FamilyMember[]
+  educations        Education[]
+  trainings         Training[]
+  histories         EmploymentHistory[]
+  importAttachments ImportJobAttachment[]
   // Sisi balik relasi iam.accounts.employee_id (wajib Prisma); jangan di-include dari modul employee.
-  account          Account?
+  account           Account?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -585,40 +586,41 @@ model DocumentType {
 }
 
 model EmployeeDocument {
-  id             String               @id @default(uuid()) @db.Uuid
-  employeeId     String               @map("employee_id") @db.Uuid
-  employee       Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id                String                @id @default(uuid()) @db.Uuid
+  employeeId        String                @map("employee_id") @db.Uuid
+  employee          Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   // Enum lama dipertahankan (expand → contract); jenis sebenarnya = documentTypeId (D-055).
-  type           EmployeeDocumentType
-  documentTypeId String               @map("document_type_id") @db.Uuid
-  documentType   DocumentType         @relation(fields: [documentTypeId], references: [id])
-  documentNumber String?              @map("document_number") @db.VarChar(60)
-  issuedAt       DateTime?            @map("issued_at") @db.Date
-  expiresAt      DateTime?            @map("expires_at") @db.Date
-  version        Int                  @default(1)
-  isCurrent      Boolean              @default(true) @map("is_current")
-  replacesId     String?              @map("replaces_id") @db.Uuid
-  replaces       EmployeeDocument?    @relation("DocumentVersions", fields: [replacesId], references: [id], onDelete: SetNull)
-  replacedBy     EmployeeDocument[]   @relation("DocumentVersions")
-  changeRequests DataChangeRequest[]
-  status         DocumentStatus       @default(VERIFIED)
+  type              EmployeeDocumentType
+  documentTypeId    String                @map("document_type_id") @db.Uuid
+  documentType      DocumentType          @relation(fields: [documentTypeId], references: [id])
+  documentNumber    String?               @map("document_number") @db.VarChar(60)
+  issuedAt          DateTime?             @map("issued_at") @db.Date
+  expiresAt         DateTime?             @map("expires_at") @db.Date
+  version           Int                   @default(1)
+  isCurrent         Boolean               @default(true) @map("is_current")
+  replacesId        String?               @map("replaces_id") @db.Uuid
+  replaces          EmployeeDocument?     @relation("DocumentVersions", fields: [replacesId], references: [id], onDelete: SetNull)
+  replacedBy        EmployeeDocument[]    @relation("DocumentVersions")
+  changeRequests    DataChangeRequest[]
+  importAttachments ImportJobAttachment[]
+  status            DocumentStatus        @default(VERIFIED)
   // Akun pemverifikasi (iam.accounts.id, tanpa FK).
-  verifiedBy     String?              @map("verified_by") @db.Uuid
-  verifiedAt     DateTime?            @map("verified_at") @db.Timestamptz(6)
-  note           String?              @db.VarChar(500)
+  verifiedBy        String?               @map("verified_by") @db.Uuid
+  verifiedAt        DateTime?             @map("verified_at") @db.Timestamptz(6)
+  note              String?               @db.VarChar(500)
   // D-055: lampiran item Arsip — sertifikat pelatihan / SK riwayat jabatan.
-  trainingId     String?              @map("training_id") @db.Uuid
-  training       Training?            @relation(fields: [trainingId], references: [id], onDelete: SetNull)
-  historyId      String?              @map("history_id") @db.Uuid
-  history        EmploymentHistory?   @relation(fields: [historyId], references: [id], onDelete: SetNull)
-  storagePath    String               @map("storage_path") @db.VarChar(255)
-  mimeType       String               @map("mime_type") @db.VarChar(100)
-  sizeBytes      Int                  @map("size_bytes")
+  trainingId        String?               @map("training_id") @db.Uuid
+  training          Training?             @relation(fields: [trainingId], references: [id], onDelete: SetNull)
+  historyId         String?               @map("history_id") @db.Uuid
+  history           EmploymentHistory?    @relation(fields: [historyId], references: [id], onDelete: SetNull)
+  storagePath       String                @map("storage_path") @db.VarChar(255)
+  mimeType          String                @map("mime_type") @db.VarChar(100)
+  sizeBytes         Int                   @map("size_bytes")
   // Akun pengunggah (iam.accounts.id, tanpa FK — iam bukan modul inti).
-  uploadedBy     String               @map("uploaded_by") @db.Uuid
-  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt      DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  uploadedBy        String                @map("uploaded_by") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?             @map("deleted_at") @db.Timestamptz(6)
 
   @@unique([storagePath])
   @@index([employeeId, type])
@@ -698,23 +700,24 @@ model WorkExperience {
 }
 
 model ImportJob {
-  id             String           @id @default(uuid()) @db.Uuid
-  actorAccountId String           @map("actor_account_id") @db.Uuid
+  id             String                @id @default(uuid()) @db.Uuid
+  actorAccountId String                @map("actor_account_id") @db.Uuid
   // PT bawaan untuk baris tanpa kolom perusahaan (D-040).
-  companyId      String?          @map("company_id") @db.Uuid
-  company        Company?         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  fileName       String           @map("file_name") @db.VarChar(255)
-  fileSha256     String           @map("file_sha256") @db.VarChar(64)
+  companyId      String?               @map("company_id") @db.Uuid
+  company        Company?              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  fileName       String                @map("file_name") @db.VarChar(255)
+  fileSha256     String                @map("file_sha256") @db.VarChar(64)
   mode           ImportMode
-  totalRows      Int              @map("total_rows")
-  createdCount   Int              @map("created_count")
-  updatedCount   Int              @map("updated_count")
-  skippedCount   Int              @map("skipped_count")
-  errorCount     Int              @map("error_count")
+  totalRows      Int                   @map("total_rows")
+  createdCount   Int                   @map("created_count")
+  updatedCount   Int                   @map("updated_count")
+  skippedCount   Int                   @map("skipped_count")
+  errorCount     Int                   @map("error_count")
   // Nama field sensitif yang dilewati karena aktor tidak berhak menulisnya (D-042 poin 5).
-  skippedFields  String[]         @map("skipped_fields")
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  skippedFields  String[]              @map("skipped_fields")
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   issues         ImportJobIssue[]
+  attachments    ImportJobAttachment[]
 
   @@index([actorAccountId])
   @@index([companyId])
@@ -739,6 +742,51 @@ model ImportJobIssue {
 }
 
 // D-042: pemetaan kolom yang dikonfirmasi pengguna, dipakai ulang untuk susunan header yang sama.
+enum ImportAttachmentStatus {
+  PENDING
+  PROCESSING
+  DONE
+  SKIPPED
+  FAILED
+
+  @@schema("employee")
+}
+
+// D-060: lampiran Google Drive dari Import (foto profil / dokumen). Dicatat saat import disimpan, lalu
+// diproses bertahap (unduh lewat service account → Storage → dokumen). `source_sha256` = sidik jari
+// file Drive (gabungan bila beberapa file): sama dengan lampiran DONE sebelumnya → dilewati, berbeda →
+// versi baru. PROCESSING lebih lama dari batas klaim dianggap PENDING (proses terputus).
+model ImportJobAttachment {
+  id             String                 @id @default(uuid()) @db.Uuid
+  jobId          String                 @map("job_id") @db.Uuid
+  job            ImportJob              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  employeeId     String                 @map("employee_id") @db.Uuid
+  employee       Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  sourceRow      Int                    @map("source_row")
+  field          String                 @db.VarChar(50)
+  // "PHOTO" atau kode jenis dokumen (document_types.code).
+  target         String                 @db.VarChar(50)
+  note           String                 @db.VarChar(200)
+  documentNumber String?                @map("document_number") @db.VarChar(60)
+  driveFileIds   String[]               @map("drive_file_ids")
+  status         ImportAttachmentStatus @default(PENDING)
+  reason         String?                @db.VarChar(300)
+  sourceSha256   String?                @map("source_sha256") @db.VarChar(64)
+  attempts       Int                    @default(0) @db.SmallInt
+  documentId     String?                @map("document_id") @db.Uuid
+  document       EmployeeDocument?      @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  claimedAt      DateTime?              @map("claimed_at") @db.Timestamptz(6)
+  processedAt    DateTime?              @map("processed_at") @db.Timestamptz(6)
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([jobId, status])
+  @@index([employeeId, target])
+  @@index([documentId])
+  @@map("import_job_attachments")
+  @@schema("employee")
+}
+
 model ImportMapping {
   id        String   @id @default(uuid()) @db.Uuid
   signature String   @db.VarChar(64)

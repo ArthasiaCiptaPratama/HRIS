@@ -202,7 +202,15 @@ describe("POST /employee-imports/preview", () => {
     expect(res.status).toBe(200);
     const preview = await data(res);
     expect(await countEmployees()).toBe(before);
-    expect(preview.counts).toEqual({ total: 5, create: 1, update: 1, skip: 0, error: 2, blank: 1 });
+    expect(preview.counts).toEqual({
+      total: 5,
+      create: 1,
+      update: 1,
+      skip: 0,
+      error: 2,
+      blank: 1,
+      attachments: 0,
+    });
     const byRow = Object.fromEntries(
       preview.rows.map((r: { sourceRow: number }) => [r.sourceRow, r]),
     );

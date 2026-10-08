@@ -59,6 +59,8 @@ export const previewSchema = z
       skip: z.number().int(),
       error: z.number().int(),
       blank: z.number().int(),
+      // D-060: lampiran Google Drive yang akan masuk antrean.
+      attachments: z.number().int(),
     }),
     // TANPA nilai: hanya aksi, identitas baris, nama field yang berubah, dan kode masalah.
     rows: z.array(
@@ -70,6 +72,7 @@ export const previewSchema = z
         companyCode: z.string().nullable(),
         changes: z.array(z.string()),
         issues: z.array(issueSchema),
+        attachments: z.number().int(),
       }),
     ),
     masterData: z.object({
@@ -116,6 +119,56 @@ export const importJobDetailSchema = importJobSchema
     ),
   })
   .openapi("EmployeeImportJobDetail");
+
+// ── D-060: lampiran Google Drive ─────────────────────────────────────────────
+
+export const attachmentStatusSchema = z.enum([
+  "PENDING",
+  "PROCESSING",
+  "DONE",
+  "SKIPPED",
+  "FAILED",
+]);
+export const importAttachmentsSchema = z
+  .object({
+    jobId: z.uuid(),
+    /** false = GOOGLE_SERVICE_ACCOUNT_JSON belum diisi (antrean menunggu). */
+    driveConfigured: z.boolean(),
+    counts: z.object({
+      total: z.number().int(),
+      pending: z.number().int(),
+      done: z.number().int(),
+      skipped: z.number().int(),
+      failed: z.number().int(),
+    }),
+    // Tanpa ID/tautan Drive dan tanpa isi file.
+    items: z.array(
+      z.object({
+        id: z.uuid(),
+        sourceRow: z.number().int(),
+        employeeNumber: z.string(),
+        fullName: z.string(),
+        field: z.string(),
+        target: z.string(),
+        fileCount: z.number().int(),
+        status: attachmentStatusSchema,
+        reason: z.string().nullable(),
+      }),
+    ),
+  })
+  .openapi("EmployeeImportAttachments");
+export type ImportAttachmentsDto = z.infer<typeof importAttachmentsSchema>;
+export const pendingAttachmentJobsSchema = z
+  .array(
+    z.object({
+      jobId: z.uuid(),
+      fileName: z.string(),
+      createdAt: z.iso.datetime(),
+      pending: z.number().int(),
+      failed: z.number().int(),
+    }),
+  )
+  .openapi("EmployeeImportPendingAttachments");
 
 export const listJobsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

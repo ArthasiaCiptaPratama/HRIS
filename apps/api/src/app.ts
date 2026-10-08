@@ -16,6 +16,11 @@ import {
   UnauthenticatedError,
   ValidationError,
 } from "./core/errors.ts";
+import {
+  createServiceAccountDrive,
+  type GoogleDriveReader,
+  UNCONFIGURED_DRIVE,
+} from "./core/google-drive.ts";
 import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
@@ -58,6 +63,8 @@ export interface AppDeps {
   onboardingInvitesPerHour: number;
   /** D-048: domain alamat login NIK (per lingkungan; kosong = nonaktif). */
   loginEmailDomain: string | undefined;
+  /** D-060: Google Drive (service account) untuk lampiran Import. */
+  googleDrive: GoogleDriveReader;
 }
 
 // Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
@@ -80,6 +87,14 @@ function defaultStorage(): StorageAdmin {
   return NODE_ENV !== "test" && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
     ? createSupabaseStorage(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     : UNCONFIGURED_STORAGE;
+}
+
+// D-060: test tidak pernah memanggil Google (pakai pembaca palsu lewat overrides).
+function defaultGoogleDrive(): GoogleDriveReader {
+  const { NODE_ENV, GOOGLE_SERVICE_ACCOUNT_JSON } = getEnv();
+  return NODE_ENV !== "test" && GOOGLE_SERVICE_ACCOUNT_JSON
+    ? createServiceAccountDrive(GOOGLE_SERVICE_ACCOUNT_JSON)
+    : UNCONFIGURED_DRIVE;
 }
 
 // D-025: SMTP hanya bila lengkap (staging/produksi); lokal → email dicatat ke log saja.
@@ -153,6 +168,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       overrides.onboardingInvitesPerHour ?? getEnv().ONBOARDING_INVITES_PER_HOUR,
     loginEmailDomain:
       "loginEmailDomain" in overrides ? overrides.loginEmailDomain : getEnv().LOGIN_EMAIL_DOMAIN,
+    googleDrive: overrides.googleDrive ?? defaultGoogleDrive(),
   };
   // D-045: undangan aktivasi kembali ke /auth/callback web (atur password).
   const invitations = {
@@ -231,6 +247,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     storagePathPrefix: deps.storagePathPrefix,
     invitations,
     loginEmailDomain: deps.loginEmailDomain,
+    googleDrive: deps.googleDrive,
   });
   registerCronRoutes(app, {
     cronSecret: deps.cronSecret,

@@ -1,3 +1,4 @@
+import { ATTACHMENT_IMPORT_FIELDS, type AttachmentFieldKey } from "./attachments.ts";
 import { GROUP_IMPORT_FIELDS, type GroupFieldKey } from "./groups.ts";
 
 // D-042: kamus field import karyawan — satu sumber untuk deteksi kolom (web), normalisasi & validasi
@@ -361,7 +362,12 @@ const BASE_IMPORT_FIELDS = {
 } as const satisfies Record<string, ImportFieldDef>;
 
 export const IMPORT_FIELDS: Record<keyof typeof BASE_IMPORT_FIELDS, ImportFieldDef> &
-  Record<GroupFieldKey, ImportFieldDef> = { ...BASE_IMPORT_FIELDS, ...GROUP_IMPORT_FIELDS };
+  Record<GroupFieldKey, ImportFieldDef> &
+  Record<AttachmentFieldKey, ImportFieldDef> = {
+  ...BASE_IMPORT_FIELDS,
+  ...GROUP_IMPORT_FIELDS,
+  ...ATTACHMENT_IMPORT_FIELDS,
+};
 
 export type ImportFieldKey = keyof typeof IMPORT_FIELDS;
 export const IMPORT_FIELD_KEYS = Object.keys(IMPORT_FIELDS) as ImportFieldKey[];

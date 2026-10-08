@@ -179,7 +179,8 @@ describe("normalizeImportRow: bagian berulang", () => {
 
 describe("pemetaan berkelompok ekspor Sheet Form (138 kolom)", () => {
   // Nilai dummy menurut pola judul (dua baris).
-  const dummy = (header: string, i: number): string => {
+  const firstNpwp = FORM_SHEET_HEADERS.indexOf("NPWP");
+  const dummy = (header: string, i: number, column: number): string => {
     const h = header.toLowerCase();
     if (h === "timestamp") return `07/10/2026 1${i}:00:00`;
     if (h.startsWith("nik (")) return `64720000000003${i}0`;
@@ -191,14 +192,16 @@ describe("pemetaan berkelompok ekspor Sheet Form (138 kolom)", () => {
     if (h.startsWith("tahun")) return "2010";
     if (/^(foto|ktp|kartu keluarga|ijazah|buku rekening|sertifikasi|smkp|smk3|proper|iso)/.test(h))
       return `https://drive.google.com/open?id=x${i}`;
-    if (h === "npwp") return i === 1 ? "000000000000000" : `https://drive.google.com/open?id=n${i}`;
+    // NPWP pertama = nomor, kedua = unggahan kartu.
+    if (h === "npwp")
+      return column === firstNpwp ? "000000000000000" : `https://drive.google.com/open?id=n${i}`;
     return `Isi ${i}`;
   };
   const mapping = () => {
     const grid: string[][] = [FORM_SHEET_HEADERS];
     grid.push(
-      FORM_SHEET_HEADERS.map((h) => dummy(h, 1)),
-      FORM_SHEET_HEADERS.map((h) => dummy(h, 2)),
+      FORM_SHEET_HEADERS.map((h, c) => dummy(h, 1, c)),
+      FORM_SHEET_HEADERS.map((h, c) => dummy(h, 2, c)),
     );
     const detected = detectSheet(grid);
     if (!detected) throw new Error("tabel tidak terdeteksi");
@@ -239,7 +242,7 @@ describe("pemetaan berkelompok ekspor Sheet Form (138 kolom)", () => {
     expect(at(f, "Pekerjaan (Saudara Kandung 5)")).toBe("sibling5Occupation");
   });
 
-  test("kontak darurat, pendidikan 1–3, sertifikasi, No. SIM per jenis; kolom tautan diabaikan", () => {
+  test("kontak darurat, pendidikan 1–3, sertifikasi, No. SIM per jenis; kolom tautan = lampiran (D-060)", () => {
     const f = mapping();
     expect(at(f, "Hubungan")).toBe("emergencyContactRelationship");
     expect(at(f, "No. HP", 1)).toBe("phoneNumber");
@@ -251,7 +254,7 @@ describe("pemetaan berkelompok ekspor Sheet Form (138 kolom)", () => {
     expect(at(f, "Tahun Lulus", 1)).toBe("education1GraduationYear");
     expect(at(f, "Pendidikan Terakhir Ketiga")).toBe("education3Level");
     expect(at(f, "Tahun Lulus", 3)).toBe("education3GraduationYear");
-    expect(at(f, "Sertifikasi K3 Umum")).toBeNull();
+    expect(at(f, "Sertifikasi K3 Umum")).toBe("attachCertK3Umum");
     expect(at(f, "No. Sertifikasi", 1)).toBe("certK3UmumNumber");
     expect(at(f, "Tahun Terbit", 1)).toBe("certK3UmumYear");
     expect(at(f, "No. Sertifikasi", 2)).toBe("certPopNumber");
@@ -260,7 +263,12 @@ describe("pemetaan berkelompok ekspor Sheet Form (138 kolom)", () => {
     expect(at(f, "No. SIM C")).toBe("simNumberC");
     expect(at(f, "Nama Bank")).toBe("bankName");
     expect(at(f, "Nama Pemilik")).toBe("bankAccountHolder");
-    expect(at(f, "KTP")).toBeNull();
+    expect(at(f, "KTP")).toBe("attachKtp");
+    expect(at(f, "Foto Karyawan")).toBe("attachPhoto");
+    expect(at(f, "NPWP", 1)).toBe("npwpNumber");
+    expect(at(f, "NPWP", 2)).toBe("attachNpwp");
+    expect(at(f, "Buku Rekening (Hal 1)")).toBe("attachBankBook");
+    expect(at(f, "Sertifikasi Pengawas Operasional Pertama (POP)")).toBe("attachCertPop");
     // Nama kontak darurat = "Nama Lengkap" tepat sebelum "Hubungan".
     const relIndex = FORM_SHEET_HEADERS.findIndex((h) => h.trim() === "Hubungan");
     expect(f[relIndex - 1]).toBe("emergencyContactName");

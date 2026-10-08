@@ -145,3 +145,110 @@ export async function upsertMapping(signature: string, mapping: object, updatedB
     update: { mapping, updatedBy },
   });
 }
+
+// ── D-060: antrean lampiran Google Drive ────────────────────────────────────
+
+export type AttachmentInput = Omit<Prisma.ImportJobAttachmentUncheckedCreateInput, "jobId">;
+
+export async function createAttachments(tx: EmployeeTx, jobId: string, rows: AttachmentInput[]) {
+  if (rows.length === 0) return;
+  await tx.importJobAttachment.createMany({ data: rows.map((row) => ({ ...row, jobId })) });
+}
+
+export async function listAttachments(jobId: string) {
+  return getPrisma().importJobAttachment.findMany({
+    where: { jobId },
+    orderBy: [{ sourceRow: "asc" }, { createdAt: "asc" }],
+    include: { employee: { select: { employeeNumber: true, fullName: true } } },
+  });
+}
+export type AttachmentRow = Awaited<ReturnType<typeof listAttachments>>[number];
+
+/**
+ * Klaim satu lampiran untuk diproses (PENDING, atau PROCESSING yang terputus sebelum `staleBefore`).
+ * Optimistik: dua proses bersamaan tidak mengambil baris yang sama (null = kalah balapan/kosong).
+ */
+export async function claimAttachment(jobId: string, now: Date, staleBefore: Date) {
+  const prisma = getPrisma();
+  const next = await prisma.importJobAttachment.findFirst({
+    where: {
+      jobId,
+      OR: [{ status: "PENDING" }, { status: "PROCESSING", claimedAt: { lt: staleBefore } }],
+    },
+    orderBy: [{ sourceRow: "asc" }, { createdAt: "asc" }],
+  });
+  if (!next) return { row: null, empty: true };
+  const { count } = await prisma.importJobAttachment.updateMany({
+    where: { id: next.id, status: next.status, claimedAt: next.claimedAt },
+    data: { status: "PROCESSING", claimedAt: now, attempts: { increment: 1 } },
+  });
+  return { row: count === 1 ? next : null, empty: false };
+}
+
+export async function finishAttachment(
+  id: string,
+  data: Pick<
+    Prisma.ImportJobAttachmentUncheckedUpdateInput,
+    "status" | "reason" | "sourceSha256" | "documentId"
+  >,
+) {
+  await getPrisma().importJobAttachment.update({
+    where: { id },
+    data: { ...data, claimedAt: null, processedAt: new Date() },
+  });
+}
+
+/** Lampiran yang sama (sidik jari file Drive) sudah pernah masuk untuk karyawan & tujuan ini. */
+export async function findDoneAttachment(where: {
+  employeeId: string;
+  target: string;
+  note: string;
+  sourceSha256: string;
+}) {
+  return getPrisma().importJobAttachment.findFirst({
+    where: { ...where, status: "DONE" },
+    select: { id: true },
+  });
+}
+
+export async function retryFailedAttachments(jobId: string) {
+  const { count } = await getPrisma().importJobAttachment.updateMany({
+    where: { jobId, status: "FAILED" },
+    data: { status: "PENDING", reason: null },
+  });
+  return count;
+}
+
+/** Import (milik aktor, atau semua untuk SA) yang lampirannya belum selesai/gagal. */
+export async function jobsWithOpenAttachments(actorAccountId: string | null) {
+  const prisma = getPrisma();
+  const grouped = await prisma.importJobAttachment.groupBy({
+    by: ["jobId", "status"],
+    where: {
+      status: { in: ["PENDING", "PROCESSING", "FAILED"] },
+      ...(actorAccountId ? { job: { actorAccountId } } : {}),
+    },
+    _count: { _all: true },
+  });
+  const jobs = await prisma.importJob.findMany({
+    where: { id: { in: [...new Set(grouped.map((g) => g.jobId))] } },
+    select: { id: true, fileName: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+  return jobs.map((job) => {
+    const of = (statuses: string[]) =>
+      grouped
+        .filter((g) => g.jobId === job.id && statuses.includes(g.status))
+        .reduce((sum, g) => sum + g._count._all, 0);
+    return { job, pending: of(["PENDING", "PROCESSING"]), failed: of(["FAILED"]) };
+  });
+}
+
+export async function findTrainingByField(employeeId: string, trainingField: string) {
+  return getPrisma().training.findFirst({
+    where: { employeeId, trainingField: { equals: trainingField, mode: "insensitive" } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+}

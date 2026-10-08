@@ -1,6 +1,7 @@
 // D-042: deteksi struktur file karyawan "apa adanya" — pilih sheet, cari baris header, sarankan
 // pemetaan kolom (sinonim + kemiripan teks + isi kolom) dengan skor keyakinan. Fungsi murni.
 
+import { attachmentFieldOfHeader } from "./attachments.ts";
 import { DERIVED_HEADERS, IMPORT_FIELDS, type ImportFieldKey } from "./fields.ts";
 import { CERTIFICATIONS, type CertificationKey } from "./groups.ts";
 import {
@@ -432,6 +433,16 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
         combined: { [groupField]: 1 } as Partial<Record<ImportFieldKey, number>>,
       };
     }
+    // D-060: kolom tautan berjudul unggahan Form ("Foto Karyawan", "KTP", nama sertifikasi) = lampiran.
+    const attachmentField = linkColumn ? attachmentFieldOfHeader(header) : null;
+    if (attachmentField) {
+      return {
+        column,
+        header,
+        derived: false,
+        combined: { [attachmentField]: 1 } as Partial<Record<ImportFieldKey, number>>,
+      };
+    }
     const formsAccountColumn = formsExport && FORMS_ACCOUNT_EMAIL.has(normalizeHeader(header));
     if (linkColumn || familyColumn || formsAccountColumn) {
       return {
@@ -538,4 +549,24 @@ export function profileKeys(headers: readonly GridCell[]): string[] {
 /** Tanda tangan susunan header (untuk profil pemetaan): header ternormalisasi, dipisah "|". */
 export function headerSignatureSource(headers: readonly string[]): string {
   return headers.map(normalizeHeader).join("|");
+}
+
+/**
+ * Terapkan profil pemetaan tersimpan (kunci per kemunculan, `profileKeys`). D-060: profil yang dibuat
+ * sebelum ada field lampiran (tidak memuat satu pun `attach*`) menandai kolom tautan Drive "diabaikan";
+ * kolom yang kini dikenali sebagai lampiran memakai saran baru, bukan null dari profil lama.
+ */
+export function applySavedMapping(
+  headers: readonly GridCell[],
+  saved: Record<string, ImportFieldKey | null>,
+  suggested: (ImportFieldKey | null)[],
+): (ImportFieldKey | null)[] {
+  const knowsAttachments = Object.values(saved).some((field) => field?.startsWith("attach"));
+  return profileKeys(headers).map((key, i) => {
+    const suggestion = suggested[i] ?? null;
+    if (!(key in saved)) return suggestion;
+    const field = saved[key] ?? null;
+    if (field === null && !knowsAttachments && suggestion?.startsWith("attach")) return suggestion;
+    return field;
+  });
 }

@@ -39,6 +39,8 @@ export interface StorageAdmin {
   /** null bila objek tidak ada. */
   getObjectInfo(bucket: string, path: string): Promise<StoredObjectInfo | null>;
   removeObjects(bucket: string, paths: string[]): Promise<void>;
+  /** D-060: unggah dari server (lampiran Google Drive di Import); path dibuat server, tidak menimpa. */
+  uploadObject(bucket: string, path: string, bytes: Uint8Array, contentType: string): Promise<void>;
   /** Idempoten: buat bucket private bila belum ada, lalu samakan batas ukuran & tipe. */
   ensurePrivateBucket(config: BucketConfig): Promise<"created" | "updated">;
 }
@@ -86,6 +88,13 @@ export function createSupabaseStorage(supabaseUrl: string, serviceRoleKey: strin
       if (error) throw new Error(`Supabase storage remove failed: ${error.message}`);
     },
 
+    async uploadObject(bucket, path, bytes, contentType) {
+      const { error } = await storage
+        .from(bucket)
+        .upload(path, bytes, { contentType, upsert: false });
+      if (error) throw new Error(`Supabase storage upload failed: ${error.message}`);
+    },
+
     async ensurePrivateBucket({ id, fileSizeLimit, allowedMimeTypes }) {
       const options = {
         public: false,
@@ -113,6 +122,7 @@ export const UNCONFIGURED_STORAGE: StorageAdmin = {
   },
   getObjectInfo: notConfigured,
   removeObjects: notConfigured,
+  uploadObject: notConfigured,
   ensurePrivateBucket: notConfigured,
 };
 

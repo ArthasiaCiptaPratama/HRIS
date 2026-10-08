@@ -1,5 +1,6 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context, MiddlewareHandler } from "hono";
+import type { GoogleDriveReader } from "../../core/google-drive.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
@@ -47,6 +48,8 @@ export interface EmployeeRouteDeps {
   invitations?: OnboardingInvitationDeps;
   /** D-048: domain alamat login NIK lingkungan ini (kosong = nonaktif). */
   loginEmailDomain?: string | undefined;
+  /** D-060: Google Drive (service account) untuk lampiran Import. */
+  googleDrive?: GoogleDriveReader;
 }
 
 const P = API_BASE_PATH;
@@ -268,6 +271,7 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
     nikLogin: { authAdmin: deps.authAdmin, domain: deps.loginEmailDomain },
+    googleDrive: deps.googleDrive,
   });
 
   // D-054: Arsip karyawan (/archive/*, /employees/{id}/<kategori>).

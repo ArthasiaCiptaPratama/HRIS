@@ -13,6 +13,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
+import type { GoogleDriveReader } from "../../core/google-drive.ts";
 import {
   EMPLOYEE_PHOTO_BUCKET,
   EMPLOYEE_PHOTO_MAX_BYTES,
@@ -76,6 +77,8 @@ export interface RequestContext {
   storagePathPrefix?: string | undefined;
   /** D-048: ubah nomor induk → alamat login NIK ikut diperbarui. */
   nikLogin?: NikLoginDeps | undefined;
+  /** D-060: pembaca Google Drive (service account) untuk lampiran Import. */
+  googleDrive?: GoogleDriveReader | undefined;
 }
 
 // URL baca foto berlaku singkat: cukup untuk satu sesi melihat halaman; setelahnya diminta ulang.

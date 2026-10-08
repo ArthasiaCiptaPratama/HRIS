@@ -12,7 +12,9 @@ export type ImportSection =
   | "contract"
   // D-059 lanjutan: keluarga (sensitif, grant data pribadi) & sertifikasi (Pelatihan).
   | "family"
-  | "training";
+  | "training"
+  // D-060: tautan file Google Drive (diproses setelah simpan; hak akses dicek per jenis dokumen).
+  | "attachment";
 
 export interface ImportFieldDef {
   label: string;

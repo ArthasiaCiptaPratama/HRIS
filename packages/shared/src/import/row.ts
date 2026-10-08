@@ -3,6 +3,12 @@
 
 import type { EducationLevel, EmploymentCategory, Gender, PtkpStatus } from "../employee.ts";
 import { DRIVING_LICENSE_TYPES, type DrivingLicenseType } from "../personal-fields.ts";
+import {
+  ATTACHMENT_FIELD_KEYS,
+  ATTACHMENT_MAX_FILES,
+  ATTACHMENT_SPECS,
+  driveFileIds,
+} from "./attachments.ts";
 import type { ImportFieldKey } from "./fields.ts";
 import { CERTIFICATIONS, EDUCATION_SLOTS, FAMILY_SLOTS } from "./groups.ts";
 import {
@@ -93,6 +99,8 @@ export interface NormalizedImportRow {
   educations?: ImportEducation[];
   /** D-059: sertifikasi → Arsip › Pelatihan (bidang = nama sertifikasi). */
   certifications?: ImportCertification[];
+  /** D-060: tautan file Google Drive → antrean lampiran (foto profil / dokumen). */
+  attachments?: ImportAttachment[];
   bank: { bankName?: string; accountNumber?: string; accountHolder?: string };
   education?: { level: EducationLevel; schoolName: string | null };
   /** Fase 7 (tidak disimpan sekarang): akhir kontrak & nomor offering. */
@@ -127,6 +135,16 @@ export interface ImportCertification {
   year?: number;
 }
 
+export interface ImportAttachment {
+  source: ImportFieldKey;
+  /** "PHOTO" atau kode jenis dokumen. */
+  target: string;
+  note: string;
+  fileIds: string[];
+  documentNumber?: string;
+  certKey?: string;
+}
+
 // Masalah yang hanya peringatan (baris tetap diimpor tanpa field itu).
 const WARNING_CODES = new Set([
   "BPJS_NOT_A_NUMBER",
@@ -139,6 +157,8 @@ const WARNING_CODES = new Set([
   "INVALID_YEAR",
   "ENTRY_AFTER_GRADUATION",
   "UNKNOWN_EDUCATION_LEVEL",
+  "INVALID_DRIVE_LINK",
+  "TOO_MANY_FILES",
 ]);
 
 /**
@@ -381,7 +401,9 @@ export function normalizeImportRow(raw: RawImportRow): {
   for (const c of CERTIFICATIONS) {
     const number = text(`cert${c.key}Number`, 60);
     const certYear = year(`cert${c.key}Year`);
-    if (number || certYear !== undefined)
+    // Sertifikasi yang hanya diunggah filenya (tanpa nomor/tahun) tetap tercatat di Pelatihan.
+    const file = driveFileIds(raw[`attachCert${c.key}`]).length > 0;
+    if (number || certYear !== undefined || file)
       certifications.push({
         source: `cert${c.key}Number`,
         key: c.key,
@@ -391,6 +413,34 @@ export function normalizeImportRow(raw: RawImportRow): {
       });
   }
   if (certifications.length > 0) row.certifications = certifications;
+
+  const attachments: ImportAttachment[] = [];
+  for (const key of ATTACHMENT_FIELD_KEYS) {
+    const value = cleanText(raw[key]);
+    if (!value) continue;
+    const fileIds = driveFileIds(value);
+    if (fileIds.length === 0) {
+      warn(key, "INVALID_DRIVE_LINK");
+      continue;
+    }
+    if (fileIds.length > ATTACHMENT_MAX_FILES) {
+      warn(key, "TOO_MANY_FILES");
+      continue;
+    }
+    const spec = ATTACHMENT_SPECS[key];
+    const documentNumber = spec.certKey
+      ? certifications.find((c) => c.key === spec.certKey)?.number
+      : undefined;
+    attachments.push({
+      source: key,
+      target: spec.target,
+      note: spec.note,
+      fileIds,
+      ...(documentNumber ? { documentNumber } : {}),
+      ...(spec.certKey ? { certKey: spec.certKey } : {}),
+    });
+  }
+  if (attachments.length > 0) row.attachments = attachments;
 
   setP("emergencyContactAddress", text("emergencyContactAddress", 500));
   const simNumbers: Partial<Record<DrivingLicenseType, string>> = {};
@@ -437,6 +487,8 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   INVALID_YEAR: "Tahun tidak dikenali (dilewati)",
   ENTRY_AFTER_GRADUATION: "Tahun masuk setelah tahun lulus (tahun masuk dilewati)",
   UNKNOWN_EDUCATION_LEVEL: "Jenjang pendidikan tidak dikenali (dilewati)",
+  INVALID_DRIVE_LINK: "Bukan tautan Google Drive (lampiran dilewati)",
+  TOO_MANY_FILES: "Lebih dari 10 file dalam satu kolom (lampiran dilewati)",
   DUPLICATE_PERSONAL_EMAIL_IN_FILE: "Email pribadi ganda di dalam file",
   PERSONAL_EMAIL_TAKEN: "Email pribadi sudah dipakai karyawan lain",
   UNKNOWN_PTKP: "Status PTKP tidak dikenali (TK/0–K/3)",
