@@ -662,6 +662,7 @@ export function headerSignatureSource(headers: readonly string[]): string {
  * Terapkan profil pemetaan tersimpan (kunci per kemunculan, `profileKeys`). D-060: profil yang dibuat
  * sebelum ada field lampiran (tidak memuat satu pun `attach*`) menandai kolom tautan Drive "diabaikan";
  * kolom yang kini dikenali sebagai lampiran memakai saran baru, bukan null dari profil lama.
+ * D-061: kolom yang isinya tautan Drive juga mengalahkan field data dari profil.
  */
 export function applySavedMapping(
   headers: readonly GridCell[],
@@ -674,6 +675,10 @@ export function applySavedMapping(
     if (!(key in saved)) return suggestion;
     const field = saved[key] ?? null;
     if (field === null && !knowsAttachments && suggestion?.startsWith("attach")) return suggestion;
+    // D-061: kolom yang kini berisi tautan Drive tidak dipaksa ke field data dari profil (profil disimpan
+    // saat kolom unggahan masih kosong, mis. "Kartu Keluarga" → No. KK). "Abaikan" (null) tetap dihormati.
+    if (field !== null && !field.startsWith("attach") && suggestion?.startsWith("attach"))
+      return suggestion;
     return field;
   });
 }
