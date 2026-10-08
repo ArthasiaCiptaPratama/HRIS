@@ -1,7 +1,11 @@
 import { z } from "@hono/zod-openapi";
 import {
+  ARCHIVE_LIST_CATEGORIES,
+  documentCategorySchema,
   educationLevelSchema,
   employmentChangeTypeSchema,
+  expiryStateSchema,
+  familyRelationshipSchema,
   movementTypeSchema,
   trainingTypeSchema,
 } from "@hris/shared";
@@ -27,6 +31,26 @@ export const archiveListQuerySchema = z.object({
   source: z.enum(["SYSTEM", "MANUAL"]).optional(),
 });
 export type ArchiveListQuery = z.infer<typeof archiveListQuerySchema>;
+
+// D-058 (1d): ekspor = filter tabel yang sama (tanpa halaman) + filter khusus Keluarga & Data File.
+export const archiveExportQuerySchema = archiveListQuerySchema
+  .omit({ page: true, pageSize: true })
+  .extend({
+    relationship: familyRelationshipSchema.optional(),
+    documentTypeId: z.uuid().optional(),
+    category: documentCategorySchema.optional(),
+    expiry: expiryStateSchema.optional(),
+  });
+export type ArchiveExportQuery = z.infer<typeof archiveExportQuerySchema>;
+export const archiveExportParamSchema = z.object({ category: z.enum(ARCHIVE_LIST_CATEGORIES) });
+export const archiveExportSchema = z
+  .object({
+    fileName: z.string(),
+    rows: z.number().int(),
+    /** Isi .xlsx (base64) — dibuat saat diminta, tidak disimpan di server. */
+    contentBase64: z.string(),
+  })
+  .openapi("ArchiveExport");
 
 export const archiveEmployeeRefSchema = z.object({
   id: z.uuid(),
@@ -57,6 +81,7 @@ export const educationRowSchema = row({
   level: educationLevelSchema.nullable(),
   schoolName: z.string(),
   major: z.string().nullable(),
+  entryYear: z.number().int().nullable(),
   graduationYear: z.number().int().nullable(),
 }).openapi("ArchiveEducationRow");
 

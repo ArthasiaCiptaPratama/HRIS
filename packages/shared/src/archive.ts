@@ -14,10 +14,21 @@ export const ARCHIVE_CATEGORIES = [
 export const archiveCategorySchema = z.enum(ARCHIVE_CATEGORIES);
 export type ArchiveCategory = z.infer<typeof archiveCategorySchema>;
 
+/** Semua tabel Arsip (kategori 1a + Data File, Keluarga, Bank) — juga kategori ekspor (D-058, 1d). */
+export const ARCHIVE_LIST_CATEGORIES = [
+  ...ARCHIVE_CATEGORIES,
+  "families",
+  "bank-accounts",
+  "documents",
+] as const;
+export type ArchiveListCategory = (typeof ARCHIVE_LIST_CATEGORIES)[number];
+/** D-058: batas baris satu file ekspor Arsip (lebih → persempit filter). */
+export const ARCHIVE_EXPORT_MAX_ROWS = 10_000;
+
 /** Menu Arsip yang sudah aktif (slug web ↔ kategori API), urut seperti menu. "documents" = D-055 (1b). */
 export const ARCHIVE_SECTIONS: readonly {
   slug: string;
-  category: ArchiveCategory | "documents" | "families" | "bank-accounts";
+  category: ArchiveListCategory;
   label: string;
 }[] = [
   { slug: "kontak", category: "contacts", label: "Data Kontak" },

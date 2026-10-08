@@ -1,7 +1,8 @@
-import type { ArchiveCategory } from "@hris/shared";
+import { type ArchiveCategory, XLSX_CONTENT_TYPE } from "@hris/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
+import { downloadBytes } from "@/lib/xlsx-write";
 import { archivePageSchema } from "./schemas";
 
 // D-054 (Arsip 1a): tabel lintas karyawan & kelola item per karyawan.
@@ -31,11 +32,16 @@ export const archiveKeys = {
     ["archive", category, params] as const,
 };
 
-export function useArchiveList(category: ArchiveListCategory, params: ArchiveParams) {
+const toSearch = (params: Partial<ArchiveParams>) => {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== "") search.set(key, String(value));
   }
+  return search;
+};
+
+export function useArchiveList(category: ArchiveListCategory, params: ArchiveParams) {
+  const search = toSearch(params);
   return useQuery({
     queryKey: archiveKeys.list(category, params),
     queryFn: ({ signal }) =>
@@ -69,4 +75,22 @@ export function useArchiveItem(category: ItemCategory, employeeId: string) {
       onSuccess: invalidate,
     }),
   };
+}
+
+// D-058 (1d): ekspor Excel sesuai filter tabel (tanpa halaman). File dibuat server, diunduh di browser.
+const exportSchema = z.object({
+  data: z.object({ fileName: z.string(), rows: z.number(), contentBase64: z.string() }),
+});
+
+export function useArchiveExport(category: ArchiveListCategory) {
+  return useMutation({
+    mutationFn: async ({ page: _page, pageSize: _size, ...filters }: ArchiveParams) => {
+      const { data } = await api(`/archive/${category}/export?${toSearch(filters)}`, {
+        schema: exportSchema,
+      });
+      const bytes = Uint8Array.from(atob(data.contentBase64), (c) => c.charCodeAt(0));
+      downloadBytes(bytes, data.fileName, XLSX_CONTENT_TYPE);
+      return data;
+    },
+  });
 }

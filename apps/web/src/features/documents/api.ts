@@ -65,6 +65,12 @@ export function useEmployeeDocuments(employeeId: string, enabled = true) {
   });
 }
 
+/** Daftar dokumen satu karyawan di luar React Query (mis. sheet Dokumen pada Print data, D-058). */
+export const fetchEmployeeDocuments = (employeeId: string) =>
+  api(`/employees/${employeeId}/documents`, { schema: employeeDocumentsSchema }).then(
+    (r) => r.data,
+  );
+
 export class DocumentFileError extends Error {}
 
 const uploadUrlSchema = z.object({

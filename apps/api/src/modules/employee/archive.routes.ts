@@ -10,6 +10,9 @@ import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import {
+  archiveExportParamSchema,
+  archiveExportQuerySchema,
+  archiveExportSchema,
   archiveListQuerySchema,
   archiveMutationSchema,
   contactRowSchema,
@@ -21,6 +24,7 @@ import {
   workExperienceRowSchema,
 } from "./archive.schema.ts";
 import * as service from "./archive.service.ts";
+import { exportArchive } from "./archive-export.service.ts";
 import type { RequestContext } from "./employee.service.ts";
 
 // D-054 (Arsip gelombang 1a): /api/v1/archive/<kategori> (tabel lintas karyawan) dan
@@ -79,6 +83,31 @@ export function registerArchiveRoutes(
 ): void {
   const guard = <R extends object>(route: R) => ({ ...route, middleware: deps.protect });
   const ctx = deps.ctx ?? ctxOf;
+
+  // D-058 (1d): ekspor Excel per kategori (filter tabel yang sama). Didaftarkan sebelum tabel supaya
+  // tidak tertangkap route lain.
+  app.openapi(
+    guard(
+      createRoute({
+        method: "get",
+        path: `${API_BASE_PATH}/archive/{category}/export`,
+        tags: TAGS,
+        summary:
+          "Ekspor Excel tabel Arsip sesuai filter (SA/HR; maks 10.000 baris; isi sebatas hak lihat; diaudit)",
+        security,
+        request: { params: archiveExportParamSchema, query: archiveExportQuerySchema },
+        responses: {
+          200: json("File ekspor", dataEnvelope(archiveExportSchema)),
+          ...errors(400, 401, 403, 422, 500),
+        },
+      }),
+    ),
+    async (c) =>
+      c.json(
+        ok(await exportArchive(ctx(c), c.req.valid("param").category, c.req.valid("query"))),
+        200,
+      ),
+  );
 
   for (const { category, label, row } of LISTS) {
     const route = createRoute({

@@ -1,12 +1,14 @@
-import { SearchX } from "lucide-react";
+import { FileDown, Loader2, SearchX } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { DataTable } from "@/components/data-table";
 import { FormSelect } from "@/components/form-select";
 import { ListPanel } from "@/components/list-panel";
 import { PageHeader } from "@/components/page-header";
 import { SearchField } from "@/components/search-field";
 import { TablePagination } from "@/components/table-pagination";
+import { Button } from "@/components/ui/button";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
 import { useCompanyScope, useMasterData } from "@/features/employee/api";
@@ -14,7 +16,7 @@ import { EmployeeDetailSheet } from "@/features/employee/components/employee-det
 import { MaintenancePage } from "@/features/system/pages/maintenance-page";
 import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
-import { type ArchiveParams, useArchiveList } from "../api";
+import { type ArchiveParams, useArchiveExport, useArchiveList } from "../api";
 import { type ArchiveFilter, type ArchiveSectionConfig, archivePage } from "../config";
 
 // D-054 (Arsip 1a): Personal Management › Arsip › <menu>. Tabel lintas karyawan (cakupan API:
@@ -51,6 +53,12 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
     ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
   };
   const list = useArchiveList(config.category, params);
+  const exporter = useArchiveExport(config.category);
+  const exportXlsx = () =>
+    exporter.mutate(params, {
+      onSuccess: (file) => toast.success(`${file.rows} baris diekspor (${file.fileName}).`),
+      onError: (error) => toast.error(errorMessage(error)),
+    });
   const columns = useMemo(
     () => config.columns({ showCost: access.manageEmployees(me) }),
     [config, me],
@@ -72,7 +80,19 @@ function ArchiveScreen({ config }: { config: ArchiveSectionConfig }) {
 
   return (
     <div>
-      <PageHeader title={config.label} description={config.description} />
+      <PageHeader
+        title={config.label}
+        description={config.description}
+        actions={
+          // D-058: ekspor SA/HR saja (isi sebatas hak lihat; filter tabel ikut).
+          access.manageEmployees(me) ? (
+            <Button variant="outline" onClick={exportXlsx} disabled={exporter.isPending}>
+              {exporter.isPending ? <Loader2 className="animate-spin" /> : <FileDown />}
+              {exporter.isPending ? "Menyiapkan…" : "Ekspor Excel"}
+            </Button>
+          ) : null
+        }
+      />
       <ListPanel
         toolbar={
           <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-center">

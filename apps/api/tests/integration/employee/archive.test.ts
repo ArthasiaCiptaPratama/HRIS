@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ErrorBody } from "@hris/shared";
+import { strFromU8, unzipSync } from "fflate";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
@@ -381,5 +382,85 @@ describe("kelola item per karyawan", () => {
         )
       ).status,
     ).toBe(200);
+  });
+});
+
+describe("ekspor Excel (D-058, Arsip 1d)", () => {
+  const exportOf = (category: string, who: Login, extra = "") =>
+    call("GET", `/archive/${category}/export?${q}${extra ? `&${extra}` : ""}`, who.headers);
+  /** Teks sheet pertama (inlineStr) dari .xlsx base64. */
+  const sheetText = (file: { contentBase64: string }) => {
+    const files = unzipSync(Uint8Array.from(Buffer.from(file.contentBase64, "base64")));
+    return strFromU8(files["xl/worksheets/sheet1.xml"] as Uint8Array);
+  };
+
+  test("SA: filter tabel ikut, karyawan aktif saja, nama file & audit (teks cari tidak dicatat)", async () => {
+    const res = await exportOf("educations", sa);
+    expect(res.status).toBe(200);
+    const file = (await body(res)).data;
+    expect(file.rows).toBe(4);
+    expect(file.fileName).toMatch(/^arsip-educations-semua-pt-\d{4}-\d{2}-\d{2}\.xlsx$/);
+    const xml = sheetText(file);
+    expect(xml).toContain("Jenjang");
+    expect(xml).toContain(NUM("P"));
+    expect(xml).not.toContain(NUM("I"));
+    const audit = await prisma.auditLog.findFirst({
+      where: { action: "employee.archive.export", actorAccountId: sa.account.id },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(audit?.entityId).toBe("educations");
+    expect(audit?.after).toMatchObject({ rows: 4, filters: { q: true, employees: "active" } });
+    expect(JSON.stringify(audit?.after)).not.toContain(RUN);
+  });
+
+  test("HR: cakupan PT; alamat domisili hanya dengan grant data pribadi; biaya pelatihan SA/HR", async () => {
+    const plain = sheetText((await body(await exportOf("contacts", hr))).data);
+    expect(plain).not.toContain("Alamat domisili");
+    expect(plain).not.toContain(NUM("P"));
+    const granted = sheetText((await body(await exportOf("contacts", hrGrant))).data);
+    expect(granted).toContain("Alamat domisili");
+    expect(granted).toContain(`Jl. Arsip M`);
+    const trainings = sheetText((await body(await exportOf("trainings", hr))).data);
+    expect(trainings).toContain("Biaya (Rp)");
+    expect(trainings).toContain("<v>2500000</v>");
+  });
+
+  test("MANAGER & EMPLOYEE 403; Keluarga tanpa grant 403; kategori tak dikenal 400", async () => {
+    expect((await exportOf("educations", mgr)).status).toBe(403);
+    expect((await exportOf("educations", emp)).status).toBe(403);
+    expect(await code(await exportOf("families", hr))).toBe("FORBIDDEN");
+    expect((await exportOf("gaji", sa)).status).toBe(400);
+  });
+
+  test("Keluarga, Bank, Data File: SA bisa ekspor dengan kolom masing-masing", async () => {
+    await prisma.familyMember.create({
+      data: {
+        employeeId: ids.team,
+        name: `Ibu ${RUN}`,
+        relationship: "MOTHER",
+        occupation: "Guru",
+        ageAtEntry: 58,
+      },
+    });
+    const families = sheetText((await body(await exportOf("families", sa))).data);
+    expect(families).toContain("Nama anggota");
+    expect(families).toContain(`Ibu ${RUN}`);
+    expect(families).toContain("Guru");
+    for (const [category, header] of [
+      ["bank-accounts", "No. rekening"],
+      ["documents", "Jenis dokumen"],
+    ] as const) {
+      const res = await exportOf(category, sa);
+      expect(res.status).toBe(200);
+      expect(sheetText((await body(res)).data)).toContain(header);
+    }
+  });
+
+  test("filter khusus kategori & PT: jenjang D3 → satu baris; nama file memuat kode PT", async () => {
+    const d3 = (await body(await exportOf("educations", sa, "level=D3"))).data;
+    expect(d3.rows).toBe(1);
+    const other = (await body(await exportOf("trainings", sa, `companyId=${ids.other}`))).data;
+    expect(other.rows).toBe(1);
+    expect(other.fileName).toContain(`-a${RUN.toLowerCase()}-`);
   });
 });

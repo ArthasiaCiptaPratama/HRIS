@@ -765,6 +765,13 @@ export async function listFamilyArchive(ctx: RequestContext, query: SensitiveArc
       relationship: row.relationship,
       birthDate: row.birthDate ? toIso(row.birthDate) : null,
       phoneNumber: row.phoneNumber,
+      // D-059: data keluarga dari Formulir Data Karyawan.
+      gender: row.gender,
+      birthPlace: row.birthPlace,
+      education: row.education,
+      occupation: row.occupation,
+      ageAtEntry: row.ageAtEntry,
+      workAddress: row.workAddress,
     })),
     meta: meta(query, total),
   };

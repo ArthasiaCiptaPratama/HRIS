@@ -141,6 +141,11 @@ export function canReadArchive(actor: Actor): boolean {
   return employeeListScope(actor) !== null;
 }
 
+/** D-058: ekspor Excel tabel Arsip — SA & HR (isi tetap sebatas yang boleh dilihat); MANAGER tidak. */
+export function canExportArchive(actor: Actor): boolean {
+  return isAdmin(actor);
+}
+
 export function canManageArchive(actor: Actor, target: EmployeeTarget): boolean {
   return canManageEmployees(actor) && canViewEmployee(actor, target);
 }

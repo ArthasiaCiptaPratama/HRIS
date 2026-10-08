@@ -196,6 +196,7 @@ export async function listArchive(
           level: row.level,
           schoolName: row.schoolName,
           major: row.major,
+          entryYear: row.entryYear,
           graduationYear: row.graduationYear,
         })),
         meta: meta(query, total),

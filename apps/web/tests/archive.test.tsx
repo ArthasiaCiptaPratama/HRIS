@@ -136,6 +136,14 @@ function mockFetch(role: ReturnType<typeof me>, cost = true) {
         });
       if (path === "/archive/trainings")
         return json(200, { data: [trainingRow(cost)], meta: { page: 1, pageSize: 20, total: 1 } });
+      if (path === "/archive/trainings/export")
+        return json(200, {
+          data: {
+            fileName: "arsip-trainings-semua-pt-2026-10-08.xlsx",
+            rows: 1,
+            contentBase64: "UEs=",
+          },
+        });
       if (path === "/employees/e1") return json(200, { data: detail });
       if (method === "POST") return json(201, { data: { id: "new-1" } });
       if (method === "PATCH") return json(200, { data: { id: "h1" } });
@@ -171,12 +179,30 @@ describe("Arsip › Data Pelatihan (D-054)", () => {
     expect(tab).toHaveAttribute("aria-selected", "true");
   });
 
+  it("D-058: Ekspor Excel mengirim filter tabel (tanpa halaman) lalu mengunduh file", async () => {
+    const calls = mockFetch(me("SUPER_ADMIN", true));
+    const createObjectURL = vi.fn(() => "blob:x");
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    renderAt("/personal/arsip/pelatihan");
+    await screen.findByRole("table", { name: "Daftar data pelatihan" });
+    await userEvent.click(screen.getByRole("button", { name: /Ekspor Excel/ }));
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    const request = calls.find((c) => c.path === "/archive/trainings/export");
+    expect(request?.search).toContain("employees=active");
+    expect(request?.search).not.toContain("page");
+    expect(createObjectURL).toHaveBeenCalled();
+    click.mockRestore();
+  });
+
   it("MANAGER: tanpa kolom Biaya", async () => {
     mockFetch(me("MANAGER", false, "e-mgr"), false);
     renderAt("/personal/arsip/pelatihan");
     const table = await screen.findByRole("table", { name: "Daftar data pelatihan" });
     await within(table).findByText("Ahli K3 Umum");
     expect(within(table).queryByRole("columnheader", { name: "Biaya" })).toBeNull();
+    // D-058: ekspor hanya SA/HR.
+    expect(screen.queryByRole("button", { name: /Ekspor Excel/ })).toBeNull();
   });
 
   it("menu Arsip yang belum dikerjakan (Aset) tetap Maintenance", async () => {

@@ -3,6 +3,7 @@ import {
   dataChangeSectionSchema,
   dataChangeStatusSchema,
   familyRelationshipSchema,
+  genderSchema,
 } from "@hris/shared";
 import { archiveEmployeeRefSchema, archiveListQuerySchema } from "./archive.schema.ts";
 
@@ -104,6 +105,12 @@ export const familyRowSchema = z
     relationship: familyRelationshipSchema,
     birthDate: z.iso.date().nullable(),
     phoneNumber: z.string().nullable(),
+    gender: genderSchema.nullable(),
+    birthPlace: z.string().nullable(),
+    education: z.string().nullable(),
+    occupation: z.string().nullable(),
+    ageAtEntry: z.number().int().nullable(),
+    workAddress: z.string().nullable(),
   })
   .openapi("ArchiveFamilyRow");
 

@@ -13,3 +13,4 @@ export * from "./permissions.ts";
 export * from "./personal-fields.ts";
 export * from "./roles.ts";
 export * from "./schemas/common.ts";
+export * from "./xlsx.ts";

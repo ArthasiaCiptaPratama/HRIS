@@ -1,4 +1,15 @@
-import { GENDER_LABELS } from "@hris/shared";
+import {
+  appendSheets,
+  DOCUMENT_CATEGORY_LABELS,
+  EDUCATION_LEVEL_LABELS,
+  EMPLOYMENT_CHANGE_LABELS,
+  EXPIRY_STATE_LABELS,
+  GENDER_LABELS,
+  MOVEMENT_TYPE_LABELS,
+  TRAINING_TYPE_LABELS,
+  type XlsxCell,
+  type XlsxSheet,
+} from "@hris/shared";
 import { formatDate } from "@/lib/format";
 import { imageUrlToJpeg } from "@/lib/image";
 import {
@@ -10,13 +21,16 @@ import {
   XLSX_MIME,
   XlsxTemplateError,
 } from "@/lib/xlsx-template";
+import { fetchEmployeeDocuments } from "../documents/api";
+import type { EmployeeDocuments } from "../documents/schemas";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS } from "./labels";
 import type { EmployeeDetail } from "./schemas";
 
 // Formulir "Daftar Isian Peserta" (apps/web/public/template/Template-excel.xlsx, satu lembar).
 // Alamat sel di bawah mengikuti tata letak template; sel gabungan ditulis di sel kiri-atasnya.
-// Kolom tanpa sumber data di HRIS (nama panggilan, suku, golongan darah, kota & tahun masuk
-// sekolah, pengalaman organisasi/kerja, pekerjaan keluarga) sengaja dibiarkan kosong.
+// Kolom tanpa sumber data di HRIS (kota sekolah, pengalaman organisasi) sengaja dibiarkan kosong.
+// D-058 (Arsip 1d): nama panggilan, suku, gol. darah, tahun masuk sekolah, pekerjaan keluarga (D-059) &
+// pengalaman bekerja ikut terisi; daftar lengkap per kategori Arsip ditambahkan sebagai sheet terpisah.
 // Foto profil (D-037) disisipkan ke bingkai kosong B9:J25.
 
 export const PRINT_TEMPLATE_URL = `${import.meta.env.BASE_URL}template/Template-excel.xlsx`;
@@ -66,6 +80,7 @@ const ROWS = {
   husband: 65,
   wife: 66,
   children: [67, 68, 69, 70, 71, 72],
+  work: [55, 56, 57, 58, 59],
   emergency: 76,
 } as const;
 /** Lebar gabungan R:AE (±47 karakter) → alamat dipecah ke tiga baris R16–R18. */
@@ -129,7 +144,9 @@ function familyRows(
   const put = (row: number, member: FamilyMember, gender: string | null) => {
     cells[`G${row}`] = member.name;
     cells[`P${row}`] = gender;
-    cells[`S${row}`] = ageOn(member.birthDate, todayIso);
+    // Usia dari tanggal lahir; tanpa tanggal lahir → usia saat didata (Formulir Data Karyawan).
+    cells[`S${row}`] = ageOn(member.birthDate, todayIso) ?? member.ageAtEntry ?? null;
+    cells[`V${row}`] = member.occupation ?? null;
   };
   const first = (relationship: string) => members.find((m) => m.relationship === relationship);
 
@@ -176,6 +193,7 @@ export function buildPrintCells(
     // Kop formulir mengikuti perusahaan karyawan (D-039); template berisi "PT. ARTHASIA CIPTA PRATAMA".
     B2: employee.company.name.toUpperCase(),
     R9: employee.fullName,
+    R10: personal?.nickname ?? null,
     R11: personal
       ? [personal.birthPlace, personal.birthDate ? formatDate(personal.birthDate) : null]
           .filter(Boolean)
@@ -183,6 +201,8 @@ export function buildPrintCells(
       : null,
     R12: employee.gender ? GENDER_LABELS[employee.gender] : null,
     R13: personal?.religion ? (RELIGION_LABELS[personal.religion] ?? personal.religion) : null,
+    R14: personal?.ethnicity ?? null,
+    R15: personal?.bloodType ?? null,
     R19: personal?.maritalStatus
       ? (MARITAL_LABELS[personal.maritalStatus] ?? personal.maritalStatus)
       : null,
@@ -202,6 +222,7 @@ export function buildPrintCells(
   byYear(employee.educations, (e) => e.graduationYear, ROWS.education.length).forEach((edu, i) => {
     const row = ROWS.education[i];
     cells[`D${row}`] = edu.schoolName;
+    cells[`Q${row}`] = edu.entryYear ?? null;
     cells[`U${row}`] = edu.graduationYear;
     cells[`Y${row}`] = edu.major;
   });
@@ -212,21 +233,190 @@ export function buildPrintCells(
     cells[`AB${row}`] = training.trainingYear;
   });
 
+  byYear(employee.workExperiences ?? [], (w) => w.startYear, ROWS.work.length).forEach(
+    (work, i) => {
+      const row = ROWS.work[i];
+      cells[`D${row}`] = work.companyName;
+      cells[`O${row}`] = work.position;
+      cells[`U${row}`] = `${work.startYear}–${work.endYear ?? "sekarang"}`;
+      cells[`AA${row}`] = work.description;
+    },
+  );
+
   Object.assign(cells, familyRows(family, employee.gender, todayIso));
 
-  // Kontak darurat: nomor dari data kerja; nama/hubungan/alamat bila nomornya milik anggota keluarga.
-  if (employee.emergencyPhone) {
+  // Kontak darurat: data kontak darurat karyawan (D-059); bila belum diisi, cari anggota keluarga yang
+  // nomornya sama dengan nomor darurat.
+  if (employee.emergencyPhone || employee.emergencyContactName) {
     const phone = digits(employee.emergencyPhone);
     const contact = family.find((m) => phone !== "" && digits(m.phoneNumber) === phone);
     const row = ROWS.emergency;
-    cells[`D${row}`] = contact?.name;
-    cells[`M${row}`] = contact
-      ? (RELATIONSHIP_LABELS[contact.relationship] ?? contact.relationship)
-      : null;
-    cells[`P${row}`] = contact?.address;
+    cells[`D${row}`] = employee.emergencyContactName ?? contact?.name;
+    cells[`M${row}`] =
+      employee.emergencyContactRelationship ??
+      (contact ? (RELATIONSHIP_LABELS[contact.relationship] ?? contact.relationship) : null);
+    cells[`P${row}`] = personal?.emergencyContactAddress ?? contact?.address;
     cells[`AB${row}`] = employee.emergencyPhone;
   }
   return cells;
+}
+
+const day = (iso: string | null | undefined) =>
+  iso ? new Date(`${iso.slice(0, 10)}T00:00:00Z`) : null;
+const text = <K extends string>(
+  labels: Record<K, string>,
+  value: K | null | undefined,
+): XlsxCell => (value ? (labels[value] ?? value) : null);
+
+/**
+ * D-058 (Arsip 1d): sheet tambahan per kategori Arsip — daftar lengkap (template hanya memuat 5 baris
+ * per bagian). Keluarga hanya bila API mengirimkannya (hak data pribadi); dokumen = metadata versi
+ * aktif yang boleh dilihat pencetak (tanpa file).
+ */
+export function buildArchiveSheets(
+  employee: EmployeeDetail,
+  documents: EmployeeDocuments["documents"] | null,
+  todayIso: string,
+): XlsxSheet[] {
+  const sheets: XlsxSheet[] = [
+    {
+      name: "Pendidikan",
+      rows: [
+        ["Jenjang", "Sekolah/universitas", "Jurusan", "Tahun masuk", "Tahun lulus"],
+        ...employee.educations.map((e) => [
+          text(EDUCATION_LEVEL_LABELS, e.level),
+          e.schoolName,
+          e.major,
+          e.entryYear ?? null,
+          e.graduationYear,
+        ]),
+      ],
+    },
+    {
+      name: "Pelatihan",
+      rows: [
+        [
+          "Bidang pelatihan",
+          "Penyelenggara",
+          "Jenis",
+          "Mulai",
+          "Selesai",
+          "Jam",
+          "Tahun",
+          "No. sertifikat",
+        ],
+        ...employee.trainings.map((t) => [
+          t.trainingField,
+          t.organizer,
+          text(TRAINING_TYPE_LABELS, t.type),
+          day(t.startDate),
+          day(t.endDate),
+          t.hours ?? null,
+          t.trainingYear,
+          t.certificateNumber ?? null,
+        ]),
+      ],
+    },
+    {
+      name: "Riwayat Kerja",
+      rows: [
+        ["Perusahaan", "Jabatan", "Tahun mulai", "Tahun selesai", "Keterangan"],
+        ...(employee.workExperiences ?? []).map((w) => [
+          w.companyName,
+          w.position,
+          w.startYear,
+          w.endYear,
+          w.description,
+        ]),
+      ],
+    },
+    {
+      name: "Riwayat Kepegawaian",
+      rows: [
+        [
+          "Tanggal",
+          "Perubahan",
+          "Jenis mutasi",
+          "Dari jabatan",
+          "Ke jabatan",
+          "Dari PT",
+          "Ke PT",
+          "No. SK",
+          "Catatan",
+        ],
+        ...employee.histories.map((h) => [
+          day(h.effectiveDate),
+          text(EMPLOYMENT_CHANGE_LABELS, h.changeType),
+          text(MOVEMENT_TYPE_LABELS, h.movementType),
+          h.fromPosition?.name ?? null,
+          h.toPosition?.name ?? h.toPositionName ?? null,
+          h.fromCompany?.name ?? null,
+          h.toCompany?.name ?? null,
+          h.decreeNumber ?? null,
+          h.note,
+        ]),
+      ],
+    },
+  ];
+  if (employee.familyMembers) {
+    sheets.push({
+      name: "Keluarga",
+      rows: [
+        [
+          "Nama",
+          "Hubungan",
+          "Jenis kelamin",
+          "Tempat lahir",
+          "Tanggal lahir",
+          "Usia",
+          "Pendidikan",
+          "Pekerjaan",
+          "No. HP",
+        ],
+        ...employee.familyMembers.map((m) => [
+          m.name,
+          RELATIONSHIP_LABELS[m.relationship] ?? m.relationship,
+          m.gender ? (GENDER_LABELS[m.gender as keyof typeof GENDER_LABELS] ?? m.gender) : null,
+          m.birthPlace ?? null,
+          day(m.birthDate),
+          ageOn(m.birthDate, todayIso) ?? m.ageAtEntry ?? null,
+          m.education ?? null,
+          m.occupation ?? null,
+          m.phoneNumber,
+        ]),
+      ],
+    });
+  }
+  if (documents) {
+    sheets.push({
+      name: "Dokumen",
+      rows: [
+        [
+          "Jenis dokumen",
+          "Kategori",
+          "Nomor",
+          "Tanggal terbit",
+          "Kedaluwarsa",
+          "Masa berlaku",
+          "Versi",
+          "Catatan",
+        ],
+        ...documents
+          .filter((d) => d.isCurrent)
+          .map((d) => [
+            d.documentType.name,
+            text(DOCUMENT_CATEGORY_LABELS, d.documentType.category),
+            d.documentNumber,
+            day(d.issuedAt),
+            day(d.expiresAt),
+            text(EXPIRY_STATE_LABELS, d.expiryState),
+            d.version,
+            d.note,
+          ]),
+      ],
+    });
+  }
+  return sheets;
 }
 
 /** Nama file aman untuk Windows/Linux: "Data Karyawan - ACP-2023-0007 - Agus Pratama.xlsx". */
@@ -270,11 +460,13 @@ export async function downloadEmployeeXlsx(
       photo = "failed";
     }
   }
-  const bytes = fillXlsxTemplate(
-    template,
-    PRINT_SHEET_PATH,
-    buildPrintCells(employee, todayIso),
-    images,
+  // Dokumen hanya metadata; gagal diambil (mis. jaringan) → sheet Dokumen dilewati, cetak tetap jalan.
+  const documents = await fetchEmployeeDocuments(employee.id)
+    .then((data) => data.documents)
+    .catch(() => null);
+  const bytes = appendSheets(
+    fillXlsxTemplate(template, PRINT_SHEET_PATH, buildPrintCells(employee, todayIso), images),
+    buildArchiveSheets(employee, documents, todayIso),
   );
   downloadFile(bytes, printFileName(employee), XLSX_MIME);
   return photo;
