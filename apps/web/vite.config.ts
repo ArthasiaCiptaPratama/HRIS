@@ -24,6 +24,7 @@ export default defineConfig({
       VITE_API_BASE_URL: "http://api.test/api/v1",
       VITE_SUPABASE_URL: "https://project-test.supabase.co",
       VITE_SUPABASE_ANON_KEY: "sb_publishable_test_key_value_1234567890",
+      VITE_LOGIN_EMAIL_DOMAIN: "test.login.akselerasi.invalid",
     },
     include: ["tests/**/*.test.{ts,tsx}"],
   },

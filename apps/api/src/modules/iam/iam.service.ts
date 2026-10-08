@@ -44,6 +44,8 @@ export const PERMISSION_CODE: Record<DbPermission, Permission> = {
   EMPLOYEE_DOCUMENTS_WRITE: "employee.documents.write",
   CONTRACT_MANAGE: "contract.manage",
   PAYROLL_PERIOD_PREPARE: "payroll.period.prepare",
+  EMPLOYEE_ONBOARDING_REVIEW: "employee.onboarding.review",
+  EMPLOYEE_CHANGES_REVIEW: "employee.changes.review",
 };
 const DB_PERMISSION = Object.fromEntries(
   Object.entries(PERMISSION_CODE).map(([db, code]) => [code, db]),
@@ -277,6 +279,7 @@ export async function getMe(actor: Actor, now: Date = new Date()): Promise<MeRes
         permission: PERMISSION_CODE[grant.permission],
         expiresAt: grant.expiresAt?.toISOString() ?? null,
       })),
+    onboarding: actor.onboarding ?? null,
   };
 }
 
@@ -939,4 +942,192 @@ export async function deactivateAccountOfEmployee(
   // Terakhir: bila ban Supabase gagal, transaksi pemanggil dibatalkan seluruhnya.
   await deps.authAdmin.setBanned(account.authUserId, true);
   return "deactivated";
+}
+
+/** D-045 d: calon dipulihkan → akun calon aktif lagi (+ ban Supabase dibuka), di transaksi pemanggil. */
+export async function reactivateAccountOfEmployee(
+  ctx: RequestContext,
+  employeeId: string,
+  deps: { authAdmin: AuthAdmin },
+  tx: repository.IamTx,
+): Promise<"none" | "already_active" | "reactivated"> {
+  const account = await repository.findAccountByEmployeeId(tx, employeeId);
+  if (!account) return "none";
+  if (account.isActive) return "already_active";
+  await repository.setAccountActive(tx, account.id, true);
+  await writeAudit(
+    {
+      ...auditBase(ctx),
+      action: "iam.account.reactivate",
+      entityType: "iam.account",
+      entityId: account.id,
+      before: { isActive: false },
+      after: { isActive: true, cause: "employee.onboarding.restore" },
+    },
+    tx,
+  );
+  await deps.authAdmin.setBanned(account.authUserId, false);
+  return "reactivated";
+}
+
+/**
+ * D-045 d (design §11): hapus permanen akun calon batal > 30 hari. User Supabase Auth TIDAK dihapus
+ * (PLAN §3.2.7): tetap di-ban & emailnya diganti alamat anonim supaya email pribadi bisa dipakai lagi.
+ * Mengembalikan alamat yang pernah dipakai akun (untuk membersihkan notifikasi/antrean email).
+ */
+export async function purgeAccountOfEmployee(
+  employeeId: string,
+  deps: { authAdmin: AuthAdmin; anonymousDomain: string },
+  tx: repository.IamTx,
+): Promise<{ accountId: string; emails: string[] } | null> {
+  const account = await repository.findAccountByEmployeeId(tx, employeeId);
+  if (!account) return null;
+  await repository.deleteAccount(tx, account.id);
+  await deps.authAdmin.setBanned(account.authUserId, true);
+  await deps.authAdmin.updateUserEmail(
+    account.authUserId,
+    `deleted-${crypto.randomUUID()}@${deps.anonymousDomain}`,
+  );
+  return {
+    accountId: account.id,
+    emails: [account.email, account.loginEmail].filter((e): e is string => Boolean(e)),
+  };
+}
+
+// ── D-045: undangan akun untuk calon/karyawan dari onboarding (dipanggil modul employee) ─────────
+
+export type EmployeeInviteOutcome =
+  | { ok: true; accountId: string; emailSent: boolean }
+  | { ok: false; code: "EMAIL_HAS_ACCOUNT" | "EMPLOYEE_HAS_ACCOUNT" | "INVITE_FAILED" };
+
+/**
+ * Undang lewat Supabase Auth lalu buat akun EMPLOYEE yang tertaut karyawan (satu transaksi + audit).
+ * Hasil berupa kode (bukan exception) supaya antrean undangan mencatat kegagalan per calon. User Auth
+ * yang sudah ada (lingkungan lain berbagi Auth staging, D-023) dipakai ulang tanpa email.
+ */
+export async function inviteEmployeeAccount(input: {
+  email: string;
+  employeeId: string;
+  actorAccountId: string | null;
+  authAdmin: AuthAdmin;
+  redirectTo: string;
+  requestId?: string | null;
+}): Promise<EmployeeInviteOutcome> {
+  const email = input.email.trim().toLowerCase();
+  if (await repository.findAccountByEmail(email)) return { ok: false, code: "EMAIL_HAS_ACCOUNT" };
+  const linked = await repository.findAccountsForEmployees([input.employeeId]);
+  if (linked.length > 0) return { ok: false, code: "EMPLOYEE_HAS_ACCOUNT" };
+  let authUser: { id: string };
+  let emailSent = false;
+  try {
+    const existing = await input.authAdmin.findUserByEmail(email);
+    if (existing) authUser = existing;
+    else {
+      authUser = await input.authAdmin.inviteUser(email, input.redirectTo);
+      emailSent = true;
+    }
+  } catch {
+    return { ok: false, code: "INVITE_FAILED" };
+  }
+  const account = await repository.withTransaction(async (tx) => {
+    const created = await repository.createEmployeeAccount(tx, {
+      authUserId: authUser.id,
+      email,
+      employeeId: input.employeeId,
+    });
+    await writeAudit(
+      {
+        actorAccountId: input.actorAccountId,
+        requestId: input.requestId ?? null,
+        action: "iam.account.invite",
+        entityType: "iam.account",
+        entityId: created.id,
+        after: { role: "EMPLOYEE", employeeId: input.employeeId, source: "onboarding", emailSent },
+      },
+      tx,
+    );
+    return created;
+  });
+  return { ok: true, accountId: account.id, emailSent };
+}
+
+/** Email login yang sudah dipakai akun lain (pratinjau penerimaan, D-045). */
+export async function accountEmailsInUse(emails: string[]): Promise<Set<string>> {
+  const rows = await repository.findAccountEmails(emails.map((e) => e.toLowerCase()));
+  return new Set(rows.map((row) => row.email.toLowerCase()));
+}
+
+export interface EmployeeAccountState {
+  employeeId: string;
+  accountId: string;
+  email: string;
+  hasLoggedIn: boolean;
+  isActive: boolean;
+}
+
+/** Status akun per karyawan (daftar penerimaan & kirim ulang). */
+/**
+ * D-047: penerima notifikasi "data onboarding menunggu review" — semua SUPER_ADMIN aktif + HR_ADMIN
+ * aktif yang ditugaskan di PT itu dan memegang grant `employee.onboarding.review` yang berlaku.
+ */
+export async function listOnboardingReviewers(
+  companyId: string,
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const [admins, hrs] = await Promise.all([
+    repository.listActiveSuperAdmins(),
+    repository.findOnboardingReviewerHrs(companyId, now),
+  ]);
+  return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
+}
+
+/**
+ * D-055: penerima pengingat kedaluwarsa dokumen di sisi HR — HR PT terkait (jenis sensitif: hanya
+ * pemegang grant `employee.documents.read`); bila tidak ada, SUPER_ADMIN aktif.
+ */
+export async function listDocumentReminderRecipients(
+  companyId: string,
+  sensitive: boolean,
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const hrs = await repository.findCompanyHrs(
+    companyId,
+    sensitive ? "EMPLOYEE_DOCUMENTS_READ" : null,
+    now,
+  );
+  const rows = hrs.length > 0 ? hrs : await repository.listActiveSuperAdmins();
+  return rows.map((a) => ({ accountId: a.id, email: a.email }));
+}
+
+/**
+ * D-054 / OD-6: pemeriksa pengajuan perubahan data — SUPER_ADMIN aktif + HR PT karyawan yang memegang
+ * `employee.changes.review` dan grant bagian yang diminta (mis. `employee.bank.read` + `.write`).
+ */
+export async function listDataChangeReviewers(
+  companyId: string,
+  sectionGrants: readonly Permission[],
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const [admins, hrs] = await Promise.all([
+    repository.listActiveSuperAdmins(),
+    repository.findCompanyHrsWithAll(
+      companyId,
+      ["EMPLOYEE_CHANGES_REVIEW", ...sectionGrants.map((p) => DB_PERMISSION[p])],
+      now,
+    ),
+  ]);
+  return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
+}
+
+export async function getEmployeeAccountStates(
+  employeeIds: string[],
+): Promise<EmployeeAccountState[]> {
+  const rows = await repository.findAccountsForEmployees(employeeIds);
+  return rows.map((row) => ({
+    employeeId: row.employeeId as string,
+    accountId: row.id,
+    email: row.email,
+    hasLoggedIn: row.lastLoginAt !== null,
+    isActive: row.isActive,
+  }));
 }

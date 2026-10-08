@@ -28,3 +28,20 @@
 
 **Kesimpulan:** memenuhi kriteria rencana di lokal. **Bug terbuka:** tidak ada.
 **Belum diverifikasi:** staging (butuh commit + rilis dengan 2 migrasi baru), browser selain Chromium, Windows, file > 1.000 baris (batas 2.000 baris diuji hanya di validasi skema).
+
+## Sesi staging 2026-10-05 (rilis gelombang 1, `42e53fc` = develop `38f29c1`, `Deploy staging` #37253110211)
+- **Env:** https://hris-staging-web.vercel.app + api staging, Supabase staging (12 migrasi, seed ulang dengan izin: PT ACP 23 + CD2 3 karyawan, 2 direktorat), login Supabase sungguhan SA/HR/MGR/EMP, Playwright 1.63 Chromium 1440×900 + 390×844.
+- **Script & bukti:** `/mnt/winD/WORK/Magang/QA/2026-10-05-gelombang-1-staging/` (`ui.ts`, `ui-results.json`, 19 screenshot). Satu script untuk seluruh gelombang 1: **38/39 LULUS**; satu-satunya GAGAL = GF-03 (P3, BUG-002). Percobaan pertama 36/38: MP-02 & MN-02 menghitung baris sebelum data/kerangka loading selesai, GF-01 mencari peta lewat label yang tidak ada (BUG-002) → script menunggu kondisi; fitur tidak berubah.
+- **Efek samping staging (disengaja, dibersihkan):** penugasan PT akun HR → ACP,CD2 → kembali ACP; master data berpenanda `QA-…` dibuat/diarsipkan/dipulihkan/dihapus permanen (sisa 0, dicek SQL); pratinjau import tidak menyimpan (`import_jobs` = 0); 18 baris audit log (2 run).
+
+| ID | Hasil staging | Bukti (ID di `ui-results.json`) |
+|---|---|---|
+| TC-EMP-081 | LULUS | IM-01: pratinjau template dummy (6 akan dibuat) tanpa menulis — `import_jobs` staging tetap 0 |
+| TC-EMP-086 | LULUS | IM-01 (SA boleh), AK-02 (EMPLOYEE `/personal/import` → Akses ditolak) |
+| TC-EMP-088 | LULUS | IM-01: pilihan "Perusahaan bawaan" tampil (grup > 1 PT) |
+| TC-EMP-089 | LULUS (s.d. pratinjau) | IM-01: unggah → pemetaan → pratinjau; **Simpan tidak dijalankan di staging** (tidak menambah karyawan dummy) |
+| TC-EMP-082…085, 087, 090 | BELUM (staging) | hanya lokal (integration/Playwright lokal 13/13) |
+
+**Kesimpulan staging:** case yang dijalankan LULUS; tidak ada bug P1/P2. Fitur **LEGIT** (lokal + staging; commit import di staging sengaja tidak dijalankan).
+
+**Arsip Drive:** `hris-qa:2026-09-30-import-karyawan` — 16 file, 2026-10-05 (fitur LEGIT: lokal + staging).

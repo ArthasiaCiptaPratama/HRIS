@@ -266,3 +266,34 @@ input:-webkit-autofill:focus-visible {
     0 0 0 1000px var(--card) inset,
     0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
 }
+
+/* D-051: warna aksen kartu bagan organisasi per level jabatan (terinspirasi org chart kantor:
+   hijau direksi, oranye superintendent, biru manager/supervisor, ungu foreman/staf, cokelat crew). */
+:root {
+  --org-director: oklch(0.55 0.13 145);
+  --org-gm: oklch(0.52 0.1 165);
+  --org-manager: oklch(0.52 0.12 250);
+  --org-superintendent: oklch(0.66 0.15 55);
+  --org-supervisor: oklch(0.56 0.13 255);
+  --org-foreman: oklch(0.5 0.1 290);
+  --org-staff: oklch(0.55 0.08 300);
+  --org-crew: oklch(0.52 0.12 40);
+  --org-none: oklch(0.6 0.01 286);
+  --org-vacant: oklch(0.577 0.2 27.3);
+  --org-functional: oklch(0.6 0.12 250);
+  --org-canvas: oklch(0.975 0.002 286);
+}
+.dark {
+  --org-director: oklch(0.72 0.14 145);
+  --org-gm: oklch(0.7 0.1 165);
+  --org-manager: oklch(0.7 0.12 250);
+  --org-superintendent: oklch(0.76 0.14 60);
+  --org-supervisor: oklch(0.72 0.12 255);
+  --org-foreman: oklch(0.7 0.1 290);
+  --org-staff: oklch(0.72 0.08 300);
+  --org-crew: oklch(0.7 0.12 45);
+  --org-none: oklch(0.7 0.01 286);
+  --org-vacant: oklch(0.704 0.191 22.2);
+  --org-functional: oklch(0.72 0.12 250);
+  --org-canvas: oklch(0.19 0.005 285.9);
+}

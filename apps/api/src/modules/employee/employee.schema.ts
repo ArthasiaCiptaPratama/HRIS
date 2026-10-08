@@ -7,12 +7,14 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  movementTypeSchema,
   orgUnitTypeSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
   positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
+  trainingTypeSchema,
 } from "@hris/shared";
 
 // Tanggal murni (PROMPT §4): "YYYY-MM-DD".
@@ -71,6 +73,9 @@ export const employeeListItemSchema = z
     workLocation: ref.nullable(),
     grade: ref.nullable(),
     manager: ref.nullable(),
+    // D-051/D-053: pos jabatan di bagan; atasan diatur manual (bukan otomatis dari pos).
+    orgPostId: z.uuid().nullable(),
+    managerOverride: z.boolean(),
     // D-037: URL baca bertanda tangan (berlaku singkat) untuk foto profil; null = belum ada foto.
     photoUrl: z.string().nullable(),
   })
@@ -112,6 +117,30 @@ const personalSchema = z.object({
   bpjsHealthNumber: z.string().nullable(),
   ptkpStatus: ptkpStatusSchema.nullable(),
   originCity: z.string().nullable(),
+  // D-059 (Formulir Data Karyawan → Import).
+  personalEmail: z.string().nullable(),
+  nickname: z.string().nullable(),
+  nationality: z.string().nullable(),
+  ethnicity: z.string().nullable(),
+  bloodType: z.string().nullable(),
+  drivingLicenseTypes: z.array(z.string()),
+  drivingLicenseNumber: z.string().nullable(),
+  /** Nomor per jenis SIM, mis. {"A": "…"}. */
+  drivingLicenseNumbers: z.record(z.string(), z.string()).nullable(),
+  emergencyContactAddress: z.string().nullable(),
+  // D-061: rincian alamat (teks isian Form) & kontak darurat ke-2.
+  domicileVillage: z.string().nullable(),
+  domicileDistrict: z.string().nullable(),
+  domicileCity: z.string().nullable(),
+  domicileProvince: z.string().nullable(),
+  ktpVillage: z.string().nullable(),
+  ktpDistrict: z.string().nullable(),
+  ktpCity: z.string().nullable(),
+  ktpProvince: z.string().nullable(),
+  emergencyContact2Name: z.string().nullable(),
+  emergencyContact2Relationship: z.string().nullable(),
+  emergencyContact2Phone: z.string().nullable(),
+  emergencyContact2Address: z.string().nullable(),
 });
 
 const familyMemberSchema = z.object({
@@ -121,6 +150,16 @@ const familyMemberSchema = z.object({
   address: z.string().nullable(),
   birthDate: isoDate.nullable(),
   phoneNumber: z.string().nullable(),
+  // D-059
+  gender: genderSchema.nullable(),
+  birthPlace: z.string().nullable(),
+  education: z.string().nullable(),
+  occupation: z.string().nullable(),
+  /** Usia saat didata (Form tidak menanyakan tanggal lahir orang tua/saudara). */
+  ageAtEntry: z.number().int().nullable(),
+  workAddress: z.string().nullable(),
+  /** D-061: keterangan hubungan (saudara: Kakak/Adik). */
+  relationDetail: z.string().nullable(),
 });
 
 const bankAccountSchema = z.object({
@@ -141,6 +180,12 @@ const historySchema = z.object({
   toCompany: ref.nullable(),
   exitReason: exitReasonSchema.nullable(),
   note: z.string().nullable(),
+  // D-054 (Arsip 1a): asal riwayat & keterangan perpindahan.
+  source: z.enum(["SYSTEM", "MANUAL"]),
+  movementType: movementTypeSchema.nullable(),
+  decreeNumber: z.string().nullable(),
+  toPositionName: z.string().nullable(),
+  toDepartmentName: z.string().nullable(),
   // Pelaku perubahan (null = data awal/seed atau akun sudah tidak ada). name = nama pegawai
   // milik akun itu, atau email akun bila akun tidak terhubung ke data pegawai (mis. Super Admin).
   changedBy: z
@@ -178,6 +223,7 @@ export const employeeDetailSchema = employeeListItemSchema
         major: z.string().nullable(),
         graduationYear: z.number().int().nullable(),
         level: educationLevelSchema.nullable(),
+        entryYear: z.number().int().nullable(),
       }),
     ),
     trainings: z.array(
@@ -187,6 +233,24 @@ export const employeeDetailSchema = employeeListItemSchema
         organizer: z.string().nullable(),
         duration: z.string().nullable(),
         trainingYear: z.number().int().nullable(),
+        // D-054 (Arsip 1a)
+        type: trainingTypeSchema.nullable(),
+        startDate: isoDate.nullable(),
+        endDate: isoDate.nullable(),
+        hours: z.number().int().nullable(),
+        /** Rupiah; hanya ada untuk SA/HR. */
+        cost: z.number().nullable().optional(),
+        certificateNumber: z.string().nullable(),
+      }),
+    ),
+    workExperiences: z.array(
+      z.object({
+        id: z.uuid(),
+        companyName: z.string(),
+        position: z.string(),
+        startYear: z.number().int(),
+        endYear: z.number().int().nullable(),
+        description: z.string().nullable(),
       }),
     ),
     histories: z.array(historySchema),
@@ -258,6 +322,11 @@ export const createEmployeeBodySchema = z
     workLocationId: nullableUuid,
     gradeId: nullableUuid,
     managerId: nullableUuid,
+    // D-051: pos jabatan (opsional); jabatan harus sama dengan jabatan pos.
+    orgPostId: nullableUuid,
+    // D-053: true = atasan diisi manual (managerId); false = otomatis dari pos. Tanpa nilai: managerId
+    // yang dikirim berarti manual.
+    managerOverride: z.boolean().optional(),
   })
   .openapi("CreateEmployee");
 export type CreateEmployeeInput = z.infer<typeof createEmployeeBodySchema>;

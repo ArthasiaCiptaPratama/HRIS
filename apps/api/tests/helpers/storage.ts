@@ -5,6 +5,7 @@ export function createFakeStorage() {
   const objects = new Map<string, StoredObjectInfo>(); // "bucket/path" → info
   const uploadUrls: string[] = [];
   const removed: string[] = [];
+  const uploaded: { key: string; contentType: string; size: number }[] = [];
   const key = (bucket: string, path: string) => `${bucket}/${path}`;
 
   const storage: StorageAdmin = {
@@ -30,6 +31,11 @@ export function createFakeStorage() {
         removed.push(key(bucket, path));
       }
     },
+    async uploadObject(bucket, path, bytes, contentType) {
+      if (objects.has(key(bucket, path))) throw new Error("object exists");
+      objects.set(key(bucket, path), { size: bytes.byteLength, contentType });
+      uploaded.push({ key: key(bucket, path), contentType, size: bytes.byteLength });
+    },
     async ensurePrivateBucket() {
       return "created";
     },
@@ -39,6 +45,8 @@ export function createFakeStorage() {
     storage,
     uploadUrls,
     removed,
+    /** D-060: unggahan dari server (lampiran Import). */
+    uploaded,
     /** Mensimulasikan browser yang sudah mengunggah ke signed upload URL. */
     putObject(bucket: string, path: string, info: StoredObjectInfo) {
       objects.set(key(bucket, path), info);

@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { appendSheets } from "@hris/shared";
 import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it, vi } from "vitest";
 import {
   ageOn,
+  buildArchiveSheets,
   buildPrintCells,
   PRINT_PHOTO_ASPECT,
   PRINT_SHEET_PATH,
@@ -463,5 +465,120 @@ describe("centerCrop & fitWithin (foto 3:4)", () => {
   it("diperkecil agar muat, tidak pernah diperbesar", () => {
     expect(fitWithin(1350, 1800, { width: 600, height: 800 })).toEqual({ width: 600, height: 800 });
     expect(fitWithin(300, 400, { width: 600, height: 800 })).toEqual({ width: 300, height: 400 });
+  });
+});
+
+describe("D-058 (Arsip 1d): cetak memuat data Formulir & sheet per kategori Arsip", () => {
+  const formEmployee = () => {
+    const e = withPersonal();
+    return base({
+      ...e,
+      personal: {
+        ...(e.personal as NonNullable<EmployeeDetail["personal"]>),
+        nickname: "Agus",
+        ethnicity: "Sunda",
+        bloodType: "O+",
+        emergencyContactAddress: "Jl. Darurat 1",
+      },
+      emergencyContactName: "Rina",
+      emergencyContactRelationship: "Kakak",
+      educations: [{ ...base().educations[0]!, entryYear: 2016 }],
+      familyMembers: [
+        {
+          id: "f9",
+          name: "Bapak Uji",
+          relationship: "FATHER",
+          address: null,
+          birthDate: null,
+          phoneNumber: null,
+          occupation: "Petani",
+          ageAtEntry: 61,
+        },
+      ],
+      workExperiences: [
+        {
+          id: "w1",
+          companyName: "PT Lama",
+          position: "Staf",
+          startYear: 2019,
+          endYear: 2022,
+          description: "Kontrak",
+        },
+      ],
+    });
+  };
+
+  it("panggilan, suku, gol. darah, tahun masuk sekolah, pekerjaan & usia keluarga, pengalaman kerja, kontak darurat", () => {
+    const cells = buildPrintCells(formEmployee(), "2026-10-08");
+    expect([cells.R10, cells.R14, cells.R15]).toEqual(["Agus", "Sunda", "O+"]);
+    expect([cells.D30, cells.Q30]).toEqual(["Universitas Indonesia", 2016]);
+    expect([cells.G63, cells.S63, cells.V63]).toEqual(["Bapak Uji", 61, "Petani"]);
+    expect([cells.D55, cells.O55, cells.U55, cells.AA55]).toEqual([
+      "PT Lama",
+      "Staf",
+      "2019–2022",
+      "Kontrak",
+    ]);
+    expect([cells.D76, cells.M76, cells.P76, cells.AB76]).toEqual([
+      "Rina",
+      "Kakak",
+      "Jl. Darurat 1",
+      "0813-0000-0007",
+    ]);
+  });
+
+  it("sheet Arsip: Keluarga hanya bila API mengirimkannya; Dokumen hanya versi aktif", () => {
+    const docs = [
+      {
+        id: "d1",
+        documentType: {
+          id: "t1",
+          code: "KTP",
+          name: "KTP",
+          category: "IDENTITY",
+          sensitive: true,
+          hasExpiry: false,
+          multiple: false,
+        },
+        documentNumber: null,
+        issuedAt: null,
+        expiresAt: null,
+        expiryState: "NONE",
+        daysLeft: null,
+        version: 2,
+        isCurrent: true,
+        replacesId: "d0",
+        status: "VERIFIED",
+        note: "Diimpor dari Google Drive",
+        mimeType: "application/pdf",
+        sizeBytes: 10,
+      },
+      { id: "d0", isCurrent: false },
+    ] as unknown as Parameters<typeof buildArchiveSheets>[1];
+    const sheets = buildArchiveSheets(formEmployee(), docs, "2026-10-08");
+    expect(sheets.map((s) => s.name)).toEqual([
+      "Pendidikan",
+      "Pelatihan",
+      "Riwayat Kerja",
+      "Riwayat Kepegawaian",
+      "Keluarga",
+      "Dokumen",
+    ]);
+    expect(sheets.find((s) => s.name === "Dokumen")?.rows).toHaveLength(2);
+    expect(sheets.find((s) => s.name === "Keluarga")?.rows[1]).toContain("Petani");
+    const withoutPersonal = buildArchiveSheets(base(), null, "2026-10-08").map((s) => s.name);
+    expect(withoutPersonal).not.toContain("Keluarga");
+    expect(withoutPersonal).not.toContain("Dokumen");
+  });
+
+  it("sheet tambahan masuk ke template tanpa mengubah lembar formulir", () => {
+    const filled = fillXlsxTemplate(TEMPLATE, PRINT_SHEET_PATH, { R9: "Agus" });
+    const files = unzipSync(
+      appendSheets(filled, buildArchiveSheets(formEmployee(), null, "2026-10-08")),
+    );
+    const workbook = strFromU8(files["xl/workbook.xml"] as Uint8Array);
+    expect(workbook).toContain('name="Pendidikan"');
+    expect(workbook).toContain('name="Keluarga"');
+    expect(files[PRINT_SHEET_PATH]).toEqual(unzipSync(filled)[PRINT_SHEET_PATH]);
   });
 });

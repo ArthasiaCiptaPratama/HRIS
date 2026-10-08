@@ -27,7 +27,7 @@ Otomasi: `apps/api/tests/integration/organization/master-data.test.ts` (MD), `ap
 |---|---|---|---|---|---|---|---|
 | TC-ADM-015 | P1 | D-049 akses | SA / HR / MGR / EMP / tanpa token | — | GET `/<jenis>`; POST `/<jenis>` | Daftar: SA & HR 200, MGR/EMP 403, tanpa token 401; tulis: hanya SA (HR/MGR/EMP 403); grant apa pun tidak memberi HR hak kelola | MD, POL |
 | TC-ADM-016 | P1 | D-040 | HR | HR ditugaskan ACP, ada PT lain | GET /companies | HR hanya melihat PT yang ditugaskan | MD |
-| TC-ADM-017 | P2 | D-049 validasi | SA | — | Nama kosong, kode PT `A.B`, NPWP 3 digit, geofence sebagian, radius 5 m | 400 `VALIDATION_ERROR`; form web menampilkan pesan tanpa mengirim request | MD, SH, WMD |
+| TC-ADM-017 | P2 | D-049 validasi | SA | — | Nama kosong, kode PT `A.B`, NPWP 3 digit, geofence sebagian, radius 0 m (minimal 1 m sejak 2026-10-05) | 400 `VALIDATION_ERROR`; form web menampilkan pesan tanpa mengirim request | MD, SH, WMD |
 | TC-ADM-018 | P2 | D-049 nama unik | SA | grade "X" ada (aktif/arsip) | Tambah "X" lagi | 409 `CONFLICT` "… pulihkan saja" | MD |
 | TC-ADM-019 | P1 | D-049 arsip & pulihkan | SA | grade dipakai | Arsipkan → cek /master-data → pulihkan | Hilang dari pilihan (/master-data) tetapi tampil di "Diarsipkan"; ubah item terarsip 422; arsip ulang 409; pulihkan kembali tampil; audit `organization.grade.archive` | MD, WMD |
 | TC-ADM-020 | P1 | D-049 hapus permanen | SA | item belum/sudah dipakai | DELETE | Belum dipakai 200 (hilang); sudah dipakai 409 "arsipkan saja", data & audit tidak berubah | MD |
@@ -43,3 +43,23 @@ Otomasi: `apps/api/tests/integration/organization/master-data.test.ts` (MD), `ap
 | TC-ADM-030 | P2 | D-050 ubah jenis & gabungkan | SA | Divisi berisi Departemen | Ubah Divisi → Seksi; gabungkan Departemen ke Direktorat | 422 (sub-unit tidak sah / beda jenis); Divisi → Direktorat berhasil | MD |
 | TC-ADM-031 | P2 | D-050 level jabatan | SA | — | Tambah jabatan ber-level di unit Direktorat | Tersimpan; kolom Level tampil; `/master-data` & `/org-structure` membawa level; struktur mengurut jabatan menurut level | MD, WMD |
 | TC-ADM-032 | P3 | D-050 slug lama | SA | — | Buka `/master-data/departemen` | Dialihkan ke `/master-data/unit-organisasi` (judul "Unit organisasi") | WMD |
+| TC-ADM-033 | P3 | Aksesibilitas (PROMPT §7, axe) | SA | — | Buka dialog Tambah lokasi; periksa elemen peta | Elemen peta punya nama aksesibel (`aria-label` "Peta lokasi kerja: klik untuk menaruh titik") | WEB `tests/geofence-map.test.tsx` + Playwright staging GF-03 (`QA/2026-10-05-gelombang-1-staging/ui.ts`) |
+| TC-ADM-034 | P2 | D-049 poin 5 radius minimal 1 m (2026-10-05) | SA | — | Simpan lokasi radius 1 m; ubah ke 0 m | 1 m tersimpan; 0 m → 400 `VALIDATION_ERROR` (form & API) | SH `organization.test.ts`, MD "radius minimal 1 m" |
+| TC-ADM-035 | P1 | D-051 akses pos | SA / HR / EMPLOYEE | — | GET/POST `/org-posts`, POST sync | SA kelola; HR GET 200, POST/sync 403; EMPLOYEE 403; input slot 0 → 400 | OC (`organization/org-chart.test.ts`), WOP (`org-posts.test.tsx`) |
+| TC-ADM-036 | P1 | D-052 garis & PT | SA | pos ACP, PT lain, korporat | Atasan pos PT lain / pos korporat (tegas); fungsional ke korporat | Tegas lintas PT/korporat 422; fungsional ke korporat 201 | OC, SH (`org-chart.test.ts`) |
+| TC-ADM-037 | P2 | D-051 siklus & kode | SA | Dir → Mgr → Staf | Jadikan Staf atasan Dir; kode pos ganda | 422; kode ganda 409 | OC, SH |
+| TC-ADM-038 | P1 | D-051 slot & jabatan | SA | pos Staf slot 2 | Tempatkan 3 orang; pos jabatan beda; jabatan unit PT lain | Orang ke-3 422; jabatan ≠ pos 422; jabatan PT lain 422; jumlah pemegang = 2 | OC |
+| TC-ADM-039 | P1 | D-053 atasan otomatis | SA | pos Dir (akun Manager), Mgr kosong → terisi | Tempatkan; sinkron | Staf → Dir saat Mgr kosong; → Mgr setelah Mgr ber-akun Manager ditempatkan + sinkron; manual tidak disentuh; managerOverride=false kembali otomatis | OC, SH (`resolvePostManagers`) |
+| TC-ADM-040 | P1 | D-053 nonaktif | SA | Mgr pemegang pos | Nonaktifkan Mgr | `org_post_id` dikosongkan; bawahan naik ke Dir | OC |
+| TC-ADM-041 | P2 | D-051 arsip/ubah pos berisi | SA | pos berpemegang | Arsip; ganti jabatan; slot < pemegang | 422 ketiganya | OC |
+| TC-ADM-042 | P1 | D-051/D-052 bagan per PT | MANAGER / HR PT lain / EMPLOYEE PT lain / tanpa token | — | GET `/org-chart` | PT sendiri + panel korporat + garis fungsional; `canOpenDetail=false`; HR PT lain 404; EMPLOYEE PT lain hanya PT-nya; 401; tanpa data pribadi | OC |
+| TC-ADM-043 | P1 | D-051 kartu profil | MANAGER / EMPLOYEE PT lain | pemegang ACP & korporat | GET `/org-chart/people/:id` | Hanya kolom direktori; PT lain 404 kecuali pemegang pos korporat | OC |
+| TC-ADM-044 | P2 | D-052 unit milik PT | SA | unit ACP | Unit anak PT lain; unit anak tanpa PT | Anak PT lain 422; tanpa PT ikut induk (ACP); daftar membawa `companyCode` | OC |
+| TC-ADM-045 | P2 | D-051 kanvas | SA | seed dummy | Buka Struktur Organisasi | Tab Bagan default, ringkas s.d. tingkat 3 (KTT tertutup + jumlah), panel Corporate Function, garis fungsional | WOC (`org-chart-page.test.tsx`), PW OC-01 |
+| TC-ADM-046 | P2 | D-051 lipat/buka & semua | SA | — | Buka KTT; Buka semua | Cabang tampil; semua pos PT + korporat (68) + label Kosong | WOL (`org-chart-layout.test.ts`), PW OC-02/03 |
+| TC-ADM-047 | P2 | D-051 cari | SA | — | Cari "Helper Bor" → pilih | Cabang dibuka bila perlu, kotak disorot, kanvas berpindah | WOL, PW OC-04 |
+| TC-ADM-048 | P1 | D-051 klik orang | SA / MANAGER | — | Klik nama pemegang | SA: detail karyawan; MANAGER: kartu profil kerja (tanpa NIK/KTP/rekening), tanpa tombol Kelola pos | WOC, PW OC-05/12 |
+| TC-ADM-049 | P3 | D-051 alat kanvas | SA | — | Legenda; unduh PNG; ganti PT CD2 | Legenda lengkap; `bagan-organisasi-ACP.png` terunduh; bagan CD2 + panel korporat | PW OC-06/07/08 |
+| TC-ADM-050 | P2 | D-051 UI pos jabatan | SA / HR | — | Tambah pos (slot 2, kode) → hapus; HR buka halaman | Tersimpan 0/2 "2 kosong", terhapus; HR hanya baca | WOP, PW OC-09/13 |
+| TC-ADM-051 | P2 | D-051/D-053 form karyawan | SA | karyawan tanpa pos | Ubah: unit → jabatan Wellsite → Pos jabatan → simpan | Tersimpan di `ACP-WELL`, tampil di bagan; data dikembalikan | PW OC-11 |
+| TC-ADM-052 | P3 | Tampilan | SA | — | Mobile 390 px; mode gelap | Tanpa scroll horizontal; kanvas & kartu memakai token gelap | PW OC-15/16 |

@@ -12,14 +12,18 @@ enum Role {
 
 // PLAN §4.2: daftar tetap; harus sama dengan PERMISSIONS di packages/shared/src/permissions.ts.
 enum Permission {
-  EMPLOYEE_PERSONAL_READ   @map("employee.personal.read")
-  EMPLOYEE_PERSONAL_WRITE  @map("employee.personal.write")
-  EMPLOYEE_BANK_READ       @map("employee.bank.read")
-  EMPLOYEE_BANK_WRITE      @map("employee.bank.write")
-  EMPLOYEE_DOCUMENTS_READ  @map("employee.documents.read")
-  EMPLOYEE_DOCUMENTS_WRITE @map("employee.documents.write")
-  CONTRACT_MANAGE          @map("contract.manage")
-  PAYROLL_PERIOD_PREPARE   @map("payroll.period.prepare")
+  EMPLOYEE_PERSONAL_READ     @map("employee.personal.read")
+  EMPLOYEE_PERSONAL_WRITE    @map("employee.personal.write")
+  EMPLOYEE_BANK_READ         @map("employee.bank.read")
+  EMPLOYEE_BANK_WRITE        @map("employee.bank.write")
+  EMPLOYEE_DOCUMENTS_READ    @map("employee.documents.read")
+  EMPLOYEE_DOCUMENTS_WRITE   @map("employee.documents.write")
+  CONTRACT_MANAGE            @map("contract.manage")
+  PAYROLL_PERIOD_PREPARE     @map("payroll.period.prepare")
+  // D-047: review data onboarding calon.
+  EMPLOYEE_ONBOARDING_REVIEW @map("employee.onboarding.review")
+  // D-054 / OD-6: pengajuan perubahan data karyawan.
+  EMPLOYEE_CHANGES_REVIEW    @map("employee.changes.review")
 
   @@schema("iam")
 }
@@ -32,6 +36,9 @@ model Account {
   employeeId          String?   @map("employee_id") @db.Uuid
   employee            Employee? @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   email               String    @db.VarChar(254)
+  // D-048: email login Supabase saat ini bila berbeda dari `email` (alamat turunan NIK, domain .invalid).
+  // null = login memakai `email`. `email` tetap alamat kontak akun.
+  loginEmail          String?   @map("login_email") @db.VarChar(254)
   role                Role
   isActive            Boolean   @default(true) @map("is_active")
   // PLAN §4.4: tepat satu akun Utama (index unik parsial + CHECK di migrasi).
@@ -49,6 +56,7 @@ model Account {
   @@unique([authUserId])
   @@unique([employeeId])
   @@unique([email])
+  @@unique([loginEmail])
   @@index([role])
   @@map("accounts")
   @@schema("iam")
@@ -90,5 +98,16 @@ model AccountCompany {
   @@id([accountId, companyId])
   @@index([companyId])
   @@map("account_companies")
+  @@schema("iam")
+}
+
+// D-048: pembatas "lupa password" per masukan (NIK/email di-hash SHA-256, tanpa nilai asli).
+model PasswordResetAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  keyHash   String   @map("key_hash") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([keyHash, createdAt])
+  @@map("password_reset_attempts")
   @@schema("iam")
 }

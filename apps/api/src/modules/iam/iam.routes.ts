@@ -1,6 +1,9 @@
-import { createRoute, type OpenAPIHono, type z } from "@hono/zod-openapi";
+import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
+import { passwordResetBodySchema } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
+import type { EmailSender } from "../../core/email.ts";
 import { ForbiddenError } from "../../core/errors.ts";
+import type { Logger } from "../../core/logger.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
@@ -22,6 +25,7 @@ import {
   transferPrimaryBodySchema,
 } from "./iam.schema.ts";
 import * as service from "./iam.service.ts";
+import { type LoginContactDirectory, requestPasswordReset } from "./login.service.ts";
 
 export interface IamRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
@@ -29,6 +33,12 @@ export interface IamRouteDeps {
   authAdmin: AuthAdmin;
   /** URL web untuk link undangan (callback set password). */
   appUrl: string;
+  /** D-048: lupa password lewat API (tautan dikirim SMTP aplikasi ke email pribadi). */
+  passwordReset?: {
+    emailSender: EmailSender;
+    directory: LoginContactDirectory;
+    logger: Logger;
+  };
 }
 
 const P = API_BASE_PATH;
@@ -52,6 +62,23 @@ function ctxOf(c: Context): service.RequestContext {
 }
 
 const routes = {
+  passwordReset: createRoute({
+    method: "post",
+    path: `${P}/auth/password-reset`,
+    tags: ["IAM"],
+    summary:
+      "Lupa password (publik): NIP atau email → tautan ke email pribadi; respons selalu sama",
+    request: {
+      body: {
+        content: { "application/json": { schema: passwordResetBodySchema } },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Diterima", dataEnvelope(z.object({ accepted: z.literal(true) }))),
+      ...errors(400, 500),
+    },
+  }),
   me: createRoute({
     method: "get",
     path: `${P}/me`,
@@ -217,6 +244,18 @@ export function registerIamRoutes(app: OpenAPIHono, deps: IamRouteDeps): void {
   // Setiap route IAM terproteksi: authenticate + loadActor terpasang per route (bukan per prefix path).
   const guard = <R extends object>(route: R) => ({ ...route, middleware: deps.protect });
   const redirectTo = `${deps.appUrl.replace(/\/+$/, "")}/auth/callback`;
+
+  // D-048: publik (tanpa token). Hasil internal tidak pernah dikembalikan (cegah enumerasi akun).
+  app.openapi(routes.passwordReset, async (c) => {
+    if (deps.passwordReset) {
+      await requestPasswordReset(c.req.valid("json").identifier, {
+        ...deps.passwordReset,
+        authAdmin: deps.authAdmin,
+        redirectTo,
+      });
+    }
+    return c.json(ok({ accepted: true as const }), 200);
+  });
 
   app.openapi(guard(routes.me), async (c) => {
     const actor = c.get("actor");

@@ -28,6 +28,22 @@ export const access = {
   // D-049 (modules/organization/organization.policy.ts): SA kelola, HR lihat.
   viewMasterData: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
   manageMasterData: (me: Me) => isSuperAdmin(me),
+  // D-045 (employee.policy canRunOnboarding): penerimaan karyawan baru — SA & HR (PT ditugaskan).
+  runOnboarding: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
+  // D-047 (employee.policy canReviewOnboarding): SA, atau HR dengan grant review (cakupan PT di API).
+  reviewOnboarding: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) && me.grants.some((g) => g.permission === "employee.onboarding.review")),
+
+  // D-054 / OD-6 (employee.policy canViewDataChangeQueue): antrean pengajuan perubahan data.
+  reviewDataChanges: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) && me.grants.some((g) => g.permission === "employee.changes.review")),
+  // Arsip sensitif (seesFamilyArchive / seesBankArchive): SA atau pemegang grant baca.
+  readFamilyArchive: (me: Me) =>
+    isSuperAdmin(me) || me.grants.some((g) => g.permission === "employee.personal.read"),
+  readBankArchive: (me: Me) =>
+    isSuperAdmin(me) || me.grants.some((g) => g.permission === "employee.bank.read"),
 
   // Modul employee (apps/api/src/modules/employee/employee.policy.ts, D-035).
   /** Menu Personal Management: SA & HR penuh; MANAGER baca tim (butuh data karyawan). */

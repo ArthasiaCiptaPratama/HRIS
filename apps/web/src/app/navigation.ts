@@ -1,3 +1,4 @@
+import { ARCHIVE_SECTIONS } from "@hris/shared";
 import {
   ArrowLeftRight,
   Award,
@@ -5,8 +6,11 @@ import {
   BriefcaseBusiness,
   Building2,
   ChartColumn,
+  Clock,
   Contact,
   FileClock,
+  FilePen,
+  FileText,
   FileUp,
   FolderArchive,
   GraduationCap,
@@ -19,10 +23,12 @@ import {
   Network,
   Package,
   TriangleAlert,
+  UserPlus,
   UserRound,
   UserRoundCheck,
   Users,
   UserX,
+  Workflow,
 } from "lucide-react";
 import type { Me } from "@/features/auth/schemas";
 import {
@@ -92,13 +98,21 @@ const GROUP_ICONS: Record<string, LucideIcon> = {
 
 const manage = access.manageEmployees;
 
+// D-054 (Arsip 1a): menu yang sudah aktif terbuka juga untuk MANAGER (tim, kolom kerja); sisanya
+// Maintenance & hanya SA/HR sampai gelombangnya dikerjakan.
+const ARCHIVE_READY = new Set(ARCHIVE_SECTIONS.map((section) => section.slug));
+// D-054 / OD-6 (Arsip 1c): Keluarga & Bank = data sensitif → hanya SA / pemegang grant baca.
+const ARCHIVE_GRANTED: Record<string, (me: Me) => boolean> = {
+  keluarga: access.readFamilyArchive,
+  bank: access.readBankArchive,
+};
 const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem => ({
   id,
   label,
   to: `/personal/arsip/${id}`,
   icon,
-  visible: manage,
-  maintenance: true,
+  visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
+  maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
   keywords,
 });
 
@@ -234,7 +248,10 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Administrasi",
     icon: KeyRound,
     to: "/akun",
-    match: (p) => ["/akun", "/grant", "/audit", "/master-data"].some((base) => p.startsWith(base)),
+    match: (p) =>
+      ["/akun", "/grant", "/audit", "/master-data", "/penerimaan", "/pengajuan-data"].some((base) =>
+        p.startsWith(base),
+      ),
     visible: access.listAccounts,
     inTopNav: true,
     sections: [
@@ -260,17 +277,64 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
+        // D-045: penerimaan karyawan baru (SA & HR).
+        id: "recruitment",
+        label: "Penerimaan",
+        items: [
+          {
+            id: "onboarding",
+            maintenance: !FEATURES.onboarding,
+            label: "Penerimaan Karyawan Baru",
+            to: "/penerimaan",
+            icon: UserPlus,
+            visible: access.runOnboarding,
+            keywords: "onboarding calon karyawan undangan aktivasi impor portal maganghub",
+          },
+          {
+            // D-054 / OD-6: pengajuan perubahan data diri (ESS) menunggu persetujuan.
+            id: "data-changes",
+            maintenance: !FEATURES.selfService,
+            label: "Pengajuan Perubahan Data",
+            to: "/pengajuan-data",
+            icon: FilePen,
+            visible: access.reviewDataChanges,
+            keywords: "pengajuan perubahan data ess persetujuan rekening keluarga alamat dokumen",
+          },
+        ],
+      },
+      {
         // D-049: master data organisasi (SA kelola, HR lihat).
         id: "master-data",
         label: "Master Data",
-        items: MASTER_DATA_PAGES.map((page) => ({
-          id: `master-${page.kind}`,
-          label: page.label,
-          to: `${MASTER_DATA_BASE}/${page.slug}`,
-          icon: page.icon,
-          visible: access.viewMasterData,
-          keywords: "master data organisasi",
-        })),
+        items: [
+          ...MASTER_DATA_PAGES.map((page) => ({
+            id: `master-${page.kind}`,
+            label: page.label,
+            to: `${MASTER_DATA_BASE}/${page.slug}`,
+            icon: page.icon,
+            visible: access.viewMasterData,
+            keywords: "master data organisasi",
+          })),
+          {
+            // D-051: kursi di bagan organisasi (atasan, garis fungsional, slot).
+            id: "master-org-posts",
+            label: "Pos jabatan",
+            to: `${MASTER_DATA_BASE}/pos-jabatan`,
+            icon: Workflow,
+            visible: access.viewMasterData,
+            keywords: "pos jabatan bagan org chart slot vacant kosong atasan fungsional",
+          },
+          {
+            // D-055: katalog jenis dokumen karyawan (masa berlaku, sensitif, wajib).
+            id: "master-document-types",
+            maintenance: !FEATURES.archive,
+            label: "Jenis dokumen",
+            to: `${MASTER_DATA_BASE}/jenis-dokumen`,
+            icon: FileText,
+            visible: access.viewMasterData,
+            keywords: "jenis dokumen berkas file sertifikat masa berlaku kedaluwarsa",
+          },
+        ],
       },
     ],
   },
@@ -279,7 +343,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Akun Saya",
     icon: UserRound,
     to: "/profil",
-    match: (p) => p.startsWith("/profil") || p.startsWith("/notifikasi"),
+    match: (p) => p.startsWith("/profil") || p.startsWith("/notifikasi") || p.startsWith("/ess"),
     visible: () => true,
     inTopNav: false,
     sections: [
@@ -289,6 +353,15 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           { id: "profile", label: "Profil", to: "/profil", icon: UserRound },
           { id: "notifications", label: "Notifikasi", to: "/notifikasi", icon: Bell },
+          {
+            id: "ess",
+            maintenance: !FEATURES.selfService,
+            label: "Layanan Mandiri",
+            to: "/ess",
+            icon: Clock,
+            keywords:
+              "ess absensi cuti slip gaji data diri pengajuan perubahan rekening keluarga dokumen",
+          },
         ],
       },
     ],

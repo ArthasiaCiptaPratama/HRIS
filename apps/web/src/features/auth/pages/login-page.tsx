@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { resolveLoginEmail } from "@hris/shared";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, Navigate, useSearchParams } from "react-router";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { env } from "@/lib/env";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "../auth-provider";
 import { type LoginForm, loginFormSchema } from "../schemas";
@@ -49,22 +51,36 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginFormSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { identifier: "", password: "" },
   });
 
   if (session) return <Navigate to={safeNext(params.get("next"))} replace />;
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const nik = Boolean(env.VITE_LOGIN_EMAIL_DOMAIN);
+  const onSubmit = form.handleSubmit(async ({ identifier, password }) => {
     setError(null);
-    const { error: signInError } = await supabase.auth.signInWithPassword(values);
-    // Pesan generik: tidak membedakan email tidak terdaftar vs password salah.
-    if (signInError) setError("Email atau password salah, atau akun belum aktif.");
+    // D-048: NIK → alamat login turunan; email → apa adanya. Password langsung ke Supabase (D-033).
+    const email = resolveLoginEmail(identifier, env.VITE_LOGIN_EMAIL_DOMAIN);
+    if (!email) {
+      form.setError("identifier", {
+        message: nik ? "Masukkan NIP atau email yang valid." : "Email tidak valid.",
+      });
+      return;
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    // Pesan generik: tidak membedakan akun tidak terdaftar vs password salah.
+    if (signInError)
+      setError(`${nik ? "NIP/email" : "Email"} atau password salah, atau akun belum aktif.`);
   });
 
   return (
     <AuthCard
       title="Masuk ke Akselerasi Arthasia"
-      description="Gunakan email dan password akun Anda."
+      description={
+        nik
+          ? "Gunakan NIP (nomor induk pegawai) atau email, dan password akun Anda."
+          : "Gunakan email dan password akun Anda."
+      }
     >
       <form className="space-y-4" onSubmit={onSubmit} noValidate>
         {error ? (
@@ -73,10 +89,16 @@ export function LoginPage() {
           </Alert>
         ) : null}
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
-          {form.formState.errors.email ? (
-            <p className="text-destructive text-xs">{form.formState.errors.email.message}</p>
+          <Label htmlFor="identifier">{nik ? "NIP atau email" : "Email"}</Label>
+          <Input
+            id="identifier"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            {...form.register("identifier")}
+          />
+          {form.formState.errors.identifier ? (
+            <p className="text-destructive text-xs">{form.formState.errors.identifier.message}</p>
           ) : null}
         </div>
         <div className="space-y-2">

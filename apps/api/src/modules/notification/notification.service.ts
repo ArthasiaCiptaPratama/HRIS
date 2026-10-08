@@ -212,3 +212,8 @@ export async function markMineRead(actor: Actor, id: string, now: Date = new Dat
 export async function markAllMineRead(actor: Actor, now: Date = new Date()) {
   return { updated: await repository.markAllRead(actor.accountId, now) };
 }
+
+/** D-045 d: hapus jejak notifikasi akun yang dihapus permanen (data pribadi calon batal). */
+export async function forgetRecipient(accountId: string, emails: string[]): Promise<void> {
+  await repository.deleteForRecipient(accountId, emails);
+}

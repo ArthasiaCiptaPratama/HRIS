@@ -273,6 +273,16 @@ function buildColumns(
       }),
       col({ id: "parent", header: "Induk", cell: ({ row }) => muted(row.original.parentName) }),
       col({
+        id: "company",
+        header: "PT",
+        cell: ({ row }) =>
+          row.original.companyCode ? (
+            <Badge variant="outline">{row.original.companyCode}</Badge>
+          ) : (
+            <span className="text-muted-foreground text-xs">Korporat / grup</span>
+          ),
+      }),
+      col({
         id: "positions",
         header: "Jabatan",
         meta: { className: "tabular-nums" },
@@ -397,6 +407,7 @@ function initialValues(item: MasterDataItem | null): Values {
     address: s(item?.address),
     unitType: s(item?.unitType ?? "DEPARTMENT"),
     parentId: s(item?.parentId),
+    companyId: s(item?.companyId),
     departmentId: s(item?.departmentId),
     level: s(item?.level),
     category: s(item?.category),
@@ -429,6 +440,8 @@ function toBody(kind: MasterDataKind, v: Values): Record<string, unknown> {
         name: v.name ?? "",
         unitType: (v.unitType || "DEPARTMENT") as OrgUnitType,
         parentId: text(v.parentId),
+        // D-052: kosong = fungsi korporat / unit lintas grup.
+        companyId: text(v.companyId),
       };
     case "positions":
       return {
@@ -466,6 +479,7 @@ function MasterDataFormDialog({
   const save = useSaveMasterData(config.kind);
   const departments = useMasterDataAdmin("departments", "active", "");
   const statuses = useMasterDataAdmin("employment-statuses", "all", "");
+  const companies = useMasterDataAdmin("companies", "active", "");
   const [values, setValues] = useState<Values>(() => initialValues(item));
   const [errors, setErrors] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -564,8 +578,8 @@ function MasterDataFormDialog({
                 }),
                 {
                   hint: codeLocked
-                    ? "Terkunci: sudah dipakai nomor induk karyawan."
-                    : "2–10 huruf besar/angka; dipakai di nomor induk (mis. 25.11.ACP.023).",
+                    ? "Terkunci: sudah dipakai NIP karyawan."
+                    : "2–10 huruf besar/angka; dipakai di NIP (mis. 25.11.ACP.023).",
                 },
               )
             : null}
@@ -635,6 +649,8 @@ function MasterDataFormDialog({
                     .filter(
                       (d) =>
                         d.id !== item?.id &&
+                        // D-052: induk ber-PT harus PT yang sama; induk tanpa PT boleh semua.
+                        (!d.companyId || d.companyId === (values.companyId || null)) &&
                         canBeChildOf(
                           (values.unitType || "DEPARTMENT") as OrgUnitType,
                           d.unitType ?? "DEPARTMENT",
@@ -649,6 +665,25 @@ function MasterDataFormDialog({
                 {
                   optional: true,
                   hint: "Direktorat ⊃ Divisi ⊃ Departemen ⊃ Seksi; departemen boleh langsung di bawah direktorat.",
+                },
+              )}
+              {field(
+                "companyId",
+                "Perusahaan pemilik",
+                <FormSelect
+                  id="md-companyId"
+                  value={values.companyId ?? ""}
+                  onChange={set("companyId")}
+                  placeholder="Pilih perusahaan"
+                  noneLabel="Tanpa PT (fungsi korporat / lintas grup)"
+                  options={(companies.data ?? []).map((c) => ({
+                    value: c.id,
+                    label: `${c.code ?? ""} · ${c.name}`,
+                  }))}
+                />,
+                {
+                  optional: true,
+                  hint: "Unit milik PT tampil di bagan PT itu; unit tanpa PT tampil sebagai Corporate Function di bagan semua PT.",
                 },
               )}
             </>

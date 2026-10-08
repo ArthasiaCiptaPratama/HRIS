@@ -6,7 +6,7 @@ import { HTTPException } from "hono/http-exception";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { type ActorLoader, loadActor } from "./core/access/index.ts";
+import { type ActorLoader, enforceOnboardingLock, loadActor } from "./core/access/index.ts";
 import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
 import { createLogSender, createSmtpSender, type EmailSender } from "./core/email.ts";
@@ -16,6 +16,11 @@ import {
   UnauthenticatedError,
   ValidationError,
 } from "./core/errors.ts";
+import {
+  createServiceAccountDrive,
+  type GoogleDriveReader,
+  UNCONFIGURED_DRIVE,
+} from "./core/google-drive.ts";
 import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
@@ -28,9 +33,13 @@ import {
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
 import {
+  employeeLoginDirectory,
   employeeMasterDataSupport,
   employeeScopeForIam,
+  processOnboardingInvitations,
+  purgeCancelledCandidates,
   registerEmployeeRoutes,
+  remindStaleInvitations,
   withEmployeeCompanyScope,
 } from "./modules/employee/index.ts";
 import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
@@ -50,6 +59,12 @@ export interface AppDeps {
   appUrl: string;
   emailSender: EmailSender;
   cronSecret: string | undefined;
+  /** D-045: batas undangan aktivasi per jam. */
+  onboardingInvitesPerHour: number;
+  /** D-048: domain alamat login NIK (per lingkungan; kosong = nonaktif). */
+  loginEmailDomain: string | undefined;
+  /** D-060: Google Drive (service account) untuk lampiran Import. */
+  googleDrive: GoogleDriveReader;
 }
 
 // Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
@@ -72,6 +87,14 @@ function defaultStorage(): StorageAdmin {
   return NODE_ENV !== "test" && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
     ? createSupabaseStorage(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     : UNCONFIGURED_STORAGE;
+}
+
+// D-060: test tidak pernah memanggil Google (pakai pembaca palsu lewat overrides).
+function defaultGoogleDrive(): GoogleDriveReader {
+  const { NODE_ENV, GOOGLE_SERVICE_ACCOUNT_JSON } = getEnv();
+  return NODE_ENV !== "test" && GOOGLE_SERVICE_ACCOUNT_JSON
+    ? createServiceAccountDrive(GOOGLE_SERVICE_ACCOUNT_JSON)
+    : UNCONFIGURED_DRIVE;
 }
 
 // D-025: SMTP hanya bila lengkap (staging/produksi); lokal → email dicatat ke log saja.
@@ -141,6 +164,17 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
     emailSender: overrides.emailSender ?? selectEmailSender(getEnv(), logger),
     cronSecret: "cronSecret" in overrides ? overrides.cronSecret : getEnv().CRON_SECRET,
+    onboardingInvitesPerHour:
+      overrides.onboardingInvitesPerHour ?? getEnv().ONBOARDING_INVITES_PER_HOUR,
+    loginEmailDomain:
+      "loginEmailDomain" in overrides ? overrides.loginEmailDomain : getEnv().LOGIN_EMAIL_DOMAIN,
+    googleDrive: overrides.googleDrive ?? defaultGoogleDrive(),
+  };
+  // D-045: undangan aktivasi kembali ke /auth/callback web (atur password).
+  const invitations = {
+    authAdmin: deps.authAdmin,
+    redirectTo: `${deps.appUrl.replace(/\/+$/, "")}/auth/callback`,
+    perHour: deps.onboardingInvitesPerHour,
   };
   configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
   configureIam({ employeeScope: employeeScopeForIam });
@@ -188,8 +222,22 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerHealth(app, deps.checkDatabase);
 
   // Endpoint terproteksi: verifikasi JWT → muat akun, role, grant dari DB (D-008).
-  const protect = [authenticate(deps.tokenVerifier), loadActor(deps.actorLoader)];
-  registerIamRoutes(app, { protect, authAdmin: deps.authAdmin, appUrl: deps.appUrl });
+  // D-045 b: calon onboarding yang belum disetujui hanya boleh memakai endpoint wizard.
+  const protect = [
+    authenticate(deps.tokenVerifier),
+    loadActor(deps.actorLoader),
+    enforceOnboardingLock(),
+  ];
+  registerIamRoutes(app, {
+    protect,
+    authAdmin: deps.authAdmin,
+    appUrl: deps.appUrl,
+    passwordReset: {
+      emailSender: deps.emailSender,
+      directory: employeeLoginDirectory,
+      logger: deps.logger,
+    },
+  });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
   registerEmployeeRoutes(app, {
@@ -197,8 +245,29 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     authAdmin: deps.authAdmin,
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
+    invitations,
+    loginEmailDomain: deps.loginEmailDomain,
+    googleDrive: deps.googleDrive,
   });
-  registerCronRoutes(app, { cronSecret: deps.cronSecret, logger: deps.logger });
+  registerCronRoutes(app, {
+    cronSecret: deps.cronSecret,
+    logger: deps.logger,
+    // D-045: cadangan pemroses antrean undangan (Vercel Hobby: maks 1×/hari).
+    // D-045 d: satu cron harian onboarding — hapus calon batal > 30 hari, pengingat undangan > 14 hari,
+    // lalu sisa antrean undangan (Vercel Hobby: maks 1×/hari per cron).
+    extraJobs: {
+      "onboarding-maintenance": async () => ({
+        purge: await purgeCancelledCandidates({
+          authAdmin: deps.authAdmin,
+          storage: deps.storage,
+          anonymousDomain: deps.loginEmailDomain ?? "deleted.akselerasi.invalid",
+          logger: deps.logger,
+        }),
+        reminders: await remindStaleInvitations(),
+        invitations: await processOnboardingInvitations(null, invitations),
+      }),
+    },
+  });
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));
 
