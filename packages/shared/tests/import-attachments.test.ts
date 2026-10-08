@@ -117,4 +117,15 @@ describe("applySavedMapping", () => {
       ),
     ).toEqual(["employeeNumber", null, "attachPhoto"]);
   });
+
+  test("D-061: kolom berisi tautan Drive mengalahkan field data dari profil (kolom kosong saat profil disimpan)", () => {
+    // Profil tersimpan ketika kolom unggahan "Kartu Keluarga" masih kosong → dipetakan ke No. KK.
+    expect(
+      applySavedMapping(
+        ["NIP", "Kartu Keluarga", "Foto"],
+        { nip: "employeeNumber", "kartu keluarga": "kkNumber", foto: "attachPhoto" },
+        ["employeeNumber", "attachKk", "attachPhoto"],
+      ),
+    ).toEqual(["employeeNumber", "attachKk", "attachPhoto"]);
+  });
 });
