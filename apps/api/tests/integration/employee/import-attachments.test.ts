@@ -67,6 +67,7 @@ let hr: Login;
 let hrOther: Login;
 let acp = "";
 let positionId = "";
+let createdStatusId: string | null = null;
 const employees: Record<string, string> = {};
 
 /** ID Drive palsu (≥ 20 karakter seperti aslinya). */
@@ -118,7 +119,15 @@ const docsOf = (employeeId: string) =>
 
 beforeAll(async () => {
   acp = await acpCompanyId();
-  const status = await prisma.employmentStatus.findFirstOrThrow({ select: { id: true } });
+  // DB CI dimigrasi dari kosong tanpa seed → status kepegawaian dibuat sendiri bila belum ada.
+  const existing = await prisma.employmentStatus.findFirst({ select: { id: true } });
+  const status =
+    existing ??
+    (await prisma.employmentStatus.create({
+      data: { name: `Status Lamp ${RUN}` },
+      select: { id: true },
+    }));
+  if (!existing) createdStatusId = status.id;
   const department = await prisma.department.create({ data: { name: `Dept Lamp ${RUN}` } });
   positionId = (
     await prisma.position.create({ data: { name: `Jab Lamp ${RUN}`, departmentId: department.id } })
@@ -165,6 +174,7 @@ afterAll(async () => {
   await prisma.employee.deleteMany({ where: { id: { in: ids } } });
   await prisma.position.deleteMany({ where: { id: positionId } });
   await prisma.department.deleteMany({ where: { name: `Dept Lamp ${RUN}` } });
+  if (createdStatusId) await prisma.employmentStatus.deleteMany({ where: { id: createdStatusId } });
   await auth.cleanup();
   await disconnectPrisma();
 });
