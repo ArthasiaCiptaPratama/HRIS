@@ -9,7 +9,7 @@ export const FEATURES = {
   orgStructure: true, // e. Struktur Organisasi
   // Rilis bertahap (D-043, 2026-10-08): fitur develop yang belum dirilis disembunyikan di jalur rilis
   // (develop selalu `true`). Skema & API ikut terpasang; aktifkan cukup dengan `true` lalu rilis ulang.
-  onboarding: true, // Administrasi › Penerimaan Karyawan Baru (D-045–D-048)
-  archive: true, // Personal Management › Arsip, Master Data › Jenis dokumen, kelola Arsip di detail (D-054–D-058)
-  selfService: true, // Akun Saya › Layanan Mandiri & Administrasi › Pengajuan Perubahan Data (D-054)
+  onboarding: false, // Administrasi › Penerimaan Karyawan Baru (D-045–D-048)
+  archive: false, // Personal Management › Arsip, Master Data › Jenis dokumen, kelola Arsip di detail (D-054–D-058)
+  selfService: false, // Akun Saya › Layanan Mandiri & Administrasi › Pengajuan Perubahan Data (D-054)
 } as const;
