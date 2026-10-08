@@ -22,7 +22,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-07-arsip-1c.md](plans/2026-10-07-arsip-1c.md) | Arsip karyawan gelombang 1c: pengajuan perubahan data ESS, antrean HR, Data Keluarga & Bank (D-054) |
 | Rencana | [plans/2026-10-07-import-form.md](plans/2026-10-07-import-form.md) | Import Sheet respons Google Form "Formulir Data Karyawan" (D-059) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
-| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-172 |
+| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-177 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-052 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18) |
@@ -41,7 +41,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-05-arsip-1a.md](runs/2026-10-05-arsip-1a.md) | Lokal: shared 125 · api 474 · web 184, Playwright 22/22 (bug dialog tambah saat daftar kosong diperbaiki) — LULUS lokal |
 | Hasil | [runs/2026-10-05-arsip-1b.md](runs/2026-10-05-arsip-1b.md) | Lokal: shared 133 · api 493 · web 190, Playwright 19/19 — LULUS lokal |
 | Hasil | [runs/2026-10-07-arsip-1c.md](runs/2026-10-07-arsip-1c.md) | Lokal: shared 140 · api 521 · web 199, Playwright 19/19 — LULUS lokal |
-| Hasil | [runs/2026-10-07-import-form.md](runs/2026-10-07-import-form.md) | Lokal: Playwright Import 4/4 + ekspor Sheet sungguhan (24 kolom terpetakan) — LULUS lokal |
+| Hasil | [runs/2026-10-07-import-form.md](runs/2026-10-07-import-form.md) | Lokal: Playwright Import 4/4 + Import lengkap 8/8; ekspor Sheet sungguhan 119/138 kolom terpetakan — LULUS lokal |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `d4d66f1` (staging menyusul): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

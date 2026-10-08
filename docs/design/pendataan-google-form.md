@@ -1,7 +1,7 @@
 # Desain — Pendataan Karyawan Existing dari Google Form lewat Import (D-059)
 
 > Keputusan: **D-059** di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas) (dibangun di atas Import D-042, [import-karyawan.md](import-karyawan.md)).
-> Status: **[done] lokal 2026-10-07** — Import mengenali Sheet respons "Formulir Data Karyawan". Belum: bagian keluarga, riwayat pendidikan, sertifikasi, kontak darurat lengkap, No. SIM per jenis (rencana berikutnya, §3). Checklist: PROGRESS Fase 4 → "Pendataan karyawan existing lewat Google Form".
+> Status: **[done] lokal 2026-10-07** — Import mengenali seluruh Sheet respons "Formulir Data Karyawan" (ekspor 138 kolom: 119 terpetakan otomatis; 19 sisanya tautan file/Timestamp/pertanyaan navigasi). Belum: file di Drive (foto & dokumen) — §4. Checklist: PROGRESS Fase 4 → "Pendataan karyawan existing lewat Google Form".
 > Dokumen ini tidak memuat data asli.
 
 Karyawan existing yang belum ada di HRIS mengisi **Google Form** "Formulir Data Karyawan"; responsnya masuk Google Sheet, lalu HR memasukkannya ke HRIS lewat **Import Data Karyawan** (pratinjau, pemetaan kolom diingat, simpan satu transaksi). Tidak ada integrasi otomatis Form → HRIS.
@@ -32,7 +32,7 @@ Dipilih pemilik projek 2026-10-07: migrasi karyawan existing bersifat satu kali/
 | "Pendidikan Terakhir Pertama" | "Pendidikan Terakhir" | dikenali langsung |
 | "Agama " (spasi) | "Agama" | rapi |
 
-Data keluarga (pasangan, anak, orang tua, saudara), sertifikasi, dan dokumen belum didukung Import (tidak dipetakan) — tahap berikutnya.
+Data keluarga, pendidikan 1–3, sertifikasi, kontak darurat, dan No. SIM per jenis kini didukung (§3). Hasil uji di atas adalah keadaan sebelum §3; sesudahnya 119/138 kolom terpetakan. File di Drive belum (§4).
 
 
 ## 2. Riwayat keputusan
@@ -40,16 +40,27 @@ Data keluarga (pasangan, anak, orang tua, saudara), sertifikasi, dan dokumen bel
 - 2026-10-07 (grill): rencana awal = Apps Script di Form mengirim ke API (antrean review, foto ke Storage, token per Form). Dibangun & diuji lokal, lalu **dihapus total** atas keputusan pemilik projek: untuk pendataan yang dilakukan HR secara manual/bertahap, jalur itu menambah 3 tabel, ±7 endpoint, 3 halaman, cron, token, dan URL publik/tunnel tanpa dipakai. Bila kelak dibutuhkan pendataan otomatis, rancang ulang dari kebutuhan saat itu.
 - Yang dipertahankan dari pekerjaan itu: kolom data pribadi baru (`nickname`, `nationality`, `ethnicity`, `blood_type`, `driving_license_types`, `driving_license_number` — migrasi `20261007100618_add_employee_personal_form_fields`), perluasan Import, istilah layar **NIP** (D-048).
 
-## 3. Rencana berikutnya (menunggu persetujuan)
+## 3. Bagian berulang (dikerjakan 2026-10-07)
 
-Keputusan pemilik projek 2026-10-07: semua bagian Form ikut Import.
+Keputusan pemilik projek 2026-10-07: semua bagian Form ikut Import; impor ulang = **tambah yang belum ada**; dropdown pemetaan **berkelompok**.
 
-| Bagian Form | Tujuan | Perubahan skema |
+| Bagian Form | Field Import (grup dropdown) | Disimpan ke |
 |---|---|---|
-| Pasangan, anak (1–5), orang tua, saudara (1–5) | `family_members` | + jenis kelamin, tempat lahir, pendidikan, pekerjaan, usia, alamat kerja |
-| Pendidikan terakhir 1–3 | `educations` | + tahun masuk |
-| Sertifikasi (K3 Umum, POP, POM, POU, SMKP, SMK3, PROPER, ISO …) + No. & Tahun | `trainings` (Arsip › Pelatihan) | + nomor sertifikat |
-| Kontak darurat | kolom `employees` | + alamat kontak darurat |
-| No. SIM A / C / … | `employee_personal` | nomor per jenis SIM (jsonb) |
+| Pasangan | `spouse{Name,Occupation,WorkAddress,BirthPlace,BirthDate}` | `family_members` (+ `gender`, `birth_place`, `education`, `occupation`, `age_at_entry`, `work_address`) |
+| Anak 1–5 | `child{n}{Name,Gender,BirthPlace,BirthDate,Education}` | `family_members` |
+| Ayah, Ibu | `father/mother{Name,Age,Education,Occupation}` | `family_members` (usia = `age_at_entry`, usia saat didata) |
+| Saudara 1–5 | `sibling{n}{Name,Age,Education,Occupation}` | `family_members` |
+| Pendidikan 1–3 | `education{n}{Level,School,EntryYear,GraduationYear}` | `educations` (+ `entry_year`) |
+| Sertifikasi (K3 Umum, POP, POM, POU, SMKP Minerba, SMK3 Kemnaker, PROPER, ISO 45001/14001/9001/50001) | `cert{Key}{Number,Year}` | `trainings` (bidang = nama sertifikasi, + `certificate_number`) |
+| Kontak darurat | nama/hubungan/HP (field lama) + `emergencyContactAddress` | `employees` + `employee_personal.emergency_contact_address` |
+| No. SIM A/C/… | `simNumber{Jenis}` | `employee_personal.driving_license_numbers` (jsonb; `driving_license_number` = nomor pertama) |
 
-Kolom generik berulang ("Usia", "Pendidikan", "Pekerjaan" ayah/ibu; "Nama Lengkap"/"No. HP" kontak darurat) dikenali dari kolom penanda sebelumnya (mis. setelah "Nama Lengkap Ayah"). Dokumen (KTP, KK, ijazah, buku rekening, file sertifikat) tetap diunggah manual.
+- **Pengenalan kolom** (`detect.ts` `formGroupMapping`, hanya untuk ekspor Form — kolom pertama "Timestamp" — atau file dengan ≥ 2 kolom penanda): kolom generik ("Usia", "Pendidikan", "Pekerjaan", "Tahun Masuk", "No. Sertifikasi", "No. HP", "Nama Lengkap") dimiliki kelompok dari kolom penanda sebelumnya ("Nama Istri/Suami", "Nama Lengkap Ayah/Ibu", "(Anak n)", "(Saudara Kandung n)", "Pendidikan Terakhir Pertama…Ketiga", nama sertifikasi, "Hubungan").
+- **Impor ulang**: dicocokkan keluarga = hubungan + nama, pendidikan = jenjang + sekolah, sertifikasi = nama; yang sudah ada dilewati, yang baru ditambah (tampil sebagai perubahan di pratinjau). Tidak ada yang dihapus/ditimpa.
+- **Akses**: keluarga, alamat kontak darurat, No. SIM = data pribadi (grant `employee.personal.write` untuk HR; dilewati bila tidak berhak; data milik akun sendiri tidak diubah lewat Import). Pendidikan & sertifikasi tidak sensitif.
+- **Profil pemetaan** (diingat per susunan kolom) memakai kunci per kemunculan (`usia`, `usia#2`, …) supaya kolom kembar tidak tertukar saat dipakai ulang.
+- **Tampilan**: detail karyawan › Pribadi (email pribadi, panggilan, kebangsaan, suku, gol. darah, SIM per jenis, alamat kontak darurat), › Keluarga (jenis kelamin, TTL, usia saat didata, pendidikan, pekerjaan, alamat kerja), › Pendidikan (tahun masuk–lulus, No. sertifikat).
+
+## 4. File di Drive (belum)
+
+Kolom unggahan (foto, KTP, KK, ijazah, NPWP, file sertifikat, buku rekening) berisi tautan Drive privat milik pemilik Form; Import mengabaikannya. Opsi yang dibahas 2026-10-07: script admin dengan rclone (unduh per ID → unggah lewat API dokumen; disarankan untuk migrasi), service account Google Cloud, unggah ZIP, atau menyimpan tautan saja (tidak disarankan: dokumen tetap di Drive Gmail, hak akses HRIS tidak berlaku). Menunggu keputusan pemilik projek.
