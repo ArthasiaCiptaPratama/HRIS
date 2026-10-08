@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import {
   fieldPermission,
   IMPORT_FIELD_KEYS,
+  type ImportAttachment,
+  type ImportCertification,
+  type ImportEducation,
+  type ImportFamilyMember,
   type ImportFieldKey,
   type ImportRowIssue,
   isBlankImportRow,
@@ -52,6 +56,83 @@ interface RowPlan {
   statusId?: string;
   /** Departemen untuk jabatan (dari file atau departemen jabatan saat ini). */
   departmentName?: string;
+  /** D-059: keluarga/pendidikan/sertifikasi dari file yang belum ada di karyawan (ditambahkan). */
+  repeated?: RepeatedRows;
+}
+
+interface RepeatedRows {
+  family: ImportFamilyMember[];
+  educations: ImportEducation[];
+  certifications: ImportCertification[];
+}
+
+const textKey = (v: string | null | undefined) =>
+  (v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * D-059: impor ulang = tambah yang belum ada (tidak menghapus/menimpa). Cocok bila keluarga: hubungan +
+ * nama; pendidikan: jenjang + sekolah; sertifikasi: nama = bidang pelatihan.
+ */
+function missingRepeated(row: NormalizedImportRow, e?: importRepo.ExistingEmployee): RepeatedRows {
+  const family = e?.familyMembers ?? [];
+  const educations = e?.educations ?? [];
+  const trainings = e?.trainings ?? [];
+  return {
+    family: (row.family ?? []).filter(
+      (m) =>
+        !family.some(
+          (f) => f.relationship === m.relationship && textKey(f.name) === textKey(m.name),
+        ),
+    ),
+    educations: (row.educations ?? []).filter(
+      (ed) =>
+        !educations.some(
+          (x) =>
+            (ed.level === undefined || x.level === ed.level) &&
+            masterKey(x.schoolName) === masterKey(ed.schoolName ?? ed.level ?? ""),
+        ),
+    ),
+    certifications: (row.certifications ?? []).filter(
+      (c) => !trainings.some((t) => textKey(t.trainingField) === textKey(c.name)),
+    ),
+  };
+}
+
+async function writeRepeated(
+  tx: Parameters<typeof importRepo.createEducation>[0],
+  employeeId: string,
+  r: RepeatedRows,
+) {
+  for (const { source: _source, birthDate, ...m } of r.family)
+    await importRepo.createFamilyMember(tx, {
+      employeeId,
+      ...m,
+      ...(birthDate ? { birthDate: toDate(birthDate) } : {}),
+    });
+  for (const ed of r.educations)
+    await importRepo.createEducation(tx, {
+      employeeId,
+      level: ed.level ?? null,
+      schoolName: ed.schoolName ?? (ed.level as string),
+      entryYear: ed.entryYear ?? null,
+      graduationYear: ed.graduationYear ?? null,
+    });
+  for (const c of r.certifications)
+    await importRepo.createTraining(tx, {
+      employeeId,
+      trainingField: c.name,
+      trainingYear: c.year ?? null,
+      certificateNumber: c.number ?? null,
+    });
+}
+
+/**
+ * D-060: lampiran baris ini yang masuk antrean — baris error dan baris yang dilewati karena mode
+ * "hanya tambah baru" (karyawan sudah ada) tidak ikut; baris tanpa perubahan data tetap ikut.
+ */
+function queuedAttachments(plan: RowPlan): ImportAttachment[] {
+  if (plan.action === "ERROR" || plan.issues.some((i) => i.code === "EXISTS_SKIPPED")) return [];
+  return plan.row.attachments ?? [];
 }
 
 interface Analysis {
@@ -77,6 +158,28 @@ const PERSONAL_KEYS = [
   "bpjsHealthNumber",
   "ktpAddress",
   "domicileAddress",
+  // D-059: field Formulir Data Karyawan.
+  "nickname",
+  "nationality",
+  "ethnicity",
+  "bloodType",
+  "drivingLicenseTypes",
+  "drivingLicenseNumber",
+  "drivingLicenseNumbers",
+  "emergencyContactAddress",
+  // D-061: rincian alamat & kontak darurat ke-2.
+  "domicileVillage",
+  "domicileDistrict",
+  "domicileCity",
+  "domicileProvince",
+  "ktpVillage",
+  "ktpDistrict",
+  "ktpCity",
+  "ktpProvince",
+  "emergencyContact2Name",
+  "emergencyContact2Relationship",
+  "emergencyContact2Phone",
+  "emergencyContact2Address",
 ] as const;
 // Kunci data pribadi → field import (untuk daftar perubahan). maritalStatus bisa turunan PTKP.
 const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
@@ -93,6 +196,26 @@ const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
   bpjsHealthNumber: "bpjsHealthNumber",
   ktpAddress: "ktpAddress",
   domicileAddress: "domicileAddress",
+  nickname: "nickname",
+  nationality: "nationality",
+  ethnicity: "ethnicity",
+  bloodType: "bloodType",
+  drivingLicenseTypes: "drivingLicenseTypes",
+  drivingLicenseNumber: "drivingLicenseNumber",
+  drivingLicenseNumbers: "drivingLicenseNumber",
+  emergencyContactAddress: "emergencyContactAddress",
+  domicileVillage: "domicileVillage",
+  domicileDistrict: "domicileDistrict",
+  domicileCity: "domicileCity",
+  domicileProvince: "domicileProvince",
+  ktpVillage: "ktpVillage",
+  ktpDistrict: "ktpDistrict",
+  ktpCity: "ktpCity",
+  ktpProvince: "ktpProvince",
+  emergencyContact2Name: "emergency2Name",
+  emergencyContact2Relationship: "emergency2Relationship",
+  emergencyContact2Phone: "emergency2Phone",
+  emergencyContact2Address: "emergency2Address",
 };
 
 const EXIT_REASON = {
@@ -107,6 +230,53 @@ function issue(
   severity: "ERROR" | "WARNING" = "ERROR",
 ) {
   return { field, code, severity } satisfies ImportRowIssue;
+}
+
+/**
+ * D-061: kolom Divisi dicocokkan PERSIS (tanpa peka huruf besar/spasi) ke unit berjenis DIVISION — tidak
+ * menebak, tidak membuat divisi baru. Departemen yang sudah ada harus berada di bawah divisi itu (induk
+ * langsung/tidak langsung); departemen baru ditempatkan di bawahnya (dikembalikan sebagai peta induk).
+ */
+function checkDivisions(
+  plans: RowPlan[],
+  lookup: MasterLookup,
+  mappedDepartments: Record<string, string> | undefined,
+): Record<string, string> {
+  const live = [...lookup.departments.values()].filter((d) => !d.deleted);
+  const divisions = new Map(
+    live.filter((d) => d.unitType === "DIVISION").map((d) => [masterKey(d.name), d]),
+  );
+  const units = new Map(live.map((d) => [masterKey(d.name), d]));
+  const isUnder = (unitId: string, divisionId: string) => {
+    let current = lookup.departments.get(unitId);
+    for (let depth = 0; current && depth < 10; depth++) {
+      if (current.parentId === divisionId) return true;
+      current = current.parentId ? lookup.departments.get(current.parentId) : undefined;
+    }
+    return false;
+  };
+  const parents: Record<string, string> = {};
+  for (const p of plans) {
+    if ((p.action !== "CREATE" && p.action !== "UPDATE") || !p.row.divisionName) continue;
+    const division = divisions.get(masterKey(p.row.divisionName));
+    if (!division) {
+      p.issues.push(issue("divisionName", "DIVISION_UNKNOWN"));
+    } else if (p.departmentName) {
+      const key = masterKey(p.departmentName);
+      const mappedId = mappedDepartments?.[key];
+      const unit = mappedId ? lookup.departments.get(mappedId) : units.get(key);
+      if (unit) {
+        if (!isUnder(unit.id, division.id))
+          p.issues.push(issue("divisionName", "DIVISION_MISMATCH"));
+      } else if (parents[key] && parents[key] !== division.id) {
+        p.issues.push(issue("divisionName", "DIVISION_MISMATCH"));
+      } else {
+        parents[key] = division.id;
+      }
+    }
+    if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
+  }
+  return parents;
 }
 
 function statusIdFor(lookup: MasterLookup, category: string): string | undefined {
@@ -164,10 +334,14 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   const emailOwners = await importRepo.findEmailOwners(
     normalized.flatMap((n) => (n.row.workEmail ? [n.row.workEmail] : [])),
   );
+  const personalEmailOwners = await importRepo.findPersonalEmailOwners(
+    normalized.flatMap((n) => (n.row.personalEmail ? [n.row.personalEmail] : [])),
+  );
 
   const seenNumber = new Set<string>();
   const seenKtp = new Set<string>();
   const seenEmail = new Set<string>();
+  const seenPersonalEmail = new Set<string>();
   const plans: RowPlan[] = normalized.map(({ sourceRow, row, issues }) => {
     const plan: RowPlan = { sourceRow, action: "CREATE", row, issues: [...issues], changes: [] };
     const number = row.employeeNumber;
@@ -184,6 +358,11 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       if (seenEmail.has(row.workEmail))
         plan.issues.push(issue("workEmail", "DUPLICATE_EMAIL_IN_FILE"));
       seenEmail.add(row.workEmail);
+    }
+    if (row.personalEmail) {
+      if (seenPersonalEmail.has(row.personalEmail))
+        plan.issues.push(issue("personalEmail", "DUPLICATE_PERSONAL_EMAIL_IN_FILE"));
+      seenPersonalEmail.add(row.personalEmail);
     }
     const existing = number ? existingByNumber.get(number) : undefined;
     if (existing) plan.existing = existing;
@@ -220,6 +399,12 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       emailOwners.get(row.workEmail) !== existing?.id
     )
       plan.issues.push(issue("workEmail", "EMAIL_TAKEN"));
+    if (
+      row.personalEmail &&
+      personalEmailOwners.has(row.personalEmail) &&
+      personalEmailOwners.get(row.personalEmail) !== existing?.id
+    )
+      plan.issues.push(issue("personalEmail", "PERSONAL_EMAIL_TAKEN"));
 
     if (existing) {
       const target = {
@@ -229,6 +414,9 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       };
       if (!policy.canViewEmployee(ctx.actor, target)) {
         plan.issues.push(issue("employeeNumber", "EXISTING_OUT_OF_SCOPE"));
+      } else if (existing.onboardingStatus !== "APPROVED") {
+        // D-045: data calon diisi sendiri lewat onboarding; import tidak boleh menimpanya.
+        plan.issues.push(issue("employeeNumber", "ONBOARDING_IN_PROGRESS"));
       } else if (body.mode === "CREATE_ONLY") {
         plan.action = "SKIP";
         plan.issues.push(issue("employeeNumber", "EXISTS_SKIPPED", "WARNING"));
@@ -238,14 +426,20 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
         // OD-6 (belum diputuskan): data sensitif milik akun sendiri tidak diubah lewat import.
         if (ctx.actor.employeeId === existing.id) {
           const hadSensitive =
-            Object.keys(row.personal).length > 0 || Object.keys(row.bank).length > 0;
+            Object.keys(row.personal).length > 0 ||
+            Object.keys(row.bank).length > 0 ||
+            (row.family?.length ?? 0) > 0 ||
+            (row.attachments?.length ?? 0) > 0;
           row.personal = {};
           row.bank = {};
+          delete row.family;
+          delete row.attachments;
           if (hadSensitive) plan.issues.push(issue(null, "SENSITIVE_OWN_ROW", "WARNING"));
         }
         plan.departmentName =
           row.departmentName ??
           (row.positionName ? departmentNameOf(lookup, existing.positionId) : undefined);
+        plan.repeated = missingRepeated(row, existing);
         plan.changes = diff(row, existing, lookup, plan);
         if (plan.changes.length === 0) plan.action = "SKIP";
       }
@@ -295,8 +489,15 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       p.issues.push(issue("workLocationName", "MASTER_ARCHIVED"));
     if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
   }
+  const departmentParents = checkDivisions(plans, lookup, map.departments);
   const writing = plans.filter((p) => p.action === "CREATE" || p.action === "UPDATE");
-  const names: MasterDataNames = { departments: [], positions: [], grades: [], workLocations: [] };
+  const names: MasterDataNames = {
+    departments: [],
+    positions: [],
+    grades: [],
+    workLocations: [],
+    departmentParents,
+  };
   for (const p of writing) {
     const dept = p.departmentName;
     if (wants(p, "positionName") && dept && !mapped(map.departments, masterKey(dept)))
@@ -319,8 +520,17 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   }
   const missing = missingMasterData(lookup, names);
 
-  const counts = { total: rows.length, create: 0, update: 0, skip: 0, error: 0, blank };
+  const counts = {
+    total: rows.length,
+    create: 0,
+    update: 0,
+    skip: 0,
+    error: 0,
+    blank,
+    attachments: 0,
+  };
   for (const p of plans) {
+    counts.attachments += queuedAttachments(p).length;
     if (p.action === "CREATE") counts.create++;
     else if (p.action === "UPDATE") counts.update++;
     else if (p.action === "SKIP") counts.skip++;
@@ -334,6 +544,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     companyCode: p.companyId ? (lookup.companies.get(p.companyId)?.code ?? null) : null,
     changes: p.changes,
     issues: p.issues,
+    attachments: queuedAttachments(p).length,
   }));
   const skippedFields = IMPORT_FIELD_KEYS.filter((k) => skipped.has(k));
   // Hash pratinjau: berubah bila hasil analisis ATAU data karyawan terkait berubah sejak pratinjau.
@@ -365,10 +576,16 @@ function diff(
   plan: RowPlan,
 ): ImportFieldKey[] {
   const changes: ImportFieldKey[] = [];
+  // Array (jenis SIM) & objek (nomor SIM per jenis) dibandingkan isinya, bukan rujukannya.
+  const same = (a: unknown, b: unknown) =>
+    (a !== null && typeof a === "object") || (b !== null && typeof b === "object")
+      ? JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+      : a === b;
   const differs = (value: unknown, current: unknown) =>
-    value !== undefined && value !== (current ?? undefined);
+    value !== undefined && !same(value, current ?? undefined);
   if (differs(row.fullName, e.fullName)) changes.push("fullName");
   if (differs(row.workEmail, e.workEmail)) changes.push("workEmail");
+  if (differs(row.personalEmail, e.personalEmail)) changes.push("personalEmail");
   if (differs(row.phoneNumber, e.phoneNumber)) changes.push("phoneNumber");
   if (differs(row.emergencyPhone, e.emergencyPhone)) changes.push("emergencyPhone");
   if (differs(row.emergencyContactName, e.emergencyContactName))
@@ -415,6 +632,14 @@ function diff(
     )
   )
     changes.push("educationText");
+  if (plan.repeated) {
+    for (const item of [
+      ...plan.repeated.family,
+      ...plan.repeated.educations,
+      ...plan.repeated.certifications,
+    ])
+      changes.push(item.source);
+  }
   return changes;
 }
 
@@ -444,6 +669,20 @@ export async function commit(
   };
   const map = body.masterDataMapping ?? {};
 
+  const attachments: importRepo.AttachmentInput[] = [];
+  const queue = (plan: RowPlan, employeeId: string) => {
+    for (const a of queuedAttachments(plan))
+      attachments.push({
+        employeeId,
+        sourceRow: plan.sourceRow,
+        field: a.source,
+        target: a.target,
+        note: a.note,
+        documentNumber: a.documentNumber ?? null,
+        driveFileIds: a.fileIds,
+      });
+  };
+
   const jobId = await importRepo.withLongTransaction(async (tx) => {
     const index = await createMissingMasterData(tx, lookup, missing, audit);
     const positionId = (dept: string, name: string) =>
@@ -458,6 +697,7 @@ export async function commit(
       const sensitiveSections = [
         Object.keys(row.personal).length > 0 && "personal",
         (row.bank.accountNumber || row.bank.bankName) && "bank",
+        (row.family?.length ?? 0) > 0 && "family",
       ].filter(Boolean);
 
       if (plan.action === "CREATE") {
@@ -470,6 +710,7 @@ export async function commit(
           employeeNumber: row.employeeNumber as string,
           fullName: row.fullName as string,
           workEmail: row.workEmail ?? null,
+          personalEmail: row.personalEmail ?? null,
           phoneNumber: row.phoneNumber ?? null,
           emergencyPhone: row.emergencyPhone ?? null,
           emergencyContactName: row.emergencyContactName ?? null,
@@ -498,6 +739,8 @@ export async function commit(
             level: row.education.level,
             schoolName: row.education.schoolName ?? row.education.level,
           });
+        await writeRepeated(tx, created.id, missingRepeated(row));
+        queue(plan, created.id);
         await repository.createHistory(tx, {
           employeeId: created.id,
           changeType: "HIRED",
@@ -558,6 +801,7 @@ export async function commit(
         await repository.updateEmployee(tx, e.id, {
           ...(has("fullName") ? { fullName: row.fullName } : {}),
           ...(has("workEmail") ? { workEmail: row.workEmail } : {}),
+          ...(has("personalEmail") ? { personalEmail: row.personalEmail } : {}),
           ...(has("phoneNumber") ? { phoneNumber: row.phoneNumber } : {}),
           ...(has("emergencyPhone") ? { emergencyPhone: row.emergencyPhone } : {}),
           ...(has("emergencyContactName")
@@ -624,6 +868,8 @@ export async function commit(
             level: row.education.level,
             schoolName: row.education.schoolName ?? row.education.level,
           });
+        if (plan.repeated) await writeRepeated(tx, e.id, plan.repeated);
+        queue(plan, e.id);
         await writeAudit(
           {
             ...audit,
@@ -641,6 +887,7 @@ export async function commit(
         );
         const sections = [
           personalChanges.length > 0 && "personal",
+          (plan.repeated?.family.length ?? 0) > 0 && "family",
           (has("bankName") || has("bankAccountNumber") || has("bankAccountHolder")) && "bank",
         ].filter(Boolean);
         if (sections.length > 0)
@@ -657,6 +904,9 @@ export async function commit(
       }
     }
 
+    // Karyawan tanpa perubahan data (UPSERT) tetap boleh mendapat lampiran.
+    for (const plan of plans)
+      if (plan.action === "SKIP" && plan.existing) queue(plan, plan.existing.id);
     const id = await importRepo.createJob(
       tx,
       {
@@ -682,6 +932,7 @@ export async function commit(
         })),
       ),
     );
+    await importRepo.createAttachments(tx, id, attachments);
     await writeAudit(
       {
         ...audit,
@@ -699,6 +950,7 @@ export async function commit(
             workLocations: missing.workLocations.length,
           },
           skippedFields: result.skippedFields,
+          attachments: attachments.length,
         },
       },
       tx,

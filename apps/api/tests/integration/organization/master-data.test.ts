@@ -168,6 +168,17 @@ describe("validasi & konflik", () => {
       await code(await call("PATCH", `/work-locations/${id}`, sa.headers, { radiusM: null })),
     ).toBe("VALIDATION_ERROR");
   });
+
+  test("radius minimal 1 m diterima; 0 m ditolak (2026-10-05)", async () => {
+    const id = await create(
+      "/work-locations",
+      { name: N("Site 1m"), latitude: -2.1, longitude: 113.9, radiusM: 1 },
+      "locations",
+    );
+    expect(
+      await code(await call("PATCH", `/work-locations/${id}`, sa.headers, { radiusM: 0 })),
+    ).toBe("VALIDATION_ERROR");
+  });
 });
 
 describe("arsip, pulihkan, hapus", () => {

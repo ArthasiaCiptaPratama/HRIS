@@ -2,45 +2,70 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router";
+import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
+import { env } from "@/lib/env";
+import { errorMessage } from "@/lib/errors";
 import { type ForgotPasswordForm, forgotPasswordFormSchema } from "../schemas";
 import { AuthCard } from "./login-page";
 
+const acceptedSchema = z.object({ data: z.object({ accepted: z.literal(true) }) });
+
+// D-048: lupa password lewat API — NIK atau email; tautan dikirim ke email pribadi karyawan.
 export function ForgotPasswordPage() {
+  const nik = Boolean(env.VITE_LOGIN_EMAIL_DOMAIN);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const form = useForm<ForgotPasswordForm>({
     resolver: zodResolver(forgotPasswordFormSchema),
-    defaultValues: { email: "" },
+    defaultValues: { identifier: "" },
   });
 
-  const onSubmit = form.handleSubmit(async ({ email }) => {
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback`,
-    });
-    // Selalu pesan yang sama: tidak membocorkan apakah email terdaftar.
-    setSent(true);
+  const onSubmit = form.handleSubmit(async (body) => {
+    setError(null);
+    try {
+      await api("/auth/password-reset", { method: "POST", body, schema: acceptedSchema });
+      // Selalu pesan yang sama: tidak membocorkan apakah akun terdaftar.
+      setSent(true);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
   });
 
   return (
-    <AuthCard title="Lupa password" description="Kami kirim tautan untuk mengatur password baru.">
+    <AuthCard
+      title="Lupa password"
+      description="Kami kirim tautan untuk mengatur password baru ke email pribadi Anda."
+    >
       {sent ? (
         <Alert>
           <AlertDescription>
-            Jika email tersebut terdaftar, tautan atur ulang password sudah dikirim. Periksa kotak
-            masuk (dan folder spam).
+            Jika akun tersebut terdaftar, tautan atur ulang password sudah dikirim ke email pribadi
+            Anda. Periksa kotak masuk (dan folder spam).
           </AlertDescription>
         </Alert>
       ) : (
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
-            {form.formState.errors.email ? (
-              <p className="text-destructive text-xs">{form.formState.errors.email.message}</p>
+            <Label htmlFor="identifier">{nik ? "NIP atau email" : "Email"}</Label>
+            <Input
+              id="identifier"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              {...form.register("identifier")}
+            />
+            {form.formState.errors.identifier ? (
+              <p className="text-destructive text-xs">{form.formState.errors.identifier.message}</p>
             ) : null}
           </div>
           <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>

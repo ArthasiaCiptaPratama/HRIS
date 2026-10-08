@@ -26,6 +26,9 @@ export const LIST_SELECT = {
   workLocationId: true,
   gradeId: true,
   managerId: true,
+  // D-051/D-053: pos jabatan & atasan manual.
+  orgPostId: true,
+  managerOverride: true,
   photoPath: true,
   manager: { select: { id: true, fullName: true } },
 } satisfies Prisma.EmployeeSelect;
@@ -67,6 +70,7 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
       emergencyPhone: true,
       emergencyContactName: true,
       emergencyContactRelationship: true,
+      onboardingStatus: true,
     },
   });
 }
@@ -74,11 +78,19 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
 export async function findEmployeeParts(id: string, include: { personal: boolean; bank: boolean }) {
   const prisma = getPrisma();
   // Bagian sensitif hanya di-query bila boleh (tidak dibaca lalu dibuang).
-  const [educations, trainings, histories, personal, familyMembers, bankAccount] =
+  const [educations, trainings, histories, personal, familyMembers, bankAccount, workExperiences] =
     await Promise.all([
       prisma.education.findMany({
         where: { employeeId: id },
-        select: { id: true, schoolName: true, major: true, graduationYear: true, level: true },
+        select: {
+          id: true,
+          schoolName: true,
+          major: true,
+          graduationYear: true,
+          level: true,
+          // D-059
+          entryYear: true,
+        },
         orderBy: [{ graduationYear: "desc" }, { createdAt: "desc" }],
       }),
       prisma.training.findMany({
@@ -89,6 +101,14 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
           organizer: true,
           duration: true,
           trainingYear: true,
+          // D-054 (Arsip 1a)
+          type: true,
+          startDate: true,
+          endDate: true,
+          hours: true,
+          cost: true,
+          // D-059: nomor sertifikat (sertifikasi dari Formulir Data Karyawan).
+          certificateNumber: true,
         },
         orderBy: [{ trainingYear: "desc" }, { createdAt: "desc" }],
       }),
@@ -108,6 +128,14 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
               address: true,
               birthDate: true,
               phoneNumber: true,
+              // D-059: data keluarga lengkap dari Formulir Data Karyawan.
+              gender: true,
+              birthPlace: true,
+              education: true,
+              occupation: true,
+              ageAtEntry: true,
+              workAddress: true,
+              relationDetail: true,
             },
             orderBy: { createdAt: "asc" },
           })
@@ -118,15 +146,43 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
             select: { bankName: true, accountNumber: true, accountHolder: true },
           })
         : null,
+      // D-054 (Arsip 1a): riwayat kerja sebelum bergabung (data kerja, bukan sensitif).
+      prisma.workExperience.findMany({
+        where: { employeeId: id },
+        select: {
+          id: true,
+          companyName: true,
+          position: true,
+          startYear: true,
+          endYear: true,
+          description: true,
+        },
+        orderBy: [{ startYear: "desc" }, { createdAt: "desc" }],
+      }),
     ]);
-  return { educations, trainings, histories, personal, familyMembers, bankAccount };
+  return {
+    educations,
+    trainings,
+    histories,
+    personal,
+    familyMembers,
+    bankAccount,
+    workExperiences,
+  };
 }
 
 export async function findManyByIds(ids: string[]) {
   if (ids.length === 0) return [];
   return getPrisma().employee.findMany({
     where: { id: { in: ids } },
-    select: { id: true, fullName: true, employeeNumber: true, positionId: true, isActive: true },
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      positionId: true,
+      isActive: true,
+      onboardingStatus: true,
+    },
     orderBy: { fullName: "asc" },
   });
 }
@@ -155,6 +211,8 @@ export async function listActiveForStructure(companyIds: readonly string[] | nul
   return getPrisma().employee.findMany({
     where: {
       isActive: true,
+      // D-045: calon onboarding belum masuk struktur organisasi.
+      onboardingStatus: "APPROVED",
       ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
     },
     select: { id: true, fullName: true, employeeNumber: true, positionId: true, managerId: true },
@@ -185,6 +243,19 @@ export async function findIdsInCompanies(companyIds: string[]) {
 export async function findCompanyId(id: string) {
   const row = await getPrisma().employee.findUnique({ where: { id }, select: { companyId: true } });
   return row?.companyId ?? null;
+}
+
+/** PT + status onboarding karyawan milik aktor (dimuat setiap request). */
+export async function findActorEmployee(id: string) {
+  return getPrisma().employee.findUnique({
+    where: { id },
+    select: {
+      companyId: true,
+      onboardingStatus: true,
+      completionRequired: true,
+      completionSubmittedAt: true,
+    },
+  });
 }
 
 export async function createEmployee(tx: EmployeeTx, data: Prisma.EmployeeUncheckedCreateInput) {
@@ -241,7 +312,7 @@ const MASTER_REF_COLUMN = {
 export async function countByMasterRef(kind: MasterRefKind) {
   const column = MASTER_REF_COLUMN[kind];
   const rows = await getPrisma().employee.groupBy({
-    by: [column, "isActive"],
+    by: [column, "isActive", "onboardingStatus"],
     _count: { _all: true },
   });
   const result = new Map<string, { active: number; total: number }>();
@@ -249,8 +320,9 @@ export async function countByMasterRef(kind: MasterRefKind) {
     const id = (row as Record<string, unknown>)[column];
     if (typeof id !== "string") continue;
     const entry = result.get(id) ?? { active: 0, total: 0 };
+    // `total` termasuk calon onboarding (nomor induknya memakai kode PT, D-045); `active` tidak.
     entry.total += row._count._all;
-    if (row.isActive) entry.active += row._count._all;
+    if (row.isActive && row.onboardingStatus === "APPROVED") entry.active += row._count._all;
     result.set(id, entry);
   }
   return result;
@@ -286,4 +358,34 @@ export async function reassignMasterRef(
     ).count;
   }
   return { employees: employees.count, histories };
+}
+
+// ── D-048: lupa password (dipakai iam lewat employeeLoginDirectory) ──────────────────────────
+
+/** Karyawan disetujui berdasarkan nomor induk (tanpa beda huruf besar/kecil). */
+export async function findApprovedIdByNumber(employeeNumber: string) {
+  const row = await getPrisma().employee.findFirst({
+    where: {
+      employeeNumber: { equals: employeeNumber, mode: "insensitive" },
+      onboardingStatus: "APPROVED",
+    },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
+export async function findIdByPersonalEmail(email: string) {
+  const row = await getPrisma().employee.findUnique({
+    where: { personalEmail: email },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
+export async function findPersonalEmail(id: string) {
+  const row = await getPrisma().employee.findUnique({
+    where: { id },
+    select: { personalEmail: true },
+  });
+  return row?.personalEmail ?? null;
 }

@@ -2,6 +2,7 @@
 export { registerNotificationRoutes } from "./notification.routes.ts";
 export {
   configureNotification,
+  forgetRecipient,
   MAX_EMAIL_ATTEMPTS,
   type NotifyInput,
   type NotifyResult,

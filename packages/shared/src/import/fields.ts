@@ -1,31 +1,20 @@
+import { ATTACHMENT_IMPORT_FIELDS, type AttachmentFieldKey } from "./attachments.ts";
+import { GROUP_IMPORT_FIELDS, type GroupFieldKey } from "./groups.ts";
+
 // D-042: kamus field import karyawan — satu sumber untuk deteksi kolom (web), normalisasi & validasi
 // (web + api), dan penyaringan kolom sensitif (api). Menambah field = tambah entri di sini + normalizer.
 
-/** Bagian tujuan data. `personal`/`bank` = sensitif (PLAN §4.2, grant `*.write`). */
-export type ImportSection =
-  | "identity"
-  | "work"
-  | "contact"
-  | "personal"
-  | "bank"
-  | "education"
-  | "exit"
-  | "contract";
+import type { ImportFieldDef } from "./types.ts";
 
-export interface ImportFieldDef {
-  label: string;
-  section: ImportSection;
-  /** Sinonim header (sudah dinormalisasi: huruf kecil, tanpa tanda baca/isi kurung). */
-  synonyms: readonly string[];
-  /** Belum punya tempat di DB (Fase 7): dipakai sebagai petunjuk, tidak disimpan. */
-  notStored?: boolean;
-}
+export type { ImportFieldDef, ImportSection } from "./types.ts";
 
-export const IMPORT_FIELDS = {
+const BASE_IMPORT_FIELDS = {
   employeeNumber: {
-    label: "Nomor induk karyawan",
+    label: "NIP (nomor induk pegawai)",
     section: "identity",
     synonyms: [
+      "nip",
+      "nomor induk pegawai",
       "nik",
       "nik karyawan",
       "no induk",
@@ -96,12 +85,17 @@ export const IMPORT_FIELDS = {
       "departemen",
       "departement",
       "department",
-      "divisi",
       "divisi departement",
       "divisi departemen",
       "bagian",
-      "division",
     ],
+  },
+  // D-061: Divisi = unit organisasi berjenis DIVISION (D-050) induk departemen; dicocokkan persis,
+  // tidak disimpan di karyawan.
+  divisionName: {
+    label: "Divisi",
+    section: "work",
+    synonyms: ["divisi", "division"],
   },
   workLocationName: {
     label: "Lokasi kerja / site",
@@ -141,7 +135,15 @@ export const IMPORT_FIELDS = {
       "phone",
       "mobile",
       "no telepon",
+      "no telp",
+      "nomor telepon",
     ],
+  },
+  // D-059: email pribadi (tujuan undangan aplikasi & lupa password; unik).
+  personalEmail: {
+    label: "Email pribadi",
+    section: "contact",
+    synonyms: ["email pribadi", "alamat email pribadi", "personal email", "email aktif"],
   },
   emergencyPhone: {
     label: "Telepon kontak darurat",
@@ -153,12 +155,20 @@ export const IMPORT_FIELDS = {
       "telepon darurat",
       "emergency phone",
       "kontak darurat",
+      "no hp kontak darurat",
+      "no telp kontak darurat",
+      "nomor hp kontak darurat",
     ],
   },
   emergencyContactName: {
     label: "Nama kontak darurat",
     section: "contact",
-    synonyms: ["nama e cont", "nama kontak darurat", "emergency contact name"],
+    synonyms: [
+      "nama e cont",
+      "nama kontak darurat",
+      "nama lengkap kontak darurat",
+      "emergency contact name",
+    ],
   },
   emergencyContactRelationship: {
     label: "Hubungan kontak darurat",
@@ -166,6 +176,7 @@ export const IMPORT_FIELDS = {
     synonyms: [
       "hubungan e cont",
       "hubungan kontak darurat",
+      "hubungan",
       "emergency relationship",
       "relationship",
     ],
@@ -244,6 +255,43 @@ export const IMPORT_FIELDS = {
       "kis",
     ],
   },
+  // D-059: data pribadi tambahan dari Formulir Data Karyawan.
+  nickname: {
+    label: "Nama panggilan",
+    section: "personal",
+    synonyms: ["nama panggilan", "panggilan", "nickname", "nick name"],
+  },
+  nationality: {
+    label: "Kebangsaan",
+    section: "personal",
+    synonyms: ["kebangsaan", "kewarganegaraan", "warga negara", "nationality"],
+  },
+  ethnicity: {
+    label: "Suku",
+    section: "personal",
+    synonyms: ["suku", "suku bangsa", "etnis", "ethnicity", "tribe"],
+  },
+  bloodType: {
+    label: "Golongan darah",
+    section: "personal",
+    synonyms: ["golongan darah", "gol darah", "goldar", "blood type", "blood group"],
+  },
+  drivingLicenseTypes: {
+    label: "Jenis SIM",
+    section: "personal",
+    synonyms: [
+      "jenis sim",
+      "tipe sim",
+      "golongan sim",
+      "type of driving licenses",
+      "driving license type",
+    ],
+  },
+  drivingLicenseNumber: {
+    label: "No. SIM",
+    section: "personal",
+    synonyms: ["no sim", "nomor sim", "driving license no", "driving license number"],
+  },
   ktpAddress: {
     label: "Alamat KTP",
     section: "personal",
@@ -257,7 +305,13 @@ export const IMPORT_FIELDS = {
   educationText: {
     label: "Pendidikan terakhir",
     section: "education",
-    synonyms: ["pendidikan", "pendidikan terakhir", "education", "jenjang pendidikan"],
+    synonyms: [
+      "pendidikan",
+      "pendidikan terakhir",
+      "pendidikan terakhir pertama",
+      "education",
+      "jenjang pendidikan",
+    ],
   },
   bankName: {
     label: "Nama bank",
@@ -272,7 +326,7 @@ export const IMPORT_FIELDS = {
   bankAccountHolder: {
     label: "Atas nama rekening",
     section: "bank",
-    synonyms: ["atas nama", "nama pemilik rekening", "account holder"],
+    synonyms: ["atas nama", "nama pemilik rekening", "nama pemilik", "account holder"],
   },
   exitMarker: {
     label: "Keterangan (resign)",
@@ -312,6 +366,14 @@ export const IMPORT_FIELDS = {
   },
 } as const satisfies Record<string, ImportFieldDef>;
 
+export const IMPORT_FIELDS: Record<keyof typeof BASE_IMPORT_FIELDS, ImportFieldDef> &
+  Record<GroupFieldKey, ImportFieldDef> &
+  Record<AttachmentFieldKey, ImportFieldDef> = {
+  ...BASE_IMPORT_FIELDS,
+  ...GROUP_IMPORT_FIELDS,
+  ...ATTACHMENT_IMPORT_FIELDS,
+};
+
 export type ImportFieldKey = keyof typeof IMPORT_FIELDS;
 export const IMPORT_FIELD_KEYS = Object.keys(IMPORT_FIELDS) as ImportFieldKey[];
 
@@ -335,7 +397,7 @@ export function fieldPermission(
   key: ImportFieldKey,
 ): "employee.personal.write" | "employee.bank.write" | null {
   const section = IMPORT_FIELDS[key].section;
-  if (section === "personal") return "employee.personal.write";
+  if (section === "personal" || section === "family") return "employee.personal.write";
   if (section === "bank") return "employee.bank.write";
   return null;
 }

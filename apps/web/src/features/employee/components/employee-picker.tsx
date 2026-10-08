@@ -15,11 +15,14 @@ export function EmployeePicker({
   selectedId,
   onSelect,
   title,
+  className,
 }: {
   active: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
   title: string;
+  /** Mis. tinggi lebih pendek saat dipakai di dalam dialog. */
+  className?: string;
 }) {
   const [search, setSearch] = useState("");
   const q = useDebouncedValue(search.trim(), 250);
@@ -36,7 +39,12 @@ export function EmployeePicker({
   const total = query.data?.meta.total ?? 0;
 
   return (
-    <div className="bg-card flex max-h-[calc(100dvh-13rem)] min-h-[420px] flex-col overflow-hidden rounded-2xl border">
+    <div
+      className={cn(
+        "bg-card flex max-h-[calc(100dvh-13rem)] min-h-[420px] flex-col overflow-hidden rounded-2xl border",
+        className,
+      )}
+    >
       <div className="space-y-3 border-b p-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-medium">{title}</h2>
@@ -50,7 +58,7 @@ export function EmployeePicker({
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Cari nama atau nomor induk…"
+            placeholder="Cari nama atau NIP…"
             aria-label="Cari karyawan"
             className="h-9 pl-9"
           />

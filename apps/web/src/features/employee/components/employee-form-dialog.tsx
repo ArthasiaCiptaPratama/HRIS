@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useOrgPosts } from "@/features/organization/api";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import {
@@ -47,6 +48,8 @@ const EMPTY: EmployeeForm = {
   workLocationId: "",
   gradeId: "",
   managerId: "",
+  orgPostId: "",
+  managerManual: false,
 };
 
 function fromDetail(employee: EmployeeDetail): EmployeeForm {
@@ -67,6 +70,9 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     workLocationId: employee.workLocation?.id ?? "",
     gradeId: employee.grade?.id ?? "",
     managerId: employee.manager?.id ?? "",
+    orgPostId: employee.orgPostId ?? "",
+    // Data lama tanpa pos = atasan selalu manual.
+    managerManual: employee.orgPostId ? Boolean(employee.managerOverride) : true,
   };
 }
 
@@ -90,6 +96,8 @@ export function EmployeeFormDialog({
   const master = useMasterData();
   const scope = useCompanyScope();
   const managers = useManagerOptions(open);
+  // D-051: pilihan pos jabatan (SA/HR); difilter per jabatan & PT di bawah.
+  const posts = useOrgPosts("active", "", "");
   const create = useCreateEmployee();
   const update = useUpdateEmployee();
 
@@ -134,7 +142,28 @@ export function EmployeeFormDialog({
     [master.data, departmentId],
   );
 
+  const positionId = watch("positionId");
+  const companyId = watch("companyId");
+  const orgPostId = watch("orgPostId");
+  const managerManual = watch("managerManual");
+  const postOptions = useMemo(
+    () =>
+      (posts.data ?? []).filter(
+        (p) => p.positionId === positionId && (p.companyId === null || p.companyId === companyId),
+      ),
+    [posts.data, positionId, companyId],
+  );
+  // Ganti jabatan/PT → pos lama tidak lagi cocok.
+  useEffect(() => {
+    const current = form.getValues("orgPostId");
+    if (current && posts.data && !postOptions.some((p) => p.id === current)) {
+      setValue("orgPostId", "");
+    }
+  }, [postOptions, posts.data, form, setValue]);
+  const selectedPost = postOptions.find((p) => p.id === orgPostId);
+
   const onSubmit = handleSubmit(async (values) => {
+    const placed = values.orgPostId !== "";
     const body: EmployeeWriteBody = {
       employeeNumber: values.employeeNumber.trim(),
       fullName: values.fullName.trim(),
@@ -149,7 +178,11 @@ export function EmployeeFormDialog({
       positionId: values.positionId,
       workLocationId: orNull(values.workLocationId),
       gradeId: orNull(values.gradeId),
-      managerId: orNull(values.managerId),
+      orgPostId: orNull(values.orgPostId),
+      // D-053: dengan pos & mode otomatis, atasan dihitung server dari pos.
+      ...(placed && !values.managerManual
+        ? { managerOverride: false }
+        : { managerId: orNull(values.managerId), ...(placed ? { managerOverride: true } : {}) }),
     };
     try {
       if (employee) {
@@ -198,7 +231,7 @@ export function EmployeeFormDialog({
           <div className="max-h-[calc(92dvh-11rem)] space-y-7 overflow-y-auto px-6 py-6">
             <FormSection title="Identitas">
               <FormField
-                label="Nomor induk karyawan"
+                label="NIP (nomor induk pegawai)"
                 error={errors.employeeNumber?.message}
                 htmlFor="f-number"
               >
@@ -360,6 +393,44 @@ export function EmployeeFormDialog({
                   )}
                 />
               </FormField>
+              <FormField
+                label="Pos jabatan"
+                htmlFor="f-post"
+                optional
+                hint={
+                  !positionId
+                    ? "Pilih jabatan dulu."
+                    : posts.isPending
+                      ? "Memuat pos…"
+                      : postOptions.length === 0
+                        ? "Belum ada pos untuk jabatan ini (Master Data › Pos jabatan)."
+                        : "Kursi di bagan organisasi; atasan bisa dihitung otomatis dari pos."
+                }
+              >
+                <Controller
+                  control={control}
+                  name="orgPostId"
+                  render={({ field }) => (
+                    <FormSelect
+                      id="f-post"
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="Pilih pos"
+                      noneLabel="Belum ditempatkan"
+                      disabled={!positionId || postOptions.length === 0}
+                      options={postOptions.map((p) => {
+                        const isCurrent = p.id === employee?.orgPostId;
+                        const free = p.headcount - p.holderCount + (isCurrent ? 1 : 0);
+                        return {
+                          value: p.id,
+                          label: `${p.positionName}${p.reportsToLabel ? ` → ${p.reportsToLabel.split(" · ")[0]}` : ""}`,
+                          hint: free > 0 ? `${free} slot kosong` : "penuh",
+                        };
+                      })}
+                    />
+                  )}
+                />
+              </FormField>
               <FormField label="Grade" htmlFor="f-grade" optional>
                 <Controller
                   control={control}
@@ -402,11 +473,34 @@ export function EmployeeFormDialog({
                   )}
                 />
               </FormField>
+              {selectedPost ? (
+                <div className="sm:col-span-2">
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="accent-brand mt-0.5 size-4"
+                      checked={managerManual}
+                      onChange={(event) => setValue("managerManual", event.target.checked)}
+                    />
+                    <span>
+                      Atur atasan langsung secara manual
+                      <span className="text-muted-foreground block text-xs">
+                        Tanpa centang: atasan = pemegang pos di atasnya yang ber-akun Manager/Super
+                        Admin (ikut berubah otomatis bila struktur berubah).
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              ) : null}
               <FormField
                 label="Atasan langsung"
                 htmlFor="f-manager"
                 optional
-                hint="Hanya karyawan yang punya akun Manager/Super Admin."
+                hint={
+                  selectedPost && !managerManual
+                    ? "Otomatis dari pos jabatan."
+                    : "Hanya karyawan yang punya akun Manager/Super Admin."
+                }
               >
                 <Controller
                   control={control}
@@ -418,6 +512,7 @@ export function EmployeeFormDialog({
                       onChange={field.onChange}
                       placeholder={managers.isPending ? "Memuat…" : "Pilih atasan"}
                       noneLabel="Tanpa atasan"
+                      disabled={Boolean(selectedPost) && !managerManual}
                       options={(managers.data ?? [])
                         .filter((m) => m.id !== employee?.id)
                         .map((m) => ({ value: m.id, label: m.fullName, hint: m.position }))}

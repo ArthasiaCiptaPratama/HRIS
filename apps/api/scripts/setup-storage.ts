@@ -4,6 +4,9 @@
 import { z } from "zod";
 import {
   createSupabaseStorage,
+  EMPLOYEE_DOCUMENT_BUCKET,
+  EMPLOYEE_DOCUMENT_MAX_BYTES,
+  EMPLOYEE_DOCUMENT_MIME_TYPES,
   EMPLOYEE_PHOTO_BUCKET,
   EMPLOYEE_PHOTO_MAX_BYTES,
   EMPLOYEE_PHOTO_MIME_TYPES,
@@ -25,6 +28,12 @@ const buckets = [
     id: EMPLOYEE_PHOTO_BUCKET,
     fileSizeLimit: EMPLOYEE_PHOTO_MAX_BYTES,
     allowedMimeTypes: EMPLOYEE_PHOTO_MIME_TYPES,
+  },
+  // D-045 b: dokumen onboarding (PDF/JPG/PNG, maks 5 MB).
+  {
+    id: EMPLOYEE_DOCUMENT_BUCKET,
+    fileSizeLimit: EMPLOYEE_DOCUMENT_MAX_BYTES,
+    allowedMimeTypes: EMPLOYEE_DOCUMENT_MIME_TYPES,
   },
 ];
 

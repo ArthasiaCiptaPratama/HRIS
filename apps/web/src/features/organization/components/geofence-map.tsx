@@ -24,6 +24,8 @@ const pinIcon = L.divIcon({
 
 const round6 = (value: number) => Math.round(value * 1e6) / 1e6;
 
+const MAP_LABEL = "Peta lokasi kerja: klik untuk menaruh titik";
+
 /** Atribut SVG Leaflet tidak membaca var(--brand) → pakai nilai warna yang sudah dihitung. */
 function brandColor() {
   const value = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
@@ -37,13 +39,22 @@ function ClickToPlace({ onPick }: { onPick: (point: GeoPoint) => void }) {
   return null;
 }
 
+/** BUG-002: MapContainer tidak meneruskan prop `aria-*` ke DOM, jadi label dipasang langsung. */
+function AccessibleLabel({ label }: { label: string }) {
+  const map = useMap();
+  useEffect(() => {
+    map.getContainer().setAttribute("aria-label", label);
+  }, [map, label]);
+  return null;
+}
+
 /** Ikuti titik yang diubah dari luar peta (ketik angka, GPS, hasil cari). */
 function FollowPoint({ point, radius }: { point: GeoPoint | null; radius: number | null }) {
   const map = useMap();
   useEffect(() => {
     if (!point) return;
     if (radius && radius > 0) {
-      map.fitBounds(L.latLng(point.lat, point.lng).toBounds(radius * 2.5), { maxZoom: 18 });
+      map.fitBounds(L.latLng(point.lat, point.lng).toBounds(radius * 2.5), { maxZoom: 19 });
     } else if (!map.getBounds().contains([point.lat, point.lng]) || map.getZoom() < 14) {
       map.setView([point.lat, point.lng], 16);
     }
@@ -76,8 +87,8 @@ export function GeofenceMap({
       zoom={point ? 16 : 5}
       scrollWheelZoom
       className="h-64 w-full rounded-lg border"
-      aria-label="Peta lokasi kerja: klik untuk menaruh titik"
     >
+      <AccessibleLabel label={MAP_LABEL} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"

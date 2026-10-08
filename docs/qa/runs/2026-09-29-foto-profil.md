@@ -31,3 +31,5 @@
 
 **Kesimpulan:** memenuhi kriteria rencana. **Bug terbuka:** tidak ada.
 **Belum diverifikasi:** browser selain Chromium; Windows. Tampilan foto di Excel sudah dicek pemilik projek.
+
+**Arsip Drive:** `hris-qa:2026-09-29-foto-profil` — 8 file, 2026-10-05 (fitur LEGIT: lokal + staging).

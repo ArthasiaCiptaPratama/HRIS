@@ -1,5 +1,5 @@
 import type { ImportFieldKey } from "@hris/shared";
-import { ArrowLeft, Download, FolderPlus, Save, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CloudDownload, Download, FolderPlus, Save, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormSelect } from "@/components/form-select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -44,6 +44,12 @@ function Stat({ label, value, tone }: { label: string; value: number; tone?: str
       <p className={cn("mt-1 text-2xl font-semibold tabular-nums", tone)}>{value}</p>
     </div>
   );
+}
+
+// D-060: baris tanpa perubahan data tetap bisa disimpan bila membawa lampiran Google Drive.
+function saveLabel(writable: number, attachments: number) {
+  if (writable === 0) return `Simpan ${attachments} lampiran`;
+  return `Simpan ${writable} karyawan${attachments > 0 ? ` + ${attachments} lampiran` : ""}`;
 }
 
 export function PreviewStep({
@@ -124,6 +130,17 @@ export function PreviewStep({
         />
         <Stat label="Baris kosong" value={counts.blank} />
       </div>
+
+      {counts.attachments > 0 ? (
+        <Alert>
+          <CloudDownload />
+          <AlertDescription>
+            {counts.attachments} lampiran Google Drive (foto & dokumen) akan diambil setelah data
+            disimpan. Lampiran yang sama dengan yang sudah pernah diimpor dilewati; file berbeda
+            menjadi versi dokumen baru.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {preview.skippedFields.length > 0 ? (
         <Alert>
@@ -249,7 +266,12 @@ export function PreviewStep({
                       </p>
                     ) : null}
                     {r.action === "SKIP" && r.issues.length === 0 ? (
-                      <p className="text-muted-foreground">Tidak ada perubahan</p>
+                      <p className="text-muted-foreground">Tidak ada perubahan data</p>
+                    ) : null}
+                    {r.attachments > 0 ? (
+                      <p className="text-muted-foreground">
+                        Lampiran Google Drive: {r.attachments} (diproses setelah simpan)
+                      </p>
                     ) : null}
                     {r.issues.map((i) => (
                       <p
@@ -288,8 +310,12 @@ export function PreviewStep({
               <Download /> Unduh baris bermasalah ({problems})
             </Button>
           ) : null}
-          <Button variant="brand" onClick={onCommit} disabled={writable === 0 || busy}>
-            <Save /> {busy ? "Menyimpan…" : `Simpan ${writable} karyawan`}
+          <Button
+            variant="brand"
+            onClick={onCommit}
+            disabled={(writable === 0 && counts.attachments === 0) || busy}
+          >
+            <Save /> {busy ? "Menyimpan…" : saveLabel(writable, counts.attachments)}
           </Button>
         </div>
       </div>

@@ -13,7 +13,9 @@ export const fieldLabel = (key: string | null) =>
 
 export const isSensitiveField = (key: ImportFieldKey | null) =>
   key !== null &&
-  (IMPORT_FIELDS[key].section === "personal" || IMPORT_FIELDS[key].section === "bank");
+  (IMPORT_FIELDS[key].section === "personal" ||
+    IMPORT_FIELDS[key].section === "bank" ||
+    IMPORT_FIELDS[key].section === "family");
 
 /** "••••1234" untuk contoh isi kolom sensitif (tetap bisa dikenali tanpa menampilkan utuh). */
 export function maskValue(value: string): string {
@@ -33,6 +35,9 @@ export function issueText(
   const where = column === undefined ? "" : `Kolom ${columnLetter(column)} · `;
   return `${where}${fieldLabel(issue.field)}: ${message}`;
 }
+
+/** D-060: tujuan lampiran → teks. */
+export const attachmentTargetLabel = (field: string) => fieldLabel(field).replace(/^File /, "");
 
 export const ACTION_LABELS = {
   CREATE: "Dibuat",

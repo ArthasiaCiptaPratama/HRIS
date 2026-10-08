@@ -18,6 +18,16 @@ export const meResponseSchema = z
     grants: z.array(
       z.object({ permission: permissionSchema, expiresAt: z.iso.datetime().nullable() }),
     ),
+    // D-045 b: status onboarding akun (null = tidak tertaut karyawan). `locked` = hanya wizard.
+    onboarding: z
+      .object({
+        status: z.string(),
+        completionRequired: z.boolean(),
+        submitted: z.boolean(),
+        locked: z.boolean(),
+      })
+      .nullable()
+      .optional(),
   })
   .openapi("Me");
 export type MeResponse = z.infer<typeof meResponseSchema>;

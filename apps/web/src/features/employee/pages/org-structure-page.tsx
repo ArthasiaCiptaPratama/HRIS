@@ -5,13 +5,25 @@ import {
   Network,
   Search,
   SearchX,
+  Settings2,
   TriangleAlert,
   Users,
+  UsersRound,
+  Workflow,
 } from "lucide-react";
-import { type ReactNode, useMemo, useState } from "react";
+import { lazy, type ReactNode, Suspense, useMemo, useState } from "react";
+import { Link } from "react-router";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -21,9 +33,11 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-import { useOrgStructure } from "../api";
+import { useOrgChart, useOrgStructure } from "../api";
+import { useStoredCompanyId } from "../company-scope";
 import { EmployeeAvatar } from "../components/employee-avatar";
 import { EmployeeDetailSheet, useEmployeeSheet } from "../components/employee-detail-sheet";
+import { PersonCardDialog } from "../org-chart/person-card-dialog";
 import type { OrgStructure } from "../schemas";
 
 interface Person {
@@ -52,8 +66,128 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+// D-051: kanvas (React Flow + ELK) dimuat lazy supaya halaman lain tidak menanggung bundelnya.
+const OrgChartCanvas = lazy(() =>
+  import("../org-chart/org-chart-canvas").then((m) => ({ default: m.OrgChartCanvas })),
+);
+
 export function OrgStructurePage() {
   const me = useMe().data as Me;
+  const [tab, setTab] = useState("canvas");
+  const [companyId, setCompanyId] = useState<string | null>(useStoredCompanyId());
+  const chart = useOrgChart(companyId);
+  const sheet = useEmployeeSheet();
+  const [personCard, setPersonCard] = useState<string | null>(null);
+  const companies = chart.data?.companies ?? [];
+
+  return (
+    <>
+      <PageHeader
+        title="Struktur Organisasi"
+        description="Bagan pos jabatan per perusahaan: atasan langsung, garis fungsional, slot kosong, dan fungsi korporat grup."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {companies.length > 1 ? (
+              <Select
+                value={chart.data?.company.id ?? ""}
+                onValueChange={(value) => setCompanyId(value)}
+              >
+                <SelectTrigger className="h-9 w-56" aria-label="Perusahaan bagan">
+                  <SelectValue placeholder="Pilih perusahaan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.code} · {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+            {chart.data?.canManage ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/master-data/pos-jabatan">
+                  <Settings2 /> Kelola pos
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+        }
+      />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="mb-4 w-auto border-b-0">
+          <TabsTrigger value="canvas">
+            <Workflow /> Bagan organisasi
+          </TabsTrigger>
+          <TabsTrigger value="units">
+            <Building2 /> Per unit
+          </TabsTrigger>
+          <TabsTrigger value="managers">
+            <Network /> Atasan langsung
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="canvas">
+          {chart.isPending ? (
+            <Skeleton className="h-[calc(100dvh-21rem)] min-h-[480px] w-full rounded-xl" />
+          ) : chart.isError ? (
+            <div className="bg-card rounded-2xl border">
+              <EmptyState
+                icon={TriangleAlert}
+                title="Gagal memuat bagan"
+                description={errorMessage(chart.error)}
+              />
+            </div>
+          ) : chart.data.posts.length === 0 ? (
+            <div className="bg-card rounded-2xl border">
+              <EmptyState
+                icon={Workflow}
+                title="Belum ada pos jabatan"
+                description={
+                  chart.data.canManage
+                    ? "Buat pos jabatan di Administrasi › Master Data › Pos jabatan supaya bagan terbentuk."
+                    : "Bagan organisasi perusahaan ini belum disusun."
+                }
+              />
+            </div>
+          ) : (
+            <>
+              {chart.data.unplacedCount > 0 && chart.data.canOpenDetail ? (
+                <p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs">
+                  <UsersRound className="size-3.5" aria-hidden />
+                  {chart.data.unplacedCount} karyawan aktif {chart.data.company.code} belum
+                  ditempatkan di pos (atur lewat ubah karyawan › Pos jabatan).
+                </p>
+              ) : null}
+              <Suspense
+                fallback={
+                  <Skeleton className="h-[calc(100dvh-21rem)] min-h-[480px] w-full rounded-xl" />
+                }
+              >
+                <OrgChartCanvas
+                  chart={chart.data}
+                  onOpenPerson={(id) =>
+                    chart.data.canOpenDetail ? sheet.open(id) : setPersonCard(id)
+                  }
+                />
+              </Suspense>
+            </>
+          )}
+        </TabsContent>
+        <TabsContent value="units">
+          {tab === "units" ? <StructureLists me={me} view="departments" /> : null}
+        </TabsContent>
+        <TabsContent value="managers">
+          {tab === "managers" ? <StructureLists me={me} view="chart" /> : null}
+        </TabsContent>
+      </Tabs>
+      <PersonCardDialog personId={personCard} onClose={() => setPersonCard(null)} />
+      <EmployeeDetailSheet />
+    </>
+  );
+}
+
+/** Tampilan daftar lama (D-035/D-050): per unit & pohon atasan langsung dari manager_id. */
+function StructureLists({ me, view }: { me: Me; view: "departments" | "chart" }) {
   const structure = useOrgStructure();
   const sheet = useEmployeeSheet();
   const [search, setSearch] = useState("");
@@ -69,10 +203,6 @@ export function OrgStructurePage() {
 
   return (
     <>
-      <PageHeader
-        title="Struktur Organisasi"
-        description="Unit organisasi (direktorat, divisi, departemen, seksi), jabatan, dan pemegangnya, serta bagan hubungan atasan–bawahan langsung."
-      />
       {structure.isPending ? (
         <StructureSkeleton />
       ) : structure.isError ? (
@@ -86,17 +216,9 @@ export function OrgStructurePage() {
       ) : (
         <>
           <Stats data={structure.data} people={people} />
-          <Tabs defaultValue="departments">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <TabsList className="w-auto border-b-0">
-                <TabsTrigger value="departments">
-                  <Building2 /> Per unit
-                </TabsTrigger>
-                <TabsTrigger value="chart">
-                  <Network /> Bagan atasan
-                </TabsTrigger>
-              </TabsList>
-              <div className="relative sm:w-72">
+          <div>
+            <div className="mb-4 flex justify-end">
+              <div className="relative w-full sm:w-72">
                 <Search
                   className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
                   aria-hidden
@@ -110,26 +232,24 @@ export function OrgStructurePage() {
                 />
               </div>
             </div>
-            <TabsContent value="departments">
+            {view === "departments" ? (
               <DepartmentView
                 data={structure.data}
                 query={query}
                 onOpen={(person) => canOpen(person) && sheet.open(person.id)}
                 canOpen={canOpen}
               />
-            </TabsContent>
-            <TabsContent value="chart">
+            ) : (
               <ChartView
                 people={people}
                 query={query}
                 onOpen={(person) => canOpen(person) && sheet.open(person.id)}
                 canOpen={canOpen}
               />
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
         </>
       )}
-      <EmployeeDetailSheet />
     </>
   );
 }

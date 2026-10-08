@@ -4,11 +4,13 @@ import {
   employmentChangeTypeSchema,
   exitReasonSchema,
   genderSchema,
+  movementTypeSchema,
   orgUnitTypeSchema,
   paginationMetaSchema,
   positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
+  trainingTypeSchema,
 } from "@hris/shared";
 import { z } from "zod";
 
@@ -36,6 +38,9 @@ export const employeeListItemSchema = z.object({
   workLocation: ref.nullable(),
   grade: ref.nullable(),
   manager: ref.nullable(),
+  // D-051/D-053: pos jabatan & atasan manual (data lama tanpa field ini tetap terbaca).
+  orgPostId: z.string().nullable().optional(),
+  managerOverride: z.boolean().optional(),
   /** D-037: URL baca bertanda tangan (berlaku ±10 menit); null = belum ada foto. */
   photoUrl: z.string().nullable(),
 });
@@ -114,6 +119,29 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       bpjsHealthNumber: z.string().nullable(),
       ptkpStatus: ptkpStatusSchema.nullable(),
       originCity: z.string().nullable(),
+      // D-059 (Formulir Data Karyawan → Import); opsional agar respons lama tetap terbaca.
+      personalEmail: z.string().nullable().optional(),
+      nickname: z.string().nullable().optional(),
+      nationality: z.string().nullable().optional(),
+      ethnicity: z.string().nullable().optional(),
+      bloodType: z.string().nullable().optional(),
+      drivingLicenseTypes: z.array(z.string()).optional(),
+      drivingLicenseNumber: z.string().nullable().optional(),
+      drivingLicenseNumbers: z.record(z.string(), z.string()).nullable().optional(),
+      emergencyContactAddress: z.string().nullable().optional(),
+      // D-061
+      domicileVillage: z.string().nullable().optional(),
+      domicileDistrict: z.string().nullable().optional(),
+      domicileCity: z.string().nullable().optional(),
+      domicileProvince: z.string().nullable().optional(),
+      ktpVillage: z.string().nullable().optional(),
+      ktpDistrict: z.string().nullable().optional(),
+      ktpCity: z.string().nullable().optional(),
+      ktpProvince: z.string().nullable().optional(),
+      emergencyContact2Name: z.string().nullable().optional(),
+      emergencyContact2Relationship: z.string().nullable().optional(),
+      emergencyContact2Phone: z.string().nullable().optional(),
+      emergencyContact2Address: z.string().nullable().optional(),
     })
     .nullable()
     .optional(),
@@ -126,6 +154,15 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
         address: z.string().nullable(),
         birthDate: z.string().nullable(),
         phoneNumber: z.string().nullable(),
+        // D-059
+        gender: z.string().nullable().optional(),
+        birthPlace: z.string().nullable().optional(),
+        education: z.string().nullable().optional(),
+        occupation: z.string().nullable().optional(),
+        ageAtEntry: z.number().nullable().optional(),
+        workAddress: z.string().nullable().optional(),
+        // D-061: keterangan hubungan (saudara: Kakak/Adik).
+        relationDetail: z.string().nullable().optional(),
       }),
     )
     .optional(),
@@ -144,6 +181,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       major: z.string().nullable(),
       graduationYear: z.number().nullable(),
       level: educationLevelSchema.nullable(),
+      entryYear: z.number().nullable().optional(),
     }),
   ),
   trainings: z.array(
@@ -153,8 +191,28 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       organizer: z.string().nullable(),
       duration: z.string().nullable(),
       trainingYear: z.number().nullable(),
+      // D-054 (Arsip 1a); opsional agar respons lama tetap terbaca.
+      type: trainingTypeSchema.nullable().optional(),
+      startDate: z.string().nullable().optional(),
+      endDate: z.string().nullable().optional(),
+      hours: z.number().nullable().optional(),
+      /** Hanya ada untuk SA/HR. */
+      cost: z.number().nullable().optional(),
+      certificateNumber: z.string().nullable().optional(),
     }),
   ),
+  workExperiences: z
+    .array(
+      z.object({
+        id: z.string(),
+        companyName: z.string(),
+        position: z.string(),
+        startYear: z.number(),
+        endYear: z.number().nullable(),
+        description: z.string().nullable(),
+      }),
+    )
+    .optional(),
   histories: z.array(
     z.object({
       id: z.string(),
@@ -168,6 +226,12 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       toCompany: ref.nullable(),
       exitReason: exitReasonSchema.nullable(),
       note: z.string().nullable(),
+      // D-054 (Arsip 1a)
+      source: z.enum(["SYSTEM", "MANUAL"]).optional(),
+      movementType: movementTypeSchema.nullable().optional(),
+      decreeNumber: z.string().nullable().optional(),
+      toPositionName: z.string().nullable().optional(),
+      toDepartmentName: z.string().nullable().optional(),
       changedBy: z
         .object({ name: z.string(), role: roleSchema, workLocation: z.string().nullable() })
         .nullable(),
@@ -241,7 +305,7 @@ export const employeeFormSchema = z.object({
   employeeNumber: z
     .string()
     .trim()
-    .min(1, "Nomor induk wajib diisi.")
+    .min(1, "NIP wajib diisi.")
     .max(30, "Maksimal 30 karakter.")
     .regex(/^[A-Za-z0-9./-]+$/, "Hanya huruf, angka, titik, garis miring, dan tanda hubung."),
   fullName: z.string().trim().min(2, "Nama minimal 2 karakter.").max(150),
@@ -262,5 +326,58 @@ export const employeeFormSchema = z.object({
   workLocationId: z.string(),
   gradeId: z.string(),
   managerId: z.string(),
+  // D-051/D-053: pos jabatan (opsional) & atasan diatur manual.
+  orgPostId: z.string(),
+  managerManual: z.boolean(),
 });
 export type EmployeeForm = z.infer<typeof employeeFormSchema>;
+
+// ── D-051: bagan organisasi (kanvas) ────────────────────────────────────────
+const chartCompany = z.object({ id: z.string(), code: z.string(), name: z.string() });
+
+export const orgChartSchema = z.object({
+  company: chartCompany,
+  companies: z.array(chartCompany),
+  units: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      unitType: orgUnitTypeSchema,
+      parentId: z.string().nullable(),
+      corporate: z.boolean(),
+    }),
+  ),
+  posts: z.array(
+    z.object({
+      id: z.string(),
+      positionName: z.string(),
+      level: positionLevelSchema.nullable(),
+      departmentId: z.string(),
+      corporate: z.boolean(),
+      reportsToId: z.string().nullable(),
+      functionalReportsToId: z.string().nullable(),
+      headcount: z.number(),
+      sortOrder: z.number(),
+      holders: z.array(
+        z.object({ id: z.string(), fullName: z.string(), photoUrl: z.string().nullable() }),
+      ),
+    }),
+  ),
+  unplacedCount: z.number(),
+  canOpenDetail: z.boolean(),
+  canManage: z.boolean(),
+});
+export type OrgChart = z.infer<typeof orgChartSchema>;
+export type OrgChartPost = OrgChart["posts"][number];
+
+export const orgPersonCardSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  photoUrl: z.string().nullable(),
+  position: z.string(),
+  department: z.string().nullable(),
+  company: z.object({ code: z.string(), name: z.string() }),
+  workLocation: z.string().nullable(),
+  workEmail: z.string().nullable(),
+});
+export type OrgPersonCard = z.infer<typeof orgPersonCardSchema>;

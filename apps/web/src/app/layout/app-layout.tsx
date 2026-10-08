@@ -1,7 +1,7 @@
 import { ROLE_LABELS } from "@hris/shared";
 import { Bell, LogOut, Menu, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate, useNavigation } from "react-router";
+import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigation } from "react-router";
 import { activeGroup, type NavGroup, visibleGroups } from "@/app/navigation";
 import { preloadRoute } from "@/app/route-preload";
 import { BrandLogo } from "@/components/brand-logo";
@@ -209,6 +209,17 @@ export function AppLayout() {
                 enabled={access.personalMenu(me) && current?.id === "personal"}
                 className="mb-4 md:hidden"
               />
+              {/* D-045 poin 9: karyawan existing diminta melengkapi data (tidak dikunci). */}
+              {me.onboarding?.completionRequired && !me.onboarding.submitted ? (
+                <div className="border-warning/40 bg-warning-soft text-warning-soft-foreground mb-6 flex flex-col gap-2 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    HR meminta Anda melengkapi data karyawan (data pribadi, rekening, dokumen).
+                  </span>
+                  <Link className="font-medium underline underline-offset-4" to="/onboarding">
+                    Lengkapi data Anda
+                  </Link>
+                </div>
+              ) : null}
               <Outlet />
             </div>
           </main>

@@ -60,12 +60,21 @@ describe("workLocationInputSchema", () => {
     expect(geofenceIncomplete({})).toBe(false);
   });
 
-  test("radius di luar 10–10.000 m atau pecahan ditolak", () => {
-    for (const radiusM of [5, 20_000, 12.5]) {
+  test("radius di luar 1–10.000 m atau pecahan ditolak", () => {
+    for (const radiusM of [0, -5, 20_000, 12.5]) {
       expect(
         workLocationInputSchema.safeParse({ name: "S", latitude: 1, longitude: 1, radiusM })
           .success,
       ).toBe(false);
+    }
+  });
+
+  test("radius minimal 1 m diterima (permintaan pemilik projek 2026-10-05)", () => {
+    for (const radiusM of [1, 5, 10_000]) {
+      expect(
+        workLocationInputSchema.safeParse({ name: "S", latitude: 1, longitude: 1, radiusM })
+          .success,
+      ).toBe(true);
     }
   });
 });

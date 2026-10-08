@@ -32,3 +32,5 @@
 
 **Kesimpulan:** memenuhi kriteria rencana di lokal & staging. **Bug terbuka:** tidak ada.
 **Belum diverifikasi:** browser selain Chromium, Windows.
+
+**Arsip Drive:** `hris-qa:2026-09-30-grup-kategori` — 25 file, 2026-10-05 (fitur LEGIT: lokal + staging).

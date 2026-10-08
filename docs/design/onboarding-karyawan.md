@@ -1,7 +1,7 @@
 # Desain — Onboarding Karyawan Baru (Penerimaan → Aktivasi → Lengkapi Data → Review → Login NIK)
 
 > Keputusan: **D-045** (onboarding), **D-046** (pengecualian OD-6 saat onboarding), **D-047** (grant `employee.onboarding.review`), **D-048** (login dengan NIK) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Terkait: D-034 (aturan akun), D-037 (pola unggah Storage), D-039/D-040 (multi-PT & cakupan), D-042 (mesin import).
-> Status: **[planned]** — hasil grill pemilik projek 2026-10-01. Dikerjakan **setelah** Tahap 3 CRUD Master Data; menggantikan Tahap 5 ("undangan akun dari data karyawan"). Checklist: PROGRESS Fase 4 → "Onboarding karyawan".
+> Status: **bagian a, b, c1, c2 & d [done] lokal 2026-10-02** (d: pulihkan ≤ 30 hari, cron `onboarding-maintenance` hapus permanen & pengingat; tanpa migrasi) (c2: login NIK — `accounts.login_email`, login "NIK atau email", lupa password via API, script `auth:migrate-login-nik` dibuat tapi **belum dijalankan**; domain `.invalid` terverifikasi di Supabase Auth staging 2026-10-02) (c1: halaman review `/penerimaan/:id`, keputusan setujui/revisi/batalkan + notifikasi/email, revisi membatasi bagian di wizard, `/ess` placeholder) (b: wizard 7 langkah + draf, dokumen bucket `employee-documents`, kunci akses calon di API + route guard; karyawan existing tidak dikunci & hanya mengisi field kosong — D-046 rincian) (penerimaan & undangan; penyimpangan: template contoh berupa CSV `public/template/Template-calon-karyawan.csv`, pilihan atasan per batch belum ada di UI — API sudah menerima `managerId`); semua bagian selesai di develop (belum dirilis). Hasil grill pemilik projek 2026-10-01. Dikerjakan **setelah** Tahap 3 CRUD Master Data; menggantikan Tahap 5 ("undangan akun dari data karyawan"). Checklist: PROGRESS Fase 4 → "Onboarding karyawan".
 > Dokumen ini tidak memuat data asli. Contoh nama/nomor fiktif.
 
 ## 1. Tujuan & prinsip
@@ -99,7 +99,7 @@ Transisi yang sah: `NOT_INVITED → INVITED → FILLING → SUBMITTED → (REVIS
 | `onboarding_events` | employee | jejak transisi status: `employee_id`, `from`, `to`, `actor_account_id?`, `at` |
 | `employee_documents` | employee | **[planned Fase 4, dibangun di sini]** `type` (enum: `KTP`, `KK`, `DIPLOMA`, `BANK_BOOK`, `NPWP`, `BPJS_EMPLOYMENT`, `BPJS_HEALTH`, `CERTIFICATE`, `CV`, `OTHER`), `storage_path`, `mime_type`, `size_bytes`, `uploaded_by`, `deleted_at?` |
 | `work_experiences` | employee | riwayat kerja (opsional di form): `company_name`, `position`, `start_year`, `end_year?`, `description?` (menu Arsip "Riwayat Kerja" memakai tabel ini) |
-| `iam.accounts.login_identifier` | iam | `EMAIL` / `EMPLOYEE_NUMBER` — cara login saat ini (D-048) |
+| ~~`iam.accounts.login_identifier`~~ `iam.accounts.login_email` | iam | *(diganti 2026-10-02, rencana c2 disetujui)* email login Supabase saat ini bila berbeda dari `email` (alamat turunan NIK, unik, nullable); null = login email. `email` tetap alamat kontak akun (D-048) |
 
 **Storage:** bucket private baru `employee-documents` (maks 5 MB, `application/pdf`, `image/jpeg`, `image/png`), path `<STORAGE_PATH_PREFIX>employees/<employee_id>/documents/<uuid>.<ext>`, dibuat lewat `bun run storage:setup` (pola D-037: signed upload URL → konfirmasi API → path disimpan; baca via signed URL 10 menit).
 
@@ -137,7 +137,7 @@ Wizard 7 langkah, **draf tersimpan per langkah** (`PUT /onboarding/me/<bagian>`)
 
 | Keputusan | Wajib | Efek |
 |---|---|---|
-| **Setujui** | PTKP; konfirmasi data kerja (boleh diubah reviewer) | `APPROVED`, `employment_histories` `HIRED`, email login Supabase → alamat turunan NIK (§10), `login_identifier = EMPLOYEE_NUMBER`, email + notifikasi "Data Anda diterima — login dengan NIK <nomor>" |
+| **Setujui** | PTKP; konfirmasi data kerja (boleh diubah reviewer) | `APPROVED`, `employment_histories` `HIRED`, email login Supabase → alamat turunan NIK (§10), `accounts.login_email` = alamat turunan (bila `LOGIN_EMAIL_DOMAIN` diisi), email + notifikasi "Data Anda diterima — login dengan NIK <nomor>" |
 | **Minta revisi** | catatan ≥ 1 bagian | `REVISION_REQUESTED`, bagian bertanda terbuka, email + notifikasi berisi daftar **nama bagian** (tanpa nilai) |
 | **Batalkan penerimaan** | alasan | `CANCELLED`, akun dinonaktifkan (ban Supabase, D-034), dijadwalkan hapus permanen 30 hari (§11) |
 

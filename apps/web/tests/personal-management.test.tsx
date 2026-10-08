@@ -85,12 +85,16 @@ describe("navigation.ts (satu sumber menu per role)", () => {
         "Pengaktifan Karyawan",
         "Data Karyawan Tidak Aktif",
         "Struktur Organisasi",
-        "Data Keluarga",
+        "Data Kontak",
         "Riwayat Peringatan",
         "Laporan",
       ])
         expect(items).toContain(label);
     }
+    // Arsip 1c: Data Keluarga & Data Bank (sensitif) hanya SA / pemegang grant baca.
+    expect(labels("SUPER_ADMIN")).toEqual(expect.arrayContaining(["Data Keluarga", "Data Bank"]));
+    expect(labels("HR_ADMIN")).not.toContain("Data Keluarga");
+    expect(labels("HR_ADMIN")).not.toContain("Data Bank");
   });
 
   it("MANAGER (punya data karyawan): hanya baca — tanpa ubah status, arsip, laporan", () => {
@@ -300,9 +304,9 @@ describe("halaman Personal Management", () => {
       "/notifications": [200, emptyNotifications],
       "/employees/summary": [200, summary],
     });
-    renderAt("/personal/arsip/keluarga");
+    renderAt("/personal/arsip/aset");
     expect(
-      await screen.findByRole("heading", { name: "Data Keluarga sedang disiapkan" }),
+      await screen.findByRole("heading", { name: "Data Assets sedang disiapkan" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Maintenance")).toBeInTheDocument();
   });
@@ -350,6 +354,25 @@ describe("halaman Personal Management", () => {
       if (enabled) expect(link).not.toHaveTextContent(/segera/i);
       else expect(link).toHaveTextContent(/segera/i);
     }
+  });
+
+  // D-043 rilis bertahap (2026-10-08): fitur develop yang belum dirilis → menu "Segera" + halaman
+  // Maintenance; Import & Struktur Organisasi tidak terpengaruh.
+  const STAGED = [
+    ["Penerimaan Karyawan Baru", "/penerimaan", FEATURES.onboarding],
+    ["Jenis dokumen", "/master-data/jenis-dokumen", FEATURES.archive],
+    ["Data Kontak", "/personal/arsip/kontak", FEATURES.archive],
+    ["Pengajuan Perubahan Data", "/pengajuan-data", FEATURES.selfService],
+    ["Layanan Mandiri", "/ess", FEATURES.selfService],
+  ] as const;
+
+  it.each(STAGED)("menu %s mengikuti saklar rilis bertahap", (label, to, enabled) => {
+    const entries = flattenNav(visibleGroups(me("SUPER_ADMIN")));
+    const entry = entries.find((e) => e.item.label === label);
+    expect(entry?.item.to).toBe(to);
+    expect(Boolean(entry?.item.maintenance)).toBe(!enabled);
+    const importEntry = entries.find((e) => e.item.label === "Import Data Karyawan");
+    expect(importEntry?.item.maintenance).toBeFalsy();
   });
 
   it("MANAGER membuka Ubah Status → akses ditolak (API juga menolak)", async () => {

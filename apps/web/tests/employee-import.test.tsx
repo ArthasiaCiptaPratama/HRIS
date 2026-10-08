@@ -20,7 +20,7 @@ const CSV = [
 ].join("\n");
 
 const preview = {
-  counts: { total: 2, create: 1, update: 0, skip: 0, error: 1, blank: 0 },
+  counts: { total: 2, create: 1, update: 0, skip: 0, error: 1, blank: 0, attachments: 0 },
   rows: [
     {
       sourceRow: 2,
@@ -30,6 +30,7 @@ const preview = {
       companyCode: "ACP",
       changes: [],
       issues: [],
+      attachments: 0,
     },
     {
       sourceRow: 3,
@@ -39,6 +40,7 @@ const preview = {
       companyCode: "ACP",
       changes: [],
       issues: [{ field: "workEmail", code: "EMAIL_TAKEN", severity: "ERROR" }],
+      attachments: 0,
     },
   ],
   masterData: {
@@ -58,10 +60,12 @@ function mockBackend({
   role = "HR_ADMIN" as "SUPER_ADMIN" | "HR_ADMIN" | "EMPLOYEE",
   companies = [ACP],
   commitStatus = [201],
+  previewData = preview,
 }: {
   role?: "SUPER_ADMIN" | "HR_ADMIN" | "EMPLOYEE";
   companies?: (typeof ACP)[];
   commitStatus?: number[];
+  previewData?: typeof preview;
 } = {}) {
   const requests: { method: string; path: string; body: unknown }[] = [];
   vi.stubGlobal(
@@ -93,12 +97,13 @@ function mockBackend({
         return method === "PUT"
           ? json(200, { data: { signature: "s", mapping: {}, updatedAt: "2026-09-30T00:00:00Z" } })
           : json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
-      if (path === "/employee-imports/preview") return json(200, { data: preview });
+      if (path === "/employee-imports/attachments/open") return json(200, { data: [] });
+      if (path === "/employee-imports/preview") return json(200, { data: previewData });
       if (path === "/employee-imports" && method === "POST") {
         const status = commitStatus.shift() ?? 201;
         return status === 409
           ? json(409, { error: { code: "PREVIEW_STALE", message: "Data berubah", requestId: "r" } })
-          : json(201, { data: { jobId: "job-1", counts: preview.counts } });
+          : json(201, { data: { jobId: "job-1", counts: previewData.counts } });
       }
       return json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
     }),
@@ -117,6 +122,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Import Data Karyawan", () => {
+  it("D-060: tanpa perubahan data tetapi ada lampiran Drive → tetap bisa disimpan", async () => {
+    const onlyAttachments = {
+      ...preview,
+      counts: { ...preview.counts, create: 0, error: 0, skip: 2, attachments: 3 },
+      rows: preview.rows.map((r) => ({ ...r, action: "SKIP", issues: [], attachments: 1 })),
+    };
+    mockBackend({ previewData: onlyAttachments });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: /Lanjut ke pratinjau/ }));
+    expect(await screen.findByText(/3 lampiran Google Drive/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Simpan 3 lampiran" })).toBeEnabled();
+  });
+
   it("HR: unggah CSV → kolom dikenali otomatis → pratinjau → simpan; PT tunggal terisi otomatis", async () => {
     const requests = mockBackend();
     const user = userEvent.setup();
@@ -192,7 +212,13 @@ describe("Import Data Karyawan", () => {
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile("lama.xls"));
     expect(await screen.findByText(/\.xls \(Excel 97–2003\) belum didukung/)).toBeInTheDocument();
-    expect(requests.some((r) => r.path.startsWith("/employee-imports"))).toBe(false);
+    // Isi file tidak dikirim (cek lampiran tertunda D-060 bukan kiriman file).
+    expect(
+      requests.some(
+        (r) =>
+          r.path.startsWith("/employee-imports") && r.path !== "/employee-imports/attachments/open",
+      ),
+    ).toBe(false);
   });
 
   it("tanpa kolom nomor induk: tombol lanjut nonaktif + peringatan", async () => {

@@ -266,3 +266,148 @@ export async function replaceCompanyAssignments(
     });
   }
 }
+
+// ── D-045: undangan akun dari onboarding ────────────────────────────────────
+
+export async function findAccountEmails(emails: string[]) {
+  if (emails.length === 0) return [];
+  return getPrisma().account.findMany({
+    where: { email: { in: emails } },
+    select: { email: true, employeeId: true },
+  });
+}
+
+export async function createEmployeeAccount(
+  tx: IamTx,
+  data: { authUserId: string; email: string; employeeId: string },
+) {
+  return tx.account.create({
+    data: { ...data, role: "EMPLOYEE" },
+    select: { id: true },
+  });
+}
+
+export async function findAccountsForEmployees(employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
+  return getPrisma().account.findMany({
+    where: { employeeId: { in: employeeIds } },
+    select: { id: true, employeeId: true, email: true, lastLoginAt: true, isActive: true },
+  });
+}
+
+/** D-047: penerima notifikasi review onboarding — HR_ADMIN aktif ber-grant aktif di PT itu. */
+export async function findOnboardingReviewerHrs(companyId: string, now: Date) {
+  return getPrisma().account.findMany({
+    where: {
+      role: "HR_ADMIN",
+      isActive: true,
+      companies: { some: { companyId } },
+      grants: {
+        some: {
+          permission: "EMPLOYEE_ONBOARDING_REVIEW",
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      },
+    },
+    select: { id: true, email: true },
+  });
+}
+
+/** D-055: HR aktif yang ditugaskan di PT (opsional: hanya pemegang grant aktif tertentu). */
+export async function findCompanyHrs(
+  companyId: string,
+  permission: Prisma.EnumPermissionFilter["equals"] | null,
+  now: Date,
+) {
+  return getPrisma().account.findMany({
+    where: {
+      role: "HR_ADMIN",
+      isActive: true,
+      companies: { some: { companyId } },
+      ...(permission
+        ? {
+            grants: {
+              some: {
+                permission,
+                revokedAt: null,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+              },
+            },
+          }
+        : {}),
+    },
+    select: { id: true, email: true },
+  });
+}
+
+/** D-054 / OD-6: HR aktif di PT yang memegang SEMUA grant aktif yang diminta. */
+export async function findCompanyHrsWithAll(
+  companyId: string,
+  permissions: NonNullable<Prisma.EnumPermissionFilter["equals"]>[],
+  now: Date,
+) {
+  return getPrisma().account.findMany({
+    where: {
+      role: "HR_ADMIN",
+      isActive: true,
+      companies: { some: { companyId } },
+      AND: permissions.map((permission) => ({
+        grants: {
+          some: {
+            permission,
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          },
+        },
+      })),
+    },
+    select: { id: true, email: true },
+  });
+}
+
+// ── D-048: login NIK & lupa password ────────────────────────────────────────
+
+/** Akun lain yang sudah memakai alamat ini sebagai email kontak atau email login. */
+export async function findAccountUsingAddress(tx: IamTx, address: string, excludeId: string) {
+  return tx.account.findFirst({
+    where: { id: { not: excludeId }, OR: [{ email: address }, { loginEmail: address }] },
+    select: { id: true },
+  });
+}
+
+export async function setLoginEmail(tx: IamTx, accountId: string, loginEmail: string | null) {
+  return tx.account.update({ where: { id: accountId }, data: { loginEmail } });
+}
+
+export async function findAccountForReset(where: { email: string } | { employeeId: string }) {
+  return getPrisma().account.findFirst({
+    where,
+    select: {
+      id: true,
+      email: true,
+      loginEmail: true,
+      employeeId: true,
+      isActive: true,
+    },
+  });
+}
+
+/** Catat percobaan lalu kembalikan jumlah percobaan sebelumnya dalam jendela waktu (satu transaksi). */
+export async function recordResetAttempt(keyHash: string, since: Date, purgeBefore: Date) {
+  return getPrisma().$transaction(async (tx) => {
+    await tx.passwordResetAttempt.deleteMany({ where: { createdAt: { lt: purgeBefore } } });
+    const previous = await tx.passwordResetAttempt.count({
+      where: { keyHash, createdAt: { gte: since } },
+    });
+    await tx.passwordResetAttempt.create({ data: { keyHash } });
+    return previous;
+  });
+}
+
+/** D-045 d: hapus permanen akun (grant & penugasan PT ikut). */
+export async function deleteAccount(tx: IamTx, accountId: string) {
+  await tx.permissionGrant.deleteMany({ where: { accountId } });
+  await tx.accountCompany.deleteMany({ where: { accountId } });
+  await tx.account.delete({ where: { id: accountId } });
+}

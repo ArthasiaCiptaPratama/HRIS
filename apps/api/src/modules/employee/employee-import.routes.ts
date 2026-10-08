@@ -5,16 +5,19 @@ import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core
 import type { RequestContext } from "./employee.service.ts";
 import {
   commitBodySchema,
+  importAttachmentsSchema,
   importBodySchema,
   importJobDetailSchema,
   importJobSchema,
   listJobsQuerySchema,
   mappingBodySchema,
   mappingSchema,
+  pendingAttachmentJobsSchema,
   previewSchema,
   signatureParamSchema,
 } from "./employee-import.schema.ts";
 import * as service from "./employee-import.service.ts";
+import * as attachments from "./employee-import-attachments.service.ts";
 
 // D-042: import karyawan CSV/Excel (SA & HR; cakupan PT & grant dicek per baris di service).
 const P = `${API_BASE_PATH}/employee-imports`;
@@ -89,6 +92,55 @@ const routes = {
       ...errors(400, 401, 403, 404, 500),
     },
   }),
+  // ── D-060: lampiran Google Drive ──
+  openAttachments: createRoute({
+    method: "get",
+    path: `${P}/attachments/open`,
+    tags: TAGS,
+    summary: "Import yang lampirannya belum selesai/gagal (SA semua; HR miliknya)",
+    security,
+    responses: {
+      200: json("Import dengan lampiran terbuka", dataEnvelope(pendingAttachmentJobsSchema)),
+      ...errors(401, 403, 500),
+    },
+  }),
+  attachments: createRoute({
+    method: "get",
+    path: `${P}/{id}/attachments`,
+    tags: TAGS,
+    summary: "Status lampiran Google Drive satu import (tanpa tautan/isi file)",
+    security,
+    request: { params: z.object({ id: z.uuid() }) },
+    responses: {
+      200: json("Lampiran", dataEnvelope(importAttachmentsSchema)),
+      ...errors(400, 401, 403, 404, 500),
+    },
+  }),
+  processAttachments: createRoute({
+    method: "post",
+    path: `${P}/{id}/attachments/process`,
+    tags: TAGS,
+    summary:
+      "Proses beberapa lampiran (±20 dtk per panggilan; panggil ulang sampai pending = 0). 422 bila Google Drive belum dikonfigurasi",
+    security,
+    request: { params: z.object({ id: z.uuid() }) },
+    responses: {
+      200: json("Lampiran setelah diproses", dataEnvelope(importAttachmentsSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  retryAttachments: createRoute({
+    method: "post",
+    path: `${P}/{id}/attachments/retry`,
+    tags: TAGS,
+    summary: "Kembalikan lampiran gagal ke antrean",
+    security,
+    request: { params: z.object({ id: z.uuid() }) },
+    responses: {
+      200: json("Lampiran", dataEnvelope(importAttachmentsSchema)),
+      ...errors(400, 401, 403, 404, 500),
+    },
+  }),
   getMapping: createRoute({
     method: "get",
     path: `${P}/mappings/{signature}`,
@@ -124,6 +176,9 @@ export function registerEmployeeImportRoutes(
   app.openapi(guard(routes.preview), async (c) =>
     c.json(ok(await service.preview(deps.ctx(c), c.req.valid("json"))), 200),
   );
+  app.openapi(guard(routes.openAttachments), async (c) =>
+    c.json(ok(await attachments.listOpenAttachmentJobs(deps.ctx(c))), 200),
+  );
   app.openapi(guard(routes.getMapping), async (c) =>
     c.json(ok(await service.getMapping(deps.ctx(c), c.req.valid("param").signature)), 200),
   );
@@ -147,5 +202,14 @@ export function registerEmployeeImportRoutes(
   );
   app.openapi(guard(routes.detail), async (c) =>
     c.json(ok(await service.getJob(deps.ctx(c), c.req.valid("param").id)), 200),
+  );
+  app.openapi(guard(routes.attachments), async (c) =>
+    c.json(ok(await attachments.listAttachments(deps.ctx(c), c.req.valid("param").id)), 200),
+  );
+  app.openapi(guard(routes.processAttachments), async (c) =>
+    c.json(ok(await attachments.processAttachments(deps.ctx(c), c.req.valid("param").id)), 200),
+  );
+  app.openapi(guard(routes.retryAttachments), async (c) =>
+    c.json(ok(await attachments.retryAttachments(deps.ctx(c), c.req.valid("param").id)), 200),
   );
 }

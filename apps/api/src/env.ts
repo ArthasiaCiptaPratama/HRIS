@@ -36,6 +36,25 @@ const envSchema = z
     SMTP_USER: optionalString,
     SMTP_PASS: optionalString,
     EMAIL_FROM: optionalString,
+    // D-045: batas undangan aktivasi per jam (di bawah limit email Supabase Auth ± 30/jam).
+    ONBOARDING_INVITES_PER_HOUR: optionalString
+      .transform((value) => (value === undefined ? 25 : Number(value)))
+      .pipe(z.number().int().min(1).max(1000)),
+    // D-048: domain alamat login turunan NIK, PER LINGKUNGAN (Auth staging dipakai bersama lokal, D-023):
+    // lokal `dev-<nama>.login.akselerasi.invalid`, staging `stg.login.akselerasi.invalid`. Kosong = login
+    // NIK nonaktif (persetujuan onboarding tidak mengganti email Auth).
+    LOGIN_EMAIL_DOMAIN: optionalString.pipe(
+      z
+        .string()
+        .regex(
+          /^(?=.{3,200}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/,
+          "lowercase hostname, e.g. stg.login.akselerasi.invalid",
+        )
+        .optional(),
+    ),
+    // D-060: isi file kunci service account Google (JSON satu baris) untuk lampiran Drive di Import.
+    // Kosong = lampiran tercatat di antrean, belum bisa diproses.
+    GOOGLE_SERVICE_ACCOUNT_JSON: optionalString,
     // PLAN §3.3: lokal `dev/<nama-developer>/` (bucket staging dipakai bersama); staging/produksi kosong.
     STORAGE_PATH_PREFIX: z
       .string()

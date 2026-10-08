@@ -10,18 +10,31 @@ export const meSchema = z.object({
   employeeId: z.string().nullable(),
   lastLoginAt: z.string().nullable(),
   grants: z.array(z.object({ permission: permissionSchema, expiresAt: z.string().nullable() })),
+  // D-045 b: status onboarding (locked = calon belum disetujui → hanya wizard).
+  onboarding: z
+    .object({
+      status: z.string(),
+      completionRequired: z.boolean(),
+      submitted: z.boolean(),
+      locked: z.boolean(),
+    })
+    .nullable()
+    .optional(),
 });
 export type Me = z.infer<typeof meSchema>;
 
 export const meResponseSchema = z.object({ data: meSchema });
 
+// D-048: satu kolom "NIK atau email" (dipetakan ke email Supabase di halaman login).
 export const loginFormSchema = z.object({
-  email: z.email("Email tidak valid."),
+  identifier: z.string().trim().min(1, "Isi NIP atau email."),
   password: z.string().min(1, "Password wajib diisi."),
 });
 export type LoginForm = z.infer<typeof loginFormSchema>;
 
-export const forgotPasswordFormSchema = z.object({ email: z.email("Email tidak valid.") });
+export const forgotPasswordFormSchema = z.object({
+  identifier: z.string().trim().min(1, "Isi NIP atau email.").max(254),
+});
 export type ForgotPasswordForm = z.infer<typeof forgotPasswordFormSchema>;
 
 // Minimal 12 karakter, sama dengan script bootstrap (PLAN §4.4).

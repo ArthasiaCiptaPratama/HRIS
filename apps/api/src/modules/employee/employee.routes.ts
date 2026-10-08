@@ -1,9 +1,13 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context, MiddlewareHandler } from "hono";
+import type { GoogleDriveReader } from "../../core/google-drive.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
+import { registerArchiveRoutes } from "./archive.routes.ts";
+import { registerDataChangeRoutes } from "./data-change.routes.ts";
+import { registerDocumentRoutes } from "./document.routes.ts";
 import {
   changeStatusBodySchema,
   createEmployeeBodySchema,
@@ -27,6 +31,10 @@ import {
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
+import { registerOnboardingRoutes } from "./onboarding.routes.ts";
+import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
+import { orgChartQuerySchema, orgChartSchema, orgPersonCardSchema } from "./org-chart.schema.ts";
+import * as orgChart from "./org-chart.service.ts";
 
 export interface EmployeeRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
@@ -36,6 +44,12 @@ export interface EmployeeRouteDeps {
   storage: StorageAdmin;
   /** PLAN §3.3: prefix path objek Storage (lokal `dev/<nama>/`). */
   storagePathPrefix?: string;
+  /** D-045: undangan aktivasi (tautan kembali ke web, batas per jam). */
+  invitations?: OnboardingInvitationDeps;
+  /** D-048: domain alamat login NIK lingkungan ini (kosong = nonaktif). */
+  loginEmailDomain?: string | undefined;
+  /** D-060: Google Drive (service account) untuk lampiran Import. */
+  googleDrive?: GoogleDriveReader;
 }
 
 const P = API_BASE_PATH;
@@ -130,6 +144,32 @@ const routes = {
     responses: {
       200: json("Struktur organisasi", dataEnvelope(orgStructureSchema)),
       ...errors(401, 403, 500),
+    },
+  }),
+  orgChart: createRoute({
+    method: "get",
+    path: `${P}/org-chart`,
+    tags: TAGS,
+    summary:
+      "Bagan organisasi per PT (D-051): pos jabatan, garis atasan & fungsional, pemegang (kolom direktori), panel fungsi korporat — semua role",
+    security,
+    request: { query: orgChartQuerySchema },
+    responses: {
+      200: json("Bagan organisasi", dataEnvelope(orgChartSchema)),
+      ...errors(400, 401, 403, 404, 500),
+    },
+  }),
+  orgPersonCard: createRoute({
+    method: "get",
+    path: `${P}/org-chart/people/{id}`,
+    tags: TAGS,
+    summary:
+      "Kartu profil kerja orang di bagan (nama, foto, jabatan, unit, PT, lokasi, email kantor)",
+    security,
+    request: { params: idParamSchema },
+    responses: {
+      200: json("Kartu profil kerja", dataEnvelope(orgPersonCardSchema)),
+      ...errors(400, 401, 403, 404, 500),
     },
   }),
   get: createRoute({
@@ -230,10 +270,29 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
     ...ctxOf(c),
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
+    nikLogin: { authAdmin: deps.authAdmin, domain: deps.loginEmailDomain },
+    googleDrive: deps.googleDrive,
   });
 
+  // D-054: Arsip karyawan (/archive/*, /employees/{id}/<kategori>).
+  registerArchiveRoutes(app, { protect: deps.protect, ctx });
+  // D-055: dokumen karyawan & jenis dokumen (/document-types, /archive/documents, /employees/{id}/documents).
+  registerDocumentRoutes(app, { protect: deps.protect, ctx });
+  // D-054 / OD-6: pengajuan perubahan data diri (/self/*, /data-changes) + Arsip Keluarga/Bank.
+  registerDataChangeRoutes(app, { protect: deps.protect, ctx });
   // D-042: import karyawan (/employee-imports/*).
   registerEmployeeImportRoutes(app, { protect: deps.protect, ctx });
+  registerOnboardingRoutes(app, {
+    protect: deps.protect,
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+    loginEmailDomain: deps.loginEmailDomain,
+    invitations: deps.invitations ?? {
+      authAdmin: deps.authAdmin,
+      redirectTo: "http://localhost:5173/auth/callback",
+      perHour: 25,
+    },
+  });
 
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>
@@ -250,6 +309,12 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   );
   app.openapi(guard(routes.orgStructure), async (c) =>
     c.json(ok(await service.getOrgStructure(ctx(c))), 200),
+  );
+  app.openapi(guard(routes.orgChart), async (c) =>
+    c.json(ok(await orgChart.getOrgChart(ctx(c), c.req.valid("query"))), 200),
+  );
+  app.openapi(guard(routes.orgPersonCard), async (c) =>
+    c.json(ok(await orgChart.getPersonCard(ctx(c), c.req.valid("param").id)), 200),
   );
   app.openapi(guard(routes.get), async (c) =>
     c.json(

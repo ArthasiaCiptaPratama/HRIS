@@ -1,7 +1,10 @@
+import { Fragment } from "react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -14,6 +17,20 @@ export interface SelectOption {
   value: string;
   label: string;
   hint?: string;
+  /** Judul kelompok; opsi berurutan dengan grup sama ditampilkan di bawah satu judul. */
+  group?: string;
+}
+
+function groupOptions(
+  options: SelectOption[],
+): { group: string | undefined; items: SelectOption[] }[] {
+  const groups: { group: string | undefined; items: SelectOption[] }[] = [];
+  for (const option of options) {
+    const last = groups.at(-1);
+    if (last && last.group === option.group) last.items.push(option);
+    else groups.push({ group: option.group, items: [option] });
+  }
+  return groups;
 }
 
 export function FormSelect({
@@ -60,14 +77,24 @@ export function FormSelect({
             {noneLabel}
           </SelectItem>
         ) : null}
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            <span>{option.label}</span>
-            {option.hint ? (
-              <span className="text-muted-foreground ml-1 text-xs">{option.hint}</span>
-            ) : null}
-          </SelectItem>
-        ))}
+        {groupOptions(options).map(({ group, items }) => {
+          const rendered = items.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              <span>{option.label}</span>
+              {option.hint ? (
+                <span className="text-muted-foreground ml-1 text-xs">{option.hint}</span>
+              ) : null}
+            </SelectItem>
+          ));
+          return group ? (
+            <SelectGroup key={`${group}-${items[0]?.value}`}>
+              <SelectLabel>{group}</SelectLabel>
+              {rendered}
+            </SelectGroup>
+          ) : (
+            <Fragment key={`none-${items[0]?.value}`}>{rendered}</Fragment>
+          );
+        })}
       </SelectContent>
     </Select>
   );
