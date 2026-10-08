@@ -1,7 +1,7 @@
 # Desain — Pendataan Karyawan Existing dari Google Form lewat Import (D-059)
 
 > Keputusan: **D-059** di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas) (dibangun di atas Import D-042, [import-karyawan.md](import-karyawan.md)).
-> Status: **[done] lokal 2026-10-07** — Import mengenali seluruh Sheet respons "Formulir Data Karyawan" (ekspor 138 kolom: 119 terpetakan otomatis; 19 sisanya tautan file/Timestamp/pertanyaan navigasi). Belum: file di Drive (foto & dokumen) — §4. Checklist: PROGRESS Fase 4 → "Pendataan karyawan existing lewat Google Form".
+> Status: **[done] lokal 2026-10-07** — Import mengenali seluruh Sheet respons "Formulir Data Karyawan" (ekspor 138 kolom: 119 terpetakan otomatis; 19 sisanya tautan file/Timestamp/pertanyaan navigasi). File di Drive (foto & dokumen) ikut Import sejak 2026-10-08 (D-060, §4). Checklist: PROGRESS Fase 4 → "Pendataan karyawan existing lewat Google Form".
 > Dokumen ini tidak memuat data asli.
 
 Karyawan existing yang belum ada di HRIS mengisi **Google Form** "Formulir Data Karyawan"; responsnya masuk Google Sheet, lalu HR memasukkannya ke HRIS lewat **Import Data Karyawan** (pratinjau, pemetaan kolom diingat, simpan satu transaksi). Tidak ada integrasi otomatis Form → HRIS.
@@ -15,7 +15,7 @@ Dipilih pemilik projek 2026-10-07: migrasi karyawan existing bersifat satu kali/
 2. Sheet → **File → Download → Microsoft Excel (.xlsx)**.
 3. Tambah kolom data kerja yang tidak ditanyakan Form: **Perusahaan** (kode PT) bila tidak memakai PT bawaan, **Status karyawan**, **Jabatan**, **Departemen/unit**, **Tanggal masuk**.
 4. HRIS → **Personal Management › Import Data Karyawan** → unggah → periksa **Pemetaan** (diingat per susunan kolom) → **Pratinjau** → Simpan. Kolom "Timestamp"/"Stempel waktu" dan "Alamat email" (akun Google pengisi) otomatis diabaikan.
-5. Foto & dokumen di Sheet hanya **tautan Drive** (kolom tautan otomatis diabaikan Import) → unggah manual di tab Dokumen karyawan.
+5. Foto & dokumen di Sheet berupa **tautan Drive** → dipetakan otomatis ke grup "Lampiran (Google Drive)"; setelah Simpan, panel **Lampiran Google Drive** mengambil filenya (§4).
 6. Setelah impor: batasi akses Sheet / hapus baris yang sudah diimpor (data pribadi, UU PDP).
 7. Lokal Sheet harus **Indonesia** (File → Setelan → Lokal) supaya tanggal tertulis DD/MM/YYYY; lokal US (M/D/YYYY) membuat tanggal lahir terbaca salah/ditolak.
 
@@ -32,7 +32,7 @@ Dipilih pemilik projek 2026-10-07: migrasi karyawan existing bersifat satu kali/
 | "Pendidikan Terakhir Pertama" | "Pendidikan Terakhir" | dikenali langsung |
 | "Agama " (spasi) | "Agama" | rapi |
 
-Data keluarga, pendidikan 1–3, sertifikasi, kontak darurat, dan No. SIM per jenis kini didukung (§3). Hasil uji di atas adalah keadaan sebelum §3; sesudahnya 119/138 kolom terpetakan. File di Drive belum (§4).
+Data keluarga, pendidikan 1–3, sertifikasi, kontak darurat, dan No. SIM per jenis kini didukung (§3). Hasil uji di atas adalah keadaan sebelum §3; sesudahnya 119/138 kolom terpetakan; sejak D-060 kolom unggahan file juga dipetakan sebagai lampiran (§4).
 
 
 ## 2. Riwayat keputusan
@@ -61,6 +61,26 @@ Keputusan pemilik projek 2026-10-07: semua bagian Form ikut Import; impor ulang 
 - **Profil pemetaan** (diingat per susunan kolom) memakai kunci per kemunculan (`usia`, `usia#2`, …) supaya kolom kembar tidak tertukar saat dipakai ulang.
 - **Tampilan**: detail karyawan › Pribadi (email pribadi, panggilan, kebangsaan, suku, gol. darah, SIM per jenis, alamat kontak darurat), › Keluarga (jenis kelamin, TTL, usia saat didata, pendidikan, pekerjaan, alamat kerja), › Pendidikan (tahun masuk–lulus, No. sertifikat).
 
-## 4. File di Drive (belum)
+## 4. Lampiran Google Drive (D-060)
 
-Kolom unggahan (foto, KTP, KK, ijazah, NPWP, file sertifikat, buku rekening) berisi tautan Drive privat milik pemilik Form; Import mengabaikannya. Opsi yang dibahas 2026-10-07: script admin dengan rclone (unduh per ID → unggah lewat API dokumen; disarankan untuk migrasi), service account Google Cloud, unggah ZIP, atau menyimpan tautan saja (tidak disarankan: dokumen tetap di Drive Gmail, hak akses HRIS tidak berlaku). Menunggu keputusan pemilik projek.
+Dikerjakan 2026-10-08 (keputusan pemilik projek: di dalam fitur Import, bukan script rclone; impor ulang memakai sidik jari).
+
+| Kolom Form | Field Import | Disimpan sebagai |
+|---|---|---|
+| Foto Karyawan | `attachPhoto` | foto profil (JPEG ≤ 1024 px) |
+| KTP · Kartu Keluarga · Ijazah Terakhir · NPWP (kolom file) | `attachKtp`, `attachKk`, `attachDiploma`, `attachNpwp` | dokumen KTP / KK / DIPLOMA / NPWP |
+| Sertifikasi POP/POM/POU | `attachCertPop/Pom/Pou` | CERT_POP/POM/POU — **dilewati** (jenis ini wajib tanggal kedaluwarsa; unggah manual) |
+| Sertifikasi lain (K3 Umum, SMKP, SMK3, PROPER, ISO …) | `attachCert{Key}` | CERT_OTHER, catatan = nama sertifikasi, nomor dari kolom "No. Sertifikasi", ditautkan ke Pelatihan bernama sama |
+| Buku Rekening (Hal 1) | `attachBankBook` | BANK_BOOK |
+
+**Alur:** kolom berisi tautan dengan judul di atas dipetakan otomatis (profil pemetaan lama yang belum mengenal lampiran tidak mematikannya) → pratinjau menampilkan jumlah lampiran → Simpan mencatat antrean (`import_job_attachments`; baris error & baris "hanya tambah baru" yang dilewati tidak ikut; baris tanpa perubahan data tetap ikut) → panel **Lampiran Google Drive** memanggil `POST /employee-imports/{id}/attachments/process` berulang (±20 dtk/panggilan) dengan progress bar; halaman boleh ditutup, sisa antrean muncul di halaman Import ("Lanjutkan"); yang gagal bisa "Coba lagi".
+
+**Aturan:** sidik jari SHA-256 file Drive (gabungan bila beberapa file) sama dengan lampiran yang sudah masuk untuk karyawan & tujuan yang sama → dilewati; berbeda → versi dokumen baru (yang lama tetap di riwayat versi; unggahan manual HR juga menjadi versi lama); foto diganti. Hak tulis mengikuti layar: dokumen sensitif (KTP, KK, NPWP) butuh grant dokumen, buku rekening grant dokumen atau rekening — tanpa grant dilewati "Tidak berhak". Beberapa gambar satu jawaban → satu PDF; HEIC/WebP & file > 20 MB dilewati (unggah manual).
+
+**Penyiapan (sekali per lingkungan):**
+1. Google Cloud Console (akun pemilik Form) → project → aktifkan **Google Drive API** → IAM › Service Accounts → buat service account → Keys › JSON. Gratis, tanpa billing.
+2. Drive: folder unggahan Form (mis. "Formulir Data Karyawan (File responses)") → Bagikan ke email service account sebagai **Viewer**; akses umum folder **Dibatasi** (jangan "siapa saja yang memiliki link").
+3. Isi env API `GOOGLE_SERVICE_ACCOUNT_JSON` = isi file JSON dalam satu baris (lokal: `.env` diapit kutip tunggal; staging/produksi: env Vercel). Kosong = lampiran tetap tercatat di antrean dan bisa diproses setelah diisi.
+4. File kunci = rahasia: simpan di luar repo (mis. `~/.config/hris/`, izin 600), jangan dikirim lewat chat.
+
+Catatan kapasitas: lampiran memakai Supabase Storage (paket gratis 1 GB); foto & gambar dikompres sebelum disimpan.
