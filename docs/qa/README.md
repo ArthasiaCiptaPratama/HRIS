@@ -23,6 +23,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-07-import-form.md](plans/2026-10-07-import-form.md) | Import Sheet respons Google Form "Formulir Data Karyawan" (D-059) |
 | Rencana | [plans/2026-10-08-lampiran-drive.md](plans/2026-10-08-lampiran-drive.md) | Lampiran Google Drive di Import (D-060) |
 | Rencana | [plans/2026-10-08-arsip-1d.md](plans/2026-10-08-arsip-1d.md) | Arsip gelombang 1d: ekspor Excel & cetak (D-058) |
+| Rencana | [plans/2026-10-08-import-form-v2.md](plans/2026-10-08-import-form-v2.md) | Import Form versi 171 kolom (D-061) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
 | Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-187 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-052 |
@@ -46,6 +47,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-07-import-form.md](runs/2026-10-07-import-form.md) | Lokal: Playwright Import 4/4 + Import lengkap 8/8; ekspor Sheet sungguhan 119/138 kolom terpetakan — LULUS lokal |
 | Hasil | [runs/2026-10-08-lampiran-drive.md](runs/2026-10-08-lampiran-drive.md) | Lokal: test shared 166 · api 539 · web 202; Playwright lampiran 7/7 — LULUS lokal |
 | Hasil | [runs/2026-10-08-arsip-1d.md](runs/2026-10-08-arsip-1d.md) | Lokal: test shared 169 · api 544 · web 206; Playwright 7/7 — LULUS lokal |
+| Hasil | [runs/2026-10-08-import-form-v2.md](runs/2026-10-08-import-form-v2.md) | Lokal: test shared 175 · api 547 · web 206; Playwright 8/8 — LULUS lokal |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `d4d66f1` (staging menyusul): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

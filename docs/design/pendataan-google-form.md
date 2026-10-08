@@ -70,6 +70,7 @@ Dikerjakan 2026-10-08 (keputusan pemilik projek: di dalam fitur Import, bukan sc
 | Foto Karyawan | `attachPhoto` | foto profil (JPEG ≤ 1024 px) |
 | KTP · Kartu Keluarga · Ijazah Terakhir · NPWP (kolom file) | `attachKtp`, `attachKk`, `attachDiploma`, `attachNpwp` | dokumen KTP / KK / DIPLOMA / NPWP |
 | Sertifikasi POP/POM/POU | `attachCertPop/Pom/Pou` | CERT_POP/POM/POU — **dilewati** (jenis ini wajib tanggal kedaluwarsa; unggah manual) |
+| SIM A · SIM C (Form versi baru, D-061) | `attachSimA`, `attachSimC` | SIM (jenis jamak, tanpa masa berlaku sejak D-061), catatan "SIM A/C — …", nomor = No. SIM jenisnya |
 | Sertifikasi lain (K3 Umum, SMKP, SMK3, PROPER, ISO …) | `attachCert{Key}` | CERT_OTHER, catatan = nama sertifikasi, nomor dari kolom "No. Sertifikasi", ditautkan ke Pelatihan bernama sama |
 | Buku Rekening (Hal 1) | `attachBankBook` | BANK_BOOK |
 
@@ -84,3 +85,31 @@ Dikerjakan 2026-10-08 (keputusan pemilik projek: di dalam fitur Import, bukan sc
 4. File kunci = rahasia: simpan di luar repo (mis. `~/.config/hris/`, izin 600), jangan dikirim lewat chat.
 
 Catatan kapasitas: lampiran memakai Supabase Storage (paket gratis 1 GB); foto & gambar dikompres sebelum disimpan.
+
+## 5. Form versi baru 171 kolom (D-061)
+
+Dikerjakan 2026-10-08 dari file "Formulir Data Karyawan (Jawaban).xlsx" (2 respons; judul kolom = fixture `packages/shared/tests/fixtures/form-sheet-headers-v2.ts`, tanpa data pribadi). Form **direvisi di tengah pengisian**: responden lama mengisi kolom 1–137, responden baru juga kolom 138–171. Pertanyaan baru yang judulnya sama dengan pertanyaan lama diberi akhiran " 2", " 3" oleh Sheet; deskripsi pertanyaan ikut di header setelah baris baru (kadang tertulis `_x000a_`).
+
+**Pengenalan kolom:** pencocokan memakai **judul pertanyaan** (baris pertama header, akhiran kembar dibuang). Kolom versi lama & baru untuk data yang sama dipetakan ke satu field; saat menyimpan, **nilai pertama yang terisi** dipakai (badge "Digabung" di langkah pemetaan).
+
+| Kolom Form (versi baru) | Field Import | Disimpan di |
+|---|---|---|
+| Kelurahan/Desa · Kecamatan · Kabupaten/Kota · Provinsi (set pertama) | `domicileVillage/District/City/Province` | `employee_personal.domicile_*` (teks isian) |
+| idem (set kedua) | `ktpVillage/District/City/Province` | `employee_personal.ktp_*` |
+| Nama Lengkap · Hubungan · No. HP · Alamat Lengkap (kelompok kedua, di ujung Sheet, urutan acak) | `emergency2Name/Relationship/Phone/Address` | `employee_personal.emergency_contact2_*` |
+| Status Hubungan (Saudara Kandung n) | `sibling{n}Relation` | `family_members.relation_detail` (Kakak/Adik) |
+| Pekerjaan (Anak n) | `child{n}Occupation` | `family_members.occupation` |
+| Jenis Kelamin 2 (isinya = jenis kelamin Anak 1) | `child1Gender` (digabung dengan "Jenis Kelamin (Anak 1)") | `family_members.gender` |
+| No. SIM A 2 · No. SIM C 2 | `simNumberA/C` (digabung dengan "No. SIM A/C") | `driving_license_numbers` |
+| SIM A · SIM C (unggahan) | `attachSimA/C` | dokumen SIM (§4) |
+| Divisi | `divisionName` | tidak disimpan — pencocokan unit (di bawah) |
+| Departemen · Jabatan · Tanggal Masuk PT … | `departmentName`, `positionName`, `joinDate` | data kerja |
+| Pendidikan 1 (Terbaru/Tertinggi) · Pendidikan 2/3 (Sebelumnya) + sekolah/tahun | `education{1–3}*` | riwayat pendidikan |
+| Sudah Memiliki Anak? · Apakah memiliki Saudara/SIM? · Email Address · Timestamp | – | diabaikan |
+
+**Divisi (akurat, tidak menebak):** nama harus sama persis (huruf besar/kecil & spasi diabaikan) dengan unit berjenis **Divisi** di Struktur Organisasi. Departemen yang sudah ada harus berada di bawah divisi itu (langsung atau tidak langsung); departemen baru yang dibuat Import ditempatkan di bawah divisi tersebut (PT ikut divisi). Divisi tidak ditemukan / departemen di divisi lain → **error baris** dengan pesan jelas; divisi tidak dibuat otomatis.
+
+**Rincian alamat:** disimpan sebagai teks isian (opsi C, pemilik projek 2026-10-08). Tahap berikutnya (Backlog): tabel wilayah resmi Kemendagri + kolom kode di samping kolom teks, terisi otomatis bila cocok persis.
+
+**Kasus terburuk yang ditangani:** sel unggahan berisi nama file (bukan tautan) → peringatan "Bukan tautan Google Drive", kolom tetap lampiran (bukan "No. KK" yang error); kolom unggahan yang masih kosong tetap dikenali lampiran, kecuali judulnya persis nama field data ("NPWP" = nomor, "NPWP 2" = file); respons uji coba berisi NIK/email/HP tidak valid → error baris, tidak disimpan.
+
