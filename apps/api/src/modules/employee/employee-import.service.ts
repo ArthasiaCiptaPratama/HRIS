@@ -167,6 +167,19 @@ const PERSONAL_KEYS = [
   "drivingLicenseNumber",
   "drivingLicenseNumbers",
   "emergencyContactAddress",
+  // D-061: rincian alamat & kontak darurat ke-2.
+  "domicileVillage",
+  "domicileDistrict",
+  "domicileCity",
+  "domicileProvince",
+  "ktpVillage",
+  "ktpDistrict",
+  "ktpCity",
+  "ktpProvince",
+  "emergencyContact2Name",
+  "emergencyContact2Relationship",
+  "emergencyContact2Phone",
+  "emergencyContact2Address",
 ] as const;
 // Kunci data pribadi → field import (untuk daftar perubahan). maritalStatus bisa turunan PTKP.
 const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
@@ -191,6 +204,18 @@ const PERSONAL_FIELD: Record<(typeof PERSONAL_KEYS)[number], ImportFieldKey> = {
   drivingLicenseNumber: "drivingLicenseNumber",
   drivingLicenseNumbers: "drivingLicenseNumber",
   emergencyContactAddress: "emergencyContactAddress",
+  domicileVillage: "domicileVillage",
+  domicileDistrict: "domicileDistrict",
+  domicileCity: "domicileCity",
+  domicileProvince: "domicileProvince",
+  ktpVillage: "ktpVillage",
+  ktpDistrict: "ktpDistrict",
+  ktpCity: "ktpCity",
+  ktpProvince: "ktpProvince",
+  emergencyContact2Name: "emergency2Name",
+  emergencyContact2Relationship: "emergency2Relationship",
+  emergencyContact2Phone: "emergency2Phone",
+  emergencyContact2Address: "emergency2Address",
 };
 
 const EXIT_REASON = {
@@ -205,6 +230,53 @@ function issue(
   severity: "ERROR" | "WARNING" = "ERROR",
 ) {
   return { field, code, severity } satisfies ImportRowIssue;
+}
+
+/**
+ * D-061: kolom Divisi dicocokkan PERSIS (tanpa peka huruf besar/spasi) ke unit berjenis DIVISION — tidak
+ * menebak, tidak membuat divisi baru. Departemen yang sudah ada harus berada di bawah divisi itu (induk
+ * langsung/tidak langsung); departemen baru ditempatkan di bawahnya (dikembalikan sebagai peta induk).
+ */
+function checkDivisions(
+  plans: RowPlan[],
+  lookup: MasterLookup,
+  mappedDepartments: Record<string, string> | undefined,
+): Record<string, string> {
+  const live = [...lookup.departments.values()].filter((d) => !d.deleted);
+  const divisions = new Map(
+    live.filter((d) => d.unitType === "DIVISION").map((d) => [masterKey(d.name), d]),
+  );
+  const units = new Map(live.map((d) => [masterKey(d.name), d]));
+  const isUnder = (unitId: string, divisionId: string) => {
+    let current = lookup.departments.get(unitId);
+    for (let depth = 0; current && depth < 10; depth++) {
+      if (current.parentId === divisionId) return true;
+      current = current.parentId ? lookup.departments.get(current.parentId) : undefined;
+    }
+    return false;
+  };
+  const parents: Record<string, string> = {};
+  for (const p of plans) {
+    if ((p.action !== "CREATE" && p.action !== "UPDATE") || !p.row.divisionName) continue;
+    const division = divisions.get(masterKey(p.row.divisionName));
+    if (!division) {
+      p.issues.push(issue("divisionName", "DIVISION_UNKNOWN"));
+    } else if (p.departmentName) {
+      const key = masterKey(p.departmentName);
+      const mappedId = mappedDepartments?.[key];
+      const unit = mappedId ? lookup.departments.get(mappedId) : units.get(key);
+      if (unit) {
+        if (!isUnder(unit.id, division.id))
+          p.issues.push(issue("divisionName", "DIVISION_MISMATCH"));
+      } else if (parents[key] && parents[key] !== division.id) {
+        p.issues.push(issue("divisionName", "DIVISION_MISMATCH"));
+      } else {
+        parents[key] = division.id;
+      }
+    }
+    if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
+  }
+  return parents;
 }
 
 function statusIdFor(lookup: MasterLookup, category: string): string | undefined {
@@ -417,8 +489,15 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       p.issues.push(issue("workLocationName", "MASTER_ARCHIVED"));
     if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
   }
+  const departmentParents = checkDivisions(plans, lookup, map.departments);
   const writing = plans.filter((p) => p.action === "CREATE" || p.action === "UPDATE");
-  const names: MasterDataNames = { departments: [], positions: [], grades: [], workLocations: [] };
+  const names: MasterDataNames = {
+    departments: [],
+    positions: [],
+    grades: [],
+    workLocations: [],
+    departmentParents,
+  };
   for (const p of writing) {
     const dept = p.departmentName;
     if (wants(p, "positionName") && dept && !mapped(map.departments, masterKey(dept)))

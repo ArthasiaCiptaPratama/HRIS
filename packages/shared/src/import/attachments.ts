@@ -3,7 +3,7 @@
 // mengunduh lewat service account lalu menyimpannya sebagai foto profil / dokumen karyawan.
 
 import { CERTIFICATIONS, type CertificationKey } from "./groups.ts";
-import { normalizeHeader } from "./normalize.ts";
+import { formTitle, normalizeHeader } from "./normalize.ts";
 import type { ImportFieldDef } from "./types.ts";
 
 export const ATTACHMENT_GROUP = "Lampiran (Google Drive)";
@@ -40,6 +40,9 @@ const BASE_ATTACHMENTS = [
     target: "BANK_BOOK",
     headers: ["buku rekening", "buku tabungan"],
   },
+  // D-061: file SIM per jenis (Form versi baru). Jenis dokumen SIM boleh banyak & tanpa masa berlaku.
+  { key: "SimA", label: "SIM A", target: "SIM", headers: ["sim a", "file sim a", "foto sim a"] },
+  { key: "SimC", label: "SIM C", target: "SIM", headers: ["sim c", "file sim c", "foto sim c"] },
 ] as const;
 
 const CERT_TARGET: Partial<Record<CertificationKey, string>> = {
@@ -64,7 +67,11 @@ const fields: Record<string, ImportFieldDef> = {};
 const byHeader = new Map<string, AttachmentFieldKey>();
 for (const a of BASE_ATTACHMENTS) {
   const key = `attach${a.key}` as AttachmentFieldKey;
-  specs[key] = { target: a.target, note: ATTACHMENT_NOTE };
+  // SIM A & C berjenis sama (SIM): catatan membedakan berkasnya.
+  specs[key] = {
+    target: a.target,
+    note: a.target === "SIM" ? `${a.label} — ${ATTACHMENT_NOTE}` : ATTACHMENT_NOTE,
+  };
   fields[key] = {
     label: `File ${a.label}`,
     group: ATTACHMENT_GROUP,
@@ -82,7 +89,10 @@ for (const c of CERTIFICATIONS) {
     section: "attachment",
     synonyms: [],
   };
-  byHeader.set(normalizeHeader(c.name), key);
+  // Judul Form bisa dengan/tanpa awalan "Sertifikasi" ("Sertifikasi SMKP Minerba" ↔ "SMKP Minerba").
+  const text = normalizeHeader(c.name).replace(/^sertifikasi /, "");
+  byHeader.set(text, key);
+  byHeader.set(`sertifikasi ${text}`, key);
 }
 
 export const ATTACHMENT_SPECS = specs as Record<AttachmentFieldKey, AttachmentSpec>;
@@ -91,7 +101,11 @@ export const ATTACHMENT_FIELD_KEYS = Object.keys(specs) as AttachmentFieldKey[];
 
 /** Kolom berisi tautan dengan judul unggahan Form → field lampiran (null = bukan). */
 export function attachmentFieldOfHeader(header: unknown): AttachmentFieldKey | null {
-  return byHeader.get(normalizeHeader(header)) ?? null;
+  return (
+    byHeader.get(normalizeHeader(header)) ??
+    byHeader.get(normalizeHeader(formTitle(header))) ??
+    null
+  );
 }
 
 const DRIVE_ID = /^[\w-]{20,}$/;

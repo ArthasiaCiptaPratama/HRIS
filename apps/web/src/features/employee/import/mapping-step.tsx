@@ -66,12 +66,24 @@ function sampleOf(rows: DataRow[], column: number, field: ImportFieldKey | null)
 function ConfidenceBadge({
   suggestion,
   field,
+  merged,
 }: {
   suggestion: ColumnSuggestion;
   field: ImportFieldKey | null;
+  merged: boolean;
 }) {
   if (suggestion.derived && !field) return <Badge variant="muted">Dihitung sistem</Badge>;
   if (!field) return <Badge variant="muted">Diabaikan</Badge>;
+  // D-061: pertanyaan Form versi lama & baru ke field yang sama → nilai pertama yang terisi dipakai.
+  if (merged)
+    return (
+      <Badge
+        variant="secondary"
+        title="Kolom lain berisi field yang sama; nilai pertama yang terisi dipakai"
+      >
+        Digabung
+      </Badge>
+    );
   if (field !== suggestion.field) return <Badge variant="secondary">Dipilih manual</Badge>;
   if (suggestion.confidence >= 0.85) return <Badge variant="success">Tinggi</Badge>;
   if (suggestion.confidence >= 0.6) return <Badge variant="warning">Sedang</Badge>;
@@ -112,6 +124,8 @@ export function MappingStep({
   busy: boolean;
 }) {
   const mapped = mapping.filter(Boolean).length;
+  const fieldCount = new Map<ImportFieldKey, number>();
+  for (const f of mapping) if (f) fieldCount.set(f, (fieldCount.get(f) ?? 0) + 1);
   const hasNumber = mapping.includes("employeeNumber");
   const setField = (column: number, value: string) => {
     const field = value === IGNORE || value === "" ? null : (value as ImportFieldKey);
@@ -212,7 +226,11 @@ export function MappingStep({
                       />
                     </TableCell>
                     <TableCell>
-                      <ConfidenceBadge suggestion={s} field={field} />
+                      <ConfidenceBadge
+                        suggestion={s}
+                        field={field}
+                        merged={field !== null && (fieldCount.get(field) ?? 0) > 1}
+                      />
                     </TableCell>
                   </TableRow>
                 );

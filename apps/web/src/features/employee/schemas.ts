@@ -129,6 +129,19 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       drivingLicenseNumber: z.string().nullable().optional(),
       drivingLicenseNumbers: z.record(z.string(), z.string()).nullable().optional(),
       emergencyContactAddress: z.string().nullable().optional(),
+      // D-061
+      domicileVillage: z.string().nullable().optional(),
+      domicileDistrict: z.string().nullable().optional(),
+      domicileCity: z.string().nullable().optional(),
+      domicileProvince: z.string().nullable().optional(),
+      ktpVillage: z.string().nullable().optional(),
+      ktpDistrict: z.string().nullable().optional(),
+      ktpCity: z.string().nullable().optional(),
+      ktpProvince: z.string().nullable().optional(),
+      emergencyContact2Name: z.string().nullable().optional(),
+      emergencyContact2Relationship: z.string().nullable().optional(),
+      emergencyContact2Phone: z.string().nullable().optional(),
+      emergencyContact2Address: z.string().nullable().optional(),
     })
     .nullable()
     .optional(),
@@ -148,6 +161,8 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
         occupation: z.string().nullable().optional(),
         ageAtEntry: z.number().nullable().optional(),
         workAddress: z.string().nullable().optional(),
+        // D-061: keterangan hubungan (saudara: Kakak/Adik).
+        relationDetail: z.string().nullable().optional(),
       }),
     )
     .optional(),

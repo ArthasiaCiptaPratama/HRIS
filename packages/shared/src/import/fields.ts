@@ -85,12 +85,17 @@ const BASE_IMPORT_FIELDS = {
       "departemen",
       "departement",
       "department",
-      "divisi",
       "divisi departement",
       "divisi departemen",
       "bagian",
-      "division",
     ],
+  },
+  // D-061: Divisi = unit organisasi berjenis DIVISION (D-050) induk departemen; dicocokkan persis,
+  // tidak disimpan di karyawan.
+  divisionName: {
+    label: "Divisi",
+    section: "work",
+    synonyms: ["divisi", "division"],
   },
   workLocationName: {
     label: "Lokasi kerja / site",

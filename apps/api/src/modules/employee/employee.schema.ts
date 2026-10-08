@@ -128,6 +128,19 @@ const personalSchema = z.object({
   /** Nomor per jenis SIM, mis. {"A": "…"}. */
   drivingLicenseNumbers: z.record(z.string(), z.string()).nullable(),
   emergencyContactAddress: z.string().nullable(),
+  // D-061: rincian alamat (teks isian Form) & kontak darurat ke-2.
+  domicileVillage: z.string().nullable(),
+  domicileDistrict: z.string().nullable(),
+  domicileCity: z.string().nullable(),
+  domicileProvince: z.string().nullable(),
+  ktpVillage: z.string().nullable(),
+  ktpDistrict: z.string().nullable(),
+  ktpCity: z.string().nullable(),
+  ktpProvince: z.string().nullable(),
+  emergencyContact2Name: z.string().nullable(),
+  emergencyContact2Relationship: z.string().nullable(),
+  emergencyContact2Phone: z.string().nullable(),
+  emergencyContact2Address: z.string().nullable(),
 });
 
 const familyMemberSchema = z.object({
@@ -145,6 +158,8 @@ const familyMemberSchema = z.object({
   /** Usia saat didata (Form tidak menanyakan tanggal lahir orang tua/saudara). */
   ageAtEntry: z.number().int().nullable(),
   workAddress: z.string().nullable(),
+  /** D-061: keterangan hubungan (saudara: Kakak/Adik). */
+  relationDetail: z.string().nullable(),
 });
 
 const bankAccountSchema = z.object({

@@ -213,7 +213,18 @@ export function buildPrintCells(
     R26: employee.position.name,
   };
 
-  const address = personal?.domicileAddress || personal?.ktpAddress || "";
+  // D-061: alamat jalan + rincian wilayah (domisili diutamakan, lalu KTP).
+  const fullAddress = (prefix: "domicile" | "ktp") =>
+    [
+      personal?.[`${prefix}Address`],
+      personal?.[`${prefix}Village`],
+      personal?.[`${prefix}District`],
+      personal?.[`${prefix}City`],
+      personal?.[`${prefix}Province`],
+    ]
+      .filter(Boolean)
+      .join(", ");
+  const address = fullAddress("domicile") || fullAddress("ktp");
   const addressLines = wrapText(address, ADDRESS_LINE_CHARS, ADDRESS_ROWS.length);
   ADDRESS_ROWS.forEach((ref, i) => {
     cells[ref] = addressLines[i] ?? null;
@@ -375,7 +386,9 @@ export function buildArchiveSheets(
         ],
         ...employee.familyMembers.map((m) => [
           m.name,
-          RELATIONSHIP_LABELS[m.relationship] ?? m.relationship,
+          [RELATIONSHIP_LABELS[m.relationship] ?? m.relationship, m.relationDetail ?? null]
+            .filter(Boolean)
+            .join(" — "),
           m.gender ? (GENDER_LABELS[m.gender as keyof typeof GENDER_LABELS] ?? m.gender) : null,
           m.birthPlace ?? null,
           day(m.birthDate),

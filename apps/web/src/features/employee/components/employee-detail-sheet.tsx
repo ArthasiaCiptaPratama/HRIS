@@ -463,8 +463,17 @@ function PersonalTab({ employee }: { employee: EmployeeDetail }) {
         {p.maritalStatus ? MARITAL_LABELS[p.maritalStatus] : null}
       </Field>
       <Field label="Agama">{p.religion ? RELIGION_LABELS[p.religion] : null}</Field>
-      <Field label="Alamat KTP">{p.ktpAddress}</Field>
-      <Field label="Alamat domisili">{p.domicileAddress}</Field>
+      <Field label="Alamat KTP">
+        {addressText(p.ktpAddress, [p.ktpVillage, p.ktpDistrict, p.ktpCity, p.ktpProvince])}
+      </Field>
+      <Field label="Alamat domisili">
+        {addressText(p.domicileAddress, [
+          p.domicileVillage,
+          p.domicileDistrict,
+          p.domicileCity,
+          p.domicileProvince,
+        ])}
+      </Field>
       <Field label="Kota asal">{p.originCity}</Field>
       <Field label="Status PTKP">{p.ptkpStatus ? PTKP_LABELS[p.ptkpStatus] : null}</Field>
       <Field label="BPJS Ketenagakerjaan" mono>
@@ -483,8 +492,27 @@ function PersonalTab({ employee }: { employee: EmployeeDetail }) {
         {drivingLicenseText(p.drivingLicenseTypes, p.drivingLicenseNumbers, p.drivingLicenseNumber)}
       </Field>
       <Field label="Alamat kontak darurat">{p.emergencyContactAddress ?? null}</Field>
+      {/* D-061: kontak darurat ke-2 (Form versi baru). */}
+      <Field label="Kontak darurat 2">
+        {[
+          p.emergencyContact2Name,
+          p.emergencyContact2Relationship ? `(${p.emergencyContact2Relationship})` : null,
+          p.emergencyContact2Phone,
+        ]
+          .filter(Boolean)
+          .join(" ") || null}
+      </Field>
+      <Field label="Alamat kontak darurat 2">{p.emergencyContact2Address ?? null}</Field>
     </FieldGrid>
   );
+}
+
+/** D-061: alamat jalan + rincian wilayah (kelurahan, kecamatan, kab/kota, provinsi) bila ada. */
+function addressText(
+  street: string | null | undefined,
+  parts: (string | null | undefined)[],
+): string | null {
+  return [street, ...parts].filter(Boolean).join(", ") || null;
 }
 
 /** "A: 1234 · C: 5678"; jenis tanpa nomor tetap ditampilkan. */
@@ -516,7 +544,12 @@ function FamilyTab({ employee }: { employee: EmployeeDetail }) {
             <p className="truncate text-sm font-medium">{member.name}</p>
             <p className="text-muted-foreground text-xs">
               {[
-                RELATIONSHIP_LABELS[member.relationship] ?? member.relationship,
+                [
+                  RELATIONSHIP_LABELS[member.relationship] ?? member.relationship,
+                  member.relationDetail ? `(${member.relationDetail})` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
                 member.gender === "MALE"
                   ? "Laki-laki"
                   : member.gender === "FEMALE"

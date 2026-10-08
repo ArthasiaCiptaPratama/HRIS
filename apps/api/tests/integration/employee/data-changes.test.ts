@@ -363,13 +363,14 @@ describe("rekening & dokumen", () => {
   test("dokumen: hanya jenis yang boleh diunggah karyawan; kedaluwarsa wajib; tolak → file dihapus", async () => {
     const simper = await uploadMine(emp, "DOCUMENT", await typeId("SIMPER"));
     expect(await code(simper.res)).toBe("BUSINESS_RULE_VIOLATION");
-    const sim = await typeId("SIM");
-    const { path } = await uploadMine(emp, "DOCUMENT", sim);
-    expect((await submit(emp, "DOCUMENT", { documentTypeId: sim, path })).status).toBe(400);
+    // SIO: boleh diunggah karyawan, bermasa berlaku, tidak sensitif (SIM tanpa masa berlaku sejak D-061).
+    const sio = await typeId("SIO");
+    const { path } = await uploadMine(emp, "DOCUMENT", sio);
+    expect((await submit(emp, "DOCUMENT", { documentTypeId: sio, path })).status).toBe(400);
     const res = await submit(emp, "DOCUMENT", {
-      documentTypeId: sim,
+      documentTypeId: sio,
       path,
-      documentNumber: "SIM-QA",
+      documentNumber: "SIO-QA",
       expiresAt: "2030-01-01",
     });
     expect(res.status).toBe(201);

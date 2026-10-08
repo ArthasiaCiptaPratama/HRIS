@@ -757,3 +757,115 @@ describe("Bagian berulang Formulir Data Karyawan (D-059)", () => {
     expect(e.trainings).toHaveLength(1);
   });
 });
+
+describe("Form versi baru (D-061): rincian alamat, kontak darurat 2, saudara, Divisi", () => {
+  const DIV = `Divisi Imp ${RUN}`;
+  const DEPT_UNDER = `Dept Bawah ${RUN}`;
+  const DEPT_NEW = `Dept Baru Div ${RUN}`;
+  let divisionId = "";
+  beforeAll(async () => {
+    const division = await prisma.department.create({
+      data: { name: DIV, unitType: "DIVISION", companyId: ids.acp },
+    });
+    divisionId = division.id;
+    const under = await prisma.department.create({
+      data: { name: DEPT_UNDER, parentId: division.id, companyId: ids.acp },
+    });
+    await prisma.position.create({ data: { name: POS, departmentId: under.id } });
+  });
+  const preview = async (rows: unknown[]) =>
+    data(await call("POST", "/employee-imports/preview", sa.headers, body(rows)));
+  const commit = async (rows: unknown[]) => {
+    const p = await preview(rows);
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...body(rows),
+      previewHash: p.previewHash,
+    });
+    expect(res.status).toBe(201);
+    return p;
+  };
+  const codes = (r: { issues: { code: string }[] }) => r.issues.map((i) => i.code);
+
+  test("rincian alamat, kontak darurat 2, status saudara & pekerjaan anak tersimpan dan tampil", async () => {
+    await commit([
+      row(
+        2,
+        baseRow("V1", {
+          domicileVillage: "Menteng Dalam",
+          domicileDistrict: "Tebet",
+          domicileCity: "Kota Jakarta Selatan",
+          domicileProvince: "Daerah Khusus Ibukota Jakarta",
+          ktpVillage: "Sukamaju",
+          ktpDistrict: "Cibinong",
+          ktpCity: "Kabupaten Bogor",
+          ktpProvince: "Jawa Barat",
+          emergency2Name: "Darurat Dua",
+          emergency2Relationship: "Kakak",
+          emergency2Phone: "081200000622",
+          emergency2Address: "Jl. Darurat 2",
+          sibling1Name: "Saudara Dummy",
+          sibling1Relation: "Kakak",
+          child1Name: "Anak Dummy",
+          child1Occupation: "Pelajar",
+        }),
+      ),
+    ]);
+    const e = await prisma.employee.findFirstOrThrow({
+      where: { employeeNumber: NUM("V1") },
+      include: { personal: true, familyMembers: true },
+    });
+    expect(e.personal).toMatchObject({
+      domicileCity: "Kota Jakarta Selatan",
+      ktpProvince: "Jawa Barat",
+      emergencyContact2Name: "Darurat Dua",
+      emergencyContact2Phone: "081200000622",
+      emergencyContact2Address: "Jl. Darurat 2",
+    });
+    expect(e.familyMembers.find((f) => f.relationship === "SIBLING")?.relationDetail).toBe("Kakak");
+    expect(e.familyMembers.find((f) => f.relationship === "CHILD")?.occupation).toBe("Pelajar");
+    const detail = await data(await call("GET", `/employees/${e.id}?view=full`, sa.headers));
+    expect(detail.personal).toMatchObject({
+      domicileVillage: "Menteng Dalam",
+      emergencyContact2Relationship: "Kakak",
+    });
+    expect(
+      detail.familyMembers.find((f: { relationship: string }) => f.relationship === "SIBLING"),
+    ).toMatchObject({ relationDetail: "Kakak" });
+  });
+
+  test("HR tanpa grant data pribadi: rincian alamat & kontak darurat 2 dilewati", async () => {
+    const p = data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        hr.headers,
+        body([row(2, baseRow("V2", { ktpCity: "Kota Dummy", emergency2Name: "Dummy" }))]),
+      ),
+    );
+    expect((await p).skippedFields).toEqual(expect.arrayContaining(["ktpCity", "emergency2Name"]));
+  });
+
+  test("Divisi: harus persis; departemen lama wajib di bawahnya; departemen baru ditempatkan di bawahnya", async () => {
+    const p = await preview([
+      row(2, baseRow("D1", { divisionName: `divisi  imp ${RUN.toLowerCase()}` })),
+      row(3, baseRow("D2", { divisionName: `Divisi Imp ${RUN}x` })),
+      row(4, baseRow("D3", { divisionName: DIV, departmentName: DEPT_UNDER })),
+      row(5, baseRow("D4", { divisionName: DIV, departmentName: DEPT_NEW })),
+    ]);
+    // D1: nama cocok (huruf besar/spasi diabaikan) tetapi DEPT (tanpa induk) bukan di bawah divisi itu.
+    expect(codes(p.rows[0])).toContain("DIVISION_MISMATCH");
+    expect(codes(p.rows[1])).toContain("DIVISION_UNKNOWN");
+    expect(p.rows[2].action).toBe("CREATE");
+    expect(p.rows[3].action).toBe("CREATE");
+    expect(p.rows[0].action).toBe("ERROR");
+
+    await commit([
+      row(4, baseRow("D3", { divisionName: DIV, departmentName: DEPT_UNDER })),
+      row(5, baseRow("D4", { divisionName: DIV, departmentName: DEPT_NEW })),
+    ]);
+    const created = await prisma.department.findFirstOrThrow({ where: { name: DEPT_NEW } });
+    expect(created.parentId).toBe(divisionId);
+    expect(created.companyId).toBe(ids.acp);
+    expect(created.unitType).toBe("DEPARTMENT");
+  });
+});

@@ -710,6 +710,18 @@ export async function getEmployee(
           drivingLicenseNumber: p.drivingLicenseNumber,
           drivingLicenseNumbers: (p.drivingLicenseNumbers as Record<string, string> | null) ?? null,
           emergencyContactAddress: p.emergencyContactAddress,
+          domicileVillage: p.domicileVillage,
+          domicileDistrict: p.domicileDistrict,
+          domicileCity: p.domicileCity,
+          domicileProvince: p.domicileProvince,
+          ktpVillage: p.ktpVillage,
+          ktpDistrict: p.ktpDistrict,
+          ktpCity: p.ktpCity,
+          ktpProvince: p.ktpProvince,
+          emergencyContact2Name: p.emergencyContact2Name,
+          emergencyContact2Relationship: p.emergencyContact2Relationship,
+          emergencyContact2Phone: p.emergencyContact2Phone,
+          emergencyContact2Address: p.emergencyContact2Address,
         }
       : null;
     detail.familyMembers = (parts.familyMembers ?? []).map((f) => ({

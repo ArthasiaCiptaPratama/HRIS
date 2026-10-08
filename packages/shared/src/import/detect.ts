@@ -6,6 +6,7 @@ import { DERIVED_HEADERS, IMPORT_FIELDS, type ImportFieldKey } from "./fields.ts
 import { CERTIFICATIONS, type CertificationKey } from "./groups.ts";
 import {
   cleanText,
+  formTitle,
   normalizeHeader,
   parseDate,
   parseEmail,
@@ -28,6 +29,11 @@ export interface DataRow {
 export interface DetectedSheet {
   headerRowIndex: number;
   headers: string[];
+  /**
+   * D-061: baris pertama tiap sel header apa adanya (judul pertanyaan Form tanpa deskripsinya). Header
+   * `headers` sudah dirapikan (baris baru → spasi) sehingga judul & deskripsi tidak bisa dipisah lagi.
+   */
+  titles?: string[];
   rows: DataRow[];
   score: number;
 }
@@ -130,6 +136,9 @@ export function detectSheet(input: Grid): DetectedSheet | null {
     const upper = cleanText(above[c]) ?? "";
     return own || upper;
   });
+  const firstLine = (cell: GridCell | undefined) =>
+    (cleanText(String(cell ?? "").split(/\r?\n|_x000a_/i)[0]) ?? "").trim();
+  const titles = headerRow.map((cell, c) => firstLine(cell) || firstLine(above[c]));
   const derivedCols = new Set(
     headers.map((h, c) => (DERIVED.has(normalizeHeader(h)) ? c : -1)).filter((c) => c >= 0),
   );
@@ -141,7 +150,7 @@ export function detectSheet(input: Grid): DetectedSheet | null {
     if (filled < 2 || /^(total|jumlah|grand total|control)\b/.test(first)) continue;
     rows.push({ sourceRow: r + 1, cells });
   }
-  return { headerRowIndex, headers, rows, score: headerScore(headerRow) + rows.length };
+  return { headerRowIndex, headers, titles, rows, score: headerScore(headerRow) + rows.length };
 }
 
 /** Pilih sheet terbaik dari workbook (skor header + jumlah baris data). */
@@ -283,6 +292,7 @@ type GroupContext =
   | { kind: "education"; slot: number }
   | { kind: "cert"; key: CertificationKey }
   | { kind: "emergency" }
+  | { kind: "emergency2" }
   | null;
 
 const SLOT_ATTR: Record<string, string> = {
@@ -293,6 +303,26 @@ const SLOT_ATTR: Record<string, string> = {
   pendidikan: "Education",
   usia: "Age",
   pekerjaan: "Occupation",
+  "status hubungan": "Relation",
+};
+// D-061: rincian alamat Form versi baru — set pertama = domisili, set kedua = KTP (urutan kolom Sheet,
+// dikonfirmasi pemilik projek 2026-10-08).
+const ADDRESS_ATTR: Record<string, string> = {
+  "kelurahan desa": "Village",
+  kelurahan: "Village",
+  desa: "Village",
+  kecamatan: "District",
+  "kabupaten kota": "City",
+  "kota kabupaten": "City",
+  provinsi: "Province",
+};
+const EMERGENCY_ATTR: Record<string, string> = {
+  "nama lengkap": "Name",
+  nama: "Name",
+  "no hp": "Phone",
+  "no telp": "Phone",
+  "alamat lengkap": "Address",
+  alamat: "Address",
 };
 const ORDINAL: Record<string, number> = { pertama: 1, kedua: 2, ketiga: 3 };
 // normalizeHeader membuang isi kurung di kedua sisi ("… Pertama (POP)" → "… pertama").
@@ -304,19 +334,20 @@ const CERT_BY_TEXT = CERTIFICATIONS.map((c) => ({ key: c.key, text: normalizeHea
  * slot; "Pendidikan Terakhir Pertama…Ketiga" → sekolah & tahun; nama sertifikasi → No. & tahun; kolom
  * "Nama Lengkap" tepat sebelum "Hubungan" → kontak darurat. Header lain menutup kelompok.
  */
-function formGroupMapping(headers: readonly GridCell[]): Map<number, ImportFieldKey> {
+function formGroupMapping(titles: readonly GridCell[]): Map<number, ImportFieldKey> {
   const result = new Map<number, ImportFieldKey>();
-  const raw = headers.map((h) =>
-    String(h ?? "")
-      .replace(/\s+/g, " ")
-      .trim(),
-  );
+  // D-061: judul tanpa akhiran kembar Sheet ("Tahun Masuk 2" → "Tahun Masuk").
+  const raw = titles.map((h) => formTitle(String(h ?? "").replace(/[ \t]+/g, " ")));
   const norm = raw.map((h) => normalizeHeader(h));
+  const hasChildSlots = raw.some((h) => /\(anak\s*1\)/i.test(h));
+  const addressSeen = new Map<string, number>();
+  let emergencyGroups = 0;
   let ctx: GroupContext = null;
   const set = (column: number, field: string) => result.set(column, field as ImportFieldKey);
   for (let i = 0; i < raw.length; i++) {
     const h = raw[i] as string;
     const n = norm[i] as string;
+    if (result.has(i)) continue; // sudah diambil kelompok kontak darurat 2 (lihat bawah)
     const slot = /\((anak|saudara kandung)\s*(\d)\)/i.exec(h);
     const base = normalizeHeader(h.replace(/\(.*\)/, ""));
     if (slot) {
@@ -338,9 +369,11 @@ function formGroupMapping(headers: readonly GridCell[]): Map<number, ImportField
       ctx = { kind: "parent", who };
       continue;
     }
-    const edu = /^pendidikan terakhir (pertama|kedua|ketiga)$/.exec(n);
+    // "Pendidikan Terakhir Pertama…Ketiga" (Form lama) · "Pendidikan 1 (Terbaru/Tertinggi)" (D-061).
+    const edu =
+      /^pendidikan terakhir (pertama|kedua|ketiga)$/.exec(n) ?? /^pendidikan ([123])$/.exec(n);
     if (edu) {
-      const slotNo = ORDINAL[edu[1] as string] as number;
+      const slotNo = ORDINAL[edu[1] as string] ?? Number(edu[1]);
       set(i, `education${slotNo}Level`);
       ctx = { kind: "education", slot: slotNo };
       continue;
@@ -356,10 +389,48 @@ function formGroupMapping(headers: readonly GridCell[]): Map<number, ImportField
       ctx = null;
       continue;
     }
-    if (n === "hubungan") {
+    if (n === "hubungan" && emergencyGroups === 0) {
+      emergencyGroups++;
       set(i, "emergencyContactRelationship");
       if (norm[i - 1] === "nama lengkap" && !result.has(i - 1)) set(i - 1, "emergencyContactName");
       ctx = { kind: "emergency" };
+      continue;
+    }
+    // D-061: "Hubungan" kedua = kontak darurat 2. Kolom pertanyaan yang ditambahkan belakangan masuk di
+    // ujung Sheet dengan urutan pembuatan (mis. Alamat, No. HP, Hubungan, Nama) → tetangga kiri & kanan
+    // yang berjudul atribut kontak diambil, masing-masing sekali.
+    if (n === "hubungan" && emergencyGroups === 1) {
+      emergencyGroups++;
+      set(i, "emergency2Relationship");
+      const taken = new Set<string>();
+      for (const step of [-1, 1]) {
+        for (let j = i + step; j >= 0 && j < raw.length; j += step) {
+          const attr = EMERGENCY_ATTR[norm[j] as string];
+          if (!attr || taken.has(attr) || result.has(j)) break;
+          taken.add(attr);
+          set(j, `emergency2${attr}`);
+        }
+      }
+      ctx = null;
+      continue;
+    }
+    const address = ADDRESS_ATTR[n];
+    if (address) {
+      const seen = (addressSeen.get(address) ?? 0) + 1;
+      addressSeen.set(address, seen);
+      if (seen <= 2) set(i, `${seen === 1 ? "domicile" : "ktp"}${address}`);
+      ctx = null;
+      continue;
+    }
+    // D-061: "Jenis Kelamin 2" lepas dari kelompok = pertanyaan jenis kelamin Anak 1 versi baru
+    // (isinya sama dengan "Jenis Kelamin (Anak 1)" pada respons contoh) → digabung ke Anak 1.
+    if (
+      hasChildSlots &&
+      n === "jenis kelamin" &&
+      /\s\d{1,2}$/.test(String(titles[i] ?? "").trim())
+    ) {
+      set(i, "child1Gender");
+      ctx = null;
       continue;
     }
     // Atribut di dalam kelompok aktif.
@@ -405,18 +476,27 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
   // "Alamat email" = akun Google pengisi, bukan email kantor → diabaikan.
   const formsExport = FORMS_TIMESTAMP.has(normalizeHeader(detected.headers[0]));
   // Kolom berkelompok Form (D-059): hanya untuk ekspor Form / file dengan ≥ 2 kolom penanda.
-  const grouped = formGroupMapping(detected.headers);
+  const titles = detected.titles ?? detected.headers;
+  const grouped = formGroupMapping(titles);
   const useGroups = formsExport || new Set(grouped.values()).size >= 2;
+  // D-061: pada ekspor Form, pencocokan memakai judul pertanyaan (tanpa deskripsi & akhiran kembar).
+  const labelOf = (column: number) => {
+    const header = detected.headers[column] ?? "";
+    if (!useGroups) return header;
+    return formTitle(titles[column] ?? header) || header;
+  };
   // Header yang muncul lebih dari sekali (Sheet Form: "Pendidikan" ayah & ibu, "No. HP" karyawan &
   // kontak darurat) kurang meyakinkan → skornya diturunkan supaya kalah dari header unik yang setara;
   // kemunculan pertama tetap terpilih bila tidak ada pesaing (urutan kolom).
   const headerCount = new Map<string, number>();
-  for (const h of detected.headers) {
+  for (const [column] of detected.headers.entries()) {
+    const h = labelOf(column);
     if (FAMILY_HEADER.test(String(h ?? ""))) continue; // kolom keluarga diabaikan, bukan pesaing
     const key = normalizeHeader(h);
     headerCount.set(key, (headerCount.get(key) ?? 0) + 1);
   }
-  const columns = detected.headers.map((header, column) => {
+  const columns = detected.headers.map((fullHeader, column) => {
+    const header = labelOf(column);
     const values = detected.rows.map((row) => row.cells[column] ?? null);
     // D-059 (Sheet respons Google Form): kolom berisi tautan (unggahan file di Drive) dan kolom milik
     // anggota keluarga — "Nama Lengkap (Anak 1)", "Pendidikan (Saudara Kandung 2)" — bukan data
@@ -430,11 +510,28 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
         column,
         header,
         derived: false,
+        grouped: true,
         combined: { [groupField]: 1 } as Partial<Record<ImportFieldKey, number>>,
       };
     }
     // D-060: kolom tautan berjudul unggahan Form ("Foto Karyawan", "KTP", nama sertifikasi) = lampiran.
-    const attachmentField = linkColumn ? attachmentFieldOfHeader(header) : null;
+    // D-061: pada ekspor Form, judul unggahan tetap lampiran walau hanya sebagian berisi tautan (sel
+    // berisi nama file → peringatan per baris, bukan "No. KK" yang error) atau masih kosong — kecuali
+    // judulnya persis nama field data ("NPWP", "KTP": kolom nomor yang kosong tetap kolom nomor).
+    const content = profile(values);
+    const someLink =
+      content.ratio((v) =>
+        /^https?:\/\/|\.(jpe?g|png|pdf|heic|heif|webp)$/i.test(String(v ?? "").trim()),
+      ) > 0;
+    // Judul kembar ("NPWP 2") = pertanyaan unggahan setelah pertanyaan nomornya ("NPWP").
+    const repeatedTitle = /\s\d{1,2}$/.test(String(titles[column] ?? "").trim());
+    const emptyUploadTitle =
+      content.count === 0 &&
+      (repeatedTitle || !Object.values(headerScores(header)).some((score) => score >= 1));
+    const attachmentField =
+      linkColumn || (useGroups && (someLink || emptyUploadTitle))
+        ? attachmentFieldOfHeader(header)
+        : null;
     if (attachmentField) {
       return {
         column,
@@ -477,7 +574,7 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
     }
     // Header menyebut kependudukan/KTP secara eksplisit (mis. "NIK (Nomor Induk Kependudukan)") = NIK KTP
     // walau isinya belum berformat (isi salah tetap ditandai saat pratinjau).
-    if (KTP_HEADER.test(String(header ?? ""))) {
+    if (KTP_HEADER.test(String(fullHeader ?? ""))) {
       combined.ktpNumber = 1;
       combined.employeeNumber = 0;
     }
@@ -490,15 +587,24 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
   });
 
   const candidates: { column: number; field: ImportFieldKey; score: number }[] = [];
+  const byColumn = new Map<number, { field: ImportFieldKey; score: number }>();
+  const usedFields = new Set<ImportFieldKey>();
+  // D-061: kolom berkelompok Form dipetakan apa adanya — dua kolom boleh ke field yang sama (pertanyaan
+  // versi lama & baru, mis. "No. SIM A" dan "No. SIM A 2"); nilai pertama yang terisi dipakai.
   for (const col of columns) {
-    if (col.derived) continue;
+    if (!("grouped" in col)) continue;
+    const [field] = Object.keys(col.combined) as ImportFieldKey[];
+    if (!field) continue;
+    byColumn.set(col.column, { field, score: 1 });
+    usedFields.add(field);
+  }
+  for (const col of columns) {
+    if (col.derived || "grouped" in col) continue;
     for (const [field, score] of Object.entries(col.combined) as [ImportFieldKey, number][]) {
       if (score >= 0.5) candidates.push({ column: col.column, field, score });
     }
   }
   candidates.sort((a, b) => b.score - a.score || a.column - b.column);
-  const byColumn = new Map<number, { field: ImportFieldKey; score: number }>();
-  const usedFields = new Set<ImportFieldKey>();
   for (const cand of candidates) {
     if (byColumn.has(cand.column) || usedFields.has(cand.field)) continue;
     byColumn.set(cand.column, { field: cand.field, score: cand.score });
@@ -509,7 +615,7 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
     return {
       column: col.column,
       letter: columnLetter(col.column),
-      header: col.header,
+      header: detected.headers[col.column] ?? "",
       field: chosen?.field ?? null,
       confidence: chosen ? Math.round(chosen.score * 100) / 100 : 0,
       derived: col.derived,
@@ -526,7 +632,8 @@ export function buildRawRows(
     const raw: Partial<Record<ImportFieldKey, GridCell>> = {};
     mapping.forEach((field, column) => {
       const cell = row.cells[column] ?? null;
-      if (field && !isEmpty(cell)) raw[field] = cell;
+      // D-061: field dari dua kolom (Form versi lama & baru) → nilai pertama yang terisi.
+      if (field && !isEmpty(cell) && raw[field] === undefined) raw[field] = cell;
     });
     return { sourceRow: row.sourceRow, raw };
   });

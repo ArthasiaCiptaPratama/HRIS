@@ -65,6 +65,17 @@ export function normalizeHeader(value: unknown): string {
     .replace(/\s+/g, " ");
 }
 
+/**
+ * D-061: judul pertanyaan Google Form dari header Sheet respons — baris pertama saja (baris berikutnya =
+ * deskripsi pertanyaan; `_x000a_` = baris baru yang tidak di-decode pembaca xlsx), tanpa akhiran angka
+ * yang ditambahkan Sheet untuk judul kembar ("Usia 2", "No. Sertifikasi 10"). "ISO 9001" (4 digit) dan
+ * "Pendidikan 2 (Sebelumnya)" (tidak berakhir angka) tidak terpotong.
+ */
+export function formTitle(value: unknown): string {
+  const first = String(value ?? "").split(/\r?\n|_x000a_/i)[0] ?? "";
+  return first.trim().replace(/\s+\d{1,2}$/, "");
+}
+
 /** Teks umum: trim + spasi tunggal; kosong → undefined. */
 export function cleanText(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;

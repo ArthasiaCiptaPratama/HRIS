@@ -49,8 +49,15 @@ export async function loadMasterData() {
 
 // ── D-042: master data baru dari import (dalam transaksi pemanggil) ───────────
 
-export async function createDepartment(tx: OrganizationTx, name: string) {
-  return tx.department.create({ data: { name }, select: { id: true, name: true } });
+export async function createDepartment(
+  tx: OrganizationTx,
+  name: string,
+  placement: { parentId: string; companyId: string | null } | null = null,
+) {
+  return tx.department.create({
+    data: { name, ...(placement ?? {}) },
+    select: { id: true, name: true },
+  });
 }
 
 export async function createPosition(tx: OrganizationTx, departmentId: string, name: string) {

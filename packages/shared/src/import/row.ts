@@ -58,6 +58,8 @@ export interface NormalizedImportRow {
   durationMonths?: number;
   positionName?: string;
   departmentName?: string;
+  /** D-061: nama unit berjenis Divisi (dicocokkan persis di server, tidak disimpan di karyawan). */
+  divisionName?: string;
   workLocationName?: string;
   gradeName?: string;
   workEmail?: string;
@@ -92,6 +94,19 @@ export interface NormalizedImportRow {
     /** Nomor per jenis SIM ("A" → nomor). */
     drivingLicenseNumbers?: Partial<Record<DrivingLicenseType, string>>;
     emergencyContactAddress?: string;
+    /** D-061: rincian alamat (teks isian Form) & kontak darurat ke-2. */
+    domicileVillage?: string;
+    domicileDistrict?: string;
+    domicileCity?: string;
+    domicileProvince?: string;
+    ktpVillage?: string;
+    ktpDistrict?: string;
+    ktpCity?: string;
+    ktpProvince?: string;
+    emergencyContact2Name?: string;
+    emergencyContact2Relationship?: string;
+    emergencyContact2Phone?: string;
+    emergencyContact2Address?: string;
   };
   /** D-059: anggota keluarga dari Formulir Data Karyawan (sensitif). */
   family?: ImportFamilyMember[];
@@ -119,6 +134,8 @@ export interface ImportFamilyMember {
   occupation?: string;
   ageAtEntry?: number;
   workAddress?: string;
+  /** D-061: keterangan hubungan saudara (Kakak/Adik). */
+  relationDetail?: string;
 }
 export interface ImportEducation {
   source: ImportFieldKey;
@@ -202,6 +219,7 @@ export function normalizeImportRow(raw: RawImportRow): {
   set("joinDate", take("joinDate", parseDate(raw.joinDate)));
   set("positionName", take("positionName", parseText(raw.positionName, 100)));
   set("departmentName", take("departmentName", parseText(raw.departmentName, 100)));
+  set("divisionName", take("divisionName", parseText(raw.divisionName, 100)));
   set("workLocationName", take("workLocationName", parseText(raw.workLocationName, 100)));
   set("gradeName", take("gradeName", parseText(raw.gradeName, 50)));
   set("workEmail", take("workEmail", parseEmail(raw.workEmail)));
@@ -336,6 +354,7 @@ export function normalizeImportRow(raw: RawImportRow): {
     if (keys.occupation) entry.occupation = text(keys.occupation, 100);
     if (keys.ageAtEntry) entry.ageAtEntry = age(keys.ageAtEntry);
     if (keys.workAddress) entry.workAddress = text(keys.workAddress, 500);
+    if (keys.relationDetail) entry.relationDetail = text(keys.relationDetail, 30);
     const filled = Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined));
     if (name) family.push({ source: nameKey, relationship, name, ...filled });
     else if (Object.keys(filled).length > 0) warn(nameKey, "FAMILY_NAME_REQUIRED");
@@ -354,6 +373,7 @@ export function normalizeImportRow(raw: RawImportRow): {
       birthPlace: `child${n}BirthPlace`,
       birthDate: `child${n}BirthDate`,
       education: `child${n}Education`,
+      occupation: `child${n}Occupation`,
     });
   for (const [rel, who] of [
     ["FATHER", "father"],
@@ -371,6 +391,7 @@ export function normalizeImportRow(raw: RawImportRow): {
       ageAtEntry: `sibling${n}Age`,
       education: `sibling${n}Education`,
       occupation: `sibling${n}Occupation`,
+      relationDetail: `sibling${n}Relation`,
     });
   if (family.length > 0) row.family = family;
 
@@ -428,9 +449,13 @@ export function normalizeImportRow(raw: RawImportRow): {
       continue;
     }
     const spec = ATTACHMENT_SPECS[key];
+    // D-061: file SIM A/C membawa nomor SIM jenisnya sebagai nomor dokumen.
+    const simType = { attachSimA: "A", attachSimC: "C" }[key as string];
     const documentNumber = spec.certKey
       ? certifications.find((c) => c.key === spec.certKey)?.number
-      : undefined;
+      : simType
+        ? cleanText(raw[`simNumber${simType}` as ImportFieldKey])?.slice(0, 60)
+        : undefined;
     attachments.push({
       source: key,
       target: spec.target,
@@ -443,6 +468,13 @@ export function normalizeImportRow(raw: RawImportRow): {
   if (attachments.length > 0) row.attachments = attachments;
 
   setP("emergencyContactAddress", text("emergencyContactAddress", 500));
+  for (const prefix of ["domicile", "ktp"] as const)
+    for (const attr of ["Village", "District", "City", "Province"] as const)
+      setP(`${prefix}${attr}`, text(`${prefix}${attr}`, 100));
+  setP("emergencyContact2Name", text("emergency2Name", 150));
+  setP("emergencyContact2Relationship", text("emergency2Relationship", 50));
+  setP("emergencyContact2Phone", take("emergency2Phone", parsePhone(raw.emergency2Phone)));
+  setP("emergencyContact2Address", text("emergency2Address", 500));
   const simNumbers: Partial<Record<DrivingLicenseType, string>> = {};
   for (const type of DRIVING_LICENSE_TYPES) {
     const number = text(`simNumber${type}`, 30);
@@ -520,6 +552,9 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   SENSITIVE_OWN_ROW: "Data sensitif milik akun Anda sendiri tidak diubah lewat import",
   EXIT_BEFORE_JOIN: "Tanggal keluar sebelum tanggal masuk",
   MANAGER_NOT_FOUND: "Atasan tidak ditemukan",
+  DIVISION_UNKNOWN:
+    "Divisi tidak ditemukan: harus sama persis dengan unit berjenis Divisi di Struktur Organisasi",
+  DIVISION_MISMATCH: "Departemen ini tidak berada di bawah divisi tersebut",
   EXIT_EXISTING_IGNORED:
     "Status keluar karyawan yang sudah ada tidak diubah lewat import (pakai Ubah Status)",
 };

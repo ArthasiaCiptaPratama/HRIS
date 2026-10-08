@@ -100,6 +100,8 @@ export const positionKey = (department: string, name: string) =>
 
 export interface MasterDataNames {
   departments: string[];
+  /** D-061: induk departemen baru (kunci `masterKey` nama departemen → id unit Divisi). */
+  departmentParents?: Record<string, string>;
   positions: { department: string; name: string }[];
   grades: string[];
   workLocations: string[];
@@ -172,6 +174,7 @@ export function missingMasterData(lookup: MasterLookup, names: MasterDataNames):
   }
   return {
     departments: unique(names.departments, index.departments),
+    ...(names.departmentParents ? { departmentParents: names.departmentParents } : {}),
     positions: [...positions.values()],
     grades: unique(names.grades, index.grades),
     workLocations: unique(names.workLocations, index.workLocations),
@@ -198,7 +201,14 @@ export async function createMissingMasterData(
       tx,
     );
   for (const name of missing.departments) {
-    const row = await repository.createDepartment(tx, name);
+    // D-061: departemen baru dari import yang ber-Divisi ditempatkan di bawah divisinya (PT ikut divisi).
+    const parentId = missing.departmentParents?.[masterKey(name)];
+    const parent = parentId ? lookup.departments.get(parentId) : undefined;
+    const row = await repository.createDepartment(
+      tx,
+      name,
+      parent ? { parentId: parent.id, companyId: parent.companyId } : null,
+    );
     index.departments.set(masterKey(name), row.id);
     await log("department", row.id, name);
   }
