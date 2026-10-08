@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt } from "./helpers";
 import { supabaseMock } from "./supabase-mock";
 
@@ -157,7 +158,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Layanan Mandiri › data saya (OD-6)", () => {
+// D-043 rilis bertahap: suite fitur yang disembunyikan saklar FEATURES dilewati di jalur rilis.
+describe.skipIf(!FEATURES.selfService)("Layanan Mandiri › data saya (OD-6)", () => {
   it("rekening tersamar; bagian menunggu tanpa tombol; ajukan kontak darurat", async () => {
     const calls = mockFetch(me("EMPLOYEE", false, "e1"));
     renderAt("/ess");
@@ -229,7 +231,7 @@ describe("Layanan Mandiri › data saya (OD-6)", () => {
   });
 });
 
-describe("Administrasi › Pengajuan Perubahan Data", () => {
+describe.skipIf(!FEATURES.selfService)("Administrasi › Pengajuan Perubahan Data", () => {
   it("HR ber-grant: baris tanpa grant bagian 'Butuh izin'; periksa → perbandingan; tolak wajib alasan; setujui", async () => {
     const calls = mockFetch(
       withGrants(me("HR_ADMIN"), [
@@ -270,7 +272,7 @@ describe("Administrasi › Pengajuan Perubahan Data", () => {
   });
 });
 
-describe("Arsip › Data Bank", () => {
+describe.skipIf(!FEATURES.archive)("Arsip › Data Bank", () => {
   it("SA: nomor rekening penuh", async () => {
     mockFetch(me("SUPER_ADMIN", true));
     renderAt("/personal/arsip/bank");

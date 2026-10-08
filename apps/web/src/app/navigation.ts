@@ -112,7 +112,7 @@ const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): Na
   to: `/personal/arsip/${id}`,
   icon,
   visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
-  maintenance: !ARCHIVE_READY.has(id),
+  maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
   keywords,
 });
 
@@ -283,6 +283,7 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           {
             id: "onboarding",
+            maintenance: !FEATURES.onboarding,
             label: "Penerimaan Karyawan Baru",
             to: "/penerimaan",
             icon: UserPlus,
@@ -292,6 +293,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             // D-054 / OD-6: pengajuan perubahan data diri (ESS) menunggu persetujuan.
             id: "data-changes",
+            maintenance: !FEATURES.selfService,
             label: "Pengajuan Perubahan Data",
             to: "/pengajuan-data",
             icon: FilePen,
@@ -325,6 +327,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             // D-055: katalog jenis dokumen karyawan (masa berlaku, sensitif, wajib).
             id: "master-document-types",
+            maintenance: !FEATURES.archive,
             label: "Jenis dokumen",
             to: `${MASTER_DATA_BASE}/jenis-dokumen`,
             icon: FileText,
@@ -352,6 +355,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { id: "notifications", label: "Notifikasi", to: "/notifikasi", icon: Bell },
           {
             id: "ess",
+            maintenance: !FEATURES.selfService,
             label: "Layanan Mandiri",
             to: "/ess",
             icon: Clock,

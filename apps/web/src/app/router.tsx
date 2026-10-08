@@ -48,7 +48,10 @@ export const routes: RouteObject[] = [
               { path: "pegawai-aktif", element: <Navigate to="semua" replace /> },
               { path: "pegawai-aktif/:category", lazy: pages.activeEmployees },
               // D-054: Arsip — tabel lintas karyawan (MANAGER: tim, kolom kerja; API penentu akses).
-              { path: "arsip/:section", lazy: pages.archive },
+              {
+                path: "arsip/:section",
+                lazy: FEATURES.archive ? pages.archive : pages.maintenance,
+              },
               {
                 path: "struktur-organisasi",
                 lazy: FEATURES.orgStructure ? pages.orgStructure : pages.maintenance,
@@ -104,13 +107,21 @@ export const routes: RouteObject[] = [
             path: "penerimaan",
             element: <RequireAccessRoute check={access.runOnboarding} />,
             children: [
-              { index: true, lazy: pages.onboarding },
-              { path: "impor", lazy: pages.onboardingImport },
+              { index: true, lazy: FEATURES.onboarding ? pages.onboarding : pages.maintenance },
+              {
+                path: "impor",
+                lazy: FEATURES.onboarding ? pages.onboardingImport : pages.maintenance,
+              },
               {
                 // D-045 c: review isian calon (SA / HR + grant; cakupan PT dicek API).
                 path: ":employeeId",
                 element: <RequireAccessRoute check={access.reviewOnboarding} />,
-                children: [{ index: true, lazy: pages.onboardingReview }],
+                children: [
+                  {
+                    index: true,
+                    lazy: FEATURES.onboarding ? pages.onboardingReview : pages.maintenance,
+                  },
+                ],
               },
             ],
           },
@@ -123,7 +134,10 @@ export const routes: RouteObject[] = [
               // D-051: pos jabatan (bagan organisasi).
               { path: "pos-jabatan", lazy: pages.orgPosts },
               // D-055: jenis dokumen karyawan.
-              { path: "jenis-dokumen", lazy: pages.documentTypes },
+              {
+                path: "jenis-dokumen",
+                lazy: FEATURES.archive ? pages.documentTypes : pages.maintenance,
+              },
               { path: ":kind", lazy: pages.masterData },
             ],
           },
@@ -131,10 +145,12 @@ export const routes: RouteObject[] = [
             // D-054 / OD-6: Administrasi › Pengajuan Perubahan Data (SA / HR ber-grant).
             path: "pengajuan-data",
             element: <RequireAccessRoute check={access.reviewDataChanges} />,
-            children: [{ index: true, lazy: pages.dataChanges }],
+            children: [
+              { index: true, lazy: FEATURES.selfService ? pages.dataChanges : pages.maintenance },
+            ],
           },
           // D-045 c: Layanan Mandiri (placeholder sampai Time Management).
-          { path: "ess", lazy: pages.ess },
+          { path: "ess", lazy: FEATURES.selfService ? pages.ess : pages.maintenance },
           { path: "notifikasi", Component: NotificationsPage },
           { path: "profil", Component: ProfilePage },
           { path: "*", Component: NotFoundPage },

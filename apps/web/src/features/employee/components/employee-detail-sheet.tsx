@@ -577,7 +577,7 @@ function FamilyTab({ employee }: { employee: EmployeeDetail }) {
 
 function EducationTab({ employee }: { employee: EmployeeDetail }) {
   // D-054 (Arsip 1a): SA/HR mengelola pendidikan, pelatihan, riwayat kerja langsung dari sini.
-  const canManage = employee.access.manage;
+  const canManage = employee.access.manage && FEATURES.archive;
   return (
     <div className="space-y-8">
       <EducationSection employee={employee} canManage={canManage} />
@@ -633,7 +633,7 @@ const POSITION_HISTORY_TYPES: EmploymentChangeType[] = [
 ];
 
 function HistoryTab({ employee }: { employee: EmployeeDetail }) {
-  const canManage = employee.access.manage;
+  const canManage = employee.access.manage && FEATURES.archive;
   const editor = usePositionHistoryEditor(employee);
   const add = canManage ? (
     <div className="mb-6 flex justify-end">

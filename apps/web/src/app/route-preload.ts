@@ -81,16 +81,16 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
     FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
   ],
   ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
-  ["/personal/arsip", pages.archive],
+  ["/personal/arsip", FEATURES.archive ? pages.archive : pages.maintenance],
   ["/personal/laporan", pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
-  ["/master-data/jenis-dokumen", pages.documentTypes],
+  ["/master-data/jenis-dokumen", FEATURES.archive ? pages.documentTypes : pages.maintenance],
   ["/master-data", pages.masterData],
-  ["/penerimaan/impor", pages.onboardingImport],
-  ["/penerimaan/", pages.onboardingReview],
-  ["/penerimaan", pages.onboarding],
-  ["/ess", pages.ess],
-  ["/pengajuan-data", pages.dataChanges],
+  ["/penerimaan/impor", FEATURES.onboarding ? pages.onboardingImport : pages.maintenance],
+  ["/penerimaan/", FEATURES.onboarding ? pages.onboardingReview : pages.maintenance],
+  ["/penerimaan", FEATURES.onboarding ? pages.onboarding : pages.maintenance],
+  ["/ess", FEATURES.selfService ? pages.ess : pages.maintenance],
+  ["/pengajuan-data", FEATURES.selfService ? pages.dataChanges : pages.maintenance],
 ];
 
 export function preloadRoute(path: string): void {

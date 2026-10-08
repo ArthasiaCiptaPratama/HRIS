@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt } from "./helpers";
 import { supabaseMock } from "./supabase-mock";
 
@@ -198,7 +199,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Arsip › Data File (D-055)", () => {
+// D-043 rilis bertahap: suite fitur yang disembunyikan saklar FEATURES dilewati di jalur rilis.
+describe.skipIf(!FEATURES.archive)("Arsip › Data File (D-055)", () => {
   it("tabel dokumen + lencana masa berlaku; filter Masa berlaku dikirim ke API", async () => {
     const calls = mockFetch(me("SUPER_ADMIN", true));
     renderAt("/personal/arsip/file");
@@ -219,7 +221,7 @@ describe("Arsip › Data File (D-055)", () => {
 describe("Detail karyawan › tab Dokumen", () => {
   it("versi aktif + versi sebelumnya; unggah: kedaluwarsa wajib, terisi otomatis dari tanggal terbit", async () => {
     const calls = mockFetch(me("HR_ADMIN"));
-    renderAt("/personal/arsip/file?pegawai=e1&tab=documents");
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1&tab=documents");
     const panel = await screen.findByRole("tabpanel");
     expect(await within(panel).findByText("SIMPER")).toBeInTheDocument();
     expect(within(panel).getByText("Versi 2")).toBeInTheDocument();
@@ -264,7 +266,7 @@ describe("Detail karyawan › tab Dokumen", () => {
 
   it("MANAGER (tanpa hak tulis): tanpa tombol unggah & menu aksi", async () => {
     mockFetch(me("MANAGER", false, "e-mgr"), false);
-    renderAt("/personal/arsip/file?pegawai=e1&tab=documents");
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1&tab=documents");
     const panel = await screen.findByRole("tabpanel");
     expect(await within(panel).findByText("SIMPER")).toBeInTheDocument();
     expect(within(panel).queryByRole("button", { name: /Unggah dokumen/ })).toBeNull();
@@ -276,7 +278,7 @@ describe("Detail karyawan › tab Dokumen", () => {
 describe("Detail karyawan › tab Rekening: buku tabungan", () => {
   it("HR ber-grant rekening: rekening + buku tabungan (lihat, ganti versi)", async () => {
     mockFetch(me("HR_ADMIN"));
-    renderAt("/personal/arsip/file?pegawai=e1&tab=bank");
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1&tab=bank");
     const panel = await screen.findByRole("tabpanel");
     expect(await within(panel).findByText("1111222233")).toBeInTheDocument();
     const book = await within(panel).findByRole("region", { name: "Buku tabungan" });
@@ -287,7 +289,7 @@ describe("Detail karyawan › tab Rekening: buku tabungan", () => {
 
   it("tanpa hak tulis: buku tabungan hanya bisa dilihat", async () => {
     mockFetch(me("MANAGER", false, "e-mgr"), false);
-    renderAt("/personal/arsip/file?pegawai=e1&tab=bank");
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1&tab=bank");
     const book = await screen.findByRole("region", { name: "Buku tabungan" });
     expect(
       await within(book).findByRole("button", { name: /Lihat Buku tabungan/ }),
@@ -296,7 +298,7 @@ describe("Detail karyawan › tab Rekening: buku tabungan", () => {
   });
 });
 
-describe("Master Data › Jenis dokumen", () => {
+describe.skipIf(!FEATURES.archive)("Master Data › Jenis dokumen", () => {
   it("SA menambah jenis: kode huruf besar, pengingat diurutkan", async () => {
     const calls = mockFetch(me("SUPER_ADMIN", true));
     renderAt("/master-data/jenis-dokumen");

@@ -356,6 +356,25 @@ describe("halaman Personal Management", () => {
     }
   });
 
+  // D-043 rilis bertahap (2026-10-08): fitur develop yang belum dirilis → menu "Segera" + halaman
+  // Maintenance; Import & Struktur Organisasi tidak terpengaruh.
+  const STAGED = [
+    ["Penerimaan Karyawan Baru", "/penerimaan", FEATURES.onboarding],
+    ["Jenis dokumen", "/master-data/jenis-dokumen", FEATURES.archive],
+    ["Data Kontak", "/personal/arsip/kontak", FEATURES.archive],
+    ["Pengajuan Perubahan Data", "/pengajuan-data", FEATURES.selfService],
+    ["Layanan Mandiri", "/ess", FEATURES.selfService],
+  ] as const;
+
+  it.each(STAGED)("menu %s mengikuti saklar rilis bertahap", (label, to, enabled) => {
+    const entries = flattenNav(visibleGroups(me("SUPER_ADMIN")));
+    const entry = entries.find((e) => e.item.label === label);
+    expect(entry?.item.to).toBe(to);
+    expect(Boolean(entry?.item.maintenance)).toBe(!enabled);
+    const importEntry = entries.find((e) => e.item.label === "Import Data Karyawan");
+    expect(importEntry?.item.maintenance).toBeFalsy();
+  });
+
   it("MANAGER membuka Ubah Status → akses ditolak (API juga menolak)", async () => {
     mockApi({
       "/me": [200, { data: me("MANAGER", false, "emp-1") }],

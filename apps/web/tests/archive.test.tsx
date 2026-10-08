@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -159,7 +160,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Arsip › Data Pelatihan (D-054)", () => {
+// D-043 rilis bertahap: suite fitur yang disembunyikan saklar FEATURES dilewati di jalur rilis.
+describe.skipIf(!FEATURES.archive)("Arsip › Data Pelatihan (D-054)", () => {
   it("SA: tabel + kolom Biaya (Rupiah), filter Jenis; klik baris → detail di tab Pendidikan", async () => {
     const calls = mockFetch(me("SUPER_ADMIN", true));
     renderAt("/personal/arsip/pelatihan");
@@ -212,7 +214,7 @@ describe("Arsip › Data Pelatihan (D-054)", () => {
   });
 });
 
-describe("Detail karyawan: kelola item Arsip (SA/HR)", () => {
+describe.skipIf(!FEATURES.archive)("Detail karyawan: kelola item Arsip (SA/HR)", () => {
   it("tambah pendidikan → POST /employees/e1/educations dengan body tervalidasi", async () => {
     const calls = mockFetch(me("SUPER_ADMIN", true));
     renderAt("/personal/arsip/pelatihan?pegawai=e1&tab=education");

@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -145,7 +146,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Penerimaan Karyawan Baru (D-045)", () => {
+// D-043 rilis bertahap: suite fitur yang disembunyikan saklar FEATURES dilewati di jalur rilis.
+describe.skipIf(!FEATURES.onboarding)("Penerimaan Karyawan Baru (D-045)", () => {
   it("daftar: tab status ber-hitungan, status & undangan per calon, Undang memanggil kirim ulang", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(me("HR_ADMIN"));

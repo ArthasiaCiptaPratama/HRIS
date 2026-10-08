@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -134,7 +135,8 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("Review onboarding (D-045 c)", () => {
+// D-043 rilis bertahap: suite fitur yang disembunyikan saklar FEATURES dilewati di jalur rilis.
+describe.skipIf(!FEATURES.onboarding)("Review onboarding (D-045 c)", () => {
   it("HR ber-grant melihat isian + dokumen; setujui mengirim PTKP", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(hrWithGrant);
