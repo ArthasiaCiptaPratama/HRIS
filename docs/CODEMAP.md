@@ -7,7 +7,7 @@
 
 | Metadata        | Nilai                                                        |
 | --------------- | ------------------------------------------------------------ |
-| Terakhir diubah | 2026-10-08 (D-061 Import Form 171 kolom; D-060 lampiran Google Drive di Import; Arsip 1d ekspor & cetak) |
+| Terakhir diubah | 2026-10-08 (rilis gel. 2 + saklar `onboarding`/`archive`/`selfService`; D-061 Import Form 171 kolom; D-060 lampiran Google Drive di Import; Arsip 1d ekspor & cetak) |
 | Kondisi repo    | Fase 1 hampir selesai (sisa uji Windows); Fase 2 IAM review; Fase 3–4 berjalan (modul `organization` baca, `employee` + foto profil + print). Staging live (D-036) |
 
 ---
@@ -162,7 +162,7 @@ apps/web/
 │   ├── index.css                     [done] Tailwind v4; tema D-035: netral zinc + aksen teal `--brand` (+ `--success`/`--warning`); cincin fokus `--ring` abu netral (zinc-400/500, permintaan pemilik projek 2026-09-29); autofill browser dinetralkan (`:autofill`), animasi transform/opacity (`animate-fade-up` kaskade `--i`, `skeleton` kilau, float/swing/blink), `prefers-reduced-motion` mematikan animasi
 │   ├── app/
 │   │   ├── navigation.ts             [done] D-035: SATU sumber menu — kelompok besar (top nav) → seksi (kelompok kecil) → item/anak; `visibleGroups(me)`, `activeTrail()` (breadcrumb/penanda aktif), `flattenNav()` (pencarian cepat), `CATEGORY_SLUGS`
-│   │   ├── feature-flags.ts          [done] `FEATURES`: saklar halaman web; `false` = rute & menu tampil Maintenance ("Segera"), kode halaman tetap disimpan. Menu b–e (Ubah Status, Pengaktifan, Karyawan Tidak Aktif, Struktur Organisasi). **Nilai berbeda per jalur (D-043):** develop bebas diubah untuk pengecekan (umumnya semua `true`); rilis/staging sejak 2026-10-05 semua `true` (b–e). API tidak terpengaruh
+│   │   ├── feature-flags.ts          [done] `FEATURES`: saklar halaman web; `false` = rute & menu tampil Maintenance ("Segera"), kode halaman tetap disimpan. Menu b–e (Ubah Status, Pengaktifan, Karyawan Tidak Aktif, Struktur Organisasi). **Nilai berbeda per jalur (D-043):** develop bebas diubah untuk pengecekan (umumnya semua `true`); rilis/staging sejak 2026-10-05 semua `true` (b–e). API tidak terpengaruh · **2026-10-08 (D-043 rilis bertahap):** `onboarding` (Penerimaan), `archive` (menu Arsip, Master Data › Jenis dokumen, kelola Arsip di detail), `selfService` (Layanan Mandiri, Pengajuan Perubahan Data) — develop `true`, rilis `false`; suite test fitur tersebut `describe.skipIf(!FEATURES.x)`
 │   │   ├── route-preload.ts          [done] Loader `lazy` per halaman (code splitting) + `preloadRoute()` saat hover menu
 │   │   ├── router.tsx                [done] Publik: `/login`, `/lupa-password`, `/auth/callback`, `/auth/atur-password`; terlindungi (`RequireAuth`): `/` (Dashboard), `/personal/*` (`RequireAccessRoute` personalMenu; ubah-status, import (D-042), pengaktifan, pegawai-tidak-aktif, arsip/:section, laporan → manageEmployees), `/akun`, `/grant`, `/audit` (`RequireAccess`), `/notifikasi`, `/profil`
 │   │   ├── providers.tsx             [done] TanStack Query (401 → `signOut` global; tanpa retry untuk 401/403/404) + `AuthProvider` + Toaster (sonner)
