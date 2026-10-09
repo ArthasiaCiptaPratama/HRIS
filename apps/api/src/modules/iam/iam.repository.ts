@@ -22,6 +22,27 @@ export async function findActiveAccountByAuthUserId(authUserId: string, now: Dat
   });
 }
 
+// ── D-065: susunan widget dashboard per akun ──
+export async function findDashboardLayout(accountId: string) {
+  return getPrisma().dashboardLayout.findUnique({
+    where: { accountId },
+    select: { layout: true, updatedAt: true },
+  });
+}
+
+export async function upsertDashboardLayout(accountId: string, layout: Prisma.InputJsonValue) {
+  return getPrisma().dashboardLayout.upsert({
+    where: { accountId },
+    create: { accountId, layout },
+    update: { layout },
+    select: { layout: true, updatedAt: true },
+  });
+}
+
+export async function deleteDashboardLayout(accountId: string) {
+  await getPrisma().dashboardLayout.deleteMany({ where: { accountId } });
+}
+
 export async function touchLastLogin(accountId: string, at: Date) {
   return getPrisma().account.update({
     where: { id: accountId },

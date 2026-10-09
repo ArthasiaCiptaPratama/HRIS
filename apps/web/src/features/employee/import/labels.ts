@@ -45,3 +45,23 @@ export const ACTION_LABELS = {
   SKIP: "Dilewati",
   ERROR: "Error",
 } as const;
+
+/** Petunjuk tindakan untuk error baris di Pratinjau (yang tidak tercantum: perbaiki di file). */
+const ISSUE_HINTS: Record<string, string> = {
+  NO_IDENTITY: "Isi NIP atau perbaiki NIK KTP di file, lalu unggah ulang.",
+  UNIT_UNMATCHED: "Pilih unitnya di langkah Lengkapi data.",
+  UNIT_INVALID: "Pilih ulang unitnya di langkah Lengkapi data.",
+  COMPANY_REQUIRED: "Pilih PT di kolom PT baris ini atau PT bawaan di Lengkapi data.",
+  CATEGORY_REQUIRED: "Pilih status di kolom Status baris ini.",
+  STATUS_INVALID: "Pilih status lain di kolom Status baris ini.",
+};
+
+/** Satu kalimat "apa yang harus dilakukan" untuk error-error satu baris. */
+export function issueHint(issues: Pick<ImportRowIssue, "code" | "severity">[]): string | null {
+  const errors = issues.filter((i) => i.severity === "ERROR");
+  if (errors.length === 0) return null;
+  const hints = [...new Set(errors.map((i) => ISSUE_HINTS[i.code]).filter(Boolean))];
+  if (errors.some((i) => !ISSUE_HINTS[i.code]))
+    hints.push("Perbaiki di file (Unduh baris bermasalah), lalu unggah ulang.");
+  return hints.join(" ");
+}

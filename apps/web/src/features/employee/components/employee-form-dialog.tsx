@@ -54,7 +54,7 @@ const EMPTY: EmployeeForm = {
 
 function fromDetail(employee: EmployeeDetail): EmployeeForm {
   return {
-    employeeNumber: employee.employeeNumber,
+    employeeNumber: employee.employeeNumber ?? "",
     fullName: employee.fullName,
     workEmail: employee.workEmail ?? "",
     phoneNumber: employee.phoneNumber ?? "",
@@ -165,7 +165,7 @@ export function EmployeeFormDialog({
   const onSubmit = handleSubmit(async (values) => {
     const placed = values.orgPostId !== "";
     const body: EmployeeWriteBody = {
-      employeeNumber: values.employeeNumber.trim(),
+      employeeNumber: orNull(values.employeeNumber),
       fullName: values.fullName.trim(),
       workEmail: orNull(values.workEmail),
       phoneNumber: orNull(values.phoneNumber),
@@ -237,7 +237,7 @@ export function EmployeeFormDialog({
               >
                 <Input
                   id="f-number"
-                  placeholder="ACP-2026-0022"
+                  placeholder="ACP-2026-0022 (kosongkan bila belum ada)"
                   className="font-mono"
                   aria-invalid={Boolean(errors.employeeNumber)}
                   {...register("employeeNumber")}

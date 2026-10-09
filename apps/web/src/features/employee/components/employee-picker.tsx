@@ -119,7 +119,7 @@ export function EmployeePicker({
                       </span>
                       {/* Nomor induk membedakan karyawan bernama sama sebelum menonaktifkan dsb. */}
                       <span className="text-muted-foreground block truncate text-xs">
-                        <span className="font-mono">{row.employeeNumber}</span> ·{" "}
+                        <span className="font-mono">{row.employeeNumber ?? "—"}</span> ·{" "}
                         {row.position.name}
                       </span>
                     </span>

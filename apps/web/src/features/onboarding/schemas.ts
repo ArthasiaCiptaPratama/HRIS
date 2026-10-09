@@ -46,7 +46,7 @@ export type ProcessResult = z.infer<typeof processResultSchema>;
 
 export const candidateSchema = z.object({
   id: z.string(),
-  employeeNumber: z.string(),
+  employeeNumber: z.string().nullable(),
   fullName: z.string(),
   email: z.string().nullable(),
   companyId: z.string(),
@@ -167,7 +167,7 @@ export type MyOnboarding = z.infer<typeof myOnboardingSchema>;
 // D-045 c: halaman review (SA / HR + grant).
 export const onboardingReviewSchema = myOnboardingSchema.extend({
   reviewMode: z.enum(["candidate", "completion"]),
-  employeeNumber: z.string(),
+  employeeNumber: z.string().nullable(),
   personalEmail: ns,
   work: z.object({
     companyId: z.string(),

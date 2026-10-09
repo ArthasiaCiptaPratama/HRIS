@@ -125,8 +125,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // D-063: karyawan tanpa NIP dikenali lewat nama berpenanda RUN.
   const employees = await prisma.employee.findMany({
-    where: { employeeNumber: { startsWith: `IMP-${RUN}-` } },
+    where: {
+      OR: [
+        { employeeNumber: { startsWith: `IMP-${RUN}-` } },
+        { fullName: { startsWith: `Impor ${RUN}` } },
+      ],
+    },
     select: { id: true },
   });
   const employeeIds = employees.map((e) => e.id);
@@ -173,6 +179,8 @@ afterAll(async () => {
   });
   await auth.cleanup();
   await prisma.position.deleteMany({ where: { departmentId: { in: deptIds } } });
+  // D-064: unit baru bisa berjenjang (induk juga dari import) → lepas induk dulu.
+  await prisma.department.updateMany({ where: { id: { in: deptIds } }, data: { parentId: null } });
   await prisma.department.deleteMany({ where: { id: { in: deptIds } } });
   await prisma.grade.deleteMany({ where: { id: { in: grades.map((g) => g.id) } } });
   await prisma.workLocation.deleteMany({ where: { id: { in: locations.map((l) => l.id) } } });
@@ -204,10 +212,10 @@ describe("POST /employee-imports/preview", () => {
     expect(await countEmployees()).toBe(before);
     expect(preview.counts).toEqual({
       total: 5,
-      create: 1,
+      create: 2,
       update: 1,
       skip: 0,
-      error: 2,
+      error: 1,
       blank: 1,
       attachments: 0,
     });
@@ -216,10 +224,12 @@ describe("POST /employee-imports/preview", () => {
     );
     expect(byRow[6].action).toBe("CREATE");
     expect(byRow[7]).toMatchObject({ action: "UPDATE", changes: ["phoneNumber"] });
+    // D-063: NIK KTP tidak valid = peringatan, baris tetap dibuat (NIK tidak disimpan).
+    expect(byRow[8].action).toBe("CREATE");
     expect(byRow[8].issues).toContainEqual({
       field: "ktpNumber",
-      code: "INVALID_LENGTH_16",
-      severity: "ERROR",
+      code: "KTP_INVALID_SKIPPED",
+      severity: "WARNING",
     });
     expect(byRow[9].issues).toContainEqual({
       field: "employeeNumber",
@@ -266,6 +276,97 @@ describe("POST /employee-imports/preview", () => {
         }),
       ),
     ).toBe("VALIDATION_ERROR");
+  });
+});
+
+// D-062: status kepegawaian untuk baris yang belum ada di sistem (mis. Sheet Google Form tanpa kolom
+// status) — per baris > kolom file > status bawaan; karyawan yang sudah ada tidak diubah statusnya.
+describe("D-062 status bawaan & status per baris", () => {
+  const noStatus = (n: string, extra: Record<string, unknown> = {}) =>
+    baseRow(n, { employmentStatusText: null, ...extra });
+  const preview = async (payload: unknown) =>
+    data(await call("POST", "/employee-imports/preview", sa.headers, payload));
+  const byRow = (p: { rows: { sourceRow: number }[] }) =>
+    // biome-ignore lint/suspicious/noExplicitAny: bentuk baris pratinjau diperiksa per test
+    Object.fromEntries(p.rows.map((r) => [r.sourceRow, r])) as Record<number, any>;
+
+  test("bawaan untuk baris tanpa status, per baris diutamakan, kolom file mengalahkan bawaan", async () => {
+    const p = byRow(
+      await preview(
+        body(
+          [
+            row(6, noStatus("S1")),
+            row(7, noStatus("S2")),
+            row(8, baseRow("S3")), // kolom file: PKWT
+            row(9, { employeeNumber: NUM("E1"), phoneNumber: "081277770000" }),
+          ],
+          {
+            defaultEmploymentStatusId: ids.permanent,
+            employmentStatusOverrides: { "7": ids.pkwt },
+          },
+        ),
+      ),
+    );
+    expect(p[6]).toMatchObject({
+      action: "CREATE",
+      newEmployee: true,
+      employmentStatusId: ids.permanent,
+    });
+    expect(p[7]).toMatchObject({ action: "CREATE", employmentStatusId: ids.pkwt });
+    expect(p[8]).toMatchObject({ action: "CREATE", employmentStatusId: ids.pkwt });
+    // Karyawan yang sudah ada: status bawaan tidak berlaku.
+    expect(p[9]).toMatchObject({ action: "UPDATE", newEmployee: false, employmentStatusId: null });
+    expect(p[9].changes).not.toContain("employmentStatusText");
+  });
+
+  test("tanpa bawaan → CATEGORY_REQUIRED; status tidak dikenal → STATUS_INVALID; kunci baris salah 400", async () => {
+    const missing = byRow(await preview(body([row(6, noStatus("S4"))])));
+    expect(missing[6].issues.map((i: { code: string }) => i.code)).toEqual(["CATEGORY_REQUIRED"]);
+
+    const unknown = byRow(
+      await preview(
+        body([row(6, noStatus("S5"))], { defaultEmploymentStatusId: crypto.randomUUID() }),
+      ),
+    );
+    expect(unknown[6].issues).toEqual([
+      { field: "employmentStatusText", code: "STATUS_INVALID", severity: "ERROR" },
+    ]);
+    expect(unknown[6].action).toBe("ERROR");
+
+    expect(
+      await code(
+        await call(
+          "POST",
+          "/employee-imports/preview",
+          sa.headers,
+          body([row(6, noStatus("S6"))], { employmentStatusOverrides: { x: ids.pkwt } }),
+        ),
+      ),
+    ).toBe("VALIDATION_ERROR");
+  });
+
+  test("simpan: karyawan dibuat dengan status per baris / bawaan + riwayat HIRED", async () => {
+    const payload = body([row(6, noStatus("S7")), row(7, noStatus("S8"))], {
+      defaultEmploymentStatusId: ids.permanent,
+      employmentStatusOverrides: { "7": ids.pkwt },
+    });
+    const p = await preview(payload);
+    expect(p.counts.create).toBe(2);
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...payload,
+      previewHash: p.previewHash,
+    });
+    expect(res.status).toBe(201);
+    const created = await prisma.employee.findMany({
+      where: { employeeNumber: { in: [NUM("S7"), NUM("S8")] } },
+      select: { employeeNumber: true, employmentStatusId: true, id: true },
+      orderBy: { employeeNumber: "asc" },
+    });
+    expect(created.map((e) => e.employmentStatusId)).toEqual([ids.permanent, ids.pkwt]);
+    const hired = await prisma.employmentHistory.findFirst({
+      where: { employeeId: created[0]?.id, changeType: "HIRED" },
+    });
+    expect(hired?.toStatusId).toBe(ids.permanent);
   });
 });
 
@@ -845,19 +946,23 @@ describe("Form versi baru (D-061): rincian alamat, kontak darurat 2, saudara, Di
     expect((await p).skippedFields).toEqual(expect.arrayContaining(["ktpCity", "emergency2Name"]));
   });
 
-  test("Divisi: harus persis; departemen lama wajib di bawahnya; departemen baru ditempatkan di bawahnya", async () => {
+  test("Divisi (D-064): nama persis dicocokkan, mirip = saran, tidak segaris = peringatan, departemen baru di bawah divisi", async () => {
     const p = await preview([
       row(2, baseRow("D1", { divisionName: `divisi  imp ${RUN.toLowerCase()}` })),
       row(3, baseRow("D2", { divisionName: `Divisi Imp ${RUN}x` })),
       row(4, baseRow("D3", { divisionName: DIV, departmentName: DEPT_UNDER })),
       row(5, baseRow("D4", { divisionName: DIV, departmentName: DEPT_NEW })),
     ]);
-    // D1: nama cocok (huruf besar/spasi diabaikan) tetapi DEPT (tanpa induk) bukan di bawah divisi itu.
-    expect(codes(p.rows[0])).toContain("DIVISION_MISMATCH");
-    expect(codes(p.rows[1])).toContain("DIVISION_UNKNOWN");
+    // D1: nama cocok (huruf besar/spasi diabaikan); DEPT (tanpa induk) tidak segaris → peringatan, tetap dibuat.
+    expect(codes(p.rows[0])).toContain("UNIT_NOT_IN_LINE");
+    expect(p.rows[0].action).toBe("CREATE");
+    // D2: mirip divisi yang ada → saran, baris error sampai HR memilih.
+    expect(codes(p.rows[1])).toContain("UNIT_UNMATCHED");
+    const d2 = p.units.find((u: { name: string }) => u.name === `Divisi Imp ${RUN}x`);
+    expect(d2.status).toBe("NEEDS_REVIEW");
+    expect(d2.suggestions[0].unitId).toBe(divisionId);
     expect(p.rows[2].action).toBe("CREATE");
     expect(p.rows[3].action).toBe("CREATE");
-    expect(p.rows[0].action).toBe("ERROR");
 
     await commit([
       row(4, baseRow("D3", { divisionName: DIV, departmentName: DEPT_UNDER })),
@@ -867,5 +972,246 @@ describe("Form versi baru (D-061): rincian alamat, kontak darurat 2, saudara, Di
     expect(created.parentId).toBe(divisionId);
     expect(created.companyId).toBe(ids.acp);
     expect(created.unitType).toBe("DEPARTMENT");
+  });
+});
+
+// D-063: NIP boleh kosong — karyawan dikenali lewat NIK KTP; NIK tidak valid = peringatan.
+// D-064: Departemen/Divisi → unit organisasi (persis, saran, pilihan HR, unit baru berjenjang),
+// normalisasi isian Form, PT per baris.
+describe("Data Form asli (D-063/D-064)", () => {
+  const KTP_BASE = `6271${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+  const KTP = (n: number) => `${KTP_BASE}${String(n).padStart(4, "0")}`;
+  const UNIT = `Engineering Imp ${RUN}`;
+  let unitId = "";
+  beforeAll(async () => {
+    unitId = (await prisma.department.create({ data: { name: UNIT, companyId: ids.acp } })).id;
+  });
+  const noNip = (n: string, extra: Record<string, unknown> = {}) => {
+    const { employeeNumber: _skip, ...rest } = baseRow(n, extra);
+    return rest;
+  };
+  const preview = async (rows: unknown[], extra: Record<string, unknown> = {}) =>
+    data(await call("POST", "/employee-imports/preview", sa.headers, body(rows, extra)));
+  const commit = async (rows: unknown[], extra: Record<string, unknown> = {}) => {
+    const p = await preview(rows, extra);
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...body(rows, extra),
+      previewHash: p.previewHash,
+    });
+    expect(res.status).toBe(201);
+    return p;
+  };
+  const codes = (r: { issues: { code: string }[] }) => r.issues.map((i) => i.code);
+
+  test("tanpa NIP + NIK valid → dibuat tanpa NIP; import ulang dengan NIP mengisi NIP lewat NIK", async () => {
+    const first = await commit([row(2, noNip("K1", { ktpNumber: KTP(1) }))]);
+    expect(first.rows[0]).toMatchObject({ action: "CREATE", employeeNumber: null });
+    const created = await prisma.employee.findFirstOrThrow({
+      where: { fullName: `Impor ${RUN} K1` },
+    });
+    expect(created.employeeNumber).toBeNull();
+
+    const again = await commit([row(2, baseRow("K1", { ktpNumber: KTP(1) }))]);
+    expect(again.rows[0].action).toBe("UPDATE");
+    expect(again.rows[0].changes).toContain("employeeNumber");
+    const updated = await prisma.employee.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.employeeNumber).toBe(NUM("K1"));
+    // Tidak ada karyawan ganda.
+    expect(await prisma.employee.count({ where: { fullName: `Impor ${RUN} K1` } })).toBe(1);
+  });
+
+  test("tanpa NIP & NIK tidak valid → NO_IDENTITY; NIP ada & NIK 15 digit → peringatan, NIK tidak disimpan", async () => {
+    const p = await preview([
+      row(2, noNip("K2", { ktpNumber: "620201030199003" })),
+      row(3, baseRow("K3", { ktpNumber: "620201030199003" })),
+    ]);
+    expect(p.rows[0].action).toBe("ERROR");
+    expect(codes(p.rows[0])).toContain("NO_IDENTITY");
+    expect(p.rows[1].action).toBe("CREATE");
+    expect(codes(p.rows[1])).toContain("KTP_INVALID_SKIPPED");
+  });
+
+  test("nilai mirip unit yang ada → saran (error) → pilih unit → dibuat di unit itu", async () => {
+    const misspelled = `Enginering Imp ${RUN}`;
+    const rows = [row(2, baseRow("U1", { departmentName: misspelled }))];
+    const p = await preview(rows);
+    const unit = p.units.find((u: { name: string }) => u.name === misspelled);
+    expect(unit.status).toBe("NEEDS_REVIEW");
+    expect(unit.suggestions[0]).toMatchObject({ unitId, reason: "SPELLING" });
+    expect(codes(p.rows[0])).toContain("UNIT_UNMATCHED");
+
+    await commit(rows, { unitMapping: { [unit.key]: { unitId } } });
+    const emp = await prisma.employee.findUniqueOrThrow({
+      where: { employeeNumber: NUM("U1") },
+      include: { position: true },
+    });
+    expect(emp.position.departmentId).toBe(unitId);
+    expect(await prisma.department.count({ where: { name: misspelled } })).toBe(0);
+  });
+
+  test("HRGA = HR & GA (satu kunci); unit baru berjenjang: Departemen → Divisi sebagai Seksi di bawahnya", async () => {
+    const dept = `Operasi Imp ${RUN}`;
+    const sub = `Survei Imp ${RUN}`;
+    const p = await commit([
+      row(2, baseRow("U2", { departmentName: dept, divisionName: sub })),
+      row(3, baseRow("U3", { departmentName: `HR & GA ${RUN}`, divisionName: `HRGA ${RUN}` })),
+    ]);
+    expect(p.units.filter((u: { name: string }) => u.name.includes("GA")).length).toBe(1);
+    const parent = await prisma.department.findFirstOrThrow({ where: { name: dept } });
+    const child = await prisma.department.findFirstOrThrow({ where: { name: sub } });
+    expect(parent.unitType).toBe("DEPARTMENT");
+    expect(child).toMatchObject({ unitType: "SECTION", parentId: parent.id });
+    const emp = await prisma.employee.findUniqueOrThrow({
+      where: { employeeNumber: NUM("U2") },
+      include: { position: true },
+    });
+    expect(emp.position.departmentId).toBe(child.id);
+  });
+
+  test("pilihan HR: buat unit baru dengan jenis & induk; induk tidak sah → UNIT_INVALID", async () => {
+    const name = `Eksplorasi Imp ${RUN}`;
+    // Kunci pilihan unit per PT (D-064): "<id PT>:<unitKey>".
+    const key = `${ids.acp}:${name.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+    const ok = await commit(
+      [row(2, baseRow("U4", { divisionName: name, departmentName: undefined }))],
+      {
+        unitMapping: { [key]: { create: { unitType: "DIVISION", parentUnitId: null } } },
+      },
+    );
+    expect(ok.rows[0].action).toBe("CREATE");
+    expect((await prisma.department.findFirstOrThrow({ where: { name } })).unitType).toBe(
+      "DIVISION",
+    );
+
+    const bad = await preview([row(2, baseRow("U5", { divisionName: `Bor Imp ${RUN}` }))], {
+      unitMapping: {
+        [`${ids.acp}:borimp${RUN.toLowerCase()}`]: {
+          create: { unitType: "DIRECTORATE", parentUnitId: unitId },
+        },
+      },
+    });
+    expect(codes(bad.rows[0])).toContain("UNIT_INVALID");
+  });
+
+  test("normalisasi Form: `_` kosong, gol. darah 0 → O, almarhum, hubungan & bank diseragamkan", async () => {
+    const rows = [
+      row(
+        2,
+        baseRow("F1", {
+          bloodType: 0,
+          emergencyContactRelationship: "ISTERI",
+          bankName: "MANDIRI",
+          bankAccountNumber: "1234567890",
+          fatherName: "Ayah Impor",
+          fatherAge: "Sudah meninggal dunia",
+          motherName: "Ibu Impor",
+          motherAge: "_",
+          motherOccupation: "Irt",
+        }),
+      ),
+    ];
+    const p = data(await call("POST", "/employee-imports/preview", hrGranted.headers, body(rows)));
+    const res = await call("POST", "/employee-imports", hrGranted.headers, {
+      ...body(rows),
+      previewHash: (await p).previewHash,
+    });
+    expect(res.status).toBe(201);
+    expect(codes((await p).rows[0])).not.toContain("INVALID_AGE");
+    const emp = await prisma.employee.findUniqueOrThrow({
+      where: { employeeNumber: NUM("F1") },
+      include: { personal: true, bankAccount: true, familyMembers: true },
+    });
+    expect(emp.personal?.bloodType).toBe("O");
+    expect(emp.emergencyContactRelationship).toBe("Istri");
+    expect(emp.bankAccount?.bankName).toBe("Bank Mandiri");
+    const father = emp.familyMembers.find((m) => m.relationship === "FATHER");
+    const mother = emp.familyMembers.find((m) => m.relationship === "MOTHER");
+    expect(father).toMatchObject({ isDeceased: true, ageAtEntry: null });
+    expect(mother).toMatchObject({
+      isDeceased: false,
+      ageAtEntry: null,
+      occupation: "Ibu Rumah Tangga",
+    });
+  });
+
+  test("PT per baris mengalahkan PT bawaan; PT tidak dikenal → error", async () => {
+    const p = await preview([row(2, baseRow("P1")), row(3, baseRow("P2"))], {
+      companyOverrides: { "2": ids.other, "3": crypto.randomUUID() },
+    });
+    expect(p.rows[0].companyCode).toBe(ids.otherCode);
+    expect(codes(p.rows[1])).toContain("COMPANY_UNKNOWN");
+  });
+
+  test("dua PT dengan nilai unit sama → dicocokkan terpisah; unit baru milik PT masing-masing", async () => {
+    const shared = `Logistik Imp ${RUN}`;
+    const p = await commit([
+      row(2, baseRow("M1", { departmentName: shared })),
+      row(3, baseRow("M2", { departmentName: shared, companyCode: ids.otherCode })),
+    ]);
+    const values = p.units.filter((u: { name: string }) => u.name === shared);
+    expect(values.map((u: { companyCode: string }) => u.companyCode).sort()).toEqual(
+      ["ACP", ids.otherCode].sort(),
+    );
+    // Nama unit unik se-grup → keduanya berakhiran kode PT.
+    const acpUnit = await prisma.department.findFirstOrThrow({
+      where: { name: `${shared} (ACP)` },
+    });
+    const otherUnit = await prisma.department.findFirstOrThrow({
+      where: { name: `${shared} (${ids.otherCode})` },
+    });
+    expect(acpUnit.companyId).toBe(ids.acp);
+    expect(otherUnit.companyId).toBe(ids.other);
+    const m2 = await prisma.employee.findUniqueOrThrow({
+      where: { employeeNumber: NUM("M2") },
+      include: { position: true },
+    });
+    expect(m2.position.departmentId).toBe(otherUnit.id);
+  });
+
+  test("unit milik PT lain tidak disarankan dan tidak boleh dipilih", async () => {
+    const misspelled = `Enginering Imp ${RUN}`;
+    const p = await preview([
+      row(2, baseRow("X1", { departmentName: misspelled, companyCode: ids.otherCode })),
+    ]);
+    const value = p.units.find((u: { name: string }) => u.name === misspelled);
+    // UNIT (milik ACP) tidak disarankan untuk baris PT lain → nilai dibuat sebagai unit baru.
+    expect(value.suggestions.map((s: { unitId: string }) => s.unitId)).not.toContain(unitId);
+    const forced = await preview(
+      [row(2, baseRow("X1", { departmentName: misspelled, companyCode: ids.otherCode }))],
+      { unitMapping: { [value.key]: { unitId } } },
+    );
+    expect(codes(forced.rows[0])).toContain("UNIT_INVALID");
+  });
+
+  test("profil pemetaan mengingat pilihan unit; profil lama (kolom saja) tetap terbaca", async () => {
+    const signature = "c".repeat(64);
+    const unitChoices = {
+      hrga: { unitId },
+      survei: { create: { unitType: "SECTION", parentKey: "operasi" } },
+    };
+    await call("PUT", `/employee-imports/mappings/${signature}`, sa.headers, {
+      mapping: { nama: "fullName" },
+      unitChoices,
+    });
+    const got = await data(
+      await call("GET", `/employee-imports/mappings/${signature}`, sa.headers),
+    );
+    expect(got.mapping).toEqual({ nama: "fullName" });
+    expect(got.unitChoices).toEqual(unitChoices);
+    // Simpan ulang tanpa pilihan unit → pilihan lama dipertahankan.
+    await call("PUT", `/employee-imports/mappings/${signature}`, sa.headers, {
+      mapping: { nama: "fullName", nip: "employeeNumber" },
+    });
+    expect(
+      (await data(await call("GET", `/employee-imports/mappings/${signature}`, sa.headers)))
+        .unitChoices,
+    ).toEqual(unitChoices);
+    // Bentuk lama di DB (peta kolom langsung).
+    const legacy = "d".repeat(64);
+    await prisma.importMapping.create({
+      data: { signature: legacy, mapping: { nama: "fullName" }, updatedBy: sa.account.id },
+    });
+    const old = await data(await call("GET", `/employee-imports/mappings/${legacy}`, sa.headers));
+    expect(old).toMatchObject({ mapping: { nama: "fullName" }, unitChoices: {} });
   });
 });

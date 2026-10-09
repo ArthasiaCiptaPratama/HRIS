@@ -52,10 +52,11 @@ export async function loadMasterData() {
 export async function createDepartment(
   tx: OrganizationTx,
   name: string,
-  placement: { parentId: string; companyId: string | null } | null = null,
+  placement: { parentId: string | null; companyId: string | null } | null = null,
+  unitType?: OrgUnitType,
 ) {
   return tx.department.create({
-    data: { name, ...(placement ?? {}) },
+    data: { name, ...(placement ?? {}), ...(unitType ? { unitType } : {}) },
     select: { id: true, name: true },
   });
 }

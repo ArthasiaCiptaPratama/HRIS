@@ -562,7 +562,7 @@ export async function submitMyOnboarding(ctx: WizardContext, now = new Date()) {
     recipients: reviewers.filter((r) => r.accountId !== ctx.actor.accountId),
     type: "employee.onboarding_submitted",
     title: "Data onboarding menunggu review",
-    body: `${state.row.fullName} (${state.row.employeeNumber}) mengirim data ${
+    body: `${state.row.fullName} (${state.row.employeeNumber ?? "NIP belum ada"}) mengirim data ${
       state.mode === "candidate" ? "calon karyawan" : "kelengkapan karyawan"
     } untuk diperiksa.`,
     link: `/penerimaan/${state.row.id}`,

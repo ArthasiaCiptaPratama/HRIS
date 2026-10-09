@@ -81,7 +81,7 @@ export function CommandPalette({
           label: e.fullName,
           name: e.fullName,
           photoUrl: e.photoUrl,
-          hint: `${e.employeeNumber} · ${e.position.name}`,
+          hint: `${e.employeeNumber ?? "NIP belum ada"} · ${e.position.name}`,
           to: `/personal/pegawai-aktif/semua?pegawai=${e.id}`,
           kind: "employee" as const,
         }))

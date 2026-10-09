@@ -55,7 +55,7 @@ export const archiveExportSchema = z
 export const archiveEmployeeRefSchema = z.object({
   id: z.uuid(),
   fullName: z.string(),
-  employeeNumber: z.string(),
+  employeeNumber: z.string().nullable(),
   isActive: z.boolean(),
   company: z.object({ id: z.uuid(), code: z.string() }),
   department: ref.nullable(),
