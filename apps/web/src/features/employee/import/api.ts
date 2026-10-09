@@ -31,6 +31,8 @@ export const previewSchema = z.object({
       employeeNumber: z.string().nullable(),
       fullName: z.string().nullable(),
       companyCode: z.string().nullable(),
+      newEmployee: z.boolean(),
+      employmentStatusId: z.string().nullable(),
       changes: z.array(z.string()),
       issues: z.array(issueSchema),
       attachments: z.number(),
@@ -60,6 +62,9 @@ export interface ImportRequest {
   fileSha256: string;
   mode: "CREATE_ONLY" | "UPSERT";
   companyId?: string | undefined;
+  /** D-062: status bawaan & status per baris (nomor baris → id) untuk baris yang belum ada di sistem. */
+  defaultEmploymentStatusId?: string | undefined;
+  employmentStatusOverrides?: Record<string, string> | undefined;
   rows: { sourceRow: number; raw: Partial<Record<ImportFieldKey, ImportCell>> }[];
   masterDataMapping?: {
     departments?: Record<string, string>;

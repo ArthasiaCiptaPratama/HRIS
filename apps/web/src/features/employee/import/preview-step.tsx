@@ -1,7 +1,16 @@
 import type { ImportFieldKey } from "@hris/shared";
-import { ArrowLeft, CloudDownload, Download, FolderPlus, Save, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CloudDownload,
+  Download,
+  FolderPlus,
+  Save,
+  ShieldAlert,
+} from "lucide-react";
 import { useMemo, useState } from "react";
-import { FormSelect } from "@/components/form-select";
+import { FormSelect, type SelectOption } from "@/components/form-select";
+import { LazySelect } from "@/components/lazy-select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +39,8 @@ export const positionKey = (department: string, name: string) =>
 
 type Filter = "ALL" | "CREATE" | "UPDATE" | "SKIP" | "ERROR";
 
+const AUTO_STATUS = "__auto__";
+
 const ACTION_BADGE = {
   CREATE: "success",
   UPDATE: "secondary",
@@ -57,6 +68,11 @@ export function PreviewStep({
   master,
   masterMap,
   onMasterMapChange,
+  statusOptions,
+  defaultStatusId,
+  onDefaultStatusChange,
+  statusOverrides,
+  onStatusOverride,
   columnOf,
   onBack,
   onCommit,
@@ -67,6 +83,12 @@ export function PreviewStep({
   master: MasterData | undefined;
   masterMap: MasterMap;
   onMasterMapChange: (next: MasterMap) => void;
+  statusOptions: SelectOption[];
+  defaultStatusId: string;
+  onDefaultStatusChange: (id: string) => void;
+  statusOverrides: Record<string, string>;
+  /** id kosong = kembali ikut kolom file / status bawaan. */
+  onStatusOverride: (sourceRow: number, id: string) => void;
   columnOf: (field: ImportFieldKey) => number | undefined;
   onBack: () => void;
   onCommit: () => void;
@@ -80,6 +102,15 @@ export function PreviewStep({
   const rows = useMemo(
     () => (filter === "ALL" ? preview.rows : preview.rows.filter((r) => r.action === filter)),
     [preview.rows, filter],
+  );
+  // D-062: status kepegawaian untuk baris yang belum ada di sistem.
+  const hasNewRows = preview.rows.some((r) => r.newEmployee);
+  const needStatus = preview.rows.filter((r) =>
+    r.issues.some((i) => i.code === "CATEGORY_REQUIRED"),
+  ).length;
+  const rowStatusOptions = useMemo(
+    () => [{ value: AUTO_STATUS, label: "Ikuti kolom file / bawaan" }, ...statusOptions],
+    [statusOptions],
   );
   const newMaster =
     masterData.departments.length +
@@ -140,6 +171,35 @@ export function PreviewStep({
             menjadi versi dokumen baru.
           </AlertDescription>
         </Alert>
+      ) : null}
+
+      {needStatus > 0 || defaultStatusId ? (
+        <div className="bg-card space-y-3 rounded-2xl border p-5">
+          <div className="flex items-start gap-3">
+            <BadgeCheck className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
+            <div>
+              <p className="text-sm font-medium">Status kepegawaian karyawan yang belum ada</p>
+              <p className="text-muted-foreground text-sm">
+                {needStatus > 0
+                  ? `${needStatus} baris belum ada di sistem dan file tidak menyebut statusnya. `
+                  : ""}
+                Pilih status untuk semua baris tanpa status di bawah ini, atau ubah per baris di
+                kolom Status. Karyawan yang sudah ada tidak diubah statusnya.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-1.5 sm:grid-cols-[1fr_minmax(0,280px)] sm:items-center">
+            <p className="text-sm">Status untuk baris tanpa status</p>
+            <FormSelect
+              aria-label="Status kepegawaian bawaan"
+              value={defaultStatusId}
+              onChange={onDefaultStatusChange}
+              noneLabel="Belum dipilih"
+              placeholder="Belum dipilih"
+              options={statusOptions}
+            />
+          </div>
+        </div>
       ) : null}
 
       {preview.skippedFields.length > 0 ? (
@@ -242,6 +302,7 @@ export function PreviewStep({
                 <TableHead>Karyawan</TableHead>
                 <TableHead className="w-16">PT</TableHead>
                 <TableHead className="w-28">Aksi</TableHead>
+                {hasNewRows ? <TableHead className="min-w-[200px]">Status</TableHead> : null}
                 <TableHead className="min-w-[260px]">Perubahan / masalah</TableHead>
               </TableRow>
             </TableHeader>
@@ -259,6 +320,30 @@ export function PreviewStep({
                   <TableCell>
                     <Badge variant={ACTION_BADGE[r.action]}>{ACTION_LABELS[r.action]}</Badge>
                   </TableCell>
+                  {hasNewRows ? (
+                    <TableCell>
+                      {r.newEmployee ? (
+                        <LazySelect
+                          aria-label={`Status kepegawaian baris ${r.sourceRow}`}
+                          value={
+                            statusOverrides[String(r.sourceRow)] ??
+                            r.employmentStatusId ??
+                            AUTO_STATUS
+                          }
+                          onChange={(v) =>
+                            onStatusOverride(r.sourceRow, v === AUTO_STATUS ? "" : v)
+                          }
+                          placeholder="Pilih status"
+                          options={rowStatusOptions}
+                          invalid={r.issues.some((i) => i.field === "employmentStatusText")}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          Sudah ada · tidak diubah
+                        </span>
+                      )}
+                    </TableCell>
+                  ) : null}
                   <TableCell className="space-y-1 text-sm">
                     {r.action === "UPDATE" && r.changes.length > 0 ? (
                       <p className="text-muted-foreground">
@@ -290,7 +375,10 @@ export function PreviewStep({
               ))}
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-muted-foreground py-10 text-center">
+                  <TableCell
+                    colSpan={hasNewRows ? 6 : 5}
+                    className="text-muted-foreground py-10 text-center"
+                  >
                     Tidak ada baris pada kategori ini.
                   </TableCell>
                 </TableRow>

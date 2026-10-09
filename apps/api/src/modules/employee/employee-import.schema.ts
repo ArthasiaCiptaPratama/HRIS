@@ -17,6 +17,13 @@ export const importBodySchema = z
     mode: z.enum(["CREATE_ONLY", "UPSERT"]),
     /** PT bawaan untuk baris tanpa kolom perusahaan (D-040). */
     companyId: z.uuid().optional(),
+    /** D-062: status kepegawaian bawaan untuk baris yang belum ada di sistem dan tanpa kolom status. */
+    defaultEmploymentStatusId: z.uuid().optional(),
+    /** D-062: status per baris (nomor baris file → id status), hanya untuk baris yang belum ada di sistem. */
+    employmentStatusOverrides: z
+      .record(z.string().regex(/^\d{1,7}$/), z.uuid())
+      .refine((value) => Object.keys(value).length <= IMPORT_MAX_ROWS, "Terlalu banyak baris")
+      .optional(),
     rows: z
       .array(
         z.object({
@@ -70,6 +77,10 @@ export const previewSchema = z
         employeeNumber: z.string().nullable(),
         fullName: z.string().nullable(),
         companyCode: z.string().nullable(),
+        /** D-062: true = belum ada di sistem (akan dibuat); status per baris hanya untuk baris ini. */
+        newEmployee: z.boolean(),
+        /** D-062: status kepegawaian terpilih untuk baris baru (file / per baris / bawaan), null bila belum. */
+        employmentStatusId: z.uuid().nullable(),
         changes: z.array(z.string()),
         issues: z.array(issueSchema),
         attachments: z.number().int(),

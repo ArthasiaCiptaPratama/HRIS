@@ -283,6 +283,11 @@ function statusIdFor(lookup: MasterLookup, category: string): string | undefined
   return [...lookup.statuses.values()].find((s) => !s.deleted && s.category === category)?.id;
 }
 
+function activeStatus(lookup: MasterLookup, id: string): boolean {
+  const status = lookup.statuses.get(id);
+  return status !== undefined && !status.deleted;
+}
+
 function departmentNameOf(lookup: MasterLookup, positionId: string): string | undefined {
   const position = lookup.positions.get(positionId);
   return position ? lookup.departments.get(position.departmentId)?.name : undefined;
@@ -386,10 +391,20 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       plan.issues.push(issue("companyCode", "COMPANY_REQUIRED"));
     }
 
-    if (row.category) {
+    // D-062: baris yang belum ada di sistem — status pilihan per baris > kolom status file > status
+    // bawaan. Karyawan yang sudah ada hanya berubah status lewat kolom file (tidak lewat bawaan/per baris).
+    const override = existing ? undefined : body.employmentStatusOverrides?.[String(sourceRow)];
+    if (override) {
+      if (activeStatus(lookup, override)) plan.statusId = override;
+      else plan.issues.push(issue("employmentStatusText", "STATUS_INVALID"));
+    } else if (row.category) {
       const statusId = statusIdFor(lookup, row.category);
       if (statusId) plan.statusId = statusId;
       else plan.issues.push(issue("employmentStatusText", "STATUS_NOT_CONFIGURED"));
+    } else if (!existing && body.defaultEmploymentStatusId) {
+      if (activeStatus(lookup, body.defaultEmploymentStatusId))
+        plan.statusId = body.defaultEmploymentStatusId;
+      else plan.issues.push(issue("employmentStatusText", "STATUS_INVALID"));
     }
     if (ktp && ktpOwners.has(ktp) && ktpOwners.get(ktp) !== existing?.id)
       plan.issues.push(issue("ktpNumber", "KTP_TAKEN"));
@@ -445,7 +460,8 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       }
     } else {
       if (!row.fullName) plan.issues.push(issue("fullName", "REQUIRED"));
-      if (!row.category) plan.issues.push(issue("employmentStatusText", "CATEGORY_REQUIRED"));
+      if (!plan.statusId && !plan.issues.some((i) => i.field === "employmentStatusText"))
+        plan.issues.push(issue("employmentStatusText", "CATEGORY_REQUIRED"));
       if (!row.joinDate) plan.issues.push(issue("joinDate", "JOIN_DATE_REQUIRED"));
       if (!row.positionName || !row.departmentName)
         plan.issues.push(issue("positionName", "POSITION_REQUIRED"));
@@ -542,6 +558,8 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     employeeNumber: p.row.employeeNumber ?? null,
     fullName: p.row.fullName ?? p.existing?.fullName ?? null,
     companyCode: p.companyId ? (lookup.companies.get(p.companyId)?.code ?? null) : null,
+    newEmployee: !p.existing,
+    employmentStatusId: p.existing ? null : (p.statusId ?? null),
     changes: p.changes,
     issues: p.issues,
     attachments: queuedAttachments(p).length,

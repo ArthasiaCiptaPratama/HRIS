@@ -12,6 +12,10 @@ vi.mock("@/lib/supabase", async () => ({
 // Validasi & penulisan sesungguhnya diuji di api (tests/integration/employee/import.test.ts).
 const ACP = { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" };
 const CD2 = { id: "co-cd2", code: "CD2", name: "PT Contoh Dua (Dummy)" };
+const STATUSES = [
+  { id: "st-1", name: "Karyawan Tetap", category: "PERMANENT" },
+  { id: "st-2", name: "PKWT", category: "PKWT" },
+];
 
 const CSV = [
   "NO;NIK KARYAWAN;NAMA;JABATAN;DEPARTEMEN",
@@ -28,6 +32,8 @@ const preview = {
       employeeNumber: "ACP-9001",
       fullName: "Ani Contoh",
       companyCode: "ACP",
+      newEmployee: true,
+      employmentStatusId: "st-1" as string | null,
       changes: [],
       issues: [],
       attachments: 0,
@@ -38,6 +44,8 @@ const preview = {
       employeeNumber: "ACP-9002",
       fullName: "Budi Contoh",
       companyCode: "ACP",
+      newEmployee: false,
+      employmentStatusId: null as string | null,
       changes: [],
       issues: [{ field: "workEmail", code: "EMAIL_TAKEN", severity: "ERROR" }],
       attachments: 0,
@@ -88,7 +96,7 @@ function mockBackend({
               { id: "d1", name: "Operasional", parentId: null, unitType: "DEPARTMENT" },
             ],
             positions: [],
-            employmentStatuses: [],
+            employmentStatuses: STATUSES,
             grades: [],
             workLocations: [],
           },
@@ -204,6 +212,55 @@ describe("Import Data Karyawan", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan" }));
     expect(await screen.findByText("Import selesai")).toBeInTheDocument();
+  });
+
+  it("pemetaan: daftar field baru dipasang saat dibuka, bisa dicari, dan pilihan manual tercatat", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByRole("table", { name: "Pemetaan kolom" });
+    // Tertutup: tidak ada pilihan field di DOM (penyebab lag pada file ratusan kolom).
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Field untuk kolom A" }));
+    await user.type(screen.getByRole("textbox", { name: "Cari pilihan" }), "nama panggilan");
+    await user.click(screen.getByRole("option", { name: /Nama panggilan/ }));
+    expect(screen.getByRole("button", { name: "Field untuk kolom A" })).toHaveTextContent(
+      "Nama panggilan",
+    );
+    expect(screen.getByText("Dipilih manual")).toBeInTheDocument();
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+  });
+
+  it("D-062: baris belum ada di sistem tanpa status → pilih status per baris & status bawaan", async () => {
+    const noStatus = {
+      ...preview,
+      counts: { ...preview.counts, create: 0, error: 2 },
+      rows: preview.rows.map((r) => ({
+        ...r,
+        action: "ERROR",
+        newEmployee: true,
+        employmentStatusId: null,
+        issues: [{ field: "employmentStatusText", code: "CATEGORY_REQUIRED", severity: "ERROR" }],
+      })),
+    };
+    const requests = mockBackend({ previewData: noStatus });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: /Lanjut ke pratinjau/ }));
+
+    expect(await screen.findByText(/2 baris belum ada di sistem/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Status kepegawaian baris 3" }));
+    await user.click(screen.getByRole("option", { name: "PKWT" }));
+    await waitFor(() => {
+      const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
+      expect(last?.body).toMatchObject({ employmentStatusOverrides: { "3": "st-2" } });
+    });
+    expect(
+      requests.filter((r) => r.path === "/employee-imports/preview").at(-1)?.body,
+    ).not.toHaveProperty("defaultEmploymentStatusId");
   });
 
   it("file .xls ditolak dengan pesan jelas; tidak ada request ke server", async () => {

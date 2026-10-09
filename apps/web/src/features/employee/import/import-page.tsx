@@ -13,7 +13,7 @@ import {
   suggestMapping,
 } from "@hris/shared";
 import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Upload, Users } from "lucide-react";
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { FormSelect } from "@/components/form-select";
@@ -53,6 +53,13 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "done", label: "Selesai" },
 ];
 const EMPTY_MAP: MasterMap = { departments: {}, positions: {}, grades: {}, workLocations: {} };
+
+type Choices = {
+  masterMap: MasterMap;
+  defaultStatusId: string;
+  /** Nomor baris file → id status kepegawaian. */
+  statusOverrides: Record<string, string>;
+};
 
 function Stepper({ current }: { current: Step }) {
   const index = STEPS.findIndex((s) => s.key === current);
@@ -111,6 +118,9 @@ export function ImportEmployeesPage() {
   const [saveProfile, setSaveProfile] = useState(true);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [masterMap, setMasterMap] = useState<MasterMap>(EMPTY_MAP);
+  // D-062: status kepegawaian untuk baris yang belum ada di sistem (bawaan & per baris).
+  const [defaultStatusId, setDefaultStatusId] = useState("");
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [result, setResult] = useState<ImportPreview["counts"] | null>(null);
   // D-060: import yang lampirannya sedang diproses (hasil simpan, atau dilanjutkan dari langkah Unggah).
   const [attachmentJobId, setAttachmentJobId] = useState<string | null>(null);
@@ -163,6 +173,8 @@ export function ImportEmployeesPage() {
     setMapping(next);
     setSignature(sig);
     setSavedProfile(fromProfile);
+    // Status per baris berkunci nomor baris sheet sebelumnya.
+    setStatusOverrides({});
     return true;
   }
 
@@ -183,7 +195,22 @@ export function ImportEmployeesPage() {
     }
   }
 
-  function buildRequest(map: MasterMap = masterMap): ImportRequest | null {
+  const statusOptions = useMemo(
+    () => (master.data?.employmentStatuses ?? []).map((s) => ({ value: s.id, label: s.name })),
+    [master.data?.employmentStatuses],
+  );
+  const choices: Choices = { masterMap, defaultStatusId, statusOverrides };
+
+  /** Pilihan di pratinjau berubah → simpan & ulangi pratinjau dengan nilai baru (state belum terbarui). */
+  function changeChoices(patch: Partial<Choices>) {
+    const next = { ...choices, ...patch };
+    if (patch.masterMap) setMasterMap(patch.masterMap);
+    if (patch.defaultStatusId !== undefined) setDefaultStatusId(patch.defaultStatusId);
+    if (patch.statusOverrides) setStatusOverrides(patch.statusOverrides);
+    void runPreview(next);
+  }
+
+  function buildRequest(c: Choices = choices): ImportRequest | null {
     if (!workbook || !detected) return null;
     const rows = buildRawRows(detected.rows, mapping).map(({ sourceRow, raw }) => ({
       sourceRow,
@@ -196,13 +223,17 @@ export function ImportEmployeesPage() {
       fileSha256: workbook.sha256,
       mode,
       ...(effectiveCompany ? { companyId: effectiveCompany } : {}),
+      ...(c.defaultStatusId ? { defaultEmploymentStatusId: c.defaultStatusId } : {}),
+      ...(Object.keys(c.statusOverrides).length > 0
+        ? { employmentStatusOverrides: c.statusOverrides }
+        : {}),
       rows,
-      masterDataMapping: map,
+      masterDataMapping: c.masterMap,
     };
   }
 
-  async function runPreview(map: MasterMap = masterMap) {
-    const request = buildRequest(map);
+  async function runPreview(c: Choices = choices) {
+    const request = buildRequest(c);
     if (!request) return;
     if (request.rows.length === 0) {
       toast.error("Tidak ada baris data yang bisa diimpor.");
@@ -284,6 +315,7 @@ export function ImportEmployeesPage() {
     setResult(null);
     setAttachmentJobId(null);
     setMasterMap(EMPTY_MAP);
+    setStatusOverrides({});
     if (fileInput.current) fileInput.current.value = "";
   }
 
@@ -409,6 +441,22 @@ export function ImportEmployeesPage() {
                 </p>
               </div>
             ) : null}
+            <div className="grid gap-2">
+              <Label htmlFor="import-default-status">Status kepegawaian bawaan</Label>
+              <FormSelect
+                id="import-default-status"
+                value={defaultStatusId}
+                onChange={setDefaultStatusId}
+                noneLabel="Tidak ada"
+                placeholder="Tidak ada"
+                options={statusOptions}
+              />
+              <p className="text-muted-foreground text-xs">
+                Untuk karyawan yang belum ada di sistem bila file tidak punya kolom status (mis.
+                hasil Google Form). Bisa diubah per baris di pratinjau. Status karyawan yang sudah
+                ada tidak diubah.
+              </p>
+            </div>
           </div>
         </div>
       ) : null}
@@ -438,9 +486,16 @@ export function ImportEmployeesPage() {
           preview={preview}
           master={master.data}
           masterMap={masterMap}
-          onMasterMapChange={(next) => {
-            setMasterMap(next);
-            void runPreview(next);
+          onMasterMapChange={(next) => changeChoices({ masterMap: next })}
+          statusOptions={statusOptions}
+          defaultStatusId={defaultStatusId}
+          onDefaultStatusChange={(id) => changeChoices({ defaultStatusId: id })}
+          statusOverrides={statusOverrides}
+          onStatusOverride={(sourceRow, id) => {
+            const next = { ...statusOverrides };
+            if (id) next[String(sourceRow)] = id;
+            else delete next[String(sourceRow)];
+            changeChoices({ statusOverrides: next });
           }}
           columnOf={columnOf}
           onBack={() => setStep("mapping")}

@@ -538,10 +538,13 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   COMPANY_REQUIRED: "Perusahaan belum ditentukan",
   COMPANY_UNKNOWN: "Kode perusahaan tidak terdaftar",
   COMPANY_OUT_OF_SCOPE: "Perusahaan di luar cakupan akun Anda",
-  CATEGORY_REQUIRED: "Status karyawan wajib untuk karyawan baru",
+  // D-062: "baru" = belum ada di sistem (karyawan lama yang baru didata juga), bukan rekrutan baru.
+  CATEGORY_REQUIRED:
+    "Status karyawan wajib untuk karyawan yang belum ada di sistem: pilih status di baris ini, isi status bawaan, atau tambahkan kolom status",
   STATUS_NOT_CONFIGURED: "Belum ada status kepegawaian untuk kategori ini",
-  JOIN_DATE_REQUIRED: "Tanggal masuk wajib untuk karyawan baru",
-  POSITION_REQUIRED: "Jabatan & departemen wajib untuk karyawan baru",
+  STATUS_INVALID: "Status kepegawaian yang dipilih tidak ditemukan atau sudah diarsipkan",
+  JOIN_DATE_REQUIRED: "Tanggal masuk wajib untuk karyawan yang belum ada di sistem",
+  POSITION_REQUIRED: "Jabatan & departemen wajib untuk karyawan yang belum ada di sistem",
   MASTER_ARCHIVED:
     "Master data ini diarsipkan: pulihkan di Administrasi › Master Data atau petakan ke yang lain",
   KTP_TAKEN: "NIK KTP sudah dipakai karyawan lain",

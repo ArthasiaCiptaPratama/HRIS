@@ -269,6 +269,97 @@ describe("POST /employee-imports/preview", () => {
   });
 });
 
+// D-062: status kepegawaian untuk baris yang belum ada di sistem (mis. Sheet Google Form tanpa kolom
+// status) — per baris > kolom file > status bawaan; karyawan yang sudah ada tidak diubah statusnya.
+describe("D-062 status bawaan & status per baris", () => {
+  const noStatus = (n: string, extra: Record<string, unknown> = {}) =>
+    baseRow(n, { employmentStatusText: null, ...extra });
+  const preview = async (payload: unknown) =>
+    data(await call("POST", "/employee-imports/preview", sa.headers, payload));
+  const byRow = (p: { rows: { sourceRow: number }[] }) =>
+    // biome-ignore lint/suspicious/noExplicitAny: bentuk baris pratinjau diperiksa per test
+    Object.fromEntries(p.rows.map((r) => [r.sourceRow, r])) as Record<number, any>;
+
+  test("bawaan untuk baris tanpa status, per baris diutamakan, kolom file mengalahkan bawaan", async () => {
+    const p = byRow(
+      await preview(
+        body(
+          [
+            row(6, noStatus("S1")),
+            row(7, noStatus("S2")),
+            row(8, baseRow("S3")), // kolom file: PKWT
+            row(9, { employeeNumber: NUM("E1"), phoneNumber: "081277770000" }),
+          ],
+          {
+            defaultEmploymentStatusId: ids.permanent,
+            employmentStatusOverrides: { "7": ids.pkwt },
+          },
+        ),
+      ),
+    );
+    expect(p[6]).toMatchObject({
+      action: "CREATE",
+      newEmployee: true,
+      employmentStatusId: ids.permanent,
+    });
+    expect(p[7]).toMatchObject({ action: "CREATE", employmentStatusId: ids.pkwt });
+    expect(p[8]).toMatchObject({ action: "CREATE", employmentStatusId: ids.pkwt });
+    // Karyawan yang sudah ada: status bawaan tidak berlaku.
+    expect(p[9]).toMatchObject({ action: "UPDATE", newEmployee: false, employmentStatusId: null });
+    expect(p[9].changes).not.toContain("employmentStatusText");
+  });
+
+  test("tanpa bawaan → CATEGORY_REQUIRED; status tidak dikenal → STATUS_INVALID; kunci baris salah 400", async () => {
+    const missing = byRow(await preview(body([row(6, noStatus("S4"))])));
+    expect(missing[6].issues.map((i: { code: string }) => i.code)).toEqual(["CATEGORY_REQUIRED"]);
+
+    const unknown = byRow(
+      await preview(
+        body([row(6, noStatus("S5"))], { defaultEmploymentStatusId: crypto.randomUUID() }),
+      ),
+    );
+    expect(unknown[6].issues).toEqual([
+      { field: "employmentStatusText", code: "STATUS_INVALID", severity: "ERROR" },
+    ]);
+    expect(unknown[6].action).toBe("ERROR");
+
+    expect(
+      await code(
+        await call(
+          "POST",
+          "/employee-imports/preview",
+          sa.headers,
+          body([row(6, noStatus("S6"))], { employmentStatusOverrides: { x: ids.pkwt } }),
+        ),
+      ),
+    ).toBe("VALIDATION_ERROR");
+  });
+
+  test("simpan: karyawan dibuat dengan status per baris / bawaan + riwayat HIRED", async () => {
+    const payload = body([row(6, noStatus("S7")), row(7, noStatus("S8"))], {
+      defaultEmploymentStatusId: ids.permanent,
+      employmentStatusOverrides: { "7": ids.pkwt },
+    });
+    const p = await preview(payload);
+    expect(p.counts.create).toBe(2);
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...payload,
+      previewHash: p.previewHash,
+    });
+    expect(res.status).toBe(201);
+    const created = await prisma.employee.findMany({
+      where: { employeeNumber: { in: [NUM("S7"), NUM("S8")] } },
+      select: { employeeNumber: true, employmentStatusId: true, id: true },
+      orderBy: { employeeNumber: "asc" },
+    });
+    expect(created.map((e) => e.employmentStatusId)).toEqual([ids.permanent, ids.pkwt]);
+    const hired = await prisma.employmentHistory.findFirst({
+      where: { employeeId: created[0]?.id, changeType: "HIRED" },
+    });
+    expect(hired?.toStatusId).toBe(ids.permanent);
+  });
+});
+
 describe("POST /employee-imports (simpan)", () => {
   test("SA: buat karyawan + data pribadi + master data baru + resign nonaktif + jejak & audit", async () => {
     const payload = body([
