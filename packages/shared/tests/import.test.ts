@@ -175,7 +175,7 @@ describe("normalizeImportRow", () => {
     expect(row.contract.permanentHint).toBe(true);
   });
 
-  test("masalah: wajib kosong, KTP 15 digit (error), BPJS teks (peringatan), resign tanpa tanggal", () => {
+  test("masalah: tanpa NIP & NIK valid (error), KTP 15 digit (peringatan, D-063), BPJS teks (peringatan), resign tanpa tanggal", () => {
     const { issues } = normalizeImportRow({
       ktpNumber: "620201030199003",
       bpjsEmploymentNumber: "Belum terdaftar",
@@ -183,8 +183,8 @@ describe("normalizeImportRow", () => {
     });
     expect(issues).toEqual(
       expect.arrayContaining([
-        { field: "employeeNumber", code: "REQUIRED", severity: "ERROR" },
-        { field: "ktpNumber", code: "INVALID_LENGTH_16", severity: "ERROR" },
+        { field: "employeeNumber", code: "NO_IDENTITY", severity: "ERROR" },
+        { field: "ktpNumber", code: "KTP_INVALID_SKIPPED", severity: "WARNING" },
         { field: "bpjsEmploymentNumber", code: "BPJS_NOT_A_NUMBER", severity: "WARNING" },
         { field: "exitDate", code: "EXIT_DATE_REQUIRED", severity: "ERROR" },
       ]),

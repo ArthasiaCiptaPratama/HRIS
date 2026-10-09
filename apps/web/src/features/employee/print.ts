@@ -385,7 +385,7 @@ export function buildArchiveSheets(
           "No. HP",
         ],
         ...employee.familyMembers.map((m) => [
-          m.name,
+          m.isDeceased ? `${m.name} (alm.)` : m.name,
           [RELATIONSHIP_LABELS[m.relationship] ?? m.relationship, m.relationDetail ?? null]
             .filter(Boolean)
             .join(" — "),
@@ -439,7 +439,7 @@ export function printFileName(employee: Pick<EmployeeDetail, "employeeNumber" | 
       .replace(/[\\/:*?"<>|]+/g, "-")
       .replace(/\s+/g, " ")
       .trim();
-  return `Data Karyawan - ${safe(employee.employeeNumber)} - ${safe(employee.fullName)}.xlsx`;
+  return `Data Karyawan - ${safe(employee.employeeNumber ?? "Tanpa NIP")} - ${safe(employee.fullName)}.xlsx`;
 }
 
 async function loadTemplate(): Promise<Uint8Array> {

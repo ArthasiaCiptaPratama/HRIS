@@ -1,9 +1,19 @@
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { lazy, type ReactNode, Suspense, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/features/auth/auth-provider";
 import { ApiError } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
+
+// DEV-ONLY: tombol switch DB lokal ⇄ Supabase. import.meta.env.DEV di-inline Vite menjadi `false`
+// saat build produksi → komponen di-tree-shake (tak pernah masuk bundle rilis).
+const DevDbSwitcher = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/features/system/components/dev-db-switcher").then((m) => ({
+        default: m.DevDbSwitcher,
+      })),
+    )
+  : null;
 
 // 401 dari API (token kedaluwarsa/akun dinonaktifkan) → keluarkan sesi; guard mengarahkan ke /login.
 function handleUnauthenticated(error: unknown) {
@@ -33,6 +43,11 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         {children}
         <Toaster richColors position="top-right" />
+        {DevDbSwitcher ? (
+          <Suspense fallback={null}>
+            <DevDbSwitcher />
+          </Suspense>
+        ) : null}
       </AuthProvider>
     </QueryClientProvider>
   );

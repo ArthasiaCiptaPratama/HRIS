@@ -13,21 +13,32 @@ export async function withLongTransaction<T>(run: (tx: EmployeeTx) => Promise<T>
   return getPrisma().$transaction(run, { timeout: 120_000, maxWait: 10_000 });
 }
 
+const EXISTING_INCLUDE = {
+  personal: true,
+  bankAccount: true,
+  educations: { select: { id: true, schoolName: true, level: true } },
+  // D-059: pencocokan impor ulang (tambah yang belum ada).
+  familyMembers: { select: { relationship: true, name: true } },
+  trainings: { select: { trainingField: true } },
+} as const;
+
 export async function findByEmployeeNumbers(numbers: string[]) {
   if (numbers.length === 0) return [];
   return getPrisma().employee.findMany({
     where: { employeeNumber: { in: numbers } },
-    include: {
-      personal: true,
-      bankAccount: true,
-      educations: { select: { id: true, schoolName: true, level: true } },
-      // D-059: pencocokan impor ulang (tambah yang belum ada).
-      familyMembers: { select: { relationship: true, name: true } },
-      trainings: { select: { trainingField: true } },
-    },
+    include: EXISTING_INCLUDE,
   });
 }
 export type ExistingEmployee = Awaited<ReturnType<typeof findByEmployeeNumbers>>[number];
+
+/** D-063: karyawan yang dicocokkan lewat NIK KTP (baris tanpa NIP / karyawan yang belum punya NIP). */
+export async function findExistingByIds(ids: string[]): Promise<ExistingEmployee[]> {
+  if (ids.length === 0) return [];
+  return getPrisma().employee.findMany({
+    where: { id: { in: ids } },
+    include: EXISTING_INCLUDE,
+  });
+}
 
 /** Pemilik NIK KTP / email kantor (cek unik terhadap karyawan lain). */
 export async function findKtpOwners(ktpNumbers: string[]) {

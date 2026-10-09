@@ -6,7 +6,9 @@ import {
   type ImportFieldKey,
 } from "@hris/shared";
 import { ArrowLeft, ArrowRight, Info, TriangleAlert } from "lucide-react";
+import { type Dispatch, memo, type SetStateAction, useCallback, useMemo } from "react";
 import { FormSelect } from "@/components/form-select";
+import { LazySelect } from "@/components/lazy-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +52,7 @@ const FIELD_OPTIONS = IMPORT_FIELD_KEYS.map((key) => {
     group: def.group ?? "Data karyawan",
   };
 });
+const PICKER_OPTIONS = [{ value: IGNORE, label: "Abaikan kolom ini" }, ...FIELD_OPTIONS];
 
 function sampleOf(rows: DataRow[], column: number, field: ImportFieldKey | null): string {
   const values: string[] = [];
@@ -90,6 +93,48 @@ function ConfidenceBadge({
   return <Badge variant="warning">Rendah</Badge>;
 }
 
+// Satu baris pemetaan; memo → mencentang "Ingat pemetaan" atau mengubah satu kolom hanya menggambar
+// ulang baris yang berubah (sebelumnya 171 baris × dropdown ±200 field ikut digambar ulang).
+const MappingRow = memo(function MappingRow({
+  suggestion: s,
+  rows,
+  field,
+  merged,
+  onSetField,
+}: {
+  suggestion: ColumnSuggestion;
+  rows: DataRow[];
+  field: ImportFieldKey | null;
+  merged: boolean;
+  onSetField: (column: number, value: string) => void;
+}) {
+  const sample = useMemo(() => sampleOf(rows, s.column, field), [rows, s.column, field]);
+  const onChange = useCallback((v: string) => onSetField(s.column, v), [onSetField, s.column]);
+  return (
+    <TableRow>
+      <TableCell className="font-mono text-xs">{s.letter}</TableCell>
+      <TableCell className="max-w-[220px] truncate font-medium" title={s.header}>
+        {s.header || <span className="text-muted-foreground">(tanpa header)</span>}
+      </TableCell>
+      <TableCell className="text-muted-foreground hidden max-w-[220px] truncate text-xs md:table-cell">
+        {sample}
+      </TableCell>
+      <TableCell>
+        <LazySelect
+          aria-label={`Field untuk kolom ${s.letter}`}
+          value={field ?? IGNORE}
+          onChange={onChange}
+          placeholder="Pilih field"
+          options={PICKER_OPTIONS}
+        />
+      </TableCell>
+      <TableCell>
+        <ConfidenceBadge suggestion={s} field={field} merged={merged} />
+      </TableCell>
+    </TableRow>
+  );
+});
+
 export function MappingStep({
   fileName,
   sheets,
@@ -115,7 +160,7 @@ export function MappingStep({
   rows: DataRow[];
   suggestions: ColumnSuggestion[];
   mapping: (ImportFieldKey | null)[];
-  onMappingChange: (mapping: (ImportFieldKey | null)[]) => void;
+  onMappingChange: Dispatch<SetStateAction<(ImportFieldKey | null)[]>>;
   savedProfile: boolean;
   saveProfile: boolean;
   onSaveProfileChange: (value: boolean) => void;
@@ -124,16 +169,24 @@ export function MappingStep({
   busy: boolean;
 }) {
   const mapped = mapping.filter(Boolean).length;
-  const fieldCount = new Map<ImportFieldKey, number>();
-  for (const f of mapping) if (f) fieldCount.set(f, (fieldCount.get(f) ?? 0) + 1);
-  const hasNumber = mapping.includes("employeeNumber");
-  const setField = (column: number, value: string) => {
-    const field = value === IGNORE || value === "" ? null : (value as ImportFieldKey);
-    // Satu field hanya untuk satu kolom: kolom lain yang memakai field itu dilepas.
-    onMappingChange(
-      mapping.map((current, c) => (c === column ? field : current === field ? null : current)),
-    );
-  };
+  const fieldCount = useMemo(() => {
+    const count = new Map<ImportFieldKey, number>();
+    for (const f of mapping) if (f) count.set(f, (count.get(f) ?? 0) + 1);
+    return count;
+  }, [mapping]);
+  // D-063: karyawan dikenali lewat NIP atau NIK KTP — salah satu kolom harus dipetakan.
+  const hasNumber = mapping.includes("employeeNumber") || mapping.includes("ktpNumber");
+  // Referensi stabil (updater fungsional) → baris yang tidak berubah tidak digambar ulang.
+  const setField = useCallback(
+    (column: number, value: string) => {
+      const field = value === IGNORE || value === "" ? null : (value as ImportFieldKey);
+      // Satu field hanya untuk satu kolom: kolom lain yang memakai field itu dilepas.
+      onMappingChange((current) =>
+        current.map((f, c) => (c === column ? field : f === field ? null : f)),
+      );
+    },
+    [onMappingChange],
+  );
 
   return (
     <div className="space-y-5">
@@ -186,7 +239,7 @@ export function MappingStep({
         <Alert variant="destructive">
           <TriangleAlert />
           <AlertDescription>
-            Kolom <strong>NIP (nomor induk pegawai)</strong> wajib dipetakan — dipakai untuk
+            Petakan kolom <strong>NIP</strong> atau <strong>NIK KTP</strong> — dipakai untuk
             mengenali karyawan yang sudah ada.
           </AlertDescription>
         </Alert>
@@ -208,31 +261,14 @@ export function MappingStep({
               {suggestions.map((s) => {
                 const field = mapping[s.column] ?? null;
                 return (
-                  <TableRow key={s.column}>
-                    <TableCell className="font-mono text-xs">{s.letter}</TableCell>
-                    <TableCell className="max-w-[220px] truncate font-medium" title={s.header}>
-                      {s.header || <span className="text-muted-foreground">(tanpa header)</span>}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground hidden max-w-[220px] truncate text-xs md:table-cell">
-                      {sampleOf(rows, s.column, field)}
-                    </TableCell>
-                    <TableCell>
-                      <FormSelect
-                        aria-label={`Field untuk kolom ${s.letter}`}
-                        value={field ?? IGNORE}
-                        onChange={(v) => setField(s.column, v)}
-                        placeholder="Pilih field"
-                        options={[{ value: IGNORE, label: "Abaikan kolom ini" }, ...FIELD_OPTIONS]}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <ConfidenceBadge
-                        suggestion={s}
-                        field={field}
-                        merged={field !== null && (fieldCount.get(field) ?? 0) > 1}
-                      />
-                    </TableCell>
-                  </TableRow>
+                  <MappingRow
+                    key={s.column}
+                    suggestion={s}
+                    rows={rows}
+                    field={field}
+                    merged={field !== null && (fieldCount.get(field) ?? 0) > 1}
+                    onSetField={setField}
+                  />
                 );
               })}
             </TableBody>
@@ -255,7 +291,7 @@ export function MappingStep({
             Ingat pemetaan untuk file berformat sama
           </label>
           <Button variant="brand" onClick={onNext} disabled={!hasNumber || busy}>
-            {busy ? "Memeriksa…" : "Lanjut ke pratinjau"} <ArrowRight />
+            {busy ? "Memeriksa…" : "Lanjut"} <ArrowRight />
           </Button>
         </div>
       </div>

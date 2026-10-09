@@ -1,4 +1,6 @@
 import {
+  type DashboardLayout,
+  dashboardLayoutSchema,
   isPermissionGrantableTo,
   PERMISSION_LABELS,
   type Permission,
@@ -25,6 +27,7 @@ import type {
   AssignCompaniesInput,
   AuditLogDto,
   CreateGrantInput,
+  DashboardLayoutState,
   GrantDto,
   InviteAccountInput,
   ListAccountsQuery,
@@ -262,6 +265,39 @@ export async function loadActor(authUserId: string, now: Date = new Date()): Pro
           ? new Set(account.companies.map((c) => c.companyId))
           : new Set<string>(),
   };
+}
+
+// ── D-065: susunan widget dashboard (akun sendiri) ──────────────────────────────
+
+const toLayoutState = (row: { layout: unknown; updatedAt: Date } | null): DashboardLayoutState => {
+  if (!row) return { layout: null, updatedAt: null };
+  // Isi tersimpan yang tak lagi cocok skema (versi lama) dianggap belum ada → susunan bawaan.
+  const parsed = dashboardLayoutSchema.safeParse(row.layout);
+  return {
+    layout: parsed.success ? parsed.data : null,
+    updatedAt: row.updatedAt.toISOString(),
+  };
+};
+
+export async function getDashboardLayout(actor: Actor): Promise<DashboardLayoutState> {
+  if (!policy.canManageOwnDashboardLayout(actor)) throw new ForbiddenError();
+  return toLayoutState(await repository.findDashboardLayout(actor.accountId));
+}
+
+/** Preferensi tampilan, bukan data karyawan → tidak dicatat di audit log. */
+export async function saveDashboardLayout(
+  actor: Actor,
+  layout: DashboardLayout,
+): Promise<DashboardLayoutState> {
+  if (!policy.canManageOwnDashboardLayout(actor)) throw new ForbiddenError();
+  return toLayoutState(await repository.upsertDashboardLayout(actor.accountId, layout));
+}
+
+/** "Reset ke bawaan": baris dihapus, GET berikutnya mengembalikan `layout: null`. */
+export async function resetDashboardLayout(actor: Actor): Promise<DashboardLayoutState> {
+  if (!policy.canManageOwnDashboardLayout(actor)) throw new ForbiddenError();
+  await repository.deleteDashboardLayout(actor.accountId);
+  return { layout: null, updatedAt: null };
 }
 
 export async function getMe(actor: Actor, now: Date = new Date()): Promise<MeResponse> {

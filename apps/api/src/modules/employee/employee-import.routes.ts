@@ -189,6 +189,7 @@ export function registerEmployeeImportRoutes(
           deps.ctx(c),
           c.req.valid("param").signature,
           c.req.valid("json").mapping,
+          c.req.valid("json").unitChoices,
         ),
       ),
       200,

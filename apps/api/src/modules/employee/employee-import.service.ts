@@ -11,6 +11,7 @@ import {
   isBlankImportRow,
   type NormalizedImportRow,
   normalizeImportRow,
+  unitKey,
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
@@ -28,12 +29,15 @@ import * as policy from "./employee.policy.ts";
 import * as repository from "./employee.repository.ts";
 import { type RequestContext, todayInJakarta } from "./employee.service.ts";
 import * as importRepo from "./employee-import.repository.ts";
-import type {
-  CommitBody,
-  ImportBody,
-  ImportJobDto,
-  ImportPreview,
+import {
+  type CommitBody,
+  type ImportBody,
+  type ImportJobDto,
+  type ImportPreview,
+  type UnitChoice,
+  unitChoicesSchema,
 } from "./employee-import.schema.ts";
+import { newUnitSpecs, resolveUnits } from "./employee-import-units.ts";
 
 // D-042: import karyawan. `analyze` dipakai pratinjau & simpan (sumber kebenaran di server).
 // Aturan: cakupan PT (D-040), grant untuk kolom sensitif (§4.2), master data baru boleh ditambah,
@@ -53,6 +57,7 @@ interface RowPlan {
   changes: ImportFieldKey[];
   existing?: importRepo.ExistingEmployee;
   companyId?: string;
+  companySource?: "FILE" | "ROW" | "DEFAULT" | "EXISTING";
   statusId?: string;
   /** Departemen untuk jabatan (dari file atau departemen jabatan saat ini). */
   departmentName?: string;
@@ -232,55 +237,13 @@ function issue(
   return { field, code, severity } satisfies ImportRowIssue;
 }
 
-/**
- * D-061: kolom Divisi dicocokkan PERSIS (tanpa peka huruf besar/spasi) ke unit berjenis DIVISION — tidak
- * menebak, tidak membuat divisi baru. Departemen yang sudah ada harus berada di bawah divisi itu (induk
- * langsung/tidak langsung); departemen baru ditempatkan di bawahnya (dikembalikan sebagai peta induk).
- */
-function checkDivisions(
-  plans: RowPlan[],
-  lookup: MasterLookup,
-  mappedDepartments: Record<string, string> | undefined,
-): Record<string, string> {
-  const live = [...lookup.departments.values()].filter((d) => !d.deleted);
-  const divisions = new Map(
-    live.filter((d) => d.unitType === "DIVISION").map((d) => [masterKey(d.name), d]),
-  );
-  const units = new Map(live.map((d) => [masterKey(d.name), d]));
-  const isUnder = (unitId: string, divisionId: string) => {
-    let current = lookup.departments.get(unitId);
-    for (let depth = 0; current && depth < 10; depth++) {
-      if (current.parentId === divisionId) return true;
-      current = current.parentId ? lookup.departments.get(current.parentId) : undefined;
-    }
-    return false;
-  };
-  const parents: Record<string, string> = {};
-  for (const p of plans) {
-    if ((p.action !== "CREATE" && p.action !== "UPDATE") || !p.row.divisionName) continue;
-    const division = divisions.get(masterKey(p.row.divisionName));
-    if (!division) {
-      p.issues.push(issue("divisionName", "DIVISION_UNKNOWN"));
-    } else if (p.departmentName) {
-      const key = masterKey(p.departmentName);
-      const mappedId = mappedDepartments?.[key];
-      const unit = mappedId ? lookup.departments.get(mappedId) : units.get(key);
-      if (unit) {
-        if (!isUnder(unit.id, division.id))
-          p.issues.push(issue("divisionName", "DIVISION_MISMATCH"));
-      } else if (parents[key] && parents[key] !== division.id) {
-        p.issues.push(issue("divisionName", "DIVISION_MISMATCH"));
-      } else {
-        parents[key] = division.id;
-      }
-    }
-    if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
-  }
-  return parents;
-}
-
 function statusIdFor(lookup: MasterLookup, category: string): string | undefined {
   return [...lookup.statuses.values()].find((s) => !s.deleted && s.category === category)?.id;
+}
+
+function activeStatus(lookup: MasterLookup, id: string): boolean {
+  const status = lookup.statuses.get(id);
+  return status !== undefined && !status.deleted;
 }
 
 function departmentNameOf(lookup: MasterLookup, positionId: string): string | undefined {
@@ -327,9 +290,21 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     ...new Set(normalized.flatMap((n) => (n.row.employeeNumber ? [n.row.employeeNumber] : []))),
   ];
   const existingList = await importRepo.findByEmployeeNumbers(numbers);
-  const existingByNumber = new Map(existingList.map((e) => [e.employeeNumber.toUpperCase(), e]));
+  const existingByNumber = new Map(
+    existingList.map((e) => [(e.employeeNumber ?? "").toUpperCase(), e]),
+  );
   const ktpOwners = await importRepo.findKtpOwners(
     normalized.flatMap((n) => (n.row.personal.ktpNumber ? [n.row.personal.ktpNumber] : [])),
+  );
+  // D-063: kunci kedua = NIK KTP (baris tanpa NIP, atau karyawan yang belum punya NIP).
+  const existingById = new Map(
+    (
+      await importRepo.findExistingByIds(
+        [...new Set(ktpOwners.values())].filter((id) => !existingList.some((e) => e.id === id)),
+      )
+    )
+      .concat(existingList)
+      .map((e) => [e.id, e]),
   );
   const emailOwners = await importRepo.findEmailOwners(
     normalized.flatMap((n) => (n.row.workEmail ? [n.row.workEmail] : [])),
@@ -364,18 +339,29 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
         plan.issues.push(issue("personalEmail", "DUPLICATE_PERSONAL_EMAIL_IN_FILE"));
       seenPersonalEmail.add(row.personalEmail);
     }
-    const existing = number ? existingByNumber.get(number) : undefined;
+    let existing = number ? existingByNumber.get(number) : undefined;
+    const ktpOwner = ktp ? existingById.get(ktpOwners.get(ktp) ?? "") : undefined;
+    // NIP baris kosong → cocok lewat NIK; NIP baris terisi → hanya bila karyawan itu belum punya NIP
+    // (NIP lalu diisi lewat import). NIP berbeda tetap bentrok (KTP_TAKEN di bawah).
+    if (!existing && ktpOwner && (!number || !ktpOwner.employeeNumber)) existing = ktpOwner;
     if (existing) plan.existing = existing;
 
-    // Perusahaan (D-039/D-040): kode di file > PT bawaan > satu-satunya PT dalam cakupan.
+    // Perusahaan (D-039/D-040): PT per baris di Pratinjau (D-064) > kode di file > PT bawaan >
+    // satu-satunya PT dalam cakupan.
     let companyId: string | undefined;
-    if (row.companyCode) {
+    const companyOverride = body.companyOverrides?.[String(sourceRow)];
+    if (companyOverride) {
+      const company = lookup.companies.get(companyOverride);
+      if (!company || company.deleted) plan.issues.push(issue("companyCode", "COMPANY_UNKNOWN"));
+      else [companyId, plan.companySource] = [company.id, "ROW"];
+    } else if (row.companyCode) {
       const company = companyByCode.get(row.companyCode);
       if (!company) plan.issues.push(issue("companyCode", "COMPANY_UNKNOWN"));
-      else companyId = company.id;
-    } else if (existing) companyId = existing.companyId;
-    else if (body.companyId) companyId = body.companyId;
-    else if (scopeCompanies.length === 1) companyId = scopeCompanies[0];
+      else [companyId, plan.companySource] = [company.id, "FILE"];
+    } else if (existing) [companyId, plan.companySource] = [existing.companyId, "EXISTING"];
+    else if (body.companyId) [companyId, plan.companySource] = [body.companyId, "DEFAULT"];
+    else if (scopeCompanies.length === 1)
+      [companyId, plan.companySource] = [scopeCompanies[0], "DEFAULT"];
     if (companyId) {
       plan.companyId = companyId;
       if (!existing || companyId !== existing.companyId) {
@@ -386,10 +372,20 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       plan.issues.push(issue("companyCode", "COMPANY_REQUIRED"));
     }
 
-    if (row.category) {
+    // D-062: baris yang belum ada di sistem — status pilihan per baris > kolom status file > status
+    // bawaan. Karyawan yang sudah ada hanya berubah status lewat kolom file (tidak lewat bawaan/per baris).
+    const override = existing ? undefined : body.employmentStatusOverrides?.[String(sourceRow)];
+    if (override) {
+      if (activeStatus(lookup, override)) plan.statusId = override;
+      else plan.issues.push(issue("employmentStatusText", "STATUS_INVALID"));
+    } else if (row.category) {
       const statusId = statusIdFor(lookup, row.category);
       if (statusId) plan.statusId = statusId;
       else plan.issues.push(issue("employmentStatusText", "STATUS_NOT_CONFIGURED"));
+    } else if (!existing && body.defaultEmploymentStatusId) {
+      if (activeStatus(lookup, body.defaultEmploymentStatusId))
+        plan.statusId = body.defaultEmploymentStatusId;
+      else plan.issues.push(issue("employmentStatusText", "STATUS_INVALID"));
     }
     if (ktp && ktpOwners.has(ktp) && ktpOwners.get(ktp) !== existing?.id)
       plan.issues.push(issue("ktpNumber", "KTP_TAKEN"));
@@ -445,9 +441,11 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       }
     } else {
       if (!row.fullName) plan.issues.push(issue("fullName", "REQUIRED"));
-      if (!row.category) plan.issues.push(issue("employmentStatusText", "CATEGORY_REQUIRED"));
+      if (!plan.statusId && !plan.issues.some((i) => i.field === "employmentStatusText"))
+        plan.issues.push(issue("employmentStatusText", "CATEGORY_REQUIRED"));
       if (!row.joinDate) plan.issues.push(issue("joinDate", "JOIN_DATE_REQUIRED"));
-      if (!row.positionName || !row.departmentName)
+      // D-064: unit boleh dari kolom Departemen atau Divisi (dicocokkan di langkah unit).
+      if (!row.positionName || (!row.departmentName && !row.divisionName))
         plan.issues.push(issue("positionName", "POSITION_REQUIRED"));
       plan.departmentName = row.departmentName;
       if (row.exit?.date && row.joinDate && row.exit.date < row.joinDate)
@@ -457,9 +455,21 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     return plan;
   });
 
-  // 3) Master data yang belum ada (hanya dari baris yang akan ditulis), setelah pemetaan pengguna.
-  //    Baris UPDATE hanya menyumbang nama untuk field yang BERUBAH (nilai lama tidak ditulis ulang).
+  // 3) D-064: Departemen/Divisi → unit organisasi (pilihan HR, nama persis, saran, atau unit baru).
+  //    Pemetaan lama `masterDataMapping.departments` (nama → id) tetap diterima sebagai pilihan unit.
   const map = body.masterDataMapping ?? {};
+  const legacyChoices = Object.fromEntries(
+    Object.entries(map.departments ?? {}).map(([name, unitId]) => [unitKey(name), { unitId }]),
+  );
+  const unitResult = resolveUnits(plans, lookup, body.unitMapping ?? {}, legacyChoices);
+  for (const p of plans) {
+    if (p.action === "UPDATE" && p.existing && (p.row.departmentName || p.row.divisionName))
+      p.changes = diff(p.row, p.existing, lookup, p);
+    if (p.action === "UPDATE" && p.changes.length === 0) p.action = "SKIP";
+  }
+
+  // 4) Master data yang belum ada (hanya dari baris yang akan ditulis), setelah pemetaan pengguna.
+  //    Baris UPDATE hanya menyumbang nama untuk field yang BERUBAH (nilai lama tidak ditulis ulang).
   const mapped = (dict: Record<string, string> | undefined, key: string) => dict?.[key];
   const wants = (p: RowPlan, field: ImportFieldKey) =>
     p.action === "CREATE" || p.changes.includes(field);
@@ -489,14 +499,13 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       p.issues.push(issue("workLocationName", "MASTER_ARCHIVED"));
     if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
   }
-  const departmentParents = checkDivisions(plans, lookup, map.departments);
   const writing = plans.filter((p) => p.action === "CREATE" || p.action === "UPDATE");
   const names: MasterDataNames = {
-    departments: [],
+    departments: unitResult.newUnits.map((u) => u.name),
     positions: [],
     grades: [],
     workLocations: [],
-    departmentParents,
+    departmentSpecs: newUnitSpecs(unitResult.newUnits),
   };
   for (const p of writing) {
     const dept = p.departmentName;
@@ -539,9 +548,12 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
   const previewRows = plans.map((p) => ({
     sourceRow: p.sourceRow,
     action: p.action,
-    employeeNumber: p.row.employeeNumber ?? null,
+    employeeNumber: p.row.employeeNumber ?? p.existing?.employeeNumber ?? null,
     fullName: p.row.fullName ?? p.existing?.fullName ?? null,
     companyCode: p.companyId ? (lookup.companies.get(p.companyId)?.code ?? null) : null,
+    companySource: p.companySource ?? null,
+    newEmployee: !p.existing,
+    employmentStatusId: p.existing ? null : (p.statusId ?? null),
     changes: p.changes,
     issues: p.issues,
     attachments: queuedAttachments(p).length,
@@ -559,7 +571,14 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     )
     .digest("hex");
   return {
-    preview: { counts, rows: previewRows, masterData: missing, skippedFields, previewHash },
+    preview: {
+      counts,
+      rows: previewRows,
+      units: unitResult.units,
+      masterData: missing,
+      skippedFields,
+      previewHash,
+    },
     plans,
     lookup,
     missing,
@@ -583,6 +602,8 @@ function diff(
       : a === b;
   const differs = (value: unknown, current: unknown) =>
     value !== undefined && !same(value, current ?? undefined);
+  // D-063: NIP hanya bisa diisi (karyawan yang dicocokkan lewat NIK belum punya NIP), tidak diganti.
+  if (row.employeeNumber && !e.employeeNumber) changes.push("employeeNumber");
   if (differs(row.fullName, e.fullName)) changes.push("fullName");
   if (differs(row.workEmail, e.workEmail)) changes.push("workEmail");
   if (differs(row.personalEmail, e.personalEmail)) changes.push("personalEmail");
@@ -707,7 +728,7 @@ export async function commit(
         ) as string;
         const created = await repository.createEmployee(tx, {
           companyId: plan.companyId as string,
-          employeeNumber: row.employeeNumber as string,
+          employeeNumber: row.employeeNumber ?? null,
           fullName: row.fullName as string,
           workEmail: row.workEmail ?? null,
           personalEmail: row.personalEmail ?? null,
@@ -799,6 +820,7 @@ export async function commit(
             ? positionId(plan.departmentName, row.positionName)
             : undefined;
         await repository.updateEmployee(tx, e.id, {
+          ...(has("employeeNumber") ? { employeeNumber: row.employeeNumber } : {}),
           ...(has("fullName") ? { fullName: row.fullName } : {}),
           ...(has("workEmail") ? { workEmail: row.workEmail } : {}),
           ...(has("personalEmail") ? { personalEmail: row.personalEmail } : {}),
@@ -1010,27 +1032,44 @@ export async function getJob(ctx: RequestContext, id: string) {
   };
 }
 
+/**
+ * Profil tersimpan: bentuk lama = peta kolom saja; D-064 = `{ columns, units }` (pilihan unit ikut
+ * diingat). Pilihan unit yang tidak lolos skema (mis. versi lama) diabaikan, bukan error.
+ */
+function mappingDto(row: { signature: string; mapping: unknown; updatedAt: Date }) {
+  const stored = (row.mapping ?? {}) as Record<string, unknown>;
+  const modern = typeof stored.columns === "object" && stored.columns !== null;
+  const units = unitChoicesSchema.safeParse(modern ? stored.units : undefined);
+  return {
+    signature: row.signature,
+    mapping: (modern ? stored.columns : stored) as Record<string, ImportFieldKey | null>,
+    unitChoices: units.success ? units.data : {},
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
 export async function getMapping(ctx: RequestContext, signature: string) {
   if (!policy.canImportEmployees(ctx.actor)) throw new ForbiddenError();
   const row = await importRepo.findMapping(signature);
   if (!row) throw new NotFoundError("Belum ada pemetaan tersimpan untuk susunan header ini.");
-  return {
-    signature: row.signature,
-    mapping: row.mapping as Record<string, ImportFieldKey | null>,
-    updatedAt: row.updatedAt.toISOString(),
-  };
+  return mappingDto(row);
 }
 
 export async function saveMapping(
   ctx: RequestContext,
   signature: string,
   mapping: Record<string, ImportFieldKey | null>,
+  unitChoices?: Record<string, UnitChoice>,
 ) {
   if (!policy.canImportEmployees(ctx.actor)) throw new ForbiddenError();
-  const row = await importRepo.upsertMapping(signature, mapping, ctx.actor.accountId);
-  return {
-    signature: row.signature,
-    mapping: row.mapping as Record<string, ImportFieldKey | null>,
-    updatedAt: row.updatedAt.toISOString(),
-  };
+  // Tanpa pilihan unit di permintaan → pilihan yang sudah tersimpan dipertahankan.
+  const kept =
+    unitChoices ??
+    (await importRepo.findMapping(signature).then((r) => (r ? mappingDto(r).unitChoices : {})));
+  const row = await importRepo.upsertMapping(
+    signature,
+    { columns: mapping, units: kept },
+    ctx.actor.accountId,
+  );
+  return mappingDto(row);
 }

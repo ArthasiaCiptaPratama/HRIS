@@ -48,7 +48,13 @@ export function employeeColumns(
             <p className="group-hover:text-brand truncate font-medium transition-colors">
               {row.original.fullName}
             </p>
-            <p className="text-muted-foreground font-mono text-xs">{row.original.employeeNumber}</p>
+            {row.original.employeeNumber ? (
+              <p className="text-muted-foreground font-mono text-xs">
+                {row.original.employeeNumber}
+              </p>
+            ) : (
+              <p className="text-xs text-amber-700 dark:text-amber-400">NIP belum ada</p>
+            )}
           </div>
         </div>
       ),
@@ -191,6 +197,7 @@ export function useListParams(defaults: { sort: string }) {
     pageSize: [10, 20, 50, 100].includes(Number(get("size"))) ? Number(get("size")) : 20,
     departmentId: get("dept"),
     workLocationId: get("loc"),
+    missingNumber: get("nip") === "kosong",
     sort: get("sort") || defaults.sort,
     update,
   };
@@ -258,6 +265,7 @@ export function EmployeeListView({
       companyId,
       departmentId: list.departmentId || undefined,
       workLocationId: list.workLocationId || undefined,
+      missingNumber: list.missingNumber || undefined,
       sort: list.sort,
     }),
     [
@@ -266,6 +274,7 @@ export function EmployeeListView({
       list.q,
       list.departmentId,
       list.workLocationId,
+      list.missingNumber,
       list.sort,
       category,
       group,
@@ -276,7 +285,9 @@ export function EmployeeListView({
   const query = useEmployees(params);
   const rows = query.data?.data ?? [];
   const total = query.data?.meta.total ?? 0;
-  const filtered = Boolean(list.q || list.departmentId || list.workLocationId);
+  const filtered = Boolean(
+    list.q || list.departmentId || list.workLocationId || list.missingNumber,
+  );
 
   // Halaman di luar jangkauan (mis. setelah filter) → kembali ke halaman terakhir yang ada.
   // biome-ignore lint/correctness/useExhaustiveDependencies: cukup saat total berubah
@@ -342,6 +353,15 @@ export function EmployeeListView({
               label: l.name,
             }))}
           />
+          <Button
+            variant={list.missingNumber ? "secondary" : "outline"}
+            size="sm"
+            className="h-9"
+            aria-pressed={list.missingNumber}
+            onClick={() => list.update({ nip: list.missingNumber ? null : "kosong" })}
+          >
+            NIP belum ada
+          </Button>
           {filtered ? (
             <Button
               variant="ghost"
@@ -349,7 +369,7 @@ export function EmployeeListView({
               className="h-9"
               onClick={() => {
                 setSearch("");
-                list.update({ q: null, dept: null, loc: null });
+                list.update({ q: null, dept: null, loc: null, nip: null });
               }}
             >
               <X /> Reset

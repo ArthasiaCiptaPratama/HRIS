@@ -192,6 +192,8 @@ export async function decide(
   if (input.decision === "APPROVED") {
     const missing = onboardingCompleteness(snapshotOf(row));
     if (missing.length > 0) throw new BusinessRuleError("Data belum lengkap.", missing);
+    // D-063: NIP boleh kosong untuk karyawan hasil import, tetapi persetujuan onboarding butuh NIP (D-048).
+    if (!row.employeeNumber) throw new BusinessRuleError("Isi NIP sebelum menyetujui.");
     if (input.work && completion) {
       throw new BusinessRuleError(
         "Data kerja karyawan terdaftar diubah lewat menu Karyawan (tercatat di riwayat).",
@@ -235,7 +237,7 @@ export async function decide(
       // D-048: sejak disetujui akun login dengan NIK (email Auth → alamat turunan). Gagal → batal semua.
       const outcome = await applyNikLogin(
         row.id,
-        row.employeeNumber,
+        row.employeeNumber as string,
         { authAdmin: deps.authAdmin, domain: deps.loginEmailDomain },
         tx,
       );

@@ -1,4 +1,4 @@
-import type { EmploymentCategory } from "@hris/shared";
+import type { EmploymentCategory, OrgUnitType } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 import { type AuditEntry, writeAudit } from "../../core/audit.ts";
 import { ForbiddenError } from "../../core/errors.ts";
@@ -102,6 +102,20 @@ export interface MasterDataNames {
   departments: string[];
   /** D-061: induk departemen baru (kunci `masterKey` nama departemen → id unit Divisi). */
   departmentParents?: Record<string, string>;
+  /**
+   * D-064: jenis & induk unit baru dari import (kunci `masterKey` nama). Induk boleh unit yang juga baru
+   * (`parentName`), dibuat lebih dulu.
+   */
+  departmentSpecs?: Record<
+    string,
+    {
+      unitType: OrgUnitType;
+      parentId: string | null;
+      parentName: string | null;
+      /** PT pemilik bila tanpa induk (D-052/D-064). */
+      companyId?: string | null;
+    }
+  >;
   positions: { department: string; name: string }[];
   grades: string[];
   workLocations: string[];
@@ -175,6 +189,7 @@ export function missingMasterData(lookup: MasterLookup, names: MasterDataNames):
   return {
     departments: unique(names.departments, index.departments),
     ...(names.departmentParents ? { departmentParents: names.departmentParents } : {}),
+    ...(names.departmentSpecs ? { departmentSpecs: names.departmentSpecs } : {}),
     positions: [...positions.values()],
     grades: unique(names.grades, index.grades),
     workLocations: unique(names.workLocations, index.workLocations),
@@ -200,15 +215,29 @@ export async function createMissingMasterData(
       },
       tx,
     );
-  for (const name of missing.departments) {
-    // D-061: departemen baru dari import yang ber-Divisi ditempatkan di bawah divisinya (PT ikut divisi).
-    const parentId = missing.departmentParents?.[masterKey(name)];
+  // D-064: unit yang induknya juga unit baru dibuat setelah induknya.
+  const specOf = (name: string) => missing.departmentSpecs?.[masterKey(name)];
+  const createdCompany = new Map<string, string | null>();
+  const departments = [...missing.departments].sort(
+    (a, b) => Number(Boolean(specOf(a)?.parentName)) - Number(Boolean(specOf(b)?.parentName)),
+  );
+  for (const name of departments) {
+    const spec = specOf(name);
+    // D-061: departemen baru dari import yang ber-Divisi ditempatkan di bawah divisinya (PT ikut induk).
+    const parentId = spec?.parentId ?? missing.departmentParents?.[masterKey(name)];
     const parent = parentId ? lookup.departments.get(parentId) : undefined;
-    const row = await repository.createDepartment(
-      tx,
-      name,
-      parent ? { parentId: parent.id, companyId: parent.companyId } : null,
-    );
+    const newParentId = spec?.parentName
+      ? index.departments.get(masterKey(spec.parentName))
+      : undefined;
+    const placement = parent
+      ? { parentId: parent.id, companyId: parent.companyId ?? spec?.companyId ?? null }
+      : newParentId
+        ? { parentId: newParentId, companyId: createdCompany.get(newParentId) ?? null }
+        : spec?.companyId
+          ? { parentId: null, companyId: spec.companyId }
+          : null;
+    const row = await repository.createDepartment(tx, name, placement, spec?.unitType);
+    createdCompany.set(row.id, placement?.companyId ?? null);
     index.departments.set(masterKey(name), row.id);
     await log("department", row.id, name);
   }

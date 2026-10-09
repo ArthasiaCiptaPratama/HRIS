@@ -139,8 +139,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // D-063: karyawan tanpa NIP dikenali lewat nama berpenanda RUN.
   const employees = await prisma.employee.findMany({
-    where: { employeeNumber: { startsWith: `T-${RUN}-` } },
+    where: {
+      OR: [
+        { employeeNumber: { startsWith: `T-${RUN}-` } },
+        { fullName: { startsWith: `Uji ${RUN} TanpaNIP` } },
+      ],
+    },
     select: { id: true },
   });
   const employeeIds = employees.map((e) => e.id);
@@ -406,6 +412,42 @@ describe("POST /employees & PATCH /employees/:id", () => {
         await call("PATCH", `/employees/${ids.managerEmp}`, sa.headers, {
           managerId: ids.managerEmp,
         }),
+      ),
+    ).toBe("BUSINESS_RULE_VIOLATION");
+  });
+});
+
+describe("D-063 NIP boleh kosong", () => {
+  test("buat tanpa NIP → 201 (NIP null); filter 'NIP belum ada'; isi NIP lalu tidak bisa dikosongkan", async () => {
+    const res = await call("POST", "/employees", hr.headers, {
+      employeeNumber: "",
+      fullName: `Uji ${RUN} TanpaNIP`,
+      joinDate: "2026-09-01",
+      companyId: ids.acp,
+      employmentStatusId: ids.status,
+      positionId: ids.position,
+    });
+    expect(res.status).toBe(201);
+    const created = (await body(res)).data;
+    expect(created.employeeNumber).toBeNull();
+
+    const missing = await body(
+      await call(
+        "GET",
+        `/employees?missingNumber=true&q=${encodeURIComponent(`Uji ${RUN}`)}`,
+        hr.headers,
+      ),
+    );
+    expect(missing.data.map((e: { id: string }) => e.id)).toEqual([created.id]);
+
+    const filled = await call("PATCH", `/employees/${created.id}`, hr.headers, {
+      employeeNumber: NUM("NIP1"),
+    });
+    expect(filled.status).toBe(200);
+    expect((await body(filled)).data.employeeNumber).toBe(NUM("NIP1"));
+    expect(
+      await code(
+        await call("PATCH", `/employees/${created.id}`, hr.headers, { employeeNumber: "" }),
       ),
     ).toBe("BUSINESS_RULE_VIOLATION");
   });

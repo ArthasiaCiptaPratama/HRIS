@@ -21,7 +21,7 @@ const ref = z.object({ id: z.string(), name: z.string() });
 
 export const employeeListItemSchema = z.object({
   id: z.string(),
-  employeeNumber: z.string(),
+  employeeNumber: z.string().nullable(),
   fullName: z.string(),
   workEmail: z.string().nullable(),
   phoneNumber: z.string().nullable(),
@@ -163,6 +163,7 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
         workAddress: z.string().nullable().optional(),
         // D-061: keterangan hubungan (saudara: Kakak/Adik).
         relationDetail: z.string().nullable().optional(),
+        isDeceased: z.boolean().optional(),
       }),
     )
     .optional(),
@@ -246,7 +247,12 @@ export const masterDataSchema = z.object({
   companies: z.array(ref.extend({ code: z.string() })),
   // D-050: departments = semua unit organisasi (dengan jenis); jabatan ber-level opsional.
   departments: z.array(
-    ref.extend({ parentId: z.string().nullable(), unitType: orgUnitTypeSchema }),
+    ref.extend({
+      parentId: z.string().nullable(),
+      unitType: orgUnitTypeSchema,
+      // D-052: PT pemilik (null = unit grup); dipakai pencocokan unit per PT di Import (D-064).
+      companyId: z.string().nullable().optional(),
+    }),
   ),
   positions: z.array(
     ref.extend({ departmentId: z.string(), level: positionLevelSchema.nullable() }),
@@ -273,7 +279,7 @@ export const orgStructureSchema = z.object({
             z.object({
               id: z.string(),
               fullName: z.string(),
-              employeeNumber: z.string(),
+              employeeNumber: z.string().nullable(),
               managerId: z.string().nullable(),
             }),
           ),
@@ -288,7 +294,7 @@ export type OrgStructure = z.infer<typeof orgStructureSchema>;
 export const managerOptionSchema = z.object({
   id: z.string(),
   fullName: z.string(),
-  employeeNumber: z.string(),
+  employeeNumber: z.string().nullable(),
   position: z.string(),
 });
 export type ManagerOption = z.infer<typeof managerOptionSchema>;
@@ -305,9 +311,9 @@ export const employeeFormSchema = z.object({
   employeeNumber: z
     .string()
     .trim()
-    .min(1, "NIP wajib diisi.")
     .max(30, "Maksimal 30 karakter.")
-    .regex(/^[A-Za-z0-9./-]+$/, "Hanya huruf, angka, titik, garis miring, dan tanda hubung."),
+    // D-063: boleh kosong (NIP belum diketahui).
+    .regex(/^[A-Za-z0-9./-]*$/, "Hanya huruf, angka, titik, garis miring, dan tanda hubung."),
   fullName: z.string().trim().min(2, "Nama minimal 2 karakter.").max(150),
   workEmail: z
     .string()

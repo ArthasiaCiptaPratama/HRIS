@@ -14,7 +14,7 @@ const ref = z.object({ id: z.string(), name: z.string() });
 export const archiveEmployeeSchema = z.object({
   id: z.string(),
   fullName: z.string(),
-  employeeNumber: z.string(),
+  employeeNumber: z.string().nullable(),
   isActive: z.boolean(),
   company: z.object({ id: z.string(), code: z.string() }),
   department: ref.nullable(),
