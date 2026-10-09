@@ -94,7 +94,7 @@ export async function remindStaleInvitations(now = new Date()) {
         recipients: reviewers,
         type: "employee.onboarding_invite_stale",
         title: "Undangan aktivasi belum dipakai",
-        body: `${row.fullName} (${row.employeeNumber}) belum mengaktifkan akun lebih dari ${INVITE_REMINDER_DAYS} hari. Kirim ulang undangan atau hubungi calon.`,
+        body: `${row.fullName} (${row.employeeNumber ?? "NIP belum ada"}) belum mengaktifkan akun lebih dari ${INVITE_REMINDER_DAYS} hari. Kirim ulang undangan atau hubungi calon.`,
         link: "/penerimaan",
         dedupeKey: `onboarding-invite-stale:${row.id}`,
         email: true,

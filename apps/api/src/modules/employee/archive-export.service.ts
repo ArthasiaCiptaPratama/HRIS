@@ -37,7 +37,7 @@ const SHEET: Record<ArchiveListCategory, string> = {
 };
 
 interface EmployeeRef {
-  employeeNumber: string;
+  employeeNumber: string | null;
   fullName: string;
   isActive: boolean;
   company: { code: string };

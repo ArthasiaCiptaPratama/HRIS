@@ -9,6 +9,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { type ActorLoader, enforceOnboardingLock, loadActor } from "./core/access/index.ts";
 import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
+import { registerDevRoutes } from "./core/dev.ts";
 import { createLogSender, createSmtpSender, type EmailSender } from "./core/email.ts";
 import {
   AppError,
@@ -268,6 +269,12 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       }),
     },
   });
+
+  // DEV-ONLY: tombol switch DB lokal ⇄ Supabase dari web. Tidak pernah ada di staging/produksi
+  // (NODE_ENV=production/test) sehingga tak bisa dipakai menukar koneksi DB di lingkungan nyata.
+  if (getEnv().NODE_ENV === "development") {
+    registerDevRoutes(app, { logger: deps.logger });
+  }
 
   app.notFound((c) => errorJson(c, 404, "NOT_FOUND", "Endpoint tidak ditemukan."));
 

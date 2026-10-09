@@ -1,4 +1,4 @@
-import { IMPORT_FIELD_KEYS, type ImportFieldKey } from "@hris/shared";
+import { IMPORT_FIELD_KEYS, type ImportFieldKey, ORG_UNIT_TYPES } from "@hris/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
@@ -13,6 +13,51 @@ const issueSchema = z.object({
   code: z.string(),
   severity: z.enum(["ERROR", "WARNING"]),
 });
+
+const unitTypeSchema = z.enum(ORG_UNIT_TYPES);
+
+/** D-064: pilihan HR untuk satu nilai Departemen/Divisi (kunci `unitKey`). */
+export const unitChoiceSchema = z.union([
+  z.object({ unitId: z.string() }),
+  z.object({ sameAs: z.string() }),
+  z.object({
+    create: z.object({
+      unitType: unitTypeSchema,
+      parentUnitId: z.string().nullable().optional(),
+      parentKey: z.string().nullable().optional(),
+    }),
+  }),
+]);
+export type UnitChoice = z.infer<typeof unitChoiceSchema>;
+
+const unitPreviewSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  companyId: z.string().nullable().default(null),
+  companyCode: z.string().nullable().default(null),
+  newName: z.string().nullable().default(null),
+  columns: z.array(z.enum(["departmentName", "divisionName"])),
+  rows: z.number(),
+  status: z.enum(["MATCHED", "CHOSEN", "NEW", "NEEDS_REVIEW", "INVALID"]),
+  unitId: z.string().nullable(),
+  sameAs: z.string().nullable(),
+  create: z
+    .object({
+      unitType: unitTypeSchema,
+      parentUnitId: z.string().nullable(),
+      parentKey: z.string().nullable(),
+    })
+    .nullable(),
+  suggestions: z.array(
+    z.object({
+      unitId: z.string().nullable(),
+      key: z.string().nullable(),
+      name: z.string(),
+      reason: z.enum(["SAME_NAME", "SPELLING", "ABBREVIATION", "CONTAINS"]),
+    }),
+  ),
+});
+export type UnitPreview = z.infer<typeof unitPreviewSchema>;
 
 export const previewSchema = z.object({
   counts: z.object({
@@ -31,11 +76,15 @@ export const previewSchema = z.object({
       employeeNumber: z.string().nullable(),
       fullName: z.string().nullable(),
       companyCode: z.string().nullable(),
+      companySource: z.enum(["FILE", "ROW", "DEFAULT", "EXISTING"]).nullable().default(null),
+      newEmployee: z.boolean(),
+      employmentStatusId: z.string().nullable(),
       changes: z.array(z.string()),
       issues: z.array(issueSchema),
       attachments: z.number(),
     }),
   ),
+  units: z.array(unitPreviewSchema).default([]),
   masterData: z.object({
     departments: z.array(z.string()),
     positions: z.array(z.object({ department: z.string(), name: z.string() })),
@@ -50,6 +99,7 @@ export type ImportPreview = z.infer<typeof previewSchema>;
 const mappingSchema = z.object({
   signature: z.string(),
   mapping: z.record(z.string(), fieldKey.nullable()),
+  unitChoices: z.record(z.string(), unitChoiceSchema).default({}),
   updatedAt: z.string(),
 });
 
@@ -60,6 +110,12 @@ export interface ImportRequest {
   fileSha256: string;
   mode: "CREATE_ONLY" | "UPSERT";
   companyId?: string | undefined;
+  /** D-062: status bawaan & status per baris (nomor baris → id) untuk baris yang belum ada di sistem. */
+  defaultEmploymentStatusId?: string | undefined;
+  employmentStatusOverrides?: Record<string, string> | undefined;
+  /** D-064: PT per baris (nomor baris → id PT) & pilihan unit organisasi. */
+  companyOverrides?: Record<string, string> | undefined;
+  unitMapping?: Record<string, UnitChoice> | undefined;
   rows: { sourceRow: number; raw: Partial<Record<ImportFieldKey, ImportCell>> }[];
   masterDataMapping?: {
     departments?: Record<string, string>;
@@ -105,17 +161,21 @@ export async function fetchSavedMapping(signature: string) {
     const res = await api(`/employee-imports/mappings/${signature}`, {
       schema: one(mappingSchema),
     });
-    return res.data.mapping;
+    return { mapping: res.data.mapping, unitChoices: res.data.unitChoices };
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
 }
 
-export function saveMapping(signature: string, mapping: Record<string, ImportFieldKey | null>) {
+export function saveMapping(
+  signature: string,
+  mapping: Record<string, ImportFieldKey | null>,
+  unitChoices?: Record<string, UnitChoice>,
+) {
   return api(`/employee-imports/mappings/${signature}`, {
     method: "PUT",
-    body: { mapping },
+    body: { mapping, ...(unitChoices ? { unitChoices } : {}) },
     schema: one(mappingSchema),
   });
 }
@@ -136,7 +196,7 @@ export const attachmentsSchema = z.object({
     z.object({
       id: z.string(),
       sourceRow: z.number(),
-      employeeNumber: z.string(),
+      employeeNumber: z.string().nullable(),
       fullName: z.string(),
       field: z.string(),
       target: z.string(),

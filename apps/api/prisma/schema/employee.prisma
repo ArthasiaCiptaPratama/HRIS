@@ -138,7 +138,8 @@ enum EmploymentChangeType {
 model Employee {
   id                           String                 @id @default(uuid()) @db.Uuid
   // ERD: nik = Nomor Induk Karyawan (bukan NIK KTP; NIK KTP ada di employee_personal.ktp_number).
-  employeeNumber               String                 @map("employee_number") @db.VarChar(30)
+  // D-063: boleh kosong (karyawan belum tahu NIP); unik untuk yang terisi.
+  employeeNumber               String?                @map("employee_number") @db.VarChar(30)
   fullName                     String                 @map("full_name") @db.VarChar(150)
   // Tidak di ERD; dibutuhkan untuk direktori & undangan akun (PLAN §5.1).
   workEmail                    String?                @map("work_email") @db.VarChar(254)
@@ -363,6 +364,8 @@ model FamilyMember {
   workAddress    String?            @map("work_address")
   // D-061: keterangan hubungan (saudara: Kakak/Adik).
   relationDetail String?            @map("relation_detail") @db.VarChar(30)
+  // D-064: anggota keluarga sudah meninggal (Form: usia/pekerjaan "almarhum", "meninggal").
+  isDeceased     Boolean            @default(false) @map("is_deceased")
   createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 

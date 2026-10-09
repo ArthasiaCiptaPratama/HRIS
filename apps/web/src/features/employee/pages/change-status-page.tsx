@@ -143,7 +143,7 @@ function ActionPanel({
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-semibold tracking-tight">{employee.fullName}</p>
           <p className="text-muted-foreground truncate text-sm">
-            <span className="font-mono text-xs">{employee.employeeNumber}</span> ·{" "}
+            <span className="font-mono text-xs">{employee.employeeNumber ?? "—"}</span> ·{" "}
             {employee.position.name}
             {employee.department ? ` · ${employee.department.name}` : ""}
           </p>

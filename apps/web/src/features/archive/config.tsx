@@ -74,7 +74,7 @@ const employeeColumn = col({
         <div className="min-w-0">
           <p className="truncate font-medium">{e.fullName}</p>
           <p className="text-muted-foreground truncate text-xs">
-            <span className="font-mono">{e.employeeNumber}</span>
+            <span className="font-mono">{e.employeeNumber ?? "—"}</span>
             {" · "}
             {e.company.code} · {e.position.name}
           </p>

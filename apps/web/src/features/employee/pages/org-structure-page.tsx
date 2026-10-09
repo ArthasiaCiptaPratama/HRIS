@@ -43,7 +43,7 @@ import type { OrgStructure } from "../schemas";
 interface Person {
   id: string;
   fullName: string;
-  employeeNumber: string;
+  employeeNumber: string | null;
   managerId: string | null;
   position: string;
   department: string;
@@ -329,7 +329,7 @@ function DepartmentView({
             q === "" || posHit
               ? position.employees
               : position.employees.filter(
-                  (e) => norm(e.fullName).includes(q) || norm(e.employeeNumber).includes(q),
+                  (e) => norm(e.fullName).includes(q) || norm(e.employeeNumber ?? "").includes(q),
                 );
           return { ...position, employees, visible: q === "" || posHit || employees.length > 0 };
         })

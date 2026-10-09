@@ -55,6 +55,8 @@ export interface EmployeeListParams {
   companyId?: string | undefined;
   departmentId?: string | undefined;
   workLocationId?: string | undefined;
+  /** D-063: hanya karyawan tanpa NIP. */
+  missingNumber?: boolean | undefined;
   sort: string;
 }
 
@@ -226,7 +228,7 @@ function useEmployeeMutation<TInput>(request: (input: TInput) => Promise<unknown
 const item = one(employeeListItemSchema);
 
 export interface EmployeeWriteBody {
-  employeeNumber: string;
+  employeeNumber: string | null;
   fullName: string;
   workEmail: string | null;
   phoneNumber: string | null;
