@@ -138,7 +138,9 @@ export const employeeScopeForIam = {
   employeeIdsInCompanies: (companyIds: string[]) => repository.findIdsInCompanies(companyIds),
   async employeeLabels(employeeIds: string[]): Promise<Map<string, string>> {
     const rows = await repository.findManyByIds(employeeIds);
-    return new Map(rows.map((row) => [row.id, `${row.fullName} (${row.employeeNumber})`]));
+    return new Map(
+      rows.map((row) => [row.id, `${row.fullName} (${row.employeeNumber ?? "NIP belum ada"})`]),
+    );
   },
 };
 
@@ -313,6 +315,7 @@ function buildWhere(
   }
   if (query.positionId) and.push({ positionId: query.positionId });
   if (query.workLocationId) and.push({ workLocationId: query.workLocationId });
+  if (query.missingNumber) and.push({ employeeNumber: null });
   if (query.q) {
     and.push({
       OR: [
@@ -888,6 +891,10 @@ export async function updateEmployee(
   await repository
     .withTransaction(async (tx) => {
       const before = await loadInScope(ctx, id, tx);
+      // D-063: NIP boleh belum ada, tetapi sekali terisi tidak dikosongkan (login NIP & dokumen bergantung padanya).
+      if (input.employeeNumber === null && before.employeeNumber) {
+        throw new BusinessRuleError("NIP yang sudah terisi tidak bisa dikosongkan.");
+      }
       // D-049: hanya rujukan yang BERUBAH yang harus aktif; nilai lama yang sudah diarsipkan tetap boleh
       // dikirim ulang oleh form supaya field lain masih bisa diubah.
       const changed = <T>(next: T | undefined, current: T): T | undefined =>
@@ -957,11 +964,7 @@ export async function updateEmployee(
       });
       if (before.orgPostId || orgPostId) await syncPostManagers(tx);
       // D-048: nomor induk berubah → alamat login NIK ikut (gagal di Supabase → seluruh perubahan batal).
-      if (
-        input.employeeNumber !== undefined &&
-        input.employeeNumber !== before.employeeNumber &&
-        ctx.nikLogin
-      ) {
+      if (input.employeeNumber && input.employeeNumber !== before.employeeNumber && ctx.nikLogin) {
         await applyNikLogin(id, input.employeeNumber, ctx.nikLogin, tx, "refresh");
       }
       if (companyChanged) {

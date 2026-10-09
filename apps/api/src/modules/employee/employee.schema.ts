@@ -49,6 +49,8 @@ export const listEmployeesQuerySchema = z.object({
   departmentId: z.uuid().optional(),
   positionId: z.uuid().optional(),
   workLocationId: z.uuid().optional(),
+  // D-063: true = hanya karyawan yang NIP-nya belum ada.
+  missingNumber: booleanQuery.optional(),
   sort: z.enum(SORTS as [string, ...string[]]).default("fullName:asc"),
 });
 export type ListEmployeesQuery = z.infer<typeof listEmployeesQuerySchema>;
@@ -56,7 +58,8 @@ export type ListEmployeesQuery = z.infer<typeof listEmployeesQuerySchema>;
 export const employeeListItemSchema = z
   .object({
     id: z.uuid(),
-    employeeNumber: z.string(),
+    // D-063: null = NIP belum ada.
+    employeeNumber: z.string().nullable(),
     fullName: z.string(),
     workEmail: z.string().nullable(),
     phoneNumber: z.string().nullable(),
@@ -160,6 +163,8 @@ const familyMemberSchema = z.object({
   workAddress: z.string().nullable(),
   /** D-061: keterangan hubungan (saudara: Kakak/Adik). */
   relationDetail: z.string().nullable(),
+  /** D-064: sudah meninggal. */
+  isDeceased: z.boolean(),
 });
 
 const bankAccountSchema = z.object({
@@ -301,12 +306,15 @@ const nullableUuid = z.uuid().nullable().optional();
 
 export const createEmployeeBodySchema = z
   .object({
+    // D-063: NIP boleh kosong (string kosong = null); sekali terisi tidak bisa dikosongkan lagi.
     employeeNumber: z
       .string()
       .trim()
-      .min(1)
       .max(30)
-      .regex(/^[A-Za-z0-9./-]+$/, "Hanya huruf, angka, titik, garis miring, dan tanda hubung."),
+      .regex(/^[A-Za-z0-9./-]*$/, "Hanya huruf, angka, titik, garis miring, dan tanda hubung.")
+      .transform((value) => (value === "" ? null : value))
+      .nullable()
+      .optional(),
     fullName: z.string().trim().min(2).max(150),
     workEmail: z.email().max(254).nullable().optional(),
     phoneNumber: phone.nullable().optional(),
@@ -378,7 +386,7 @@ export const orgStructureSchema = z
               z.object({
                 id: z.uuid(),
                 fullName: z.string(),
-                employeeNumber: z.string(),
+                employeeNumber: z.string().nullable(),
                 managerId: z.uuid().nullable(),
               }),
             ),
@@ -392,7 +400,12 @@ export const orgStructureSchema = z
 export type OrgStructure = z.infer<typeof orgStructureSchema>;
 
 export const managerOptionSchema = z
-  .object({ id: z.uuid(), fullName: z.string(), employeeNumber: z.string(), position: z.string() })
+  .object({
+    id: z.uuid(),
+    fullName: z.string(),
+    employeeNumber: z.string().nullable(),
+    position: z.string(),
+  })
   .openapi("ManagerOption");
 export type ManagerOption = z.infer<typeof managerOptionSchema>;
 

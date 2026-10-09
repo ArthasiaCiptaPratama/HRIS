@@ -81,7 +81,96 @@ export function cleanText(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
   if (value instanceof Date) return undefined;
   const text = String(value).replace(/\s+/g, " ").trim();
-  return text === "" || text === "-" || text === "—" ? undefined : text;
+  // D-064: isian penanda kosong di Form ("-", "_", "—", ".") dianggap sel kosong.
+  return text === "" || /^[-_—–.\s]+$/.test(text) ? undefined : text;
+}
+
+// ── D-064: penyeragaman isian bebas Formulir Data Karyawan ─────────────────────────────────────
+
+/** "Sudah meninggal dunia", "Almarhum", "Almarhummah", "Alm.", "wafat" → anggota keluarga almarhum. */
+export function isDeceasedText(value: unknown): boolean {
+  const text = cleanText(value);
+  return text !== undefined && /\b(meninggal|wafat|almarhu?m+a?h?|alm\.?h?)(\b|$)/i.test(text);
+}
+
+/** HURUF BESAR SEMUA → Huruf Awal Besar; isian campuran dibiarkan (nama merek, singkatan). */
+export function tidyCase(text: string): string {
+  if (text !== text.toUpperCase() || !/[A-Z]{4}/.test(text)) return text;
+  return text
+    .toLowerCase()
+    .replace(/(^|[\s/(-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+const RELATION_ALIASES: Record<string, string> = {
+  istri: "Istri",
+  isteri: "Istri",
+  suami: "Suami",
+  ayah: "Ayah",
+  bapak: "Ayah",
+  ibu: "Ibu",
+  anak: "Anak",
+  anakkandung: "Anak",
+  kakak: "Kakak",
+  kaka: "Kakak",
+  kakakkandung: "Kakak",
+  adik: "Adik",
+  adikkandung: "Adik",
+  saudara: "Saudara",
+  saudarakandung: "Saudara",
+  om: "Paman",
+  paman: "Paman",
+  tante: "Bibi",
+  bibi: "Bibi",
+};
+
+/** Hubungan kontak darurat/keluarga: ejaan umum diseragamkan (ISTERI → Istri, Kaka → Kakak). */
+export function parseRelationText(value: unknown, max: number): Normalized<string> {
+  const text = cleanText(value);
+  if (!text) return undefined;
+  const alias = RELATION_ALIASES[text.toLowerCase().replace(/[^a-z]/g, "")];
+  return parseText(alias ?? tidyCase(text), max);
+}
+
+const BANK_ALIASES: [RegExp, string][] = [
+  [/^(bank\s*)?(mandiri)$/i, "Bank Mandiri"],
+  [/^(bank\s*)?(bca|central asia)$/i, "BCA"],
+  [/^(bank\s*)?(bri|rakyat indonesia)$/i, "BRI"],
+  [/^(bank\s*)?(bni|negara indonesia)$/i, "BNI"],
+  [/^(bank\s*)?(bsi|syariah indonesia)$/i, "BSI"],
+  [/^(bank\s*)?(btn|tabungan negara)$/i, "BTN"],
+  [/^(bank\s*)?cimb( niaga)?$/i, "CIMB Niaga"],
+];
+
+/** Nama bank: bank umum diseragamkan (MANDIRI / Bank Mandiri / Mandiri → Bank Mandiri). */
+export function parseBankName(value: unknown): Normalized<string> {
+  const text = cleanText(value);
+  if (!text) return undefined;
+  const hit = BANK_ALIASES.find(([pattern]) => pattern.test(text));
+  if (hit) return { value: hit[1] };
+  // "Bank kaltimtara" → "Bank Kaltimtara"; isian lain hanya dirapikan huruf besarnya.
+  const tidy = tidyCase(text).replace(
+    /^bank\s+(\p{L})/iu,
+    (_, c: string) => `Bank ${c.toUpperCase()}`,
+  );
+  return parseText(tidy, 100);
+}
+
+const OCCUPATION_ALIASES: Record<string, string> = {
+  irt: "Ibu Rumah Tangga",
+  iburumahtangga: "Ibu Rumah Tangga",
+  wiraswasta: "Wiraswasta",
+  wirasuasta: "Wiraswasta",
+  wiraswata: "Wiraswasta",
+  swasta: "Karyawan Swasta",
+  karyawanswasta: "Karyawan Swasta",
+};
+
+/** Pekerjaan anggota keluarga: singkatan/salah ketik umum + HURUF BESAR diseragamkan. */
+export function parseOccupationText(value: unknown, max: number): Normalized<string> {
+  const text = cleanText(value);
+  if (!text || EMPTY_LIKE.test(text)) return undefined;
+  const alias = OCCUPATION_ALIASES[text.toLowerCase().replace(/[^a-z]/g, "")];
+  return parseText(alias ?? tidyCase(text), max);
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -369,7 +458,8 @@ const EMPTY_LIKE =
 export function parseBloodTypeCell(value: unknown): Normalized<string> {
   const text = cleanText(value);
   if (!text || EMPTY_LIKE.test(text)) return undefined;
-  const parsed = parseBloodType(text);
+  // D-064: angka nol yang diketik untuk golongan O ("0", "0+").
+  const parsed = parseBloodType(text.replace(/^0(?=[+-]?$|\s*(rh|pos|neg))/i, "O"));
   return parsed ? { value: parsed } : { issue: "UNKNOWN_BLOOD_TYPE" };
 }
 

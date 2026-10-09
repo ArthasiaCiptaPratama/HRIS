@@ -15,9 +15,11 @@ import {
   cleanText,
   type ImportMaritalStatus,
   type ImportReligion,
+  isDeceasedText,
   maritalFromPtkp,
   type Normalized,
   parseAccountNumber,
+  parseBankName,
   parseBloodTypeCell,
   parseBpjs,
   parseCompanyCode,
@@ -33,11 +35,14 @@ import {
   parseNationality,
   parseNik16,
   parseNpwp,
+  parseOccupationText,
   parseOptionalText,
   parsePhone,
   parsePtkp,
+  parseRelationText,
   parseReligion,
   parseText,
+  tidyCase,
 } from "./normalize.ts";
 
 export type RawImportRow = Partial<Record<ImportFieldKey, unknown>>;
@@ -136,6 +141,8 @@ export interface ImportFamilyMember {
   workAddress?: string;
   /** D-061: keterangan hubungan saudara (Kakak/Adik). */
   relationDetail?: string;
+  /** D-064: usia/pekerjaan berisi "almarhum", "meninggal", … */
+  isDeceased?: boolean;
 }
 export interface ImportEducation {
   source: ImportFieldKey;
@@ -232,7 +239,7 @@ export function normalizeImportRow(raw: RawImportRow): {
   );
   set(
     "emergencyContactRelationship",
-    take("emergencyContactRelationship", parseText(raw.emergencyContactRelationship, 50)),
+    take("emergencyContactRelationship", parseRelationText(raw.emergencyContactRelationship, 50)),
   );
   set("gender", take("gender", parseGender(raw.gender)));
 
@@ -269,7 +276,11 @@ export function normalizeImportRow(raw: RawImportRow): {
   setP("maritalStatus", take("maritalStatus", parseMaritalStatus(raw.maritalStatus)));
   if (!p.maritalStatus && p.ptkpStatus) p.maritalStatus = maritalFromPtkp(p.ptkpStatus);
   setP("religion", take("religion", parseReligion(raw.religion)));
-  setP("ktpNumber", take("ktpNumber", parseNik16(raw.ktpNumber)));
+  // D-063: NIK KTP tidak valid tidak menggagalkan baris — NIK tidak disimpan + peringatan.
+  const ktp = parseNik16(raw.ktpNumber);
+  if (ktp && "issue" in ktp)
+    issues.push({ field: "ktpNumber", code: "KTP_INVALID_SKIPPED", severity: "WARNING" });
+  else setP("ktpNumber", ktp?.value);
   setP("npwpNumber", take("npwpNumber", parseNpwp(raw.npwpNumber)));
   setP("kkNumber", take("kkNumber", parseNik16(raw.kkNumber)));
   setP("bpjsEmploymentNumber", take("bpjsEmploymentNumber", parseBpjs(raw.bpjsEmploymentNumber)));
@@ -278,7 +289,8 @@ export function normalizeImportRow(raw: RawImportRow): {
   setP("domicileAddress", take("domicileAddress", parseText(raw.domicileAddress, 500)));
   setP("nickname", take("nickname", parseOptionalText(raw.nickname, 50)));
   setP("nationality", take("nationality", parseNationality(raw.nationality)));
-  setP("ethnicity", take("ethnicity", parseOptionalText(raw.ethnicity, 50)));
+  const ethnicity = take("ethnicity", parseOptionalText(raw.ethnicity, 50));
+  if (ethnicity) p.ethnicity = tidyCase(ethnicity);
   setP("bloodType", take("bloodType", parseBloodTypeCell(raw.bloodType)));
   const licenses = parseDrivingLicenseCell(raw.drivingLicenseTypes);
   if (licenses) {
@@ -295,7 +307,7 @@ export function normalizeImportRow(raw: RawImportRow): {
     take("drivingLicenseNumber", parseOptionalText(raw.drivingLicenseNumber, 30)),
   );
 
-  const bankName = take("bankName", parseText(raw.bankName, 100));
+  const bankName = take("bankName", parseBankName(raw.bankName));
   if (bankName) row.bank.bankName = bankName;
   const account = take("bankAccountNumber", parseAccountNumber(raw.bankAccountNumber));
   if (account) row.bank.accountNumber = account;
@@ -351,8 +363,13 @@ export function normalizeImportRow(raw: RawImportRow): {
     if (keys.birthPlace) entry.birthPlace = text(keys.birthPlace, 100);
     if (keys.birthDate) entry.birthDate = date(keys.birthDate);
     if (keys.education) entry.education = text(keys.education, 50);
-    if (keys.occupation) entry.occupation = text(keys.occupation, 100);
-    if (keys.ageAtEntry) entry.ageAtEntry = age(keys.ageAtEntry);
+    // D-064: "Almarhum" di pekerjaan / "Sudah meninggal dunia" di usia → tanda almarhum, bukan isian.
+    const deceased = [keys.occupation, keys.ageAtEntry].some((k) => k && isDeceasedText(raw[k]));
+    if (deceased) entry.isDeceased = true;
+    if (keys.occupation && !isDeceasedText(raw[keys.occupation]))
+      entry.occupation = take(keys.occupation, parseOccupationText(raw[keys.occupation], 100));
+    if (keys.ageAtEntry && !isDeceasedText(raw[keys.ageAtEntry]))
+      entry.ageAtEntry = age(keys.ageAtEntry);
     if (keys.workAddress) entry.workAddress = text(keys.workAddress, 500);
     if (keys.relationDetail) entry.relationDetail = text(keys.relationDetail, 30);
     const filled = Object.fromEntries(Object.entries(entry).filter(([, v]) => v !== undefined));
@@ -472,7 +489,10 @@ export function normalizeImportRow(raw: RawImportRow): {
     for (const attr of ["Village", "District", "City", "Province"] as const)
       setP(`${prefix}${attr}`, text(`${prefix}${attr}`, 100));
   setP("emergencyContact2Name", text("emergency2Name", 150));
-  setP("emergencyContact2Relationship", text("emergency2Relationship", 50));
+  setP(
+    "emergencyContact2Relationship",
+    take("emergency2Relationship", parseRelationText(raw.emergency2Relationship, 50)),
+  );
   setP("emergencyContact2Phone", take("emergency2Phone", parsePhone(raw.emergency2Phone)));
   setP("emergencyContact2Address", text("emergency2Address", 500));
   const simNumbers: Partial<Record<DrivingLicenseType, string>> = {};
@@ -490,10 +510,11 @@ export function normalizeImportRow(raw: RawImportRow): {
   if (exit) row.exit = exitDate ? { reason: exit, date: exitDate } : { reason: exit };
   else if (exitDate) row.exit = { reason: "RESIGNATION", date: exitDate };
 
-  // Nomor induk = kunci baris, wajib selalu. Nama & data kerja lain wajib hanya untuk karyawan BARU
-  // (diperiksa server, butuh data DB): pada UPSERT sel kosong berarti "tidak diubah".
-  if (!row.employeeNumber && !issues.some((i) => i.field === "employeeNumber"))
-    issues.push({ field: "employeeNumber", code: "REQUIRED", severity: "ERROR" });
+  // D-063: kunci baris = NIP, atau NIK KTP bila NIP belum ada; tanpa keduanya import ulang bisa
+  // menggandakan karyawan. Nama & data kerja lain wajib hanya untuk karyawan BARU (diperiksa server):
+  // pada UPSERT sel kosong berarti "tidak diubah".
+  if (!row.employeeNumber && !p.ktpNumber && !issues.some((i) => i.field === "employeeNumber"))
+    issues.push({ field: "employeeNumber", code: "NO_IDENTITY", severity: "ERROR" });
   if (row.exit && !row.exit.date)
     issues.push({ field: "exitDate", code: "EXIT_DATE_REQUIRED", severity: "ERROR" });
 
@@ -503,6 +524,9 @@ export function normalizeImportRow(raw: RawImportRow): {
 /** Pesan Indonesia untuk kode masalah (dipakai web & laporan baris gagal). */
 export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   REQUIRED: "Wajib diisi",
+  NO_IDENTITY:
+    "NIP dan NIK KTP (16 digit) kosong/tidak valid: isi salah satunya agar karyawan bisa dikenali saat import ulang",
+  KTP_INVALID_SKIPPED: "NIK KTP harus 16 digit — tidak disimpan, perbaiki lewat edit data karyawan",
   INVALID_DATE: "Tanggal tidak dikenali",
   INVALID_LENGTH_16: "Harus 16 digit",
   INVALID_NPWP: "NPWP harus 15 atau 16 digit",
@@ -558,6 +582,12 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   DIVISION_UNKNOWN:
     "Divisi tidak ditemukan: harus sama persis dengan unit berjenis Divisi di Struktur Organisasi",
   DIVISION_MISMATCH: "Departemen ini tidak berada di bawah divisi tersebut",
+  // D-064: kolom Departemen/Divisi → unit organisasi (blok "Cocokkan unit organisasi" di Pratinjau).
+  UNIT_UNMATCHED:
+    "Mirip unit yang sudah ada (salah ketik/singkatan?) — pilih di blok Cocokkan unit organisasi",
+  UNIT_INVALID: "Pilihan unit tidak sah (unit diarsipkan atau induk tidak cocok) — pilih ulang",
+  UNIT_NOT_IN_LINE:
+    "Departemen & Divisi tidak segaris di Struktur Organisasi — karyawan ditempatkan di unit paling bawah",
   EXIT_EXISTING_IGNORED:
     "Status keluar karyawan yang sudah ada tidak diubah lewat import (pakai Ubah Status)",
 };

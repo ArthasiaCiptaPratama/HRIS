@@ -88,7 +88,7 @@ export function DataChangesPage() {
               <div className="min-w-0">
                 <p className="truncate font-medium">{e.fullName}</p>
                 <p className="text-muted-foreground truncate text-xs">
-                  <span className="font-mono">{e.employeeNumber}</span> · {e.company.code}
+                  <span className="font-mono">{e.employeeNumber ?? "—"}</span> · {e.company.code}
                 </p>
               </div>
             </div>
@@ -284,7 +284,7 @@ function ReviewDialog({ id, onClose }: { id: string | null; onClose: () => void 
           </DialogTitle>
           <DialogDescription>
             {d
-              ? `Diajukan ${formatDateTime(d.createdAt)} · ${d.employee.employeeNumber}`
+              ? `Diajukan ${formatDateTime(d.createdAt)} · ${d.employee.employeeNumber ?? "NIP belum ada"}`
               : "Memuat…"}
           </DialogDescription>
         </DialogHeader>

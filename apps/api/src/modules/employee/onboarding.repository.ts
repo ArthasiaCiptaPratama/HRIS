@@ -7,10 +7,13 @@ import type { EmployeeTx } from "./employee.repository.ts";
 /** Nomor induk karyawan per PT (semua status, termasuk calon & nonaktif) untuk usulan nomor. */
 export async function employeeNumbersInCompanies(companyIds: string[]) {
   if (companyIds.length === 0) return [];
-  return getPrisma().employee.findMany({
-    where: { companyId: { in: companyIds } },
+  const rows = await getPrisma().employee.findMany({
+    where: { companyId: { in: companyIds }, employeeNumber: { not: null } },
     select: { companyId: true, employeeNumber: true },
   });
+  return rows.flatMap((row) =>
+    row.employeeNumber ? [{ companyId: row.companyId, employeeNumber: row.employeeNumber }] : [],
+  );
 }
 
 export async function findTakenNumbers(numbers: string[]) {
@@ -19,7 +22,7 @@ export async function findTakenNumbers(numbers: string[]) {
     where: { employeeNumber: { in: numbers, mode: "insensitive" } },
     select: { employeeNumber: true },
   });
-  return rows.map((row) => row.employeeNumber);
+  return rows.flatMap((row) => (row.employeeNumber ? [row.employeeNumber] : []));
 }
 
 export async function findTakenPersonalEmails(emails: string[]) {

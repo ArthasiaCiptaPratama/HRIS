@@ -248,7 +248,7 @@ describe("Form 171 kolom (D-061)", () => {
     expect(row.family?.find((m) => m.relationship === "MOTHER")).toMatchObject({
       ageAtEntry: 58,
       education: "SMP",
-      occupation: "Ibu rumah tangga",
+      occupation: "Ibu Rumah Tangga", // D-064: ejaan diseragamkan
     });
     expect(row.educations?.map((e) => e.schoolName)).toEqual([
       "Universitas Dummy Samarinda",

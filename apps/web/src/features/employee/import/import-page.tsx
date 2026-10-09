@@ -16,7 +16,6 @@ import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Upload, Users } fro
 import { type DragEvent, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { FormSelect } from "@/components/form-select";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -32,23 +31,30 @@ import {
   type ImportPreview,
   type ImportRequest,
   saveMapping,
+  type UnitChoice,
   useCommitImport,
   usePreviewImport,
 } from "./api";
 import { AttachmentsPanel } from "./attachments-panel";
+import { CompleteStep, completionState } from "./complete-step";
+import { ImportGuide } from "./import-guide";
 import { fieldLabel } from "./labels";
 import { MappingStep } from "./mapping-step";
 import { OpenAttachments } from "./open-attachments";
 import { type ParsedWorkbook, parseImportFile, serializeCell, signatureOf } from "./parse-file";
 import { type MasterMap, PreviewStep } from "./preview-step";
+import { suggestedChoices } from "./unit-matching";
 
-// D-042: halaman import karyawan (Unggah → Pemetaan → Pratinjau → Selesai). File diurai di browser,
-// server memvalidasi ulang & menulis dalam satu transaksi. Dibuka dari Data Karyawan Aktif.
+// D-042: halaman import karyawan (Unggah → Pemetaan → Lengkapi data → Pratinjau → Selesai). File
+// diurai di browser, server memvalidasi ulang & menulis dalam satu transaksi. "Lengkapi data" hanya
+// dibuka bila ada pilihan wajib untuk banyak baris (PT, unit organisasi, status). Dibuka dari Data
+// Karyawan Aktif.
 
-type Step = "upload" | "mapping" | "preview" | "done";
+type Step = "upload" | "mapping" | "complete" | "preview" | "done";
 const STEPS: { key: Step; label: string }[] = [
   { key: "upload", label: "Unggah" },
   { key: "mapping", label: "Pemetaan kolom" },
+  { key: "complete", label: "Lengkapi data" },
   { key: "preview", label: "Pratinjau" },
   { key: "done", label: "Selesai" },
 ];
@@ -59,6 +65,10 @@ type Choices = {
   defaultStatusId: string;
   /** Nomor baris file → id status kepegawaian. */
   statusOverrides: Record<string, string>;
+  /** D-064: PT bawaan (kosong = PT top bar / satu-satunya), PT per baris, pilihan unit organisasi. */
+  companyId: string;
+  companyOverrides: Record<string, string>;
+  unitChoices: Record<string, UnitChoice>;
 };
 
 function Stepper({ current }: { current: Step }) {
@@ -101,6 +111,8 @@ export function ImportEmployeesPage() {
   const previewMutation = usePreviewImport();
   const commitMutation = useCommitImport();
   const fileInput = useRef<HTMLInputElement>(null);
+  // Hanya hasil pratinjau TERAKHIR yang dipakai (pilihan cepat berturut-turut tidak saling menimpa).
+  const previewSeq = useRef(0);
 
   const [step, setStep] = useState<Step>("upload");
   const [mode, setMode] = useState<"UPSERT" | "CREATE_ONLY">("UPSERT");
@@ -121,15 +133,20 @@ export function ImportEmployeesPage() {
   // D-062: status kepegawaian untuk baris yang belum ada di sistem (bawaan & per baris).
   const [defaultStatusId, setDefaultStatusId] = useState("");
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
+  const [companyOverrides, setCompanyOverrides] = useState<Record<string, string>>({});
+  const [unitChoices, setUnitChoices] = useState<Record<string, UnitChoice>>({});
+  // Lengkapi data pernah dibuka → "Kembali" dari Pratinjau ke sana (bukan melompati ke Pemetaan).
+  const [visitedComplete, setVisitedComplete] = useState(false);
   const [result, setResult] = useState<ImportPreview["counts"] | null>(null);
   // D-060: import yang lampirannya sedang diproses (hasil simpan, atau dilanjutkan dari langkah Unggah).
   const [attachmentJobId, setAttachmentJobId] = useState<string | null>(null);
 
-  const effectiveCompany =
-    companyId ||
+  const companyFor = (chosen: string) =>
+    chosen ||
     scope.selectedId ||
     (scope.companies.length === 1 ? scope.companies[0]?.id : "") ||
     "";
+  const effectiveCompany = companyFor(companyId);
 
   async function analyzeSheet(book: ParsedWorkbook, index: number | null) {
     const chosen =
@@ -156,12 +173,15 @@ export function ImportEmployeesPage() {
     let next = auto.map((s) => s.field);
     const sig = await signatureOf(headerSignatureSource(chosen.detected.headers));
     let fromProfile = false;
+    let savedUnits: Record<string, UnitChoice> = {};
     try {
       const saved = await fetchSavedMapping(sig);
       if (saved) {
         // Kunci per kemunculan (D-059): profil lama tanpa "#n" hanya berlaku untuk kemunculan pertama.
         // D-060: profil sebelum ada field lampiran tidak mematikan kolom tautan Drive.
-        next = applySavedMapping(chosen.detected.headers, saved, next);
+        next = applySavedMapping(chosen.detected.headers, saved.mapping, next);
+        // D-064: pilihan unit organisasi yang pernah dibuat untuk Form ini.
+        savedUnits = saved.unitChoices;
         fromProfile = true;
       }
     } catch {
@@ -173,8 +193,10 @@ export function ImportEmployeesPage() {
     setMapping(next);
     setSignature(sig);
     setSavedProfile(fromProfile);
-    // Status per baris berkunci nomor baris sheet sebelumnya.
+    // Status & PT per baris berkunci nomor baris sheet sebelumnya.
     setStatusOverrides({});
+    setCompanyOverrides({});
+    setUnitChoices(savedUnits);
     return true;
   }
 
@@ -199,7 +221,18 @@ export function ImportEmployeesPage() {
     () => (master.data?.employmentStatuses ?? []).map((s) => ({ value: s.id, label: s.name })),
     [master.data?.employmentStatuses],
   );
-  const choices: Choices = { masterMap, defaultStatusId, statusOverrides };
+  const choices: Choices = {
+    masterMap,
+    defaultStatusId,
+    statusOverrides,
+    companyId,
+    companyOverrides,
+    unitChoices,
+  };
+  const companyOptions = useMemo(
+    () => scope.companies.map((c) => ({ value: c.id, label: c.code, hint: c.name })),
+    [scope.companies],
+  );
 
   /** Pilihan di pratinjau berubah → simpan & ulangi pratinjau dengan nilai baru (state belum terbarui). */
   function changeChoices(patch: Partial<Choices>) {
@@ -207,7 +240,10 @@ export function ImportEmployeesPage() {
     if (patch.masterMap) setMasterMap(patch.masterMap);
     if (patch.defaultStatusId !== undefined) setDefaultStatusId(patch.defaultStatusId);
     if (patch.statusOverrides) setStatusOverrides(patch.statusOverrides);
-    void runPreview(next);
+    if (patch.companyId !== undefined) setCompanyId(patch.companyId);
+    if (patch.companyOverrides) setCompanyOverrides(patch.companyOverrides);
+    if (patch.unitChoices) setUnitChoices(patch.unitChoices);
+    void runPreview(next, "stay");
   }
 
   function buildRequest(c: Choices = choices): ImportRequest | null {
@@ -222,7 +258,11 @@ export function ImportEmployeesPage() {
       fileName: workbook.fileName,
       fileSha256: workbook.sha256,
       mode,
-      ...(effectiveCompany ? { companyId: effectiveCompany } : {}),
+      ...(companyFor(c.companyId) ? { companyId: companyFor(c.companyId) } : {}),
+      ...(Object.keys(c.companyOverrides).length > 0
+        ? { companyOverrides: c.companyOverrides }
+        : {}),
+      ...(Object.keys(c.unitChoices).length > 0 ? { unitMapping: c.unitChoices } : {}),
       ...(c.defaultStatusId ? { defaultEmploymentStatusId: c.defaultStatusId } : {}),
       ...(Object.keys(c.statusOverrides).length > 0
         ? { employmentStatusOverrides: c.statusOverrides }
@@ -232,7 +272,11 @@ export function ImportEmployeesPage() {
     };
   }
 
-  async function runPreview(c: Choices = choices) {
+  /**
+   * `next`: dari Pemetaan → Lengkapi data bila ada pilihan wajib, selain itu langsung Pratinjau;
+   * `stay`: pilihan berubah di Lengkapi/Pratinjau → tetap di langkah itu (data lama tetap tampil).
+   */
+  async function runPreview(c: Choices = choices, go: "next" | "stay" = "next") {
     const request = buildRequest(c);
     if (!request) return;
     if (request.rows.length === 0) {
@@ -244,10 +288,17 @@ export function ImportEmployeesPage() {
         const profile = Object.fromEntries(
           profileKeys(detected.headers).map((key, i) => [key, mapping[i] ?? null]),
         );
-        void saveMapping(signature, profile).catch(() => undefined);
+        void saveMapping(signature, profile, c.unitChoices).catch(() => undefined);
       }
-      setPreview(await previewMutation.mutateAsync(request));
-      setStep("preview");
+      const seq = ++previewSeq.current;
+      const result = await previewMutation.mutateAsync(request);
+      if (seq !== previewSeq.current) return;
+      setPreview(result);
+      if (go === "next") {
+        const needed = completionState(result).needed;
+        if (needed) setVisitedComplete(true);
+        setStep(needed ? "complete" : "preview");
+      }
     } catch (error) {
       toast.error(errorMessage(error));
     }
@@ -270,11 +321,25 @@ export function ImportEmployeesPage() {
         toast.warning(
           "Data berubah sejak pratinjau. Pratinjau diperbarui — periksa lalu simpan lagi.",
         );
-        await runPreview();
+        await runPreview(choices, "stay");
         return;
       }
       toast.error(errorMessage(error));
     }
+  }
+
+  /** Ringkasan pilihan Lengkapi data untuk Pratinjau. */
+  function settingsSummary(p: ImportPreview): string[] {
+    const company = scope.companies.find((c) => c.id === effectiveCompany)?.code;
+    const status = statusOptions.find((s) => s.value === defaultStatusId)?.label;
+    const created = p.units.filter((u) => u.create).length;
+    return [
+      company ? `PT ${company}` : "PT dari kolom file",
+      p.units.length > 0
+        ? `${p.units.length} nilai unit${created > 0 ? ` (${created} unit baru)` : ""}`
+        : "tanpa kolom unit",
+      status ? `status baru: ${status}` : "status dari kolom file",
+    ];
   }
 
   const columnOf = (field: ImportFieldKey) => {
@@ -316,6 +381,9 @@ export function ImportEmployeesPage() {
     setAttachmentJobId(null);
     setMasterMap(EMPTY_MAP);
     setStatusOverrides({});
+    setCompanyOverrides({});
+    setUnitChoices({});
+    setVisitedComplete(false);
     if (fileInput.current) fileInput.current.value = "";
   }
 
@@ -329,13 +397,16 @@ export function ImportEmployeesPage() {
     <>
       <PageHeader
         title="Import Data Karyawan"
-        description="Unggah file master data karyawan (.xlsx atau .csv) apa adanya — sistem mengenali kolomnya. Anda memeriksa pratinjau sebelum data disimpan."
+        description="Unggah file data karyawan (.xlsx atau .csv) apa adanya. Sistem mengenali kolomnya, lalu Anda memeriksa hasilnya sebelum data disimpan."
         actions={
-          <Button variant="outline" asChild>
-            <Link to={`/personal/pegawai-aktif/${back}`}>
-              <Users /> Data Karyawan Aktif
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <ImportGuide current={step} />
+            <Button variant="outline" asChild>
+              <Link to={`/personal/pegawai-aktif/${back}`}>
+                <Users /> Data Karyawan Aktif
+              </Link>
+            </Button>
+          </div>
         }
       />
       <Stepper current={step} />
@@ -421,42 +492,9 @@ export function ImportEmployeesPage() {
                 />
               </div>
             </div>
-            {scope.companies.length > 1 ? (
-              <div className="grid gap-2">
-                <Label htmlFor="import-company">Perusahaan bawaan</Label>
-                <FormSelect
-                  id="import-company"
-                  value={effectiveCompany}
-                  onChange={setCompanyId}
-                  placeholder="Pilih perusahaan"
-                  options={scope.companies.map((c) => ({
-                    value: c.id,
-                    label: c.code,
-                    hint: c.name,
-                  }))}
-                />
-                <p className="text-muted-foreground text-xs">
-                  Dipakai untuk baris tanpa kolom perusahaan. Kolom perusahaan di file (mis. ACP)
-                  tetap diutamakan.
-                </p>
-              </div>
-            ) : null}
-            <div className="grid gap-2">
-              <Label htmlFor="import-default-status">Status kepegawaian bawaan</Label>
-              <FormSelect
-                id="import-default-status"
-                value={defaultStatusId}
-                onChange={setDefaultStatusId}
-                noneLabel="Tidak ada"
-                placeholder="Tidak ada"
-                options={statusOptions}
-              />
-              <p className="text-muted-foreground text-xs">
-                Untuk karyawan yang belum ada di sistem bila file tidak punya kolom status (mis.
-                hasil Google Form). Bisa diubah per baris di pratinjau. Status karyawan yang sudah
-                ada tidak diubah.
-              </p>
-            </div>
+            <p className="text-muted-foreground text-xs">
+              PT, unit organisasi, dan status kepegawaian ditentukan setelah kolom file diperiksa.
+            </p>
           </div>
         </div>
       ) : null}
@@ -481,15 +519,39 @@ export function ImportEmployeesPage() {
         />
       ) : null}
 
-      {step === "preview" && preview ? (
-        <PreviewStep
+      {step === "complete" && preview ? (
+        <CompleteStep
           preview={preview}
           master={master.data}
-          masterMap={masterMap}
-          onMasterMapChange={(next) => changeChoices({ masterMap: next })}
+          companyOptions={companyOptions}
+          defaultCompanyId={effectiveCompany}
+          onDefaultCompanyChange={(id) => changeChoices({ companyId: id })}
           statusOptions={statusOptions}
           defaultStatusId={defaultStatusId}
           onDefaultStatusChange={(id) => changeChoices({ defaultStatusId: id })}
+          unitChoices={unitChoices}
+          onUnitChoice={(key, choice) => {
+            const next = { ...unitChoices };
+            if (choice) next[key] = choice;
+            else delete next[key];
+            changeChoices({ unitChoices: next });
+          }}
+          onApplyUnitSuggestions={() =>
+            changeChoices({ unitChoices: suggestedChoices(preview.units, unitChoices) })
+          }
+          masterMap={masterMap}
+          onMasterMapChange={(next) => changeChoices({ masterMap: next })}
+          onBack={() => setStep("mapping")}
+          onNext={() => setStep("preview")}
+          updating={previewMutation.isPending}
+        />
+      ) : null}
+
+      {step === "preview" && preview ? (
+        <PreviewStep
+          preview={preview}
+          settings={settingsSummary(preview)}
+          statusOptions={statusOptions}
           statusOverrides={statusOverrides}
           onStatusOverride={(sourceRow, id) => {
             const next = { ...statusOverrides };
@@ -497,11 +559,26 @@ export function ImportEmployeesPage() {
             else delete next[String(sourceRow)];
             changeChoices({ statusOverrides: next });
           }}
+          companyOptions={companyOptions}
+          companyOverrides={companyOverrides}
+          onCompanyOverride={(sourceRow, id) => {
+            const next = { ...companyOverrides };
+            if (id) next[String(sourceRow)] = id;
+            else delete next[String(sourceRow)];
+            changeChoices({ companyOverrides: next });
+          }}
           columnOf={columnOf}
-          onBack={() => setStep("mapping")}
+          onEditSettings={() => {
+            setVisitedComplete(true);
+            setStep("complete");
+          }}
+          onBack={() =>
+            setStep(visitedComplete || completionState(preview).needed ? "complete" : "mapping")
+          }
           onCommit={() => void commit()}
           onDownloadIssues={downloadIssues}
-          busy={commitMutation.isPending || previewMutation.isPending}
+          saving={commitMutation.isPending}
+          updating={previewMutation.isPending}
         />
       ) : null}
 

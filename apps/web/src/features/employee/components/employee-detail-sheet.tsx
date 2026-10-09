@@ -188,7 +188,7 @@ function DetailBody({
           {employee.fullName}
         </SheetTitle>
         <SheetDescription className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-          <span className="font-mono text-xs">{employee.employeeNumber}</span>
+          <span className="font-mono text-xs">{employee.employeeNumber ?? "NIP belum ada"}</span>
           <span aria-hidden>·</span>
           <span>{employee.position.name}</span>
           {employee.department ? (
@@ -541,7 +541,12 @@ function FamilyTab({ employee }: { employee: EmployeeDetail }) {
         <li key={member.id} className="flex items-center gap-3 px-4 py-3">
           <EmployeeAvatar name={member.name} size="sm" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{member.name}</p>
+            <p className="truncate text-sm font-medium">
+              {member.name}
+              {member.isDeceased ? (
+                <span className="text-muted-foreground font-normal"> (almarhum)</span>
+              ) : null}
+            </p>
             <p className="text-muted-foreground text-xs">
               {[
                 [

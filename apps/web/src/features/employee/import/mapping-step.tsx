@@ -174,7 +174,8 @@ export function MappingStep({
     for (const f of mapping) if (f) count.set(f, (count.get(f) ?? 0) + 1);
     return count;
   }, [mapping]);
-  const hasNumber = mapping.includes("employeeNumber");
+  // D-063: karyawan dikenali lewat NIP atau NIK KTP — salah satu kolom harus dipetakan.
+  const hasNumber = mapping.includes("employeeNumber") || mapping.includes("ktpNumber");
   // Referensi stabil (updater fungsional) → baris yang tidak berubah tidak digambar ulang.
   const setField = useCallback(
     (column: number, value: string) => {
@@ -238,7 +239,7 @@ export function MappingStep({
         <Alert variant="destructive">
           <TriangleAlert />
           <AlertDescription>
-            Kolom <strong>NIP (nomor induk pegawai)</strong> wajib dipetakan — dipakai untuk
+            Petakan kolom <strong>NIP</strong> atau <strong>NIK KTP</strong> — dipakai untuk
             mengenali karyawan yang sudah ada.
           </AlertDescription>
         </Alert>
@@ -290,7 +291,7 @@ export function MappingStep({
             Ingat pemetaan untuk file berformat sama
           </label>
           <Button variant="brand" onClick={onNext} disabled={!hasNumber || busy}>
-            {busy ? "Memeriksa…" : "Lanjut ke pratinjau"} <ArrowRight />
+            {busy ? "Memeriksa…" : "Lanjut"} <ArrowRight />
           </Button>
         </div>
       </div>

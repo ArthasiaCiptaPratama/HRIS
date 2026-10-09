@@ -136,6 +136,7 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
               ageAtEntry: true,
               workAddress: true,
               relationDetail: true,
+              isDeceased: true,
             },
             orderBy: { createdAt: "asc" },
           })
