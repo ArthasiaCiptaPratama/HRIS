@@ -455,4 +455,6 @@ export const dashboardPivotQuerySchema = z.object({
     .optional()
     .openapi({ description: "dimensi:nilai, boleh berulang (mis. category:PERMANENT)" }),
 });
-export const dashboardPivotSchema = pivotResultSchema.openapi("DashboardPivot");
+// Dibungkus `z` milik @hono/zod-openapi: skema dari @hris/shared yang terbentuk sebelum ekstensi OpenAPI
+// dimuat (urutan import) tidak punya method `.openapi()` di zod v4.
+export const dashboardPivotSchema = z.object(pivotResultSchema.shape).openapi("DashboardPivot");
