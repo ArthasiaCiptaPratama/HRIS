@@ -20,6 +20,7 @@
     "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts",
     "recover:primary-admin": "bun --env-file=../../.env scripts/recover-primary-admin.ts",
     "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts",
+    "demo:dashboard": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-dashboard-demo.ts",
     "storage:setup": "bun --env-file=../../.env scripts/setup-storage.ts",
     "auth:migrate-login-nik": "bun --env-file=../../.env scripts/migrate-login-nik.ts",
     "org:import-local": "bun --env-file=../../.env scripts/import-org-local.ts"
