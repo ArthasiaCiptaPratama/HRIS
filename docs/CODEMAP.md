@@ -442,6 +442,8 @@ Semua endpoint cron memeriksa header `Authorization: Bearer ${CRON_SECRET}`. Di 
 
 Daftar lengkap disimpan di `.env.example`. **Satu file `.env` di root** dipakai semua workspace: api lewat `bun --env-file=../../.env`, Prisma CLI lewat `dotenv` di `prisma.config.ts`, web lewat `envDir` Vite. Di CI/Vercel env diisi langsung (file tidak ada).
 
+**Dua database dapat ditukar lewat perintah (lokal ⇄ Supabase).** `DATABASE_URL`/`DIRECT_URL`/`STORAGE_PATH_PREFIX` = **profil aktif**; isi profil `LOCAL_*`/`SUPABASE_*` sekali, tukar dengan `bun run db:use local|supabase`, cek `bun run db:which`. Pilihan per-developer hidup di `.env` (gitignored) → aman-merge. Guard menolak `db:reset`/`db:seed`/test ke DB non-lokal (`HRIS_ALLOW_REMOTE_DB=1` untuk override). Panduan & konvensi: skill `.claude/skills/hris-db-switch`.
+
 **Env Vercel staging (D-036, target *production* project staging; nilai rahasia hanya di Vercel):** `hris-staging-api`: `DATABASE_URL` (transaction pooler 6543), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGINS`=`APP_URL`=`https://hris-staging-web.vercel.app`, `CRON_SECRET`, `SMTP_*`, `EMAIL_FROM`, `LOG_LEVEL`. `NODE_ENV` sengaja tidak diisi (Vercel mengisinya sendiri; `production` saat build membuat `bun install` melewati devDependencies seperti `prisma`). `hris-staging-web`: `VITE_API_BASE_URL`=`https://hris-staging-api.vercel.app/api/v1`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 
 Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variabel Supabase/SMTP/cron masih **opsional** di Fase 1 dan dijadikan wajib di fase yang memakainya.
@@ -451,8 +453,10 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 | `NODE_ENV` | api | `development` (default) · `test` · `production` |
 | `PORT` | api | Port HTTP lokal, default `3000` |
 | `LOG_LEVEL` | api | `debug` · `info` (default) · `warn` · `error` |
-| `DATABASE_URL` | api (runtime) | Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543; staging: `aws-0-ap-northeast-2.pooler.supabase.com:6543`, user `postgres.iwgzuwcxsxnbjibhbqgh`) |
-| `DIRECT_URL` | api (migrasi) | Lokal: sama dengan `DATABASE_URL`. Staging/produksi: koneksi direct/session (port 5432) untuk `prisma migrate` |
+| `DATABASE_URL` | api (runtime) | **Profil aktif** (ditulis `db:use`). Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543; staging: `aws-0-ap-northeast-2.pooler.supabase.com:6543`, user `postgres.iwgzuwcxsxnbjibhbqgh`) |
+| `DIRECT_URL` | api (migrasi) | **Profil aktif** (ditulis `db:use`). Lokal: sama dengan `DATABASE_URL`. Staging/produksi: koneksi direct/session (port 5432) untuk `prisma migrate` |
+| `LOCAL_*`, `SUPABASE_*` (`_DATABASE_URL`/`_DIRECT_URL`/`_STORAGE_PATH_PREFIX`) | `db:use` | Profil DB untuk `bun run db:use local|supabase`. `LOCAL_*` non-rahasia (Docker); `SUPABASE_*` **rahasia** (password di URL pooler; `SUPABASE_DATABASE_URL` ≠ `SUPABASE_URL` Auth) |
+| `HRIS_ALLOW_REMOTE_DB` | `db:reset`/`db:seed`/test | Opsional. `1`/`true` → lewati guard yang menolak DB non-lokal pada perintah destruktif & test |
 | `SUPABASE_URL` | api | URL project Supabase (JWKS & Admin API). **Wajib** kecuali `NODE_ENV=test`. Lokal: project **staging** `https://iwgzuwcxsxnbjibhbqgh.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | api | **Rahasia**. Hanya di server/script (`bootstrap:super-admin`), tidak pernah ke frontend |
 | `CORS_ORIGINS` | api | Origin web yang diizinkan |
@@ -499,8 +503,10 @@ Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal mema
 | `bun run db:migrate` | `prisma migrate dev` (lokal); nama migrasi: `bun run db:migrate -- --name <deskripsi_snake_case>` |
 | `bun run db:deploy` | `prisma migrate deploy` (CI dari DB kosong; staging otomatis via `deploy-staging.yml`, D-030) |
 | `bun run db:check` | `prisma migrate diff --exit-code`: gagal jika skema Prisma berbeda dari DB hasil migrasi (migrasi lupa dibuat) |
-| `bun run db:reset` | Reset DB lokal + seed. Prisma menolak perintah ini bila dijalankan AI agent tanpa persetujuan eksplisit pengguna |
-| `bun run db:seed` | Seed data dummy (idempoten; aman diulang) |
+| `bun run db:use <local\|supabase>` | Tukar target DB aktif di `.env` (menulis ulang `DATABASE_URL`/`DIRECT_URL`/`STORAGE_PATH_PREFIX` dari profil `LOCAL_*`/`SUPABASE_*`). Tanpa argumen = tampilkan target aktif. Host saja (tanpa password). Skill `hris-db-switch` |
+| `bun run db:which` | Tampilkan target DB aktif (host `DATABASE_URL`/`DIRECT_URL` + `STORAGE_PATH_PREFIX`) |
+| `bun run db:reset` | Reset DB lokal + seed. **Ditolak bila target non-lokal** (`scripts/guard-local-db.ts`; lewati `HRIS_ALLOW_REMOTE_DB=1`). Prisma juga menolak bila dijalankan AI agent tanpa persetujuan eksplisit pengguna |
+| `bun run db:seed` | Seed data dummy (idempoten; aman diulang). **Ditolak bila target non-lokal** (lihat `db:reset`) |
 | `bun run storage:setup` (di `apps/api`) | Buat/selaraskan bucket Supabase Storage (D-037) memakai `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` dari `.env`; aman diulang; wajib dijalankan sekali per project (staging ✔, produksi saat Rilis 1) |
 | `DEV_ACCOUNT_PASSWORD='...' bun run dev:account -- --email <e> --role <ROLE> [--employee-number <no>]` | Buat akun UJI per role (staging Auth + DB lokal), tautkan ke karyawan dummy; tidak untuk produksi; user Auth yang sudah ada tidak diubah password-nya |
 | `bun run recover:primary-admin -- --to-email <e> --reason "..." [--dry-run]` | Pindahkan status Utama ke SUPER_ADMIN aktif (pemulihan manual, PLAN §4.4) + audit |
