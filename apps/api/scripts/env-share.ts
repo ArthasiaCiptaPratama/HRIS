@@ -114,7 +114,8 @@ async function askHidden(label: string): Promise<string> {
 
 async function passphrase(): Promise<string> {
   const value = process.env.HRIS_ENV_PASSPHRASE ?? (await askHidden("Passphrase: "));
-  if (value.length < MIN_PASSPHRASE) throw new Error(`Passphrase minimal ${MIN_PASSPHRASE} karakter.`);
+  if (value.length < MIN_PASSPHRASE)
+    throw new Error(`Passphrase minimal ${MIN_PASSPHRASE} karakter.`);
   return value;
 }
 
@@ -131,7 +132,8 @@ async function share() {
 }
 
 async function pull() {
-  if (!existsSync(ENC_PATH)) throw new Error(`${path.basename(ENC_PATH)} tidak ada (git pull dulu).`);
+  if (!existsSync(ENC_PATH))
+    throw new Error(`${path.basename(ENC_PATH)} tidak ada (git pull dulu).`);
   const envelope = JSON.parse(readFileSync(ENC_PATH, "utf8")) as Envelope;
   let values: Record<string, string>;
   try {
@@ -144,10 +146,13 @@ async function pull() {
     out("• .env belum ada → dibuat dari .env.example (lengkapi nilai lain sesuai README).");
   }
   let text = readFileSync(ENV_PATH, "utf8");
-  for (const key of SHARED_KEYS) if (values[key] !== undefined) text = writeKey(text, key, values[key]);
+  for (const key of SHARED_KEYS)
+    if (values[key] !== undefined) text = writeKey(text, key, values[key]);
   writeFileSync(ENV_PATH, text);
   out(`✔ Profil Supabase dimasukkan ke .env (${envelope.updatedAt}).`);
-  out("  Tukar DB: bun run db:use supabase, atau tombol DB (dev) di web saat API berjalan (restart API dulu).");
+  out(
+    "  Tukar DB: bun run db:use supabase, atau tombol DB (dev) di web saat API berjalan (restart API dulu).",
+  );
 }
 
 if (import.meta.main) {
