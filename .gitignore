@@ -14,6 +14,8 @@ apps/api/src/generated/
 .env
 .env.*
 !.env.example
+# Profil DB Supabase TERENKRIPSI (bun run env:share/env:pull); passphrase tidak pernah di repo.
+!.env.supabase.enc
 
 # Test
 coverage/

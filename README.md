@@ -38,4 +38,17 @@ bun run db:use local      # pakai PostgreSQL lokal (Docker)
 bun run db:use supabase   # pakai Supabase (pooler)
 ```
 
-Hanya menulis ulang `DATABASE_URL`/`DIRECT_URL`/`STORAGE_PATH_PREFIX` di `.env` (tanpa menampilkan password); setelah menukar jalankan ulang `bun run dev`. Pengaman: `db:reset`/`db:seed`/test menolak target non-lokal (lewati `HRIS_ALLOW_REMOTE_DB=1`). Panduan kapan pakai lokal vs Supabase: skill `.claude/skills/hris-db-switch`.
+Hanya menulis ulang `DATABASE_URL`/`DIRECT_URL`/`STORAGE_PATH_PREFIX` di `.env` (tanpa menampilkan password); setelah menukar jalankan ulang `bun run dev`. Saat `bun run dev` berjalan, panel kecil **DB · …** di pojok web juga bisa menukar DB tanpa restart (hanya development). Pengaman: `db:reset`/`db:seed`/test menolak target non-lokal (lewati `HRIS_ALLOW_REMOTE_DB=1`). Panduan kapan pakai lokal vs Supabase: skill `.claude/skills/hris-db-switch`.
+
+**Profil lokal** sudah sama untuk semua orang (Docker `postgres/postgres`, hanya 127.0.0.1) — tidak perlu diubah dari `.env.example`.
+
+**Profil Supabase untuk kolaborator** — URL berisi password, jadi disimpan **terenkripsi** di `.env.supabase.enc` (di-commit). Minta passphrase ke pemilik projek lewat chat pribadi, lalu:
+
+```sh
+bun run env:pull          # ketik passphrase → SUPABASE_DATABASE_URL/DIRECT_URL masuk ke .env Anda
+bun run db:use supabase   # atau tombol "Supabase" di panel DB web
+```
+
+Pemilik projek memperbarui file itu setelah password DB diganti: `bun run env:share` (passphrase sama atau baru), lalu commit `.env.supabase.enc`. Hanya profil DB Supabase yang dibagikan — rahasia lain (service role, SMTP, Google) tidak ikut.
+
+**Data demo dashboard (DB lokal saja):** `bun run --cwd apps/api demo:dashboard` → 120 karyawan fiktif + akun `superadmin.lokal@arthasia.test` (password dicetak sekali saat pertama dibuat).
