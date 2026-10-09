@@ -13,7 +13,7 @@ Dipilih pemilik projek 2026-10-07: migrasi karyawan existing bersifat satu kali/
 **Langkah HR**
 1. Google Form → tab **Jawaban** → **Tautkan ke Spreadsheet** (sekali).
 2. Sheet → **File → Download → Microsoft Excel (.xlsx)**.
-3. Tambah kolom data kerja yang tidak ditanyakan Form: **Perusahaan** (kode PT) bila tidak memakai PT bawaan, **Status karyawan**, **Jabatan**, **Departemen/unit**, **Tanggal masuk**.
+3. Tambah kolom data kerja yang tidak ditanyakan Form: **Perusahaan** (kode PT) bila tidak memakai PT bawaan, **Jabatan**, **Departemen/unit**, **Tanggal masuk** (Form versi 171 kolom sudah menanyakan ketiganya). **Status karyawan** tidak perlu ditambah (D-062): pilih **Status kepegawaian bawaan** di langkah Unggah atau di Pratinjau, dan ubah per baris di kolom Status Pratinjau bila ada yang berbeda. Kolom status di file tetap dipakai bila ada; karyawan yang sudah ada tidak diubah statusnya.
 4. HRIS → **Personal Management › Import Data Karyawan** → unggah → periksa **Pemetaan** (diingat per susunan kolom) → **Pratinjau** → Simpan. Kolom "Timestamp"/"Stempel waktu" dan "Alamat email" (akun Google pengisi) otomatis diabaikan.
 5. Foto & dokumen di Sheet berupa **tautan Drive** → dipetakan otomatis ke grup "Lampiran (Google Drive)"; setelah Simpan, panel **Lampiran Google Drive** mengambil filenya (§4).
 6. Setelah impor: batasi akses Sheet / hapus baris yang sudah diimpor (data pribadi, UU PDP).
