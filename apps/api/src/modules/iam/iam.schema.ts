@@ -1,5 +1,11 @@
 import { z } from "@hono/zod-openapi";
-import { PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX, permissionSchema, roleSchema } from "@hris/shared";
+import {
+  dashboardLayoutSchema,
+  PAGE_SIZE_DEFAULT,
+  PAGE_SIZE_MAX,
+  permissionSchema,
+  roleSchema,
+} from "@hris/shared";
 
 const pagination = {
   page: z.coerce.number().int().min(1).default(1),
@@ -31,6 +37,16 @@ export const meResponseSchema = z
   })
   .openapi("Me");
 export type MeResponse = z.infer<typeof meResponseSchema>;
+
+// D-062: susunan widget dashboard akun sendiri. `layout: null` = belum pernah disimpan → web memakai
+// DEFAULT_DASHBOARD_LAYOUT.
+export const dashboardLayoutResponseSchema = z
+  .object({ layout: dashboardLayoutSchema.nullable(), updatedAt: z.iso.datetime().nullable() })
+  .openapi("DashboardLayoutState");
+export type DashboardLayoutState = z.infer<typeof dashboardLayoutResponseSchema>;
+export const saveDashboardLayoutBodySchema = z
+  .object({ layout: dashboardLayoutSchema })
+  .openapi("SaveDashboardLayoutBody");
 
 export const accountSchema = z
   .object({

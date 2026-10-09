@@ -11,6 +11,9 @@ import {
   orgUnitTypeSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
+  pivotDimensionSchema,
+  pivotResultSchema,
+  pivotStatusSchema,
   positionLevelSchema,
   ptkpStatusSchema,
   roleSchema,
@@ -428,3 +431,15 @@ export const dashboardSchema = z
   })
   .openapi("EmployeeDashboard");
 export type EmployeeDashboard = z.infer<typeof dashboardSchema>;
+
+// D-062: pivot agregat untuk widget Dashboard. `filter` boleh berulang: `?filter=category:PKWT&filter=…`.
+export const dashboardPivotQuerySchema = z.object({
+  rows: pivotDimensionSchema,
+  cols: pivotDimensionSchema.optional(),
+  status: pivotStatusSchema.default("active"),
+  filter: z
+    .union([z.string(), z.array(z.string()).max(100)])
+    .optional()
+    .openapi({ description: "dimensi:nilai, boleh berulang (mis. category:PERMANENT)" }),
+});
+export const dashboardPivotSchema = pivotResultSchema.openapi("DashboardPivot");

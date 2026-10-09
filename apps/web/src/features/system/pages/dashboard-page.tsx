@@ -9,8 +9,9 @@ import type { Me } from "@/features/auth/schemas";
 import { useDashboard } from "@/features/employee/api";
 import { access } from "@/lib/access";
 
-const DashboardCharts = lazy(() =>
-  import("./dashboard-charts").then((m) => ({ default: m.DashboardCharts })),
+// D-062: board widget (ECharts, dnd-kit) dimuat lazy supaya role lain tidak mengunduhnya.
+const DashboardBoard = lazy(() =>
+  import("@/features/dashboard/dashboard-board").then((m) => ({ default: m.DashboardBoard })),
 );
 
 // Kunci statis untuk kerangka loading (bukan indeks array).
@@ -149,7 +150,7 @@ export function DashboardPage() {
     <>
       <DashboardHeader me={me} />
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardCharts data={query.data} me={me} />
+        <DashboardBoard me={me} />
       </Suspense>
     </>
   );

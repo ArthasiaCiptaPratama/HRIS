@@ -1,16 +1,21 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
+import { decodePivotFilters } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
+import { ValidationError } from "../../core/errors.ts";
 import type { GoogleDriveReader } from "../../core/google-drive.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import { registerArchiveRoutes } from "./archive.routes.ts";
+import * as pivot from "./dashboard-pivot.service.ts";
 import { registerDataChangeRoutes } from "./data-change.routes.ts";
 import { registerDocumentRoutes } from "./document.routes.ts";
 import {
   changeStatusBodySchema,
   createEmployeeBodySchema,
+  dashboardPivotQuerySchema,
+  dashboardPivotSchema,
   dashboardSchema,
   deactivateBodySchema,
   detailQuerySchema,
@@ -122,6 +127,19 @@ const routes = {
     responses: {
       200: json("Dashboard", dataEnvelope(dashboardSchema)),
       ...errors(401, 403, 500),
+    },
+  }),
+  dashboardPivot: createRoute({
+    method: "get",
+    path: `${P}/dashboard/pivot`,
+    tags: TAGS,
+    summary:
+      "Pivot agregat karyawan untuk widget Dashboard (SA/HR; dimensi pribadi butuh grant) — D-062",
+    security,
+    request: { query: dashboardPivotQuerySchema },
+    responses: {
+      200: json("Matriks jumlah karyawan", dataEnvelope(dashboardPivotSchema)),
+      ...errors(400, 401, 403, 500),
     },
   }),
   managerOptions: createRoute({
@@ -304,6 +322,14 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   app.openapi(guard(routes.dashboard), async (c) =>
     c.json(ok(await service.getDashboard(ctx(c))), 200),
   );
+  app.openapi(guard(routes.dashboardPivot), async (c) => {
+    const { filter, ...query } = c.req.valid("query");
+    const filters = decodePivotFilters(filter);
+    if (!filters) {
+      throw new ValidationError([{ path: "filter", message: "Format filter: dimensi:nilai" }]);
+    }
+    return c.json(ok(await pivot.getDashboardPivot(ctx(c), { ...query, filters })), 200);
+  });
   app.openapi(guard(routes.managerOptions), async (c) =>
     c.json(ok(await service.listManagerOptions(ctx(c))), 200),
   );

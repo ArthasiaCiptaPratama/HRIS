@@ -278,7 +278,8 @@ function visibleToActor(actor: Actor, row: { id: string; onboardingStatus: strin
   return row.onboardingStatus === "APPROVED" || actor.employeeId === row.id;
 }
 
-function scopeWhere(actor: Actor): repository.EmployeeWhere {
+/** Cakupan baris karyawan aktor (D-035/D-040/D-045) — dipakai juga pivot dashboard (D-062). */
+export function scopeWhere(actor: Actor): repository.EmployeeWhere {
   const scope = policy.employeeListScope(actor);
   if (scope === null) throw new ForbiddenError();
   // D-035: MANAGER hanya tim (bawahan langsung, D-009).

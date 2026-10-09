@@ -498,6 +498,15 @@ Table iam.account_companies {
   Note: 'D-040: cakupan perusahaan akun HR_ADMIN'
 }
 
+Table iam.dashboard_layouts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  account_id uuid [not null, unique, ref: - iam.accounts.id, note: 'ON DELETE CASCADE']
+  layout jsonb [not null, note: 'dashboardLayoutSchema (@hris/shared); versi tak cocok -> susunan bawaan']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  Note: 'D-062: susunan widget Dashboard per akun SA/HR (preferensi tampilan, tanpa data karyawan)'
+}
+
 //// ---------- Skema: audit (core, append-only, tanpa FK) ----------
 
 Table audit.audit_logs {

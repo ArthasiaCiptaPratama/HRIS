@@ -47,11 +47,12 @@ model Account {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  grants        PermissionGrant[] @relation("GrantAccount")
-  grantsGiven   PermissionGrant[] @relation("GrantGrantedBy")
-  grantsRevoked PermissionGrant[] @relation("GrantRevokedBy")
+  grants          PermissionGrant[] @relation("GrantAccount")
+  grantsGiven     PermissionGrant[] @relation("GrantGrantedBy")
+  grantsRevoked   PermissionGrant[] @relation("GrantRevokedBy")
   // D-040: perusahaan yang ditugaskan (dipakai untuk HR_ADMIN).
-  companies     AccountCompany[]
+  companies       AccountCompany[]
+  dashboardLayout DashboardLayout?
 
   @@unique([authUserId])
   @@unique([employeeId])
@@ -98,6 +99,21 @@ model AccountCompany {
   @@id([accountId, companyId])
   @@index([companyId])
   @@map("account_companies")
+  @@schema("iam")
+}
+
+// D-062: susunan widget Dashboard per akun (preferensi tampilan; tanpa data karyawan). Isi `layout`
+// divalidasi dashboardLayoutSchema (@hris/shared) saat simpan & baca; versi lama → susunan bawaan.
+model DashboardLayout {
+  id        String   @id @default(uuid()) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  layout    Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([accountId])
+  @@map("dashboard_layouts")
   @@schema("iam")
 }
 

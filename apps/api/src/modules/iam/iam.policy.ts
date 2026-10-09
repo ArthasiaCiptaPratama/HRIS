@@ -30,6 +30,12 @@ export function canReadOwnAccount(actor: Actor): boolean {
   return actor.accountId.length > 0;
 }
 
+// D-062: susunan dashboard = preferensi tampilan milik akun sendiri (tanpa data karyawan). Hanya SA/HR
+// yang melihat dashboard agregat, jadi hanya mereka yang menyimpan susunan.
+export function canManageOwnDashboardLayout(actor: Actor): boolean {
+  return actor.role === ROLE.SUPER_ADMIN || actor.role === ROLE.HR_ADMIN;
+}
+
 // PLAN §4.3 "Undang akun karyawan, nonaktifkan akun": SA ✅ HR ✅.
 export function canListAccounts(actor: Actor): boolean {
   return isSuperAdmin(actor) || isHrAdmin(actor);

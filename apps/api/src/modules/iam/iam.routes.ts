@@ -14,6 +14,7 @@ import {
   auditLogSchema,
   changeRoleBodySchema,
   createGrantBodySchema,
+  dashboardLayoutResponseSchema,
   grantSchema,
   idParamSchema,
   inviteAccountBodySchema,
@@ -22,6 +23,7 @@ import {
   listGrantsQuerySchema,
   meResponseSchema,
   revokeGrantBodySchema,
+  saveDashboardLayoutBodySchema,
   transferPrimaryBodySchema,
 } from "./iam.schema.ts";
 import * as service from "./iam.service.ts";
@@ -87,6 +89,40 @@ const routes = {
     security,
     responses: {
       200: json("Profil akses akun sendiri", dataEnvelope(meResponseSchema)),
+      ...errors(401, 403, 500),
+    },
+  }),
+  getDashboardLayout: createRoute({
+    method: "get",
+    path: `${P}/me/dashboard-layout`,
+    tags: ["IAM"],
+    summary: "Susunan widget Dashboard akun sendiri (SA/HR; null = susunan bawaan) — D-062",
+    security,
+    responses: {
+      200: json("Susunan dashboard", dataEnvelope(dashboardLayoutResponseSchema)),
+      ...errors(401, 403, 500),
+    },
+  }),
+  saveDashboardLayout: createRoute({
+    method: "put",
+    path: `${P}/me/dashboard-layout`,
+    tags: ["IAM"],
+    summary: "Simpan susunan widget Dashboard akun sendiri (SA/HR) — D-062",
+    security,
+    request: body(saveDashboardLayoutBodySchema),
+    responses: {
+      200: json("Susunan tersimpan", dataEnvelope(dashboardLayoutResponseSchema)),
+      ...errors(400, 401, 403, 500),
+    },
+  }),
+  resetDashboardLayout: createRoute({
+    method: "delete",
+    path: `${P}/me/dashboard-layout`,
+    tags: ["IAM"],
+    summary: "Kembalikan Dashboard akun sendiri ke susunan bawaan (SA/HR) — D-062",
+    security,
+    responses: {
+      200: json("Susunan dihapus", dataEnvelope(dashboardLayoutResponseSchema)),
       ...errors(401, 403, 500),
     },
   }),
@@ -262,6 +298,16 @@ export function registerIamRoutes(app: OpenAPIHono, deps: IamRouteDeps): void {
     if (!canReadOwnAccount(actor)) throw new ForbiddenError();
     return c.json(ok(await service.getMe(actor)), 200);
   });
+
+  app.openapi(guard(routes.getDashboardLayout), async (c) =>
+    c.json(ok(await service.getDashboardLayout(c.get("actor"))), 200),
+  );
+  app.openapi(guard(routes.saveDashboardLayout), async (c) =>
+    c.json(ok(await service.saveDashboardLayout(c.get("actor"), c.req.valid("json").layout)), 200),
+  );
+  app.openapi(guard(routes.resetDashboardLayout), async (c) =>
+    c.json(ok(await service.resetDashboardLayout(c.get("actor"))), 200),
+  );
 
   app.openapi(guard(routes.listAccounts), async (c) =>
     c.json(await service.listAccounts(ctxOf(c), c.req.valid("query")), 200),
