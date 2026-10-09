@@ -113,6 +113,13 @@ export function canViewDashboard(actor: Actor): boolean {
   return canManageEmployees(actor);
 }
 
+// D-065: pivot dashboard memakai dimensi data pribadi (agama, status nikah, umur) → SA, atau HR dengan
+// grant employee.personal.read (PLAN §4.2). Cakupan baris tetap PT yang ditugaskan (D-040), sama dengan
+// cakupan grant HR di canReadSensitive. Hasilnya hanya jumlah, tanpa data per orang.
+export function canPivotPersonal(actor: Actor): boolean {
+  return canViewDashboard(actor) && hasPermission(actor, "employee.personal.read");
+}
+
 // D-045 / PLAN §4.3 "Penerimaan karyawan baru": SA semua PT, HR_ADMIN PT yang ditugaskan (D-040),
 // tanpa grant (data dari portal belum sensitif; data sensitif diisi calon sendiri, D-046).
 export function canRunOnboarding(actor: Actor): boolean {

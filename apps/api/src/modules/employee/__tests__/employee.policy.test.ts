@@ -9,6 +9,7 @@ import {
   canManageArchive,
   canManageEmployees,
   canOnboardInCompany,
+  canPivotPersonal,
   canPrintEmployee,
   canReadArchive,
   canReadBank,
@@ -293,6 +294,18 @@ describe("Dashboard", () => {
     ["EMP", false],
   ] as const)("canViewDashboard %s = %s", (who, allowed) => {
     expect(canViewDashboard(actor(who))).toBe(allowed);
+  });
+
+  // D-065: dimensi pivot pribadi (agama, status nikah, umur) — SA, atau HR dengan grant baca pribadi.
+  test.each([
+    ["SA", [], true],
+    ["HR", [], false],
+    ["HR", ["employee.personal.read"], true],
+    ["HR", ["employee.personal.write"], false],
+    ["MGR", ["employee.personal.read"], false],
+    ["EMP", [], false],
+  ] as const)("canPivotPersonal %s %j = %s", (who, grants, allowed) => {
+    expect(canPivotPersonal(actor(who, [...grants]))).toBe(allowed);
   });
 });
 

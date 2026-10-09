@@ -9,6 +9,7 @@ import {
   canInviteAccount,
   canListAccounts,
   canManageGrants,
+  canManageOwnDashboardLayout,
   canReadAuditLogs,
   canSetActive,
   canTransferPrimary,
@@ -39,6 +40,19 @@ function actor(who: Who, id = `acc-${who}`): Actor {
     companyIds: who === "SA" || who === "UTAMA" ? null : new Set<string>(),
   };
 }
+
+// D-065: susunan dashboard milik akun sendiri — hanya role yang melihat dashboard agregat (SA/HR).
+describe("susunan dashboard", () => {
+  test.each([
+    ["UTAMA", true],
+    ["SA", true],
+    ["HR", true],
+    ["MGR", false],
+    ["EMP", false],
+  ] as const)("canManageOwnDashboardLayout %s = %s", (who, allowed) => {
+    expect(canManageOwnDashboardLayout(actor(who))).toBe(allowed);
+  });
+});
 
 function target(role: Role, extra: Partial<AccountTarget> = {}): AccountTarget {
   return {

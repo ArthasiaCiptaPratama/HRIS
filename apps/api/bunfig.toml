@@ -1,0 +1,4 @@
+# Konfigurasi Bun untuk apps/api.
+[test]
+# Jaring pengaman: batalkan test bila DATABASE_URL non-lokal (lihat tests/helpers/db-guard-preload.ts).
+preload = ["./tests/helpers/db-guard-preload.ts"]

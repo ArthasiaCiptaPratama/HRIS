@@ -297,6 +297,30 @@ export async function listForDashboard(where: EmployeeWhere) {
   });
 }
 
+/**
+ * D-065: baris minimal untuk pivot dashboard (agregat di service). Kolom pribadi (`personal`) hanya
+ * diambil bila pivot memakai dimensi sensitif dan aktor berhak (dicek service sebelum memanggil).
+ */
+export async function listForPivot(where: EmployeeWhere, withPersonal: boolean) {
+  return getPrisma().employee.findMany({
+    where,
+    select: {
+      isActive: true,
+      joinDate: true,
+      gender: true,
+      companyId: true,
+      employmentStatusId: true,
+      positionId: true,
+      workLocationId: true,
+      gradeId: true,
+      educations: { select: { level: true } },
+      ...(withPersonal
+        ? { personal: { select: { birthDate: true, religion: true, maritalStatus: true } } }
+        : {}),
+    },
+  });
+}
+
 // ── D-049: dukungan master data untuk modul organization (lewat index.ts, disuntik di app.ts) ──
 
 export type MasterRefKind = "company" | "position" | "status" | "grade" | "location";

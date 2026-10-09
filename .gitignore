@@ -14,6 +14,8 @@ apps/api/src/generated/
 .env
 .env.*
 !.env.example
+# Profil DB Supabase (juga versi terenkripsi env:share) TIDAK di-commit (aturan emas #13): bagikan
+# langsung antar-kolaborator, bukan lewat repo.
 
 # Test
 coverage/
