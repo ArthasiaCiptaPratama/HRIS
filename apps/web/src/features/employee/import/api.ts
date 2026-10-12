@@ -244,6 +244,14 @@ export function useOpenAttachmentJobs() {
   });
 }
 
+/**
+ * BUG-003: batas waktu satu panggilan proses/ulangi. `fetch` peramban tidak punya batas waktu — koneksi
+ * yang menggantung (Wi-Fi putus di tengah request) membuat panel menunggu selamanya. Server bekerja ±8 dtk
+ * per panggilan (+ satu lampiran yang sedang diproses), jadi 60 dtk = jelas macet → dianggap gangguan
+ * sementara (ApiError status 0) dan dicoba ulang oleh panel. Objek supaya test bisa memperpendek.
+ */
+export const PROCESS_TIMEOUT = { ms: 60_000 };
+
 /** Proses / ulangi lampiran: hasil langsung menggantikan cache status lampiran import itu. */
 export function useAttachmentActions(jobId: string) {
   const queryClient = useQueryClient();
@@ -255,6 +263,8 @@ export function useAttachmentActions(jobId: string) {
     api(`/employee-imports/${jobId}/attachments/${action}`, {
       method: "POST",
       schema: one(attachmentsSchema),
+      // TimeoutError (bukan AbortError) → api-client melaporkannya sebagai gagal terhubung (status 0).
+      signal: AbortSignal.timeout(PROCESS_TIMEOUT.ms),
     }).then((r) => r.data);
   return {
     process: useMutation({ mutationFn: () => post("process"), onSuccess }),
