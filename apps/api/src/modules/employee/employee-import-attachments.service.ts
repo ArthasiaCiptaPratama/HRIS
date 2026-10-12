@@ -20,8 +20,12 @@ import * as importRepo from "./employee-import.repository.ts";
 import type { ImportAttachmentsDto } from "./employee-import.schema.ts";
 import { prepareDocument, preparePhoto, SOURCE_MAX_BYTES } from "./import-attachment-files.ts";
 
-/** Waktu kerja per panggilan; lampiran yang sedang diproses tetap diselesaikan. */
-const BUDGET_MS = 20_000;
+/**
+ * Waktu kerja per panggilan; lampiran yang sedang diproses tetap diselesaikan. Sengaja pendek: request
+ * HTTP harus jauh di bawah batas idle proxy/server (Bun lokal ±10 dtk, proxy umum 30–60 dtk) — antrean
+ * dilanjutkan panggilan berikutnya, jadi request pendek tidak memperlambat total proses.
+ */
+export const BUDGET_MS = 8_000;
 const MAX_PER_CALL = 10;
 /** PROCESSING lebih lama dari ini dianggap terputus (fungsi berhenti) → boleh diklaim ulang. */
 const STALE_MS = 5 * 60_000;

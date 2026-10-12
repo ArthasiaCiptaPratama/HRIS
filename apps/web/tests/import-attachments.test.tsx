@@ -1,7 +1,8 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSelectedCompany } from "@/features/employee/company-scope";
+import { RETRY } from "@/features/employee/import/attachments-panel";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -82,8 +83,17 @@ function mockBackend(responses: { process: unknown[]; initial: unknown; retry?: 
         });
       if (path === "/employee-imports/job-1/attachments")
         return json(200, { data: responses.initial });
-      if (path === "/employee-imports/job-1/attachments/process")
-        return json(200, { data: responses.process.shift() });
+      if (path === "/employee-imports/job-1/attachments/process") {
+        const next = responses.process.shift();
+        // Gangguan sementara: koneksi putus (fetch gagal) atau gateway 503; 403 = error permanen.
+        if (next === "NETWORK")
+          throw new TypeError("NetworkError when attempting to fetch resource.");
+        if (next === 503 || next === 403)
+          return json(next, {
+            error: { code: "INTERNAL_ERROR", message: `HTTP ${next}`, requestId: "r" },
+          });
+        return json(200, { data: next });
+      }
       if (path === "/employee-imports/job-1/attachments/retry")
         return json(200, { data: responses.retry });
       return json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
@@ -92,7 +102,9 @@ function mockBackend(responses: { process: unknown[]; initial: unknown; retry?: 
   return requests;
 }
 
+const retryDefaults = { ...RETRY };
 beforeEach(() => {
+  Object.assign(RETRY, retryDefaults, { baseMs: 5, jitterMs: 0 });
   authState.session = { access_token: "t", user: { id: "u" } };
   setSelectedCompany(null);
   vi.clearAllMocks();
@@ -130,6 +142,51 @@ describe("Lampiran Google Drive di Import", () => {
     await user.click(screen.getByRole("button", { name: /Coba lagi yang gagal/ }));
     await waitFor(() => expect(processCalls()).toBe(3));
     expect(await screen.findByText(/2 masuk · 0 dilewati · 0 gagal/)).toBeInTheDocument();
+  });
+
+  it("koneksi putus / 503 sesaat → dicoba ulang otomatis tanpa error, lalu selesai", async () => {
+    const requests = mockBackend({
+      initial: state([item("a1", "attachPhoto", "PENDING"), item("a2", "attachKtp", "PENDING")]),
+      process: [
+        "NETWORK",
+        503,
+        state([item("a1", "attachPhoto", "DONE"), item("a2", "attachKtp", "PENDING")]),
+        "NETWORK",
+        state([item("a1", "attachPhoto", "DONE"), item("a2", "attachKtp", "DONE")]),
+      ],
+    });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+
+    // Batas waktu longgar: 5 panggilan berurutan + jeda coba ulang, aman saat CI/mesin sibuk.
+    expect(
+      await screen.findByText(/2 masuk · 0 dilewati · 0 gagal/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(requests.filter((r) => r.path.endsWith("/attachments/process"))).toHaveLength(5);
+    expect(screen.queryByText("Tidak dapat terhubung ke server.")).not.toBeInTheDocument();
+  });
+
+  it("gangguan berulang melewati batas coba ulang → panel berhenti dengan pesan; 403 tidak dicoba ulang", async () => {
+    RETRY.attempts = 2;
+    const requests = mockBackend({
+      initial: state([item("a1", "attachPhoto", "PENDING")]),
+      process: ["NETWORK", "NETWORK", "NETWORK", 403],
+    });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    expect(
+      await screen.findByText("Tidak dapat terhubung ke server.", {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    const calls = () => requests.filter((r) => r.path.endsWith("/attachments/process")).length;
+    expect(calls()).toBe(3);
+
+    // Lanjutkan manual → 403 langsung ditampilkan, tanpa coba ulang.
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /Lanjutkan/ }));
+    expect(await screen.findByText("HTTP 403", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(calls()).toBe(4);
   });
 
   it("Drive belum dikonfigurasi: antrean tidak diproses, pesan jelas", async () => {

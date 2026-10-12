@@ -4,23 +4,17 @@ import {
   ChevronDown,
   CloudDownload,
   Loader2,
+  MoveHorizontal,
   Pause,
   Play,
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { employeeKeys } from "../api";
@@ -28,7 +22,7 @@ import { type ImportAttachments, useAttachmentActions, useImportAttachments } fr
 import { attachmentTargetLabel } from "./labels";
 
 // D-060: lampiran Google Drive dari Import diproses bertahap setelah data tersimpan. Panel memanggil
-// API berulang (±20 dtk per panggilan) sampai antrean habis; halaman boleh ditutup — sisa antrean bisa
+// API berulang (±8 dtk per panggilan) sampai antrean habis; halaman boleh ditutup — sisa antrean bisa
 // dilanjutkan dari halaman Import. Pemrosesan hidup selama panel ini terpasang.
 
 type Item = ImportAttachments["items"][number];
@@ -43,6 +37,17 @@ const STATUS: Record<
   SKIPPED: { label: "Dilewati", variant: "warning" },
   FAILED: { label: "Gagal", variant: "destructive" },
 };
+
+/**
+ * Coba ulang otomatis untuk gangguan sementara (koneksi putus, server restart, gateway sibuk): jeda
+ * eksponensial + jitter. Aman karena pemrosesan idempoten — lampiran diklaim per baris & klaim yang
+ * terputus kedaluwarsa sendiri di server. Error lain (403/404/422…) langsung ditampilkan.
+ */
+export const RETRY = { attempts: 4, baseMs: 2000, jitterMs: 500 };
+const TRANSIENT_STATUS = new Set([0, 408, 429, 502, 503, 504]);
+const isTransient = (e: unknown) => e instanceof ApiError && TRANSIENT_STATUS.has(e.status);
+const retryDelay = (attempt: number) =>
+  RETRY.baseMs * 2 ** attempt + Math.round(Math.random() * RETRY.jitterMs);
 
 /** Ringkasan untuk halaman induk (stepper, konfirmasi sebelum import file lain). */
 export type AttachmentsState = { total: number; handled: number; pending: number; active: boolean };
@@ -66,7 +71,7 @@ function ItemLine({ item }: { item: Item }) {
         <p className="truncate text-sm font-medium">{item.fullName}</p>
         <p className="text-muted-foreground truncate text-xs">
           {attachmentTargetLabel(item.field)}
-          {item.fileCount > 1 ? ` · ${item.fileCount} file` : ""} · baris {item.sourceRow}
+          {item.fileCount > 1 ? ` · ${item.fileCount} file` : ""}
         </p>
       </div>
       <Badge variant={STATUS[item.status].variant}>
@@ -74,6 +79,110 @@ function ItemLine({ item }: { item: Item }) {
         {STATUS[item.status].label}
       </Badge>
     </li>
+  );
+}
+
+/** Tepi yang masih bisa digeser — dipakai untuk bayangan tepi & petunjuk geser. */
+function useScrollEdges() {
+  const ref = useRef<HTMLElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    // ResizeObserver tidak ada di sebagian lingkungan (jsdom, peramban lama) → cukup ukuran jendela.
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [update]);
+  return { ref, edges, update };
+}
+
+/**
+ * Lampiran yang dilewati/gagal. Satu wadah gulir (tegak + mendatar) supaya scrollbar mendatar selalu
+ * terlihat di bawah tabel; bayangan tepi + petunjuk muncul hanya bila isi lebih lebar dari panel.
+ */
+function NotesTable({ notes }: { notes: Item[] }) {
+  const { ref, edges, update } = useScrollEdges();
+  const head = "text-muted-foreground h-10 px-3 text-left align-middle text-xs font-medium";
+  return (
+    <div className="border-t">
+      {edges.right || edges.left ? (
+        <p className="text-muted-foreground flex items-center gap-1.5 px-4 pt-2 text-xs">
+          <MoveHorizontal className="size-3.5" aria-hidden /> Geser tabel ke samping untuk melihat
+          keterangan lengkap.
+        </p>
+      ) : null}
+      <div className="relative">
+        <section
+          ref={ref}
+          onScroll={update}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: wadah gulir harus bisa digeser dengan keyboard
+          tabIndex={0}
+          aria-label="Daftar lampiran yang perlu dicek"
+          className="focus-visible:ring-ring/50 max-h-80 overflow-auto outline-none focus-visible:ring-[3px] [scrollbar-width:thin]"
+        >
+          <table className="w-full min-w-max text-sm">
+            <thead className="bg-card sticky top-0 z-10 border-b">
+              <tr>
+                <th className={head}>Karyawan</th>
+                <th className={head}>Lampiran</th>
+                <th className={head}>Status</th>
+                <th className={head}>Keterangan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notes.map((item) => (
+                <tr key={item.id} className="border-b last:border-0">
+                  <td className="px-3 py-2 align-top whitespace-nowrap">
+                    <p className="font-medium">{item.fullName}</p>
+                    <p className="text-muted-foreground font-mono text-xs">
+                      {item.employeeNumber ?? "NIP belum ada"}
+                    </p>
+                  </td>
+                  <td className="px-3 py-2 align-top whitespace-nowrap">
+                    {attachmentTargetLabel(item.field)}
+                    {item.fileCount > 1 ? ` (${item.fileCount} file)` : ""}
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <Badge variant={STATUS[item.status].variant}>{STATUS[item.status].label}</Badge>
+                  </td>
+                  <td className="text-muted-foreground px-3 py-2 align-top whitespace-nowrap">
+                    {item.reason ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+        <div
+          aria-hidden
+          className={cn(
+            "from-card pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r to-transparent transition-opacity",
+            edges.left ? "opacity-100" : "opacity-0",
+          )}
+        />
+        <div
+          aria-hidden
+          className={cn(
+            "from-card pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l to-transparent transition-opacity",
+            edges.right ? "opacity-100" : "opacity-0",
+          )}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -92,6 +201,8 @@ export function AttachmentsPanel({
   const [running, setRunning] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(true);
+  /** Jumlah coba ulang berturut-turut karena gangguan sementara (0 = koneksi normal). */
+  const [retries, setRetries] = useState(0);
   const data = query.data;
   const pending = data?.counts.pending ?? 0;
   const canRun = Boolean(data?.driveConfigured) && pending > 0;
@@ -107,10 +218,17 @@ export function AttachmentsPanel({
       () =>
         process.mutate(undefined, {
           onSuccess: (next) => {
+            setRetries(0);
             if (next.counts.total - next.counts.pending === handled)
               setIdleUntil(Date.now() + 3000);
           },
           onError: (e) => {
+            if (isTransient(e) && retries < RETRY.attempts) {
+              setIdleUntil(Date.now() + retryDelay(retries));
+              setRetries(retries + 1);
+              return;
+            }
+            setRetries(0);
             setError(errorMessage(e));
             setRunning(false);
           },
@@ -118,7 +236,7 @@ export function AttachmentsPanel({
       Math.max(0, idleUntil - Date.now()),
     );
     return () => clearTimeout(timer);
-  }, [running, canRun, process, error, handled, idleUntil]);
+  }, [running, canRun, process, error, handled, idleUntil, retries]);
 
   const total = data?.counts.total ?? 0;
   useEffect(() => {
@@ -239,6 +357,14 @@ export function AttachmentsPanel({
           </AlertDescription>
         </Alert>
       ) : null}
+      {retries > 0 && !error ? (
+        <Alert>
+          <Loader2 className="animate-spin" />
+          <AlertDescription>
+            Koneksi ke server terputus — mencoba lagi otomatis ({retries}/{RETRY.attempts})…
+          </AlertDescription>
+        </Alert>
+      ) : null}
       {error ? (
         <Alert variant="destructive">
           <TriangleAlert />
@@ -313,46 +439,7 @@ export function AttachmentsPanel({
               aria-hidden
             />
           </button>
-          {showNotes ? (
-            <div className="max-h-80 overflow-auto border-t">
-              <Table>
-                <TableHeader className="bg-card sticky top-0">
-                  <TableRow>
-                    <TableHead className="w-14">Baris</TableHead>
-                    <TableHead>Karyawan</TableHead>
-                    <TableHead>Lampiran</TableHead>
-                    <TableHead className="w-24">Status</TableHead>
-                    <TableHead className="min-w-[200px]">Keterangan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {notes.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-mono text-xs">{item.sourceRow}</TableCell>
-                      <TableCell>
-                        <p className="font-medium">{item.fullName}</p>
-                        <p className="text-muted-foreground font-mono text-xs">
-                          {item.employeeNumber}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {attachmentTargetLabel(item.field)}
-                        {item.fileCount > 1 ? ` (${item.fileCount} file)` : ""}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS[item.status].variant}>
-                          {STATUS[item.status].label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {item.reason ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : null}
+          {showNotes ? <NotesTable notes={notes} /> : null}
         </div>
       ) : null}
     </section>
