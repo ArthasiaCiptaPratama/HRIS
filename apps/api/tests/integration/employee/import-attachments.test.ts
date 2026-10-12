@@ -7,6 +7,11 @@ import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import type { GoogleDriveReader } from "../../../src/core/google-drive.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import {
+  BUDGET_MS,
+  processAttachments,
+} from "../../../src/modules/employee/employee-import-attachments.service.ts";
+import { loadActor } from "../../../src/modules/iam/iam.service.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -322,6 +327,39 @@ describe("Lampiran Google Drive di Import (D-060)", () => {
     expect(result.items.find((i: { field: string }) => i.field === "attachDiploma").status).toBe(
       "DONE",
     );
+  });
+
+  test("batas waktu per panggilan: berhenti setelah anggaran habis, sisa antrean ke panggilan berikutnya", async () => {
+    const { saved } = await importAs(sa, [
+      {
+        employeeNumber: NUM("C"),
+        attachPhoto: link("photo"),
+        attachDiploma: link("diploma"),
+        attachCertIso45001: link("iso"),
+        certIso45001Number: "ISO-002",
+      },
+    ]);
+    expect(saved.counts.attachments).toBe(3);
+    // Jam palsu: setiap unduhan "memakan" 5 dtk → lampiran ke-2 selesai di 10 dtk (> anggaran) → berhenti.
+    let clock = 0;
+    const slowDrive: GoogleDriveReader = {
+      ...drive,
+      async download(id) {
+        clock += 5_000;
+        return drive.download(id);
+      },
+    };
+    const actor = await loadActor(sa.account.authUserId);
+    if (!actor) throw new Error("actor SA tidak termuat");
+    const ctx = { actor, storage: fake.storage, googleDrive: slowDrive };
+    expect(BUDGET_MS).toBeLessThan(10_000);
+
+    const first = await processAttachments(ctx, saved.jobId, () => clock);
+    expect(first.counts.total - first.counts.pending).toBe(2);
+    expect(first.counts.pending).toBe(1);
+    const second = await processAttachments(ctx, saved.jobId, () => clock);
+    expect(second.counts.pending).toBe(0);
+    expect(second.counts.done).toBe(3);
   });
 
   test("bukan tautan Drive = peringatan, tidak masuk antrean", async () => {
