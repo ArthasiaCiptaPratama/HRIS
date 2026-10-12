@@ -96,7 +96,9 @@ const TODAY = new Intl.DateTimeFormat("id-ID", {
 });
 
 function DashboardHeader({ me }: { me: Me }) {
-  const name = me.email.split("@")[0]?.split(/[.+_-]/)[0] ?? "";
+  // BUG-004: nama depan karyawan bila akun tertaut; cadangan = bagian depan email.
+  const fromEmail = me.email.split("@")[0]?.split(/[.+_-]/)[0] ?? "";
+  const name = me.employeeName?.trim().split(/\s+/)[0] || fromEmail;
   const display = name ? name.charAt(0).toUpperCase() + name.slice(1) : "";
   return (
     <PageHeader

@@ -308,6 +308,7 @@ export async function getMe(actor: Actor, now: Date = new Date()): Promise<MeRes
     role: account.role,
     isPrimarySuperAdmin: account.isPrimarySuperAdmin,
     employeeId: account.employeeId,
+    employeeName: account.employee?.fullName ?? null,
     lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
     grants: account.grants
       .filter((grant) => isGrantActive(grant, now))
