@@ -187,6 +187,23 @@ Dari HP/web: jenis, rentang tanggal, alasan, lampiran (dokumen sesuai jenis). Ap
 
 Cron baru (Vercel, harian): `roster-extend`, `attendance-no-checkout`, `purge-selfies`, `leave-annual-grant` (1 Jan), `leave-debt-settle` (31 Jan), `leave-carry-expiry` (1 Apr).
 
+## 10a. Menyiapkan data di DB lokal (pengembang)
+
+Setiap pengembang memakai DB lokalnya sendiri; tidak ada langkah yang menyentuh database Supabase.
+
+1. `bun run db:migrate` — menerapkan migrasi Time Management (skema `approval`, `attendance`, `leave`).
+2. `bun run db:seed` — PT ACP & master data dasar (bila belum).
+3. `bun run db:seed:time` — libur resmi SKB 3 Menteri (2026–2027) & Master Cuti tahun berjalan.
+4. Opsional `bun run db:seed:time -- --demo` — site ber-geofence (`DEMO_LAT`/`DEMO_LNG`), shift D/N, pola
+   4D-4N-2OFF, crew, karyawan demo `TMDEMO-*`, roster, saldo cuti; akun SA lokal (bila ada) ditautkan ke
+   karyawan demo supaya bisa absen.
+5. Opsional `-- --demo --accounts` — akun login demo (manager, karyawan, HR). **Membuat user di Supabase Auth**
+   project pada `SUPABASE_URL`; jalankan hanya bila project Auth itu milik/izin Anda.
+
+Script menolak berjalan bila `DATABASE_URL` bukan lokal, dan aman dijalankan berulang (tanggal libur yang
+sudah ada & data demo yang sudah ada tidak ditimpa). Jenis cuti/izin/sakit bawaan dibuat otomatis saat
+halaman cuti pertama kali dibuka.
+
 ## 11. Keputusan terbuka (dicatat di PLAN §9)
 
 | ID | Pertanyaan | Sebelum |
