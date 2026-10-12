@@ -60,7 +60,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-12-lampiran-ui.md](runs/2026-10-12-lampiran-ui.md) | Lokal 8/8; staging gel. 4 B-04 GAGAL → BUG-003 → staging 4.1 8/8 — **LEGIT** |
 | Hasil | [runs/2026-10-12-onboarding-e2e.md](runs/2026-10-12-onboarding-e2e.md) | Lokal + Auth staging: 15 langkah LULUS (revisi → kirim ulang → setujui → login NIP); BUG-004 (P3) — staging menunggu saklar |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
-| Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 TERBUKA: sapaan Dashboard memakai email akun, bukan nama karyawan |
+| Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 DIPERBAIKI di develop (staging menyusul): sapaan Dashboard memakai email akun, bukan nama karyawan |
 | Bug | [bugs/BUG-003-lampiran-macet-koneksi-menggantung.md](bugs/BUG-003-lampiran-macet-koneksi-menggantung.md) | P2 DITUTUP 2026-10-12 (staging 4.1): panel lampiran macet saat koneksi menggantung |
 | Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DITUTUP 2026-10-12 (terverifikasi staging): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

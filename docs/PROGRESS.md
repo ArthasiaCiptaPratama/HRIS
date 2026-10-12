@@ -219,7 +219,11 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [~] **Onboarding karyawan baru** (a–d ✔ lokal; terpasang di staging 2026-10-08 tetapi disembunyikan saklar `onboarding`; sisa: template email, env login NIK staging, grant review HR) (D-045–D-048, desain `docs/design/onboarding-karyawan.md`; setelah Tahap 3) (tambahan 2026-10-01: permintaan pemilik projek, hasil grill)
     - [x] c1. (✔ lokal 2026-10-02, antrean #12) Review (grant `employee.onboarding.review`), setujui (+PTKP, koreksi data kerja, riwayat HIRED) / minta revisi per bagian / batalkan (+nonaktif & ban) + email & notifikasi, halaman `/ess` kosong
     - [x] c2. (✔ lokal 2026-10-02, antrean #13) **Login NIK** (`iam.accounts.login_email`, alamat turunan per lingkungan, lupa password via API, script migrasi akun existing — **belum dijalankan**). `.invalid` terverifikasi 2026-10-02; env lokal diisi (`dev-oatse.login.akselerasi.invalid`); sisa: env staging saat rilis.
-  - [ ] Template email Supabase Auth (undangan/reset) bernama Akselerasi Arthasia (dashboard Supabase, izin pemilik projek) sebelum bagian a dirilis
+  - [~] Template email Supabase Auth (undangan/reset) bernama Akselerasi Arthasia — isi disiapkan 2026-10-12 di `docs/email-templates/` (invite, recovery); **menunggu dipasang pemilik projek** di Dashboard Supabase (tanpa access token Management API)
+  - [x] Env login NIP staging (tambahan 2026-10-12): `LOGIN_EMAIL_DOMAIN` (`hris-staging-api`) & `VITE_LOGIN_EMAIL_DOMAIN` (`hris-staging-web`) = `stg.login.akselerasi.invalid`, target production — berlaku pada deploy berikutnya
+  - [x] Grant `employee.onboarding.review` untuk HR uji staging (tambahan 2026-10-12; lewat API sebagai SA, tanpa masa berlaku, tercatat audit)
+  - [x] BUG-004 sapaan Dashboard pakai nama karyawan (tambahan 2026-10-12; `/me.employeeName`, commit `7e6517b`; api 600 · web 208 ✔)
+  - [ ] Saklar `onboarding` true di jalur rilis → rilis → uji staging alur onboarding → arsip QA Drive
 - [x] Import CSV/Excel (template, validasi per baris, laporan error) — desain D-042 `docs/design/import-karyawan.md` (Tahap 4) — selesai & teruji **lokal** 2026-09-30 (`docs/qa/runs/2026-09-30-import-karyawan.md`); ✔ staging 2026-09-30 (PR #29/#30), dengan PT 2026-10-05 (gel. 1), Form Google lengkap + lampiran Drive + Form 171 kolom 2026-10-08 (gel. 2)
   - [x] File contoh berisi data asli dipindah ke luar repo (`/mnt/winD/WORK/Magang/DATA-ASLI/`) + penjaga `.gitignore` (tambahan 2026-09-30: Tahap 0, PROMPT §3.7)
   - [x] Template import dummy berstruktur sama: `apps/web/scripts/generate-import-template.ts` → `public/template/Template-import-karyawan.xlsx` (header 37 kolom identik file kantor, dicek openpyxl) (tambahan 2026-09-30: Tahap 0)
@@ -374,6 +378,12 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-10-12 — Rampungkan onboarding untuk staging
+- **BUG-004 diperbaiki (TDD):** `/me.employeeName` (iam repository/service/schema) + web sapaan & kartu akun; test api `me-employee-name.test.ts` & web `greeting.test.tsx` merah → hijau. Verifikasi: typecheck ✔ · biome ✔ · boundaries ✔ · test api **600** (45 file) · web 208 ✔. **Koreksi:** sempat menimpa `tests/integration/iam/me.test.ts` yang sudah ada (jumlah test turun 598 → 592 terdeteksi) → dipulihkan dari git, test baru dipindah ke file sendiri.
+- **Staging (izin):** env `LOGIN_EMAIL_DOMAIN` + `VITE_LOGIN_EMAIL_DOMAIN` = `stg.login.akselerasi.invalid` ditambahkan lewat REST Vercel (MCP Vercel 403 untuk scope `oatses-projects`; token dari `.env.staging`, nilai tidak dicetak); grant `employee.onboarding.review` ke HR uji lewat API.
+- **Template email:** `docs/email-templates/` (invite, recovery) — dipasang pemilik projek di Dashboard Supabase.
+- **Berikutnya:** pasang template → saklar `onboarding` true di rilis + rilis (env login NIP ikut berlaku) → uji onboarding di staging → arsip QA → Fase 5.
 
 ### 2026-10-12 — Uji onboarding ujung ke ujung + status fase
 - **Keputusan pemilik projek:** Fase 1 **selesai**; Fase 2 tidak perlu ganti password SA; urutan berikutnya: onboarding rampung → Fase 5; Arsip cukup ganti saklar nanti.
