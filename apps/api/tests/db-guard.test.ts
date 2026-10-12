@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 import { classifyUrl, hostOf, isLocalHostname, isRemoteUrl } from "../scripts/db-target.ts";
 
 const LOCAL = "postgresql://postgres:postgres@localhost:5432/hris";
@@ -46,7 +47,8 @@ describe("db-target: klasifikasi host", () => {
 
 // Pengaman db:reset / db:seed / db:migrate (`prisma migrate dev`): target non-lokal ditolak (D-030).
 describe("guard-local-db", () => {
-  const SCRIPT = new URL("../scripts/guard-local-db.ts", import.meta.url).pathname;
+  // fileURLToPath, bukan URL.pathname: di Windows pathname = "/C:/..." (path tak valid untuk bun).
+  const SCRIPT = fileURLToPath(new URL("../scripts/guard-local-db.ts", import.meta.url));
   const run = (env: Record<string, string>) =>
     Bun.spawnSync(["bun", SCRIPT], {
       env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env },
