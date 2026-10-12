@@ -11,6 +11,12 @@
 | TC-EMP-189 | LULUS | SHG `import-form-v2.test.ts` (responden lama & baru); INTI `import.test.ts` "rincian alamat …", "HR tanpa grant …"; PW FV-04/05/06/07 |
 | TC-EMP-190 | LULUS | INTI `import.test.ts` "Divisi: harus persis …"; PW FV-02 (pesan), FV-04 (HSE Site di bawah Site Operasional) |
 | TC-EMP-191 | LULUS | SHG `import-form-v2.test.ts` (KK nama file, tahun teks, kolom kosong); PW FV-02 |
-| TC-EMP-192 | LULUS sebagian | Migrasi: `SIM` `has_expiry=f`, `reminder_days={}` (psql); SHG target & catatan SIM A/C. Pengambilan file SIM dari Drive sungguhan **BELUM** (butuh tautan unggahan SIM; logika antrean sama dengan D-060) |
+| TC-EMP-192 | LULUS | Migrasi: `SIM` `has_expiry=f`, `reminder_days={}` (psql); SHG target & catatan SIM A/C. Pengambilan file SIM A & C dari Drive sungguhan ✔ di staging 2026-10-08 (SG-10, tidak dilewati "wajib kedaluwarsa") |
 
 **Temuan (diperbaiki):** kolom nomor "NPWP" yang kosong terpetakan sebagai lampiran (aturan kolom kosong D-061) → kolom kosong hanya lampiran bila judulnya kembar atau bukan persis nama field data; test lama `data-changes.test.ts` memakai SIM sebagai contoh dokumen bermasa berlaku → diganti SIO.
+
+**Staging (2026-10-08, rilis gel. 2):** [runs/2026-10-08-staging-gel2.md](2026-10-08-staging-gel2.md) (rilis `cca191e`, `Deploy staging` #37762327378 & #37764701481) — SG-01 pemetaan 167 kolom xlsx dummy 171 kolom (judul berdeskripsi, kolom kembar digabung, Divisi, rincian alamat, kontak darurat 2, status saudara), SG-02 baris asal-isi & Divisi tak dikenal → error, SG-03/05 data tersimpan & tampil, SG-10 SIM A/C masuk sebagai dokumen SIM tanpa masa berlaku. Bukti `staging-sg-*.png`.
+
+**Kesimpulan:** LULUS lokal + staging — **LEGIT** (diarsipkan ke Drive 2026-10-12). **Bug terbuka:** tidak ada.
+
+**Arsip Drive:** `hris-qa:2026-10-08-import-form-v2` — 11 file (plan, run, cases, screenshot lokal & staging), 2026-10-12.
