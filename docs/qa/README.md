@@ -37,17 +37,17 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-09-30-multi-pt.md](runs/2026-09-30-multi-pt.md) | Lokal: api 318 · web 88, Playwright 16/16; bug CORS PUT diperbaiki; staging 2026-10-05 (gelombang 1) LULUS — **LEGIT** |
 | Hasil | [runs/2026-09-30-audit-ui.md](runs/2026-09-30-audit-ui.md) | Audit UI menyeluruh 106 keadaan (axe + keluar wadah + konsol): 90 → 0 temuan setelah Paket A |
 | Hasil | [runs/2026-09-30-import-karyawan.md](runs/2026-09-30-import-karyawan.md) | Lokal: shared 63 · api 341 · web 96, Playwright 13/13 (template dummy, data dibersihkan); staging 2026-10-05 s.d. pratinjau LULUS — **LEGIT** |
-| Hasil | [runs/2026-09-30-rilis-import.md](runs/2026-09-30-rilis-import.md) | Lokal (DB `hris_release`): shared 63 · api 301 · web 93, Playwright 15/15 — LULUS; staging menyusul |
+| Hasil | [runs/2026-09-30-rilis-import.md](runs/2026-09-30-rilis-import.md) | Lokal (DB `hris_release`): shared 63 · api 301 · web 93, Playwright 15/15 — LULUS lokal; bukti staging tanpa catatan hasil (tidak diarsipkan; dashboard diuji ulang bersama D-065) |
 | Hasil | [runs/2026-10-01-master-data.md](runs/2026-10-01-master-data.md) | Lokal: shared 73 · api 370 · web 105 (+1 dilewati), mutasi 3 perbaikan terkait tertangkap; + D-050 & peta; staging 2026-10-05 browser 4 role LULUS (BUG-002 P3 terbuka) — **LEGIT** |
 | Hasil | [runs/2026-10-02-onboarding-a.md](runs/2026-10-02-onboarding-a.md) | Lokal a+b: shared 98 · api 416 · web 117 — LULUS otomatis; browser, email sungguhan & bucket dokumen belum |
-| Hasil | [runs/2026-10-05-org-chart.md](runs/2026-10-05-org-chart.md) | Lokal: shared 118 · api 458 · web 179, Playwright 21/21 (4 temuan diperbaiki, termasuk tombol kotak bagan tak bisa diklik) — LULUS lokal (staging belum) |
+| Hasil | [runs/2026-10-05-org-chart.md](runs/2026-10-05-org-chart.md) | Lokal: shared 118 · api 458 · web 179, Playwright 21/21 (4 temuan diperbaiki, termasuk tombol kotak bagan tak bisa diklik); staging gel. 2 SG-06 ✔ — **LEGIT** |
 | Hasil | [runs/2026-10-05-arsip-1a.md](runs/2026-10-05-arsip-1a.md) | Lokal: shared 125 · api 474 · web 184, Playwright 22/22 (bug dialog tambah saat daftar kosong diperbaiki) — LULUS lokal |
 | Hasil | [runs/2026-10-05-arsip-1b.md](runs/2026-10-05-arsip-1b.md) | Lokal: shared 133 · api 493 · web 190, Playwright 19/19 — LULUS lokal |
 | Hasil | [runs/2026-10-07-arsip-1c.md](runs/2026-10-07-arsip-1c.md) | Lokal: shared 140 · api 521 · web 199, Playwright 19/19 — LULUS lokal |
-| Hasil | [runs/2026-10-07-import-form.md](runs/2026-10-07-import-form.md) | Lokal: Playwright Import 4/4 + Import lengkap 8/8; ekspor Sheet sungguhan 119/138 kolom terpetakan — LULUS lokal |
-| Hasil | [runs/2026-10-08-lampiran-drive.md](runs/2026-10-08-lampiran-drive.md) | Lokal: test shared 166 · api 539 · web 202; Playwright lampiran 7/7 — LULUS lokal |
+| Hasil | [runs/2026-10-07-import-form.md](runs/2026-10-07-import-form.md) | Lokal: Playwright Import 4/4 + Import lengkap 8/8; ekspor Sheet sungguhan 119/138 kolom terpetakan; staging gel. 2 SG-01–05, SG-09 ✔ — **LEGIT** |
+| Hasil | [runs/2026-10-08-lampiran-drive.md](runs/2026-10-08-lampiran-drive.md) | Lokal: test shared 166 · api 539 · web 202; Playwright lampiran 7/7; staging gel. 2 SG-10 file asli 8/8 ✔ — **LEGIT** |
 | Hasil | [runs/2026-10-08-arsip-1d.md](runs/2026-10-08-arsip-1d.md) | Lokal: test shared 169 · api 544 · web 206; Playwright 7/7 — LULUS lokal |
-| Hasil | [runs/2026-10-08-import-form-v2.md](runs/2026-10-08-import-form-v2.md) | Lokal: test shared 175 · api 547 · web 206; Playwright 8/8 — LULUS lokal |
+| Hasil | [runs/2026-10-08-import-form-v2.md](runs/2026-10-08-import-form-v2.md) | Lokal: test shared 175 · api 547 · web 206; Playwright 8/8; staging gel. 2 (TC-EMP-192 SIM A/C ✔) — **LEGIT** |
 | Hasil | [runs/2026-10-08-staging-gel2.md](runs/2026-10-08-staging-gel2.md) | Staging rilis gel. 2: Playwright 10/10 + lampiran file asli 8/8 — LULUS staging |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DIPERBAIKI di develop `d4d66f1` (staging menyusul): elemen peta geofence tanpa `aria-label` |
