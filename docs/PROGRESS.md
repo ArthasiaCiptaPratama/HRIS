@@ -30,7 +30,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 ---
 
 ## 2. Fokus Saat Ini
-- **QA ulang email (2026-10-12):** template Invite & Reset bermerek + alur atur password staging 14/14 LULUS (`docs/qa/runs/2026-10-12-email-template.md`); **menunggu pemilik projek memeriksa 2 email uji di kotak masuk** → lalu LEGIT, arsip Drive, hapus 2 pengguna Auth uji.
+- **QA ulang email (2026-10-12):** template Invite & Reset bermerek + alur atur password staging 14/14 LULUS + email diterima sesuai (pemilik projek) — **LEGIT**, arsip Drive, pengguna Auth uji dihapus (`docs/qa/runs/2026-10-12-email-template.md`).
 - **Ditunda (pemilik projek 2026-10-12: "a–c nanti saja"):** (a) saklar `archive` + `selfService` di jalur rilis → staging + QA; (b) Arsip gel. 2a Aset & 2b Surat peringatan; (c) gel. 3 Laporan. Fase 5 Attendance setelahnya.
 - ~~Dashboard bisa diatur (D-065)~~ — sudah di develop & staging (rilis gel. 3 2026-10-09).
 - **Branch `HRIS/mat/windows` (2026-10-09):** di-reset ke `origin/HRIS/Oatse/Linux-Windows` terbaru, lalu ditambah fitur **tukar DB lokal ⇄ Supabase** (`bun run db:use`/`db:which`, skill `hris-db-switch`). Branch pribadi untuk dev Windows; **belum masuk antrean rilis** develop/rilis. Backup pra-reset: branch lokal `HRIS/mat/windows-pre-merge`. Push = force-push ke `origin/HRIS/mat/windows` (ditanya dulu).
@@ -387,7 +387,7 @@ Entri terbaru di **atas**. Salin template di bagian bawah.
 ### 2026-10-12 — Audit dokumen + QA ulang email bermerek
 - **Audit dokumen:** OD-12 (repo publik) dicatat di PLAN §9 & PROGRESS §4; onboarding Fase 4 → `[x]`; §1/§2 PROGRESS diperbarui (status Fase 4, butir usang Dashboard D-065 & "berikutnya onboarding"); CODEMAP: saklar rilis `onboarding` true, daftar test web & api yang belum tercatat; status desain onboarding "aktif di staging". Commit `2e0a931` (lokal, belum push).
 - **QA email:** render template lokal (logo Storage 200, desktop/HP tanpa scroll mendatar) ✔; kirim undangan & reset sungguhan ke `oatse2458+qa-email-…` (API 200, log Auth tanpa error); alur tautan invite & recovery → `/auth/atur-password` → form baru (terlalu pendek, tampilkan, cocok) → simpan → login password baru: 14/14 LULUS (run 1 gagal karena skrip salah memuat env, bukan bug). TC-ADM-053…057, bukti `/mnt/winD/WORK/Magang/QA/2026-10-12-email-template/`.
-- **Sisa:** pemilik projek cek 2 email di kotak masuk → LEGIT + arsip Drive + hapus pengguna Auth uji `6d07fcb6…`, `e3e2bcbc…`. Poin a–c ditunda.
+- **Hasil:** pemilik projek mengonfirmasi kedua email diterima & tampil sesuai → **LEGIT**; 4 pengguna Auth uji dihapus (MCP: 0 tersisa); arsip Drive `2026-10-12-email-template`. Poin a–c ditunda.
 
 ### 2026-10-12 — Rilis gelombang 5: onboarding aktif di staging + QA
 - **Keputusan pemilik projek:** syarat password tetap minimal 12 karakter (tanpa wajib huruf besar/angka/simbol); commit UI onboarding (`7c8800f`, `5f86592` docs) → lanjut QA.

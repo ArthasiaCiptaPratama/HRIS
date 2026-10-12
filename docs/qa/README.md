@@ -60,7 +60,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-12-istilah-nip.md](runs/2026-10-12-istilah-nip.md) | Staging D-01 LULUS — **LEGIT** |
 | Hasil | [runs/2026-10-12-lampiran-ui.md](runs/2026-10-12-lampiran-ui.md) | Lokal 8/8; staging gel. 4 B-04 GAGAL → BUG-003 → staging 4.1 8/8 — **LEGIT** |
 | Hasil | [runs/2026-10-12-onboarding-e2e.md](runs/2026-10-12-onboarding-e2e.md) | Lokal 15 langkah + staging gel. 5 (S/C/H/L 10 langkah, HR ber-grant) LULUS — **LEGIT** |
-| Hasil | [runs/2026-10-12-email-template.md](runs/2026-10-12-email-template.md) | Render lokal + staging alur atur password 14/14 LULUS; kotak masuk menunggu konfirmasi pemilik projek |
+| Hasil | [runs/2026-10-12-email-template.md](runs/2026-10-12-email-template.md) | Render lokal + staging alur atur password 14/14 + email diterima (dikonfirmasi pemilik projek) — **LEGIT** |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 DITUTUP 2026-10-12 (staging gel. 5): sapaan Dashboard memakai email akun, bukan nama karyawan |
 | Bug | [bugs/BUG-003-lampiran-macet-koneksi-menggantung.md](bugs/BUG-003-lampiran-macet-koneksi-menggantung.md) | P2 DITUTUP 2026-10-12 (staging 4.1): panel lampiran macet saat koneksi menggantung |
