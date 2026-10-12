@@ -16,8 +16,8 @@
 | 2    | IAM              | Review (fitur selesai & teruji di staging; sisa: captcha Turnstile ditunda, ganti password SA oleh pemilik projek, akun email produksi OD-5) |
 | 3    | Organization     | Berjalan (CRUD 6 master data + peta geofence D-049; **bagan organisasi pos jabatan D-051–D-053 ✔ staging 2026-10-08 (rilis gel. 2)**; sisa: kalender libur & pengaturan sistem → Fase 5) |
 | 4    | Employee         | Berjalan (Personal Management, foto, print, import, multi-PT; onboarding D-045–D-048 ✔ lokal; Arsip 1a–1d ✔ lokal (1d ekspor & cetak 2026-10-08); Import Form 171 kolom ✔ lokal (D-061, 2026-10-08); **rilis gel. 2 ke staging 2026-10-08: Import (D-059–D-061) & bagan tampil, onboarding/Arsip/ESS terpasang tapi disembunyikan saklar**; sisa: gel. 2–3 (D-054–D-058)) |
-| 5    | Attendance       | Belum mulai  |
-| 6    | Leave            | Belum mulai  |
+| 5    | Attendance       | Berjalan (Tahap A–D & F ✔ **lokal, belum di-commit** 2026-10-12: approval, roster, absen PWA, Data Absen Harian, koreksi, rekap, tutup periode, surat pernyataan; sisa: lembur (OD-13), uji browser/HP, vercel.json cron) |
+| 6    | Leave            | Berjalan (Tahap E ✔ **lokal, belum di-commit** 2026-10-12; sisa: konfirmasi contoh prorata, uji browser) |
 | —    | **Rilis 1**      | –            |
 | 7    | Contract         | Belum mulai  |
 | —    | **Rilis 2**      | –            |
@@ -30,7 +30,8 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 ---
 
 ## 2. Fokus Saat Ini
-- **Dashboard bisa diatur (D-065, 2026-10-09):** selesai di lokal branch `HRIS/Mat/windows`, **belum di-commit**. Pivot `GET /dashboard/pivot`, susunan widget per akun (`iam.dashboard_layouts`, migrasi baru), board drag & drop. Menunggu dicoba pemilik projek lalu commit.
+- **Time Management (2026-10-12, dibangun lokal — BELUM di-commit/push atas permintaan pemilik projek):** Tahap A–F (kecuali lembur, OD-13) sudah ada di working tree `HRIS/Mat/windows`: 5 migrasi baru (skema `approval`, `attendance`, `leave` saja), modul API `approval`/`attendance`/`leave`, halaman web Time Management + PWA `/absen`. Lihat log sesi 2026-10-12 (implementasi). Rencana awal: grill pemilik projek → desain [time-management.md](design/time-management.md) + D-066–D-071 (absen PWA wajib online, setiap hari absen disetujui MANAGER + HR, roster tambang per crew, label tanpa blokir, tutup periode → ALPHA + surat pernyataan, aturan cuti Januari/prorata/31 Maret/hutang). Checklist Fase 5–6 dipecah Tahap A–F. Terbuka: OD-12 (format Excel roster), OD-13 (lembur), OD-14 (batas waktu approval). Berikutnya: Tahap A setelah rencana tahap disetujui.
+- **Dashboard bisa diatur (D-065, 2026-10-09):** di-push ke `HRIS/Mat/windows` dan sudah tergabung di `HRIS/Oatse/Linux-Windows` (`0b8bf71`). 2026-10-12: `HRIS/Mat/windows` disamakan dengan Oatse + perbaikan `ac8e241` (path test guard Windows) & `bfe9e50` (skema OpenAPI pivot tak bergantung urutan import) — keduanya **belum ada di Oatse**.
 - **Branch `HRIS/mat/windows` (2026-10-09):** di-reset ke `origin/HRIS/Oatse/Linux-Windows` terbaru, lalu ditambah fitur **tukar DB lokal ⇄ Supabase** (`bun run db:use`/`db:which`, skill `hris-db-switch`). Branch pribadi untuk dev Windows; **belum masuk antrean rilis** develop/rilis. Backup pra-reset: branch lokal `HRIS/mat/windows-pre-merge`. Push = force-push ke `origin/HRIS/mat/windows` (ditanya dulu).
 - **Dua jalur kerja (D-043) — baca dulu, isinya sengaja berbeda:**
  - **Develop** — folder `/mnt/winD/WORK/Magang/HRIS`, branch `HRIS/Oatse/Linux-Windows`. Disatukan dengan rilis 2026-10-01 lalu di-commit per fitur. **2026-10-05: di-push per commit sampai #7 `38f29c1`** (CI tiap commit; #4 gagal karena test bergantung seed → perbaikan #4a `fad22c4` disisipkan lewat rebase commit lokal, hash #5–#15 berganti). Sisa lokal: #7a (perbaikan geofence, `d4d66f1`), #8–#16 (onboarding + logo), #17 docs, #18–#21 bagan organisasi (D-051–D-053), #22–#31 docs + Arsip 1a–1c. `FEATURES` b–e `true` (keputusan pemilik projek 2026-10-05, ikut ke rilis). Verifikasi terakhir 2026-10-02 (setelah onboarding d): typecheck ✔ · biome ✔ (294 file) · boundaries ✔ (253 modul) · `db:check` ✔ · test shared 108 · api 448 · web 166 ✔ · build ✔. DB lokal `hris`: 11 migrasi + seed (26 karyawan, PT ACP & CD2) + akun SA/HR(ACP)/MGR/EMP. **2026-10-08: seluruh develop sampai `f092efe` ikut ter-push lewat branch rilis; branch develop di-push sampai `c1d0f8c` (CI #37765939979 ✔) — tidak ada lagi commit lokal yang belum di-push.**
@@ -255,26 +256,61 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
   - [x] **Rilis gel. 2 ke staging** (tambahan 2026-10-08: permintaan pemilik projek — hanya Import & Struktur Organisasi ditampilkan): saklar `FEATURES.onboarding/archive/selfService` (D-043), PR #35–#38, `Deploy staging` #37762327378 & #37764701481, env `GOOGLE_SERVICE_ACCOUNT_JSON` staging, data staging = struktur organisasi + pemegang pos + akun uji; QA staging 10/10 + lampiran file asli 8/8 (data uji dihapus)
 
 ### Fase 5 — Attendance (+ Approval)
-- [ ] Modul `approval`: mode paralel & tunggal, override, kasus khusus (PLAN §5.2) + test
-- [ ] Skema attendance + migrasi
-- [ ] Template shift, jadwal & penugasan
-- [ ] Absen: geofence, selfie (kamera langsung, kompres, bucket private), waktu server, penanda "boleh di luar lokasi"
-- [ ] Koreksi absensi (paralel) & lembur (MANAGER)
-- [ ] Rekap harian/bulanan
-- [ ] Tutup periode absensi (`payroll.period.prepare`)
-- [ ] Cron `purge-selfies`
-- [ ] Policy + test
-- [ ] Web: tombol absen + kamera, riwayat, inbox approval, rekap
+> Desain & keputusan: [time-management.md](design/time-management.md), D-066–D-071 (grill pemilik projek 2026-10-12). Keputusan terbuka: OD-12 (sebelum B-import), OD-13 (sebelum F), OD-14 (sebelum D). Checklist lama dipecah menjadi Tahap A–D & F (tambahan 2026-10-12: roster tambang, absen PWA, approval setiap hari absen).
+
+**Tahap A — Fondasi**
+- [x] Modul `approval`: mode paralel & tunggal, override (alasan wajib), kasus khusus (PLAN §5.2), pemisahan tugas (satu akun satu langkah), persetujuan massal, handler status final per subjek, subjek `ATTENDANCE_DAY` & `ROSTER_CHANGE` — policy 13 test + integration 6 (2026-10-12, lokal, belum di-commit)
+  - Tanpa FK/relasi Prisma ke employee/organization (tambahan 2026-10-12: skema tim yang masih dikembangkan tidak disentuh — permintaan pemilik projek)
+- [x] `holidays` (nasional & cuti bersama) + pengaturan Time Management — API ✔ (`/holidays`, `/time-settings`, integration 2; tabel di skema `attendance`, bukan `organization`, alasan sama); UI Time Management › Kalender Libur & Pengaturan ✔
+- [x] Bucket private `attendance-selfies` — dibuat saat dibutuhkan (`ensurePrivateBucket` dari modul attendance; `setup-storage.ts` tidak disentuh)
+
+**Tahap B — Roster (D-068)**
+- [x] Skema attendance (shift, pola, crew, anggota, hari roster, perubahan) + migrasi `time_management_roster` (hanya menambah, skema `attendance`)
+- [x] Master shift per PT (jendela absen, toleransi telat/pulang cepat, lintas tengah malam) — API
+- [x] Pola siklus + crew + generator hari roster (cron `roster-extend` via `extraJobs`), tidak menimpa hari manual/import/perubahan — API + 5 unit test pola
+- [x] Grid roster bulanan (edit per sel dengan mode kuas, sumber terlihat, libur ditandai) — API ✔ (`/roster`, `/roster/cells`); UI Time Management › Roster Bulanan ✔; UI Shift, Pola & Crew (anggota + tanggal efektif) ✔
+- [~] Import roster: API pratinjau/simpan (baris NIP-tanggal-kode, semua-atau-tidak) ✔; browser membaca .xlsx/.csv bentuk panjang (NIP, Tanggal, Kode) & grid bulanan (NIP + kolom tanggal) ✔ + 5 web test; format final menunggu OD-12
+- [x] Pengajuan perubahan/tukar shift (persetujuan rekan → MANAGER + HR, diterapkan otomatis saat disetujui) — API + UI Time Management › Perubahan Roster (rekan dipilih dari anggota crew)
+- [x] Policy + integration test roster 8 (2026-10-12, lokal, belum di-commit)
+  - Data karyawan/PT/lokasi dibaca lewat adapter baca-saja `attendance/directory.ts` (tambahan 2026-10-12: modul employee/organization tidak disentuh; ganti dengan interface publik mereka nanti)
+  - `vercel.json` belum ditambah cron `roster-extend` (Vercel Hobby: maks 1×/hari per cron; tambahkan saat rilis)
+
+**Tahap C — Absen PWA (D-066, D-069)**
+- [x] `/absen` tata letak HP + manifest/service worker (Add to Home Screen, tanpa cache), wajib online (banner offline, tombol nonaktif)
+- [x] Absen masuk/pulang: selfie kamera depan langsung (cadangan `capture=user`), kompres ± 200 KB, signed upload (maks 1 MB, path wajib milik karyawan), GPS dipantau + akurasi, jam server — API + UI
+- [x] Penentuan tanggal kerja (shift malam milik tanggal mulai) & label (`OUTSIDE_ROSTER`, `NO_ROSTER`, `OUTSIDE_RADIUS`, `LOW_ACCURACY`, `OTHER_LOCATION`, `LATE`, `EARLY_LEAVE`), alasan wajib bila berlabel, pra-cek (`/attendance/precheck`); tolak absen ganda — API + 9 unit test engine
+- [x] Cron harian `attendance-daily` (lewat batas pulang → `NO_CHECKOUT` + ajukan approval; hapus selfie > retensi) via `extraJobs`; `vercel.json` menyusul saat rilis
+- [x] Riwayat & status — API ✔ (`/attendance/me/today`, `/attendance/me/history`); UI HP: jam server, jadwal & lokasi acuan, roster 7 hari, riwayat 7 hari
+- [x] Policy + integration test absen 8 (2026-10-12, lokal, belum di-commit)
+
+**Tahap D — Approval hari absen (D-067)**
+- [x] Data Absen Harian (foto masuk/pulang, jarak & akurasi, label, alasan, langkah approval) — API ✔ (`/attendance/days`, `/attendance/days/{id}`); UI ✔ (peta = tautan OpenStreetMap; peta tertanam menyusul bersama penyedia tile sendiri)
+- [x] Inbox MANAGER (tim) & HR (PT ditugaskan), persetujuan massal (`/approvals/decisions`, centang + catatan), filter berlabel, override SA (alasan wajib) — API + UI; batas waktu memakai pengaturan `approvalDueDays` (bawaan 2 hari) sampai OD-14 dijawab
+- [x] **D-072 (2026-10-12):** approval per absen (Clock In & Clock Out masing-masing Atasan + HR, subjek `ATTENDANCE_PUNCH`, migrasi `time_management_punch_approval`), peringatan salah pencet vs jadwal pulang (HP + server), batal sendiri ≤ 15 menit, autentikasi manual HR/SA (`/attendance/manual`, label MANUAL, langkah HR otomatis bila HR) — integration test absen 9
+- [x] Rekap per karyawan (klik nama di Rekap → absensi harian sebulan: jadwal, Clock In/Out, foto, Lat/Long/Alt, persetujuan per absen, status; unduh CSV); altitude GPS disimpan per absen (migrasi `punch_altitude`) (2026-10-12)
+- [x] Data lokal disimpan selamanya: hapus selfie (retensi) hanya saat NODE_ENV=production; test integrasi membatasi cron ke data uji sendiri (2026-10-12)
+- [x] Dashboard karyawan & atasan (bukan SA/HR): widget kehadiran hari ini, perlu tindakan (belum Clock In/Out, Alpha tanpa pernyataan, absen ditolak, tanpa Clock Out, tukar shift, inbox persetujuan atasan), kehadiran bulan ini, saldo cuti, roster 7 hari, pintasan, berita penting (notifikasi) (2026-10-12)
+- [ ] Badge & ringkasan harian (tanpa notifikasi per absen)
+  - Hari absen yang sudah APPROVED mengunci sel roster (tidak bisa diedit/diimport/ditukar) (tambahan 2026-10-12)
+
+**Tahap F — Rekap, koreksi, lembur, tutup periode (D-070)**
+- [~] Koreksi absensi (paralel Atasan + HR; jam masuk/pulang zona jam shift; disetujui → hari APPROVED berlabel `CORRECTED`, approval hari absen lama dibatalkan) ✔ API + UI; lembur menunggu OD-13
+- [x] Rekap bulanan per karyawan (hari kerja, hadir, menunggu, ditolak, tanpa absen, Alpha, cuti, telat, pulang cepat, di luar roster, pernyataan) + unduh CSV — `/attendance/recap`, UI Rekap & Tutup Periode
+- [x] Tutup periode (SA / HR PT + `payroll.period.prepare`; hanya setelah bulan berakhir): pratinjau → hari kerja belum disetujui/tanpa absen/ditolak → ALPHA, approval menunggu dibatalkan; periode terkunci (sel roster, koreksi, pengajuan cuti ditolak) — konfirmasi ketik bulan di UI
+- [x] Surat pernyataan absensi per hari ALPHA (HP/web, lampiran opsional, bucket private `attendance-statements`, sekali per hari) + daftar Alpha & pernyataan untuk HR/atasan
+- [x] Policy + integration test periode 5 (2026-10-12, lokal, belum di-commit)
+  - Rekap harian = Data Absen Harian (Tahap D); rekap harian terpisah tidak dibuat (tambahan 2026-10-12)
 
 ### Fase 6 — Leave
-- [ ] Skema + migrasi
-- [ ] Jenis cuti tahunan & izin, kuota, wajib dokumen
-- [ ] Saldo: akrual, hold, penyesuaian, import saldo CSV/Excel
-- [ ] Pengajuan + approval paralel + pembatalan
-- [ ] Hitung hari kerja (jadwal & libur); tandai absensi saat disetujui
-- [ ] Cron `leave-accrual`
-- [ ] Policy + test
-- [ ] Web: pengajuan, saldo, inbox approval
+**Tahap E — Cuti, izin, sakit (D-071)**
+- [x] Skema leave (jenis, Master Cuti per tahun, buku besar, pengajuan) + migrasi `time_management_leave` (skema `leave` saja; saldo = jumlah buku besar, tanpa tabel saldo terpisah)
+- [x] Jenis cuti tahunan, izin & sakit, kuota per pengajuan, wajib dokumen bila hari > N (bawaan dibuat otomatis: cuti tahunan, sakit (dokumen > 1 hari), izin menikah/duka/dll.); SA kelola di Master Cuti
+- [~] Saldo: jatah 1 Januari + prorata 1 hari per bulan kerja penuh, pelunasan hutang akhir Januari, sisa tahun lalu hangus 31 Maret, tahanan (HOLD/RELEASE), penyesuaian (alasan wajib), import saldo awal CSV/Excel — ✔ satu cron harian `leave-daily` via `extraJobs` (idempoten, mengejar ketertinggalan) + tombol manual SA (`/leave-jobs`); ⚠ contoh prorata pemilik projek belum dikonfirmasi (rumus: masuk 10 Nov → 2 hari)
+- [x] Hitung hari = hari kerja roster (OFF & tanggal merah tidak; cuti bersama dihitung); tanpa roster → Senin–Jumat bukan libur; cuti bersama pada hari kerja roster tanpa absen & tanpa pengajuan = −1 cuti (cron, sekali per hari)
+- [x] Pengajuan + approval paralel + pembatalan (yang masih menunggu); sisa tahun lalu dipakai dulu s.d. 31 Maret; disetujui → hari absen ditandai LEAVE; tolak absen yang sudah ada / rentang bentrok / periode tertutup
+- [x] Policy + test: 9 unit (prorata, hitung hari, pembebanan, pelunasan, ringkasan) + 9 integration (tahan/terpakai/kembali, sakit + lampiran, cuti bersama, pelunasan, hangus, tabel saldo)
+- [x] Web/PWA: Cuti, Izin & Sakit (saldo, pratinjau hari, lampiran, riwayat saldo), Persetujuan Cuti, Saldo Cuti (rincian buku besar, penyesuaian, import), Master Cuti
+  - `vercel.json` belum ditambah cron `leave-daily`/`attendance-daily`/`roster-extend` (tambahkan saat rilis)
 
 ### Rilis 1
 - [ ] Keputusan OD-4 (akun & paket), OD-8 (rollback & backup)
@@ -359,6 +395,24 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-10-12 — Implementasi Time Management Tahap A–F (lokal, belum di-commit)
+- **Dikerjakan (pemilik projek: "boleh dibuatkan dulu tanpa harus commit atau push"; modul/skema Personal Management yang masih dikembangkan TIDAK disentuh):**
+  - API: modul `approval` (paralel/tunggal, override beralasan, pemisahan tugas, massal), `attendance` (kalender libur, pengaturan, shift/pola/crew/grid/import/tukar shift, absen PWA selfie+GPS+label, Data Absen Harian, koreksi, rekap, tutup periode → ALPHA, surat pernyataan), `leave` (jenis, Master Cuti, buku besar saldo, pengajuan, cron harian). Data karyawan/PT/lokasi dibaca lewat adapter baca-saja `attendance/directory.ts` (sementara).
+  - DB: 5 migrasi baru, hanya skema `approval`, `attendance`, `leave` (`20261012032248`…`20261012042509`), sudah diterapkan ke DB **lokal** saja (bukan Supabase).
+  - Web: grup menu **Time Management** (Absensi, Roster, Cuti & Izin, Pengaturan) + PWA `/absen` (manifest, service worker tanpa cache, ikon). File bersama yang diubah hanya untuk wiring: `app.ts`, `router.tsx`, `navigation.ts`, `route-preload.ts`, `feature-flags.ts`, `shared/index.ts`.
+- **Keputusan kecil oleh agen:** tabel libur & pengaturan di skema `attendance` (bukan `organization`); bucket selfie/lampiran dibuat saat dipakai (script storage:setup tidak diubah); satu cron per modul (`attendance-daily`, `leave-daily`, `roster-extend`) karena Vercel Hobby; rekap harian = Data Absen Harian; peta di detail absen = tautan OpenStreetMap; staf tanpa roster dihitung Senin–Jumat untuk cuti.
+- **Verifikasi:** `tsc` api/web/shared ✔ · `biome ci .` ✔ (1 warning lama di `employee-print.test.ts`) · `check:boundaries` ✔ (390 modul) · `db:migrate` lokal ✔ · api `bun test` **668 pass / 0 fail** (Time Management: unit 36, integration 38) · web vitest 243/244 (1 gagal `archive.test.tsx` = timeout saat paralel, lulus saat dijalankan sendiri) · `vite build` ✔. Belum: uji browser & HP (kamera/GPS butuh HTTPS atau localhost).
+- **Masalah / catatan:** seed jenis `IZIN_ISTRI_MELAHIRKAN` > 20 karakter → diganti `IZIN_ISTRI_LAHIR` (ketahuan dari integration test). Lembur ditunda (OD-13). OD-12 (format Excel roster) & OD-14 (batas approval) masih terbuka — import mengenali dua bentuk umum, batas approval memakai pengaturan 2 hari.
+- **Tambahan (sesi sama):** alat uji lokal (akun demo, reset demo, mode HP lewat Wi-Fi) disimpan di mesin pengembang saja, tidak di-push.
+- **Berikutnya:** pemilik projek mencoba di browser/HP; konfirmasi contoh prorata; jawab OD-12–OD-14; setelah disetujui → commit & push ke `HRIS/Mat/windows`, tambah cron di `vercel.json`, terapkan migrasi ke Supabase.
+
+### 2026-10-12 — Rencana Time Management: roster tambang, absen PWA, approval, cuti (D-066–D-071)
+- **Dikerjakan (pemilik projek menyetujui langkah 1–2):** grill 3 putaran atas permintaan fitur Time Management (contoh layar web lama: approval cuti/absensi, master cuti, setting roster, absen mobile + foto, data absen harian); pemetaan kondisi repo (belum ada kode attendance/leave/approval; skema DB, geofence lokasi, enum approval/leave sudah ada; roster belum pernah disebut). Hasil: dokumen desain `docs/design/time-management.md` (alur, roster, absen & label, approval, cuti, tutup periode, akses, rancangan tabel, cron, Tahap A–F); PLAN §1.1, §1.2, §1.3, §4.3, §5.2–§5.4, §7, §8 (D-066–D-071), §9 (OD-12–OD-14), §10 diperbarui; PROGRESS Fase 5–6 dipecah Tahap A–F.
+- **Keputusan:** D-066 PWA wajib online (bukan Expo/Flutter, bukan antre offline); D-067 setiap hari absen disetujui MANAGER + HR paralel (mengubah D-010/D-013); D-068 roster per crew dengan pola, grid, import Excel, tukar shift, jendela per shift; D-069 label tanpa blokir + alasan wajib; D-070 tutup periode → ALPHA + surat pernyataan absensi; D-071 cuti: jatah 1 Januari, prorata 1 hari/bulan kerja penuh, sisa hangus 31 Maret, hutang dilunasi akhir Januari, cuti bersama pada hari kerja roster & tidak masuk = cuti (mengubah §5.3 saldo tak boleh negatif).
+- **Verifikasi:** dokumen saja — grep konsistensi rujukan D-066–D-071 & OD-12–OD-14 di PLAN/PROGRESS/desain.
+- **Masalah / catatan:** contoh prorata pemilik projek ("masuk 1–15 Nov → 1 hari") berbeda dengan rumus yang dipilih (→ 2 hari); dikonfirmasi ulang sebelum Tahap E. Asumsi tanggal merah nasional pada hari kerja roster & sisa hutang setelah Januari dicatat di desain §7.
+- **Berikutnya:** pemilik projek meninjau desain; jawab OD-12–OD-14 sesuai tahapnya; mulai Tahap A (modul approval, kalender libur, bucket selfie) dengan rencana kerja tersendiri.
 
 ### 2026-10-09 — Gabung branch `HRIS/Mat/windows` (dashboard D-065 + tukar DB) ke develop
 - **Dikerjakan (rencana disetujui; permintaan pemilik projek sebelum push/rilis):** `git merge --no-ff origin/HRIS/Mat/windows` di `HRIS/Oatse/Linux-Windows` (lokal; branch Mat tidak diubah). Konflik hanya di PLAN & PROGRESS; kode tergabung otomatis. Penyesuaian di commit merge: (1) nomor keputusan dashboard Mat **D-062 → D-065** (D-062–D-064 sudah dipakai Import) di PLAN, PROGRESS, CODEMAP, ERD, dan komentar kode dashboard/iam; (2) **`.env.supabase.enc` dibuang** + `.gitignore` kembali menolak semua `.env.*` (aturan emas #13; README & `env-share.ts`: file dikirim langsung, tidak di-commit); (3) `db:migrate` (`prisma migrate dev`) kini lewat `guard-local-db.ts` (target non-lokal ditolak, D-030), `db:deploy` tetap bebas untuk CI/Deploy; test `db-guard.test.ts` +2. `feature-flags.ts` milik pemilik projek disimpan di stash selama merge lalu dikembalikan (tetap tidak di-commit).

@@ -12,4 +12,5 @@ export const FEATURES = {
   onboarding: true, // Administrasi › Penerimaan Karyawan Baru (D-045–D-048)
   archive: true, // Personal Management › Arsip, Master Data › Jenis dokumen, kelola Arsip di detail (D-054–D-058)
   selfService: true, // Akun Saya › Layanan Mandiri & Administrasi › Pengajuan Perubahan Data (D-054)
+  timeManagement: true, // Time Management: absen PWA, Data Absen Harian, roster (D-066–D-070)
 } as const;

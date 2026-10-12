@@ -1,0 +1,20 @@
+// Interface publik modul attendance (PLAN §3.2.5): hanya file ini yang boleh di-import dari luar modul.
+export { type AttendanceRouteDeps, registerAttendanceRoutes } from "./attendance.routes.ts";
+export { closeOverdueDays, purgeSelfies } from "./attendance.service.ts";
+export {
+  type HolidayDto,
+  holidaysBetween,
+  type RequestContext,
+  readTimeSettings,
+} from "./calendar.service.ts";
+// SEMENTARA: adapter baca-saja data karyawan (dipakai juga modul leave sampai modul employee
+// menyediakan interface publiknya).
+export * as employeeDirectory from "./directory.ts";
+export {
+  datesWithPunches,
+  markLeaveDays,
+  rosteredWithoutAttendance,
+  rosterMarks,
+} from "./leave-bridge.ts";
+export { isDateClosed } from "./period.service.ts";
+export { extendAllRosters } from "./roster.service.ts";

@@ -1,0 +1,801 @@
+import { expandRosterShorthand, OFF_CODE } from "@hris/shared";
+import {
+  Archive,
+  CalendarCog,
+  Pencil,
+  Plus,
+  Search,
+  UserMinus,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { useDeferredValue, useState } from "react";
+import { toast } from "sonner";
+import { EmptyState } from "@/components/empty-state";
+import { FormSelect } from "@/components/form-select";
+import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useEmployees, useMasterData } from "@/features/employee/api";
+import { errorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
+import { useCrews, usePatterns, useRosterMaster, useSetCrewMembers, useShifts } from "../api";
+import { hhmm, parseHhmm, todayIn, workDateLabel } from "../components/display";
+import type { Crew, Pattern, Shift } from "../schemas";
+import { useRosterCompany } from "./roster-page";
+
+// D-068: master roster per PT — shift (jendela absen per shift), pola siklus, crew + anggota.
+// Mengubah pola/crew membangkitkan ulang hari roster ke depan (hari manual/import/perubahan tetap).
+
+export function RosterSetupPage() {
+  const { companies, companyId, setCompanyId } = useRosterCompany();
+  return (
+    <div>
+      <PageHeader
+        title="Shift, Pola & Crew"
+        description="Atur jam shift beserta jendela absennya, pola siklus roster (mis. 10 kerja / 4 libur), dan crew yang mengikuti pola."
+        actions={
+          companies.length > 1 ? (
+            <FormSelect
+              aria-label="Perusahaan"
+              className="h-9 w-56"
+              value={companyId}
+              onChange={setCompanyId}
+              placeholder="Pilih perusahaan"
+              options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+            />
+          ) : null
+        }
+      />
+      {!companyId ? (
+        <EmptyState icon={CalendarCog} title="Belum ada perusahaan dalam cakupan akun ini" />
+      ) : (
+        <Tabs defaultValue="shift">
+          <TabsList>
+            <TabsTrigger value="shift">Shift</TabsTrigger>
+            <TabsTrigger value="pattern">Pola roster</TabsTrigger>
+            <TabsTrigger value="crew">Crew</TabsTrigger>
+          </TabsList>
+          <TabsContent value="shift" className="mt-4">
+            <ShiftTab companyId={companyId} />
+          </TabsContent>
+          <TabsContent value="pattern" className="mt-4">
+            <PatternTab companyId={companyId} />
+          </TabsContent>
+          <TabsContent value="crew" className="mt-4">
+            <CrewTab companyId={companyId} />
+          </TabsContent>
+        </Tabs>
+      )}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {children}
+      {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
+    </div>
+  );
+}
+
+// ── Shift ──────────────────────────────────────────────────────────────────────
+
+function ShiftTab({ companyId }: { companyId: string }) {
+  const shifts = useShifts(companyId);
+  const { archive } = useRosterMaster("shifts");
+  const [editing, setEditing] = useState<Shift | "new" | null>(null);
+  const list = (shifts.data ?? []).filter((s) => !s.archived);
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="brand" onClick={() => setEditing("new")}>
+          <Plus /> Tambah shift
+        </Button>
+      </div>
+      {shifts.isPending ? (
+        <Skeleton className="h-40" />
+      ) : list.length === 0 ? (
+        <EmptyState
+          icon={CalendarCog}
+          title="Belum ada shift"
+          description="Contoh: D (Day) 07:00–19:00, N (Night) 19:00–07:00."
+        />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {list.map((s) => (
+            <div key={s.id} className="bg-card rounded-xl border p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p
+                    className="font-mono text-lg font-semibold"
+                    style={s.color ? { color: s.color } : undefined}
+                  >
+                    {s.code}
+                  </p>
+                  <p className="text-sm">{s.name}</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Ubah ${s.code}`}
+                    onClick={() => setEditing(s)}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label={`Arsipkan ${s.code}`}
+                    onClick={() =>
+                      archive.mutate(s.id, {
+                        onSuccess: () => toast.success(`Shift ${s.code} diarsipkan.`),
+                        onError: (e) => toast.error(errorMessage(e)),
+                      })
+                    }
+                  >
+                    <Archive />
+                  </Button>
+                </div>
+              </div>
+              <p className="mt-2 text-sm tabular-nums">
+                {hhmm(s.startMinute)}–{hhmm(s.endMinute)}
+                {s.crossesMidnight ? (
+                  <Badge variant="muted" className="ml-2">
+                    lintas tengah malam
+                  </Badge>
+                ) : null}
+              </p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Absen masuk dibuka {s.checkInOpenMin} mnt sebelum · telat &gt; {s.lateToleranceMin}{" "}
+                mnt · pulang cepat &gt; {s.earlyLeaveToleranceMin} mnt · absen pulang ditutup{" "}
+                {s.checkOutCloseMin} mnt setelah selesai
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing ? (
+        <ShiftDialog
+          companyId={companyId}
+          shift={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ShiftDialog({
+  companyId,
+  shift,
+  onClose,
+}: {
+  companyId: string;
+  shift: Shift | null;
+  onClose: () => void;
+}) {
+  const { save } = useRosterMaster("shifts");
+  const [form, setForm] = useState({
+    code: shift?.code ?? "",
+    name: shift?.name ?? "",
+    start: shift ? hhmm(shift.startMinute) : "07:00",
+    end: shift ? hhmm(shift.endMinute) : "19:00",
+    checkInOpenMin: shift?.checkInOpenMin ?? 60,
+    lateToleranceMin: shift?.lateToleranceMin ?? 15,
+    earlyLeaveToleranceMin: shift?.earlyLeaveToleranceMin ?? 15,
+    checkOutCloseMin: shift?.checkOutCloseMin ?? 240,
+    color: shift?.color ?? "#0f766e",
+  });
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+  const submit = async () => {
+    const startMinute = parseHhmm(form.start);
+    const endMinute = parseHhmm(form.end);
+    if (startMinute === null || endMinute === null) {
+      toast.error("Jam mulai/selesai tidak valid.");
+      return;
+    }
+    try {
+      await save.mutateAsync({
+        id: shift?.id,
+        body: {
+          companyId,
+          code: form.code,
+          name: form.name,
+          startMinute,
+          endMinute,
+          checkInOpenMin: Number(form.checkInOpenMin),
+          lateToleranceMin: Number(form.lateToleranceMin),
+          earlyLeaveToleranceMin: Number(form.earlyLeaveToleranceMin),
+          checkOutCloseMin: Number(form.checkOutCloseMin),
+          color: form.color || null,
+        },
+      });
+      toast.success(shift ? "Shift diperbarui." : "Shift ditambahkan.");
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+  const num = (
+    k: "checkInOpenMin" | "lateToleranceMin" | "earlyLeaveToleranceMin" | "checkOutCloseMin",
+  ) => (
+    <Input type="number" min={0} value={form[k]} onChange={(e) => set(k, Number(e.target.value))} />
+  );
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{shift ? `Ubah shift ${shift.code}` : "Tambah shift"}</DialogTitle>
+          <DialogDescription>
+            Jam berlaku di zona waktu pengaturan Time Management (bawaan WITA).
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Kode" hint="1–10 huruf/angka, mis. D, N, NS">
+            <Input
+              value={form.code}
+              maxLength={10}
+              onChange={(e) => set("code", e.target.value.toUpperCase())}
+            />
+          </Field>
+          <Field label="Nama">
+            <Input value={form.name} onChange={(e) => set("name", e.target.value)} />
+          </Field>
+          <Field label="Mulai">
+            <Input type="time" value={form.start} onChange={(e) => set("start", e.target.value)} />
+          </Field>
+          <Field label="Selesai" hint="Lebih kecil dari mulai = lintas tengah malam">
+            <Input type="time" value={form.end} onChange={(e) => set("end", e.target.value)} />
+          </Field>
+          <Field label="Absen masuk dibuka (mnt sebelum)">{num("checkInOpenMin")}</Field>
+          <Field label="Toleransi telat (mnt)">{num("lateToleranceMin")}</Field>
+          <Field label="Toleransi pulang cepat (mnt)">{num("earlyLeaveToleranceMin")}</Field>
+          <Field label="Absen pulang ditutup (mnt setelah)">{num("checkOutCloseMin")}</Field>
+          <Field label="Warna">
+            <Input
+              type="color"
+              value={form.color}
+              onChange={(e) => set("color", e.target.value)}
+              className="h-9 p-1"
+            />
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button variant="brand" disabled={save.isPending} onClick={() => void submit()}>
+            Simpan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Pola ───────────────────────────────────────────────────────────────────────
+
+export function PatternChips({ steps, className }: { steps: string[]; className?: string }) {
+  return (
+    <div className={cn("flex flex-wrap gap-0.5", className)}>
+      {steps.map((step, i) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: urutan langkah pola adalah identitasnya
+          key={i}
+          className={cn(
+            "rounded px-1 font-mono text-[10px] font-semibold",
+            step === OFF_CODE
+              ? "bg-muted text-muted-foreground"
+              : "bg-brand-soft text-brand-soft-foreground",
+          )}
+        >
+          {step}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PatternTab({ companyId }: { companyId: string }) {
+  const patterns = usePatterns(companyId);
+  const { archive } = useRosterMaster("roster-patterns");
+  const [editing, setEditing] = useState<Pattern | "new" | null>(null);
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="brand" onClick={() => setEditing("new")}>
+          <Plus /> Tambah pola
+        </Button>
+      </div>
+      {patterns.isPending ? (
+        <Skeleton className="h-40" />
+      ) : (patterns.data ?? []).length === 0 ? (
+        <EmptyState
+          icon={CalendarCog}
+          title="Belum ada pola roster"
+          description="Contoh: 10/4 (10 hari kerja, 4 hari libur)."
+        />
+      ) : (
+        <div className="space-y-2">
+          {(patterns.data ?? []).map((p) => (
+            <div
+              key={p.id}
+              className="bg-card flex flex-col gap-2 rounded-xl border p-4 sm:flex-row sm:items-center"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{p.name}</p>
+                <p className="text-muted-foreground text-xs">
+                  Siklus {p.cycleLength} hari · {p.workDays} kerja · {p.cycleLength - p.workDays}{" "}
+                  libur · dipakai {p.crewCount} crew
+                </p>
+                <PatternChips steps={p.steps} className="mt-2" />
+              </div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="outline" onClick={() => setEditing(p)}>
+                  <Pencil /> Ubah
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    archive.mutate(p.id, {
+                      onSuccess: () => toast.success("Pola diarsipkan."),
+                      onError: (e) => toast.error(errorMessage(e)),
+                    })
+                  }
+                >
+                  <Archive /> Arsipkan
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing ? (
+        <PatternDialog
+          companyId={companyId}
+          pattern={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PatternDialog({
+  companyId,
+  pattern,
+  onClose,
+}: {
+  companyId: string;
+  pattern: Pattern | null;
+  onClose: () => void;
+}) {
+  const { save } = useRosterMaster("roster-patterns");
+  const shifts = useShifts(companyId);
+  const [name, setName] = useState(pattern?.name ?? "");
+  const [stepsText, setStepsText] = useState(pattern?.steps.join(" ") ?? "");
+  const [work, setWork] = useState(10);
+  const [off, setOff] = useState(4);
+  const [workCode, setWorkCode] = useState("");
+  const steps = stepsText
+    .toUpperCase()
+    .split(/[\s,;]+/)
+    .filter(Boolean);
+  const codes = (shifts.data ?? []).filter((s) => !s.archived).map((s) => s.code);
+  const unknown = [...new Set(steps.filter((s) => s !== OFF_CODE && !codes.includes(s)))];
+  const submit = async () => {
+    try {
+      await save.mutateAsync({ id: pattern?.id, body: { companyId, name, steps } });
+      toast.success(
+        pattern ? "Pola diperbarui; roster crew dibangkitkan ulang." : "Pola ditambahkan.",
+      );
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{pattern ? "Ubah pola" : "Tambah pola"}</DialogTitle>
+          <DialogDescription>
+            Urutan kode per hari dalam satu siklus, dipisah spasi. Gunakan {OFF_CODE} untuk hari
+            libur.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Nama">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="10/4 Day" />
+          </Field>
+          <div className="bg-muted/50 flex flex-wrap items-end gap-2 rounded-lg p-3">
+            <Field label="Kerja">
+              <Input
+                type="number"
+                min={1}
+                className="w-20"
+                value={work}
+                onChange={(e) => setWork(Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Libur">
+              <Input
+                type="number"
+                min={0}
+                className="w-20"
+                value={off}
+                onChange={(e) => setOff(Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Kode kerja">
+              <FormSelect
+                className="h-9 w-28"
+                value={workCode}
+                onChange={setWorkCode}
+                placeholder="Kode"
+                options={codes.map((c) => ({ value: c, label: c }))}
+              />
+            </Field>
+            <Button
+              variant="outline"
+              disabled={!workCode}
+              onClick={() => setStepsText(expandRosterShorthand(work, off, workCode).join(" "))}
+            >
+              Isi otomatis
+            </Button>
+          </div>
+          <Field label="Langkah pola" hint={`${steps.length} hari per siklus`}>
+            <Input
+              value={stepsText}
+              onChange={(e) => setStepsText(e.target.value)}
+              placeholder="D D D D D N N N N N OFF OFF OFF OFF"
+            />
+          </Field>
+          <PatternChips steps={steps} />
+          {unknown.length > 0 ? (
+            <p className="text-destructive text-xs">
+              Kode belum ada di master shift: {unknown.join(", ")}
+            </p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button
+            variant="brand"
+            disabled={save.isPending || steps.length === 0 || unknown.length > 0}
+            onClick={() => void submit()}
+          >
+            Simpan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Crew ───────────────────────────────────────────────────────────────────────
+
+function CrewTab({ companyId }: { companyId: string }) {
+  const crews = useCrews(companyId);
+  const { archive } = useRosterMaster("crews");
+  const [editing, setEditing] = useState<Crew | "new" | null>(null);
+  const [members, setMembers] = useState<Crew | null>(null);
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button variant="brand" onClick={() => setEditing("new")}>
+          <Plus /> Tambah crew
+        </Button>
+      </div>
+      {crews.isPending ? (
+        <Skeleton className="h-40" />
+      ) : (crews.data ?? []).length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Belum ada crew"
+          description="Crew = kelompok karyawan yang mengikuti pola yang sama (mis. Crew A/B/C/D)."
+        />
+      ) : (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {(crews.data ?? []).map((c) => (
+            <div key={c.id} className="bg-card rounded-xl border p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium">{c.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {c.pattern.name} · mulai siklus {workDateLabel(c.cycleStartDate)} ·{" "}
+                    {c.workLocation?.name ?? "—"}
+                  </p>
+                </div>
+                <Badge variant="muted">{c.members.length} anggota</Badge>
+              </div>
+              <PatternChips steps={c.pattern.steps} className="mt-2" />
+              <p className="text-muted-foreground mt-2 line-clamp-2 text-xs">
+                {c.members.map((m) => m.fullName).join(", ") || "Belum ada anggota."}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1">
+                <Button size="sm" variant="outline" onClick={() => setMembers(c)}>
+                  <Users /> Anggota
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(c)}>
+                  <Pencil /> Ubah
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    archive.mutate(c.id, {
+                      onSuccess: () => toast.success("Crew diarsipkan."),
+                      onError: (e) => toast.error(errorMessage(e)),
+                    })
+                  }
+                >
+                  <Archive /> Arsipkan
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {editing ? (
+        <CrewDialog
+          companyId={companyId}
+          crew={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+      {members ? <MembersDialog crew={members} onClose={() => setMembers(null)} /> : null}
+    </div>
+  );
+}
+
+function CrewDialog({
+  companyId,
+  crew,
+  onClose,
+}: {
+  companyId: string;
+  crew: Crew | null;
+  onClose: () => void;
+}) {
+  const { save } = useRosterMaster("crews");
+  const patterns = usePatterns(companyId);
+  const master = useMasterData();
+  const [form, setForm] = useState({
+    name: crew?.name ?? "",
+    patternId: crew?.pattern.id ?? "",
+    workLocationId: crew?.workLocation?.id ?? "",
+    cycleStartDate: crew?.cycleStartDate ?? todayIn(),
+  });
+  const submit = async () => {
+    try {
+      await save.mutateAsync({ id: crew?.id, body: { companyId, ...form } });
+      toast.success(crew ? "Crew diperbarui; roster dibangkitkan ulang." : "Crew ditambahkan.");
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{crew ? `Ubah ${crew.name}` : "Tambah crew"}</DialogTitle>
+          <DialogDescription>
+            Tanggal mulai siklus = hari pertama langkah pola. Geser tanggal ini untuk membedakan
+            crew A/B/C/D.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Nama crew">
+            <Input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Crew A"
+            />
+          </Field>
+          <Field label="Pola roster">
+            <FormSelect
+              value={form.patternId}
+              onChange={(v) => setForm({ ...form, patternId: v })}
+              placeholder="Pilih pola"
+              options={(patterns.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+            />
+          </Field>
+          <Field label="Lokasi kerja (acuan geofence)">
+            <FormSelect
+              value={form.workLocationId}
+              onChange={(v) => setForm({ ...form, workLocationId: v })}
+              placeholder="Pilih lokasi"
+              options={(master.data?.workLocations ?? []).map((l) => ({
+                value: l.id,
+                label: l.name,
+              }))}
+            />
+          </Field>
+          <Field label="Mulai siklus">
+            <Input
+              type="date"
+              value={form.cycleStartDate}
+              onChange={(e) => setForm({ ...form, cycleStartDate: e.target.value })}
+            />
+          </Field>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button
+            variant="brand"
+            disabled={save.isPending || !form.name || !form.patternId || !form.workLocationId}
+            onClick={() => void submit()}
+          >
+            Simpan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MembersDialog({ crew, onClose }: { crew: Crew; onClose: () => void }) {
+  const setMembers = useSetCrewMembers();
+  const [selected, setSelected] = useState(() =>
+    crew.members.map((m) => ({
+      id: m.employeeId,
+      fullName: m.fullName,
+      employeeNumber: m.employeeNumber,
+    })),
+  );
+  const [effectiveDate, setEffectiveDate] = useState(todayIn());
+  const [search, setSearch] = useState("");
+  const q = useDeferredValue(search.trim());
+  const results = useEmployees(
+    {
+      page: 1,
+      pageSize: 10,
+      active: true,
+      q: q || undefined,
+      companyId: crew.companyId,
+      sort: "fullName:asc",
+    },
+    q.length >= 2,
+  );
+  const has = (id: string) => selected.some((s) => s.id === id);
+  const submit = async () => {
+    try {
+      await setMembers.mutateAsync({
+        crewId: crew.id,
+        employeeIds: selected.map((s) => s.id),
+        effectiveDate,
+      });
+      toast.success("Anggota crew disimpan; roster anggota dibangkitkan dari tanggal efektif.");
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Anggota {crew.name}</DialogTitle>
+          <DialogDescription>
+            Karyawan yang dikeluarkan berhenti mengikuti crew ini mulai tanggal efektif. Karyawan
+            hanya bisa di satu crew pada satu waktu.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Tanggal efektif">
+            <Input
+              type="date"
+              value={effectiveDate}
+              onChange={(e) => setEffectiveDate(e.target.value)}
+            />
+          </Field>
+          <div className="relative">
+            <Search className="text-muted-foreground absolute top-2.5 left-2.5 size-4" />
+            <Input
+              className="pl-8"
+              placeholder="Cari nama atau NIP (min. 2 huruf)…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {q.length >= 2 ? (
+            <ul className="max-h-48 divide-y overflow-y-auto rounded-md border">
+              {(results.data?.data ?? []).map((e) => (
+                <li key={e.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">
+                    {e.fullName}{" "}
+                    <span className="text-muted-foreground font-mono text-xs">
+                      {e.employeeNumber ?? ""}
+                    </span>
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    disabled={has(e.id)}
+                    onClick={() =>
+                      setSelected((s) => [
+                        ...s,
+                        { id: e.id, fullName: e.fullName, employeeNumber: e.employeeNumber },
+                      ])
+                    }
+                  >
+                    <UserPlus /> {has(e.id) ? "Sudah" : "Tambah"}
+                  </Button>
+                </li>
+              ))}
+              {results.data?.data.length === 0 ? (
+                <li className="text-muted-foreground px-3 py-2 text-sm">Tidak ditemukan.</li>
+              ) : null}
+            </ul>
+          ) : null}
+          <div>
+            <p className="mb-1 text-sm font-medium">Anggota ({selected.length})</p>
+            <ul className="max-h-60 divide-y overflow-y-auto rounded-md border">
+              {selected.map((m) => (
+                <li key={m.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                  <span className="min-w-0 flex-1 truncate">
+                    {m.fullName}{" "}
+                    <span className="text-muted-foreground font-mono text-xs">
+                      {m.employeeNumber ?? ""}
+                    </span>
+                  </span>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Keluarkan ${m.fullName}`}
+                    onClick={() => setSelected((s) => s.filter((x) => x.id !== m.id))}
+                  >
+                    <UserMinus />
+                  </Button>
+                </li>
+              ))}
+              {selected.length === 0 ? (
+                <li className="text-muted-foreground px-3 py-2 text-sm">Belum ada anggota.</li>
+              ) : null}
+            </ul>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button variant="brand" disabled={setMembers.isPending} onClick={() => void submit()}>
+            Simpan anggota
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

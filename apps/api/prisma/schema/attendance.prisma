@@ -1,0 +1,354 @@
+// Modul attendance — Time Management (desain docs/design/time-management.md, D-066–D-071).
+// Tabel modul lain (employee, organization) tidak disentuh: id karyawan/PT/lokasi disimpan tanpa relasi Prisma
+// (relasi butuh sisi balik di skema mereka); keberadaannya divalidasi service saat menulis.
+
+// ── Tahap A: kalender libur & pengaturan Time Management ─────────────────────────
+// Kalender libur dipakai roster, absensi, & cuti (D-071). NATIONAL = tanggal merah; COLLECTIVE_LEAVE = cuti
+// bersama (tidak memotong cuti, kecuali hari kerja roster & tidak masuk → 1 hari cuti). Diatur SUPER_ADMIN.
+// Catatan: PLAN menempatkan hari libur di modul organization; dipindah ke attendance (2026-10-12) supaya
+// skema organization yang masih dikembangkan tidak disentuh.
+enum HolidayKind {
+  NATIONAL
+  COLLECTIVE_LEAVE
+
+  @@schema("attendance")
+}
+
+model Holiday {
+  id        String      @id @default(uuid()) @db.Uuid
+  date      DateTime    @db.Date
+  name      String      @db.VarChar(120)
+  kind      HolidayKind
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([date])
+  @@map("holidays")
+  @@schema("attendance")
+}
+
+// Pengaturan Time Management (satu baris per kunci; nilai JSON divalidasi skema per kunci di service).
+model TimeSetting {
+  key                String   @id @db.VarChar(60)
+  value              Json
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("time_settings")
+  @@schema("attendance")
+}
+
+// ── Tahap B: roster tambang (D-068) ─────────────────────────────────────────────
+// Id PT / lokasi / karyawan disimpan tanpa relasi Prisma (lihat catatan di atas).
+
+// Shift per PT. Jam dalam menit sejak 00:00 (0–1439); selesai ≤ mulai = lintas tengah malam (tanggal kerja =
+// tanggal mulai). Jendela absen & toleransi per shift (D-068).
+model Shift {
+  id                     String    @id @default(uuid()) @db.Uuid
+  companyId              String    @map("company_id") @db.Uuid
+  code                   String    @db.VarChar(10)
+  name                   String    @db.VarChar(80)
+  startMinute            Int       @map("start_minute") @db.SmallInt
+  endMinute              Int       @map("end_minute") @db.SmallInt
+  checkInOpenMin         Int       @default(60) @map("check_in_open_min") @db.SmallInt
+  lateToleranceMin       Int       @default(15) @map("late_tolerance_min") @db.SmallInt
+  earlyLeaveToleranceMin Int       @default(15) @map("early_leave_tolerance_min") @db.SmallInt
+  checkOutCloseMin       Int       @default(240) @map("check_out_close_min") @db.SmallInt
+  color                  String?   @db.VarChar(9)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  rosterDays RosterDay[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("shifts")
+  @@schema("attendance")
+}
+
+// Pola siklus: daftar kode shift atau "OFF" berurutan (mis. D×10 + OFF×4).
+model RosterPattern {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String    @map("company_id") @db.Uuid
+  name      String    @db.VarChar(80)
+  steps     String[]  @db.VarChar(10)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  crews Crew[]
+
+  @@unique([companyId, name])
+  @@map("roster_patterns")
+  @@schema("attendance")
+}
+
+// Crew: kelompok karyawan satu lokasi kerja dengan pola + tanggal mulai siklus yang sama.
+model Crew {
+  id             String        @id @default(uuid()) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  workLocationId String        @map("work_location_id") @db.Uuid
+  name           String        @db.VarChar(80)
+  patternId      String        @map("pattern_id") @db.Uuid
+  pattern        RosterPattern @relation(fields: [patternId], references: [id], onDelete: Restrict)
+  cycleStartDate DateTime      @map("cycle_start_date") @db.Date
+  deletedAt      DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  members CrewMember[]
+
+  @@unique([companyId, name])
+  @@index([patternId])
+  @@index([workLocationId])
+  @@map("crews")
+  @@schema("attendance")
+}
+
+// Keanggotaan crew berlaku dari/sampai — pindah crew tidak menghapus riwayat.
+model CrewMember {
+  id         String    @id @default(uuid()) @db.Uuid
+  crewId     String    @map("crew_id") @db.Uuid
+  crew       Crew      @relation(fields: [crewId], references: [id], onDelete: Cascade)
+  employeeId String    @map("employee_id") @db.Uuid
+  startDate  DateTime  @map("start_date") @db.Date
+  endDate    DateTime? @map("end_date") @db.Date
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([crewId])
+  @@index([employeeId, startDate])
+  @@map("crew_members")
+  @@schema("attendance")
+}
+
+enum RosterSource {
+  PATTERN
+  MANUAL
+  IMPORT
+  CHANGE
+
+  @@schema("attendance")
+}
+
+// Satu baris per karyawan per tanggal kerja: shift (null = OFF). Hari MANUAL/IMPORT/CHANGE tidak ditimpa pola.
+model RosterDay {
+  id         String       @id @default(uuid()) @db.Uuid
+  employeeId String       @map("employee_id") @db.Uuid
+  workDate   DateTime     @map("work_date") @db.Date
+  shiftId    String?      @map("shift_id") @db.Uuid
+  shift      Shift?       @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+  crewId     String?      @map("crew_id") @db.Uuid
+  source     RosterSource
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([employeeId, workDate])
+  @@index([workDate])
+  @@index([shiftId])
+  @@map("roster_days")
+  @@schema("attendance")
+}
+
+enum RosterChangeStatus {
+  AWAITING_PEER
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+// Perubahan satu tanggal, atau tukar shift dengan rekan pada tanggal yang sama (rekan setuju dulu, D-068).
+model RosterChangeRequest {
+  id                  String             @id @default(uuid()) @db.Uuid
+  employeeId          String             @map("employee_id") @db.Uuid
+  createdByEmployeeId String             @map("created_by_employee_id") @db.Uuid
+  workDate            DateTime           @map("work_date") @db.Date
+  fromShiftId         String?            @map("from_shift_id") @db.Uuid
+  toShiftId           String?            @map("to_shift_id") @db.Uuid
+  peerEmployeeId      String?            @map("peer_employee_id") @db.Uuid
+  reason              String             @db.VarChar(500)
+  status              RosterChangeStatus
+  peerDecidedAt       DateTime?          @map("peer_decided_at") @db.Timestamptz(6)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, workDate])
+  @@index([peerEmployeeId, status])
+  @@map("roster_change_requests")
+  @@schema("attendance")
+}
+
+// ── Tahap C: absen PWA (D-066, D-069) ────────────────────────────────────────────
+enum AttendanceDayStatus {
+  OPEN // sudah absen masuk, menunggu absen pulang
+  PENDING // menunggu persetujuan MANAGER + HR (D-067)
+  APPROVED
+  REJECTED
+  ALPHA // ditetapkan saat tutup periode (D-070)
+  LEAVE // cuti/izin/sakit disetujui (Tahap E)
+
+  @@schema("attendance")
+}
+
+// Satu hari absen per karyawan per tanggal kerja (shift malam → tanggal mulai). Snapshot shift & PT disimpan
+// supaya perubahan master tidak mengubah riwayat. Label penyimpangan (D-069) tidak memblokir.
+model AttendanceDay {
+  id                String              @id @default(uuid()) @db.Uuid
+  employeeId        String              @map("employee_id") @db.Uuid
+  companyId         String              @map("company_id") @db.Uuid
+  managerEmployeeId String?             @map("manager_employee_id") @db.Uuid
+  workDate          DateTime            @map("work_date") @db.Date
+  shiftId           String?             @map("shift_id") @db.Uuid
+  shiftCode         String?             @map("shift_code") @db.VarChar(10)
+  scheduledStart    DateTime?           @map("scheduled_start") @db.Timestamptz(6)
+  scheduledEnd      DateTime?           @map("scheduled_end") @db.Timestamptz(6)
+  checkOutDeadline  DateTime?           @map("check_out_deadline") @db.Timestamptz(6)
+  workLocationId    String?             @map("work_location_id") @db.Uuid
+  status            AttendanceDayStatus
+  labels            String[]            @db.VarChar(20)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  punches AttendancePunch[]
+
+  @@unique([employeeId, workDate])
+  @@index([companyId, workDate])
+  @@index([status, checkOutDeadline])
+  @@index([managerEmployeeId, workDate])
+  @@map("attendance_days")
+  @@schema("attendance")
+}
+
+enum PunchKind {
+  IN
+  OUT
+
+  @@schema("attendance")
+}
+
+// Absen masuk/pulang: waktu SERVER (D-013), GPS + akurasi, jarak ke geofence, selfie (retensi 12 bulan).
+/// D-072: tiap absen (masuk/pulang) disetujui sendiri-sendiri.
+enum PunchStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@schema("attendance")
+}
+
+/// DEVICE = absen dari HP (selfie + GPS); MANUAL = dimasukkan/diperbaiki HR/SA (autentikasi manual).
+enum PunchSource {
+  DEVICE
+  MANUAL
+
+  @@schema("attendance")
+}
+
+model AttendancePunch {
+  id                String        @id @default(uuid()) @db.Uuid
+  dayId             String        @map("day_id") @db.Uuid
+  day               AttendanceDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  kind              PunchKind
+  at                DateTime      @db.Timestamptz(6)
+  latitude          Decimal?      @db.Decimal(9, 6)
+  longitude         Decimal?      @db.Decimal(9, 6)
+  accuracyM         Int?          @map("accuracy_m")
+  /// Ketinggian (m dpl) dari GPS HP bila tersedia.
+  altitudeM         Int?          @map("altitude_m")
+  distanceM         Int?          @map("distance_m")
+  workLocationId    String?       @map("work_location_id") @db.Uuid
+  insideGeofence    Boolean       @map("inside_geofence")
+  labels            String[]      @db.VarChar(20)
+  reason            String?       @db.VarChar(500)
+  selfiePath        String?       @map("selfie_path") @db.VarChar(300)
+  selfiePurgedAt    DateTime?     @map("selfie_purged_at") @db.Timestamptz(6)
+  userAgent         String?       @map("user_agent") @db.VarChar(300)
+  status            PunchStatus   @default(PENDING)
+  source            PunchSource   @default(DEVICE)
+  manualByAccountId String?       @map("manual_by_account_id") @db.Uuid
+  decidedAt         DateTime?     @map("decided_at") @db.Timestamptz(6)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([dayId, kind])
+  @@index([at])
+  @@index([status])
+  @@map("attendance_punches")
+  @@schema("attendance")
+}
+
+// ── Tahap F — tutup periode, surat pernyataan, koreksi (D-070) ──────────────────
+
+enum AttendancePeriodStatus {
+  OPEN
+  CLOSED
+
+  @@schema("attendance")
+}
+
+/// Periode absensi per PT per bulan. CLOSED = hari tanpa persetujuan/absen sudah menjadi ALPHA & terkunci.
+model AttendancePeriod {
+  id                String                 @id @default(uuid()) @db.Uuid
+  companyId         String                 @map("company_id") @db.Uuid
+  month             String                 @db.VarChar(7)
+  status            AttendancePeriodStatus @default(OPEN)
+  closedAt          DateTime?              @map("closed_at") @db.Timestamptz(6)
+  closedByAccountId String?                @map("closed_by_account_id") @db.Uuid
+  summary           Json?
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([companyId, month])
+  @@map("attendance_periods")
+  @@schema("attendance")
+}
+
+/// Surat Pernyataan Absensi untuk satu hari ALPHA (catatan kepatuhan; tidak mengubah status ALPHA).
+model AttendanceStatement {
+  id                String    @id @default(uuid()) @db.Uuid
+  dayId             String    @unique @map("day_id") @db.Uuid
+  employeeId        String    @map("employee_id") @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  managerEmployeeId String?   @map("manager_employee_id") @db.Uuid
+  workDate          DateTime  @map("work_date") @db.Date
+  reason            String    @db.VarChar(1000)
+  attachmentPath    String?   @map("attachment_path") @db.VarChar(300)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([companyId, workDate])
+  @@index([employeeId])
+  @@map("attendance_statements")
+  @@schema("attendance")
+}
+
+enum AttendanceCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+/// Koreksi absensi (lupa absen, absen ditolak): approval paralel; disetujui → hari absen APPROVED (label CORRECTED).
+model AttendanceCorrection {
+  id                String                     @id @default(uuid()) @db.Uuid
+  employeeId        String                     @map("employee_id") @db.Uuid
+  companyId         String                     @map("company_id") @db.Uuid
+  managerEmployeeId String?                    @map("manager_employee_id") @db.Uuid
+  workDate          DateTime                   @map("work_date") @db.Date
+  checkInAt         DateTime?                  @map("check_in_at") @db.Timestamptz(6)
+  checkOutAt        DateTime?                  @map("check_out_at") @db.Timestamptz(6)
+  reason            String                     @db.VarChar(500)
+  status            AttendanceCorrectionStatus @default(PENDING)
+  decidedAt         DateTime?                  @map("decided_at") @db.Timestamptz(6)
+  createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, workDate])
+  @@index([companyId, status])
+  @@map("attendance_corrections")
+  @@schema("attendance")
+}

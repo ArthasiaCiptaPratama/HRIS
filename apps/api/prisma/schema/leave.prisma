@@ -1,0 +1,120 @@
+// Modul leave — cuti tahunan, izin, sakit (docs/design/time-management.md §7, D-071).
+// Tanpa relasi Prisma ke employee/organization (skema tim yang masih dikembangkan tidak disentuh);
+// id karyawan/PT disimpan sebagai uuid biasa.
+
+enum LeaveCategory {
+  ANNUAL // memotong saldo cuti tahunan
+  PERMIT // izin (menikah, duka, …) — kuota per kejadian
+  SICK // sakit — surat dokter di atas N hari
+
+  @@schema("leave")
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("leave")
+}
+
+/// Jenis baris buku besar saldo cuti tahunan (§7.2). `days` bertanda: + menambah, − mengurangi.
+enum LeaveLedgerKind {
+  GRANT // jatah 1 Januari (penuh / prorata)
+  HOLD // ditahan saat pengajuan (−)
+  RELEASE // tahanan dilepas: ditolak/dibatalkan, atau dikonversi saat disetujui (+)
+  USE // terpakai saat disetujui (−)
+  COLLECTIVE // cuti bersama pada hari kerja roster tanpa absen (−1)
+  EXPIRE // sisa tahun lalu hangus 31 Maret (−)
+  SETTLE // pelunasan hutang akhir Januari (tahun baru −, tahun lama +)
+  ADJUST // penyesuaian / saldo awal import (±)
+
+  @@schema("leave")
+}
+
+model LeaveType {
+  id                        String        @id @default(uuid()) @db.Uuid
+  code                      String        @unique @db.VarChar(20)
+  name                      String        @db.VarChar(80)
+  category                  LeaveCategory
+  /// Kuota hari per kejadian (izin); null = tanpa batas per pengajuan.
+  maxDaysPerRequest         Int?          @map("max_days_per_request") @db.SmallInt
+  /// Dokumen wajib bila hari > nilai ini (0 = selalu wajib); null = tidak wajib.
+  documentRequiredAfterDays Int?          @map("document_required_after_days") @db.SmallInt
+  isActive                  Boolean       @default(true) @map("is_active")
+  sortOrder                 Int           @default(0) @map("sort_order") @db.SmallInt
+  createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  requests LeaveRequest[]
+
+  @@map("leave_types")
+  @@schema("leave")
+}
+
+/// Master Cuti per tahun: kuota penuh & status. Jatah dibagikan cron 1 Januari (grantedAt).
+model LeaveYear {
+  id        String    @id @default(uuid()) @db.Uuid
+  year      Int       @unique @db.SmallInt
+  quota     Int       @default(12) @db.SmallInt
+  isActive  Boolean   @default(true) @map("is_active")
+  grantedAt DateTime? @map("granted_at") @db.Timestamptz(6)
+  settledAt DateTime? @map("settled_at") @db.Timestamptz(6)
+  expiredAt DateTime? @map("expired_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("leave_years")
+  @@schema("leave")
+}
+
+/// Buku besar saldo cuti tahunan per karyawan per tahun jatah. Saldo = jumlah `days` pada tahun itu.
+model LeaveLedger {
+  id               String          @id @default(uuid()) @db.Uuid
+  employeeId       String          @map("employee_id") @db.Uuid
+  companyId        String          @map("company_id") @db.Uuid
+  year             Int             @db.SmallInt
+  kind             LeaveLedgerKind
+  days             Int             @db.SmallInt
+  requestId        String?         @map("request_id") @db.Uuid
+  /// Tanggal kerja terkait (cuti bersama, hari cuti) bila ada.
+  workDate         DateTime?       @map("work_date") @db.Date
+  note             String?         @db.VarChar(300)
+  createdByAccount String?         @map("created_by_account_id") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([employeeId, year])
+  @@index([companyId, year])
+  @@index([requestId])
+  @@map("leave_ledger")
+  @@schema("leave")
+}
+
+model LeaveRequest {
+  id                  String             @id @default(uuid()) @db.Uuid
+  employeeId          String             @map("employee_id") @db.Uuid
+  companyId           String             @map("company_id") @db.Uuid
+  managerEmployeeId   String?            @map("manager_employee_id") @db.Uuid
+  leaveTypeId         String             @map("leave_type_id") @db.Uuid
+  category            LeaveCategory
+  startDate           DateTime           @map("start_date") @db.Date
+  endDate             DateTime           @map("end_date") @db.Date
+  /// Hari kerja roster yang dihitung (§7.3).
+  workDates           DateTime[]         @map("work_dates") @db.Date
+  days                Int                @db.SmallInt
+  reason              String             @db.VarChar(500)
+  attachmentPath      String?            @map("attachment_path") @db.VarChar(300)
+  status              LeaveRequestStatus @default(PENDING)
+  createdByEmployeeId String             @map("created_by_employee_id") @db.Uuid
+  decidedAt           DateTime?          @map("decided_at") @db.Timestamptz(6)
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  type LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([employeeId, startDate])
+  @@index([companyId, status])
+  @@map("leave_requests")
+  @@schema("leave")
+}

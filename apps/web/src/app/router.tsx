@@ -16,6 +16,7 @@ import { ProfilePage } from "@/features/iam/pages/profile-page";
 import { NotificationsPage } from "@/features/notification/pages/notifications-page";
 import { ErrorPage } from "@/features/system/pages/error-page";
 import { NotFoundPage } from "@/features/system/pages/not-found-page";
+import { tmAccess } from "@/features/time-management/access";
 import { access } from "@/lib/access";
 import { FEATURES } from "./feature-flags";
 import { AppLayout } from "./layout/app-layout";
@@ -34,6 +35,14 @@ export const routes: RouteObject[] = [
     children: [
       // D-045 b: wizard isi data (halaman mandiri; calon terkunci di sini sampai disetujui).
       { path: "/onboarding", lazy: pages.onboardingWizard },
+      // D-066: absen PWA (tata letak HP, tanpa kerangka web; dipasang ke layar utama).
+      {
+        path: "/absen",
+        element: <RequireAccessRoute check={tmAccess.punch} />,
+        children: [
+          { index: true, lazy: FEATURES.timeManagement ? pages.absen : pages.maintenance },
+        ],
+      },
       {
         path: "/",
         Component: AppLayout,
@@ -147,6 +156,108 @@ export const routes: RouteObject[] = [
             element: <RequireAccessRoute check={access.reviewDataChanges} />,
             children: [
               { index: true, lazy: FEATURES.selfService ? pages.dataChanges : pages.maintenance },
+            ],
+          },
+          {
+            // D-066–D-070: Time Management (API tetap sumber kebenaran untuk cakupan PT/tim).
+            path: "time",
+            children: [
+              { index: true, element: <Navigate to="roster" replace /> },
+              {
+                element: <RequireAccessRoute check={tmAccess.reviewDays} />,
+                children: [
+                  {
+                    path: "absen-harian",
+                    lazy: FEATURES.timeManagement ? pages.attendanceDays : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.viewRoster} />,
+                children: [
+                  {
+                    path: "roster",
+                    lazy: FEATURES.timeManagement ? pages.roster : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.manageRoster} />,
+                children: [
+                  {
+                    path: "roster/pengaturan",
+                    lazy: FEATURES.timeManagement ? pages.rosterSetup : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.rosterChanges} />,
+                children: [
+                  {
+                    path: "perubahan-roster",
+                    lazy: FEATURES.timeManagement ? pages.rosterChanges : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.requestLeave} />,
+                children: [
+                  { path: "cuti", lazy: FEATURES.timeManagement ? pages.leave : pages.maintenance },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.decideLeave} />,
+                children: [
+                  {
+                    path: "persetujuan-cuti",
+                    lazy: FEATURES.timeManagement ? pages.leaveApprovals : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.manageLeaveBalances} />,
+                children: [
+                  {
+                    path: "saldo-cuti",
+                    lazy: FEATURES.timeManagement ? pages.leaveBalances : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.correctionsStatements} />,
+                children: [
+                  {
+                    path: "pernyataan",
+                    lazy: FEATURES.timeManagement ? pages.correctionsStatements : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.viewRecap} />,
+                children: [
+                  {
+                    path: "rekap",
+                    lazy: FEATURES.timeManagement ? pages.recap : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                path: "master-cuti",
+                lazy: FEATURES.timeManagement ? pages.leaveMaster : pages.maintenance,
+              },
+              {
+                path: "kalender",
+                lazy: FEATURES.timeManagement ? pages.holidays : pages.maintenance,
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.viewSettings} />,
+                children: [
+                  {
+                    path: "pengaturan",
+                    lazy: FEATURES.timeManagement ? pages.timeSettings : pages.maintenance,
+                  },
+                ],
+              },
             ],
           },
           // D-045 c: Layanan Mandiri (placeholder sampai Time Management).
