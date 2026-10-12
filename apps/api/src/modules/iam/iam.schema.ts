@@ -20,6 +20,8 @@ export const meResponseSchema = z
     role: roleSchema,
     isPrimarySuperAdmin: z.boolean(),
     employeeId: z.uuid().nullable(),
+    // BUG-004: nama karyawan tertaut (sapaan & kartu akun); null = akun tanpa karyawan.
+    employeeName: z.string().nullable(),
     lastLoginAt: z.iso.datetime().nullable(),
     grants: z.array(
       z.object({ permission: permissionSchema, expiresAt: z.iso.datetime().nullable() }),

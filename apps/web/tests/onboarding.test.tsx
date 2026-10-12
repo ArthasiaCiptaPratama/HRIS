@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FEATURES } from "@/app/feature-flags";
@@ -190,6 +190,21 @@ describe.skipIf(!FEATURES.onboarding)("Penerimaan Karyawan Baru (D-045)", () => 
     );
   });
 
+  it("impor: file bisa diseret ke area unggah (seret-lepas) → lanjut ke pemetaan", async () => {
+    mockFetch(me("SUPER_ADMIN", true));
+    renderAt("/penerimaan/impor");
+    const input = await screen.findByLabelText("Pilih file calon karyawan");
+    const zone = input.closest("label") as HTMLElement;
+    const file = new File(["Nama Lengkap;Email\nAni Calon;ani@example.test"], "calon.csv", {
+      type: "text/csv",
+    });
+    fireEvent.dragEnter(zone, { dataTransfer: { files: [file], types: ["Files"] } });
+    expect(zone).toHaveAttribute("data-dragging", "true");
+    expect(screen.getByText("Lepaskan file di sini")).toBeInTheDocument();
+    fireEvent.drop(zone, { dataTransfer: { files: [file], types: ["Files"] } });
+    expect(await screen.findByRole("button", { name: /Lanjut \(1 calon\)/ })).toBeInTheDocument();
+  });
+
   it("impor: unggah → pemetaan otomatis → pilih lolos → data kerja → konfirmasi → kirim", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(me("SUPER_ADMIN", true));
@@ -201,7 +216,7 @@ describe.skipIf(!FEATURES.onboarding)("Penerimaan Karyawan Baru (D-045)", () => 
       "Cici Tanpa Email;;0812",
     ].join("\n");
     await user.upload(
-      await screen.findByLabelText(/Pilih file ekspor portal/),
+      await screen.findByLabelText("Pilih file calon karyawan"),
       new File([csv], "maganghub.csv", { type: "text/csv" }),
     );
     // Pemetaan otomatis: nama & email dikenali → lanjut.
