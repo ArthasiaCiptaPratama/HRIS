@@ -16,7 +16,7 @@ COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN cd apps/api && bunx prisma generate \
-  && bun build src/index.ts --target=bun --outdir=dist
+  && bun build src/server.ts --target=bun --outdir=dist
 
 FROM oven/bun:1.4.2-alpine AS runtime
 WORKDIR /app
@@ -26,4 +26,4 @@ USER bun
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD wget -qO- http://127.0.0.1:${PORT:-3000}/api/v1/health || exit 1
-CMD ["bun", "dist/index.js"]
+CMD ["bun", "dist/server.js"]

@@ -121,7 +121,7 @@ const routes = {
     path: `${P}/{id}/attachments/process`,
     tags: TAGS,
     summary:
-      "Proses beberapa lampiran (±20 dtk per panggilan; panggil ulang sampai pending = 0). 422 bila Google Drive belum dikonfigurasi",
+      "Proses beberapa lampiran (±8 dtk per panggilan; panggil ulang sampai pending = 0). 422 bila Google Drive belum dikonfigurasi",
     security,
     request: { params: z.object({ id: z.uuid() }) },
     responses: {

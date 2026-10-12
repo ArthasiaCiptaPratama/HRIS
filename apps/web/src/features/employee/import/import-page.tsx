@@ -12,14 +12,32 @@ import {
   profileKeys,
   suggestMapping,
 } from "@hris/shared";
-import { CheckCircle2, Download, FileSpreadsheet, RotateCcw, Upload, Users } from "lucide-react";
-import { type DragEvent, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  CheckCircle2,
+  CloudDownload,
+  Download,
+  FileSpreadsheet,
+  Loader2,
+  RotateCcw,
+  Users,
+} from "lucide-react";
+import { type DragEvent, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -30,12 +48,13 @@ import {
   fetchSavedMapping,
   type ImportPreview,
   type ImportRequest,
+  importKeys,
   saveMapping,
   type UnitChoice,
   useCommitImport,
   usePreviewImport,
 } from "./api";
-import { AttachmentsPanel } from "./attachments-panel";
+import { AttachmentsPanel, type AttachmentsState } from "./attachments-panel";
 import { CompleteStep, completionState } from "./complete-step";
 import { ImportGuide } from "./import-guide";
 import { fieldLabel } from "./labels";
@@ -71,7 +90,7 @@ type Choices = {
   unitChoices: Record<string, UnitChoice>;
 };
 
-function Stepper({ current }: { current: Step }) {
+function Stepper({ current, processing }: { current: Step; processing?: boolean }) {
   const index = STEPS.findIndex((s) => s.key === current);
   return (
     <ol className="mb-6 flex flex-wrap items-center gap-2 text-sm" aria-label="Langkah import">
@@ -92,8 +111,11 @@ function Stepper({ current }: { current: Step }) {
             {i + 1}
           </span>
           <span className={i === index ? "font-medium" : "text-muted-foreground"}>
-            {step.label}
+            {step.key === "done" && processing ? "Memproses lampiran" : step.label}
           </span>
+          {step.key === "done" && processing ? (
+            <Loader2 className="text-brand size-3.5 animate-spin" aria-hidden />
+          ) : null}
           {i < STEPS.length - 1 ? (
             <span className="bg-border mx-1 hidden h-px w-8 sm:block" aria-hidden />
           ) : null}
@@ -140,6 +162,13 @@ export function ImportEmployeesPage() {
   const [result, setResult] = useState<ImportPreview["counts"] | null>(null);
   // D-060: import yang lampirannya sedang diproses (hasil simpan, atau dilanjutkan dari langkah Unggah).
   const [attachmentJobId, setAttachmentJobId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<AttachmentsState | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const queryClient = useQueryClient();
+  const onAttachmentsState = useCallback((next: AttachmentsState) => setAttachments(next), []);
+  // Lampiran masih diunduh di langkah Selesai → stepper & judul tidak menyatakan "selesai" dulu.
+  const attachmentsBusy =
+    step === "done" && attachmentJobId !== null && (attachments?.pending ?? 1) > 0;
 
   const companyFor = (chosen: string) =>
     chosen ||
@@ -314,8 +343,13 @@ export function ImportEmployeesPage() {
       });
       setResult(saved.counts);
       setAttachmentJobId(saved.counts.attachments > 0 ? saved.jobId : null);
+      setAttachments(null);
       setStep("done");
-      toast.success("Import selesai.");
+      toast.success(
+        saved.counts.attachments > 0
+          ? "Data tersimpan. Lampiran Google Drive sedang diproses."
+          : "Import selesai.",
+      );
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         toast.warning(
@@ -379,12 +413,29 @@ export function ImportEmployeesPage() {
     setPreview(null);
     setResult(null);
     setAttachmentJobId(null);
+    setAttachments(null);
+    setConfirmReset(false);
+    // Pemrosesan lampiran berhenti saat panel dilepas → daftar "belum selesai" disegarkan.
+    void queryClient.invalidateQueries({ queryKey: importKeys.openAttachments });
     setMasterMap(EMPTY_MAP);
     setStatusOverrides({});
     setCompanyOverrides({});
     setUnitChoices({});
     setVisitedComplete(false);
     if (fileInput.current) fileInput.current.value = "";
+  }
+
+  /** Opsi A: lampiran masih diunduh → konfirmasi dulu; proses dijeda & bisa dilanjutkan nanti. */
+  function requestReset() {
+    if (attachments?.active) setConfirmReset(true);
+    else reset();
+  }
+
+  /** Panel lampiran yang dibuka dari langkah Unggah (lembar samping) ditutup → proses dijeda. */
+  function closeUploadAttachments() {
+    setAttachmentJobId(null);
+    setAttachments(null);
+    void queryClient.invalidateQueries({ queryKey: importKeys.openAttachments });
   }
 
   const onDrop = (event: DragEvent) => {
@@ -409,16 +460,27 @@ export function ImportEmployeesPage() {
           </div>
         }
       />
-      <Stepper current={step} />
+      <Stepper current={step} processing={attachmentsBusy} />
 
-      {step === "upload" ? (
-        <OpenAttachments activeJobId={attachmentJobId} onOpen={setAttachmentJobId} />
-      ) : null}
-      {step === "upload" && attachmentJobId ? (
-        <div className="mb-5">
-          <AttachmentsPanel key={attachmentJobId} jobId={attachmentJobId} />
-        </div>
-      ) : null}
+      {step === "upload" ? <OpenAttachments onOpen={setAttachmentJobId} /> : null}
+      <Sheet
+        open={step === "upload" && attachmentJobId !== null}
+        onOpenChange={(open) => {
+          if (!open) closeUploadAttachments();
+        }}
+      >
+        <SheetContent className="overflow-y-auto sm:max-w-2xl" aria-describedby={undefined}>
+          <SheetTitle className="sr-only">Lampiran Google Drive</SheetTitle>
+          {step === "upload" && attachmentJobId ? (
+            <AttachmentsPanel
+              key={attachmentJobId}
+              jobId={attachmentJobId}
+              onStateChange={onAttachmentsState}
+              className="rounded-none border-0 bg-transparent pt-14"
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
 
       {step === "upload" ? (
         <div className="grid gap-5 lg:grid-cols-[1fr_minmax(280px,360px)]">
@@ -437,10 +499,16 @@ export function ImportEmployeesPage() {
               )}
             >
               <span className="bg-muted grid size-12 place-items-center rounded-xl">
-                <FileSpreadsheet className="size-6" aria-hidden />
+                {parsing ? (
+                  <Loader2 className="size-6 animate-spin" aria-hidden />
+                ) : (
+                  <FileSpreadsheet className="size-6" aria-hidden />
+                )}
               </span>
-              <span className="text-sm font-medium">
-                {parsing ? "Membaca file…" : "Tarik file ke sini atau klik untuk memilih"}
+              <span className="text-sm font-medium" aria-live="polite">
+                {parsing
+                  ? "Membaca & mengenali struktur file…"
+                  : "Tarik file ke sini atau klik untuk memilih"}
               </span>
               <span className="text-muted-foreground text-xs">
                 .xlsx atau .csv · maks 5 MB · maks {IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris
@@ -583,48 +651,113 @@ export function ImportEmployeesPage() {
       ) : null}
 
       {step === "done" && result ? (
-        <div className="bg-card mx-auto max-w-xl space-y-5 rounded-2xl border p-8 text-center">
-          <CheckCircle2 className="text-success-soft-foreground mx-auto size-10" aria-hidden />
-          <div>
-            <h2 className="text-lg font-semibold">Import selesai</h2>
-            <p className="text-muted-foreground text-sm">
-              {result.create} karyawan dibuat · {result.update} diperbarui · {result.skip} dilewati
-              {result.error ? ` · ${result.error} baris error tidak diimpor` : ""}.
-            </p>
+        <div
+          className={cn(
+            "grid items-start gap-5",
+            attachmentJobId && "lg:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]",
+          )}
+        >
+          <section
+            aria-labelledby="import-done-title"
+            className={cn(
+              "bg-card space-y-5 rounded-2xl border p-6",
+              !attachmentJobId && "max-w-2xl",
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <span className="bg-success-soft text-success-soft-foreground grid size-10 shrink-0 place-items-center rounded-xl">
+                <CheckCircle2 className="size-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h2 id="import-done-title" className="text-lg font-semibold">
+                  {attachmentsBusy ? "Data karyawan tersimpan" : "Import selesai"}
+                </h2>
+                <p className="text-muted-foreground text-sm">
+                  {attachmentsBusy
+                    ? "Lampiran Google Drive masih diunduh di panel samping."
+                    : `${result.create + result.update} karyawan berhasil diproses dari file.`}
+                </p>
+              </div>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["Dibuat", result.create],
+                  ["Diperbarui", result.update],
+                  ["Dilewati", result.skip],
+                  ["Error", result.error],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label} className="bg-background rounded-xl border px-3 py-2.5">
+                  <dt className="text-muted-foreground text-xs">{label}</dt>
+                  <dd
+                    className={cn(
+                      "mt-0.5 text-xl font-semibold tabular-nums",
+                      label === "Error" && value > 0 && "text-destructive",
+                    )}
+                  >
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
             {result.attachments > 0 ? (
-              <p className="text-muted-foreground text-sm">
-                {result.attachments} lampiran Google Drive diproses di bawah.
+              <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                <CloudDownload className="size-4 shrink-0" aria-hidden />
+                {result.attachments} lampiran Google Drive ikut diproses.
               </p>
             ) : null}
-          </div>
-          <div className="flex flex-col justify-center gap-2 sm:flex-row">
-            <Button variant="brand" asChild>
-              <Link to={`/personal/pegawai-aktif/${back}`}>
-                <Users /> Lihat Data Karyawan Aktif
-              </Link>
-            </Button>
-            {result.error ? (
-              <Button variant="outline" onClick={downloadIssues}>
-                <Download /> Unduh baris bermasalah
+
+            <div className="flex flex-col gap-2">
+              <Button variant="brand" asChild>
+                <Link to={`/personal/pegawai-aktif/${back}`}>
+                  <Users /> Lihat Data Karyawan Aktif
+                </Link>
               </Button>
-            ) : null}
-            <Button variant="ghost" onClick={reset}>
-              <RotateCcw /> Import file lain
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {step === "done" && attachmentJobId ? (
-        <div className="mt-5">
-          <AttachmentsPanel key={attachmentJobId} jobId={attachmentJobId} />
+              {result.error ? (
+                <Button variant="outline" onClick={downloadIssues}>
+                  <Download /> Unduh baris bermasalah
+                </Button>
+              ) : null}
+              <Button variant="ghost" onClick={requestReset}>
+                <RotateCcw /> Import file lain
+              </Button>
+            </div>
+          </section>
+
+          {attachmentJobId ? (
+            <AttachmentsPanel
+              key={attachmentJobId}
+              jobId={attachmentJobId}
+              onStateChange={onAttachmentsState}
+            />
+          ) : null}
         </div>
       ) : null}
 
-      {step === "upload" && parsing ? (
-        <p className="text-muted-foreground mt-3 flex items-center gap-2 text-sm">
-          <Upload className="size-4 animate-pulse" aria-hidden /> Membaca & mengenali struktur file…
-        </p>
-      ) : null}
+      <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Lampiran masih diproses</DialogTitle>
+            <DialogDescription>
+              {attachments
+                ? `${attachments.handled} dari ${attachments.total} lampiran sudah diproses. `
+                : ""}
+              Bila Anda mulai import file lain, pengunduhan dijeda. Sisa lampiran bisa dilanjutkan
+              kapan saja dari halaman Unggah.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmReset(false)}>
+              Tetap di sini
+            </Button>
+            <Button variant="brand" onClick={reset}>
+              Jeda & import file lain
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

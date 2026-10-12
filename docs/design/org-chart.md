@@ -69,7 +69,8 @@ Pemegang **pos korporat** terlihat di bagan semua PT (bagian bagan grup). Bagan 
 
 - **Seed** (`prisma/seed/org-chart.ts`): replika **bentuk** bagan ACP (18 unit, 71 pos, 86 slot, 20 kosong) + bagan kecil CD2, pemegang dummy berawalan `DMY-` bernama fiktif. Dipakai lokal & staging.
 - **Nama asli khusus lokal**: `bun run --cwd apps/api org:import-local -- --file=/mnt/winD/WORK/Magang/DATA-ASLI/orgchart-acp.json [--apply]` — menolak DB selain localhost; membuat karyawan `ASLI-<kode>-<n>` di pos yang sama & menghapus dummy di pos itu. Seed ulang mengembalikan dummy → jalankan lagi.
-- Staging tetap dummy (rotasi rahasia staging ditunda dengan syarat itu; bila nama asli perlu tampil di staging: rotasi dulu, lalu izin terpisah).
+- ~~Staging tetap dummy~~ → **D-066 (2026-10-12):** staging berisi nama asli. Jalankan `DATABASE_URL=<url staging> bun --env-file=../../.env scripts/import-org-local.ts --file=<JSON di luar repo> --remote=iwgzuwcxsxnbjibhbqgh [--apply]` dari `apps/api` (hanya ref staging yang diterima). Rotasi password dilewati atas keputusan pemilik projek; risiko OD-4 diterima.
+- **Site**: unit "Site Operasional (ACP)" berjenjang (Engineering, Supply Chain, External Relation, HSE Site, HR & GA Site) + satu lokasi kerja **"Site (ACP)"** untuk absensi; sub-lokasi menyusul bila beda titik absen.
 
 ## 8. Di luar cakupan / berikutnya
 

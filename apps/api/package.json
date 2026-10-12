@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch src/index.ts",
-    "start": "bun src/index.ts",
+    "dev": "bun --env-file=../../.env --watch src/server.ts",
+    "start": "bun src/server.ts",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun --env-file=../../.env test",
