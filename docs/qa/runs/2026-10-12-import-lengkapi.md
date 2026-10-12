@@ -33,3 +33,5 @@
 **Data uji:** dihapus setelah run (3 karyawan, riwayat import, audit, unit & jabatan uji, profil pemetaan) — verifikasi MCP: 66 karyawan, 26 unit, 0 import.
 
 **Kesimpulan:** LULUS lokal + staging — **LEGIT**. **Bug terbuka:** tidak ada.
+
+**Arsip Drive:** `hris-qa:2026-10-12-import-lengkapi` — 15 file (plan, run, cases, screenshot), 2026-10-12.

@@ -27,3 +27,5 @@
 **Catatan:** 0 error konsol (HR, MANAGER, EMPLOYEE). Grant HR uji kedaluwarsa → bila perlu menguji "HR dengan grant aktif", perpanjang grant lewat Administrasi › Akun.
 
 **Kesimpulan:** LULUS lokal + staging — **LEGIT**. **Bug terbuka:** tidak ada.
+
+**Arsip Drive:** `hris-qa:2026-10-12-dashboard` — 13 file (plan, run, cases, screenshot), 2026-10-12.
