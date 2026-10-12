@@ -28,6 +28,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-12-dashboard.md](plans/2026-10-12-dashboard.md) | Dashboard yang bisa diatur (D-065) + ringkasan SA/HR |
 | Rencana | [plans/2026-10-12-istilah-nip.md](plans/2026-10-12-istilah-nip.md) | Istilah NIP di seluruh tampilan |
 | Rencana | [plans/2026-10-12-lampiran-ui.md](plans/2026-10-12-lampiran-ui.md) | Tampilan proses lampiran Drive & ketahanan koneksi (TC-EMP-207/208) |
+| Rencana | [plans/2026-10-12-onboarding-e2e.md](plans/2026-10-12-onboarding-e2e.md) | Alur onboarding ujung ke ujung: admin → calon → review → login NIP (D-045–D-048) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
 | Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-214 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-052 |
@@ -56,8 +57,10 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-12-import-lengkapi.md](runs/2026-10-12-import-lengkapi.md) | Lokal 2026-10-09 + staging gel. 4 A-01–A-07 7/7 — **LEGIT** |
 | Hasil | [runs/2026-10-12-dashboard.md](runs/2026-10-12-dashboard.md) | Lokal (api 598 · web 206) + staging C-01–C-07 (C-05a/b) LULUS — **LEGIT** |
 | Hasil | [runs/2026-10-12-istilah-nip.md](runs/2026-10-12-istilah-nip.md) | Staging D-01 LULUS — **LEGIT** |
-| Hasil | [runs/2026-10-12-lampiran-ui.md](runs/2026-10-12-lampiran-ui.md) | Lokal 8/8 (dengan perbaikan BUG-003); staging B-04 GAGAL → BUG-003, uji ulang setelah rilis |
+| Hasil | [runs/2026-10-12-lampiran-ui.md](runs/2026-10-12-lampiran-ui.md) | Lokal 8/8; staging gel. 4 B-04 GAGAL → BUG-003 → staging 4.1 8/8 — **LEGIT** |
+| Hasil | [runs/2026-10-12-onboarding-e2e.md](runs/2026-10-12-onboarding-e2e.md) | Lokal + Auth staging: 15 langkah LULUS (revisi → kirim ulang → setujui → login NIP); BUG-004 (P3) — staging menunggu saklar |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
-| Bug | [bugs/BUG-003-lampiran-macet-koneksi-menggantung.md](bugs/BUG-003-lampiran-macet-koneksi-menggantung.md) | P2 DIPERBAIKI di develop (staging menyusul): panel lampiran macet saat koneksi menggantung |
+| Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 DIPERBAIKI di develop (staging menyusul): sapaan Dashboard memakai email akun, bukan nama karyawan |
+| Bug | [bugs/BUG-003-lampiran-macet-koneksi-menggantung.md](bugs/BUG-003-lampiran-macet-koneksi-menggantung.md) | P2 DITUTUP 2026-10-12 (staging 4.1): panel lampiran macet saat koneksi menggantung |
 | Bug | [bugs/BUG-002-peta-tanpa-label-aksesibel.md](bugs/BUG-002-peta-tanpa-label-aksesibel.md) | P3 DITUTUP 2026-10-12 (terverifikasi staging): elemen peta geofence tanpa `aria-label` |
 | Bug | [bugs/BUG-001-hydratefallback-warning.md](bugs/BUG-001-hydratefallback-warning.md) | P3 DIPERBAIKI: warning konsol `HydrateFallback` (test `router-hydration.test.tsx`) |

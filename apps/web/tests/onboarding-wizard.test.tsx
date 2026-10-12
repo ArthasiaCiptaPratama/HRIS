@@ -199,6 +199,6 @@ describe("Wizard onboarding (D-045 b)", () => {
       within(steps)
         .getAllByRole("button")
         .map((b) => b.textContent),
-    ).toEqual(["1 Rekening", "2 Ringkasan & kirim"]);
+    ).toEqual(["1RekeningPerlu diperbaiki", "2Ringkasan & kirim"]);
   });
 });
