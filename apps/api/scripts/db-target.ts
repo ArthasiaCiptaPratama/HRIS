@@ -42,3 +42,31 @@ export function classifyUrl(url: string | undefined): DbTarget {
   if (!url || url.trim() === "") return "empty";
   return isRemoteUrl(url) ? "remote" : "local";
 }
+
+/** D-066: satu-satunya project Supabase yang boleh berisi nama asli (staging `hris-staging`). */
+export const STAGING_PROJECT_REF = "iwgzuwcxsxnbjibhbqgh";
+
+/**
+ * Target sebuah script data asli: `local` (DB lokal, tanpa flag) atau `staging` (hanya bila `remoteRef`
+ * = ref staging DAN URL memang menunjuk project itu — host `db.<ref>.supabase.co` atau user pooler
+ * `postgres.<ref>`). Selain itu `null` = ditolak. Produksi/proyek lain tidak pernah lolos.
+ */
+export function realDataTarget(
+  url: string | undefined,
+  remoteRef: string | undefined,
+): "local" | "staging" | null {
+  const target = classifyUrl(url);
+  if (target === "empty") return null;
+  if (remoteRef === undefined)
+    return target === "local" && !/supabase/i.test(url ?? "") ? "local" : null;
+  if (remoteRef !== STAGING_PROJECT_REF || target !== "remote") return null;
+  try {
+    const parsed = new URL(url as string);
+    const pointsToRef =
+      parsed.hostname === `db.${remoteRef}.supabase.co` ||
+      decodeURIComponent(parsed.username) === `postgres.${remoteRef}`;
+    return pointsToRef ? "staging" : null;
+  } catch {
+    return null;
+  }
+}
