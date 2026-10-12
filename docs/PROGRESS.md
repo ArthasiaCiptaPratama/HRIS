@@ -223,6 +223,7 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
   - [x] Env login NIP staging (tambahan 2026-10-12): `LOGIN_EMAIL_DOMAIN` (`hris-staging-api`) & `VITE_LOGIN_EMAIL_DOMAIN` (`hris-staging-web`) = `stg.login.akselerasi.invalid`, target production — berlaku pada deploy berikutnya
   - [x] Grant `employee.onboarding.review` untuk HR uji staging (tambahan 2026-10-12; lewat API sebagai SA, tanpa masa berlaku, tercatat audit)
   - [x] BUG-004 sapaan Dashboard pakai nama karyawan (tambahan 2026-10-12; `/me.employeeName`, commit `7e6517b`; api 600 · web 208 ✔)
+  - [x] **UI/UX onboarding lebih profesional** (tambahan 2026-10-12: masukan pemilik projek dari uji manual) — wizard: panel langkah vertikal + status (lengkap / perlu dilengkapi / perlu diperbaiki) + progres, kartu konten per langkah (judul, penjelasan, tanda `*` wajib), kartu dokumen (Wajib/Opsional, terunggah/belum, penghitung), ringkasan kekurangan dikelompokkan per bagian + tombol Buka; review admin: kartu profil (foto, NIP, status, fakta kunci), data pribadi dikelompokkan, dokumen sebagai daftar + dokumen wajib yang belum ada, riwayat review sebagai linimasa; impor calon: **seret-lepas berfungsi** (sebelumnya tidak ada handler) + tata letak 2 kolom dengan panel Format file; form atur password (undangan/reset/profil): tombol tampilkan password, indikator kekuatan, syarat langsung tercentang, penanda kecocokan ulangi password — web 233 ✔ (saklar onboarding lokal menyala), tanpa scroll mendatar di HP (390 px)
   - [ ] Saklar `onboarding` true di jalur rilis → rilis → uji staging alur onboarding → arsip QA Drive
 - [x] Import CSV/Excel (template, validasi per baris, laporan error) — desain D-042 `docs/design/import-karyawan.md` (Tahap 4) — selesai & teruji **lokal** 2026-09-30 (`docs/qa/runs/2026-09-30-import-karyawan.md`); ✔ staging 2026-09-30 (PR #29/#30), dengan PT 2026-10-05 (gel. 1), Form Google lengkap + lampiran Drive + Form 171 kolom 2026-10-08 (gel. 2)
   - [x] File contoh berisi data asli dipindah ke luar repo (`/mnt/winD/WORK/Magang/DATA-ASLI/`) + penjaga `.gitignore` (tambahan 2026-09-30: Tahap 0, PROMPT §3.7)
@@ -378,6 +379,12 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 ## 6. Log Sesi
 
 Entri terbaru di **atas**. Salin template di bagian bawah.
+
+### 2026-10-12 — UI/UX onboarding & form password
+- **Masukan pemilik projek (uji manual):** navigasi langkah, pemberitahuan dokumen/data kurang, hierarki info kartu profil/review, seret-lepas impor calon tidak berfungsi & tampilan generik; form password tanpa tombol lihat, tanpa cek kecocokan, tanpa petunjuk syarat.
+- **Dikerjakan (rencana disetujui):** `onboarding-wizard-page.tsx`, `onboarding-review-page.tsx`, `onboarding-import-page.tsx`, `auth/pages/set-password-page.tsx` (dipakai juga di Profil). Test baru: seret-lepas (`onboarding.test.tsx`), form password (`set-password.test.tsx`); test revisi wizard disesuaikan (status "Perlu diperbaiki" untuk bagian bercatatan HR).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ · web 233 ✔ · Playwright lokal desktop 1440 & HP 390 (`QA/2026-10-12-onboarding-ui/`): tanpa scroll mendatar (sempat 818 px karena teks `sr-only` absolut lolos dari daftar langkah → `relative` pada item), 0 error konsol. Calon uji tampilan (`oatse2458+ui@gmail.com`) dihapus (DB lokal, Auth, Storage); calon uji manual pemilik projek dibiarkan.
+- **Catatan:** syarat password yang **wajib** tetap ≥ 12 karakter; huruf besar/kecil, angka, simbol hanya saran (indikator kekuatan) — mewajibkannya butuh keputusan + pengaturan Supabase Auth.
 
 ### 2026-10-12 — Rampungkan onboarding untuk staging
 - **BUG-004 diperbaiki (TDD):** `/me.employeeName` (iam repository/service/schema) + web sapaan & kartu akun; test api `me-employee-name.test.ts` & web `greeting.test.tsx` merah → hijau. Verifikasi: typecheck ✔ · biome ✔ · boundaries ✔ · test api **600** (45 file) · web 208 ✔. **Koreksi:** sempat menimpa `tests/integration/iam/me.test.ts` yang sudah ada (jumlah test turun 598 → 592 terdeteksi) → dipulihkan dari git, test baru dipindah ke file sendiri.
