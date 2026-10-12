@@ -34,3 +34,9 @@
 - **Perintah:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ · `bun run check:boundaries` ✔ (174 modul) · `bun run db:check` ✔ · `bun run test` ✔ (shared 10, api 237, web 27) · `bun run build` ✔.
 - **Regresi browser:** 44 kunjungan halaman (SA 18, HR 16, MANAGER 10) — 41 LULUS; 3 "gagal" = `/profil` tanpa `<h1>` di ketiga role (halaman tampil normal, 0 error; temuan lama Fase 2, bukan akibat perubahan). Tidak ada error JS, tidak ada request API ≥ 400.
 - **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-29-judul-tanpa-angka/`, `/mnt/winD/WORK/Magang/QA/2026-09-29-focus-ring-abu/`, `/mnt/winD/WORK/Magang/QA/2026-09-29-autofill-netral/`.
+
+**Staging (2026-10-12):** staging (rilis gel. 4, `Deploy staging` #38205386868), Playwright `QA/2026-10-12-staging-gel4/def-singkat.ts` — E-01 **LULUS**: sidebar grup (Semua Karyawan Aktif, Karyawan Internal, Program Magang, Tenaga Kerja Eksternal) + hitungan, menu Struktur Organisasi, cari karyawan, buka detail (tab Kepegawaian) — `staging-e-01-detail.png`; E-02 **LULUS**: EMPLOYEE tidak melihat daftar karyawan, `GET /employees` 403 — `staging-e-02-emp-ditolak.png`. Migrasi `employee_categories_and_histories` sudah lama ada di staging (27 migrasi).
+
+**Kesimpulan (diperbarui 2026-10-12):** LULUS lokal + staging — **LEGIT**. **Bug terbuka:** tidak ada.
+
+**Arsip Drive:** `hris-qa:2026-09-29-personal-management` — 14 file (plan, run, cases, screenshot), 2026-10-12.

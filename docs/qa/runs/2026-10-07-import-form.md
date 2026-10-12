@@ -23,4 +23,8 @@
 
 **Temuan (diperbaiki):** (Import lengkap) profil pemetaan berkunci teks header menimpa kolom kembar saat dipakai ulang; label dropdown kelompok terpotong ("Nama"/"Usia" tanpa nama kelompok); field data pribadi dari commit `f7fafe8` belum tampil di detail karyawan; perbandingan nomor SIM per jenis berbasis rujukan (selalu "berubah"). Sebelumnya: pilihan "Sudah Menikah" tidak dikenali (status nikah terlewat diam-diam); "Golongan Darah" terbaca Grade; kolom tautan Drive terbaca nomor rekening; kolom keluarga & "Alamat email" ekspor Form terpetakan ke data karyawan; urutan jenis SIM tidak baku (dianggap berubah saat UPSERT).
 
-**Kesimpulan:** LULUS lokal. **Bug terbuka:** tidak ada. **Belum diverifikasi:** file `.xlsx` asli dari Google Sheet (diuji CSV berheader sama), staging.
+**Staging (2026-10-08, rilis gel. 2):** [runs/2026-10-08-staging-gel2.md](2026-10-08-staging-gel2.md) (rilis `cca191e`, `Deploy staging` #37762327378 & #37764701481) — SG-01 pemetaan otomatis 167 kolom, SG-02 pratinjau (error baris dengan pesan), SG-03/04/05 simpan 2 karyawan dummy → daftar → detail Pribadi (alamat, kontak darurat, SIM per jenis), SG-09 HR boleh / EMPLOYEE ditolak; file `.xlsx` berheader Form asli (data kerja dummy) di SG-10. Bukti `staging-sg-0*.png`.
+
+**Kesimpulan:** LULUS lokal + staging — **LEGIT** (diarsipkan ke Drive 2026-10-12). **Bug terbuka:** tidak ada.
+
+**Arsip Drive:** `hris-qa:2026-10-07-import-form` — 20 file (plan, run, cases, screenshot lokal & staging), 2026-10-12.

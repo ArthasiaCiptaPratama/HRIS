@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSelectedCompany } from "@/features/employee/company-scope";
+import { PROCESS_TIMEOUT } from "@/features/employee/import/api";
 import { RETRY } from "@/features/employee/import/attachments-panel";
 import { authState, me, renderAt } from "./helpers";
 
@@ -88,6 +89,11 @@ function mockBackend(responses: { process: unknown[]; initial: unknown; retry?: 
         // Gangguan sementara: koneksi putus (fetch gagal) atau gateway 503; 403 = error permanen.
         if (next === "NETWORK")
           throw new TypeError("NetworkError when attempting to fetch resource.");
+        // Koneksi menggantung (tidak pernah dijawab) — hanya berakhir bila sinyal dibatalkan/kedaluwarsa.
+        if (next === "HANG")
+          return new Promise<Response>((_, reject) =>
+            init?.signal?.addEventListener("abort", () => reject(init.signal?.reason)),
+          );
         if (next === 503 || next === 403)
           return json(next, {
             error: { code: "INTERNAL_ERROR", message: `HTTP ${next}`, requestId: "r" },
@@ -103,8 +109,10 @@ function mockBackend(responses: { process: unknown[]; initial: unknown; retry?: 
 }
 
 const retryDefaults = { ...RETRY };
+const timeoutDefault = PROCESS_TIMEOUT.ms;
 beforeEach(() => {
   Object.assign(RETRY, retryDefaults, { baseMs: 5, jitterMs: 0 });
+  PROCESS_TIMEOUT.ms = timeoutDefault;
   authState.session = { access_token: "t", user: { id: "u" } };
   setSelectedCompany(null);
   vi.clearAllMocks();
@@ -164,6 +172,22 @@ describe("Lampiran Google Drive di Import", () => {
       await screen.findByText(/2 masuk · 0 dilewati · 0 gagal/, {}, { timeout: 5000 }),
     ).toBeInTheDocument();
     expect(requests.filter((r) => r.path.endsWith("/attachments/process"))).toHaveLength(5);
+    expect(screen.queryByText("Tidak dapat terhubung ke server.")).not.toBeInTheDocument();
+  });
+
+  it("koneksi menggantung → batas waktu panggilan habis → dicoba ulang otomatis, tidak macet (BUG-003)", async () => {
+    PROCESS_TIMEOUT.ms = 50;
+    const requests = mockBackend({
+      initial: state([item("a1", "attachPhoto", "PENDING")]),
+      process: ["HANG", state([item("a1", "attachPhoto", "DONE")])],
+    });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    expect(
+      await screen.findByText(/1 masuk · 0 dilewati · 0 gagal/, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(requests.filter((r) => r.path.endsWith("/attachments/process"))).toHaveLength(2);
     expect(screen.queryByText("Tidak dapat terhubung ke server.")).not.toBeInTheDocument();
   });
 

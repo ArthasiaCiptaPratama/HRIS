@@ -28,3 +28,5 @@
 **Bukti:** `/mnt/winD/WORK/Magang/QA/2026-09-30-rilis-import/` (screenshot desktop & mobile, `baris-bermasalah.xlsx`, `e2e-results.json`). Semua data dummy.
 
 **Kesimpulan:** memenuhi kriteria rencana di lokal. **Bug terbuka:** tidak ada. **Belum diverifikasi:** staging (menunggu rilis), browser selain Chromium, Windows.
+
+**Status arsip (2026-10-12):** bukti staging 2026-09-30 (`QA/2026-09-30-rilis-import-staging/`: `ui.ts` + 5 screenshot sidebar/import/dashboard) **tanpa catatan hasil per case** → tidak ditandai LULUS staging dan **tidak diarsipkan** ke Drive. Bagian import sudah tercakup arsip LEGIT `2026-09-30-import-karyawan` (staging 2026-10-05); bagian dashboard SA/HR diuji ulang bersama dashboard D-065 setelah rilis gel. 4.

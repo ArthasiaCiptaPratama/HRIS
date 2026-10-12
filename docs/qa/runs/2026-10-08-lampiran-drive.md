@@ -15,3 +15,9 @@
 | TC-EMP-183 | LULUS | INTI "Drive belum dikonfigurasi → 422"; WEB `import-attachments.test.tsx` |
 
 **Temuan (diperbaiki):** tombol Simpan nonaktif bila baris hanya membawa lampiran; profil pemetaan tersimpan sebelum D-060 menandai kolom tautan "diabaikan" (→ `applySavedMapping`); screenshot detail karyawan memuat foto asli dari respons contoh (→ disamarkan; script memburamkan gambar sebelum memotret).
+
+**Staging (2026-10-08, rilis gel. 2):** [runs/2026-10-08-staging-gel2.md](2026-10-08-staging-gel2.md) (rilis `cca191e`, `Deploy staging` #37762327378 & #37764701481) — SG-10 (run 2): file Form asli (salinan sementara, data kerja diganti dummy) → **8/8 lampiran masuk** lewat service account staging (foto, KTP, KK, NPWP, ijazah, buku rekening, SIM A, SIM C); data & file dihapus sesudahnya. Run 1 menemukan profil pemetaan lama membaca kolom tautan KK sebagai No. KK → diperbaiki `f092efe` + test regresi (PR #37/#38). Bukti `staging-sg-10-lampiran-panel.png`.
+
+**Kesimpulan:** LULUS lokal + staging — **LEGIT** (diarsipkan ke Drive 2026-10-12). **Bug terbuka:** tidak ada.
+
+**Arsip Drive:** `hris-qa:2026-10-08-lampiran-drive` — 9 file (plan, run, cases, screenshot lokal & staging), 2026-10-12.
