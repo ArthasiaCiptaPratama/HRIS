@@ -1,0 +1,17 @@
+# Hasil Uji — Template email bermerek & alur atur password (2026-10-12)
+
+- **Lokal (render):** template `docs/email-templates/{invite,recovery}.html` di Chromium desktop 1280 px & HP 375 px.
+- **Staging:** `hris-staging-web` (rilis gel. 5: rilis `790973c`, `Deploy staging` #38230471120), Supabase Auth staging · Playwright 1.56 · bukti `/mnt/winD/WORK/Magang/QA/2026-10-12-email-template/`.
+- **Catatan run:** run pertama `email-flow.mjs` U-06/R-06 GAGAL (token 401) karena skrip memuat `.env` lewat shell sehingga kunci anon tidak terbaca (401 = kunci API, bukan password; probe kredensial salah dengan env benar → 400). Run ke-2 dengan `bun --env-file` → semua LULUS. Bukan bug aplikasi.
+
+| Case | Hasil | Bukti |
+|---|---|---|
+| TC-ADM-053 | LULUS | Logo 200 & termuat (66 px), tombol & tautan cadangan ke URL konfirmasi, tanpa scroll mendatar (1280/375) — `lokal-invite-desktop.png`, `lokal-invite-hp.png`, `lokal-recovery-desktop.png`, `lokal-recovery-hp.png` |
+| TC-ADM-054 | ⚠ LULUS sisi server, **menunggu cek kotak masuk** | Invite 200 (10:17:25 UTC) & `/recover` 200 (10:17:28 UTC), log Auth "request completed" tanpa error, ke `oatse2458+qa-email-undangan-1012@gmail.com` dan `oatse2458+qa-email-reset-1012@gmail.com` |
+| TC-ADM-055 | LULUS | Tautan invite (desktop) & recovery (HP 390 px) → `/auth/atur-password` |
+| TC-ADM-056 | LULUS | "Terlalu pendek", tombol tampilkan, "Belum sama…" → "Password cocok" — `staging-invite-atur-password.png`, `staging-recovery-atur-password.png` |
+| TC-ADM-057 | LULUS | Toast "Password tersimpan.", token password baru 200, 0 error JS; pengguna tanpa akun HRIS → "Akun tidak aktif atau belum terdaftar" (sesuai aturan akun) — `staging-invite-setelah-simpan.png`, `staging-recovery-setelah-simpan.png` |
+
+**Kesimpulan:** LULUS lokal + staging untuk TC-ADM-053, 055–057; TC-ADM-054 menunggu konfirmasi tampilan email di kotak masuk pemilik projek. Setelah dikonfirmasi → **LEGIT** → arsip Drive. **Bug terbuka:** tidak ada.
+
+**Data uji:** 2 pengguna Auth alur dihapus (200); 2 pengguna penerima email (`6d07fcb6…`, `e3e2bcbc…`) masih ada sampai kotak masuk diperiksa.
