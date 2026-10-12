@@ -121,6 +121,30 @@ function mockBackend({
           : json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
       if (path === "/employee-imports/attachments/open") return json(200, { data: [] });
       if (path === "/employee-imports/preview") return json(200, { data: previewData });
+      // D-060: lampiran job-1 — satu masih menunggu; panggilan proses tidak pernah selesai (sedang berjalan).
+      if (path === "/employee-imports/job-1/attachments")
+        return json(200, {
+          data: {
+            jobId: "job-1",
+            driveConfigured: true,
+            counts: { total: 1, pending: 1, done: 0, skipped: 0, failed: 0 },
+            items: [
+              {
+                id: "a1",
+                sourceRow: 2,
+                employeeNumber: "ACP-9001",
+                fullName: "Ani Contoh",
+                field: "attachPhoto",
+                target: "PHOTO",
+                fileCount: 1,
+                status: "PENDING",
+                reason: null,
+              },
+            ],
+          },
+        });
+      if (path === "/employee-imports/job-1/attachments/process")
+        return new Promise<Response>(() => {});
       if (path === "/employee-imports" && method === "POST") {
         const status = commitStatus.shift() ?? 201;
         return status === 409
@@ -216,6 +240,30 @@ describe("Import Data Karyawan", () => {
       "href",
       "/personal/pegawai-aktif/pkwt",
     );
+  });
+
+  it("lampiran masih diproses: status jujur, Import file lain minta konfirmasi lalu kembali ke Unggah", async () => {
+    mockBackend({
+      previewData: { ...preview, counts: { ...preview.counts, attachments: 1 } },
+    });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
+    await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan + 1 lampiran" }));
+
+    expect(await screen.findByText("Data karyawan tersimpan")).toBeInTheDocument();
+    expect(screen.getByText("Memproses lampiran")).toBeInTheDocument();
+    expect(await screen.findByText("Mengunduh…")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Import file lain/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Lampiran masih diproses" });
+    await user.click(within(dialog).getByRole("button", { name: "Tetap di sini" }));
+    expect(screen.getByText("Data karyawan tersimpan")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Import file lain/ }));
+    await user.click(await screen.findByRole("button", { name: "Jeda & import file lain" }));
+    expect(await screen.findByLabelText("Pilih file import")).toBeInTheDocument();
   });
 
   it("commit 409 (data berubah sejak pratinjau) → pratinjau diulang, lalu simpan lagi berhasil", async () => {

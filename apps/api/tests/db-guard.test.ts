@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { classifyUrl, hostOf, isLocalHostname, isRemoteUrl } from "../scripts/db-target.ts";
+import { fileURLToPath } from "node:url";
+import {
+  classifyUrl,
+  hostOf,
+  isLocalHostname,
+  isRemoteUrl,
+  realDataTarget,
+  STAGING_PROJECT_REF,
+} from "../scripts/db-target.ts";
 
 const LOCAL = "postgresql://postgres:postgres@localhost:5432/hris";
 const LOOPBACK = "postgresql://postgres:postgres@127.0.0.1:5432/hris";
@@ -46,7 +54,8 @@ describe("db-target: klasifikasi host", () => {
 
 // Pengaman db:reset / db:seed / db:migrate (`prisma migrate dev`): target non-lokal ditolak (D-030).
 describe("guard-local-db", () => {
-  const SCRIPT = new URL("../scripts/guard-local-db.ts", import.meta.url).pathname;
+  // fileURLToPath, bukan URL.pathname: di Windows pathname = "/C:/..." (path tak valid untuk bun).
+  const SCRIPT = fileURLToPath(new URL("../scripts/guard-local-db.ts", import.meta.url));
   const run = (env: Record<string, string>) =>
     Bun.spawnSync(["bun", SCRIPT], {
       env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env },
@@ -63,5 +72,29 @@ describe("guard-local-db", () => {
     // Host saja yang dicetak, tanpa kredensial.
     expect(blocked.stdout.toString()).not.toContain("secret");
     expect(run({ DATABASE_URL: SUPABASE_POOLER, HRIS_ALLOW_REMOTE_DB: "1" }).exitCode).toBe(0);
+  });
+});
+
+// D-066: script data asli (org:import-local) — lokal tanpa flag; staging hanya dengan --remote=<ref staging>.
+describe("realDataTarget", () => {
+  const POOLER = `postgresql://postgres.${STAGING_PROJECT_REF}:x@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres`;
+  const DIRECT = `postgresql://postgres:x@db.${STAGING_PROJECT_REF}.supabase.co:5432/postgres`;
+  const OTHER =
+    "postgresql://postgres.abcdefghijklmnopqrst:x@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres";
+
+  test("DB lokal tanpa flag → local; dengan flag → ditolak", () => {
+    expect(realDataTarget(LOCAL, undefined)).toBe("local");
+    expect(realDataTarget(LOCAL, STAGING_PROJECT_REF)).toBeNull();
+  });
+  test("staging hanya dengan ref yang benar (pooler maupun direct)", () => {
+    expect(realDataTarget(POOLER, STAGING_PROJECT_REF)).toBe("staging");
+    expect(realDataTarget(DIRECT, STAGING_PROJECT_REF)).toBe("staging");
+    expect(realDataTarget(POOLER, undefined)).toBeNull();
+    expect(realDataTarget(POOLER, "abcdefghijklmnopqrst")).toBeNull();
+  });
+  test("project Supabase lain / URL kosong → ditolak", () => {
+    expect(realDataTarget(OTHER, STAGING_PROJECT_REF)).toBeNull();
+    expect(realDataTarget(undefined, undefined)).toBeNull();
+    expect(realDataTarget("", STAGING_PROJECT_REF)).toBeNull();
   });
 });
