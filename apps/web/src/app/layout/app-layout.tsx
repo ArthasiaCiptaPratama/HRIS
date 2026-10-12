@@ -69,6 +69,13 @@ function initialsFromEmail(email: string) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? parts[0]?.[1] ?? "")).toUpperCase();
 }
 
+/** BUG-004: inisial dari nama karyawan bila ada (dua kata pertama), selain itu dari email. */
+function initialsOf(me: { email: string; employeeName?: string | null }) {
+  const words = me.employeeName?.trim().split(/\s+/).filter(Boolean) ?? [];
+  if (words.length === 0) return initialsFromEmail(me.email);
+  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? words[0]?.[1] ?? "")).toUpperCase();
+}
+
 export function AppLayout() {
   const me = useMe().data as Me;
   const { signOut } = useAuth();
@@ -335,10 +342,12 @@ function UserMenu({
           className="hover:bg-accent ml-1 flex items-center gap-2 rounded-full p-0.5 pr-2 transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           <span className="bg-foreground text-background grid size-8 place-items-center rounded-full text-xs font-medium">
-            {initialsFromEmail(me.email)}
+            {initialsOf(me)}
           </span>
           <span className="hidden text-left leading-tight xl:block">
-            <span className="block max-w-40 truncate text-xs font-medium">{me.email}</span>
+            <span className="block max-w-40 truncate text-xs font-medium">
+              {me.employeeName || me.email}
+            </span>
             <span className="text-muted-foreground block text-[11px]">
               {ROLE_LABELS[me.role]}
               {me.isPrimarySuperAdmin ? " · Utama" : ""}
@@ -348,7 +357,14 @@ function UserMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel>
-          <p className="truncate">{me.email}</p>
+          {me.employeeName ? <p className="truncate">{me.employeeName}</p> : null}
+          <p
+            className={
+              me.employeeName ? "text-muted-foreground truncate text-xs font-normal" : "truncate"
+            }
+          >
+            {me.email}
+          </p>
           <p className="text-muted-foreground text-xs font-normal">
             {ROLE_LABELS[me.role]}
             {me.isPrimarySuperAdmin ? " · Utama" : ""}

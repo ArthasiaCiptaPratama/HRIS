@@ -12,8 +12,16 @@ import {
   pickSheet,
   suggestMapping,
 } from "@hris/shared";
-import { CheckCircle2, FileUp, LoaderCircle, MailCheck, TriangleAlert } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  Download,
+  FileSpreadsheet,
+  LoaderCircle,
+  Lock,
+  MailCheck,
+  TriangleAlert,
+} from "lucide-react";
+import { type DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { FormSelect } from "@/components/form-select";
@@ -146,6 +154,7 @@ export function OnboardingImportPage() {
   const [preview, setPreview] = useState<OnboardingPreview | null>(null);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   // ── Langkah 1: unggah & deteksi ────────────────────────────────────────────
   const onFile = async (input: File) => {
@@ -316,47 +325,137 @@ export function OnboardingImportPage() {
       <Stepper current={step} />
 
       {step === "upload" ? (
-        <section className="max-w-xl space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="batch-name">Nama penerimaan</Label>
-            <Input
-              id="batch-name"
-              value={batchName}
-              onChange={(e) => setBatchName(e.target.value)}
-            />
-          </div>
-          <label
-            htmlFor="onboarding-file"
-            className="hover:bg-muted/40 flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed p-8 text-center"
-          >
-            {parsing ? <LoaderCircle className="animate-spin" /> : <FileUp />}
-            <span className="font-medium">Pilih file ekspor portal (.xlsx atau .csv)</span>
-            <span className="text-muted-foreground text-xs">
-              Maks {ONBOARDING_MAX_ROWS} baris. Kolom nama & email wajib ada.
-            </span>
-            <input
-              id="onboarding-file"
-              type="file"
-              accept=".xlsx,.csv"
-              className="sr-only"
-              onChange={(e) => {
-                const input = e.target.files?.[0];
-                if (input) void onFile(input);
-                e.target.value = "";
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="bg-card space-y-5 rounded-2xl border p-5 sm:p-6">
+            <div className="space-y-1.5">
+              <Label htmlFor="batch-name">Nama penerimaan</Label>
+              <Input
+                id="batch-name"
+                value={batchName}
+                onChange={(e) => setBatchName(e.target.value)}
+                className="max-w-md"
+              />
+              <p className="text-muted-foreground text-xs">
+                Dipakai untuk mengelompokkan calon di daftar Penerimaan.
+              </p>
+            </div>
+            <label
+              htmlFor="onboarding-file"
+              onDragEnter={(e: DragEvent) => {
+                e.preventDefault();
+                setDragging(true);
               }}
-            />
-          </label>
-          <p className="text-muted-foreground text-sm">
-            Contoh format (data dummy):{" "}
-            <a
-              className="underline underline-offset-4"
-              href="/template/Template-calon-karyawan.csv"
-              download
+              onDragOver={(e: DragEvent) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+                if (!dragging) setDragging(true);
+              }}
+              onDragLeave={(e: DragEvent) => {
+                // Hanya saat benar-benar keluar dari area (bukan berpindah ke elemen anak).
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+              }}
+              onDrop={(e: DragEvent) => {
+                e.preventDefault();
+                setDragging(false);
+                const input = e.dataTransfer.files?.[0];
+                if (input && !parsing) void onFile(input);
+              }}
+              data-dragging={dragging || undefined}
+              className={cn(
+                "focus-within:ring-ring/50 flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors focus-within:ring-[3px]",
+                dragging
+                  ? "border-brand bg-brand-soft"
+                  : "border-border hover:border-foreground/30 hover:bg-muted/30",
+                parsing && "pointer-events-none opacity-70",
+              )}
             >
-              Template-calon-karyawan.csv
-            </a>
-          </p>
-        </section>
+              <span
+                className={cn(
+                  "grid size-12 place-items-center rounded-xl transition-colors",
+                  dragging ? "bg-brand text-brand-foreground" : "bg-muted",
+                )}
+                aria-hidden
+              >
+                {parsing ? (
+                  <LoaderCircle className="size-6 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="size-6" />
+                )}
+              </span>
+              <span className="text-sm font-medium" aria-live="polite">
+                {parsing
+                  ? "Membaca file…"
+                  : dragging
+                    ? "Lepaskan file di sini"
+                    : "Tarik file ekspor portal ke sini, atau klik untuk memilih"}
+              </span>
+              <span className="text-muted-foreground text-xs">
+                .xlsx atau .csv · maks {ONBOARDING_MAX_ROWS} baris
+              </span>
+              <input
+                id="onboarding-file"
+                type="file"
+                accept=".xlsx,.csv"
+                className="sr-only"
+                aria-label="Pilih file calon karyawan"
+                disabled={parsing}
+                onChange={(e) => {
+                  const input = e.target.files?.[0];
+                  if (input) void onFile(input);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </section>
+
+          <aside
+            className="bg-card space-y-4 rounded-2xl border p-5"
+            aria-labelledby="format-title"
+          >
+            <div>
+              <h2 id="format-title" className="text-sm font-semibold">
+                Format file
+              </h2>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                Kolom dikenali otomatis dari judulnya; urutan bebas.
+              </p>
+            </div>
+            <ul className="divide-y rounded-lg border text-sm">
+              {(
+                [
+                  ["Nama lengkap", true],
+                  ["Email pribadi", true],
+                  ["No. HP", false],
+                  ["Jenis kelamin", false],
+                ] as const
+              ).map(([name, required]) => (
+                <li key={name} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span>{name}</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                      required ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {required ? "Wajib" : "Opsional"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <Button variant="outline" size="sm" className="w-full" asChild>
+              <a href="/template/Template-calon-karyawan.csv" download>
+                <Download /> Unduh contoh format (dummy)
+              </a>
+            </Button>
+            <div className="text-muted-foreground flex gap-2 border-t pt-4 text-xs">
+              <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <p>
+                File diurai di browser dan tidak disimpan. Hanya calon yang Anda centang di langkah
+                berikutnya yang disimpan & diundang.
+              </p>
+            </div>
+          </aside>
+        </div>
       ) : null}
 
       {step === "mapping" && detected ? (

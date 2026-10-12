@@ -14,7 +14,20 @@ import {
   REVIEW_SECTION_LABELS,
   type ReviewSection,
 } from "@hris/shared";
-import { CheckCircle2, Clock, FileText, LogOut, Plus, Trash2, Upload } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  CircleAlert,
+  Clock,
+  ExternalLink,
+  FileText,
+  LogOut,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -43,14 +56,43 @@ import type { MyOnboarding } from "../schemas";
 // halaman ini sampai disetujui; karyawan existing hanya mengisi field yang masih kosong (D-046).
 
 type StepKey = OnboardingSection | "documents" | "summary";
-const STEPS: { key: StepKey; label: string }[] = [
-  { key: "personal", label: "Data pribadi" },
-  { key: "emergency", label: "Kontak darurat" },
-  { key: "family", label: "Keluarga" },
-  { key: "bank", label: "Rekening" },
-  { key: "professional", label: "Pendidikan & pengalaman" },
-  { key: "documents", label: "Dokumen" },
-  { key: "summary", label: "Ringkasan & kirim" },
+const STEPS: { key: StepKey; label: string; description: string }[] = [
+  {
+    key: "personal",
+    label: "Data pribadi",
+    description:
+      "Identitas sesuai KTP, kontak, dan nomor kepesertaan. Foto profil wajib (rasio 3:4).",
+  },
+  {
+    key: "emergency",
+    label: "Kontak darurat",
+    description: "Orang yang bisa dihubungi perusahaan bila terjadi keadaan darurat.",
+  },
+  {
+    key: "family",
+    label: "Keluarga",
+    description: "Suami/istri, anak, dan orang tua. Boleh dikosongkan bila tidak ada.",
+  },
+  {
+    key: "bank",
+    label: "Rekening",
+    description: "Rekening untuk pembayaran gaji, sesuai buku tabungan.",
+  },
+  {
+    key: "professional",
+    label: "Pendidikan & pengalaman",
+    description: "Pendidikan terakhir wajib diisi; riwayat kerja boleh dikosongkan.",
+  },
+  {
+    key: "documents",
+    label: "Dokumen",
+    description: "Unggah salinan dokumen yang jelas terbaca. PDF, JPG, atau PNG, maksimal 5 MB.",
+  },
+  {
+    key: "summary",
+    label: "Ringkasan & kirim",
+    description: "Periksa kelengkapan, lalu kirim data Anda untuk diperiksa HR.",
+  },
 ];
 
 const GENDER_OPTIONS = [
@@ -67,7 +109,7 @@ export function OnboardingWizardPage() {
 
   const header = (
     <header className="bg-background/95 sticky top-0 z-10 border-b backdrop-blur">
-      <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
         <BrandLogo className="h-9" />
         <div className="flex items-center gap-2">
           {me?.onboarding?.locked ? null : (
@@ -129,67 +171,158 @@ export function OnboardingWizardPage() {
   const missingIn = (key: StepKey) =>
     data.missing.filter((m) => m.section === key || (key === "personal" && m.field === "photo"));
 
+  const formSteps = steps.filter((s) => s.key !== "summary");
+  const doneCount = formSteps.filter((s) => missingIn(s.key).length === 0).length;
+  const currentStep = steps[index];
+
   return (
     <Shell header={header}>
-      <h1 className="text-2xl font-semibold tracking-tight">Lengkapi data karyawan</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        {data.mode === "completion"
-          ? "Isi data yang masih kosong. Data yang sudah ada hanya bisa dikoreksi lewat HR."
-          : "Isi semua data wajib, lalu kirim untuk diperiksa HR. Draf tersimpan setiap langkah."}
-      </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Lengkapi data karyawan</h1>
+          <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
+            {data.mode === "completion"
+              ? "Isi data yang masih kosong. Data yang sudah ada hanya bisa dikoreksi lewat HR."
+              : "Isi semua data wajib, lalu kirim untuk diperiksa HR. Draf tersimpan setiap langkah."}
+          </p>
+        </div>
+        <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+          <ShieldCheck className="size-3.5" aria-hidden /> Data pribadi hanya dilihat HR yang
+          berwenang
+        </p>
+      </div>
       {revision ? (
-        <Alert className="mt-4">
-          <AlertDescription>
-            HR meminta perbaikan pada:{" "}
+        <div className="border-warning/40 bg-warning-soft text-warning-soft-foreground mt-5 flex gap-3 rounded-xl border px-4 py-3 text-sm">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>
+            <span className="font-medium">HR meminta perbaikan pada:</span>{" "}
             {Object.keys(revision.notes)
               .map((k) => REVIEW_SECTION_LABELS[k as ReviewSection])
               .join(", ")}
             . Bagian lain tidak perlu diubah.
-          </AlertDescription>
-        </Alert>
+          </p>
+        </div>
       ) : null}
-      <ol
-        className="my-5 flex gap-1 overflow-x-auto pb-1 text-xs sm:flex-wrap sm:overflow-visible"
-        aria-label="Langkah pengisian"
-      >
-        {steps.map((s, i) => {
-          const incomplete = missingIn(s.key).length > 0;
-          return (
-            <li key={s.key}>
-              <button
-                type="button"
-                aria-current={s.key === current ? "step" : undefined}
-                onClick={() => setStep(s.key)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1 whitespace-nowrap",
-                  s.key === current
-                    ? "border-foreground bg-foreground text-background"
-                    : "hover:bg-muted",
-                )}
-              >
-                <span className="tabular-nums">{i + 1}</span> {s.label}
-                {s.key !== "summary" && !incomplete ? <CheckCircle2 className="size-3.5" /> : null}
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-      {note ? (
-        <Alert className="mb-4 border-amber-300">
-          <AlertDescription>
-            <span className="font-medium">Catatan HR:</span> {note}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {current === "personal" ? <PersonalStep data={data} onDone={next} /> : null}
-      {current === "emergency" ? <EmergencyStep data={data} onDone={next} onBack={back} /> : null}
-      {current === "family" ? <FamilyStep data={data} onDone={next} onBack={back} /> : null}
-      {current === "bank" ? <BankStep data={data} onDone={next} onBack={back} /> : null}
-      {current === "professional" ? (
-        <ProfessionalStep data={data} onDone={next} onBack={back} />
-      ) : null}
-      {current === "documents" ? <DocumentsStep data={data} onDone={next} onBack={back} /> : null}
-      {current === "summary" ? <SummaryStep data={data} onBack={back} onGoTo={setStep} /> : null}
+
+      <div className="mt-6 grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <nav
+          aria-label="Navigasi pengisian"
+          className="bg-card min-w-0 rounded-2xl border p-4 lg:sticky lg:top-20"
+        >
+          <div className="flex items-baseline justify-between gap-2 lg:block">
+            <p className="text-sm font-medium">Progres pengisian</p>
+            <p className="text-muted-foreground text-xs tabular-nums">
+              {doneCount} dari {formSteps.length} bagian lengkap
+            </p>
+          </div>
+          <div
+            className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full"
+            role="progressbar"
+            aria-label="Progres pengisian"
+            aria-valuemin={0}
+            aria-valuemax={formSteps.length}
+            aria-valuenow={doneCount}
+          >
+            <div
+              className="bg-brand h-full rounded-full transition-all"
+              style={{ width: `${formSteps.length ? (doneCount / formSteps.length) * 100 : 0}%` }}
+            />
+          </div>
+          <ol
+            className="-mx-1 mt-4 flex gap-1 overflow-x-auto pb-1 lg:mx-0 lg:flex-col lg:overflow-visible lg:pb-0"
+            aria-label="Langkah pengisian"
+          >
+            {steps.map((s, i) => {
+              // Revisi: bagian bercatatan HR tetap ditandai sampai dikirim ulang.
+              const flagged = Boolean(revision?.notes[s.key as ReviewSection]);
+              const incomplete = s.key !== "summary" && (missingIn(s.key).length > 0 || flagged);
+              const active = s.key === current;
+              const status = s.key === "summary" ? null : incomplete ? "perlu" : "lengkap";
+              return (
+                <li key={s.key} className="relative shrink-0">
+                  <button
+                    type="button"
+                    aria-current={active ? "step" : undefined}
+                    onClick={() => setStep(s.key)}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm whitespace-nowrap transition-colors",
+                      active
+                        ? "bg-brand-soft text-brand-soft-foreground font-medium"
+                        : "hover:bg-muted",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "grid size-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold tabular-nums",
+                        active && "border-brand bg-brand text-brand-foreground",
+                        !active &&
+                          status === "lengkap" &&
+                          "border-success/40 text-success-soft-foreground",
+                        !active && incomplete && "border-warning/50 text-warning-soft-foreground",
+                      )}
+                    >
+                      {!active && status === "lengkap" ? (
+                        <CheckCircle2 className="size-3.5" />
+                      ) : !active && incomplete ? (
+                        <CircleAlert className="size-3.5" />
+                      ) : (
+                        i + 1
+                      )}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate">{s.label}</span>
+                      {incomplete ? (
+                        <span className="text-warning-soft-foreground sr-only text-xs font-normal lg:not-sr-only lg:block">
+                          {flagged ? "Perlu diperbaiki" : "Perlu dilengkapi"}
+                        </span>
+                      ) : null}
+                    </span>
+                    {status === "lengkap" ? <span className="sr-only">(lengkap)</span> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+
+        <section aria-labelledby="step-title" className="bg-card min-w-0 rounded-2xl border">
+          <header className="border-b px-5 py-4 sm:px-6">
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Langkah {index + 1} dari {steps.length}
+            </p>
+            <h2 id="step-title" className="mt-0.5 text-lg font-semibold">
+              {currentStep?.label}
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-sm">{currentStep?.description}</p>
+          </header>
+          <div className="space-y-5 px-5 py-5 sm:px-6">
+            {note ? (
+              <div className="border-warning/40 bg-warning-soft text-warning-soft-foreground flex gap-3 rounded-xl border px-4 py-3 text-sm">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <p>
+                  <span className="font-medium">Catatan HR:</span> {note}
+                </p>
+              </div>
+            ) : null}
+            {current === "personal" ? <PersonalStep data={data} onDone={next} /> : null}
+            {current === "emergency" ? (
+              <EmergencyStep data={data} onDone={next} onBack={back} />
+            ) : null}
+            {current === "family" ? <FamilyStep data={data} onDone={next} onBack={back} /> : null}
+            {current === "bank" ? <BankStep data={data} onDone={next} onBack={back} /> : null}
+            {current === "professional" ? (
+              <ProfessionalStep data={data} onDone={next} onBack={back} />
+            ) : null}
+            {current === "documents" ? (
+              <DocumentsStep data={data} onDone={next} onBack={back} />
+            ) : null}
+            {current === "summary" ? (
+              <SummaryStep data={data} onBack={back} onGoTo={setStep} />
+            ) : null}
+          </div>
+        </section>
+      </div>
     </Shell>
   );
 }
@@ -198,7 +331,7 @@ function Shell({ header, children }: { header: ReactNode; children: ReactNode })
   return (
     <div className="bg-background min-h-svh">
       {header}
-      <main className="mx-auto max-w-3xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">{children}</main>
     </div>
   );
 }
@@ -208,6 +341,30 @@ function Shell({ header, children }: { header: ReactNode; children: ReactNode })
 /** Mode lengkapi: field yang sudah terisi dikunci (D-046). */
 const lockedIn = (data: MyOnboarding, value: unknown) =>
   data.mode === "completion" && value !== null && value !== undefined && value !== "";
+
+/** Kolom wajib (PLAN onboarding §7, `onboardingCompleteness`) — tanda * lewat CSS agar teks label tetap. */
+const REQUIRED_FIELDS = new Set([
+  "p-fullName",
+  "p-gender",
+  "p-birthPlace",
+  "p-birthDate",
+  "p-ktpNumber",
+  "p-kkNumber",
+  "p-religion",
+  "p-maritalStatus",
+  "p-ktpAddress",
+  "p-domicileAddress",
+  "p-originCity",
+  "p-phoneNumber",
+  "e-name",
+  "e-rel",
+  "e-phone",
+  "b-bank",
+  "b-number",
+  "b-holder",
+  "ed-level-0",
+  "ed-school-0",
+]);
 
 function Field({
   id,
@@ -220,9 +377,15 @@ function Field({
   children: ReactNode;
   hint?: string | undefined;
 }) {
+  const required = REQUIRED_FIELDS.has(id);
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
+      <Label
+        htmlFor={id}
+        className={cn(required && "after:text-destructive after:-ml-1.5 after:content-['*']")}
+      >
+        {label}
+      </Label>
       {children}
       {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
     </div>
@@ -255,7 +418,7 @@ function StepActions({
   label?: string;
 }) {
   return (
-    <div className="flex justify-between gap-2 pt-2">
+    <div className="-mx-5 mt-2 flex justify-between gap-2 border-t px-5 pt-4 sm:-mx-6 sm:px-6">
       {onBack ? (
         <Button type="button" variant="ghost" onClick={onBack}>
           Kembali
@@ -957,84 +1120,154 @@ function DocumentsStep({
       setBusyType(null);
     }
   };
+  const types = DOCUMENT_TYPES.filter((t) => t !== "OTHER");
+  const requiredTypes = types.filter((t) => required.has(t));
+  const uploadedRequired = requiredTypes.filter((t) => data.documents.some((d) => d.type === t));
+  const ordered = [...requiredTypes, ...types.filter((t) => !required.has(t))];
   return (
-    <div className="space-y-3">
-      <p className="text-muted-foreground text-sm">
-        PDF, JPG, atau PNG, maksimal 5 MB per dokumen.
-      </p>
-      <ul className="divide-y rounded-lg border">
-        {DOCUMENT_TYPES.filter((t) => t !== "OTHER").map((type) => {
+    <div className="space-y-5">
+      <div className="bg-muted/40 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">
+            {uploadedRequired.length} dari {requiredTypes.length} dokumen wajib terunggah
+          </p>
+          <p className="text-muted-foreground text-xs">
+            Dokumen opsional (NPWP, BPJS, sertifikat, CV) membantu HR, tetapi tidak menghalangi
+            pengiriman.
+          </p>
+        </div>
+        <div
+          className="bg-muted h-1.5 w-full overflow-hidden rounded-full sm:w-40"
+          role="progressbar"
+          aria-label="Dokumen wajib terunggah"
+          aria-valuemin={0}
+          aria-valuemax={requiredTypes.length}
+          aria-valuenow={uploadedRequired.length}
+        >
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              uploadedRequired.length === requiredTypes.length ? "bg-success" : "bg-warning",
+            )}
+            style={{
+              width: `${requiredTypes.length ? (uploadedRequired.length / requiredTypes.length) * 100 : 100}%`,
+            }}
+          />
+        </div>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {ordered.map((type) => {
           const docs = data.documents.filter((d) => d.type === type);
+          const isRequired = required.has(type);
+          const has = docs.length > 0;
           return (
             <li
               key={type}
-              className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+              className={cn(
+                "flex flex-col gap-3 rounded-xl border p-4 transition-colors",
+                isRequired && !has && "border-warning/50 bg-warning-soft/40",
+              )}
             >
-              <div>
-                <p className="text-sm font-medium">
-                  {DOCUMENT_TYPE_LABELS[type]}{" "}
-                  <span className="text-muted-foreground font-normal">
-                    {required.has(type) ? "(wajib)" : "(opsional)"}
-                  </span>
-                </p>
-                {docs.map((d) => (
-                  <p key={d.id} className="text-muted-foreground flex items-center gap-2 text-xs">
-                    <FileText className="size-3.5" />
-                    {d.url ? (
-                      <a
-                        className="underline underline-offset-4"
-                        href={d.url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Lihat ({Math.ceil(d.sizeBytes / 1024)} KB)
-                      </a>
-                    ) : (
-                      `${Math.ceil(d.sizeBytes / 1024)} KB`
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span
+                    className={cn(
+                      "grid size-9 shrink-0 place-items-center rounded-lg",
+                      has
+                        ? "bg-success-soft text-success-soft-foreground"
+                        : "bg-muted text-muted-foreground",
                     )}
-                    {d.removable ? (
-                      <button
-                        type="button"
-                        className="text-destructive"
-                        aria-label={`Hapus ${DOCUMENT_TYPE_LABELS[type]}`}
-                        onClick={() => remove.mutate(d.id)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    ) : null}
-                  </p>
-                ))}
+                    aria-hidden
+                  >
+                    {has ? <CheckCircle2 className="size-4" /> : <FileText className="size-4" />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{DOCUMENT_TYPE_LABELS[type]}</p>
+                    <p
+                      className={cn(
+                        "text-xs",
+                        has
+                          ? "text-success-soft-foreground"
+                          : isRequired
+                            ? "text-warning-soft-foreground font-medium"
+                            : "text-muted-foreground",
+                      )}
+                    >
+                      {has
+                        ? `Terunggah · ${Math.ceil((docs[0]?.sizeBytes ?? 0) / 1024)} KB`
+                        : isRequired
+                          ? "Belum diunggah"
+                          : "Opsional"}
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    isRequired ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {isRequired ? "Wajib" : "Opsional"}
+                </span>
               </div>
-              <label
-                className={cn(
-                  "inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm",
-                  busyType && "pointer-events-none opacity-60",
-                )}
-              >
-                <Upload className="size-4" />
-                {busyType === type ? "Mengunggah…" : docs.length > 0 ? "Ganti" : "Unggah"}
-                <input
-                  type="file"
-                  className="sr-only"
-                  aria-label={`Unggah ${DOCUMENT_TYPE_LABELS[type]}`}
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void onFile(type, file);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+              <div className="mt-auto flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1">
+                  {docs.map((d) => (
+                    <span key={d.id} className="flex items-center gap-1">
+                      {d.url ? (
+                        <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
+                          <a href={d.url} target="_blank" rel="noreferrer">
+                            <ExternalLink /> Lihat ({Math.ceil(d.sizeBytes / 1024)} KB)
+                          </a>
+                        </Button>
+                      ) : null}
+                      {d.removable ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive h-8 px-2"
+                          aria-label={`Hapus ${DOCUMENT_TYPE_LABELS[type]}`}
+                          onClick={() => remove.mutate(d.id)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      ) : null}
+                    </span>
+                  ))}
+                </div>
+                <label
+                  className={cn(
+                    "hover:bg-accent inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors",
+                    !has && isRequired && "border-foreground",
+                    busyType && "pointer-events-none opacity-60",
+                  )}
+                >
+                  <Upload className="size-4" aria-hidden />
+                  {busyType === type ? "Mengunggah…" : has ? "Ganti" : "Unggah"}
+                  <input
+                    type="file"
+                    className="sr-only"
+                    aria-label={`Unggah ${DOCUMENT_TYPE_LABELS[type]}`}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void onFile(type, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </div>
             </li>
           );
         })}
       </ul>
-      <div className="flex justify-between pt-2">
+      <div className="-mx-5 flex justify-between gap-2 border-t px-5 pt-4 sm:-mx-6 sm:px-6">
         <Button type="button" variant="ghost" onClick={onBack}>
           Kembali
         </Button>
         <Button type="button" variant="brand" onClick={onDone}>
-          Lanjut
+          Lanjut <ArrowRight />
         </Button>
       </div>
     </div>
@@ -1056,33 +1289,60 @@ function SummaryStep({
   const [agreed, setAgreed] = useState(false);
   useEffect(() => setAgreed(false), []);
   const labelOf = (section: string) => STEPS.find((s) => s.key === section)?.label ?? "Dokumen";
+  const groups = Object.entries(
+    data.missing.reduce<Record<string, typeof data.missing>>((acc, m) => {
+      const key = m.field === "photo" ? "personal" : m.section;
+      acc[key] = [...(acc[key] ?? []), m];
+      return acc;
+    }, {}),
+  );
   return (
     <div className="space-y-4">
       {data.missing.length > 0 ? (
-        <div className="rounded-lg border p-4">
-          <p className="mb-2 font-medium">Masih perlu dilengkapi ({data.missing.length})</p>
-          <ul className="space-y-1 text-sm">
-            {data.missing.map((m) => (
-              <li key={`${m.section}-${m.field}`}>
-                <button
+        <div className="border-warning/40 bg-warning-soft/60 rounded-xl border">
+          <div className="text-warning-soft-foreground flex items-center gap-2 border-b border-warning/30 px-4 py-3">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            <p className="font-medium">Masih perlu dilengkapi ({data.missing.length})</p>
+          </div>
+          <ul className="divide-warning/20 divide-y">
+            {groups.map(([section, items]) => (
+              <li
+                key={section}
+                className="flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-start sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {labelOf(section)}{" "}
+                    <span className="text-warning-soft-foreground font-normal">
+                      · {items.length} belum lengkap
+                    </span>
+                  </p>
+                  <ul className="text-muted-foreground mt-1 list-disc space-y-0.5 pl-4 text-xs">
+                    {items.map((m) => (
+                      <li key={m.field}>{m.message}</li>
+                    ))}
+                  </ul>
+                </div>
+                <Button
                   type="button"
-                  className="text-left underline underline-offset-4"
-                  onClick={() => onGoTo(m.section as StepKey)}
+                  variant="outline"
+                  size="sm"
+                  className="bg-background h-8 shrink-0 self-start"
+                  onClick={() => onGoTo(section as StepKey)}
                 >
-                  {labelOf(m.section)}
-                </button>
-                : {m.message}
+                  Buka {labelOf(section)} <ArrowRight />
+                </Button>
               </li>
             ))}
           </ul>
         </div>
       ) : (
-        <Alert>
-          <CheckCircle2 />
-          <AlertDescription>Semua data wajib sudah lengkap.</AlertDescription>
-        </Alert>
+        <div className="border-success/40 bg-success-soft text-success-soft-foreground flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
+          <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+          <p className="font-medium">Semua data wajib sudah lengkap.</p>
+        </div>
       )}
-      <label className="flex items-start gap-2 text-sm">
+      <label className="flex items-start gap-2.5 rounded-xl border p-4 text-sm">
         <input
           type="checkbox"
           className="accent-brand mt-0.5 size-4"
@@ -1091,7 +1351,7 @@ function SummaryStep({
         />
         Saya menyatakan data dan dokumen yang saya isi benar dan sesuai aslinya.
       </label>
-      <div className="flex justify-between">
+      <div className="-mx-5 flex justify-between gap-2 border-t px-5 pt-4 sm:-mx-6 sm:px-6">
         <Button type="button" variant="ghost" onClick={onBack}>
           Kembali
         </Button>

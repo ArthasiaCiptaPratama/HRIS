@@ -8,17 +8,21 @@
 | B-01 | LULUS | LULUS | "Simpan 25 karyawan + 150 lampiran" — `staging-b-01-pratinjau.png` |
 | B-02 | LULUS | LULUS | Dua kolom, "Data karyawan tersimpan", stepper "Memproses lampiran", badge "Mengunduh…", 4 kartu — `staging-b-02-memproses.png` |
 | B-03 | LULUS | LULUS | Import file lain → dialog "Lampiran masih diproses" → Tetap di sini — `staging-b-03-dialog-jeda.png` |
-| B-04a | LULUS | BELUM | Request diputus → "mencoba lagi otomatis" → lanjut — `lokal-b-04a-coba-ulang.png` |
-| B-04b | LULUS | GAGAL → BUG-003 | Request menggantung → batas waktu → coba ulang → lanjut — `lokal-b-04b-timeout-coba-ulang.png` |
-| B-05 | LULUS | BELUM | Selesai dengan catatan; "Import selesai"; tabel tanpa Baris, melebar + petunjuk geser — `lokal-b-05-selesai-catatan.png`, `lokal-b-05b-tabel-digeser.png` |
-| B-06 | LULUS | BELUM | Tanpa dialog setelah selesai; kartu "belum selesai" + Lanjutkan → lembar samping — `lokal-b-06-kartu-tertunda.png`, `lokal-b-06b-lembar-samping.png` |
+| B-04a | LULUS | LULUS (4.1) | Request diputus → "mencoba lagi otomatis" → lanjut — `lokal-b-04a-coba-ulang.png` |
+| B-04b | LULUS | GAGAL → BUG-003 → LULUS (4.1, coba ulang ±67 dtk) | Request menggantung → batas waktu → coba ulang → lanjut — `lokal-b-04b-timeout-coba-ulang.png` |
+| B-05 | LULUS | LULUS (4.1) | Selesai dengan catatan; "Import selesai"; tabel tanpa Baris, melebar + petunjuk geser — `lokal-b-05-selesai-catatan.png`, `lokal-b-05b-tabel-digeser.png` |
+| B-06 | LULUS | LULUS (4.1) | Tanpa dialog setelah selesai; kartu "belum selesai" + Lanjutkan → lembar samping — `lokal-b-06-kartu-tertunda.png`, `lokal-b-06b-lembar-samping.png` |
 
 | Case | Hasil |
 |---|---|
-| TC-EMP-207 | LULUS lokal; staging B-01–B-03 LULUS, B-05 BELUM |
-| TC-EMP-208 | GAGAL staging (BUG-003) → diperbaiki di develop, LULUS lokal; uji ulang staging setelah rilis |
-| TC-EMP-182 | LULUS lokal (B-06 + WEB); staging BELUM |
+| TC-EMP-207 | LULUS lokal + staging (4.1: B-01–B-03, B-05) |
+| TC-EMP-208 | GAGAL staging gel. 4 (BUG-003) → diperbaiki → LULUS lokal + staging 4.1 (B-04a, B-04b) |
+| TC-EMP-182 | LULUS lokal + staging 4.1 (B-06) |
 
 **Data uji:** dihapus (staging & lokal).
 
-**Kesimpulan:** belum LEGIT — menunggu rilis perbaikan BUG-003 lalu uji ulang staging. **Bug terbuka:** BUG-003 (P2, diperbaiki di develop).
+**Staging 4.1 (2026-10-12, rilis `a7791b4`, PR #43/#44, `Deploy staging` #38219815931):** `b-lampiran-ui.ts` → **8/8 LULUS** (`QA/2026-10-12-staging-gel41/`): B-04a pesan coba ulang 5 dtk setelah request diputus → lanjut (0 → 20); B-04b request ditahan tanpa jawaban → coba ulang setelah 67 dtk → lanjut (20 → 30); antrean 150/150 selesai; 0 error konsol. Data uji dihapus (staging 66 karyawan, 0 import, 0 objek Storage).
+
+**Kesimpulan:** LULUS lokal + staging — **LEGIT**. **Bug terbuka:** tidak ada (BUG-003 ditutup).
+
+**Arsip Drive:** `hris-qa:2026-10-12-lampiran-ui` — 22 file (plan, run, cases, BUG-003, screenshot lokal & staging), 2026-10-12.
