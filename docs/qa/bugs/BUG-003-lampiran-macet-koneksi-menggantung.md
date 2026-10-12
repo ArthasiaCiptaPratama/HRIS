@@ -1,5 +1,5 @@
 # BUG-003: Panel lampiran Drive macet bila koneksi menggantung
-- **Prioritas:** P2 · **Status:** DIPERBAIKI di develop (rilis staging menyusul) · **Case:** TC-EMP-208 (ditemukan saat uji staging gel. 4, 2026-10-12)
+- **Prioritas:** P2 · **Status:** DITUTUP 2026-10-12 (commit `1eeb205`; rilis gel. 4.1 PR #43/#44, `Deploy staging` #38219815931; Playwright staging B-04b LULUS — coba ulang ±67 dtk) · **Case:** TC-EMP-208 (ditemukan saat uji staging gel. 4, 2026-10-12)
 - **Langkah reproduksi:** 1. Login SA di staging. 2. Import `g4-lampiran.csv` (25 baris dummy + 150 tautan Drive palsu) → Simpan. 3. Saat panel "Mengunduh…", putuskan koneksi (Playwright `context.setOffline(true)`; di dunia nyata Wi-Fi putus di tengah request).
 - **Diharapkan:** panel menampilkan "Koneksi ke server terputus — mencoba lagi otomatis (n/4)…" lalu melanjutkan sendiri setelah koneksi pulih (D-060, `RETRY`).
 - **Terjadi:** panel diam di "10 dari 150 lampiran · Mengunduh…" selama > 5 menit, tanpa pesan coba ulang maupun error. DB staging: 140 PENDING, tidak ada yang diklaim → panggilan proses berikutnya tidak pernah sampai ke server.
