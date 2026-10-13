@@ -69,6 +69,80 @@ export const pages = {
     import("@/features/employee/pages/org-structure-page").then((m) => ({
       Component: m.OrgStructurePage,
     })),
+  // Time Management (D-067–D-071).
+  absen: () =>
+    import("@/features/time-management/pages/absen-page").then((m) => ({ Component: m.AbsenHome })),
+  // Aplikasi HP (/absen/*): shell + halaman khusus HP.
+  mobileShell: () =>
+    import("@/features/time-management/pages/absen-page").then((m) => ({
+      Component: m.MobileShell,
+    })),
+  mobileHistory: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileHistoryPage,
+    })),
+  mobileRoster: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileRosterPage,
+    })),
+  mobileApprovals: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileApprovalsPage,
+    })),
+  mobileNotifications: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileNotificationsPage,
+    })),
+  mobileProfile: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileProfilePage,
+    })),
+  attendanceDays: () =>
+    import("@/features/time-management/pages/attendance-days-page").then((m) => ({
+      Component: m.AttendanceDaysPage,
+    })),
+  roster: () =>
+    import("@/features/time-management/pages/roster-page").then((m) => ({
+      Component: m.RosterPage,
+    })),
+  rosterSetup: () =>
+    import("@/features/time-management/pages/roster-setup-page").then((m) => ({
+      Component: m.RosterSetupPage,
+    })),
+  rosterChanges: () =>
+    import("@/features/time-management/pages/roster-changes-page").then((m) => ({
+      Component: m.RosterChangesPage,
+    })),
+  holidays: () =>
+    import("@/features/time-management/pages/calendar-settings-pages").then((m) => ({
+      Component: m.HolidaysPage,
+    })),
+  leave: () =>
+    import("@/features/time-management/pages/leave-page").then((m) => ({ Component: m.LeavePage })),
+  leaveApprovals: () =>
+    import("@/features/time-management/pages/leave-admin-pages").then((m) => ({
+      Component: m.LeaveApprovalsPage,
+    })),
+  leaveBalances: () =>
+    import("@/features/time-management/pages/leave-admin-pages").then((m) => ({
+      Component: m.LeaveBalancesPage,
+    })),
+  leaveMaster: () =>
+    import("@/features/time-management/pages/leave-admin-pages").then((m) => ({
+      Component: m.LeaveMasterPage,
+    })),
+  correctionsStatements: () =>
+    import("@/features/time-management/pages/period-pages").then((m) => ({
+      Component: m.CorrectionsStatementsPage,
+    })),
+  recap: () =>
+    import("@/features/time-management/pages/period-pages").then((m) => ({
+      Component: m.RecapPage,
+    })),
+  timeSettings: () =>
+    import("@/features/time-management/pages/calendar-settings-pages").then((m) => ({
+      Component: m.TimeSettingsPage,
+    })),
 };
 
 const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
@@ -91,6 +165,19 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/penerimaan", FEATURES.onboarding ? pages.onboarding : pages.maintenance],
   ["/ess", FEATURES.selfService ? pages.ess : pages.maintenance],
   ["/pengajuan-data", FEATURES.selfService ? pages.dataChanges : pages.maintenance],
+  ["/time/absen-harian", FEATURES.timeManagement ? pages.attendanceDays : pages.maintenance],
+  ["/time/roster/pengaturan", FEATURES.timeManagement ? pages.rosterSetup : pages.maintenance],
+  ["/time/roster", FEATURES.timeManagement ? pages.roster : pages.maintenance],
+  ["/time/perubahan-roster", FEATURES.timeManagement ? pages.rosterChanges : pages.maintenance],
+  ["/time/kalender", FEATURES.timeManagement ? pages.holidays : pages.maintenance],
+  ["/time/pengaturan", FEATURES.timeManagement ? pages.timeSettings : pages.maintenance],
+  ["/time/cuti", FEATURES.timeManagement ? pages.leave : pages.maintenance],
+  ["/time/persetujuan-cuti", FEATURES.timeManagement ? pages.leaveApprovals : pages.maintenance],
+  ["/time/saldo-cuti", FEATURES.timeManagement ? pages.leaveBalances : pages.maintenance],
+  ["/time/master-cuti", FEATURES.timeManagement ? pages.leaveMaster : pages.maintenance],
+  ["/time/pernyataan", FEATURES.timeManagement ? pages.correctionsStatements : pages.maintenance],
+  ["/time/rekap", FEATURES.timeManagement ? pages.recap : pages.maintenance],
+  ["/absen", FEATURES.timeManagement ? pages.absen : pages.maintenance],
 ];
 
 export function preloadRoute(path: string): void {

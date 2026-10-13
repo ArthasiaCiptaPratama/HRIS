@@ -1,6 +1,4 @@
-import { LayoutDashboard } from "lucide-react";
 import { lazy, Suspense } from "react";
-import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +10,12 @@ import { access } from "@/lib/access";
 // D-065: board widget (ECharts, dnd-kit) dimuat lazy supaya role lain tidak mengunduhnya.
 const DashboardBoard = lazy(() =>
   import("@/features/dashboard/dashboard-board").then((m) => ({ default: m.DashboardBoard })),
+);
+// Karyawan & atasan: dashboard widget kehadiran, tindakan, cuti, pintasan (Time Management).
+const PersonalDashboard = lazy(() =>
+  import("@/features/time-management/components/personal-dashboard").then((m) => ({
+    default: m.PersonalDashboard,
+  })),
 );
 
 // Kunci statis untuk kerangka loading (bukan indeks array).
@@ -95,7 +99,13 @@ const TODAY = new Intl.DateTimeFormat("id-ID", {
   timeZone: "Asia/Jakarta",
 });
 
-function DashboardHeader({ me }: { me: Me }) {
+function DashboardHeader({
+  me,
+  description = "Ringkasan data kepegawaian.",
+}: {
+  me: Me;
+  description?: string;
+}) {
   // BUG-004: nama depan karyawan bila akun tertaut; cadangan = bagian depan email.
   const fromEmail = me.email.split("@")[0]?.split(/[.+_-]/)[0] ?? "";
   const name = me.employeeName?.trim().split(/\s+/)[0] || fromEmail;
@@ -104,24 +114,23 @@ function DashboardHeader({ me }: { me: Me }) {
     <PageHeader
       eyebrow={<p className="text-muted-foreground text-sm">{TODAY.format(new Date())}</p>}
       title={`${greeting()}${display ? `, ${display}` : ""}`}
-      description="Ringkasan data kepegawaian."
+      description={description}
     />
   );
 }
 
-// MANAGER & EMPLOYEE: ringkasan seluruh karyawan bukan need-to-know (PLAN §4) → sapaan saja.
+// MANAGER & EMPLOYEE: ringkasan seluruh karyawan bukan need-to-know (PLAN §4) → widget pribadi
+// (kehadiran hari ini, hal yang perlu ditindaklanjuti, cuti, roster, pintasan, berita penting).
 function GreetingDashboard({ me }: { me: Me }) {
   return (
     <>
-      <DashboardHeader me={me} />
-      <div className="animate-fade-up rounded-2xl border border-dashed">
-        <EmptyState
-          icon={LayoutDashboard}
-          title="Dashboard masih kosong"
-          description="Widget ringkasan (kehadiran, cuti, kontrak) ditambahkan pada fase berikutnya."
-          className="py-24"
-        />
-      </div>
+      <DashboardHeader
+        me={me}
+        description="Kehadiran Anda, hal yang perlu diselesaikan, dan pintasan."
+      />
+      <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
+        <PersonalDashboard me={me} />
+      </Suspense>
     </>
   );
 }

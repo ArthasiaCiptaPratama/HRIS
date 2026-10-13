@@ -1,0 +1,94 @@
+// Modul approval (PLAN §5.2, D-010, D-068, D-069): mesin approval paralel/tunggal yang dipakai attendance & leave.
+// Modul pemilik subjek (attendance, leave) membuat permintaan & menerima status final lewat handler terdaftar.
+// Tanpa FK ke modul inti (employee, organization): relasi Prisma butuh sisi balik di skema mereka (masih
+// dikembangkan tim, tidak disentuh). Keberadaan karyawan/PT dijamin modul pemilik subjek saat membuat permintaan.
+
+enum ApprovalSubjectType {
+  LEAVE
+  PERMIT
+  ATTENDANCE_CORRECTION
+  OVERTIME
+  ATTENDANCE_DAY
+  ROSTER_CHANGE
+  // D-073: satu absen masuk / pulang.
+  ATTENDANCE_PUNCH
+
+  @@schema("approval")
+}
+
+enum ApprovalMode {
+  PARALLEL
+  SINGLE
+
+  @@schema("approval")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("approval")
+}
+
+enum ApprovalStepKind {
+  MANAGER
+  HR
+
+  @@schema("approval")
+}
+
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@schema("approval")
+}
+
+model ApprovalRequest {
+  id                  String              @id @default(uuid()) @db.Uuid
+  subjectType         ApprovalSubjectType @map("subject_type")
+  // id baris subjek di modul pemiliknya (attendance_days, roster_change_requests, leave_requests, …).
+  subjectId           String              @map("subject_id") @db.Uuid
+  requesterEmployeeId String              @map("requester_employee_id") @db.Uuid
+  // Snapshot saat dibuat: PT (cakupan HR, D-040) & atasan (langkah MANAGER, D-009/D-053). Null = tanpa atasan → SA.
+  companyId           String              @map("company_id") @db.Uuid
+  managerEmployeeId   String?             @map("manager_employee_id") @db.Uuid
+  mode                ApprovalMode
+  status              ApprovalStatus      @default(PENDING)
+  decidedAt           DateTime?           @map("decided_at") @db.Timestamptz(6)
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  steps ApprovalStep[]
+
+  @@unique([subjectType, subjectId])
+  @@index([status, companyId])
+  @@index([managerEmployeeId, status])
+  @@index([requesterEmployeeId])
+  @@index([companyId])
+  @@map("approval_requests")
+  @@schema("approval")
+}
+
+model ApprovalStep {
+  id                 String           @id @default(uuid()) @db.Uuid
+  requestId          String           @map("request_id") @db.Uuid
+  request            ApprovalRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  kind               ApprovalStepKind
+  decision           ApprovalDecision @default(PENDING)
+  decidedByAccountId String?          @map("decided_by_account_id") @db.Uuid
+  decidedAt          DateTime?        @map("decided_at") @db.Timestamptz(6)
+  note               String?          @db.VarChar(500)
+  // PLAN §5.2: HR/SA mengambil alih langkah atasan (alasan wajib, diaudit).
+  isOverride         Boolean          @default(false) @map("is_override")
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([requestId, kind])
+  @@index([decidedByAccountId])
+  @@map("approval_steps")
+  @@schema("approval")
+}

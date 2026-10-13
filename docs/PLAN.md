@@ -25,7 +25,7 @@ Membangun HRIS internal untuk **satu grup perusahaan tambang batu bara** (multi-
    - **Bisa diekstrak:** batas modul cukup disiplin sehingga modul tertentu bisa dipecah menjadi service sendiri nanti tanpa menulis ulang.
 3. **Dibangun dan dirilis bertahap**, modul demi modul.
 4. **Satu repository** (monorepo) supaya setup, development, dan deployment tetap sederhana.
-5. **Siap untuk aplikasi mobile.** Mobile app dibuat nanti sebagai projek terpisah yang memakai API backend yang sama.
+5. **Siap untuk aplikasi mobile.** Absensi & pengajuan dari HP memakai **PWA** di web yang sama (D-067); aplikasi native (projek terpisah, API yang sama) tetap backlog.
 
 ### 1.2 Modul (Ruang Lingkup v1)
 
@@ -34,8 +34,8 @@ Membangun HRIS internal untuk **satu grup perusahaan tambang batu bara** (multi-
 | `iam`          | Akun (terhubung ke Supabase Auth), role, Super Admin Utama, grant izin per akun.                      |
 | `organization` | Perusahaan dalam grup (entitas, D-039), profil perusahaan, pengaturan sistem, departemen, jabatan, status kepegawaian, grade, lokasi kerja (geofence), hari libur. |
 | `employee`     | Data induk karyawan, atasan langsung (`manager_id`), data sensitif, rekening, keluarga, pendidikan, pelatihan, dokumen, kontak darurat, riwayat, import CSV/Excel. |
-| `attendance`   | Shift, jadwal, absen (geofence + selfie + waktu server), koreksi absensi, lembur, penutupan periode absensi. |
-| `leave`        | Cuti tahunan (saldo, akrual, hold) dan izin (melahirkan, menikah, duka, sakit, dll.).               |
+| `attendance`   | Shift, **roster tambang** (pola siklus, crew, grid, import, tukar shift — D-069), absen PWA (geofence + selfie + waktu server), approval setiap hari absen (D-068), koreksi absensi, lembur, penutupan periode absensi + surat pernyataan (D-071). |
+| `leave`        | Cuti tahunan (jatah Januari + prorata, sisa s.d. 31 Maret, hutang cuti — D-072, hold) dan izin/sakit (melahirkan, menikah, duka, sakit, dll.). |
 | `approval`     | Mesin approval paralel yang dipakai attendance dan leave.                                             |
 | `contract`     | Jenis kontrak, kontrak kerja, perpanjangan, terminasi, pengingat habis kontrak.                       |
 | `payroll`      | Komponen & struktur gaji, periode, BPJS, PPh 21 (TER), lock, slip gaji.                               |
@@ -43,7 +43,7 @@ Membangun HRIS internal untuk **satu grup perusahaan tambang batu bara** (multi-
 | `audit` (core) | Audit log untuk semua aksi sensitif.                                                                  |
 
 ### 1.3 Di Luar Ruang Lingkup v1 (Backlog)
-- Aplikasi mobile (projek terpisah; backend v1 sudah menyiapkan API-nya).
+- Aplikasi mobile **native** (projek terpisah; backend v1 sudah menyiapkan API-nya). Absensi dari HP v1 = PWA (D-067).
 - MFA untuk akun SUPER_ADMIN/HR_ADMIN.
 - Notifikasi WhatsApp.
 - Pencocokan wajah otomatis (face recognition) pada selfie absensi.
@@ -211,7 +211,9 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Pos jabatan (atasan, atasan fungsional, slot), PT pemilik unit, sinkron atasan otomatis (D-051–D-053) | ✅ | 👁 | ❌ | ❌ |
 | Bagan organisasi per PT (kanvas; kolom direktori; pemegang pos korporat terlihat lintas PT) (D-051) | ✅ semua PT | 👁 PT ditugaskan | 👁 PT sendiri | 👁 PT sendiri |
 | Kalender libur | ✅ | 👁 | 👁 | 👁 |
-| Template shift & jam kerja, toleransi telat | ✅ | 👁 | 👁 | ❌ |
+| Template shift & jam kerja, toleransi telat | ✅ | ✅ PT ditugaskan (D-069) | 👁 | ❌ |
+| Pola roster, crew & anggota, grid roster, import Excel roster (D-069) | ✅ | ✅ PT ditugaskan | 👁 tim | 👁 roster sendiri |
+| Master Cuti per tahun (kuota) (D-072) | ✅ | 👁 | 👁 | 👁 |
 | Jenis cuti/izin, kuota, akrual, carry-over | ✅ | 👁 | 👁 | 👁 |
 | Aturan lembur | ✅ | 👁 | 👁 | 👁 |
 | Definisi komponen gaji, tarif BPJS/PPh 21/PTKP | ✅ | ❌ | ❌ | ❌ |
@@ -239,6 +241,10 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Lihat absensi & foto selfie | ✅ semua | ✅ semua | 👁 tim | 👁 sendiri |
 | Tugaskan shift/jadwal ke karyawan | ✅ | ✅ | ✅ tim | ❌ |
 | Tandai "boleh absen di luar lokasi" | ✅ | ✅ | ❌ | ❌ |
+| Keputusan hari absen (masuk + pulang) (D-068) | override | ✅ (paralel) | ✅ tim (paralel) | ❌ |
+| Ajukan perubahan / tukar shift roster (D-069) | ✅* | ✅ | ✅ (sendiri & atas nama tim) | ✅ sendiri |
+| Keputusan perubahan / tukar shift (D-069) | override | ✅ | ✅ tim | ✅ persetujuan rekan yang ditukar |
+| Surat pernyataan absensi untuk hari ALPHA (D-071) | 👁 semua | 👁 | 👁 tim | ✅ buat sendiri |
 | Ajukan koreksi absensi / lembur | ✅* | ✅ | ✅ | ✅ |
 | Keputusan koreksi absensi | override | ✅ validasi administrasi | ✅ approval utama (tim) | ❌ |
 | Keputusan lembur | override | ❌ | ✅ (tim) | ❌ |
@@ -292,6 +298,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Cuti tahunan                  | MANAGER (approval utama) + HR_ADMIN (validasi administrasi) | **Paralel** |
 | Izin (melahirkan, menikah, duka, sakit, dll.) | MANAGER + HR_ADMIN                | **Paralel**  |
 | Koreksi absensi               | MANAGER + HR_ADMIN                               | **Paralel**  |
+| **Hari absen** (masuk + pulang, D-068) | MANAGER + HR_ADMIN (persetujuan massal)  | **Paralel**  |
+| **Perubahan / tukar shift roster** (D-069) | MANAGER + HR_ADMIN (rekan yang ditukar setuju lebih dulu) | **Paralel** |
 | Lembur                        | MANAGER saja                                     | Tunggal      |
 
 Aturan status (mode paralel):
@@ -311,11 +319,13 @@ Kasus khusus:
 
 ### 5.3 Cuti & Izin
 - **Cuti** = cuti tahunan saja. Jenis lain adalah **izin**, yang jenis dan kuotanya diatur SUPER_ADMIN (termasuk apakah wajib lampiran dokumen, mis. surat dokter).
-- Saldo cuti tahunan **di-hold** saat pengajuan dibuat, lalu dikembalikan jika ditolak atau dibatalkan, dan menjadi terpakai jika disetujui. Saldo tidak boleh negatif.
-- Hari cuti dihitung dalam **hari kerja** (tidak termasuk akhir pekan/hari libur sesuai jadwal & kalender).
+- Saldo cuti tahunan **di-hold** saat pengajuan dibuat, lalu dikembalikan jika ditolak atau dibatalkan, dan menjadi terpakai jika disetujui. ~~Saldo tidak boleh negatif.~~ **Hutang cuti diperbolehkan** dan dilunasi akhir Januari dari jatah baru (D-072).
+- Jatah diberikan **1 Januari** (karyawan baru: prorata 1 hari per bulan kerja penuh); sisa tahun lalu hangus **31 Maret** (D-072).
+- Hari cuti dihitung dalam **hari kerja roster** (hari OFF roster, tanggal merah, dan cuti bersama tidak dihitung; cuti bersama yang jatuh pada hari kerja roster dan tidak masuk = 1 hari cuti) (D-072).
 
 ### 5.4 Absensi
-- Absen lewat **web** (v1) dan **mobile app** (nanti), keduanya ke API yang sama.
+- Absen lewat **PWA** di HP (route `/absen` di web yang sama, D-067); aplikasi native nanti memakai API yang sama. **Wajib online.** Masuk & pulang sama-sama selfie + GPS.
+- Absen mengikuti **roster** (D-069); absen di luar roster/radius **tetap tercatat dengan label + alasan wajib** (D-070). **Setiap hari absen disetujui MANAGER + HR** (D-068). Saat tutup periode, hari yang belum disetujui keduanya = **ALPHA** + surat pernyataan absensi (D-071). Desain: [time-management.md](design/time-management.md).
 - **Verifikasi:** geofence GPS (radius per lokasi kerja, diatur SUPER_ADMIN) + **foto selfie** + **waktu server** (jam perangkat tidak pernah dipakai).
 - Karyawan bertanda **"boleh absen di luar lokasi"** tidak dicek geofence, tapi koordinat tetap dicatat.
 - **Selfie:** hanya **bukti visual** (tidak ada pencocokan wajah). Diambil dari kamera langsung (bukan galeri), dikompres di client (± 200 KB), disimpan di bucket **private**, diakses via signed URL. Yang bisa melihat: pemilik, MANAGER (tim), HR_ADMIN, SUPER_ADMIN. **Retensi 12 bulan**, lalu dihapus otomatis. Data absensinya tetap disimpan.
@@ -386,8 +396,8 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | 2 | IAM | Login Supabase di web, verifikasi JWT di api, role, Super Admin Utama + bootstrap, grant izin, audit log, undangan akun | Test matriks akses (bagian IAM) lulus; login → akses terproteksi → logout teruji |
 | 3 | Organization | Profil perusahaan, pengaturan sistem, departemen, jabatan, level, lokasi + geofence, kalender libur | CRUD + policy + test; UI master data |
 | 4 | Employee | Data karyawan, `manager_id`, data sensitif (grant), rekening, dokumen, kontak darurat, riwayat, undangan dari data karyawan, import CSV/Excel, seed dummy | Karyawan dibuat end-to-end dari UI; akses data sensitif sesuai matriks (teruji) |
-| 5 | Attendance | Shift, jadwal, absen (geofence + selfie), koreksi (approval paralel), lembur, rekap, tutup periode, retensi selfie | Rekap bulanan akurat untuk skenario shift & libur (teruji) |
-| 6 | Leave | Cuti tahunan (saldo, akrual, hold), jenis izin, approval paralel, integrasi absensi | Saldo tidak pernah negatif; approve/tolak/batal mengubah saldo dengan benar (teruji) |
+| 5 | Attendance | Tahap A–D & F [time-management.md](design/time-management.md): approval, roster tambang (D-069), absen PWA (D-067, D-070), approval hari absen (D-068), koreksi, lembur, rekap, tutup periode + surat pernyataan (D-071), retensi selfie | Rekap bulanan akurat untuk skenario roster (termasuk shift malam), libur & cuti (teruji) |
+| 6 | Leave | Tahap E: cuti tahunan (jatah Januari + prorata, sisa s.d. 31 Maret, hutang, hold — D-072), izin & sakit, approval paralel, integrasi roster | Skenario saldo (prorata, hangus, hutang, cuti bersama) & approve/tolak/batal benar (teruji) |
 | — | **Rilis 1** | Fase 1–6 ke produksi | Setelah OD-4 & OD-5 terjawab |
 | 7 | Contract | Jenis kontrak, kontrak, perpanjangan, terminasi, pengingat habis | Aturan 1 kontrak aktif per karyawan, overlap, perpanjangan teruji |
 | — | **Rilis 2** | Kontrak ke produksi | – |
@@ -469,6 +479,13 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | D-064 | **Penyesuaian nilai Form saat Import (2026-10-09, grill pemilik projek):** (1) **normalisasi otomatis** nilai bertipe: isian kosong-semacam termasuk `_`, golongan darah `0` → O, usia "N tahun", "meninggal/almarhum/alm." → anggota keluarga **almarhum** (kolom baru `family_members.is_deceased`), ejaan hubungan (ISTERI, Kaka), nama bank umum; (2) **Cocokkan unit organisasi** di Pratinjau: istilah Departemen/Divisi di Form tidak konsisten, jadi setiap nilai unik kolom Departemen & Divisi dipetakan HR ke **unit organisasi jenis apa pun** atau **unit baru** (induk & jenis dipilih), dengan saran kemiripan (singkatan, salah ketik) yang dikonfirmasi HR — tidak ada pencocokan fuzzy diam-diam; karyawan ditempatkan di unit **paling bawah** yang terpilih; pilihan diingat di profil pemetaan. **Menggantikan** aturan "Divisi harus sama persis" D-061. **Per PT (tambahan 2026-10-09, review pemilik projek):** nilai dicocokkan per PT baris (nilai sama di PT berbeda = nilai terpisah); kandidat & saran hanya unit milik PT itu atau unit grup (tanpa PT); unit PT lain tidak boleh dipilih (`UNIT_INVALID`); unit baru milik PT barisnya, nama bentrok diberi akhiran kode PT ("Operations (CD2)", pola D-052). (3) **PT di Pratinjau**: PT bawaan + PT per baris tanpa kembali ke langkah awal. | Keputusan pemilik projek 2026-10-09 (opsi "otomatis + cocokkan nilai", "unit apa saja + buat baru", "tambah kolom almarhum", "PT bawaan + per baris"). |
 | D-065 | **Dashboard SA/HR yang bisa diatur (2026-10-09; nomor awal D-062 di branch HRIS/Mat/windows, diganti D-065 saat digabung ke develop karena D-062 sudah dipakai Import):** (1) widget **pivot** bebas atur: baris × kolom opsional dari dimensi tetap (kategori, pendidikan terakhir detail SD–S3, PT, lokasi, kota, direktorat/divisi induk, unit, jabatan, level jabatan, grade, jenis kelamin, tahun masuk, masa kerja, status aktif) + filter berulang + status aktif/nonaktif/semua, lewat `GET /dashboard/pivot` — hanya matriks jumlah, cakupan baris sama dengan `/dashboard` (D-040, D-045); (2) dimensi **pribadi** agama, status pernikahan, kelompok umur **boleh** dipakai SA atau HR dengan grant `employee.personal.read` (`canPivotPersonal`), selain itu 403; (3) bentuk grafik bar/bertumpuk/100%/berdampingan/heatmap/donut/tabel; palet kategorikal 7 slot tervalidasi CVD, kategori kepegawaian berwarna tetap di semua widget, seri ke-8+ dilipat "Lainnya"; (4) susunan widget (urutan drag, ukuran ¼/½/penuh, tambah/hapus/duplikat, Menu Cepat pilihan sendiri) disimpan **per akun di DB** — tabel `iam.dashboard_layouts` (JSON divalidasi `dashboardLayoutSchema` saat simpan & baca; versi tak cocok → susunan bawaan), `GET/PUT/DELETE /me/dashboard-layout` hanya SA/HR, tidak diaudit (preferensi tampilan). | Keputusan pemilik projek 2026-10-09 (simpan di DB, dimensi pribadi ber-grant, urut ulang drag & drop). |
 | D-066 | **Nama asli bagan organisasi boleh di staging (2026-10-12, keputusan pemilik projek; mengubah D-051 (6) & [org-chart.md §7](design/org-chart.md)):** staging dibersihkan (disimpan: akun + karyawan yang terhubung ke akun, PT, status kepegawaian, jenis dokumen, unit & pos dari seed) lalu pemegang pos diisi nama asli dari bagan kantor lewat `org:import-local --remote=<ref staging>` (file tetap di luar repo; hanya project staging `iwgzuwcxsxnbjibhbqgh` yang diterima, produksi/proyek lain ditolak — `realDataTarget`). Site dimodelkan sebagai **unit organisasi** (Site Operasional berjenjang) + **satu lokasi kerja "Site (ACP)"** untuk absensi; sub-lokasi (jetty, humas) ditambah bila absensinya beda titik. Rotasi password DB staging **dilewati** atas keputusan pemilik projek ("sudah aman"); risiko OD-4 (akun Hobby pribadi berisi data asli) diterima pemilik projek sampai pindah ke akun kantor. Pemegang `ASLI-<kode>-<n>` hanya berisi nama & pos (data lain pengisi) → sebelum import data Form asli, hapus/isi NIP-nya dulu agar tidak dobel. | Bagan staging sama persis dengan dokumen kantor untuk uji & presentasi; nama tetap di luar repo. |
+| D-067 | **Absensi dari HP lewat PWA (2026-10-12, rencana; D-067–D-073 bernomor awal D-066–D-072 di branch HRIS/Mat/windows, digeser +1 saat digabung ke develop 2026-10-13 karena D-066 sudah dipakai bagan; desain [time-management.md](design/time-management.md)):** route `/absen` di `apps/web` dengan tata letak HP, bisa *Add to Home Screen*; login sama (NIK/email, D-048); **wajib online**, waktu server (D-013 tetap); selfie kamera langsung (`getUserMedia`) + GPS akurasi tinggi untuk **masuk dan pulang**; foto ke bucket private `attendance-selfies` (pola D-037), retensi 12 bulan. Aplikasi native tetap backlog (PWA tidak bisa mendeteksi fake GPS — risiko diterima, §10). Mengubah §1.1 poin 5 & §5.4 "web v1, mobile nanti". | Pemilik projek 2026-10-12 (grill: PWA dipilih dari Expo/React Native, PWA, Flutter; wajib online dipilih dari antre offline). |
+| D-068 | **Setiap hari absen disetujui MANAGER + HR (2026-10-12, rencana):** satuan approval = hari absen (masuk + pulang); mode **paralel** mesin approval §5.2 (salah satu tolak = `REJECTED` final; kasus khusus & override SA sama); inbox dengan **persetujuan massal** dan filter "hanya yang berlabel"; tanpa notifikasi per absen (badge + ringkasan). Hari ditolak = tidak hadir, bisa koreksi selama periode terbuka. Mengubah D-010/D-013 (sebelumnya absen langsung sah; approval hanya koreksi & lembur). | Pemilik projek 2026-10-12 (grill: "semua, wajib dua-duanya" dipilih dari "hanya pengecualian" dan "salah satu"). |
+| D-069 | **Roster tambang (2026-10-12, rencana):** master **shift** per PT (jam, lintas tengah malam, jendela absen masuk, toleransi telat, batas absen pulang, toleransi pulang cepat — **per shift**); **pola roster** siklus (mis. 10/4, 14/7, 2D-2N-2OFF); **crew** per lokasi kerja dengan pola + tanggal mulai siklus + anggota berlaku dari/sampai; hari roster dibangkitkan dari pola, bisa diedit lewat **grid bulanan**, **import Excel** (mesin D-042, format OD-13), dan **pengajuan perubahan/tukar shift** (rekan setuju dulu, lalu MANAGER + HR paralel). Tanggal kerja shift malam = tanggal mulai. Hari OFF bukan cuti. Hari roster dengan absen disetujui/periode tertutup tidak bisa diubah via grid/import. HR menyusun roster PT-nya (mengubah §4.3 "Template shift" yang sebelumnya SA saja). | Pemilik projek 2026-10-12 (grill: keempat cara roster dipilih; per crew dipilih dari per karyawan; jendela per shift dipilih dari aturan global). |
+| D-070 | **Validasi absen tidak memblokir (2026-10-12, rencana):** absen di luar jendela roster / hari OFF / tanpa roster / di luar radius / akurasi GPS rendah / lokasi lain **tetap tercatat dengan label** (`OUTSIDE_ROSTER`, `NO_ROSTER`, `OUTSIDE_RADIUS`, `LOW_ACCURACY`, `OTHER_LOCATION`, `LATE`, `EARLY_LEAVE`, `NO_CHECKOUT`) dan **alasan wajib**; approver yang memutuskan (D-068). Absen ganda ditolak. | Pemilik projek 2026-10-12 (grill: "tetap tercatat, ditandai" dipilih dari "diblokir"). |
+| D-071 | **Tutup periode → ALPHA + surat pernyataan (2026-10-12, rencana):** saat periode ditutup (`payroll.period.prepare`, D-011), setiap hari kerja roster yang belum disetujui MANAGER + HR atau tanpa absen dan tanpa cuti/izin/sakit disetujui = **ALPHA**. Karyawan **wajib membuat surat pernyataan absensi** (alasan + lampiran) per hari ALPHA sebagai catatan kepatuhan untuk sanksi; tidak mengubah status & tidak membuka periode; tindak lanjut lewat Surat Peringatan (D-057). | Pemilik projek 2026-10-12 (grill: "dianggap tidak hadir" + surat pernyataan, dipilih dari "blokir tutup periode" dan "dianggap hadir"). |
+| D-072 | **Aturan cuti tahunan (2026-10-12, rencana):** jatah diberikan **1 Januari** (Master Cuti per tahun, default 12 hari); karyawan baru **prorata 1 hari per bulan kerja penuh** s.d. 31 Des tahun sebelumnya (masuk tgl 1–15 bulan dihitung, > 15 mulai bulan berikutnya — contoh grill "1–15 Nov → 1 hari" berbeda dari rumus, dikonfirmasi ulang sebelum Tahap E); sisa tahun lalu dipakai lebih dulu dan **hangus 31 Maret**; **hutang cuti** diperbolehkan dan **dilunasi akhir Januari** dari jatah baru (sisa hutang ditandai untuk HR); hari OFF roster, izin, sakit, tanggal merah, cuti bersama **tidak** memotong cuti — **kecuali** cuti bersama yang jatuh pada hari kerja roster dan karyawan tidak masuk = 1 hari cuti; hitungan hari = hari kerja roster; setiap perubahan saldo tercatat di buku besar. Mengubah §5.3 "saldo tidak boleh negatif". | Pemilik projek 2026-10-12 (grill). |
+| D-073 | **Approval per absen + cegah salah pencet + autentikasi manual (2026-10-12):** Clock In dan Clock Out **masing-masing** disetujui MANAGER + HR (paralel, subjek `ATTENDANCE_PUNCH`); hari = `APPROVED` bila keduanya disetujui, `REJECTED` bila salah satu ditolak (mengubah D-068 "satuan approval = hari"). HP memperingatkan kemungkinan salah memilih tombol dengan membandingkan jam sekarang terhadap **jadwal pulang** (Clock Out sebelum jam pulang − toleransi, Clock In ≤ 60 menit sebelum/lewat jam pulang, Clock In saat masih Clock In); server menolak sampai dikonfirmasi. Karyawan boleh membatalkan absennya sendiri ≤ 15 menit selama belum diputuskan. HR (PT) / SA dapat **memasukkan atau mengganti jam absen secara manual** (alasan wajib, label MANUAL, audit, tetap melalui approval; bila HR yang memasukkan, langkah HR otomatis disetujui atas namanya); hari `NO_CHECKOUT` diselesaikan lewat input manual / koreksi. | Pemilik projek 2026-10-12 (permintaan: absen masuk & pulang disetujui satu per satu, deteksi salah pencet, autentikasi manual). |
 
 Keputusan baru ditambahkan dengan ID berikutnya **dan** dicatat di log PROGRESS.
 
@@ -488,6 +505,9 @@ Keputusan baru ditambahkan dengan ID berikutnya **dan** dicatat di log PROGRESS.
 | OD-9 | **Proteksi branch `main`** (§6) ditolak GitHub: organisasi `ArthasiaCiptaPratama` memakai paket **Free**, dan branch protection/rulesets untuk repo **private** butuh **GitHub Team**. GitHub Pro milik akun pribadi pemilik projek tidak berlaku untuk repo milik organisasi (dicoba ulang 2026-09-28: tetap 403). Pilihan: upgrade organisasi ke Team, jadikan repo public (tidak disarankan: kode HRIS internal), atau sementara hanya disiplin alur (tanpa penegakan). | Upgrade ke GitHub Team (bisa diputuskan bersama OD-4). Sampai itu, `main` hanya dijaga disiplin: tidak push langsung, merge lewat PR yang di-review. | Rilis 1 |
 | OD-11 | **Masa simpan data karyawan yang sudah keluar** (dokumen kepegawaian, pajak, identitas, kesehatan) & kapan dianonimkan/dihapus (UU PDP). | Usulan: kepegawaian & pajak 10 tahun setelah keluar, identitas/kesehatan 5 tahun, lalu anonimisasi terjadwal dengan laporan pra-eksekusi; putuskan bersama HR/legal. Sampai diputuskan: tidak ada penghapusan otomatis. | Gelombang Arsip 1 rilis produksi |
 | OD-12 | **Repo GitHub `ArthasiaCiptaPratama/HRIS` berstatus PUBLIC** (ditemukan 2026-10-12; pada 2026-09-28 masih private — lihat OD-9 — jadi visibilitas diubah setelahnya oleh pihak dengan akses admin organisasi). Isi yang terbaca publik: seluruh kode & dokumen (ref project Supabase staging, nama project Vercel, email akun uji, rancangan keamanan) dan riwayat git (termasuk `.env.supabase.enc` terenkripsi yang pernah ter-push di branch `HRIS/Mat/windows`). Tidak ada rahasia polos di repo. | Kembalikan ke **private** (pemilik organisasi: Settings › General › Danger Zone), lalu cek CI/Deploy tetap jalan; sesudahnya OD-9 (proteksi `main`) kembali butuh GitHub Team. Bila sengaja dibuat public (mis. agar branch protection gratis), catat sebagai keputusan & percepat rotasi rahasia staging (daftar keamanan PROGRESS §2). Template email tidak bergantung pada repo (logo di Supabase Storage). | Rilis 1 (sebaiknya segera) |
+| OD-13 | **Format file Excel roster** (OD-13–OD-15 bernomor awal OD-12–OD-14 di branch HRIS/Mat/windows, digeser +1 karena OD-12 sudah dipakai repo publik) yang dipakai site saat ini (kolom NIK/nama, kolom tanggal, kode shift/OFF, satu sheet per bulan/crew?) untuk import roster (D-069). | Minta contoh file anonim dari site; pemetaan kolom memakai mesin Import D-042. | Tahap B (import roster) |
+| OD-14 | **Lembur**: dihitung otomatis dari jam pulang yang melewati shift roster, atau tetap pengajuan yang diputuskan MANAGER (§5.2)? | Pengajuan tetap (sesuai PLAN), dengan usulan jam otomatis dari selisih absen pulang vs shift. | Tahap F |
+| OD-15 | **Batas waktu approval hari absen & pengingat** (D-068): berapa hari setelah tanggal kerja, siapa yang diingatkan, dan apakah terlambat memutuskan ditandai. | H+2, pengingat ringkasan harian ke MANAGER & HR yang masih punya antrean. | Tahap D |
 
 Jika sebuah OD diputuskan: pindahkan ke §8 sebagai `D-xxx` dan catat di log PROGRESS.
 
@@ -507,5 +527,7 @@ Jika sebuah OD diputuskan: pindahkan ke §8 sebagai `D-xxx` dan catat di log PRO
 | Pelanggaran ToS Vercel Hobby untuk penggunaan komersial | Pindah ke team kantor berpaket berbayar sebelum data asli (OD-4). |
 | Kebocoran data pribadi (UU No. 27/2022 PDP) | RBAC + grant, audit log, bucket private, email tanpa data sensitif, tidak log PII, retensi selfie. |
 | Perbedaan Linux vs Windows (dual boot) | `.gitattributes` LF, script via Bun (bukan bash), verifikasi di kedua OS di Fase 1. |
-| GPS palsu (fake GPS) | Diterima di v1; selfie sebagai bukti tambahan; bisa diperketat di mobile app. |
+| GPS palsu (fake GPS) | Diterima di v1 — PWA tidak bisa mendeteksi aplikasi pemalsu lokasi (D-067); mitigasi: selfie, label di luar radius/akurasi rendah, approval MANAGER + HR setiap hari (D-068); bisa diperketat di aplikasi native. |
+| Beban approval harian (± 2 keputusan per karyawan per hari, D-068) | Persetujuan massal, filter "hanya yang berlabel", badge & ringkasan harian (bukan notifikasi per absen); batas waktu & pengingat OD-15. |
+| Area site tanpa sinyal (absen wajib online) | Karyawan mengajukan koreksi absensi; bila tidak, ALPHA + surat pernyataan saat tutup periode (D-071). |
 | Scope creep | Ide baru masuk Backlog PROGRESS, tidak dikerjakan di luar fase aktif. |
