@@ -15,7 +15,7 @@
 | [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
-| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ develop; sisa gel. 2–3, OD-11 | terpasang, disembunyikan saklar |
+| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔; sisa gel. 2–3, OD-11 | ✔ gel. 6 (QA LEGIT) |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
 | [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/windows` | Berjalan — ✔ develop 2026-10-13 (`e31e934`); sisa: lembur OD-14, uji HP, cron, adapter | belum |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
@@ -27,8 +27,8 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 ## Fokus saat ini
 
 - **Perapihan dokumen (2026-10-13):** struktur induk + `features/` + `codemap/` + `decisions.md` + `RELEASE.md` (lihat log ringkas). Mat diminta **pull develop** sebelum lanjut dan sejak itu hanya menulis `features/time-management/` & `features/dashboard/`.
-- **Antrean push develop:** 3 commit docs (`2e0a931`, `e60b958`, `70e10b5`) + merge Time Management `e31e934` + commit perapihan dokumen — **belum di-push** ([RELEASE §2](RELEASE.md#2-antrean-push--rilis-aktif)).
-- **Ditunda (pemilik projek 2026-10-12: "a–c nanti saja"):** (a) saklar `archive` + `selfService` di jalur rilis → staging + QA; (b) Arsip gel. 2a Aset & 2b Surat peringatan; (c) gel. 3 Laporan.
+- **Develop di-push 2026-10-13** sampai `9c16518` (CI #38372511353 ✔): merge Time Management `e31e934` + perapihan dokumen. Time Management **belum dirilis** ke staging ([RELEASE §2](RELEASE.md#2-antrean-push--rilis-aktif)).
+- **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT. Berikutnya untuk arsip: gel. 2a Aset & 2b Surat peringatan (grill dulu), lalu gel. 3 Laporan.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
 
 ## Blocker & wajib sebelum produksi
@@ -89,5 +89,6 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-13** — Rilis gel. 6: Arsip gel. 1 + Layanan Mandiri tampil di staging (saklar, PR #47/#48, Deploy #38374784477), QA 14/14 LEGIT + arsip Drive. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-13** — Perapihan dokumen: induk PROGRESS + `features/` (12) + `codemap/` + `decisions.md` + `RELEASE.md` + arsip log; aturan prefix keputusan & aturan rekan tim. (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-13** — Gabung Time Management + aplikasi HP dari `HRIS/Mat/windows` (merge `e31e934`, nomor D/OD Mat digeser +1, perbaikan grid kalender). (Oatse) → [time-management/log](features/time-management/log.md)

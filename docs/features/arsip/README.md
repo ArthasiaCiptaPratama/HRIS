@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
 > **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`
-> **Status:** Gel. 1a–1d ✔ develop, terpasang di staging tetapi disembunyikan saklar; sisa: aktifkan saklar di rilis, gel. 2 (Aset, SP), gel. 3 (Laporan), OD-11
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; sisa: gel. 2 (Aset, SP), gel. 3 (Laporan), impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -21,6 +21,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] Verifikasi penuh di Linux 2026-10-07: typecheck ✔ · biome ✔ (356 file) · boundaries ✔ (301 modul) · `db:check` ✔ · test shared 140 · api 521 · web 199 ✔ · build ✔ (tambahan 2026-10-07)
     - [x] QA lokal 1c: plan/run `2026-10-07-arsip-1c`, TC-EMP-149…160, Playwright 19/19 (tambahan 2026-10-07: temuan audit dokumen)
   - [x] Gel. 1d ekspor & cetak per kategori (D-058; QA Playwright 7/7, 2026-10-08) — impor per kategori **ditunda** (keputusan pemilik projek 2026-10-08: tunggu contoh rekap Excel lama dari HR)
+  - [x] Tampil di staging (tambahan 2026-10-13: permintaan pemilik projek) — saklar `archive` + `selfService` `true` di rilis `42df46e` → PR #47/#48 → `Deploy staging` #38374784477; grant `employee.changes.review` HR uji; QA staging 14/14 TC-STG-059…072 **LEGIT**, arsip Drive `hris-qa:2026-10-13-staging-arsip`
   - [ ] Gel. 2a Aset (modul `asset`, BAST, peringatan saat nonaktif) · Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
@@ -54,6 +55,7 @@ Detail modul: [employee](../../codemap/employee.md).
 
 ## QA
 
+- [plans/2026-10-13-staging-arsip.md](../../qa/plans/2026-10-13-staging-arsip.md) · [runs/2026-10-13-staging-arsip.md](../../qa/runs/2026-10-13-staging-arsip.md) — staging rilis gel. 6, **LEGIT**
 - [plans/2026-10-05-arsip-1a.md](../../qa/plans/2026-10-05-arsip-1a.md)
 - [runs/2026-10-05-arsip-1a.md](../../qa/runs/2026-10-05-arsip-1a.md)
 - [plans/2026-10-05-arsip-1b.md](../../qa/plans/2026-10-05-arsip-1b.md)
