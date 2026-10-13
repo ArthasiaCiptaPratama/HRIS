@@ -71,7 +71,32 @@ export const pages = {
     })),
   // Time Management (D-066–D-070).
   absen: () =>
-    import("@/features/time-management/pages/absen-page").then((m) => ({ Component: m.AbsenPage })),
+    import("@/features/time-management/pages/absen-page").then((m) => ({ Component: m.AbsenHome })),
+  // Aplikasi HP (/absen/*): shell + halaman khusus HP.
+  mobileShell: () =>
+    import("@/features/time-management/pages/absen-page").then((m) => ({
+      Component: m.MobileShell,
+    })),
+  mobileHistory: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileHistoryPage,
+    })),
+  mobileRoster: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileRosterPage,
+    })),
+  mobileApprovals: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileApprovalsPage,
+    })),
+  mobileNotifications: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileNotificationsPage,
+    })),
+  mobileProfile: () =>
+    import("@/features/time-management/pages/mobile-pages").then((m) => ({
+      Component: m.MobileProfilePage,
+    })),
   attendanceDays: () =>
     import("@/features/time-management/pages/attendance-days-page").then((m) => ({
       Component: m.AttendanceDaysPage,

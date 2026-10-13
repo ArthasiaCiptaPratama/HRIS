@@ -291,6 +291,9 @@ Status yang dipakai: `Belum mulai` · `Berjalan` · `Review` · `Selesai`
 - [x] Data lokal disimpan selamanya: hapus selfie (retensi) hanya saat NODE_ENV=production; test integrasi membatasi cron ke data uji sendiri (2026-10-12)
 - [x] Data Time Management untuk DB lokal tiap pengembang: `bun run db:seed:time` (libur resmi SKB 3 Menteri 2026–2027 + Master Cuti tahun ini), `-- --demo` (site, shift D/N, pola, crew, 3 karyawan demo, roster, saldo cuti), `-- --demo --accounts` (akun login demo; membuat user di Supabase Auth). Ditolak bila DB bukan lokal (2026-10-12)
 - [x] Dashboard karyawan & atasan (bukan SA/HR): widget kehadiran hari ini, perlu tindakan (belum Clock In/Out, Alpha tanpa pernyataan, absen ditolak, tanpa Clock Out, tukar shift, inbox persetujuan atasan), kehadiran bulan ini, saldo cuti, roster 7 hari, pintasan, berita penting (notifikasi) (2026-10-12)
+- [x] Aplikasi HP mandiri (2026-10-13): shell `/absen/*` (kepala + bilah bawah + tombol scan wajah di semua halaman) — Riwayat bulanan, Roster bulanan, Cuti, Koreksi, Tukar Shift, Kalender, Approval kartu (atasan/HR), Notifikasi, Profil; shortcut manifest PWA; siap dibungkus jadi aplikasi HP (Capacitor/TWA) dengan start `/absen`
+- [x] Kalender libur bergaya kalender dinding (12 bulan, Minggu merah, tanggal merah/cuti bersama), grid responsif berbasis container query (1–4 kolom), data resmi SKB 3 Menteri 2026–2027 + tombol "Isi libur resmi" (SA) (2026-10-13)
+- [x] Zona waktu jam shift dibaca dari pengaturan di semua layar (bukan WITA tetap); pengaturan bisa dibaca semua akun, ubah tetap SA (2026-10-13)
 - [ ] Badge & ringkasan harian (tanpa notifikasi per absen)
   - Hari absen yang sudah APPROVED mengunci sel roster (tidak bisa diedit/diimport/ditukar) (tambahan 2026-10-12)
 

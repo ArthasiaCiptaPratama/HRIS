@@ -91,7 +91,7 @@ function DayDot({
   return (
     <span
       className={cn(
-        "mx-auto grid size-7 place-items-center rounded-full text-xs tabular-nums",
+        "mx-auto grid aspect-square w-full max-w-8 place-items-center rounded-full text-xs tabular-nums",
         sunday && !holiday && "font-semibold text-red-600",
         holiday?.kind === "NATIONAL" && "bg-red-600 font-semibold text-white",
         holiday?.kind === "COLLECTIVE_LEAVE" && "bg-amber-400 font-semibold text-amber-950",
@@ -205,130 +205,146 @@ export function HolidaysPage() {
           description={errorMessage(holidays.error)}
         />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-          {rows.length === 0 ? (
-            <div className="xl:col-span-2">
-              <EmptyState
-                icon={CalendarDays}
-                title={`Belum ada hari libur ${year}`}
-                description={
-                  hasOfficial
-                    ? "Isi otomatis dari SKB 3 Menteri dengan tombol di bawah."
-                    : "Data resmi tahun ini belum tersedia; tambahkan manual."
-                }
-                action={
-                  manage && hasOfficial ? (
-                    <Button variant="brand" disabled={importOfficial.isPending} onClick={runImport}>
-                      <Download /> Isi libur resmi {year}
-                    </Button>
-                  ) : undefined
-                }
-              />
-            </div>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {MONTHS.map((monthName, m) => (
-              <section key={monthName} className="bg-card rounded-xl border p-3">
-                <h2 className="mb-2 text-sm font-semibold">{monthName}</h2>
-                <div className="grid grid-cols-7 gap-y-1 text-center text-[11px]">
-                  {WEEK.map((w, i) => (
-                    <span
-                      key={w}
-                      className={cn("text-muted-foreground font-medium", i === 0 && "text-red-600")}
-                    >
-                      {w}
-                    </span>
-                  ))}
-                  {monthCells(year, m).map(({ key, date }, i) => {
-                    if (!date) return <span key={key} />;
-                    const h = byDate.get(date);
-                    const label = h ? `${h.name} (${HOLIDAY_KIND_LABELS[h.kind]})` : undefined;
-                    return manage ? (
-                      <button
-                        key={key}
-                        type="button"
-                        title={label ?? "Tambah hari libur"}
-                        aria-label={`${date}${label ? ` — ${label}` : ""}`}
-                        className="hover:bg-muted rounded-md py-0.5"
-                        onClick={() => setEditing({ holiday: h ?? null, date })}
+        <div className="@container min-w-0">
+          <div className="grid min-w-0 gap-6 @[72rem]:grid-cols-[minmax(0,1fr)_300px]">
+            {rows.length === 0 ? (
+              <div className="xl:col-span-2">
+                <EmptyState
+                  icon={CalendarDays}
+                  title={`Belum ada hari libur ${year}`}
+                  description={
+                    hasOfficial
+                      ? "Isi otomatis dari SKB 3 Menteri dengan tombol di bawah."
+                      : "Data resmi tahun ini belum tersedia; tambahkan manual."
+                  }
+                  action={
+                    manage && hasOfficial ? (
+                      <Button
+                        variant="brand"
+                        disabled={importOfficial.isPending}
+                        onClick={runImport}
                       >
-                        <DayDot
-                          date={date}
-                          sunday={i % 7 === 0}
-                          holiday={h}
-                          today={date === today}
-                        />
-                      </button>
-                    ) : (
-                      <span key={key} title={label} className="py-0.5">
-                        <DayDot
-                          date={date}
-                          sunday={i % 7 === 0}
-                          holiday={h}
-                          today={date === today}
-                        />
-                      </span>
-                    );
-                  })}
-                </div>
-                <ul className="mt-2 space-y-0.5">
-                  {rows
-                    .filter((h) => Number(h.date.slice(5, 7)) === m + 1)
-                    .map((h) => (
-                      <li key={h.id} className="flex gap-1.5 text-[11px] leading-snug">
+                        <Download /> Isi libur resmi {year}
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </div>
+            ) : null}
+            <div className="@container min-w-0">
+              <div className="grid min-w-0 grid-cols-1 items-start gap-4 @[34rem]:grid-cols-2 @[52rem]:grid-cols-3 @[72rem]:grid-cols-4">
+                {MONTHS.map((monthName, m) => (
+                  <section
+                    key={monthName}
+                    className="bg-card min-w-0 rounded-xl border p-2.5 sm:p-3"
+                  >
+                    <h2 className="mb-2 text-sm font-semibold">{monthName}</h2>
+                    <div className="grid grid-cols-7 gap-y-1 text-center text-[10px] sm:text-[11px]">
+                      {WEEK.map((w, i) => (
                         <span
+                          key={w}
                           className={cn(
-                            "w-5 shrink-0 text-right font-semibold tabular-nums",
-                            h.kind === "NATIONAL" ? "text-red-600" : "text-amber-600",
+                            "text-muted-foreground font-medium",
+                            i === 0 && "text-red-600",
                           )}
                         >
-                          {Number(h.date.slice(8))}
+                          {w}
                         </span>
-                        <span className="text-muted-foreground">{h.name}</span>
-                      </li>
-                    ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-
-          {rows.length > 0 ? (
-            <aside className="bg-card h-fit rounded-xl border xl:sticky xl:top-4">
-              <h2 className="border-b px-4 py-3 text-sm font-semibold">
-                Daftar libur {year}{" "}
-                <span className="text-muted-foreground font-normal">({rows.length} hari)</span>
-              </h2>
-              <ul className="max-h-[70vh] divide-y overflow-y-auto">
-                {rows.map((h) => (
-                  <li key={h.id} className="flex items-center gap-3 px-4 py-2">
-                    <span className="w-24 shrink-0 text-xs tabular-nums">
-                      {workDateLabel(h.date)}
-                    </span>
-                    <span className="min-w-0 flex-1 text-xs">{h.name}</span>
-                    {manage ? (
-                      <div className="flex shrink-0">
-                        <Button
-                          size="icon-xs"
-                          variant="ghost"
-                          aria-label={`Ubah ${h.name}`}
-                          onClick={() => setEditing({ holiday: h })}
-                        >
-                          <Pencil />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Badge
-                        variant={h.kind === "NATIONAL" ? "destructive" : "warning"}
-                        className="text-[10px]"
-                      >
-                        {h.kind === "NATIONAL" ? "Merah" : "Cuti"}
-                      </Badge>
-                    )}
-                  </li>
+                      ))}
+                      {monthCells(year, m).map(({ key, date }, i) => {
+                        if (!date) return <span key={key} />;
+                        const h = byDate.get(date);
+                        const label = h ? `${h.name} (${HOLIDAY_KIND_LABELS[h.kind]})` : undefined;
+                        return manage ? (
+                          <button
+                            key={key}
+                            type="button"
+                            title={label ?? "Tambah hari libur"}
+                            aria-label={`${date}${label ? ` — ${label}` : ""}`}
+                            className="hover:bg-muted min-w-0 rounded-md p-px sm:py-0.5"
+                            onClick={() => setEditing({ holiday: h ?? null, date })}
+                          >
+                            <DayDot
+                              date={date}
+                              sunday={i % 7 === 0}
+                              holiday={h}
+                              today={date === today}
+                            />
+                          </button>
+                        ) : (
+                          <span key={key} title={label} className="min-w-0 p-px sm:py-0.5">
+                            <DayDot
+                              date={date}
+                              sunday={i % 7 === 0}
+                              holiday={h}
+                              today={date === today}
+                            />
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <ul className="mt-2 space-y-0.5">
+                      {rows
+                        .filter((h) => Number(h.date.slice(5, 7)) === m + 1)
+                        .map((h) => (
+                          <li key={h.id} className="flex min-w-0 gap-1.5 text-[11px] leading-snug">
+                            <span
+                              className={cn(
+                                "w-5 shrink-0 text-right font-semibold tabular-nums",
+                                h.kind === "NATIONAL" ? "text-red-600" : "text-amber-600",
+                              )}
+                            >
+                              {Number(h.date.slice(8))}
+                            </span>
+                            <span className="text-muted-foreground min-w-0 break-words">
+                              {h.name}
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  </section>
                 ))}
-              </ul>
-            </aside>
-          ) : null}
+              </div>
+            </div>
+
+            {rows.length > 0 ? (
+              <aside className="bg-card h-fit rounded-xl border @[72rem]:sticky @[72rem]:top-4">
+                <h2 className="border-b px-4 py-3 text-sm font-semibold">
+                  Daftar libur {year}{" "}
+                  <span className="text-muted-foreground font-normal">({rows.length} hari)</span>
+                </h2>
+                <ul className="max-h-[70vh] divide-y overflow-y-auto">
+                  {rows.map((h) => (
+                    <li key={h.id} className="flex items-center gap-3 px-4 py-2">
+                      <span className="w-24 shrink-0 text-xs tabular-nums">
+                        {workDateLabel(h.date)}
+                      </span>
+                      <span className="min-w-0 flex-1 text-xs">{h.name}</span>
+                      {manage ? (
+                        <div className="flex shrink-0">
+                          <Button
+                            size="icon-xs"
+                            variant="ghost"
+                            aria-label={`Ubah ${h.name}`}
+                            onClick={() => setEditing({ holiday: h })}
+                          >
+                            <Pencil />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Badge
+                          variant={h.kind === "NATIONAL" ? "destructive" : "warning"}
+                          className="text-[10px]"
+                        >
+                          {h.kind === "NATIONAL" ? "Merah" : "Cuti"}
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            ) : null}
+          </div>
         </div>
       )}
       {editing ? (

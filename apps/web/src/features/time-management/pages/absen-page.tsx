@@ -2,6 +2,7 @@ import { ATTENDANCE_LABEL_TEXT, type AttendanceLabel } from "@hris/shared";
 import {
   AlertTriangle,
   ArrowLeft,
+  Bell,
   CalendarDays,
   CalendarRange,
   Camera,
@@ -12,6 +13,7 @@ import {
   House,
   LogIn,
   LogOut,
+  type LucideIcon,
   MapPin,
   Plane,
   RefreshCw,
@@ -20,8 +22,8 @@ import {
   UserRound,
   WifiOff,
 } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { BrandLogo } from "@/components/brand-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -31,7 +33,6 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/features/auth/api";
-import { useAuth } from "@/features/auth/auth-provider";
 import type { Me } from "@/features/auth/schemas";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -123,125 +124,186 @@ const greeting = (date: Date, timeZone: string) => {
   return "Selamat malam";
 };
 
-export function AbsenPage() {
+interface MobileContextValue {
+  me: Me;
+  data: Today | undefined;
+  todayQuery: ReturnType<typeof useToday>;
+  clock: Date | null;
+  online: boolean;
+  tz: string;
+  startPunch: (kind: "IN" | "OUT") => void;
+}
+const MobileContext = createContext<MobileContextValue | null>(null);
+
+/** Data aplikasi HP (absen hari ini, jam server, mulai absen) untuk halaman di dalam shell. */
+export function useMobileApp(): MobileContextValue {
+  const value = useContext(MobileContext);
+  if (!value) throw new Error("useMobileApp harus dipakai di dalam <MobileShell>");
+  return value;
+}
+
+const MOBILE_TITLES: [prefix: string, title: string][] = [
+  ["/absen/riwayat", "Riwayat Absen"],
+  ["/absen/roster", "Roster Saya"],
+  ["/absen/cuti", "Cuti & Izin"],
+  ["/absen/koreksi", "Koreksi & Pernyataan"],
+  ["/absen/tukar-shift", "Tukar Shift"],
+  ["/absen/kalender", "Kalender Libur"],
+  ["/absen/approval", "Approval"],
+  ["/absen/notifikasi", "Notifikasi"],
+  ["/absen/profil", "Profil"],
+];
+
+/**
+ * Shell aplikasi HP (D-066): semua menu absen dibuka di dalam bingkai HP yang sama (kepala, bilah bawah,
+ * tombol scan wajah cepat) pada rute /absen/*, sehingga /absen bisa langsung dibungkus menjadi aplikasi
+ * HP (mis. Capacitor/TWA) tanpa melewati tata letak web desktop.
+ */
+export function MobileShell() {
   usePwaInstall();
   const online = useOnline();
   const me = useMe().data as Me;
-  const { signOut } = useAuth();
-  const today = useToday();
-  const clock = useServerClock(today.data?.serverTime, today.dataUpdatedAt);
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const todayQuery = useToday();
+  const clock = useServerClock(todayQuery.data?.serverTime, todayQuery.dataUpdatedAt);
   const [flow, setFlow] = useState<"IN" | "OUT" | null>(null);
   const [noOpenWarning, setNoOpenWarning] = useState(false);
+  const data = todayQuery.data;
+  const fallbackTz = useTimezone();
+  const tz = data?.timezone ?? fallbackTz;
   // D-072: Clock Out tanpa Clock In kemungkinan salah pencet → tawarkan Clock In.
   const startPunch = (kind: "IN" | "OUT") => {
     if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
     else setFlow(kind);
   };
-  const data = today.data;
-  const fallbackTz = useTimezone();
-  const tz = data?.timezone ?? fallbackTz;
-  const historyRef = useRef<HTMLElement>(null);
+  const isHome = pathname === "/absen" || pathname === "/absen/";
+  const title = MOBILE_TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "Absensi";
 
   return (
-    <div className="bg-muted/50 min-h-dvh">
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col">
-        {/* Kepala: logo, judul aplikasi, kembali ke web & keluar */}
-        <header className="bg-card flex items-center gap-3 border-b px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
-          <BrandLogo className="h-9" decorative />
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-sm font-semibold">HRIS</p>
-            <p className="text-muted-foreground text-[11px]">Attendance Online System</p>
-          </div>
-          <Button size="icon-sm" variant="ghost" asChild aria-label="Buka HRIS versi web">
-            <Link to="/">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Keluar" onClick={() => void signOut()}>
-            <LogOut />
-          </Button>
-        </header>
+    <MobileContext.Provider value={{ me, data, todayQuery, clock, online, tz, startPunch }}>
+      <div className="bg-muted/50 min-h-dvh">
+        <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+          <header className="bg-card sticky top-0 z-30 flex items-center gap-3 border-b px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+            {isHome ? (
+              <>
+                <BrandLogo className="h-9" decorative />
+                <div className="min-w-0 flex-1 leading-tight">
+                  <p className="text-sm font-semibold">HRIS</p>
+                  <p className="text-muted-foreground text-[11px]">Attendance Online System</p>
+                </div>
+                <Button size="icon-sm" variant="ghost" asChild aria-label="Notifikasi">
+                  <Link to="/absen/notifikasi">
+                    <Bell />
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="Kembali"
+                  onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/absen"))}
+                >
+                  <ArrowLeft />
+                </Button>
+                <h1 className="min-w-0 flex-1 truncate text-base font-semibold">{title}</h1>
+              </>
+            )}
+          </header>
 
-        <main className="flex flex-1 flex-col gap-4 px-4 pt-4 pb-28">
           {!online ? (
-            <Alert variant="destructive">
-              <WifiOff />
-              <AlertDescription>
-                Tidak ada koneksi internet. Absen wajib online — sambungkan internet lalu coba lagi.
-              </AlertDescription>
-            </Alert>
+            <div className="px-4 pt-3">
+              <Alert variant="destructive">
+                <WifiOff />
+                <AlertDescription>
+                  Tidak ada koneksi internet. Absen wajib online — sambungkan internet lalu coba
+                  lagi.
+                </AlertDescription>
+              </Alert>
+            </div>
           ) : null}
 
-          {today.isPending ? (
-            <Skeleton className="h-56 rounded-2xl" />
-          ) : today.isError || !data ? (
-            <Alert variant="destructive">
-              <CircleAlert />
-              <AlertDescription>
-                {errorMessage(today.error)}{" "}
-                <button type="button" className="underline" onClick={() => void today.refetch()}>
-                  Muat ulang
-                </button>
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <TodayCard data={data} clock={clock} online={online} onPunch={startPunch} />
-              <MenuGrid
-                me={me}
-                onHistory={() => historyRef.current?.scrollIntoView({ behavior: "smooth" })}
-              />
-              <RosterStrip data={data} today={todayIn(tz)} />
-              <History data={data} tz={tz} sectionRef={historyRef} />
-            </>
-          )}
-        </main>
+          <main className="flex flex-1 flex-col gap-4 px-4 pt-4 pb-28 [&_header>div>h1]:hidden [&_nav[aria-label=Breadcrumb]]:hidden">
+            <Outlet />
+          </main>
 
-        <BottomNav
-          canPunch={Boolean(data) && online}
-          next={data?.next ?? "IN"}
-          onPunch={() => data && setFlow(data.next)}
-          onHistory={() => historyRef.current?.scrollIntoView({ behavior: "smooth" })}
-        />
-      </div>
-      {noOpenWarning ? (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
-          role="alertdialog"
-          aria-modal
-        >
-          <div className="bg-card w-full max-w-sm space-y-3 rounded-2xl p-5 shadow-lg">
-            <p className="flex items-center gap-2 font-semibold">
-              <AlertTriangle className="size-5 text-amber-500" /> Belum Clock In
-            </p>
-            <p className="text-muted-foreground text-sm">
-              Anda belum tercatat Clock In untuk hari kerja ini, jadi belum bisa Clock Out. Maksud
-              Anda Clock In?
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => setNoOpenWarning(false)}>
-                Batal
-              </Button>
-              <button
-                type="button"
-                className="h-9 rounded-md bg-emerald-600 text-sm font-semibold text-white"
-                onClick={() => {
-                  setNoOpenWarning(false);
-                  setFlow("IN");
-                }}
-              >
-                Ya, Clock In
-              </button>
+          <BottomNav
+            canPunch={Boolean(data) && online}
+            next={data?.next ?? "IN"}
+            onPunch={() => data && setFlow(data.next)}
+          />
+        </div>
+        {noOpenWarning ? (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+            role="alertdialog"
+            aria-modal
+          >
+            <div className="bg-card w-full max-w-sm space-y-3 rounded-2xl p-5 shadow-lg">
+              <p className="flex items-center gap-2 font-semibold">
+                <AlertTriangle className="size-5 text-amber-500" /> Belum Clock In
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Anda belum tercatat Clock In untuk hari kerja ini, jadi belum bisa Clock Out. Maksud
+                Anda Clock In?
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => setNoOpenWarning(false)}>
+                  Batal
+                </Button>
+                <button
+                  type="button"
+                  className="h-9 rounded-md bg-emerald-600 text-sm font-semibold text-white"
+                  onClick={() => {
+                    setNoOpenWarning(false);
+                    setFlow("IN");
+                  }}
+                >
+                  Ya, Clock In
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
-      {flow && data ? (
-        <PunchFlow kind={flow} data={data} clock={clock} onClose={() => setFlow(null)} />
-      ) : null}
-    </div>
+        ) : null}
+        {flow && data ? (
+          <PunchFlow kind={flow} data={data} clock={clock} onClose={() => setFlow(null)} />
+        ) : null}
+      </div>
+    </MobileContext.Provider>
   );
 }
+
+/** Beranda aplikasi HP: kartu hari ini (Datang/Pulang), menu, roster 7 hari, riwayat singkat. */
+export function AbsenHome() {
+  const { me, data, todayQuery, clock, online, tz, startPunch } = useMobileApp();
+  if (todayQuery.isPending) return <Skeleton className="h-56 rounded-2xl" />;
+  if (todayQuery.isError || !data) {
+    return (
+      <Alert variant="destructive">
+        <CircleAlert />
+        <AlertDescription>
+          {errorMessage(todayQuery.error)}{" "}
+          <button type="button" className="underline" onClick={() => void todayQuery.refetch()}>
+            Muat ulang
+          </button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  return (
+    <>
+      <TodayCard data={data} clock={clock} online={online} onPunch={startPunch} />
+      <MenuGrid me={me} />
+      <RosterStrip data={data} today={todayIn(tz)} />
+      <History data={data} tz={tz} />
+    </>
+  );
+}
+
+/** Kompatibilitas: nama lama halaman absen. */
+export const AbsenPage = AbsenHome;
 
 function TodayCard({
   data,
@@ -379,51 +441,62 @@ function MenuTile({
   );
 }
 
-function MenuGrid({ me, onHistory }: { me: Me; onHistory: () => void }) {
+function MenuGrid({ me }: { me: Me }) {
+  const approver = tmAccess.reviewDays(me) || tmAccess.decideLeave(me);
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">
       <h2 className="mb-2 px-1 text-sm font-semibold">Menu</h2>
       <div className="grid grid-cols-4 gap-1">
         <MenuTile
-          to="/time/roster"
+          to="/absen/roster"
           icon={CalendarRange}
           label="Roster"
           tone="bg-violet-100 text-violet-700"
         />
         <MenuTile
-          to="/time/pernyataan"
+          to="/absen/koreksi"
           icon={FilePenLine}
           label="Koreksi Absen"
           tone="bg-amber-100 text-amber-700"
         />
         <MenuTile
-          onClick={onHistory}
+          to="/absen/riwayat"
           icon={HistoryIcon}
           label="Riwayat"
           tone="bg-emerald-100 text-emerald-700"
         />
-        <MenuTile to="/time/cuti" icon={Plane} label="Cuti & Izin" tone="bg-sky-100 text-sky-700" />
         <MenuTile
-          to="/time/perubahan-roster"
+          to="/absen/cuti"
+          icon={Plane}
+          label="Cuti & Izin"
+          tone="bg-sky-100 text-sky-700"
+        />
+        <MenuTile
+          to="/absen/tukar-shift"
           icon={Repeat}
           label="Tukar Shift"
           tone="bg-rose-100 text-rose-700"
         />
         <MenuTile
-          to="/time/kalender"
+          to="/absen/kalender"
           icon={CalendarDays}
           label="Kalender"
           tone="bg-orange-100 text-orange-700"
         />
-        {tmAccess.reviewDays(me) || tmAccess.decideLeave(me) ? (
+        {approver ? (
           <MenuTile
-            to={tmAccess.reviewDays(me) ? "/time/absen-harian" : "/time/persetujuan-cuti"}
+            to="/absen/approval"
             icon={ClipboardCheck}
             label="Approval"
             tone="bg-teal-100 text-teal-700"
           />
         ) : null}
-        <MenuTile to="/profil" icon={UserRound} label="Profil" tone="bg-slate-100 text-slate-700" />
+        <MenuTile
+          to="/absen/profil"
+          icon={UserRound}
+          label="Profil"
+          tone="bg-slate-100 text-slate-700"
+        />
       </div>
     </section>
   );
@@ -439,18 +512,15 @@ function RosterStrip({ data, today }: { data: Today; today: string }) {
   );
 }
 
-function History({
-  data,
-  tz,
-  sectionRef,
-}: {
-  data: Today;
-  tz: string;
-  sectionRef: React.RefObject<HTMLElement | null>;
-}) {
+function History({ data, tz }: { data: Today; tz: string }) {
   return (
-    <section ref={sectionRef} className="scroll-mt-4">
-      <h2 className="mb-2 text-sm font-semibold">Riwayat 7 hari</h2>
+    <section>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold">Riwayat 7 hari</h2>
+        <Link to="/absen/riwayat" className="text-brand text-xs hover:underline">
+          Lihat semua
+        </Link>
+      </div>
       {data.recent.length === 0 ? (
         <p className="text-muted-foreground text-sm">Belum ada absen.</p>
       ) : (
@@ -488,7 +558,7 @@ function History({
 }
 
 /** Satu absen di riwayat: jam, status persetujuan Atasan/HR, dan batal (salah pencet) bila masih boleh. */
-function PunchRow({
+export function PunchRow({
   label,
   punch,
   tz,
@@ -548,34 +618,34 @@ function BottomNav({
   canPunch,
   next,
   onPunch,
-  onHistory,
 }: {
   canPunch: boolean;
   next: "IN" | "OUT";
   onPunch: () => void;
-  onHistory: () => void;
 }) {
-  const item = (icon: ReactNode, label: string, props: { to?: string; onClick?: () => void }) => {
-    const cls = "text-muted-foreground flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]";
-    return props.to ? (
-      <Link to={props.to} className={cls}>
-        {icon}
+  const { pathname } = useLocation();
+  const item = (icon: LucideIcon, label: string, to: string, exact = false) => {
+    const active = exact ? pathname === to || pathname === `${to}/` : pathname.startsWith(to);
+    const Icon = icon;
+    return (
+      <Link
+        to={to}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px]",
+          active ? "text-brand font-medium" : "text-muted-foreground",
+        )}
+      >
+        <Icon className="size-5" />
         {label}
       </Link>
-    ) : (
-      <button type="button" onClick={props.onClick} className={cls}>
-        {icon}
-        {label}
-      </button>
     );
   };
   return (
     <nav className="bg-card fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)]">
       <div className="relative mx-auto flex max-w-md items-end px-2">
-        {item(<House className="text-brand size-5" />, "Home", {
-          onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
-        })}
-        {item(<HistoryIcon className="size-5" />, "Riwayat", { onClick: onHistory })}
+        {item(House, "Home", "/absen", true)}
+        {item(HistoryIcon, "Riwayat", "/absen/riwayat")}
         <div className="flex flex-1 flex-col items-center">
           {/* Akses cepat: langsung kamera untuk absen berikutnya (Clock In / Clock Out). */}
           <button
@@ -591,8 +661,8 @@ function BottomNav({
             {next === "IN" ? "Clock In" : "Clock Out"}
           </span>
         </div>
-        {item(<Plane className="size-5" />, "Cuti", { to: "/time/cuti" })}
-        {item(<FilePenLine className="size-5" />, "Koreksi", { to: "/time/pernyataan" })}
+        {item(Plane, "Cuti", "/absen/cuti")}
+        {item(UserRound, "Profil", "/absen/profil")}
       </div>
     </nav>
   );

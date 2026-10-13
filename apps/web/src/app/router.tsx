@@ -36,12 +36,38 @@ export const routes: RouteObject[] = [
       // D-045 b: wizard isi data (halaman mandiri; calon terkunci di sini sampai disetujui).
       { path: "/onboarding", lazy: pages.onboardingWizard },
       // D-066: absen PWA (tata letak HP, tanpa kerangka web; dipasang ke layar utama).
+      // Aplikasi HP: semua menu absen di dalam shell HP yang sama (siap dibungkus jadi aplikasi HP).
       {
         path: "/absen",
         element: <RequireAccessRoute check={tmAccess.punch} />,
-        children: [
-          { index: true, lazy: FEATURES.timeManagement ? pages.absen : pages.maintenance },
-        ],
+        children: FEATURES.timeManagement
+          ? [
+              {
+                lazy: pages.mobileShell,
+                children: [
+                  { index: true, lazy: pages.absen },
+                  { path: "riwayat", lazy: pages.mobileHistory },
+                  { path: "roster", lazy: pages.mobileRoster },
+                  { path: "cuti", lazy: pages.leave },
+                  { path: "koreksi", lazy: pages.correctionsStatements },
+                  { path: "tukar-shift", lazy: pages.rosterChanges },
+                  { path: "kalender", lazy: pages.holidays },
+                  {
+                    path: "approval",
+                    element: (
+                      <RequireAccessRoute
+                        check={(me) => tmAccess.reviewDays(me) || tmAccess.decideLeave(me)}
+                      />
+                    ),
+                    children: [{ index: true, lazy: pages.mobileApprovals }],
+                  },
+                  { path: "notifikasi", lazy: pages.mobileNotifications },
+                  { path: "profil", lazy: pages.mobileProfile },
+                  { path: "*", element: <Navigate to="/absen" replace /> },
+                ],
+              },
+            ]
+          : [{ index: true, lazy: pages.maintenance }],
       },
       {
         path: "/",

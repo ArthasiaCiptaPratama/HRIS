@@ -11,8 +11,58 @@
   "theme_color": "#17766f",
   "lang": "id",
   "icons": [
-    { "src": "/pwa/absen-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa/absen-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/pwa/absen-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/pwa/absen-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/absen-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/absen-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Riwayat Absen",
+      "short_name": "Riwayat",
+      "url": "/absen/riwayat",
+      "icons": [
+        {
+          "src": "/pwa/absen-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Cuti & Izin",
+      "short_name": "Cuti",
+      "url": "/absen/cuti",
+      "icons": [
+        {
+          "src": "/pwa/absen-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Approval",
+      "short_name": "Approval",
+      "url": "/absen/approval",
+      "icons": [
+        {
+          "src": "/pwa/absen-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }
