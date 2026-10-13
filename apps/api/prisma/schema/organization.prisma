@@ -25,6 +25,7 @@ model Company {
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  assets            Asset[]
 
   @@unique([code])
   @@unique([name])
@@ -195,6 +196,7 @@ model WorkLocation {
   createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  assets    Asset[]
 
   @@unique([name])
   @@map("work_locations")

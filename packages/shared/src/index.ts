@@ -1,4 +1,5 @@
 export * from "./archive.ts";
+export * from "./asset.ts";
 export * from "./dashboard.ts";
 export * from "./data-changes.ts";
 export * from "./documents.ts";

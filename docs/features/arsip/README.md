@@ -22,7 +22,11 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] QA lokal 1c: plan/run `2026-10-07-arsip-1c`, TC-EMP-149…160, Playwright 19/19 (tambahan 2026-10-07: temuan audit dokumen)
   - [x] Gel. 1d ekspor & cetak per kategori (D-058; QA Playwright 7/7, 2026-10-08) — impor per kategori **ditunda** (keputusan pemilik projek 2026-10-08: tunggu contoh rekap Excel lama dari HR)
   - [x] Tampil di staging (tambahan 2026-10-13: permintaan pemilik projek) — saklar `archive` + `selfService` `true` di rilis `42df46e` → PR #47/#48 → `Deploy staging` #38374784477; grant `employee.changes.review` HR uji; QA staging 14/14 TC-STG-059…072 **LEGIT**, arsip Drive `hris-qa:2026-10-13-staging-arsip`
-  - [ ] Gel. 2a Aset (modul `asset`, BAST, peringatan saat nonaktif) · Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
+  - [~] Gel. 2a Aset & APD (ARS-D1–D6; grill 2026-10-13) — tahap A API ✔ lokal 2026-10-13; tahap B web & C QA menyusul
+    - [x] Tahap A (tambahan 2026-10-13): shared `asset.ts` + permission `asset.manage`; migrasi `20261013095006_add_asset_module` (skema `asset`, 5 tabel, unik parsial, CHECK); modul `apps/api/src/modules/asset/` (policy TDD 21, service + audit, PDF BAST, 23 path, cron `asset-daily` + `vercel.json`); `employee/index.ts` + `getEmployeeBriefs`/`listEmployeeBriefs`/`getEmployeeDocumentRef`, `iam/index.ts` + `listAssetManagers`; integration 13 skenario; PLAN §4.2/§4.3, ERD, codemap
+    - [ ] Tahap B: web — Arsip › Data Assets (Aset, Pembagian APD, Belum kembali), Master Data › Kategori aset & Jenis APD, tab Aset di detail karyawan, Layanan Mandiri › Aset saya + konfirmasi, daftar aset di dialog nonaktifkan, saklar `FEATURES.assets`
+    - [ ] Tahap C: QA lokal (Playwright) + dokumen QA
+  - [ ] Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
 
@@ -40,7 +44,12 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| ARS-D1 | **Dua jenis pencatatan (melengkapi D-056):** (1) **aset per unit** — barang bernomor/berharga yang dipinjamkan & harus kembali (laptop, HP, radio HT, kendaraan, alat kerja): kode, kategori, merek/tipe, no. seri, kondisi, status, PT, lokasi; satu pemegang aktif; (2) **APD/seragam berbasis jumlah** — hanya **pembagian** (karyawan, jenis, jumlah, ukuran, tanggal, oleh siapa), **tanpa stok gudang**; jenis APD = master data. | Grill pemilik projek 2026-10-13 ("per unit + APD berbasis jumlah", "pembagian saja") |
+| ARS-D2 | **BAST:** sistem membuat **PDF BAST** (kop Akselerasi Arthasia, daftar aset/APD, kondisi, pihak) untuk serah-terima, pengembalian, dan pembagian APD → dicetak & ditandatangani basah → **scan diunggah** sebagai dokumen karyawan jenis `BAST_ASSET` (D-055) dan ditautkan ke transaksinya. Tambahan: karyawan menekan **"Sudah saya terima"** di Layanan Mandiri (jejak waktu & akun) — pelengkap, bukan pengganti BAST. | Grill 2026-10-13 ("PDF otomatis + unggah scan", "lihat + konfirmasi terima") |
+| ARS-D3 | **Akses:** SA semua PT; HR_ADMIN dengan grant baru **`asset.manage`** mengelola aset & APD di PT yang ditugaskan (staf GA bisa diberi akun HR + grant ini); HR tanpa grant **melihat** di PT-nya; MANAGER melihat aset & APD **tim** tanpa harga; karyawan melihat milik sendiri tanpa harga + konfirmasi terima. Grant/role dicek dari DB (D-008). | Grill 2026-10-13 ("SA + HR ber-grant asset.manage"); matriks PLAN §4.3 |
+| ARS-D4 | **Kode aset** diusulkan otomatis `<KODE-PT>-<KODE-KATEGORI>-<NNNN>` (urut per PT + kategori), boleh diganti manual (label fisik lama), unik se-sistem. **Harga beli** (Decimal 15,2) & tanggal beli opsional, hanya terlihat SA & pemegang `asset.manage`. **Import Excel inventaris lama menyusul** setelah ada contoh file dari HR/GA (pola Arsip 1d). | Grill 2026-10-13 ("otomatis, boleh diganti", "harga terbatas", "input manual dulu") |
+| ARS-D5 | **Jatuh tempo & masa ganti:** serah-terima boleh diberi "kembali paling lambat" (pinjaman sementara); jenis APD boleh punya **masa ganti (bulan)** dan tanda **wajib kembali**. Cron harian **`asset-daily`** menandai pinjaman terlambat & APD jatuh tempo ganti lalu mengingatkan pengelola (+ karyawan untuk pinjaman terlambat), dedupe per transaksi + ambang. | Grill 2026-10-13 ("jatuh tempo opsional + pengingat", "masa ganti per jenis + pengingat", "wajib kembali per jenis") |
+| ARS-D6 | **Karyawan keluar (mengubah rencana design §6.5):** nonaktifkan **tidak diblokir**. Dialog nonaktifkan (web) memanggil API `asset` untuk menampilkan aset terbuka + APD wajib kembali (kembalikan sekarang / tandai hilang / biarkan); yang dibiarkan muncul di daftar **"Belum kembali dari karyawan keluar"** dan cron `asset-daily` memberi notifikasi ke pengelola. Modul `employee` **tidak** mengimpor `asset` (aturan `no-circular`: `asset` → `employee/index.ts` satu arah). | Grill 2026-10-13 ("peringatan + daftar tindak lanjut"); temuan rencana: pemanggilan employee→asset melanggar no-circular |
 
 ## Keputusan terbuka
 
@@ -51,7 +60,7 @@ OD baru: `ARS-OD1`, … (tulis di sini + ringkasan di [PROGRESS](../../PROGRESS.
 
 ## Kode
 
-Detail modul: [employee](../../codemap/employee.md).
+Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/asset.md).
 
 ## QA
 

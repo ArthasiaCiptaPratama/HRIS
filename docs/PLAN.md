@@ -184,6 +184,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `payroll.period.prepare`         | Menutup periode absensi & menandai input payroll siap (**tanpa** melihat nominal) | HR_ADMIN              |
 | `employee.onboarding.review`     | Lihat data sensitif & dokumen calon/karyawan yang sedang onboarding, lalu setujui / minta revisi / batalkan (D-047) | HR_ADMIN              |
 | `employee.changes.review`        | Setujui/tolak pengajuan perubahan data karyawan di PT yang ditugaskan; bagian sensitif tetap butuh grant lihat & ubah bagian itu (D-054, Arsip 1c) | HR_ADMIN              |
+| `asset.manage`                   | Kelola aset per unit & pembagian APD di PT yang ditugaskan: tambah/ubah aset, serah-terima, pengembalian, tandai hilang, BAST, harga aset (ARS-D3) | HR_ADMIN              |
 
 Sifat grant:
 - **Cakupan:** untuk HR_ADMIN berlaku atas **semua karyawan**; untuk MANAGER hanya atas **timnya**.
@@ -232,6 +233,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Penerimaan karyawan baru: import calon, kirim undangan, undang karyawan existing (D-045) | ✅ | ✅ PT sendiri | ❌ | ❌ |
 | Review & keputusan data onboarding (D-045, D-047) | ✅ | 🔑 `employee.onboarding.review` (PT sendiri) | ❌ | ❌ |
 | Setujui pengajuan perubahan data diri (D-054) | ✅ | 🔑 `employee.changes.review` (PT sendiri) + grant bagian sensitif | ❌ | ❌ (mengajukan untuk diri sendiri) |
+| Lihat aset & pembagian APD (ARS-D3) | ✅ | ✅ PT sendiri (harga hanya ber-grant) | 👁 tim, tanpa harga | 👁 milik sendiri, tanpa harga |
+| Kelola aset, serah-terima, pengembalian, APD, BAST (ARS-D3) | ✅ | 🔑 `asset.manage` (PT sendiri) | ❌ | ✅ konfirmasi terima milik sendiri |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
 | **Kontrak** | | | | |
 | Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
@@ -491,7 +494,12 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 
 | ID | Keputusan | Fitur |
 |---|---|---|
-| – | belum ada | – |
+| [ARS-D1](features/arsip/README.md#keputusan) | Aset per unit + APD berbasis jumlah (pembagian, tanpa stok) | [ARS](features/arsip/README.md) |
+| [ARS-D2](features/arsip/README.md#keputusan) | BAST PDF otomatis + scan bertanda tangan + konfirmasi terima di Layanan Mandiri | [ARS](features/arsip/README.md) |
+| [ARS-D3](features/arsip/README.md#keputusan) | Akses aset: SA + HR ber-grant `asset.manage`; MANAGER tim & karyawan sendiri lihat tanpa harga | [ARS](features/arsip/README.md) |
+| [ARS-D4](features/arsip/README.md#keputusan) | Kode aset otomatis `<PT>-<KATEGORI>-<NNNN>`, boleh diganti; harga & tanggal beli opsional | [ARS](features/arsip/README.md) |
+| [ARS-D5](features/arsip/README.md#keputusan) | Jatuh tempo pinjaman & masa ganti APD + cron harian `asset-daily` | [ARS](features/arsip/README.md) |
+| [ARS-D6](features/arsip/README.md#keputusan) | Karyawan keluar: peringatan aset terbuka, tidak memblokir; daftar belum kembali + notifikasi | [ARS](features/arsip/README.md) |
 
 ## 9. Keputusan Terbuka
 

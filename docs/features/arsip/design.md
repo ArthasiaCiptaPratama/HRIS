@@ -127,6 +127,10 @@ employee.data_change_requests (id, employee_id FK, section enum(CONTACT, PERSONA
 `employment_histories` + `source` enum(SYSTEM, MANUAL) default SYSTEM, `movement_type` enum(PROMOTION, MUTATION, DEMOTION, ROTATION, OTHER) null, `decree_number` varchar(60) null, `decree_document_id` uuid null, `from_department_id`/`to_department_id` uuid null, `corrected_by_id` uuid null (koreksi = baris baru yang menandai baris lama, bukan edit). Nilai `EmploymentChangeType` baru: `MOVED` (mutasi unit tanpa ganti jabatan).
 
 ### 6.5 Aset (modul `asset`)
+
+**Diperbarui 2026-10-13 (ARS-D1–D6, implementasi API):** skema nyata ada di [codemap/asset.md](../../codemap/asset.md) dan `apps/api/prisma/schema/asset.prisma` (migrasi `20261013095006_add_asset_module`). Ringkas: `asset_categories`, `assets` (kode otomatis/manual, harga opsional untuk pengelola), `asset_assignments` (serah-terima, `closed_at` + `outcome` RETURNED/LOST, BAST serah & kembali, konfirmasi terima, unik parsial satu pemegang aktif), `ppe_types` (masa ganti, wajib kembali) dan `ppe_issues` (pembagian APD berbasis jumlah, tanpa stok).
+
+Rancangan awal 2026-10-05 (dipertahankan sebagai sejarah):
 ```
 asset.asset_categories (id, name UNIQUE, requires_serial bool, created_at, updated_at, deleted_at)
 asset.assets (id, code UNIQUE, category_id FK, name, brand, model, serial_number null UNIQUE,
@@ -139,7 +143,7 @@ asset.asset_assignments (id, asset_id FK, employee_id FK employee.employees, ass
   note varchar(500) null, created_at)
   UNIQUE (asset_id) WHERE returned_at IS NULL   -- satu pemegang aktif per aset (index parsial, SQL mentah)
 ```
-Saat karyawan dinonaktifkan: `employee` memanggil `asset.index.ts#openAssignmentsOf(employeeId)` → dialog nonaktifkan menampilkan daftar aset belum kembali (peringatan, tidak memblokir; pilihan "tandai hilang").
+~~Saat karyawan dinonaktifkan: `employee` memanggil `asset.index.ts#openAssignmentsOf(employeeId)`~~ → **diganti ARS-D6**: dialog nonaktifkan (web) memanggil `GET /asset-holdings/{employeeId}?openOnly=true` milik modul asset; `employee` tidak mengimpor `asset` (aturan `no-circular`).
 
 ### 6.6 Surat peringatan
 ```
@@ -179,7 +183,7 @@ Unggah (HR langsung = VERIFIED; karyawan = PENDING_REVIEW) → versi lama `is_cu
 HR buat DRAFT → terbitkan (nomor, PDF dari template, `effective_until`) → notifikasi atasan & karyawan → atasan konfirmasi "sudah disampaikan" & karyawan konfirmasi "sudah menerima" (status ACKNOWLEDGED) → cron menandai EXPIRED setelah lewat masa berlaku → HR bisa REVOKE (alasan, audit).
 
 ### 7.4 Aset
-Daftarkan aset → serahkan ke karyawan (kondisi, BAST PDF terunggah/terbuat) → kembalikan (kondisi masuk, BAST kembali) atau tandai hilang/rusak → riwayat per aset & per karyawan. Nonaktifkan karyawan → peringatan aset terbuka.
+Daftarkan aset (kode otomatis `<PT>-<KATEGORI>-<NNNN>`) → serahkan ke karyawan PT yang sama (kondisi, kembali paling lambat opsional) → karyawan menekan "Sudah saya terima" di Layanan Mandiri → cetak PDF BAST, tanda tangan basah, unggah scan sebagai dokumen `BAST_ASSET`, tautkan → kembalikan (kondisi masuk; rusak → Perbaikan) atau tandai hilang (keterangan wajib) → riwayat per aset & per karyawan. APD: catat pembagian (jenis, jumlah, ukuran) → BAST APD → masa ganti & wajib kembali per jenis. Nonaktifkan karyawan → dialog menampilkan aset & APD wajib kembali (tidak memblokir); sisa masuk "Belum kembali dari karyawan keluar" + notifikasi cron `asset-daily` (ARS-D5/D6).
 
 ## 8. Keamanan & akses (matriks rencana)
 

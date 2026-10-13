@@ -28,7 +28,8 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 
 - **Perapihan dokumen (2026-10-13):** struktur induk + `features/` + `codemap/` + `decisions.md` + `RELEASE.md` (lihat log ringkas). Mat diminta **pull develop** sebelum lanjut dan sejak itu hanya menulis `features/time-management/` & `features/dashboard/`.
 - **Develop di-push 2026-10-13** sampai `9c16518` (CI #38372511353 ✔): merge Time Management `e31e934` + perapihan dokumen. Time Management **belum dirilis** ke staging ([RELEASE §2](RELEASE.md#2-antrean-push--rilis-aktif)).
-- **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT. Berikutnya untuk arsip: gel. 2a Aset & 2b Surat peringatan (grill dulu), lalu gel. 3 Laporan.
+- **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT.
+- **Arsip gel. 2a Aset & APD (ARS-D1–D6):** tahap A API ✔ lokal 2026-10-13 (modul `asset`, migrasi `20261013095006_add_asset_module`, cron `asset-daily`); berikutnya tahap B web → C QA. Lalu 2b Surat peringatan, gel. 3 Laporan.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
 
 ## Blocker & wajib sebelum produksi
@@ -89,6 +90,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-13** — Aset & APD gel. 2a: grill ARS-D1–D6 + tahap A API (migrasi skema `asset`, modul, cron, test api 710). (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-13** — Rilis gel. 6: Arsip gel. 1 + Layanan Mandiri tampil di staging (saklar, PR #47/#48, Deploy #38374784477), QA 14/14 LEGIT + arsip Drive. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-13** — Perapihan dokumen: induk PROGRESS + `features/` (12) + `codemap/` + `decisions.md` + `RELEASE.md` + arsip log; aturan prefix keputusan & aturan rekan tim. (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-13** — Gabung Time Management + aplikasi HP dari `HRIS/Mat/windows` (merge `e31e934`, nomor D/OD Mat digeser +1, perbaikan grid kalender). (Oatse) → [time-management/log](features/time-management/log.md)

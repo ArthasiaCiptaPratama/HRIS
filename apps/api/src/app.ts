@@ -34,6 +34,7 @@ import {
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
 import { registerApprovalRoutes } from "./modules/approval/index.ts";
+import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
 import {
   closeOverdueDays,
   extendAllRosters,
@@ -249,6 +250,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
+  // ARS-D1–D6 (Arsip 2a): aset per unit & pembagian APD.
+  registerAssetRoutes(app, { protect });
   // Time Management (D-067–D-072): mesin approval & modul attendance.
   registerApprovalRoutes(app, { protect });
   registerAttendanceRoutes(app, {
@@ -298,6 +301,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       }),
       // D-072: jatah 1 Jan, pelunasan hutang akhir Jan, hangus 31 Mar, cuti bersama tanpa absen.
       "leave-daily": () => runLeaveDaily(),
+      // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.
+      "asset-daily": () => runAssetDaily(),
     },
   });
 
