@@ -48,7 +48,7 @@ import {
   summarize,
 } from "./leave-engine.ts";
 
-// Tahap E — cuti tahunan, izin, sakit (docs/design/time-management.md §7, D-072).
+// Tahap E — cuti tahunan, izin, sakit (docs/features/time-management/design.md §7, D-072).
 
 export const LEAVE_ATTACHMENT_BUCKET = "leave-attachments";
 const ATTACHMENT_URL_TTL_SECONDS = 10 * 60;

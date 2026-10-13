@@ -30,7 +30,7 @@ import {
   todaySchema,
 } from "./schemas";
 
-// Time Management (docs/design/time-management.md, D-067–D-072): absen PWA, Data Absen Harian,
+// Time Management (docs/features/time-management/design.md, D-067–D-072): absen PWA, Data Absen Harian,
 // roster tambang, kalender libur & pengaturan.
 
 const one = <T extends z.ZodType>(schema: T) => z.object({ data: schema });

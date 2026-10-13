@@ -1,6 +1,6 @@
 ---
 name: hris-workflow
-description: Aturan alur kerja & pelaporan wajib untuk SETIAP tugas di repo HRIS — rencana yang menunggu persetujuan, status singkat per poin, verifikasi, pembaruan PROGRESS (checklist, langkah tambahan, log), izin aksi keluar, dan format laporan akhir (ringkasan, yang dikerjakan, hasil verifikasi, temuan, butuh dari pengguna, langkah berikutnya). Use at the start and end of any task in this repo — code, docs, config, schema, deploy, "kerjakan", "lanjut", "laporkan", "next step", "progress" — before writing any plan or final report.
+description: Aturan alur kerja & pelaporan wajib untuk SETIAP tugas di repo HRIS — rencana yang menunggu persetujuan, status singkat per poin, verifikasi, pembaruan dokumen fitur (checklist & log di docs/features/<fitur>/, induk PROGRESS saat merge ke develop), izin aksi keluar, dan format laporan akhir (ringkasan, yang dikerjakan, hasil verifikasi, temuan, butuh dari pengguna, langkah berikutnya). Use at the start and end of any task in this repo — code, docs, config, schema, deploy, "kerjakan", "lanjut", "laporkan", "next step", "progress" — before writing any plan or final report.
 ---
 
 # Alur Kerja HRIS
@@ -24,19 +24,22 @@ Menjalankan PROMPT §2 (Orientasi → Rencana → Kerjakan → Verifikasi → Ca
 ## Alur
 
 ```
-1. Orientasi   baca PROMPT §3, PROGRESS §2 + checklist fase aktif, PLAN/CODEMAP yang relevan
+1. Orientasi   baca PROMPT §3, PROGRESS (induk), README fitur yang dikerjakan, PLAN/codemap yang relevan
 2. Rencana     templat "Rencana" (TEMPLATES.md) → TUNGGU persetujuan
                - bila tool `mcp__hris-guardrail__progress` tersedia (mod sidebar Progres): setelah
                  disetujui, kirim seluruh poin rencana; kirim ulang setiap poin mulai/selesai
                  (tepat satu `active`); `clear: true` setelah laporan akhir
 3. Kerjakan    poin demi poin; setelah tiap poin:
                - jalankan cek relevan (tabel di bawah)
-               - ubah checklist PROGRESS ([ ]→[~]→[x]) begitu poin selesai & terverifikasi
-               - langkah baru yang muncul → sub-item fase aktif "(tambahan YYYY-MM-DD) alasan";
-                 di luar fase aktif → PROGRESS §5 Backlog, tidak dikerjakan
+               - ubah checklist di docs/features/<fitur>/README.md ([ ]→[~]→[x]) begitu poin
+                 selesai & terverifikasi
+               - langkah baru yang muncul → sub-item checklist fitur "(tambahan YYYY-MM-DD) alasan";
+                 di luar cakupan → Backlog di PROGRESS, tidak dikerjakan
                - tulis status singkat (1–3 kalimat), lalu LANJUT otomatis
 4. Verifikasi  sebelum menyatakan selesai: typecheck + lint + boundaries + seluruh test
-5. Catat       PROGRESS §2 Fokus + entri log §6 (sekali, di akhir), CODEMAP, PLAN bila ada keputusan
+5. Catat       README fitur (status, keputusan <KODE>-Dn) + satu entri log.md fitur (di akhir),
+               codemap/<modul>.md, RELEASE.md bila commit/push/rilis; induk PROGRESS (baris fitur,
+               fokus, log ringkas 1 baris) + indeks PLAN §8 hanya di develop / saat merge ke develop
 6. Laporan     templat "Laporan akhir"; aksi keluar (commit/push/PR) diusulkan di "Butuh dari Anda"
 ```
 

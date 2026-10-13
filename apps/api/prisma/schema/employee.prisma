@@ -421,7 +421,7 @@ model Training {
 
 // D-042: jejak import karyawan. File TIDAK disimpan (UU PDP); hanya ringkasan & masalah per baris
 // TANPA nilai. actor_account_id = iam.accounts.id tanpa FK (iam bukan modul inti, PLAN §3.2).
-// D-045: status onboarding karyawan baru (alur: design/onboarding-karyawan.md §3).
+// D-045: status onboarding karyawan baru (alur: docs/features/onboarding/design.md §3).
 enum OnboardingStatus {
   NOT_INVITED
   INVITED
@@ -574,7 +574,7 @@ enum DocumentStatus {
   @@schema("employee")
 }
 
-// D-055: jenis dokumen = master data dikelola SUPER_ADMIN (design/arsip-karyawan.md §4).
+// D-055: jenis dokumen = master data dikelola SUPER_ADMIN (docs/features/arsip/design.md §4).
 model DocumentType {
   id                    String                @id @default(uuid()) @db.Uuid
   code                  String                @unique @db.VarChar(30)

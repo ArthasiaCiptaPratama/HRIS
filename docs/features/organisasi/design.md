@@ -1,6 +1,6 @@
 # Desain — Bagan Organisasi Interaktif (Pos Jabatan, Unit per PT, Atasan Otomatis)
 
-> Keputusan: **D-051** (pos jabatan & bagan kanvas), **D-052** (unit organisasi milik PT; unit tanpa PT = fungsi korporat grup), **D-053** (atasan langsung otomatis dari pos, boleh manual) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Terkait: D-040 (cakupan PT), D-049 (master data), D-050 (unit berjenjang & level jabatan).
+> Keputusan: **D-051** (pos jabatan & bagan kanvas), **D-052** (unit organisasi milik PT; unit tanpa PT = fungsi korporat grup), **D-053** (atasan langsung otomatis dari pos, boleh manual) di [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas). Terkait: D-040 (cakupan PT), D-049 (master data), D-050 (unit berjenjang & level jabatan).
 > Status: **[done] lokal 2026-10-05** (API + web + seed dummy + script data asli lokal). Hasil grill pemilik projek 2026-10-05. Sumber bentuk: dokumen kantor "(2026) ACP - Orgchart Site 18.09.2026" (4 halaman, Visio).
 > Dokumen ini tidak memuat data asli. Nama asli hanya di file luar repo `DATA-ASLI/orgchart-acp.json` dan DB lokal.
 

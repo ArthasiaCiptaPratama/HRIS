@@ -1,4 +1,4 @@
-// Modul attendance — Time Management (desain docs/design/time-management.md, D-067–D-072).
+// Modul attendance — Time Management (desain docs/features/time-management/design.md, D-067–D-072).
 // Tabel modul lain (employee, organization) tidak disentuh: id karyawan/PT/lokasi disimpan tanpa relasi Prisma
 // (relasi butuh sisi balik di skema mereka); keberadaannya divalidasi service saat menulis.
 

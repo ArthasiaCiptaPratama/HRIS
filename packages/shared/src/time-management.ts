@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Time Management (docs/design/time-management.md, D-067–D-072). File baru supaya enum lama di enums.ts
+// Time Management (docs/features/time-management/design.md, D-067–D-072). File baru supaya enum lama di enums.ts
 // (masih dipakai tim) tidak diubah; nama sengaja berbeda agar tidak bentrok di barrel index.ts.
 
 // ── Approval (PLAN §5.2, D-068, D-069) ───────────────────────────────────────────

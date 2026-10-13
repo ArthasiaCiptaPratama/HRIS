@@ -1,6 +1,6 @@
 # Desain — Pendataan Karyawan Existing dari Google Form lewat Import (D-059)
 
-> Keputusan: **D-059** di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas) (dibangun di atas Import D-042, [import-karyawan.md](import-karyawan.md)).
+> Keputusan: **D-059** di [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas) (dibangun di atas Import D-042, [import-karyawan.md](design.md)).
 > Status: **[done] lokal 2026-10-07** — Import mengenali seluruh Sheet respons "Formulir Data Karyawan" (ekspor 138 kolom: 119 terpetakan otomatis; 19 sisanya tautan file/Timestamp/pertanyaan navigasi). File di Drive (foto & dokumen) ikut Import sejak 2026-10-08 (D-060, §4). Checklist: PROGRESS Fase 4 → "Pendataan karyawan existing lewat Google Form".
 > Dokumen ini tidak memuat data asli.
 

@@ -1,6 +1,6 @@
 # Desain — Time Management (Roster Tambang, Absensi PWA, Approval, Cuti/Izin/Sakit)
 
-> Keputusan: **D-067** (absensi lewat PWA), **D-068** (approval setiap hari absen), **D-069** (roster tambang), **D-070** (validasi absen), **D-071** (tutup periode & surat pernyataan), **D-072** (aturan cuti tahunan) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas). Terkait: D-009 (tim = bawahan langsung), D-010 (approval paralel), D-011 (tutup periode ber-grant), D-013 (geofence + selfie + waktu server), D-037 (pola unggah Storage), D-040 (cakupan PT), D-049 (geofence lokasi kerja), D-053 (`manager_id` otomatis dari pos), D-057 (surat peringatan, rencana).
+> Keputusan: **D-067** (absensi lewat PWA), **D-068** (approval setiap hari absen), **D-069** (roster tambang), **D-070** (validasi absen), **D-071** (tutup periode & surat pernyataan), **D-072** (aturan cuti tahunan) di [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas). Terkait: D-009 (tim = bawahan langsung), D-010 (approval paralel), D-011 (tutup periode ber-grant), D-013 (geofence + selfie + waktu server), D-037 (pola unggah Storage), D-040 (cakupan PT), D-049 (geofence lokasi kerja), D-053 (`manager_id` otomatis dari pos), D-057 (surat peringatan, rencana).
 > Status: **rencana** — hasil grill pemilik projek 2026-10-12. Belum ada kode. Checklist: PROGRESS Fase 5–6 (Tahap A–F).
 > Keputusan terbuka yang masih perlu dijawab: OD-13, OD-14, OD-15 (§11). Dokumen ini tidak memuat data asli.
 

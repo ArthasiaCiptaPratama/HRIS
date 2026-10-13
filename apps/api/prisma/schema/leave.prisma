@@ -1,4 +1,4 @@
-// Modul leave — cuti tahunan, izin, sakit (docs/design/time-management.md §7, D-072).
+// Modul leave — cuti tahunan, izin, sakit (docs/features/time-management/design.md §7, D-072).
 // Tanpa relasi Prisma ke employee/organization (skema tim yang masih dikembangkan tidak disentuh);
 // id karyawan/PT disimpan sebagai uuid biasa.
 

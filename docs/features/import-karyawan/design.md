@@ -1,6 +1,6 @@
 # Desain — Import Data Karyawan (CSV/Excel)
 
-> Keputusan: **D-042** (import), **D-039** (multi-perusahaan), **D-040** (akses per PT), **D-041** (kolom tambahan) di [PLAN §8](../PLAN.md#8-keputusan-adr-ringkas).
+> Keputusan: **D-042** (import), **D-039** (multi-perusahaan), **D-040** (akses per PT), **D-041** (kolom tambahan) di [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas).
 > Status: **[done]** — dirilis ke staging 2026-09-30 **tanpa** multi-perusahaan (migrasi `20260930102336`); versi **dengan** PT (D-039/D-040, `import_jobs.company_id` di migrasi `20261001100000`) ada di develop, menunggu rilis (antrean PROGRESS §2). Penyempurnaan saat implementasi: §10. Checklist: PROGRESS Fase 4.
 > Dokumen ini **tidak memuat nilai data asli**. Profil file contoh di §2 hanya struktur & pola.
 

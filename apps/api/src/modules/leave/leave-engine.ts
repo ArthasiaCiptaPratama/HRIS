@@ -1,6 +1,6 @@
 import { LEAVE_CARRY_UNTIL, type LeaveLedgerKind } from "@hris/shared";
 
-// Aturan murni cuti tahunan (docs/design/time-management.md §7, D-072). Tanpa I/O supaya mudah diuji.
+// Aturan murni cuti tahunan (docs/features/time-management/design.md §7, D-072). Tanpa I/O supaya mudah diuji.
 
 /**
  * Jatah 1 Januari `grantYear` (§7.2): masa kerja penuh tahun sebelumnya → kuota penuh; karyawan baru →

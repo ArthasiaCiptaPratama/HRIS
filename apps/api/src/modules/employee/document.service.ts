@@ -46,7 +46,7 @@ import * as policy from "./employee.policy.ts";
 import * as employees from "./employee.repository.ts";
 import { employeeTargetOf, type RequestContext, todayInJakarta } from "./employee.service.ts";
 
-// D-055 (Arsip gelombang 1b, design/arsip-karyawan.md §4, §6.1, §7.2, §8): jenis dokumen (SA), dokumen
+// D-055 (Arsip gelombang 1b, docs/features/arsip/design.md §4, §6.1, §7.2, §8): jenis dokumen (SA), dokumen
 // karyawan berversi + bermasa berlaku, tautan baca singkat, tabel Data File, pengingat kedaluwarsa.
 
 const URL_TTL_SECONDS = 5 * 60;
