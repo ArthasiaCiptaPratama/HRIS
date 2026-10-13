@@ -579,7 +579,8 @@ export async function punch(
     workLocationId: e.geofence.workLocationId,
     insideGeofence: e.geofence.inside,
     labels: e.labels,
-    reason: e.labels.length > 0 ? (input.reason ?? null) : null,
+    // Alasan wajib bila berlabel (mis. LATE); tanpa label tetap disimpan bila diisi (opsional).
+    reason: input.reason?.trim() ? input.reason.trim() : null,
     selfiePath: input.selfiePath,
     userAgent: ctx.userAgent?.slice(0, 300) ?? null,
   };

@@ -847,7 +847,11 @@ function PunchFlow({
       return;
     }
     if (check.reasonRequired && reason.trim().length < 3) {
-      setReasonError("Tulis alasan (minimal 3 karakter).");
+      setReasonError(
+        lateMinutes !== null
+          ? "Anda telat — alasan keterlambatan wajib diisi (minimal 3 karakter)."
+          : "Tulis alasan (minimal 3 karakter).",
+      );
       return;
     }
     try {
@@ -873,8 +877,19 @@ function PunchFlow({
     }
   };
 
+  // Menit telat dari jadwal masuk (label LATE) — alasan wajib.
+  const lateMinutes =
+    kind === "IN" && check?.labels.includes("LATE") && check.scheduledStart
+      ? Math.max(
+          1,
+          Math.round(((clock ?? new Date()).getTime() - Date.parse(check.scheduledStart)) / 60_000),
+        )
+      : null;
+  const reasonMissing = Boolean(check?.reasonRequired) && reason.trim().length < 3;
   const blocked = kind === "IN" && check?.alreadyCheckedIn;
-  const ready = Boolean(stamped && gps && check && !blocked && (!check.suspicion || confirmed));
+  const ready = Boolean(
+    stamped && gps && check && !blocked && (!check.suspicion || confirmed) && !reasonMissing,
+  );
   const switchKind = (next: "IN" | "OUT") => {
     setKind(next);
     setCheck(null);
@@ -1010,11 +1025,25 @@ function PunchFlow({
           </Alert>
         ) : null}
 
-        {check?.reasonRequired ? (
+        {check ? (
           <div className="space-y-2">
             <Label htmlFor="punch-reason">
-              Alasan <span className="text-destructive">*</span>
+              Alasan{" "}
+              {check.reasonRequired ? (
+                <span className="text-destructive">
+                  * wajib{lateMinutes !== null ? ` — Anda telat ${minutesText(lateMinutes)}` : ""}
+                </span>
+              ) : (
+                <span className="text-muted-foreground font-normal">(opsional)</span>
+              )}
             </Label>
+            {lateMinutes !== null ? (
+              <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                Jadwal masuk{" "}
+                {check.scheduledStart ? timeIn(check.scheduledStart, data.timezone) : "-"}, sekarang
+                telat {minutesText(lateMinutes)}. Tuliskan alasan keterlambatan.
+              </p>
+            ) : null}
             <Textarea
               id="punch-reason"
               rows={3}
@@ -1023,12 +1052,27 @@ function PunchFlow({
                 setReason(e.target.value);
                 setReasonError("");
               }}
-              placeholder="Contoh: menunggu bus jemputan, sinyal GPS lemah di pit…"
+              placeholder={
+                lateMinutes !== null
+                  ? "Contoh: bus jemputan terlambat, ban kendaraan bocor…"
+                  : check.reasonRequired
+                    ? "Contoh: menunggu bus jemputan, sinyal GPS lemah di pit…"
+                    : "Catatan tambahan (boleh dikosongkan)"
+              }
               aria-invalid={Boolean(reasonError)}
+              aria-required={check.reasonRequired}
             />
-            {reasonError ? <p className="text-destructive text-xs">{reasonError}</p> : null}
+            {reasonError ? (
+              <p className="text-destructive text-xs">{reasonError}</p>
+            ) : reasonMissing ? (
+              <p className="text-destructive text-xs">
+                Isi alasan minimal 3 karakter untuk bisa mengirim absen.
+              </p>
+            ) : null}
             <p className="text-muted-foreground text-xs">
-              Absen tetap tercatat; Atasan & HR melihat label dan alasan ini saat memutuskan.
+              {check.reasonRequired
+                ? "Absen tetap tercatat; Atasan & HR melihat label dan alasan ini saat memutuskan."
+                : "Catatan ikut terlihat oleh Atasan & HR."}
             </p>
           </div>
         ) : null}
@@ -1057,7 +1101,8 @@ function minutesText(minutes: number) {
   const abs = Math.abs(minutes);
   const h = Math.floor(abs / 60);
   const m = abs % 60;
-  return h > 0 ? `${h} jam ${m} menit` : `${m} menit`;
+  if (h === 0) return `${m} menit`;
+  return m === 0 ? `${h} jam` : `${h} jam ${m} menit`;
 }
 
 /**
