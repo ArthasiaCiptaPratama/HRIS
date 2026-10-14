@@ -1,6 +1,6 @@
 ---
 name: hris-qa-docs
-description: Menyusun dokumentasi QA HRIS di docs/qa/ — rencana uji (test plan) per target mingguan/fase, kasus uji (test case) per modul yang terlacak ke PLAN & PROGRESS, laporan eksekusi uji (test run) dengan bukti, laporan bug, dan arsip QA fitur yang sudah lulus ke Google Drive (rclone). Use when the user asks for QA documentation, test plan, test case, test scenario, UAT checklist, bug report, test report/"laporan pengujian", uploading/archiving QA results to Google Drive, or when a feature is finished and needs to be documented as tested.
+description: Menyusun dokumentasi QA HRIS di docs/qa/ — rencana uji (test plan) per target mingguan/fase, kasus uji (test case) per modul yang terlacak ke PLAN & checklist fitur (docs/features/), laporan eksekusi uji (test run) dengan bukti, laporan bug, dan arsip QA fitur yang sudah lulus ke Google Drive (rclone). Use when the user asks for QA documentation, test plan, test case, test scenario, UAT checklist, bug report, test report/"laporan pengujian", uploading/archiving QA results to Google Drive, or when a feature is finished and needs to be documented as tested.
 ---
 
 # Dokumentasi QA HRIS
@@ -23,14 +23,14 @@ Buat folder/README saat pertama dipakai, lalu catat di CODEMAP §1.
 ## Alur
 
 ```
-- [ ] Plan: ruang lingkup = item PROGRESS target ini; sebut aturan PLAN yang diuji & yang TIDAK diuji
+- [ ] Plan: ruang lingkup = item checklist README fitur target ini; sebut aturan PLAN yang diuji & yang TIDAK diuji
 - [ ] Cases: turunkan dari PLAN §4.3 (akses) & §5 (aturan bisnis): jalur sukses, validasi, akses ditolak, batas/edge
 - [ ] Tiap case isi "Otomasi": path test (bun/vitest/playwright) atau "manual"
 - [ ] Jalankan: bun run typecheck, lint, check:boundaries, test (+ e2e bila ada); salin ringkasan output APA ADANYA
 - [ ] Run report: commit SHA, env (lokal/staging), versi, hasil per case, bukti (path screenshot/trace), bug terbuka
 - [ ] Gagal → bug report + test yang gagal dulu (skill hris-flow-testing)
-- [ ] Perbarui docs/qa/README.md dan log PROGRESS
-- [ ] Fitur LEGIT (lihat "Arsip Google Drive") → susun folder arsip → TANYA izin → rclone sync → cek → catat di run & log PROGRESS
+- [ ] Perbarui docs/qa/README.md, bagian QA di README fitur (tautan plan/run/bug), dan log.md fitur
+- [ ] Fitur LEGIT (lihat "Arsip Google Drive") → susun folder arsip → TANYA izin → rclone sync → cek → catat di run & log.md fitur
 ```
 
 ## Aturan

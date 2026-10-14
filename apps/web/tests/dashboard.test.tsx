@@ -56,12 +56,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Dashboard", () => {
-  it.each(["MANAGER", "EMPLOYEE"] as const)("%s: sapaan tanpa meminta /dashboard", async (role) => {
-    const paths = mockBackend(role);
-    renderAt("/");
-    expect(await screen.findByText("Dashboard masih kosong")).toBeInTheDocument();
-    expect(paths).not.toContain("/dashboard");
-  });
+  it.each(["MANAGER", "EMPLOYEE"] as const)(
+    "%s: dashboard widget pribadi (kehadiran, tindakan, pintasan) tanpa meminta /dashboard",
+    async (role) => {
+      const paths = mockBackend(role);
+      renderAt("/");
+      expect(await screen.findByText("Perlu tindakan", {}, { timeout: 5000 })).toBeInTheDocument();
+      expect(screen.getByText("Pintasan")).toBeInTheDocument();
+      expect(screen.getByText("Berita penting")).toBeInTheDocument();
+      expect(paths).not.toContain("/dashboard");
+    },
+  );
 
   it.each(["SUPER_ADMIN", "HR_ADMIN"] as const)(
     "%s: meminta /dashboard; gagal → pesan jelas",

@@ -3,7 +3,7 @@
 ## plans/<tanggal>-<target>.md
 ```md
 # Rencana Uji — <target> (<tanggal>)
-- **Ruang lingkup:** item PROGRESS: ...
+- **Ruang lingkup:** item checklist fitur (`docs/features/<fitur>/README.md`): ...
 - **Aturan yang diuji:** PLAN §4.3 baris ..., §5.x ...
 - **Di luar lingkup:** ... (alasan)
 - **Lingkungan:** lokal (PostgreSQL 17 Docker) / staging (Supabase + Vercel Preview)
@@ -61,5 +61,5 @@ for f in "$QA/$RUN-staging"/*.png; do cp "$f" "$B/screenshots/staging-$(basename
 rclone sync "$B" "hris-qa:$RUN" --checksum        # SETELAH izin pemilik projek
 rclone ls "hris-qa:$RUN"                           # cek: jumlah & nama file sesuai
 ```
-Catat di `runs/$RUN.md` (baris "Arsip Drive: `hris-qa:$RUN` — N file, tanggal") dan log PROGRESS.
+Catat di `runs/$RUN.md` (baris "Arsip Drive: `hris-qa:$RUN` — N file, tanggal") dan `log.md` fitur; tambahkan tautan run/plan di bagian QA README fitur.
 

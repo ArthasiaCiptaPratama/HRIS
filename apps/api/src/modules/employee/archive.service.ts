@@ -29,7 +29,7 @@ import {
   todayInJakarta,
 } from "./employee.service.ts";
 
-// D-054 (Arsip gelombang 1a, design/arsip-karyawan.md): tabel lintas karyawan per kategori + kelola
+// D-054 (Arsip gelombang 1a, docs/features/arsip/design.md): tabel lintas karyawan per kategori + kelola
 // item per karyawan. Cakupan = cakupan daftar karyawan; tulis = SA/HR atas karyawan yang boleh dilihat.
 
 export const toIso = (date: Date) => date.toISOString().slice(0, 10);

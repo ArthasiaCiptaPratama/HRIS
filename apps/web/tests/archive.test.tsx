@@ -207,9 +207,9 @@ describe.skipIf(!FEATURES.archive)("Arsip › Data Pelatihan (D-054)", () => {
     expect(screen.queryByRole("button", { name: /Ekspor Excel/ })).toBeNull();
   });
 
-  it("menu Arsip yang belum dikerjakan (Aset) tetap Maintenance", async () => {
+  it("menu Arsip yang belum dikerjakan (Riwayat Peringatan) tetap Maintenance", async () => {
     mockFetch(me("SUPER_ADMIN", true));
-    renderAt("/personal/arsip/aset");
+    renderAt("/personal/arsip/peringatan");
     expect(await screen.findByRole("heading", { name: /sedang disiapkan/ })).toBeInTheDocument();
   });
 });

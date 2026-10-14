@@ -6,7 +6,7 @@ import {
   personalSectionSchema,
 } from "./onboarding-form.ts";
 
-// D-054 / OD-6 (Arsip gelombang 1c, design/arsip-karyawan.md §6.2, §7.1): karyawan mengubah data
+// D-054 / OD-6 (Arsip gelombang 1c, docs/features/arsip/design.md §6.2, §7.1): karyawan mengubah data
 // dirinya lewat PENGAJUAN; data baru berlaku setelah disetujui SA / HR ber-grant. Skema isian memakai
 // skema bagian wizard onboarding (aturan format sama).
 

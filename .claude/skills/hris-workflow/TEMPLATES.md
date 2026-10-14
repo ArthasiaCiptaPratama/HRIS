@@ -2,7 +2,7 @@
 
 ## Rencana (tunggu persetujuan)
 ```md
-**Fase aktif:** <N — nama> · **Item PROGRESS:** <teks item> · **OD terkait:** <OD-x / tidak ada>
+**Fitur/fase:** <fitur — fase N> · **Item checklist (README fitur):** <teks item> · **OD terkait:** <OD-x / tidak ada>
 
 **Poin kerja**
 1. <poin> — file: `<path>` — cek: <perintah>
@@ -17,7 +17,7 @@ Lanjut dengan rencana ini?
 
 ## Status per poin (lalu lanjut otomatis)
 ```md
-✔ Poin 2/5 — <apa yang selesai>. Cek: `bun run test:api` 25 lulus, `db:check` tanpa selisih. Checklist PROGRESS diperbarui.
+✔ Poin 2/5 — <apa yang selesai>. Cek: `bun run test:api` 25 lulus, `db:check` tanpa selisih. Checklist README fitur diperbarui.
 ```
 Gagal & tidak bisa diperbaiki → `✘ Poin 3/5 — <masalah>. Berhenti: <apa yang dibutuhkan>.`
 
@@ -26,7 +26,7 @@ Gagal & tidak bisa diperbaiki → `✘ Poin 3/5 — <masalah>. Berhenti: <apa ya
 **Ringkasan:** <1–2 kalimat: selesai/belum, hasil utama>
 
 ## Yang dikerjakan
-- <perubahan> (`path`) — item PROGRESS "<item>"
+- <perubahan> (`path`) — item checklist "<item>" (features/<fitur>)
 - Langkah tambahan: <sub-item baru + alasan> (bila ada)
 
 ## Hasil verifikasi
@@ -49,9 +49,11 @@ Gagal & tidak bisa diperbaiki → `✘ Poin 3/5 — <masalah>. Berhenti: <apa ya
 ```
 Tugas kecil (pertanyaan/pemeriksaan): cukup ringkasan + hasil + langkah berikutnya bila ada.
 
-## PROGRESS
-- Checklist: `[ ]` → `[~] <keterangan sisa>` → `[x] <bukti singkat>` segera setelah poin terverifikasi.
+## Dokumen (struktur induk → fitur, 2026-10-13; peta: docs/README.md)
+- Checklist di `docs/features/<fitur>/README.md`: `[ ]` → `[~] <keterangan sisa>` → `[x] <bukti singkat>` segera setelah poin terverifikasi.
 - Langkah tambahan (sub-item di bawah item terkait):
   `  - [ ] <langkah> (tambahan YYYY-MM-DD: <alasan>)`
-- Di luar fase aktif → `§5 Backlog`: `- <ide> (dari tugas <X>, YYYY-MM-DD)`.
-- Akhir tugas: perbarui `§2 Fokus Saat Ini` + satu entri `§6 Log Sesi` (templat di bawah file PROGRESS), terbaru di atas.
+- Di luar cakupan → Backlog di `docs/PROGRESS.md`: `- <ide> (dari tugas <X>, YYYY-MM-DD)`.
+- Keputusan baru → README fitur, ID `<KODE>-D<n>` (OD: `<KODE>-OD<n>`), bukan `D-074` (PROMPT §12).
+- Akhir tugas: satu entri di `docs/features/<fitur>/log.md` (format di kepala file itu), terbaru di atas; perbarui status di kepala README fitur; file kode baru → `docs/codemap/<modul>.md`; commit/push/rilis → `docs/RELEASE.md`.
+- Induk `docs/PROGRESS.md` (baris status fitur, Fokus, satu baris Log ringkas) + indeks PLAN §8: diperbarui di develop atau saat menggabungkan branch rekan tim ke develop — **tidak** di branch rekan tim.

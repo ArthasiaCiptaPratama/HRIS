@@ -349,7 +349,7 @@ describe("D-047 review onboarding", () => {
   });
 });
 
-// D-054 (Arsip 1a, matriks design/arsip-karyawan.md §8): tabel lintas karyawan SA semua, HR PT
+// D-054 (Arsip 1a, matriks docs/features/arsip/design.md §8): tabel lintas karyawan SA semua, HR PT
 // ditugaskan, MANAGER tim (kolom kerja), EMPLOYEE tidak; kelola per karyawan SA/HR dalam cakupan.
 describe("Arsip (D-054)", () => {
   const rows: [Who, Rel, string, boolean, boolean, boolean][] = [

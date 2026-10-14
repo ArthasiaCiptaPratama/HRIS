@@ -141,7 +141,7 @@ export function canReviewOnboarding(actor: Actor, companyId: string): boolean {
   );
 }
 
-// D-054 (Arsip 1a, design/arsip-karyawan.md §8): tabel lintas karyawan memakai cakupan daftar karyawan
+// D-054 (Arsip 1a, docs/features/arsip/design.md §8): tabel lintas karyawan memakai cakupan daftar karyawan
 // (SA semua, HR PT ditugaskan, MANAGER tim — kolom kerja saja); EMPLOYEE tidak (data sendiri lewat
 // detail/ESS). Kelola item per karyawan: SA/HR atas karyawan yang boleh mereka lihat.
 export function canReadArchive(actor: Actor): boolean {
