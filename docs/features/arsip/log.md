@@ -41,3 +41,15 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Masalah / catatan:** **bug (P3) ditemukan & diperbaiki:** nomor BAST serah = kembali di hari yang sama, dan BAST APD sejenis antar-karyawan bentrok → `bastNumber` (jenis + kode + tanggal + id transaksi), test gagal-dulu `asset-bast.test.ts`. Badge "—" (tanpa masa ganti) disembunyikan di daftar pegangan. Kegagalan putaran 1–2 = selector script & sisa data run sebelumnya (bukan aplikasi). Pihak Pertama BAST memakai email bila pengelola tidak tertaut data karyawan. Data uji Q6967/Q7013/Q7069/Q7175 tersisa di DB lokal; scan BAST di storage staging berawalan `dev/oatse/`.
 - **Berikutnya:** commit, lalu (izin) push develop dan rilis staging Aset + QA staging + arsip Drive.
 
+### 2026-10-14 — Audit ulang Aset & APD tahap A–C + perbaikan (Oatse)
+- **Dikerjakan (permintaan pemilik projek):** baca ulang seluruh service/policy/repository/cron/BAST API + halaman & dialog web. Temuan ditulis sebagai test yang **gagal dulu** (4 test integration baru di `assets.test.ts`, termasuk pembaca teks PDF), lalu diperbaiki:
+  - **F1 (P2) Pihak Pertama BAST = pengunduh**, bukan pelaku → MANAGER yang mengunduh BAST bawahannya tercetak sebagai pengelola. Kini dari akun pelaku (`assignedBy` / `closedBy` / `issuedBy`) lewat `iam.getAccountSummaries`.
+  - **F2 (P2) race condition:** kembalikan & tandai hilang bersamaan sama-sama lolos (status aset bisa tidak konsisten, audit ganda); juga ubah status saat diserahkan, kembali APD dua kali, hapus APD yang baru dikonfirmasi, konfirmasi ganda. Kini update bersyarat atomik di repository (`closeAssignmentIfOpen`, `setAssetStatusIf`, `returnPpeIfOpen`, `deletePpeIfUnconfirmed`, `acknowledge…IfPending`) di dalam transaksi.
+  - **F3 (P3)** tanggal serah/kembali/hilang/terima & kembali APD di masa depan ditolak (422).
+  - **F4 (P3)** penentuan "APD sudah diganti" memakai `createdAt % 1000` sebagai pemecah seri → urutan bisa terbalik; kini `issuedAt` lalu `createdAt` utuh.
+  - **F5 (P3, web)** dialog Serahkan menyebut penerima harus karyawan aktif PT pemilik aset.
+- **Keputusan:** tidak ada keputusan baru (penolakan tanggal masa depan = aturan validasi).
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (417) · `db:check` ✔ · test shared 215 · api **717** (+4) ✔ · integration aset diulang 4× stabil (17/17) · web **262/262** (dijalankan berurutan) · build ✔ · Playwright QA alur penuh diulang di kode baru **12/12** (RUN 7848).
+- **Masalah / catatan:** run web paralel sempat gagal 5–7 test **lama** (Arsip, Dokumen, Import, Dashboard, Master Data) karena timeout saat beban mesin tinggi (load ±16; dua proses `claude` + browser) — lulus semua saat berurutan; sejenis dengan Backlog test flaky `documents.test.tsx`.
+- **Berikutnya:** commit; rilis staging Aset (rencana tersendiri).
+

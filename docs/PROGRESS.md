@@ -91,6 +91,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-14** — Audit ulang Aset & APD: 5 temuan diperbaiki (BAST pelaku, race condition, tanggal masa depan, urutan APD, teks dialog); api 717, QA 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Aset & APD gel. 2a tahap C QA lokal 12/12 + perbaikan nomor BAST unik (api 713). (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Aset & APD gel. 2a tahap B web (Data Assets, master, tab Aset, Aset saya; test web 262). (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-13** — Aset & APD gel. 2a: grill ARS-D1–D6 + tahap A API (migrasi skema `asset`, modul, cron, test api 710). (Oatse) → [arsip/log](features/arsip/log.md)

@@ -219,3 +219,50 @@ export const ppeIssuesWithReplacement = () =>
     include: { ppeType: true },
     orderBy: [{ issuedAt: "desc" }, { createdAt: "desc" }],
   });
+
+// --- Update bersyarat (audit F2): aturan status dicek atomik di baris yang diubah, bukan dari
+// pembacaan sebelumnya, supaya dua aksi bersamaan tidak sama-sama lolos. Hasil = jumlah baris (0/1).
+
+/** Tutup serah-terima hanya bila masih terbuka. */
+export const closeAssignmentIfOpen = (
+  tx: AssetTx,
+  id: string,
+  data: Prisma.AssetAssignmentUncheckedUpdateManyInput,
+) => tx.assetAssignment.updateMany({ where: { id, closedAt: null }, data }).then((r) => r.count);
+
+/** Konfirmasi terima hanya sekali dan selama masih terbuka. */
+export const acknowledgeAssignmentIfPending = (tx: AssetTx, id: string, at: Date) =>
+  tx.assetAssignment
+    .updateMany({
+      where: { id, closedAt: null, acknowledgedAt: null },
+      data: { acknowledgedAt: at },
+    })
+    .then((r) => r.count);
+
+/** Ubah status aset hanya bila statusnya masih `from` (atau bukan ASSIGNED bila `from` null). */
+export const setAssetStatusIf = (
+  tx: AssetTx,
+  id: string,
+  from: Prisma.EnumAssetStatusFilter["equals"] | null,
+  data: Prisma.AssetUncheckedUpdateManyInput,
+) =>
+  tx.asset
+    .updateMany({ where: { id, status: from ?? { not: "ASSIGNED" } }, data })
+    .then((r) => r.count);
+
+export const returnPpeIfOpen = (
+  tx: AssetTx,
+  id: string,
+  data: Prisma.PpeIssueUncheckedUpdateManyInput,
+) => tx.ppeIssue.updateMany({ where: { id, returnedAt: null }, data }).then((r) => r.count);
+
+export const acknowledgePpeIfPending = (tx: AssetTx, id: string, at: Date) =>
+  tx.ppeIssue
+    .updateMany({ where: { id, acknowledgedAt: null }, data: { acknowledgedAt: at } })
+    .then((r) => r.count);
+
+/** Hapus pembagian hanya bila belum dikonfirmasi & tanpa BAST. */
+export const deletePpeIfUnconfirmed = (tx: AssetTx, id: string) =>
+  tx.ppeIssue
+    .deleteMany({ where: { id, acknowledgedAt: null, handoverDocumentId: null } })
+    .then((r) => r.count);

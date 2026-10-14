@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { inflateSync } from "node:zlib";
 import type { ErrorBody } from "@hris/shared";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
@@ -555,5 +556,150 @@ describe("karyawan keluar & cron asset-daily (ARS-D5, ARS-D6)", () => {
     // PROMPT §3.7: notifikasi tanpa harga.
     expect(notes.some((n) => (n.body ?? "").includes("12500000"))).toBe(false);
     await prisma.employee.update({ where: { id: ids.emp }, data: { isActive: true } });
+  });
+});
+
+// --- Audit 2026-10-14: temuan F1–F4 (test ditulis gagal dulu) ---
+
+/** Teks PDF pdf-lib: stream Flate di-inflate, ambil string hex `<…> Tj` (font standar). */
+function pdfText(base64: string): string {
+  const bin = Buffer.from(base64, "base64");
+  const out: string[] = [];
+  let at = 0;
+  for (;;) {
+    const s = bin.indexOf("stream", at);
+    if (s < 0) break;
+    const start = bin[s + 6] === 0x0d ? s + 8 : s + 7;
+    const end = bin.indexOf("endstream", start);
+    if (end < 0) break;
+    try {
+      const text = inflateSync(bin.subarray(start, end)).toString("latin1");
+      for (const m of text.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)) {
+        out.push(Buffer.from(m[1] as string, "hex").toString("latin1"));
+      }
+    } catch {}
+    at = end + 9;
+  }
+  return out.join("\n");
+}
+
+describe("audit aset (F1–F4)", () => {
+  let fresh = "";
+  let open = "";
+  test("F1: Pihak Pertama BAST = pelaku serah-terima, bukan yang mengunduh (MANAGER)", async () => {
+    fresh = (
+      await data(await call("POST", "/assets", hr.headers, asset({ name: `Kamera ${RUN}` })))
+    ).data.id;
+    const assigned = await call("POST", `/assets/${fresh}/assign`, hr.headers, {
+      employeeId: ids.emp,
+      assignedAt: "2026-10-02",
+      conditionOut: "GOOD",
+    });
+    open = (await data(assigned)).data.id;
+    const pdf = (
+      await data(
+        await call("GET", `/asset-assignments/${open}/bast-pdf?kind=HANDOVER`, mgr.headers),
+      )
+    ).data;
+    const text = pdfText(pdf.contentBase64);
+    expect(text).toContain(hr.account.email);
+    expect(text).not.toContain(`Aset ${RUN} M`); // nama MANAGER pengunduh
+  });
+
+  test("F2: kembalikan & tandai hilang bersamaan → hanya satu yang berhasil, data konsisten", async () => {
+    const [back, lost] = await Promise.all([
+      call("POST", `/asset-assignments/${open}/return`, hr.headers, {
+        returnedAt: "2026-10-03",
+        conditionIn: "GOOD",
+      }),
+      call("POST", `/asset-assignments/${open}/lost`, hr.headers, {
+        lostAt: "2026-10-03",
+        note: "Uji balapan aksi",
+      }),
+    ]);
+    expect([back.status, lost.status].sort()).toEqual([200, 422]);
+    const row = await prisma.assetAssignment.findUniqueOrThrow({ where: { id: open } });
+    const assetRow = await prisma.asset.findUniqueOrThrow({ where: { id: fresh } });
+    expect(assetRow.status).toBe(row.outcome === "LOST" ? "LOST" : "AVAILABLE");
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          entityId: open,
+          action: { in: ["asset.assignment.return", "asset.assignment.lost"] },
+        },
+      }),
+    ).toBe(1);
+  });
+
+  test("F3: tanggal di masa depan ditolak (serah, kembali, APD)", async () => {
+    const tomorrow = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    const other = (
+      await data(await call("POST", "/assets", hr.headers, asset({ name: `Proyektor ${RUN}` })))
+    ).data.id;
+    const future = await call("POST", `/assets/${other}/assign`, hr.headers, {
+      employeeId: ids.emp,
+      assignedAt: tomorrow,
+      conditionOut: "GOOD",
+    });
+    expect(future.status).toBe(422);
+    const ok = await call("POST", `/assets/${other}/assign`, hr.headers, {
+      employeeId: ids.emp,
+      assignedAt: "2026-10-02",
+      conditionOut: "GOOD",
+    });
+    const id = (await data(ok)).data.id;
+    expect(
+      (
+        await call("POST", `/asset-assignments/${id}/return`, hr.headers, {
+          returnedAt: tomorrow,
+          conditionIn: "GOOD",
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await call("POST", `/asset-assignments/${id}/lost`, hr.headers, {
+          lostAt: tomorrow,
+          note: "Belum terjadi",
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await call("POST", "/ppe-issues", hr.headers, {
+          employeeId: ids.emp,
+          ppeTypeId: ids.helmet,
+          quantity: 1,
+          issuedAt: tomorrow,
+        })
+      ).status,
+    ).toBe(422);
+    await call("POST", `/asset-assignments/${id}/return`, hr.headers, {
+      returnedAt: "2026-10-03",
+      conditionIn: "GOOD",
+    });
+  });
+
+  test("F4: dua pembagian sejenis bertanggal sama → yang dibuat terakhir tidak dianggap sudah diganti", async () => {
+    const base = {
+      employeeId: ids.emp2,
+      ppeTypeId: ids.shoes,
+      quantity: 1,
+      issuedAt: new Date("2026-05-01T00:00:00Z"),
+      issuedBy: sa.account.id,
+    };
+    const older = await prisma.ppeIssue.create({
+      data: { ...base, createdAt: new Date("2026-05-01T10:00:00.900Z") },
+    });
+    const newer = await prisma.ppeIssue.create({
+      data: { ...base, createdAt: new Date("2026-05-01T10:00:01.100Z") },
+    });
+    const rows = (
+      await data(
+        await call("GET", `/ppe-issues?employeeId=${ids.emp2}&ppeTypeId=${ids.shoes}`, hr.headers),
+      )
+    ).data as { id: string; replacementState: string }[];
+    expect(rows.find((r) => r.id === newer.id)?.replacementState).not.toBe("REPLACED");
+    expect(rows.find((r) => r.id === older.id)?.replacementState).toBe("REPLACED");
   });
 });

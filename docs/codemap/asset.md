@@ -8,7 +8,7 @@
 ├── index.ts                 [done] registerAssetRoutes, runAssetDaily
 ├── asset.policy.ts          [done] canManageAssets (SA / HR ber-grant asset.manage di PT), canSeeAssetPrice, canManageAssetMasters,
 │                                   canViewEmployeeAssets (SA, HR PT, MANAGER tim, diri), canViewAsset, assetListScope, canAcknowledge
-├── asset.repository.ts      [done] kategori, jenis APD, aset (filter cakupan/pemegang/terlambat), serah-terima, pembagian APD
+├── asset.repository.ts      [done] kategori, jenis APD, aset (filter cakupan/pemegang/terlambat), serah-terima, pembagian APD; update bersyarat atomik (`closeAssignmentIfOpen`, `setAssetStatusIf`, `returnPpeIfOpen`, `deletePpeIfUnconfirmed`, `acknowledge…IfPending`) agar aksi bersamaan tidak sama-sama lolos
 ├── asset.service.ts         [done] aturan ARS-D1–D6, audit `asset.*`, harga hanya pengelola, notifikasi in-app ke karyawan
 ├── asset-bast.ts            [done] PDF BAST (pdf-lib, A4, font standar WinAnsi): serah, kembali, hilang, APD; `bastNumber` = `BAST-S|K|H|APD/<kode>/<tanggal>/<id6>` (unik per berita acara)
 ├── asset-daily.service.ts   [done] cron `asset-daily`: pinjaman terlambat, APD jatuh tempo ganti, aset/APD karyawan keluar

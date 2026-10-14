@@ -35,7 +35,7 @@ import {
   getEmployeeDocumentRef,
   listEmployeeBriefs,
 } from "../employee/index.ts";
-import { getEmployeeAccountStates } from "../iam/index.ts";
+import { getAccountSummaries, getEmployeeAccountStates } from "../iam/index.ts";
 import { notify } from "../notification/index.ts";
 import { getMasterLookup, type MasterLookup } from "../organization/index.ts";
 import * as policy from "./asset.policy.ts";
@@ -59,6 +59,11 @@ export const todayInJakarta = (now = new Date()) => JAKARTA_DATE.format(now);
 const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const toIso = (date: Date) => date.toISOString().slice(0, 10);
 const isoOrNull = (date: Date | null) => (date ? toIso(date) : null);
+
+/** Audit F3: tanggal transaksi (serah, kembali, hilang, APD) tidak boleh melewati hari ini (WIB). */
+function notInFuture(iso: string, label: string, now: Date) {
+  if (iso > todayInJakarta(now)) throw new BusinessRuleError(`${label} tidak boleh di masa depan.`);
+}
 
 function parse<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
   const result = schema.safeParse(raw);
@@ -215,12 +220,16 @@ function ppeDto(
 
 /** Pembagian yang sudah punya pembagian lebih baru sejenis untuk karyawan yang sama = sudah diganti. */
 function replacedIds(rows: repo.PpeIssueWithType[]) {
-  const latest = new Map<string, { id: string; at: number }>();
+  // Terbaru = tanggal terima terbesar, lalu waktu dibuat (utuh) sebagai pemecah seri (audit F4).
+  const latest = new Map<string, { id: string; issued: number; created: number }>();
   for (const r of rows) {
     const key = `${r.employeeId}:${r.ppeTypeId}`;
-    const at = r.issuedAt.getTime() * 1e3 + (r.createdAt.getTime() % 1e3);
+    const issued = r.issuedAt.getTime();
+    const created = r.createdAt.getTime();
     const cur = latest.get(key);
-    if (!cur || at > cur.at) latest.set(key, { id: r.id, at });
+    if (!cur || issued > cur.issued || (issued === cur.issued && created > cur.created)) {
+      latest.set(key, { id: r.id, issued, created });
+    }
   }
   const keep = new Set([...latest.values()].map((v) => v.id));
   return new Set(rows.filter((r) => !keep.has(r.id)).map((r) => r.id));
@@ -596,7 +605,14 @@ export async function setAssetStatus(
     );
   }
   const row = await repo.transaction(async (tx) => {
-    const updated = await repo.updateAsset(tx, id, { status: input.status });
+    // Audit F2: bisa saja aset baru diserahkan di antara pembacaan & penyimpanan.
+    if (!(await repo.setAssetStatusIf(tx, id, null, { status: input.status }))) {
+      throw new BusinessRuleError(
+        "Aset sedang dipegang karyawan. Kembalikan atau tandai hilang dulu.",
+      );
+    }
+    const updated = await repo.findAsset(id, tx);
+    if (!updated) throw new NotFoundError();
     await audit(
       ctx,
       {
@@ -641,6 +657,7 @@ export async function assignAsset(
   if (!asset) throw new NotFoundError();
   if (!policy.canManageAssets(ctx.actor, asset.companyId)) throw new ForbiddenError();
   const input = parse(assignAssetInputSchema, raw);
+  notInFuture(input.assignedAt, "Tanggal serah", now);
   if (asset.status !== "AVAILABLE") {
     throw new BusinessRuleError("Hanya aset berstatus Tersedia yang bisa diserahkan.");
   }
@@ -652,6 +669,13 @@ export async function assignAsset(
   }
   try {
     const created = await repo.transaction(async (tx) => {
+      // Audit F2: status Tersedia dikunci di baris aset (bentrok dengan ubah status bersamaan).
+      const taken = await repo.setAssetStatusIf(tx, assetId, "AVAILABLE", {
+        status: "ASSIGNED",
+        condition: input.conditionOut,
+      });
+      if (!taken)
+        throw new BusinessRuleError("Hanya aset berstatus Tersedia yang bisa diserahkan.");
       const assignment = await repo.createAssignment(tx, {
         assetId,
         employeeId: employee.id,
@@ -661,7 +685,6 @@ export async function assignAsset(
         assignedBy: ctx.actor.accountId,
         note: input.note,
       });
-      await repo.updateAsset(tx, assetId, { status: "ASSIGNED", condition: input.conditionOut });
       await audit(
         ctx,
         {
@@ -707,18 +730,22 @@ export async function returnAsset(
 ) {
   const a = await loadOpenAssignment(ctx, assignmentId);
   const input = parse(returnAssetInputSchema, raw);
+  notInFuture(input.returnedAt, "Tanggal kembali", now);
   if (input.returnedAt < toIso(a.assignedAt)) {
     throw new BusinessRuleError("Tanggal kembali tidak boleh sebelum tanggal serah.");
   }
   const status: AssetStatus = input.conditionIn === "DAMAGED" ? "MAINTENANCE" : "AVAILABLE";
   const updated = await repo.transaction(async (tx) => {
-    const row = await repo.updateAssignment(tx, a.id, {
+    const closed = await repo.closeAssignmentIfOpen(tx, a.id, {
       closedAt: toDate(input.returnedAt),
       outcome: "RETURNED",
       conditionIn: input.conditionIn,
       closedBy: ctx.actor.accountId,
       closeNote: input.note,
     });
+    if (!closed) throw new BusinessRuleError("Serah-terima ini sudah ditutup.");
+    const row = await repo.findAssignment(a.id, tx);
+    if (!row) throw new NotFoundError();
     await repo.updateAsset(tx, a.assetId, {
       status,
       condition: input.conditionIn as AssetCondition,
@@ -750,16 +777,20 @@ export async function markAssetLost(
 ) {
   const a = await loadOpenAssignment(ctx, assignmentId);
   const input = parse(markAssetLostInputSchema, raw);
+  notInFuture(input.lostAt, "Tanggal hilang", now);
   if (input.lostAt < toIso(a.assignedAt)) {
     throw new BusinessRuleError("Tanggal hilang tidak boleh sebelum tanggal serah.");
   }
   const updated = await repo.transaction(async (tx) => {
-    const row = await repo.updateAssignment(tx, a.id, {
+    const closed = await repo.closeAssignmentIfOpen(tx, a.id, {
       closedAt: toDate(input.lostAt),
       outcome: "LOST",
       closedBy: ctx.actor.accountId,
       closeNote: input.note,
     });
+    if (!closed) throw new BusinessRuleError("Serah-terima ini sudah ditutup.");
+    const row = await repo.findAssignment(a.id, tx);
+    if (!row) throw new NotFoundError();
     await repo.updateAsset(tx, a.assetId, { status: "LOST" });
     await audit(
       ctx,
@@ -827,21 +858,26 @@ export async function attachAssignmentBast(
   );
 }
 
+/**
+ * Pihak BAST. Audit F1: Pihak Pertama = akun yang MELAKUKAN transaksi (menyerahkan / menerima kembali
+ * / membagikan APD), bukan akun yang mengunduh PDF (mis. MANAGER membuka tab Aset bawahannya).
+ */
 async function bastParties(
-  ctx: RequestContext,
+  performerAccountId: string,
   employee: EmployeeBrief | undefined,
   lookup: MasterLookup,
 ) {
-  const self = ctx.actor.employeeId
-    ? (await briefsFor([ctx.actor.employeeId])).get(ctx.actor.employeeId)
+  const account = (await getAccountSummaries([performerAccountId])).get(performerAccountId);
+  const performer = account?.employeeId
+    ? (await briefsFor([account.employeeId])).get(account.employeeId)
     : undefined;
   return {
-    manager: self
+    manager: performer
       ? {
-          name: self.fullName,
-          role: lookup.positions.get(self.positionId)?.name ?? "Pengelola aset",
+          name: performer.fullName,
+          role: lookup.positions.get(performer.positionId)?.name ?? "Pengelola aset",
         }
-      : { name: ctx.actor.email, role: "Pengelola aset" },
+      : { name: account?.email ?? "Pengelola aset", role: "Pengelola aset" },
     employee: {
       name: employee?.fullName ?? "-",
       number: employee?.employeeNumber ?? "-",
@@ -861,7 +897,11 @@ export async function assignmentBast(ctx: RequestContext, assignmentId: string, 
   if (kind === "RETURN" && !a.closedAt) throw new BusinessRuleError("Aset belum dikembalikan.");
   const lookup = await getMasterLookup();
   const company = lookup.companies.get(a.asset.companyId);
-  const parties = await bastParties(ctx, employee, lookup);
+  const parties = await bastParties(
+    kind === "HANDOVER" ? a.assignedBy : (a.closedBy ?? a.assignedBy),
+    employee,
+    lookup,
+  );
   const date = kind === "HANDOVER" ? toIso(a.assignedAt) : toIso(a.closedAt as Date);
   const docKind: BastDocumentKind =
     kind === "HANDOVER" ? "ASSET_HANDOVER" : a.outcome === "LOST" ? "ASSET_LOST" : "ASSET_RETURN";
@@ -910,12 +950,18 @@ export async function acknowledgeAssignment(
   if (a.acknowledgedAt)
     return assignmentDto(a, new Map([[employee.id, employee]]), todayInJakarta(now));
   const updated = await repo.transaction(async (tx) => {
-    const row = await repo.updateAssignment(tx, a.id, { acknowledgedAt: now });
-    await audit(
-      ctx,
-      { action: "asset.assignment.acknowledge", entityType: "asset_assignment", entityId: a.id },
-      tx,
-    );
+    // Idempoten & aman bersamaan: hanya baris yang masih menunggu yang diubah + diaudit.
+    if (await repo.acknowledgeAssignmentIfPending(tx, a.id, now)) {
+      await audit(
+        ctx,
+        { action: "asset.assignment.acknowledge", entityType: "asset_assignment", entityId: a.id },
+        tx,
+      );
+    }
+    const row = await repo.findAssignment(a.id, tx);
+    if (!row) throw new NotFoundError();
+    if (row.closedAt && !row.acknowledgedAt)
+      throw new BusinessRuleError("Serah-terima ini sudah ditutup.");
     return row;
   });
   return assignmentDto(
@@ -1034,6 +1080,7 @@ export async function listPpeIssues(ctx: RequestContext, query: PpeListQuery, no
 
 export async function createPpeIssue(ctx: RequestContext, raw: unknown, now = new Date()) {
   const input = parse(ppeIssueInputSchema, raw);
+  notInFuture(input.issuedAt, "Tanggal terima", now);
   const employee = (await briefsFor([input.employeeId])).get(input.employeeId);
   if (!employee?.isActive)
     throw new BusinessRuleError("Karyawan tidak ditemukan atau tidak aktif.");
@@ -1082,17 +1129,21 @@ async function loadPpeForManage(ctx: RequestContext, id: string) {
 export async function returnPpe(ctx: RequestContext, id: string, raw: unknown, now = new Date()) {
   const { p, employee } = await loadPpeForManage(ctx, id);
   const input = parse(ppeReturnInputSchema, raw);
+  notInFuture(input.returnedAt, "Tanggal kembali", now);
   if (!p.ppeType.mustReturn)
     throw new BusinessRuleError("Jenis APD ini habis pakai (tidak wajib kembali).");
   if (p.returnedAt) throw new BusinessRuleError("APD ini sudah dikembalikan.");
   if (input.returnedAt < toIso(p.issuedAt))
     throw new BusinessRuleError("Tanggal kembali tidak boleh sebelum tanggal terima.");
   const row = await repo.transaction(async (tx) => {
-    const updated = await repo.updatePpeIssue(tx, id, {
+    const returned = await repo.returnPpeIfOpen(tx, id, {
       returnedAt: toDate(input.returnedAt),
       returnedBy: ctx.actor.accountId,
       ...(input.note ? { note: input.note } : {}),
     });
+    if (!returned) throw new BusinessRuleError("APD ini sudah dikembalikan.");
+    const updated = await repo.findPpeIssue(id, tx);
+    if (!updated) throw new NotFoundError();
     await audit(
       ctx,
       { action: "asset.ppe_issue.return", entityType: "ppe_issue", entityId: id, after: input },
@@ -1133,7 +1184,11 @@ export async function deletePpeIssue(ctx: RequestContext, id: string) {
     );
   }
   await repo.transaction(async (tx) => {
-    await repo.deletePpeIssue(tx, id);
+    if (!(await repo.deletePpeIfUnconfirmed(tx, id))) {
+      throw new BusinessRuleError(
+        "Pembagian yang sudah dikonfirmasi atau ber-BAST tidak bisa dihapus.",
+      );
+    }
     await audit(
       ctx,
       {
@@ -1162,7 +1217,7 @@ export async function ppeBast(ctx: RequestContext, id: string) {
     policy.canViewEmployeeAssets(ctx.actor, target(employee));
   if (!canSee) throw new NotFoundError();
   const lookup = await getMasterLookup();
-  const parties = await bastParties(ctx, employee, lookup);
+  const parties = await bastParties(p.issuedBy, employee, lookup);
   const date = toIso(p.issuedAt);
   const bytes = await buildBastPdf({
     kind: "PPE_ISSUE",
@@ -1201,12 +1256,15 @@ export async function acknowledgePpe(ctx: RequestContext, id: string, now = new 
   if (p.acknowledgedAt)
     return ppeDto(p, new Map([[employee.id, employee]]), todayInJakarta(now), false);
   const row = await repo.transaction(async (tx) => {
-    const updated = await repo.updatePpeIssue(tx, id, { acknowledgedAt: now });
-    await audit(
-      ctx,
-      { action: "asset.ppe_issue.acknowledge", entityType: "ppe_issue", entityId: id },
-      tx,
-    );
+    if (await repo.acknowledgePpeIfPending(tx, id, now)) {
+      await audit(
+        ctx,
+        { action: "asset.ppe_issue.acknowledge", entityType: "ppe_issue", entityId: id },
+        tx,
+      );
+    }
+    const updated = await repo.findPpeIssue(id, tx);
+    if (!updated) throw new NotFoundError();
     return updated;
   });
   return ppeDto(row, new Map([[employee.id, employee]]), todayInJakarta(now), false);

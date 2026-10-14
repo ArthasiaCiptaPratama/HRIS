@@ -25,4 +25,6 @@
 - Pihak Pertama di BAST memakai email bila pengelola (SA) tidak tertaut data karyawan — sesuai desain, dicatat sebagai temuan tampilan.
 - Data uji tersisa di DB **lokal**: kategori/jenis/aset `Q6967`, `Q7013`, `Q7069`, `Q7175` + pembagian Helm untuk Rizky; file scan BAST di storage staging berawalan `dev/oatse/`.
 
+**Audit ulang 2026-10-14 (setelah run di atas):** 4 temuan diperbaiki dengan test gagal-dulu — F1 Pihak Pertama BAST dari pelaku transaksi (bukan pengunduh), F2 update bersyarat atomik (aksi bersamaan), F3 tanggal masa depan ditolak, F4 pemecah seri "sudah diganti"; F5 teks dialog Serahkan. Ulang di kode baru: api 717 ✔, web 262 ✔ (berurutan), Playwright **12/12** (RUN 7848, bukti di folder utama; run pra-audit di `run4-pra-audit/`).
+
 **Kesimpulan:** semua P1/P2 LULUS di lokal; tidak ada bug terbuka. Belum LEGIT (butuh uji staging setelah rilis) → belum diarsip ke Drive.

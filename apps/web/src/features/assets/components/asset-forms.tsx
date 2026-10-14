@@ -354,7 +354,7 @@ export function AssignAssetDialog({
       onClose={onClose}
       wide
       title={`Serahkan ${asset.name}`}
-      description={`${asset.code} · ${asset.company.name}. Setelah disimpan, cetak PDF BAST untuk ditandatangani; karyawan juga diminta konfirmasi terima di Layanan Mandiri.`}
+      description={`${asset.code} · ${asset.company.name}. Penerima harus karyawan aktif ${asset.company.name}. Setelah disimpan, cetak PDF BAST untuk ditandatangani; karyawan juga diminta konfirmasi terima di Layanan Mandiri.`}
       pending={assign.isPending}
       submitLabel="Serahkan aset"
       onSubmit={async () => {
