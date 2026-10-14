@@ -21,9 +21,20 @@
 - Pendukung di modul lain (lewat `index.ts`): `employee` → `getEmployeeBriefs`, `listEmployeeBriefs`, `getEmployeeDocumentRef` (`directory.{service,repository}.ts`, baca-saja, tanpa data sensitif); `iam` → `listAssetManagers`.
 - Integration: `apps/api/tests/integration/asset/assets.test.ts` (13 skenario: master, kode otomatis, akses 4 role + HR PT lain, serah-terima, index unik parsial, konfirmasi, BAST, kembali/hilang, APD & masa ganti, karyawan keluar, cron + dedupe).
 
-## Web
+## Web (`apps/web/src/features/assets/`, 2026-10-14)
 
-Belum (tahap B): Arsip › Data Assets, Master Data › Kategori aset & Jenis APD, tab Aset di detail karyawan, Layanan Mandiri › Aset saya, daftar aset di dialog nonaktifkan.
+```
+├── api.ts                       [done] hook kategori, jenis APD, aset (daftar/detail/usulan kode), APD, pegangan, Aset saya, belum kembali, mutasi; downloadBast
+├── schemas.ts                   [done] subset respons API
+├── components/display.tsx       [done] badge status/kondisi/pinjaman/masa ganti/konfirmasi, formatPrice (string → Rupiah tanpa number)
+├── components/asset-actions.tsx [done] dialog kembali, hilang, kembali APD; BastButtons (PDF + unggah scan BAST_ASSET → tautkan). Tanpa impor fitur employee
+├── components/holdings.tsx      [done] HoldingsList, EmployeeAssetsTab (tab Aset detail karyawan), MyAssets (Layanan Mandiri), OpenHoldingsWarning (form nonaktifkan)
+├── components/asset-forms.tsx   [done] AssetFormDialog, AssignAssetDialog, PpeIssueDialog (pakai EmployeePicker & master data employee)
+├── pages/assets-page.tsx        [done] /personal/arsip/aset — tab aset | apd | belum-kembali, panel ?asset=<id>, panel pegangan ?pegawai=<id>
+└── pages/asset-masters-page.tsx [done] /master-data/aset — tab kategori | apd
+```
+
+Pemasangan: `app/router.tsx` (route `arsip/aset` sebelum `arsip/:section`, `master-data/aset`), `route-preload.ts`, `navigation.ts` (menu Data Assets & Master Data › Aset & APD), `feature-flags.ts` (`assets`), `lib/access.ts` (`viewAssets`, `manageAssets`), `employee-detail-sheet.tsx` (tab Aset), `change-status-page.tsx` (peringatan), `ess-page.tsx` (tab Aset saya). Test: `apps/web/tests/assets.test.tsx`.
 
 ## Tabel & rincian
 

@@ -61,6 +61,12 @@ export const pages = {
     import("@/features/data-changes/pages/data-changes-page").then((m) => ({
       Component: m.DataChangesPage,
     })),
+  assets: () =>
+    import("@/features/assets/pages/assets-page").then((m) => ({ Component: m.AssetsPage })),
+  assetMasters: () =>
+    import("@/features/assets/pages/asset-masters-page").then((m) => ({
+      Component: m.AssetMastersPage,
+    })),
   documentTypes: () =>
     import("@/features/documents/pages/document-types-page").then((m) => ({
       Component: m.DocumentTypesPage,
@@ -155,10 +161,12 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
     FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
   ],
   ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
+  ["/personal/arsip/aset", FEATURES.assets ? pages.assets : pages.maintenance],
   ["/personal/arsip", FEATURES.archive ? pages.archive : pages.maintenance],
   ["/personal/laporan", pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
   ["/master-data/jenis-dokumen", FEATURES.archive ? pages.documentTypes : pages.maintenance],
+  ["/master-data/aset", FEATURES.assets ? pages.assetMasters : pages.maintenance],
   ["/master-data", pages.masterData],
   ["/penerimaan/impor", FEATURES.onboarding ? pages.onboardingImport : pages.maintenance],
   ["/penerimaan/", FEATURES.onboarding ? pages.onboardingReview : pages.maintenance],

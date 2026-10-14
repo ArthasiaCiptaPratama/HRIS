@@ -6,17 +6,20 @@ import {
   HeartHandshake,
   History,
   Landmark,
+  Package,
   Pencil,
   Phone,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
+import { FEATURES } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MyAssets } from "@/features/assets/components/holdings";
 import { useCancelDataChange, useMyData, useMyDataChanges } from "@/features/data-changes/api";
 import { StatusBadge } from "@/features/data-changes/components/change-comparison";
 import { DataChangeDialog } from "@/features/data-changes/components/change-dialog";
@@ -72,6 +75,11 @@ export function EssPage() {
             <TabsTrigger value="documents">
               <FileText /> Dokumen saya
             </TabsTrigger>
+            {FEATURES.assets ? (
+              <TabsTrigger value="assets">
+                <Package /> Aset saya
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="requests">
               <History /> Riwayat pengajuan
             </TabsTrigger>
@@ -82,6 +90,12 @@ export function EssPage() {
           <TabsContent value="documents">
             <MyDocuments data={mine.data} onUpload={() => setSection("DOCUMENT")} />
           </TabsContent>
+          {FEATURES.assets ? (
+            <TabsContent value="assets">
+              {/* ARS-D2: aset & APD yang diserahkan + konfirmasi "Sudah saya terima". */}
+              <MyAssets />
+            </TabsContent>
+          ) : null}
           <TabsContent value="requests">
             <MyRequests />
           </TabsContent>

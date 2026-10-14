@@ -121,15 +121,27 @@ const ARCHIVE_GRANTED: Record<string, (me: Me) => boolean> = {
   keluarga: access.readFamilyArchive,
   bank: access.readBankArchive,
 };
-const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem => ({
-  id,
-  label,
-  to: `/personal/arsip/${id}`,
-  icon,
-  visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
-  maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
-  keywords,
-});
+const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem =>
+  // ARS-D1–D6: Data Assets punya halaman & saklar sendiri (FEATURES.assets).
+  id === "aset"
+    ? {
+        id,
+        label,
+        to: "/personal/arsip/aset",
+        icon,
+        visible: FEATURES.assets ? access.viewAssets : manage,
+        maintenance: !FEATURES.assets,
+        keywords,
+      }
+    : {
+        id,
+        label,
+        to: `/personal/arsip/${id}`,
+        icon,
+        visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
+        maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
+        keywords,
+      };
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -235,7 +247,12 @@ export const NAV_GROUPS: NavGroup[] = [
           archive("riwayat-jabatan", "Riwayat Jabatan", History, "mutasi promosi"),
           archive("pelatihan", "Data Pelatihan", Award, "training sertifikat"),
           archive("riwayat-kerja", "Data Riwayat Kerja", BriefcaseBusiness, "pengalaman"),
-          archive("aset", "Data Assets", Package, "inventaris laptop"),
+          archive(
+            "aset",
+            "Data Assets",
+            Package,
+            "inventaris aset laptop hp radio kendaraan apd helm seragam bast",
+          ),
           archive("file", "Data File", FolderArchive, "dokumen berkas"),
           archive("bank", "Data Bank", Landmark, "rekening"),
           archive("peringatan", "Riwayat Peringatan", TriangleAlert, "sp surat peringatan"),
@@ -500,6 +517,16 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: FileText,
             visible: access.viewMasterData,
             keywords: "jenis dokumen berkas file sertifikat masa berlaku kedaluwarsa",
+          },
+          {
+            // ARS-D1/D5/D6: kategori aset per unit & jenis APD/seragam.
+            id: "master-assets",
+            maintenance: !FEATURES.assets,
+            label: "Aset & APD",
+            to: `${MASTER_DATA_BASE}/aset`,
+            icon: Package,
+            visible: access.viewMasterData,
+            keywords: "kategori aset jenis apd helm sepatu safety seragam masa ganti",
           },
         ],
       },
