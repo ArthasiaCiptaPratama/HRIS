@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
-> **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD ✔ develop (2026-10-14, QA lokal 12/12, belum staging); sisa: rilis Aset, gel. 2b SP, gel. 3 Laporan, impor per kategori, OD-11
+> **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; sisa: gel. 2b SP, gel. 3 Laporan, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -22,13 +22,14 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] QA lokal 1c: plan/run `2026-10-07-arsip-1c`, TC-EMP-149…160, Playwright 19/19 (tambahan 2026-10-07: temuan audit dokumen)
   - [x] Gel. 1d ekspor & cetak per kategori (D-058; QA Playwright 7/7, 2026-10-08) — impor per kategori **ditunda** (keputusan pemilik projek 2026-10-08: tunggu contoh rekap Excel lama dari HR)
   - [x] Tampil di staging (tambahan 2026-10-13: permintaan pemilik projek) — saklar `archive` + `selfService` `true` di rilis `42df46e` → PR #47/#48 → `Deploy staging` #38374784477; grant `employee.changes.review` HR uji; QA staging 14/14 TC-STG-059…072 **LEGIT**, arsip Drive `hris-qa:2026-10-13-staging-arsip`
-  - [~] Gel. 2a Aset & APD (ARS-D1–D6; grill 2026-10-13) — tahap A API ✔ lokal 2026-10-13; tahap B web ✔ & tahap C QA ✔ lokal 2026-10-14 (12/12); sisa: rilis staging + QA staging
+  - [x] Gel. 2a Aset & APD (ARS-D1–D6; grill 2026-10-13) — tahap A API ✔ lokal 2026-10-13; tahap B web ✔ & tahap C QA ✔ lokal 2026-10-14 (12/12); ✔ staging rilis gel. 7 (2026-10-14), QA LEGIT
     - [x] Tahap A (tambahan 2026-10-13): shared `asset.ts` + permission `asset.manage`; migrasi `20261013095006_add_asset_module` (skema `asset`, 5 tabel, unik parsial, CHECK); modul `apps/api/src/modules/asset/` (policy TDD 21, service + audit, PDF BAST, 23 path, cron `asset-daily` + `vercel.json`); `employee/index.ts` + `getEmployeeBriefs`/`listEmployeeBriefs`/`getEmployeeDocumentRef`, `iam/index.ts` + `listAssetManagers`; integration 13 skenario; PLAN §4.2/§4.3, ERD, codemap
     - [x] Tahap B (2026-10-14): web `features/assets/` — Arsip › Data Assets (tab Aset, Pembagian APD, Belum kembali; panel detail aset + riwayat), form aset (usulan kode), serah-terima, catat APD, kembali/hilang, PDF BAST + unggah scan → dokumen `BAST_ASSET`; Master Data › Aset & APD; tab Aset di detail karyawan; peringatan aset terbuka di form nonaktifkan; Layanan Mandiri › Aset saya + "Sudah saya terima"; saklar `FEATURES.assets`, `access.viewAssets/manageAssets`; test web 8 (`tests/assets.test.tsx`); smoke Playwright lokal 4 role × desktop/HP
     - [x] Tahap C (2026-10-14): QA lokal Playwright alur penuh SA → MGR/HR → EMP → SA **12/12** (TC-EMP-215…226; plan/run `2026-10-14-aset-lokal`); isi PDF BAST dicek (`pdftotext` + render); bug nomor BAST bentrok diperbaiki (`bastNumber`, test `asset-bast.test.ts`)
     - [x] Audit ulang A–C (tambahan 2026-10-14: permintaan pemilik projek): 5 temuan diperbaiki — BAST mencatat pelaku transaksi, aksi bersamaan atomik, tanggal masa depan ditolak, urutan "sudah diganti", teks dialog Serahkan; api 717, QA ulang 12/12
     - [x] Logo Arthasia di kop PDF BAST (tambahan 2026-10-14: permintaan pemilik projek) — sama dengan logo email, `bast-logo.ts`
-    - [ ] Rilis staging (migrasi `20261013095006_add_asset_module`, cron `asset-daily`, saklar `assets` di rilis) + QA staging + arsip Drive
+    - [x] Rilis staging (migrasi `20261013095006_add_asset_module`, cron `asset-daily`, saklar `assets` di rilis) + QA staging + arsip Drive — 2026-10-14: rilis `219b372` (merge develop `5859111`, ikut membawa Time Management tersembunyi) → PR #49/#50 → `Deploy staging` #38509894453; QA staging TC-STG-073…087 **15/15** (putaran 2) → **LEGIT**, Drive `hris-qa:2026-10-14-staging-aset`
+      - [ ] (tambahan 2026-10-14) Temuan QA staging P3: PT bawaan di form Tambah aset kosong bila data master belum termuat saat dialog dibuka (Backlog)
   - [ ] Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1

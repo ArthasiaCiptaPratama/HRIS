@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-14 — Aset & APD tampil di staging (rilis gel. 7) (Oatse)
+- **Dikerjakan (permintaan pemilik projek "1 dan 2"):** (1) verifikasi penuh develop lalu push `5750a50` + `5859111` (CI #38509210626 ✔). (2) folder `HRIS-rilis`: merge develop `5859111` (`df9776e`, tanpa konflik; ikut membawa Time Management + 8 migrasi) → saklar `assets` `true`, `timeManagement` `false` (`219b372`) → PR #49 ke `HRIS/debug/database` (CI ✔, merge `6864a1a`) → PR #50 ke `HRIS/debug/fe-be` (CI ✔, merge `03dac3b`) → `Deploy staging` #38509894453 ✔ (migrasi, api, web). QA staging Playwright → arsip Drive.
+- **Keputusan:** tidak ada keputusan baru.
+- **Verifikasi:** develop & rilis: typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ (418 modul) · `db:check` ✔ · test shared 215 · api 717 · web 262 · build ✔; staging (MCP): 27 → **35 migrasi**, 0 gagal, skema `asset` 5 tabel; health 200, web 200; cron & endpoint aset tanpa kredensial 401; advisor security tanpa temuan baru; QA TC-STG-073…087 **15/15 LULUS** (`docs/qa/runs/2026-10-14-staging-aset.md`) → **LEGIT**; Drive `hris-qa:2026-10-14-staging-aset` 21 file.
+- **Masalah / catatan:** putaran 1 3/12 — form Tambah aset di staging tidak mengisi PT bawaan karena data master belum termuat saat dialog dibuka → 400 (temuan P3, Backlog; pengguna tetap bisa memilih PT). Time Management terpasang di staging tetapi tersembunyi; cron TM belum terdaftar. Data uji `Q1134`/`Q1440` tersisa di staging.
+- **Berikutnya:** gel. 2b Surat peringatan (grill dulu); perbaikan PT bawaan form aset (kecil).
+
 ### 2026-10-13 — Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6) (Oatse)
 - **Dikerjakan (rencana disetujui; setiap aksi keluar ditanya):** folder `HRIS-rilis`: saklar `FEATURES.archive` + `FEATURES.selfService` → `true` (commit `42df46e`, tanpa merge develop → Time Management tidak ikut, tanpa migrasi) → PR #47 ke `HRIS/debug/database` (CI ✔, merge `62632e2`) → PR #48 ke `HRIS/debug/fe-be` (CI ✔, merge `d0e652b`) → `Deploy staging` #38374784477 ✔. Grant `employee.changes.review` untuk HR uji (izin pemilik projek, lewat API sebagai SA, tercatat audit). QA staging Playwright + API → arsip Drive.
 - **Keputusan:** tidak ada keputusan baru.
