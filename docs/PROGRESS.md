@@ -15,7 +15,7 @@
 | [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
-| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔; sisa gel. 2–3, OD-11 | ✔ gel. 6 (QA LEGIT) |
+| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ develop (QA lokal 12/12); sisa 2b SP, gel. 3, OD-11 | ✔ gel. 6 (QA LEGIT); Aset belum |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
 | [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/windows` | Berjalan — ✔ develop 2026-10-13 (`e31e934`); sisa: lembur OD-14, uji HP, cron, adapter | belum |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
@@ -27,7 +27,7 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 ## Fokus saat ini
 
 - **Perapihan dokumen (2026-10-13):** struktur induk + `features/` + `codemap/` + `decisions.md` + `RELEASE.md` (lihat log ringkas). Mat diminta **pull develop** sebelum lanjut dan sejak itu hanya menulis `features/time-management/` & `features/dashboard/`.
-- **Develop di-push 2026-10-13** sampai `9c16518` (CI #38372511353 ✔): merge Time Management `e31e934` + perapihan dokumen. Time Management **belum dirilis** ke staging ([RELEASE §2](RELEASE.md#2-antrean-push--rilis-aktif)).
+- **Develop di-push 2026-10-14** sampai `d865b97` (CI #38506105523 ✔): merge Time Management `e31e934`, perapihan dokumen, Aset & APD gel. 2a (`1d3cf4a`, `e378730`, `85a0812`, `d865b97`). Lokal belum push: `5750a50` (logo BAST). Time Management & Aset **belum dirilis** ke staging ([RELEASE §2](RELEASE.md#2-antrean-push--rilis-aktif)); rencana rilis (merge semua, saklar `timeManagement` false) **ditahan atas permintaan pemilik projek 2026-10-14**.
 - **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT.
 - **Arsip gel. 2a Aset & APD (ARS-D1–D6):** tahap A API ✔ lokal 2026-10-13 (modul `asset`, migrasi `20261013095006_add_asset_module`, cron `asset-daily`); tahap B web ✔ & tahap C QA lokal ✔ 2026-10-14 (12/12); berikutnya rilis staging + QA staging. Lalu 2b Surat peringatan, gel. 3 Laporan.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
@@ -91,6 +91,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-14** — Logo Arthasia (sama dengan email) di kop PDF BAST; dokumen instruksi diselaraskan (Fokus, RELEASE antrean #50, CODEMAP). (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Audit ulang Aset & APD: 5 temuan diperbaiki (BAST pelaku, race condition, tanggal masa depan, urutan APD, teks dialog); api 717, QA 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Aset & APD gel. 2a tahap C QA lokal 12/12 + perbaikan nomor BAST unik (api 713). (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Aset & APD gel. 2a tahap B web (Data Assets, master, tab Aset, Aset saya; test web 262). (Oatse) → [arsip/log](features/arsip/log.md)

@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
 > **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; sisa: gel. 2 (Aset, SP), gel. 3 (Laporan), impor per kategori, OD-11
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD ✔ develop (2026-10-14, QA lokal 12/12, belum staging); sisa: rilis Aset, gel. 2b SP, gel. 3 Laporan, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -26,6 +26,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] Tahap A (tambahan 2026-10-13): shared `asset.ts` + permission `asset.manage`; migrasi `20261013095006_add_asset_module` (skema `asset`, 5 tabel, unik parsial, CHECK); modul `apps/api/src/modules/asset/` (policy TDD 21, service + audit, PDF BAST, 23 path, cron `asset-daily` + `vercel.json`); `employee/index.ts` + `getEmployeeBriefs`/`listEmployeeBriefs`/`getEmployeeDocumentRef`, `iam/index.ts` + `listAssetManagers`; integration 13 skenario; PLAN §4.2/§4.3, ERD, codemap
     - [x] Tahap B (2026-10-14): web `features/assets/` — Arsip › Data Assets (tab Aset, Pembagian APD, Belum kembali; panel detail aset + riwayat), form aset (usulan kode), serah-terima, catat APD, kembali/hilang, PDF BAST + unggah scan → dokumen `BAST_ASSET`; Master Data › Aset & APD; tab Aset di detail karyawan; peringatan aset terbuka di form nonaktifkan; Layanan Mandiri › Aset saya + "Sudah saya terima"; saklar `FEATURES.assets`, `access.viewAssets/manageAssets`; test web 8 (`tests/assets.test.tsx`); smoke Playwright lokal 4 role × desktop/HP
     - [x] Tahap C (2026-10-14): QA lokal Playwright alur penuh SA → MGR/HR → EMP → SA **12/12** (TC-EMP-215…226; plan/run `2026-10-14-aset-lokal`); isi PDF BAST dicek (`pdftotext` + render); bug nomor BAST bentrok diperbaiki (`bastNumber`, test `asset-bast.test.ts`)
+    - [x] Audit ulang A–C (tambahan 2026-10-14: permintaan pemilik projek): 5 temuan diperbaiki — BAST mencatat pelaku transaksi, aksi bersamaan atomik, tanggal masa depan ditolak, urutan "sudah diganti", teks dialog Serahkan; api 717, QA ulang 12/12
+    - [x] Logo Arthasia di kop PDF BAST (tambahan 2026-10-14: permintaan pemilik projek) — sama dengan logo email, `bast-logo.ts`
     - [ ] Rilis staging (migrasi `20261013095006_add_asset_module`, cron `asset-daily`, saklar `assets` di rilis) + QA staging + arsip Drive
   - [ ] Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
