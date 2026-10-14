@@ -256,13 +256,16 @@ function TopNavLink({ group, active }: { group: NavGroup; active: boolean }) {
       to={group.to}
       onMouseEnter={() => preloadRoute(group.to)}
       aria-current={active ? "page" : undefined}
+      title={group.label}
       className={cn(
-        "relative flex items-center gap-2 px-3 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "relative flex shrink-0 items-center gap-2 px-3 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         active ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <group.icon className={cn("size-4", active ? "text-brand" : "")} aria-hidden />
-      {group.label}
+      <group.icon className={cn("size-4 shrink-0", active ? "text-brand" : "")} aria-hidden />
+      {/* Satu baris: nama pendek di layar sedang, nama lengkap mulai layar lebar (xl). */}
+      <span className="xl:hidden">{group.shortLabel ?? group.label}</span>
+      <span className="hidden xl:inline">{group.label}</span>
       <span
         aria-hidden
         className={cn(

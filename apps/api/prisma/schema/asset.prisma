@@ -1,0 +1,159 @@
+// Modul asset — Arsip gelombang 2a (D-056, ARS-D1–D6; docs/features/arsip/README.md#keputusan).
+// Aset per unit (serah-terima & pengembalian, satu pemegang aktif) + pembagian APD/seragam berbasis jumlah.
+// FK lintas modul hanya ke modul inti employee & organization (PLAN §3.2). Dokumen BAST = employee_documents
+// (jenis BAST_ASSET, D-055) dirujuk sebagai UUID tanpa FK (dokumen berversi bisa diganti/dihapus).
+
+enum AssetCondition {
+  GOOD
+  FAIR
+  DAMAGED
+
+  @@schema("asset")
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  MAINTENANCE
+  LOST
+  RETIRED
+
+  @@schema("asset")
+}
+
+enum AssignmentOutcome {
+  RETURNED
+  LOST
+
+  @@schema("asset")
+}
+
+// Kategori aset per unit (laptop, HP, HT, kendaraan, …) — master data, berlaku semua PT.
+model AssetCategory {
+  id             String   @id @default(uuid()) @db.Uuid
+  code           String   @db.VarChar(6)
+  name           String   @db.VarChar(100)
+  requiresSerial Boolean  @default(false) @map("requires_serial")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  assets         Asset[]
+
+  @@unique([code])
+  @@unique([name])
+  @@map("asset_categories")
+  @@schema("asset")
+}
+
+model Asset {
+  id             String            @id @default(uuid()) @db.Uuid
+  // ARS-D4: usulan otomatis <PT>-<KATEGORI>-<NNNN>, boleh diganti; unik se-sistem.
+  code           String            @db.VarChar(30)
+  categoryId     String            @map("category_id") @db.Uuid
+  name           String            @db.VarChar(150)
+  brand          String?           @db.VarChar(80)
+  model          String?           @db.VarChar(80)
+  serialNumber   String?           @map("serial_number") @db.VarChar(80)
+  companyId      String            @map("company_id") @db.Uuid
+  workLocationId String?           @map("work_location_id") @db.Uuid
+  condition      AssetCondition    @default(GOOD)
+  status         AssetStatus       @default(AVAILABLE)
+  purchaseDate   DateTime?         @map("purchase_date") @db.Date
+  // ARS-D4: hanya SA & pemegang asset.manage yang melihat.
+  purchasePrice  Decimal?          @map("purchase_price") @db.Decimal(15, 2)
+  note           String?           @db.VarChar(500)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category       AssetCategory     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  company        Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  workLocation   WorkLocation?     @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
+  assignments    AssetAssignment[]
+
+  @@unique([code])
+  @@unique([serialNumber])
+  @@index([companyId, status])
+  @@index([categoryId])
+  @@index([workLocationId])
+  @@map("assets")
+  @@schema("asset")
+}
+
+// Serah-terima aset ke karyawan. Terbuka = closed_at null; satu pemegang aktif per aset (index unik parsial).
+model AssetAssignment {
+  id                 String             @id @default(uuid()) @db.Uuid
+  assetId            String             @map("asset_id") @db.Uuid
+  employeeId         String             @map("employee_id") @db.Uuid
+  assignedAt         DateTime           @map("assigned_at") @db.Date
+  // ARS-D5: pinjaman sementara (opsional).
+  dueBackAt          DateTime?          @map("due_back_at") @db.Date
+  conditionOut       AssetCondition     @map("condition_out")
+  closedAt           DateTime?          @map("closed_at") @db.Date
+  outcome            AssignmentOutcome?
+  conditionIn        AssetCondition?    @map("condition_in")
+  // ARS-D2: scan BAST bertanda tangan (employee_documents, jenis BAST_ASSET).
+  handoverDocumentId String?            @map("handover_document_id") @db.Uuid
+  returnDocumentId   String?            @map("return_document_id") @db.Uuid
+  // ARS-D2: konfirmasi "Sudah saya terima" oleh karyawan di Layanan Mandiri.
+  acknowledgedAt     DateTime?          @map("acknowledged_at") @db.Timestamptz(6)
+  assignedBy         String             @map("assigned_by") @db.Uuid
+  closedBy           String?            @map("closed_by") @db.Uuid
+  note               String?            @db.VarChar(500)
+  closeNote          String?            @map("close_note") @db.VarChar(500)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  asset              Asset              @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  employee           Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([assetId])
+  @@index([employeeId, closedAt])
+  @@index([dueBackAt])
+  @@map("asset_assignments")
+  @@schema("asset")
+}
+
+// Jenis APD/seragam (helm, sepatu safety, rompi, …) — master data.
+model PpeType {
+  id                 String     @id @default(uuid()) @db.Uuid
+  code               String     @db.VarChar(6)
+  name               String     @db.VarChar(100)
+  // ARS-D5: masa ganti (bulan); null = tanpa masa ganti.
+  replaceAfterMonths Int?       @map("replace_after_months")
+  // ARS-D6: wajib dikembalikan saat karyawan keluar.
+  mustReturn         Boolean    @default(false) @map("must_return")
+  isActive           Boolean    @default(true) @map("is_active")
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  issues             PpeIssue[]
+
+  @@unique([code])
+  @@unique([name])
+  @@map("ppe_types")
+  @@schema("asset")
+}
+
+// ARS-D1: pembagian APD berbasis jumlah (tanpa stok gudang).
+model PpeIssue {
+  id                 String    @id @default(uuid()) @db.Uuid
+  ppeTypeId          String    @map("ppe_type_id") @db.Uuid
+  employeeId         String    @map("employee_id") @db.Uuid
+  quantity           Int
+  size               String?   @db.VarChar(20)
+  issuedAt           DateTime  @map("issued_at") @db.Date
+  issuedBy           String    @map("issued_by") @db.Uuid
+  handoverDocumentId String?   @map("handover_document_id") @db.Uuid
+  acknowledgedAt     DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  // Hanya untuk jenis wajib kembali (ARS-D6).
+  returnedAt         DateTime? @map("returned_at") @db.Date
+  returnedBy         String?   @map("returned_by") @db.Uuid
+  note               String?   @db.VarChar(500)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  ppeType            PpeType   @relation(fields: [ppeTypeId], references: [id], onDelete: Restrict)
+  employee           Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, ppeTypeId])
+  @@index([ppeTypeId])
+  @@index([issuedAt])
+  @@map("ppe_issues")
+  @@schema("asset")
+}

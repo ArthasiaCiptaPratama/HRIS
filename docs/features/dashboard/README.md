@@ -1,0 +1,46 @@
+# Dashboard SA/HR
+
+> **Kode prefix:** `DSB` · **Fase:** 4 · **PIC:** Mat · **Branch:** `HRIS/Mat/windows` · **Saklar `FEATURES`:** –
+> **Status:** ✔ staging (rilis gel. 3, 2026-10-09)
+
+Ringkasan agregat per cakupan PT, pivot bebas atur, susunan widget per akun dengan drag & drop (D-065). Dashboard karyawan/atasan memakai widget Time Management.
+
+Dokumen fitur ini: **README** (status, checklist, keputusan) · [log.md](log.md). Induk: [PROGRESS](../../PROGRESS.md).
+
+## Checklist
+
+Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditunda. Langkah baru: sub-item `(tambahan YYYY-MM-DD) alasan`.
+
+### Fase 4 — Employee (bagian Dashboard)
+- [x] Dashboard SA/HR: `GET /dashboard` (agregat, tanpa data per orang) + grafik ECharts (kontribusi rekan tim `5211a25`, dilengkapi di jalur rilis); MANAGER/EMPLOYEE tetap sapaan; sejak 2026-10-01 angka mengikuti cakupan PT aktor (D-040) (tambahan 2026-09-30, permintaan pemilik projek)
+  - [x] Dashboard bisa diatur (D-065): pivot `GET /dashboard/pivot` (baris × kolom + filter; dimensi pribadi ber-grant), susunan widget per akun `iam.dashboard_layouts` + `GET/PUT/DELETE /me/dashboard-layout`, board drag & drop (`@dnd-kit`), pembuat grafik dengan pratinjau, Menu Cepat pilihan sendiri, widget bawaan Pendidikan/Lokasi/Unit per kategori — test api 575 lulus, shared 184, web 216/218 (2 flaky timeout lama di import/arsip, lulus saat dijalankan sendiri) (tambahan 2026-10-09: permintaan pemilik projek)
+
+## Keputusan
+
+Isi lengkap di [decisions.md](../../decisions.md).
+
+- [D-065](../../decisions.md#d-065) Dashboard SA/HR yang bisa diatur
+
+**Keputusan baru** (prefix `DSB-D1`, `DSB-D2`, …; tulis lengkap di sini, lalu daftarkan di indeks [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas) saat digabung ke develop):
+
+| ID | Keputusan | Alasan / sumber |
+|---|---|---|
+| – | – | – |
+
+## Keputusan terbuka
+
+Tidak ada.
+
+OD baru: `DSB-OD1`, … (tulis di sini + ringkasan di [PROGRESS](../../PROGRESS.md#keputusan-terbuka)).
+
+## Kode
+
+Detail modul: [employee](../../codemap/employee.md) · [iam](../../codemap/iam.md).
+
+## QA
+
+- [plans/2026-10-12-dashboard.md](../../qa/plans/2026-10-12-dashboard.md)
+- [runs/2026-10-12-dashboard.md](../../qa/runs/2026-10-12-dashboard.md)
+- [bugs/BUG-004-sapaan-dashboard-pakai-email.md](../../qa/bugs/BUG-004-sapaan-dashboard-pakai-email.md)
+
+Aturan & templat QA: skill `hris-qa-docs` ([docs/qa/README.md](../../qa/README.md)).

@@ -1,0 +1,23 @@
+# Log — Time Management — absensi, roster, cuti, approval
+
+Entri terbaru di **atas**. Format satu entri (salin):
+
+```
+### YYYY-MM-DD — <judul singkat> (<PIC>)
+- **Dikerjakan:** … (rujuk item checklist README)
+- **Keputusan:** <PREFIX>-Dn baru / OD terjawab
+- **Verifikasi:** perintah + hasil nyata
+- **Masalah / catatan:** …
+- **Berikutnya:** …
+```
+
+Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
+
+### 2026-10-13 — Gabung Time Management dari `HRIS/Mat/windows` ke develop (Oatse, merge `e31e934`)
+- **Dikerjakan (rencana disetujui pemilik projek: "kerjakan dengan teliti"):** merge `origin/HRIS/Mat/windows` (`82a5dce`, `e8ebbb2`; basis `bfe9e50`, tertinggal 29 commit) ke develop tanpa commit dulu. Konflik: `dashboard-page.tsx` (digabung: sapaan nama karyawan BUG-004 + parameter `description` & widget pribadi Mat), PLAN §8/§9 & PROGRESS §1/§2/§6 (kedua sisi dipertahankan; butir §2 Mat soal dashboard yang sudah usang dibuang). **Nomor bentrok:** D-066 (bagan nama asli) & OD-12 (repo publik) sudah dipakai develop → keputusan Mat **D-066–D-072 → D-067–D-073**, **OD-12–OD-14 → OD-13–OD-15** (264 rujukan di kode/test/dokumen; hanya baris yang berasal dari Mat, dicek baris per baris terhadap HEAD; catatan asal nomor di PLAN D-067 & OD-13). OD-13–OD-15 ditambahkan ke §4.
+- **Verifikasi:** `db:migrate` lokal (7 migrasi) → rerun "Already in sync" · `db:generate` ✔ · `db:check` ✔ · typecheck ✔ · `biome ci` ✔ (484 file; 1 warning lama `employee-print.test.ts:485`) · boundaries ✔ (395 modul) · test shared **200** · api **676** · web **253** — 0 gagal · build api & web ✔ · server lokal: 51 path baru di OpenAPI, semua memuat respons 401, tanpa token → 401 · Playwright lokal 4 role × dashboard + 12 halaman `/time/*` + `/absen` = **56/56** tanpa error konsol/5xx; halaman di luar hak role menampilkan "Akses ditolak" (bukti `/mnt/winD/WORK/Magang/QA/2026-10-13-merge-time-management/`).
+- **Pull ulang (sesi sama):** commit Mat baru `1ed1471` (aplikasi HP mandiri `/absen/*`: riwayat, roster, cuti, koreksi, tukar shift, kalender, approval, notifikasi, profil; kalender libur bergaya kalender dinding; zona waktu dari pengaturan) dimasukkan ke merge yang sama (patch 3-way, `MERGE_HEAD` → `1ed1471`); 2 konflik komentar nomor keputusan + 1 rujukan D-066 → D-067. **Perbaikan bug** `calendar-settings-pages.tsx`: pembungkus pesan "Belum ada hari libur" memakai `xl:col-span-2` (breakpoint layar) di grid yang 2 kolomnya lewat container query `@[72rem]` → di layar 1280–~1500 px terbentuk kolom implisit dan 12 bulan terjepit 334 px satu kolom; diganti `@[72rem]:col-span-2` (diukur ulang 1280/1440/1920/390 px ✔). Verifikasi ulang: typecheck ✔ · biome ✔ (485 file, 1 warning lama) · boundaries ✔ (396 modul) · test shared 200 · api 676 · web 253 ✔ · build ✔ · `db:check` ✔ (tanpa migrasi baru) · Playwright 4 role **92/92** (tambah 9 halaman `/absen/*` di viewport HP; SA tanpa data karyawan → "Akses ditolak").
+- **Pull ulang ke-2 (sesi sama):** `a77d848` (alasan absen boleh diisi walau tanpa label = opsional; tetap wajib bila berlabel — server masih menolak absen berlabel tanpa alasan, D-070; HP menampilkan menit telat & jadwal masuk) dimasukkan ke merge yang sama tanpa konflik (`MERGE_HEAD` → `a77d848`). Verifikasi ulang: typecheck ✔ · biome ✔ · boundaries ✔ · test 200/676/253 ✔ · build ✔ · Playwright 92/92 ✔.
+- **Tinjauan aturan emas:** absen tanpa jam dari perangkat (waktu server, #9) ✔ · `selfiePath` wajib berawalan `attendance/<employeeId>/` ✔ · migrasi tanpa objek Supabase/`CREATE EXTENSION` ✔ · tidak ada log data sensitif di modul baru ✔ · **⚠ #3 batas modul:** `attendance/directory.ts` membaca tabel `employee`/`organization` langsung (adapter sementara, ditandai Mat) → Backlog.
+- **Berikutnya:** izin commit merge + push develop; lalu tindak lanjut Backlog (adapter → `index.ts`, cron `vercel.json`), uji HP, dan jawaban OD-13–OD-15 sebelum rilis Time Management.
+

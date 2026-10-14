@@ -35,7 +35,7 @@ import type {
   ProcessResult,
 } from "./onboarding.schema.ts";
 
-// D-045 bagian a (design/onboarding-karyawan.md §4–§5): penerimaan calon dari file portal, nomor induk
+// D-045 bagian a (docs/features/onboarding/design.md §4–§5): penerimaan calon dari file portal, nomor induk
 // otomatis, antrean undangan bertahap. Calon belum APPROVED disembunyikan dari fitur karyawan lain.
 
 export interface OnboardingContext {

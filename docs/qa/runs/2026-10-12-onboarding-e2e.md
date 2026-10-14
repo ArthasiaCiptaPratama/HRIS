@@ -34,6 +34,25 @@
 - Notifikasi "Data onboarding menunggu review" juga dikirim ke akun sisa test otomatis di DB lokal (`auth-…@example.test`) — kebersihan data lokal, bukan bug aplikasi.
 - Isi email di kotak masuk `oatse2458@gmail.com` (undangan, perlu diperbaiki, diterima) **belum dilihat langsung** — dicek pemilik projek.
 
-**Kesimpulan:** alur onboarding admin → calon → review → login NIP **LULUS lokal**. Belum LEGIT (staging belum diuji; menunggu template email, env login NIP staging, grant review HR, lalu saklar `onboarding`). **Bug terbuka:** BUG-004 (P3).
+**Staging (2026-10-12, rilis gel. 5 — saklar `onboarding` aktif, rilis `790973c`, PR #45/#46, `Deploy staging` #38230471120):** Playwright `QA/2026-10-12-staging-onboarding/stg-onboarding.ts` (SA impor, **HR uji ber-grant `employee.onboarding.review`** me-review, env login NIP staging aktif). Calon dummy plus-address pemilik projek (`oatse2458+stg…@gmail.com`), NIK/KK fiktif; semua data, user Auth, & 11 objek Storage dihapus sesudahnya (staging 66 karyawan, 4 akun, 0 batch).
+
+| ID | Hasil | Bukti / catatan |
+|---|---|---|
+| S-01 | LULUS | SA impor CSV (pemetaan, pilih lolos, data kerja) → NIP otomatis `12.10.ACP.010` — `staging-s-01-data-kerja.png` |
+| S-02 | LULUS | Simpan & kirim 1 undangan → 1/1 terkirim — `staging-s-02-terkirim.png` |
+| C-01 | LULUS | Tautan undangan → atur password (tampilkan, kekuatan, "Password cocok") → dikunci ke `/onboarding` — `staging-c-01-atur-password.png` |
+| C-02 | LULUS | Wizard 7 langkah + foto + 4 dokumen wajib → "4 dari 4 dokumen wajib terunggah", "Semua data wajib sudah lengkap" — `staging-c-02a…c` |
+| C-03 | LULUS | Kirim → "Data Anda sudah dikirim" — `staging-c-03-terkirim.png` |
+| H-01 | LULUS (kriteria dikoreksi) | HR membuka review lewat tombol Periksa (kartu profil, data berkelompok, dokumen) → Minta revisi Rekening → kembali ke daftar, status **Perlu revisi**. Run 1 gagal karena skrip mengklik nama (aksi ada di tombol Periksa); run 3 gagal hanya di pengecekan teks setelah halaman kembali ke daftar — `staging-h-01-review.png`, `staging-h-01b-perlu-revisi.png` |
+| C-04 | LULUS (run 3) | Catatan HR tampil, hanya Rekening terbuka ("Perlu diperbaiki") → perbaiki → kirim ulang — `staging-c-04-revisi.png` |
+| H-02 | LULUS | HR Setujui + PTKP TK/0 → karyawan aktif |
+| L-01 | LULUS | Login NIP + password → Dashboard "…, Calon" (BUG-004 tertutup di staging) — `staging-l-01-login-nip.png` |
+| L-02 | LULUS | Login email pribadi → ditolak |
+
+Run 2 (calon kedua) berhenti di Data pribadi karena **NIK sama** dengan calon pertama yang sudah disetujui → server menolak (NIK unik, perilaku benar); run 3 memakai NIK fiktif lain.
+
+**Kesimpulan:** alur onboarding admin → calon → review (revisi & setujui) → login NIP **LULUS lokal + staging — LEGIT**. **Bug terbuka:** tidak ada (BUG-004 ditutup). Catatan: email undangan masih template bawaan Supabase sampai template bermerek (`docs/email-templates/`) dipasang di Dashboard.
 
 **Data uji:** karyawan "Calon Uji Oatse" (`12.10.ACP.024`, aktif) + user Auth `12.10.acp.024@dev-oatse.login.akselerasi.invalid` dibiarkan untuk dicoba pemilik projek (password di `QA/2026-10-12-onboarding-lokal/calon.env`, izin 600).
+
+**Arsip Drive:** `hris-qa:2026-10-12-onboarding-e2e` — 64 file (plan, run, cases, BUG-004, screenshot lokal, lokal-ui & staging), 2026-10-12.

@@ -1,9 +1,11 @@
 export * from "./archive.ts";
+export * from "./asset.ts";
 export * from "./dashboard.ts";
 export * from "./data-changes.ts";
 export * from "./documents.ts";
 export * from "./employee.ts";
 export * from "./enums.ts";
+export * from "./holidays-id.ts";
 export * from "./import/index.ts";
 export * from "./login.ts";
 export * from "./onboarding.ts";
@@ -14,4 +16,5 @@ export * from "./permissions.ts";
 export * from "./personal-fields.ts";
 export * from "./roles.ts";
 export * from "./schemas/common.ts";
+export * from "./time-management.ts";
 export * from "./xlsx.ts";

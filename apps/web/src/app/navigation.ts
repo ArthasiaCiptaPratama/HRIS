@@ -3,13 +3,21 @@ import {
   ArrowLeftRight,
   Award,
   Bell,
+  BookOpen,
   BriefcaseBusiness,
   Building2,
+  CalendarCheck,
+  CalendarClock,
+  CalendarCog,
+  CalendarDays,
+  CalendarRange,
   ChartColumn,
+  ClipboardCheck,
   Clock,
   Contact,
   FileClock,
   FilePen,
+  FilePenLine,
   FileText,
   FileUp,
   FolderArchive,
@@ -22,6 +30,12 @@ import {
   type LucideIcon,
   Network,
   Package,
+  Plane,
+  Repeat,
+  Scale,
+  Settings2,
+  Sheet,
+  Smartphone,
   TriangleAlert,
   UserPlus,
   UserRound,
@@ -39,6 +53,7 @@ import {
   ALL_ACTIVE_VIEW,
 } from "@/features/employee/active-views";
 import { MASTER_DATA_BASE, MASTER_DATA_PAGES } from "@/features/organization/config";
+import { tmAccess } from "@/features/time-management/access";
 import { access } from "@/lib/access";
 import { FEATURES } from "./feature-flags";
 
@@ -106,15 +121,27 @@ const ARCHIVE_GRANTED: Record<string, (me: Me) => boolean> = {
   keluarga: access.readFamilyArchive,
   bank: access.readBankArchive,
 };
-const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem => ({
-  id,
-  label,
-  to: `/personal/arsip/${id}`,
-  icon,
-  visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
-  maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
-  keywords,
-});
+const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem =>
+  // ARS-D1–D6: Data Assets punya halaman & saklar sendiri (FEATURES.assets).
+  id === "aset"
+    ? {
+        id,
+        label,
+        to: "/personal/arsip/aset",
+        icon,
+        visible: FEATURES.assets ? access.viewAssets : manage,
+        maintenance: !FEATURES.assets,
+        keywords,
+      }
+    : {
+        id,
+        label,
+        to: `/personal/arsip/${id}`,
+        icon,
+        visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
+        maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
+        keywords,
+      };
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -220,7 +247,12 @@ export const NAV_GROUPS: NavGroup[] = [
           archive("riwayat-jabatan", "Riwayat Jabatan", History, "mutasi promosi"),
           archive("pelatihan", "Data Pelatihan", Award, "training sertifikat"),
           archive("riwayat-kerja", "Data Riwayat Kerja", BriefcaseBusiness, "pengalaman"),
-          archive("aset", "Data Assets", Package, "inventaris laptop"),
+          archive(
+            "aset",
+            "Data Assets",
+            Package,
+            "inventaris aset laptop hp radio kendaraan apd helm seragam bast",
+          ),
           archive("file", "Data File", FolderArchive, "dokumen berkas"),
           archive("bank", "Data Bank", Landmark, "rekening"),
           archive("peringatan", "Riwayat Peringatan", TriangleAlert, "sp surat peringatan"),
@@ -238,6 +270,158 @@ export const NAV_GROUPS: NavGroup[] = [
             visible: manage,
             maintenance: true,
             keywords: "rekap export",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    // D-067–D-071: Time Management (absen PWA, approval hari absen, roster tambang).
+    id: "time",
+    label: "Time Management",
+    shortLabel: "Waktu",
+    icon: CalendarClock,
+    to: "/time/roster",
+    match: (p) => p.startsWith("/time") || p.startsWith("/absen"),
+    visible: tmAccess.viewRoster,
+    inTopNav: true,
+    sections: [
+      {
+        id: "attendance",
+        label: "Absensi",
+        items: [
+          {
+            id: "absen",
+            maintenance: !FEATURES.timeManagement,
+            label: "Absen (HP)",
+            to: "/absen",
+            icon: Smartphone,
+            visible: tmAccess.punch,
+            keywords: "absen masuk pulang selfie gps kehadiran pwa mobile",
+          },
+          {
+            id: "attendance-days",
+            maintenance: !FEATURES.timeManagement,
+            label: "Data Absen Harian",
+            to: "/time/absen-harian",
+            icon: ClipboardCheck,
+            visible: tmAccess.reviewDays,
+            keywords: "approval persetujuan absensi kehadiran harian telat label",
+          },
+          {
+            id: "corrections-statements",
+            maintenance: !FEATURES.timeManagement,
+            label: "Koreksi & Pernyataan",
+            to: "/time/pernyataan",
+            icon: FilePenLine,
+            visible: tmAccess.correctionsStatements,
+            keywords: "koreksi absensi lupa absen surat pernyataan alpha",
+          },
+          {
+            id: "recap",
+            maintenance: !FEATURES.timeManagement,
+            label: "Rekap & Tutup Periode",
+            to: "/time/rekap",
+            icon: Sheet,
+            visible: tmAccess.viewRecap,
+            keywords: "rekap bulanan tutup periode alpha payroll csv",
+          },
+        ],
+      },
+      {
+        id: "roster",
+        label: "Roster",
+        items: [
+          {
+            id: "roster-grid",
+            maintenance: !FEATURES.timeManagement,
+            label: "Roster Bulanan",
+            to: "/time/roster",
+            icon: CalendarRange,
+            keywords: "jadwal shift crew roster tambang",
+          },
+          {
+            id: "roster-changes",
+            maintenance: !FEATURES.timeManagement,
+            label: "Perubahan Roster",
+            to: "/time/perubahan-roster",
+            icon: Repeat,
+            visible: tmAccess.rosterChanges,
+            keywords: "tukar shift ganti jadwal swap",
+          },
+          {
+            id: "roster-setup",
+            maintenance: !FEATURES.timeManagement,
+            label: "Shift, Pola & Crew",
+            to: "/time/roster/pengaturan",
+            icon: CalendarCog,
+            visible: tmAccess.manageRoster,
+            keywords: "master shift pola siklus crew anggota import roster",
+          },
+        ],
+      },
+      {
+        // D-072: cuti tahunan, izin, sakit.
+        id: "leave",
+        label: "Cuti & Izin",
+        items: [
+          {
+            id: "leave-mine",
+            maintenance: !FEATURES.timeManagement,
+            label: "Cuti, Izin & Sakit",
+            to: "/time/cuti",
+            icon: Plane,
+            visible: tmAccess.requestLeave,
+            keywords: "cuti tahunan izin sakit pengajuan saldo surat dokter",
+          },
+          {
+            id: "leave-approvals",
+            maintenance: !FEATURES.timeManagement,
+            label: "Persetujuan Cuti",
+            to: "/time/persetujuan-cuti",
+            icon: CalendarCheck,
+            visible: tmAccess.decideLeave,
+            keywords: "approval persetujuan cuti izin sakit",
+          },
+          {
+            id: "leave-balances",
+            maintenance: !FEATURES.timeManagement,
+            label: "Saldo Cuti",
+            to: "/time/saldo-cuti",
+            icon: Scale,
+            visible: tmAccess.manageLeaveBalances,
+            keywords: "saldo cuti hutang penyesuaian import",
+          },
+          {
+            id: "leave-master",
+            maintenance: !FEATURES.timeManagement,
+            label: "Master Cuti",
+            to: "/time/master-cuti",
+            icon: BookOpen,
+            keywords: "kuota cuti tahunan jenis izin sakit",
+          },
+        ],
+      },
+      {
+        id: "time-settings",
+        label: "Pengaturan",
+        items: [
+          {
+            id: "holidays",
+            maintenance: !FEATURES.timeManagement,
+            label: "Kalender Libur",
+            to: "/time/kalender",
+            icon: CalendarDays,
+            keywords: "tanggal merah libur nasional cuti bersama",
+          },
+          {
+            id: "time-config",
+            maintenance: !FEATURES.timeManagement,
+            label: "Pengaturan",
+            to: "/time/pengaturan",
+            icon: Settings2,
+            visible: tmAccess.viewSettings,
+            keywords: "gps akurasi selfie retensi zona waktu",
           },
         ],
       },
@@ -333,6 +517,16 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: FileText,
             visible: access.viewMasterData,
             keywords: "jenis dokumen berkas file sertifikat masa berlaku kedaluwarsa",
+          },
+          {
+            // ARS-D1/D5/D6: kategori aset per unit & jenis APD/seragam.
+            id: "master-assets",
+            maintenance: !FEATURES.assets,
+            label: "Aset & APD",
+            to: `${MASTER_DATA_BASE}/aset`,
+            icon: Package,
+            visible: access.viewMasterData,
+            keywords: "kategori aset jenis apd helm sepatu safety seragam masa ganti",
           },
         ],
       },

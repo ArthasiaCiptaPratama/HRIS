@@ -7,15 +7,18 @@
 
 ## 1. Urutan Membaca di Awal Sesi
 
+Dokumen disusun **induk → anak** (peta lengkap: [docs/README.md](README.md)). Baca seperlunya:
+
 1. **`docs/PROMPT.md`** (file ini), terutama §3 Aturan Emas.
-2. **`docs/PROGRESS.md` §2 Fokus Saat Ini** dan checklist fase aktif.
-3. **`docs/PLAN.md`**: bagian yang relevan dengan tugas (model akses §4 dan aturan bisnis §5 hampir selalu relevan).
-4. **`docs/CODEMAP.md`**: bagian modul/folder yang akan disentuh.
-5. Kode yang benar-benar akan diubah.
+2. **`docs/PROGRESS.md`** (induk): status per fitur, fokus, blocker, keputusan terbuka.
+3. **`docs/features/<fitur>/README.md`** fitur yang akan dikerjakan: checklist, keputusan fitur, sisa pekerjaan, tautan QA & kode. `design.md` fitur hanya bila menyentuh desainnya.
+4. **`docs/PLAN.md`**: bagian yang relevan (model akses §4 dan aturan bisnis §5 hampir selalu relevan). Isi lengkap keputusan lama: `docs/decisions.md`.
+5. **`docs/CODEMAP.md`** → **`docs/codemap/<modul>.md`** modul yang akan disentuh.
+6. Kode yang benar-benar akan diubah.
 
-Jangan membaca seluruh repo tanpa tujuan. Gunakan CODEMAP untuk langsung menuju file yang tepat.
+Jangan membaca seluruh repo atau seluruh dokumen tanpa tujuan. Log lama (`docs/archive/`) hanya dibuka bila perlu menelusuri sejarah.
 
-**Cek jalur dulu (D-043):** jalankan `git branch --show-current` / `git worktree list`. Folder `HRIS` = **develop** (kemajuan), folder `HRIS-rilis` = **rilis** (yang tampil di staging/presentasi). Isi kode, dokumen, dan saklar `FEATURES` kedua folder **sengaja berbeda** — jangan menganggapnya sebagai selisih yang harus diperbaiki. Status masing-masing jalur ada di PROGRESS §2, termasuk **tabel "Antrean push / rilis"**: daftar commit develop yang belum di-push/dirilis beserta migrasi & kebutuhan data staging. Jangan push atau merge ke rilis tanpa izin pemilik projek; setelah setiap langkah, perbarui kolom Status di tabel itu.
+**Cek jalur dulu (D-043):** jalankan `git branch --show-current` / `git worktree list`. Folder `HRIS` = **develop** (kemajuan), folder `HRIS-rilis` = **rilis** (yang tampil di staging/presentasi). Isi kode, dokumen, dan saklar `FEATURES` kedua folder **sengaja berbeda** — jangan menganggapnya sebagai selisih yang harus diperbaiki. Status masing-masing jalur ada di **`docs/RELEASE.md`**, termasuk **tabel "Antrean push / rilis"** (§2): daftar commit develop yang belum di-push/dirilis beserta migrasi & kebutuhan data staging. Jangan push atau merge ke rilis tanpa izin pemilik projek; setelah setiap langkah, perbarui kolom Status di tabel itu.
 
 ---
 
@@ -25,11 +28,11 @@ Rincian operasional (kapan bertanya, status per poin, pengisian PROGRESS, format
 
 | Langkah | Yang dilakukan |
 |---|---|
-| **1. Orientasi** | Baca sesuai §1. Sebutkan fase aktif, item checklist yang akan dikerjakan, dan keputusan terbuka yang relevan. |
+| **1. Orientasi** | Baca sesuai §1. Sebutkan fitur & fase, item checklist (README fitur) yang akan dikerjakan, dan keputusan terbuka yang relevan. |
 | **2. Rencana** | Tulis rencana singkat: poin kerja, file yang akan dibuat/diubah, test, aksi keluar, dan risiko. **Selalu tunggu persetujuan** sebelum mulai (kecuali pertanyaan/penjelasan dan pemeriksaan read-only). |
-| **3. Kerjakan** | Satu poin dalam satu waktu; setelah tiap poin: cek relevan, perbarui checklist PROGRESS, status singkat, lanjut. Langkah baru → sub-item fase aktif "(tambahan YYYY-MM-DD)". Test dulu untuk policy & payroll (TDD). Ikuti konvensi §4–§9. **Setiap aksi keluar** (commit, push, PR, deploy, tulis ke layanan luar) ditanyakan tepat sebelum dijalankan; `main` hanya atas permintaan eksplisit. |
+| **3. Kerjakan** | Satu poin dalam satu waktu; setelah tiap poin: cek relevan, perbarui checklist di **README fitur**, status singkat, lanjut. Langkah baru → sub-item checklist fitur "(tambahan YYYY-MM-DD)". Test dulu untuk policy & payroll (TDD). Ikuti konvensi §4–§9. **Setiap aksi keluar** (commit, push, PR, deploy, tulis ke layanan luar) ditanyakan tepat sebelum dijalankan; `main` hanya atas permintaan eksplisit. |
 | **4. Verifikasi** | Jalankan `bun run typecheck`, `bun run lint`, `bun run check:boundaries`, dan test yang relevan. Laporkan hasil apa adanya, termasuk yang gagal. |
-| **5. Catat** | Perbarui **PROGRESS** (§2 Fokus + log sesi di akhir; checklist sudah per poin), **CODEMAP** (status & item baru), dan **PLAN** jika ada keputusan baru. Tutup dengan laporan akhir format `hris-workflow`. |
+| **5. Catat** | Perbarui **README fitur** (status, checklist, keputusan berprefix) + **`log.md` fitur** (satu entri), **`codemap/<modul>.md`** (file/tabel baru), **RELEASE** bila ada commit/push/rilis. **Induk** (PROGRESS: baris fitur, fokus, log ringkas satu baris; indeks PLAN §8) diperbarui oleh yang menggabungkan ke develop — di branch develop itu sendiri: langsung. Tutup dengan laporan akhir format `hris-workflow`. |
 
 Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 
@@ -37,7 +40,7 @@ Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 
 ## 3. Aturan Emas
 
-1. **Kerjakan fase aktif saja.** Ide di luar fase masuk PROGRESS §5 Backlog.
+1. **Kerjakan fase/fitur aktif saja.** Ide di luar cakupan masuk Backlog di PROGRESS.
 2. **Jangan memutuskan keputusan terbuka (OD) sendiri.** Kalau tugas bergantung pada OD, berhenti dan tanyakan.
 3. **Batas modul mutlak:** modul lain hanya boleh di-import lewat `modules/<modul>/index.ts`. Tidak ada query ke tabel modul lain, termasuk lewat `include` Prisma.
 4. **FK lintas modul hanya ke modul inti** (`employee`, `organization`).
@@ -52,7 +55,7 @@ Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 13. **Rahasia tidak pernah di-commit.** Hanya `.env.example` tanpa nilai. `SUPABASE_SERVICE_ROLE_KEY` tidak pernah ada di kode frontend.
 14. **Aksi sensitif menulis audit log**: perubahan role/grant, akses & perubahan data sensitif, keputusan approval & override, semua aksi payroll.
 15. **Jangan klaim selesai tanpa verifikasi.** Sebutkan perintah yang dijalankan dan hasilnya.
-16. **Dokumen instruksi ikut diperbarui** di commit yang sama dengan perubahan kodenya.
+16. **Dokumen instruksi ikut diperbarui** di commit yang sama dengan perubahan kodenya (README/log fitur, `codemap/`).
 
 ---
 
@@ -178,7 +181,7 @@ HRIS/Oatse/Linux-Windows (develop) ──merge s.d. commit──▶ HRIS/Oatse/r
   2. Atur saklar `apps/web/src/app/feature-flags.ts` sesuai materi; menu yang belum mau ditunjukkan = `false` (tampil "Segera").
   3. Verifikasi penuh (typecheck, lint, boundaries, test, build) dengan DB lokal rilis (`hris_release`).
   4. Commit → PR ke `HRIS/debug/database` → PR ke `HRIS/debug/fe-be` → `Deploy staging` → uji staging.
-  5. Catat isi rilis di PROGRESS §2 blok "Rilis/staging".
+  5. Catat isi rilis di `docs/RELEASE.md` (§4 Riwayat rilis staging, §3 saklar) dan status staging di induk PROGRESS.
 - **Satu arah:** develop tidak pernah me-merge rilis, **kecuali** untuk membawa balik perbaikan yang terpaksa dibuat di rilis — lakukan segera setelah rilis.
 - **Migrasi selalu dibuat di develop.** Rilis hanya membawa migrasi develop sesuai urutan timestamp-nya. Jangan membuat migrasi kedua yang isinya mirip di rilis.
 - Fitur yang mengubah skema/API tidak bisa disembunyikan saklar `FEATURES`; untuk menahannya, jangan merge commit-nya ke rilis.
@@ -187,6 +190,8 @@ HRIS/Oatse/Linux-Windows (develop) ──merge s.d. commit──▶ HRIS/Oatse/r
 - Kerja di branch sendiri `HRIS/<nama>/<topik>`; **dilarang push langsung** ke `HRIS/debug/*` dan `main` (push ke `HRIS/debug/fe-be` langsung men-deploy staging).
 - Masuk ke rilis/`HRIS/debug/*` hanya lewat **PR dengan CI hijau**; dependency baru ikut ditambahkan di `package.json` + `bun.lock` pada PR yang sama.
 - Format commit sama dengan di bawah (tanpa scope, bahasa Indonesia, huruf kecil).
+- **Dokumen (2026-10-13):** rekan tim hanya menulis **folder fiturnya sendiri** (`docs/features/<fitur>/`: README status + checklist + keputusan berprefix, `design.md`, `log.md`; mis. Mat: `time-management/`, `dashboard/`). File induk — `PROGRESS.md`, indeks `PLAN.md` §8, `CODEMAP.md` + `docs/codemap/`, `RELEASE.md`, `decisions.md` — **tidak diubah di branch rekan tim**; semuanya diperbarui oleh yang menggabungkan branch itu ke develop. Sebelum mulai kerja: `git pull` / merge develop terbaru ke branch sendiri.
+- **Nomor keputusan:** selalu berprefix fitur (`TM-D4`, `TM-OD2`), tidak pernah `D-074` dst. — supaya tidak bentrok dengan branch lain (pelajaran 2026-10-13: D-066 & OD-12 terpakai ganda, 264 rujukan harus diganti saat merge).
 - Pelajaran 2026-09-30: commit `feat(web): redesign dashboard …` di-push langsung ke `HRIS/debug/fe-be` → CI & deploy web staging gagal (dependency `echarts`/`motion` tidak ada, endpoint `/dashboard` belum ada, error TypeScript), lalu diperbaiki di jalur rilis.
 
 ### Commit
@@ -258,10 +263,12 @@ Sebuah **fase** selesai jika semua itemnya selesai **dan** kriteria selesai fase
 
 ## 12. Mencatat Keputusan
 
-- Keputusan arsitektur/bisnis baru → PLAN §8 sebagai `D-xxx` (ID berikutnya) + satu baris di log PROGRESS.
-- Keputusan terbuka baru → PLAN §9 sebagai `OD-x` + PROGRESS §4.
-- OD terjawab → pindahkan ke PLAN §8, ubah status di PROGRESS §4, catat di log.
-- Mengubah keputusan lama: jangan menghapus baris lama. Tandai `(diganti oleh D-yyy)`.
+- **Nomor lama dibekukan:** `D-001`–`D-073` dan `OD-1`–`OD-15` (isi lengkap `docs/decisions.md`, indeks PLAN §8). Tetap dirujuk kode & dokumen; tidak ada nomor `D-074` dst.
+- **Keputusan baru** → README fitur pemiliknya, bagian *Keputusan*, dengan ID **`<KODE>-D<n>`** (kode di [docs/README.md](README.md#fitur--kode-prefix-keputusan); `n` urut per fitur) + entri di `log.md` fitur. Keputusan lintas fitur (arsitektur, model akses, konvensi) → `X-D<n>`, ditulis di PLAN §8 bagian "Keputusan baru" dan bagian PLAN yang terdampak.
+- **Keputusan terbuka baru** → README fitur sebagai **`<KODE>-OD<n>`**; ringkasan satu baris di tabel *Keputusan terbuka* PROGRESS saat digabung ke develop.
+- **OD terjawab** → tulis keputusannya (`<KODE>-D<n>`) di README fitur, tandai OD `(terjawab → <ID>)` di README/`decisions.md`, ubah status di PROGRESS.
+- **Indeks PLAN §8** mendapat satu baris per keputusan baru saat digabung ke develop.
+- Mengubah keputusan lama: jangan menghapus baris lama. Tandai `(diganti oleh <ID baru>)` di `decisions.md` dan indeks.
 
 ---
 
@@ -272,22 +279,22 @@ Salin dan isi bagian dalam `<...>`.
 ### 13.1 Mulai sesi
 ```
 Mulai sesi kerja HRIS. Ikuti protokol docs/PROMPT.md §1–§2:
-baca PROMPT, PROGRESS §2, lalu bagian PLAN dan CODEMAP yang relevan.
-Laporkan: fase aktif, item checklist berikutnya, OD yang relevan,
+baca PROMPT, PROGRESS (induk), README fitur yang relevan, lalu bagian PLAN dan codemap modul yang relevan.
+Laporkan: fitur & fase aktif, item checklist berikutnya, OD yang relevan,
 lalu usulkan rencana kerja sesi ini. Jangan menulis kode sebelum rencana saya setujui.
 ```
 
 ### 13.2 Kerjakan item checklist
 ```
-Kerjakan item PROGRESS Fase <N>: "<teks item>".
+Kerjakan item checklist fitur <fitur> (docs/features/<fitur>/README.md): "<teks item>".
 Ikuti PROMPT §3 (aturan emas) dan §11 (Definition of Done).
 Tulis rencana singkat dulu (file yang diubah, test, risiko), lalu kerjakan.
-Akhiri dengan hasil verifikasi dan pembaruan PROGRESS & CODEMAP.
+Akhiri dengan hasil verifikasi dan pembaruan README + log fitur dan codemap modul.
 ```
 
 ### 13.3 Buat modul baru
 ```
-Buat kerangka modul "<modul>" sesuai CODEMAP §4 dan §6.<x>:
+Buat kerangka modul "<modul>" sesuai CODEMAP §4 dan docs/codemap/<modul>.md:
 file prisma/schema/<modul>.prisma dengan @@schema("<modul>"), index.ts, routes, service,
 repository, policy, schema, dan __tests__. Patuhi batas modul (PLAN §3.2).
 Tulis test policy dulu berdasarkan matriks PLAN §4.3 untuk modul ini.
@@ -298,14 +305,14 @@ Tulis test policy dulu berdasarkan matriks PLAN §4.3 untuk modul ini.
 Tambah endpoint <METHOD> /api/v1/<path> di modul <modul>.
 Tujuan: <apa yang dilakukan>. Siapa yang boleh: <role/grant/tim sesuai PLAN §4.3>.
 Wajib: skema Zod + OpenAPI, policy + test akses (boleh & ditolak), test integration,
-audit log jika sensitif, pembaruan CODEMAP §5–§6.
+audit log jika sensitif, pembaruan CODEMAP §5 dan docs/codemap/<modul>.md.
 ```
 
 ### 13.5 Perbaiki bug
 ```
 Bug: <deskripsi>. Langkah reproduksi: <langkah>. Diharapkan: <hasil benar>. Terjadi: <hasil salah>.
 Tulis test yang gagal karena bug ini dulu, cari akar masalahnya (bukan gejalanya),
-perbaiki, pastikan test lulus, lalu catat di log PROGRESS.
+perbaiki, pastikan test lulus, lalu catat di log.md fitur.
 ```
 
 ### 13.6 Review kode
@@ -319,14 +326,14 @@ Urutkan temuan dari yang paling berbahaya.
 ### 13.7 Ambil keputusan
 ```
 Saya perlu memutuskan <topik / OD-x>. Jelaskan opsi-opsinya dengan tabel perbandingan,
-dampaknya ke PLAN/CODEMAP, dan rekomendasimu. Setelah saya memilih,
+dampaknya ke PLAN/README fitur/codemap, dan rekomendasimu. Setelah saya memilih,
 catat sesuai PROMPT §12.
 ```
 
 ### 13.8 Akhiri sesi
 ```
-Akhiri sesi. Perbarui PROGRESS (checklist + entri log sesi sesuai template),
-CODEMAP (status & item baru), dan PLAN jika ada keputusan baru.
+Akhiri sesi. Perbarui README fitur (status, checklist, keputusan berprefix), log.md fitur,
+codemap modul, RELEASE bila ada commit/push, dan induk PROGRESS bila di develop.
 Tampilkan ringkasan: yang selesai, hasil verifikasi, dan langkah berikutnya.
 Usulkan pesan commit (Conventional Commits tanpa scope, bahasa Indonesia).
 ```

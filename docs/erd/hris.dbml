@@ -648,3 +648,104 @@ Table employee.import_mappings {
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null]
 }
+
+// ── asset (Arsip gel. 2a, ARS-D1–D6; migrasi 20261013095006_add_asset_module) ──
+Enum asset.asset_condition { GOOD FAIR DAMAGED }
+Enum asset.asset_status { AVAILABLE ASSIGNED MAINTENANCE LOST RETIRED }
+Enum asset.assignment_outcome { RETURNED LOST }
+
+Table asset.asset_categories {
+  id uuid [pk]
+  code varchar(6) [not null, unique]
+  name varchar(100) [not null, unique]
+  requires_serial boolean [not null, default: false]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+}
+
+Table asset.assets {
+  id uuid [pk]
+  code varchar(30) [not null, unique, note: 'otomatis <PT>-<KATEGORI>-<NNNN>, boleh diganti (ARS-D4)']
+  category_id uuid [not null, ref: > asset.asset_categories.id]
+  name varchar(150) [not null]
+  brand varchar(80)
+  model varchar(80)
+  serial_number varchar(80) [unique]
+  company_id uuid [not null, ref: > organization.companies.id]
+  work_location_id uuid [ref: > organization.work_locations.id]
+  condition asset.asset_condition [not null, default: 'GOOD']
+  status asset.asset_status [not null, default: 'AVAILABLE']
+  purchase_date date [note: 'hanya pengelola aset']
+  purchase_price "decimal(15,2)" [note: 'CHECK >= 0; hanya pengelola aset']
+  note varchar(500)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (company_id, status)
+    category_id
+    work_location_id
+  }
+}
+
+Table asset.asset_assignments {
+  id uuid [pk]
+  asset_id uuid [not null, ref: > asset.assets.id]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  assigned_at date [not null]
+  due_back_at date [note: 'pinjaman sementara; CHECK >= assigned_at']
+  condition_out asset.asset_condition [not null]
+  closed_at date [note: 'null = masih dipegang; unik parsial: satu terbuka per aset']
+  outcome asset.assignment_outcome [note: 'CHECK: terisi bersama closed_at']
+  condition_in asset.asset_condition
+  handover_document_id uuid [note: 'employee_documents (BAST_ASSET), tanpa FK']
+  return_document_id uuid [note: 'employee_documents (BAST_ASSET), tanpa FK']
+  acknowledged_at timestamptz [note: '"Sudah saya terima" (ARS-D2)']
+  assigned_by uuid [not null]
+  closed_by uuid
+  note varchar(500)
+  close_note varchar(500)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    asset_id
+    (employee_id, closed_at)
+    due_back_at
+  }
+}
+
+Table asset.ppe_types {
+  id uuid [pk]
+  code varchar(6) [not null, unique]
+  name varchar(100) [not null, unique]
+  replace_after_months int [note: 'masa ganti 1–120 bulan (ARS-D5)']
+  must_return boolean [not null, default: false, note: 'wajib kembali saat keluar (ARS-D6)']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+}
+
+Table asset.ppe_issues {
+  id uuid [pk]
+  ppe_type_id uuid [not null, ref: > asset.ppe_types.id]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  quantity int [not null, note: 'CHECK 1–100']
+  size varchar(20)
+  issued_at date [not null]
+  issued_by uuid [not null]
+  handover_document_id uuid [note: 'employee_documents (BAST_ASSET), tanpa FK']
+  acknowledged_at timestamptz
+  returned_at date [note: 'hanya jenis wajib kembali']
+  returned_by uuid
+  note varchar(500)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (employee_id, ppe_type_id)
+    ppe_type_id
+    issued_at
+  }
+}

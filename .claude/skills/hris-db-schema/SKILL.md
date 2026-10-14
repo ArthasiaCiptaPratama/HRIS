@@ -31,7 +31,7 @@ Aturan sumber: PROMPT §6 (konvensi DB), PLAN §3.2 (batas modul), D-003 (Prisma
 - [ ] bun run db:check            ("No difference detected")
 - [ ] Integration test constraint di apps/api/tests/integration/ (lihat EXAMPLES.md)
 - [ ] bun run typecheck && bun run check:boundaries && bun run test:api
-- [ ] Perbarui docs/erd/hris.dbml (diagram dbdiagram.io), CODEMAP §6, PLAN bila ada keputusan baru, log PROGRESS
+- [ ] Perbarui docs/erd/hris.dbml (diagram dbdiagram.io), docs/codemap/<modul>.md (tabel) + docs/codemap/database.md (baris migrasi), keputusan baru berprefix di README fitur, log.md fitur
 ```
 
 SQL mentah (index parsial, CHECK) → edit file hasil `--create-only` sebelum diterapkan, beri komentar alasan.
