@@ -33,4 +33,6 @@ test("tanggal Indonesia & PDF valid dengan karakter di luar WinAnsi", async () =
     note: null,
   });
   expect(Buffer.from(bytes).subarray(0, 4).toString()).toBe("%PDF");
+  // Kop memuat logo Arthasia (gambar PNG tertanam).
+  expect(Buffer.from(bytes).toString("latin1")).toMatch(/\/Subtype\s*\/Image/);
 });

@@ -1,5 +1,6 @@
 import { ASSET_CONDITION_LABELS, type AssetCondition } from "@hris/shared";
 import { PDFDocument, type PDFFont, type PDFPage, rgb, StandardFonts } from "pdf-lib";
+import { BAST_LOGO_PNG_BASE64 } from "./bast-logo.ts";
 
 // ARS-D2: PDF Berita Acara Serah Terima dibuat dari data transaksi, dicetak, ditandatangani basah, lalu
 // scan-nya diunggah sebagai dokumen BAST_ASSET. Dibuat saat diminta; tidak disimpan di server.
@@ -107,10 +108,16 @@ export async function buildBastPdf(input: BastInput): Promise<Uint8Array> {
   const text = (t: string, x: number, size = 10, font = regular, color = ink) =>
     page.drawText(safe(t), { x, y, size, font, color });
 
-  text(safe(input.companyName || "Akselerasi Arthasia"), left, 12, bold);
-  y -= 14;
-  text("Akselerasi Arthasia · HRIS", left, 9, regular, muted);
-  y -= 10;
+  // Kop: logo Arthasia (sama dengan email) + nama PT, lalu garis pemisah.
+  const logo = await pdf.embedPng(Buffer.from(BAST_LOGO_PNG_BASE64, "base64"));
+  const logoSize = 54;
+  const top = 806;
+  page.drawImage(logo, { x: left, y: top - logoSize, width: logoSize, height: logoSize });
+  y = top - 22;
+  text(safe(input.companyName || "Akselerasi Arthasia"), left + logoSize + 12, 13, bold);
+  y -= 15;
+  text("Akselerasi Arthasia · HRIS", left + logoSize + 12, 9, regular, muted);
+  y = top - logoSize - 8;
   page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: ink });
   y -= 30;
   const title = TITLES[input.kind];

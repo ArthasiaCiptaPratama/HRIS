@@ -53,3 +53,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Masalah / catatan:** run web paralel sempat gagal 5–7 test **lama** (Arsip, Dokumen, Import, Dashboard, Master Data) karena timeout saat beban mesin tinggi (load ±16; dua proses `claude` + browser) — lulus semua saat berurutan; sejenis dengan Backlog test flaky `documents.test.tsx`.
 - **Berikutnya:** commit; rilis staging Aset (rencana tersendiri).
 
+### 2026-10-14 — Logo Arthasia di kop PDF BAST (Oatse)
+- **Dikerjakan (permintaan pemilik projek):** kop BAST kini memuat logo Arthasia yang sama dengan email (`docs/email-templates/logo-arthasia-email.png`, 264×265) di kiri nama PT. Logo ditanam base64 di `apps/api/src/modules/asset/bast-logo.ts` (ikut bundel api Vercel/Docker; PDF tidak bergantung jaringan/bucket publik).
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (418) · test shared 215 · api 717 (test `asset-bast.test.ts` + cek gambar tertanam) ✔ · build ✔ · contoh PDF dirender (`/mnt/winD/WORK/Magang/QA/2026-10-14-aset-lokal/kop-logo/`).
+
