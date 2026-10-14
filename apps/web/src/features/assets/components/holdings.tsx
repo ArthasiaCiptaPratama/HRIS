@@ -168,7 +168,7 @@ export function HoldingsList({ holdings, mode }: { holdings: AssetHoldings; mode
       }
       badges={
         <>
-          <ReplacementBadge issue={p} />
+          {p.replacementState === "NONE" ? null : <ReplacementBadge issue={p} />}
           <AckBadge at={p.acknowledgedAt} />
         </>
       }

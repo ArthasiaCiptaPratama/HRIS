@@ -65,7 +65,10 @@ type Role = ReturnType<typeof me>;
 type Call = { method: string; path: string; body: unknown };
 
 // `me()` memberi grants: [] (never[]); fixture ber-grant dikirim apa adanya ke /me.
-function mockFetch(role: Role | Record<string, unknown>, opts: { seePrice?: boolean; canManage?: boolean } = {}) {
+function mockFetch(
+  role: Role | Record<string, unknown>,
+  opts: { seePrice?: boolean; canManage?: boolean } = {},
+) {
   const calls: Call[] = [];
   const seePrice = opts.seePrice ?? true;
   const canManage = opts.canManage ?? true;

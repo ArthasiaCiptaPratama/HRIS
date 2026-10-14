@@ -22,10 +22,11 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] QA lokal 1c: plan/run `2026-10-07-arsip-1c`, TC-EMP-149…160, Playwright 19/19 (tambahan 2026-10-07: temuan audit dokumen)
   - [x] Gel. 1d ekspor & cetak per kategori (D-058; QA Playwright 7/7, 2026-10-08) — impor per kategori **ditunda** (keputusan pemilik projek 2026-10-08: tunggu contoh rekap Excel lama dari HR)
   - [x] Tampil di staging (tambahan 2026-10-13: permintaan pemilik projek) — saklar `archive` + `selfService` `true` di rilis `42df46e` → PR #47/#48 → `Deploy staging` #38374784477; grant `employee.changes.review` HR uji; QA staging 14/14 TC-STG-059…072 **LEGIT**, arsip Drive `hris-qa:2026-10-13-staging-arsip`
-  - [~] Gel. 2a Aset & APD (ARS-D1–D6; grill 2026-10-13) — tahap A API ✔ lokal 2026-10-13; tahap B web ✔ lokal 2026-10-14; tahap C QA menyusul
+  - [~] Gel. 2a Aset & APD (ARS-D1–D6; grill 2026-10-13) — tahap A API ✔ lokal 2026-10-13; tahap B web ✔ & tahap C QA ✔ lokal 2026-10-14 (12/12); sisa: rilis staging + QA staging
     - [x] Tahap A (tambahan 2026-10-13): shared `asset.ts` + permission `asset.manage`; migrasi `20261013095006_add_asset_module` (skema `asset`, 5 tabel, unik parsial, CHECK); modul `apps/api/src/modules/asset/` (policy TDD 21, service + audit, PDF BAST, 23 path, cron `asset-daily` + `vercel.json`); `employee/index.ts` + `getEmployeeBriefs`/`listEmployeeBriefs`/`getEmployeeDocumentRef`, `iam/index.ts` + `listAssetManagers`; integration 13 skenario; PLAN §4.2/§4.3, ERD, codemap
     - [x] Tahap B (2026-10-14): web `features/assets/` — Arsip › Data Assets (tab Aset, Pembagian APD, Belum kembali; panel detail aset + riwayat), form aset (usulan kode), serah-terima, catat APD, kembali/hilang, PDF BAST + unggah scan → dokumen `BAST_ASSET`; Master Data › Aset & APD; tab Aset di detail karyawan; peringatan aset terbuka di form nonaktifkan; Layanan Mandiri › Aset saya + "Sudah saya terima"; saklar `FEATURES.assets`, `access.viewAssets/manageAssets`; test web 8 (`tests/assets.test.tsx`); smoke Playwright lokal 4 role × desktop/HP
-    - [ ] Tahap C: QA lokal (Playwright) + dokumen QA
+    - [x] Tahap C (2026-10-14): QA lokal Playwright alur penuh SA → MGR/HR → EMP → SA **12/12** (TC-EMP-215…226; plan/run `2026-10-14-aset-lokal`); isi PDF BAST dicek (`pdftotext` + render); bug nomor BAST bentrok diperbaiki (`bastNumber`, test `asset-bast.test.ts`)
+    - [ ] Rilis staging (migrasi `20261013095006_add_asset_module`, cron `asset-daily`, saklar `assets` di rilis) + QA staging + arsip Drive
   - [ ] Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
@@ -64,6 +65,7 @@ Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/ass
 
 ## QA
 
+- [plans/2026-10-14-aset-lokal.md](../../qa/plans/2026-10-14-aset-lokal.md) · [runs/2026-10-14-aset-lokal.md](../../qa/runs/2026-10-14-aset-lokal.md) — Aset & APD lokal 12/12
 - [plans/2026-10-13-staging-arsip.md](../../qa/plans/2026-10-13-staging-arsip.md) · [runs/2026-10-13-staging-arsip.md](../../qa/runs/2026-10-13-staging-arsip.md) — staging rilis gel. 6, **LEGIT**
 - [plans/2026-10-05-arsip-1a.md](../../qa/plans/2026-10-05-arsip-1a.md)
 - [runs/2026-10-05-arsip-1a.md](../../qa/runs/2026-10-05-arsip-1a.md)

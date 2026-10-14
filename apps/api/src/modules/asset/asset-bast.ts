@@ -47,6 +47,26 @@ const MONTHS = [
   "November",
   "Desember",
 ];
+const NUMBER_PREFIX: Record<BastDocumentKind, string> = {
+  ASSET_HANDOVER: "BAST-S",
+  ASSET_RETURN: "BAST-K",
+  ASSET_LOST: "BAST-H",
+  PPE_ISSUE: "BAST-APD",
+};
+
+/**
+ * Nomor BAST unik per berita acara: jenis + kode aset/APD + tanggal + 6 karakter id transaksi
+ * (serah & kembali di hari sama, atau APD sejenis untuk dua karyawan, tidak boleh bernomor sama).
+ */
+export function bastNumber(
+  kind: BastDocumentKind,
+  ref: string,
+  date: string,
+  transactionId: string,
+) {
+  return `${NUMBER_PREFIX[kind]}/${ref}/${date.replaceAll("-", "")}/${transactionId.replaceAll("-", "").slice(0, 6).toUpperCase()}`;
+}
+
 export function formatIndonesianDate(iso: string): string {
   return `${Number(iso.slice(8, 10))} ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
 }

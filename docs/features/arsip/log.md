@@ -34,3 +34,10 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Masalah / catatan:** smoke menemukan halaman Personal Management untuk SA di 1440 px melebar 34 px — **masalah lama** (juga di Data Karyawan Aktif & Data Kontak), dari top bar (tab Time Management + pemilih PT + email panjang) → Backlog. Belum diuji: alur simpan di browser (tambah/serah/kembali/BAST) dan isi PDF BAST secara visual → tahap C.
 - **Berikutnya:** tahap C QA lokal (alur penuh di browser + dokumen QA), lalu rilis staging terpisah.
 
+### 2026-10-14 — Aset & APD gel. 2a: tahap C QA lokal (Oatse)
+- **Dikerjakan:** script Playwright alur penuh (`/mnt/winD/WORK/Magang/QA/2026-10-14-aset-lokal/qa-aset.ts`): master → tambah aset (kode otomatis, seri wajib) → serahkan ke Rizky → PDF BAST (isi dicek `pdftotext`, dirender `pdftoppm`) → unggah scan → MGR atasan & HR tanpa grant lihat saja → pembagian Helm → karyawan konfirmasi terima (desktop & HP) → peringatan di form nonaktifkan → pengembalian Rusak + BAST pengembalian. Dokumen QA TC-EMP-215…226, plan/run `2026-10-14-aset-lokal`.
+- **Keputusan:** tidak ada.
+- **Verifikasi:** putaran akhir **12/12**, 0 error JS/5xx · typecheck ✔ · biome ✔ · boundaries ✔ (417) · `db:check` ✔ · test shared 215 · api **713** · web 262 ✔ · build ✔.
+- **Masalah / catatan:** **bug (P3) ditemukan & diperbaiki:** nomor BAST serah = kembali di hari yang sama, dan BAST APD sejenis antar-karyawan bentrok → `bastNumber` (jenis + kode + tanggal + id transaksi), test gagal-dulu `asset-bast.test.ts`. Badge "—" (tanpa masa ganti) disembunyikan di daftar pegangan. Kegagalan putaran 1–2 = selector script & sisa data run sebelumnya (bukan aplikasi). Pihak Pertama BAST memakai email bila pengelola tidak tertaut data karyawan. Data uji Q6967/Q7013/Q7069/Q7175 tersisa di DB lokal; scan BAST di storage staging berawalan `dev/oatse/`.
+- **Berikutnya:** commit, lalu (izin) push develop dan rilis staging Aset + QA staging + arsip Drive.
+

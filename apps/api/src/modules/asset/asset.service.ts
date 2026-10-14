@@ -40,7 +40,7 @@ import { notify } from "../notification/index.ts";
 import { getMasterLookup, type MasterLookup } from "../organization/index.ts";
 import * as policy from "./asset.policy.ts";
 import * as repo from "./asset.repository.ts";
-import { type BastLine, buildBastPdf } from "./asset-bast.ts";
+import { type BastDocumentKind, type BastLine, bastNumber, buildBastPdf } from "./asset-bast.ts";
 
 // ARS-D1–D6 (Arsip gelombang 2a): aset per unit + pembagian APD. Aturan & keputusan:
 // docs/features/arsip/README.md#keputusan. Data karyawan hanya lewat employee/index.ts (aturan emas #3).
@@ -863,6 +863,8 @@ export async function assignmentBast(ctx: RequestContext, assignmentId: string, 
   const company = lookup.companies.get(a.asset.companyId);
   const parties = await bastParties(ctx, employee, lookup);
   const date = kind === "HANDOVER" ? toIso(a.assignedAt) : toIso(a.closedAt as Date);
+  const docKind: BastDocumentKind =
+    kind === "HANDOVER" ? "ASSET_HANDOVER" : a.outcome === "LOST" ? "ASSET_LOST" : "ASSET_RETURN";
   const lines: BastLine[] = [
     {
       name: a.asset.name,
@@ -879,9 +881,8 @@ export async function assignmentBast(ctx: RequestContext, assignmentId: string, 
     },
   ];
   const bytes = await buildBastPdf({
-    kind:
-      kind === "HANDOVER" ? "ASSET_HANDOVER" : a.outcome === "LOST" ? "ASSET_LOST" : "ASSET_RETURN",
-    number: `BAST/${a.asset.code}/${date.replaceAll("-", "")}`,
+    kind: docKind,
+    number: bastNumber(docKind, a.asset.code, date, a.id),
     companyName: company?.name ?? "",
     date,
     lines,
@@ -1165,7 +1166,7 @@ export async function ppeBast(ctx: RequestContext, id: string) {
   const date = toIso(p.issuedAt);
   const bytes = await buildBastPdf({
     kind: "PPE_ISSUE",
-    number: `BAST/APD/${p.ppeType.code}/${date.replaceAll("-", "")}`,
+    number: bastNumber("PPE_ISSUE", p.ppeType.code, date, p.id),
     companyName: lookup.companies.get(employee.companyId)?.name ?? "",
     date,
     lines: [

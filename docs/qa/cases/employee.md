@@ -218,3 +218,20 @@ Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), Arsi
 | TC-EMP-204 | P3 | Daftar unit urutan tetap | SA | 10 nilai unit | Pakai saran / pilih unit | Baris tidak berpindah; Jenis & "Di bawah" unit baru terlihat; filter "Hanya yang perlu dipilih" | PW `review-ui.ts` (urutan sebelum = sesudah) |
 | TC-EMP-205 | P3 | Pratinjau ringkas | SA | 1 baris error | Pratinjau | Dibuka di "Semua" (urutan file); kotak error "Lihat baris error saja" + kotak info; pesan dibungkus + "Perbaikan:"; peringatan dilipat | WEB `employee-import.test.tsx`; PW `review-ui.ts` (v4) |
 | TC-EMP-206 | P3 | Panduan "?" | SA | — | Klik "?" | Dialog 5 langkah + ilustrasi, langkah aktif ditandai "Langkah saat ini" | WEB `employee-import.test.tsx` |
+
+### Arsip gelombang 2a — Aset & APD (ARS-D1–D6, 2026-10-14)
+
+| ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
+|---|---|---|---|---|---|---|---|
+| TC-EMP-215 | P2 | ARS-D1 master | SA / HR ber-grant | — | Master Data › Aset & APD: tambah kategori (nomor seri wajib), jenis APD wajib kembali & masa ganti 12 bulan | Tersimpan; kode duplikat 409; HR tanpa grant lihat saja | api `assets.test.ts` (master) · web `assets.test.tsx` · PW L-01 |
+| TC-EMP-216 | P1 | ARS-D4 kode & harga | SA | kategori ada | Tambah aset tanpa kode; nomor seri kosong pada kategori wajib seri | Kode otomatis `ACP-<KAT>-0001`, berurutan; seri kosong ditolak; harga string desimal tersimpan | api (kode otomatis, 409, 400) · web (body) · PW L-02 |
+| TC-EMP-217 | P1 | ARS-D3 serah-terima | SA / HR ber-grant | aset Tersedia | Serahkan ke karyawan PT sama / PT lain / saat aset sudah dipegang | 201 → Dipegang; PT lain 422; dipegang 422; index unik parsial menolak dua pemegang (P2002) | api · PW L-03 |
+| TC-EMP-218 | P1 | ARS-D2 BAST PDF | SA | serah-terima | Unduh PDF BAST serah-terima | PDF berisi judul, kedua pihak, kode, SN, batas kembali; tanpa harga | api (`%PDF`) · PW L-04 (pdftotext + render) |
+| TC-EMP-219 | P2 | ARS-D2 scan BAST | SA | PDF BAST | Unggah scan → dokumen BAST_ASSET; dokumen jenis lain / milik karyawan lain | Tertaut ("Scan BAST terlampir"); jenis/pemilik salah 422 | api · PW L-05 |
+| TC-EMP-220 | P1 | ARS-D3 MANAGER | MANAGER atasan | aset dipegang bawahan | Data Assets & detail aset | Aset tim tampil tanpa harga & tanpa tombol kelola; MANAGER lain 404 | api · web · PW L-06 |
+| TC-EMP-221 | P1 | ARS-D3 HR tanpa grant | HR_ADMIN | — | Data Assets & detail aset | Lihat saja: tanpa harga, tanpa Tambah aset | api · web · PW L-07 |
+| TC-EMP-222 | P2 | ARS-D1 APD | SA | jenis APD | Catat pembagian Helm × 1 ukuran L ke karyawan | Tampil di Pembagian APD; jumlah 0 → 400; HR PT lain 403 | api · PW L-08 |
+| TC-EMP-223 | P1 | ARS-D2 konfirmasi terima | EMPLOYEE | aset & APD diserahkan | Layanan Mandiri › Aset saya → "Sudah saya terima" | Aset & APD "Diterima karyawan"; tanpa harga; karyawan lain 404; idempoten | api · web · PW L-09 |
+| TC-EMP-224 | P3 | Tampilan | EMPLOYEE | — | HP 390 px Aset saya | Tanpa scroll horizontal | PW L-10 |
+| TC-EMP-225 | P2 | ARS-D6 karyawan keluar | SA | aset & APD wajib kembali dipegang | Ubah Status › Nonaktif untuk karyawan itu (tanpa simpan) | Peringatan "aset/APD belum dikembalikan" + daftar item; tidak memblokir | api (belum kembali, cron) · PW L-11 |
+| TC-EMP-226 | P1 | ARS-D2/D5 pengembalian | SA | aset dipegang | Terima pengembalian kondisi Rusak + catatan; unduh BAST pengembalian | Status Perbaikan; BAST pengembalian berisi kondisi & catatan; **nomor BAST berbeda dari BAST serah** | api (`asset-bast.test.ts` nomor unik) · PW L-12 |

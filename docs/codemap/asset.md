@@ -10,11 +10,12 @@
 │                                   canViewEmployeeAssets (SA, HR PT, MANAGER tim, diri), canViewAsset, assetListScope, canAcknowledge
 ├── asset.repository.ts      [done] kategori, jenis APD, aset (filter cakupan/pemegang/terlambat), serah-terima, pembagian APD
 ├── asset.service.ts         [done] aturan ARS-D1–D6, audit `asset.*`, harga hanya pengelola, notifikasi in-app ke karyawan
-├── asset-bast.ts            [done] PDF BAST (pdf-lib, A4, font standar WinAnsi): serah, kembali, hilang, APD
+├── asset-bast.ts            [done] PDF BAST (pdf-lib, A4, font standar WinAnsi): serah, kembali, hilang, APD; `bastNumber` = `BAST-S|K|H|APD/<kode>/<tanggal>/<id6>` (unik per berita acara)
 ├── asset-daily.service.ts   [done] cron `asset-daily`: pinjaman terlambat, APD jatuh tempo ganti, aset/APD karyawan keluar
 ├── asset.schema.ts          [done] DTO OpenAPI (body longgar → divalidasi skema @hris/shared di service)
 ├── asset.routes.ts          [done] 23 path (lihat CODEMAP §5)
-└── __tests__/asset.policy.test.ts  [done] matriks akses 21 kasus (TDD)
+├── __tests__/asset.policy.test.ts  [done] matriks akses 21 kasus (TDD)
+└── __tests__/asset-bast.test.ts    [done] nomor BAST unik, tanggal Indonesia, PDF dengan karakter di luar WinAnsi
 ```
 
 - Shared: `packages/shared/src/asset.ts` — enum + label, `suggestAssetCode`/`nextAssetSequence` (ARS-D4), `loanState` (ARS-D5), `ppeReplacementDate`, skema input (harga = string desimal, PROMPT §4). Test `packages/shared/tests/asset.test.ts`.
