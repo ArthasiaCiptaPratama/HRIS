@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DOCUMENT_MIME_TYPES } from "./onboarding-form.ts";
 
-// D-055 (Arsip gelombang 1b, design/arsip-karyawan.md §4, §6.1, §7.2): jenis dokumen = master data SA;
+// D-055 (Arsip gelombang 1b, docs/features/arsip/design.md §4, §6.1, §7.2): jenis dokumen = master data SA;
 // dokumen karyawan berversi + bermasa berlaku; pengingat kedaluwarsa harian. Aturan dipakai API & web.
 
 export const DOCUMENT_CATEGORIES = [

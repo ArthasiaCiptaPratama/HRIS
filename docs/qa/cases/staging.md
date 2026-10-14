@@ -53,3 +53,22 @@ Otomasi: `API` = `/mnt/winD/WORK/Magang/QA/2026-09-29-staging/api.ts` (Bun + sup
 | TC-STG-056 | P1 | guard route | tanpa sesi | — | Deep link /personal/... | Dialihkan ke /login | UI |
 | TC-STG-057 | P2 | UX login | HR | — | Password salah di form | Tetap di /login + pesan "Email atau password salah…" | UI |
 | TC-STG-058 | P3 | SPA fallback | — | — | GET /lupa-password langsung | 200, halaman tampil | UI |
+
+### Rilis gelombang 6 — Arsip & Layanan Mandiri (2026-10-13; script `QA/2026-10-13-staging-arsip/stg-arsip.ts`)
+
+| ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
+|---|---|---|---|---|---|---|---|
+| TC-STG-059 | P1 | PLAN §4.5.1 / D-054 antrean | HR tanpa grant review | — | GET /data-changes | 403 | API A-01 |
+| TC-STG-060 | P1 | D-008 grant dari DB | SA → HR | 059 | POST /grants `employee.changes.review` (alasan QA), lalu HR GET /data-changes tanpa login ulang | 201; HR 200 (audit grant) | API A-02 |
+| TC-STG-061 | P1 | PLAN §4.2 Arsip (D-054) | SA / HR tanpa grant pribadi & rekening / MGR / EMP | — | GET /archive/contacts, /families, /bank-accounts | contacts SA/HR/MGR 200, EMP 403; families SA 200, HR & EMP 403; bank SA 200, HR & MGR 403 | API A-03 |
+| TC-STG-062 | P1 | D-058 ekspor | SA / HR / MGR | — | GET /archive/educations/export | SA & HR 200 `{fileName .xlsx, rows, contentBase64}` (isi zip `PK`); MGR 403 | API A-04 |
+| TC-STG-063 | P2 | D-055 katalog | SA | — | GET /document-types | 26 jenis | API A-05 |
+| TC-STG-064 | P1 | D-054 data diri ESS | EMP | — | GET /self/employee-data | 200 data diri sendiri | API B-01 |
+| TC-STG-065 | P2 | design §12.2 validasi | EMP | — | POST /data-changes EMERGENCY; ulang bagian sama | 201; ganda 409 | API B-02 |
+| TC-STG-066 | P1 | PLAN §4.5.1 tidak memutus sendiri | EMP / HR ber-grant | 065 | Pemilik POST decision; HR REJECT tanpa alasan; REJECT beralasan | 403; 400; 200 | API B-03 |
+| TC-STG-067 | P2 | design §12.2 setujui | EMP / HR ber-grant | 066 | Ajukan ulang → HR APPROVE → GET /self/employee-data | 201 → 200 → kontak darurat baru tampil | API B-04 |
+| TC-STG-068 | P1 | PROMPT §3.7 notifikasi | EMP | 067 | GET /notifications | Ada notifikasi keputusan, tanpa nama/nomor kontak | API B-05 |
+| TC-STG-069 | P2 | D-043 saklar `archive`/`selfService` | SA / HR / MGR / EMP | deploy gel. 6 | Buka Arsip (Kontak, File, Keluarga, Pendidikan), Jenis dokumen, Pengajuan Perubahan Data, `/ess` | Judul halaman sesuai, bukan "… sedang disiapkan" (Maintenance) | UI C-01 |
+| TC-STG-070 | P1 | §4.3 Arsip bukan untuk EMP | EMP | — | Deep link /personal/arsip/kontak | "Akses ditolak" | UI C-02 |
+| TC-STG-071 | P3 | Tampilan | EMP | — | HP 390 px `/ess` | Tanpa scroll horizontal | UI C-03 |
+| TC-STG-072 | P2 | kualitas | 4 role | 069–071 | Pantau konsol & jaringan halaman | 0 error JS; 0 respons ≥ 400 selain 403/404 disengaja | UI C-04 |

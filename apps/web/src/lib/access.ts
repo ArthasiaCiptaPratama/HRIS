@@ -51,4 +51,12 @@ export const access = {
     isSuperAdmin(me) || isHrAdmin(me) || (me.role === ROLE.MANAGER && me.employeeId !== null),
   /** Tambah/ubah, ubah status, aktifkan/nonaktifkan, arsip & laporan. */
   manageEmployees: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
+
+  // ARS-D3 (apps/api/src/modules/asset/asset.policy.ts): aset & APD.
+  /** Lihat Arsip › Data Assets: SA, HR (PT sendiri), MANAGER (aset tim). */
+  viewAssets: (me: Me) =>
+    isSuperAdmin(me) || isHrAdmin(me) || (me.role === ROLE.MANAGER && me.employeeId !== null),
+  /** Kelola aset/APD & master kategori/jenis APD: SA atau HR ber-grant `asset.manage` (PT dicek API). */
+  manageAssets: (me: Me) =>
+    isSuperAdmin(me) || (isHrAdmin(me) && me.grants.some((g) => g.permission === "asset.manage")),
 };

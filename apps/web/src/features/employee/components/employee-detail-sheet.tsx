@@ -22,6 +22,7 @@ import {
   Landmark,
   Lock,
   MapPin,
+  Package,
   Pencil,
   Plus,
   Power,
@@ -49,6 +50,7 @@ import {
   usePositionHistoryEditor,
   WorkExperienceSection,
 } from "@/features/archive/components/archive-sections";
+import { EmployeeAssetsTab } from "@/features/assets/components/holdings";
 import {
   AttachmentList,
   BankBookPanel,
@@ -264,6 +266,11 @@ function DetailBody({
             <TabsTrigger value="documents">
               <FolderArchive /> Dokumen
             </TabsTrigger>
+            {FEATURES.assets ? (
+              <TabsTrigger value="assets">
+                <Package /> Aset
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="bank">
               <Landmark /> Rekening
             </TabsTrigger>
@@ -292,6 +299,12 @@ function DetailBody({
           <TabsContent value="documents">
             <DocumentsTab employeeId={employee.id} />
           </TabsContent>
+          {FEATURES.assets ? (
+            <TabsContent value="assets">
+              {/* ARS-D3: aset & APD yang dipegang (cakupan dicek API; tanpa harga). */}
+              <EmployeeAssetsTab employeeId={employee.id} />
+            </TabsContent>
+          ) : null}
           <TabsContent value="bank">
             <SensitiveGate allowed={access.bank} what="Rekening bank" query={full}>
               {sensitive ? <BankTab employee={sensitive} /> : null}

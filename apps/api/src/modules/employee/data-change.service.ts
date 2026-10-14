@@ -51,7 +51,7 @@ import {
 import * as wizard from "./onboarding-wizard.repository.ts";
 import { personalOf } from "./onboarding-wizard.service.ts";
 
-// D-054 / OD-6 (Arsip gelombang 1c, design/arsip-karyawan.md §6.2, §7.1, §8): karyawan mengajukan
+// D-054 / OD-6 (Arsip gelombang 1c, docs/features/arsip/design.md §6.2, §7.1, §8): karyawan mengajukan
 // perubahan data dirinya; data baru berlaku setelah disetujui SA / HR ber-grant. Isi pengajuan sensitif:
 // hanya pemilik & pemeriksa yang berhak yang melihatnya; notifikasi/email hanya menyebut nama bagian.
 

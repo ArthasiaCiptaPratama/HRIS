@@ -33,6 +33,14 @@ import {
 } from "./core/supabase-admin.ts";
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
+import { registerApprovalRoutes } from "./modules/approval/index.ts";
+import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
+import {
+  closeOverdueDays,
+  extendAllRosters,
+  purgeSelfies,
+  registerAttendanceRoutes,
+} from "./modules/attendance/index.ts";
 import {
   employeeLoginDirectory,
   employeeMasterDataSupport,
@@ -44,6 +52,7 @@ import {
   withEmployeeCompanyScope,
 } from "./modules/employee/index.ts";
 import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
+import { registerLeaveRoutes, runLeaveDaily } from "./modules/leave/index.ts";
 import { configureNotification, registerNotificationRoutes } from "./modules/notification/index.ts";
 import { configureOrganization, registerOrganizationRoutes } from "./modules/organization/index.ts";
 
@@ -241,6 +250,20 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   });
   registerNotificationRoutes(app, { protect });
   registerOrganizationRoutes(app, { protect });
+  // ARS-D1–D6 (Arsip 2a): aset per unit & pembagian APD.
+  registerAssetRoutes(app, { protect });
+  // Time Management (D-067–D-072): mesin approval & modul attendance.
+  registerApprovalRoutes(app, { protect });
+  registerAttendanceRoutes(app, {
+    protect,
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+  });
+  registerLeaveRoutes(app, {
+    protect,
+    storage: deps.storage,
+    storagePathPrefix: deps.storagePathPrefix,
+  });
   registerEmployeeRoutes(app, {
     protect,
     authAdmin: deps.authAdmin,
@@ -267,6 +290,19 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
         reminders: await remindStaleInvitations(),
         invitations: await processOnboardingInvitations(null, invitations),
       }),
+      // D-069: perpanjang roster semua crew sampai horizon pengaturan Time Management.
+      "roster-extend": () => extendAllRosters(),
+      // D-070: hari absen tanpa absen pulang → NO_CHECKOUT + approval; D-013: retensi selfie 12 bulan.
+      "attendance-daily": async () => ({
+        noCheckout: await closeOverdueDays(),
+        // Lokal (bukan produksi): foto absen disimpan selamanya (permintaan pemilik projek 2026-10-12).
+        purgeSelfies:
+          getEnv().NODE_ENV === "production" ? await purgeSelfies() : { purged: 0, skipped: true },
+      }),
+      // D-072: jatah 1 Jan, pelunasan hutang akhir Jan, hangus 31 Mar, cuti bersama tanpa absen.
+      "leave-daily": () => runLeaveDaily(),
+      // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.
+      "asset-daily": () => runAssetDaily(),
     },
   });
 

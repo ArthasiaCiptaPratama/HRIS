@@ -1,0 +1,21 @@
+# Log — Fondasi
+
+Entri terbaru di **atas**. Format satu entri (salin):
+
+```
+### YYYY-MM-DD — <judul singkat> (<PIC>)
+- **Dikerjakan:** … (rujuk item checklist README)
+- **Keputusan:** <PREFIX>-Dn baru / OD terjawab
+- **Verifikasi:** perintah + hasil nyata
+- **Masalah / catatan:** …
+- **Berikutnya:** …
+```
+
+Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
+
+### 2026-10-13 — Perapihan dokumen instruksi: induk → folder per fitur (Oatse)
+- **Dikerjakan (grill 3 putaran, rencana disetujui pemilik projek):** PROGRESS 271 KB → **induk 10 KB** (status per fitur + PIC + branch, fokus, blocker, OD, backlog, log ringkas); checklist per fase → `docs/features/<fitur>/README.md` (12 fitur, kode prefix FND/IAM/ORG/EMP/IMP/ONB/ARS/DSB/TM/KTR/PAY/HRD); `docs/design/*` → `features/*/design.md` (`git mv`); log sesi lama → `archive/log-2026-09.md`, `archive/log-2026-10.md` (utuh); §1–§2 lama + antrean #1–#49 → `archive/progress-fokus-2026-10-13.md`; PLAN §8–§9 (53 KB) → `decisions.md` utuh + indeks satu baris di PLAN §8; CODEMAP §6 + pohon file per modul → `docs/codemap/<modul>.md` + `database.md`; baru `RELEASE.md` (jalur D-043, antrean aktif, saklar `FEATURES` per jalur, riwayat rilis, Rilis 1, wajib pra-produksi) & `docs/README.md` (peta baca).
+- **Keputusan (pemilik projek):** nomor `D-001`–`D-073`/`OD-1`–`OD-15` dibekukan; keputusan baru berprefix fitur (`TM-D1`, `TM-OD1`, lintas `X-D1`) di README fitur; rekan tim (Mat) hanya menulis folder fiturnya, induk diperbarui saat merge ke develop; QA tetap di `docs/qa/` (ditautkan dari README fitur). Aturan ditulis di PROMPT §1, §2, §8 "Aturan untuk rekan tim", §12, §13; CLAUDE.md; skill `hris-workflow`, `hris-qa-docs`, `hris-db-schema`.
+- **Verifikasi:** script tautan + anchor (slug GitHub) **669 tautan, 0 rusak** (di luar `archive/`, yang sengaja tidak diubah) · script pembanding isi: setiap baris PROGRESS/PLAN/CODEMAP/desain lama ada di lokasi baru, kecuali judul bagian, kalimat pengantar, aturan lama & templat log yang sengaja diganti (diperiksa satu per satu) · biome ✔ · typecheck ✔ · `db:check` ✔ · `db:migrate` "Already in sync" · test shared 200 · api 676 · web 253 ✔.
+- **Masalah / catatan:** script perbaikan rujukan sempat mengubah komentar di migrasi `20261005083543_add_document_types_and_versions/migration.sql` → **dikembalikan** (aturan emas #11; komentar lama `design/arsip-karyawan.md` di file migrasi itu dibiarkan). Rujukan bagian lama di `archive/` (mis. "PROGRESS §2") sengaja tidak diubah. Komentar path desain di 13 file kode/skema diperbarui (komentar saja).
+- **Berikutnya:** commit + push (izin), Mat pull develop sebelum lanjut; ukur ulang setelah beberapa sesi apakah README fitur besar (import 13 KB, TM 12 KB) perlu diringkas.
