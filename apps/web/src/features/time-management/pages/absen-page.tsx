@@ -359,7 +359,9 @@ function TodayCard({
           </p>
           <p className="text-muted-foreground mt-0.5 flex max-w-36 items-center justify-end gap-1 truncate text-[11px]">
             <MapPin className="size-3 shrink-0" />
-            <span className="truncate">{data.location?.name ?? "Lokasi belum diatur"}</span>
+            <span className="truncate">
+              {data.anywhere ? "Bebas lokasi" : (data.location?.name ?? "Lokasi belum diatur")}
+            </span>
           </p>
         </div>
       </div>
@@ -787,7 +789,9 @@ function PunchFlow({
       ? `${check.location.name} · ${check.insideGeofence ? "dalam" : "LUAR"} radius${
           check.distanceM !== null ? ` (${check.distanceM} m)` : ""
         }`
-      : "Lokasi acuan belum diatur";
+      : data.anywhere
+        ? `Bebas lokasi${check.distanceM !== null ? ` (${check.distanceM} m dari site terdekat)` : ""}`
+        : "Lokasi acuan belum diatur";
     void stampSelfie(raw.blob, {
       title: kind === "IN" ? "ABSEN DATANG" : "ABSEN PULANG",
       employee: `${data.employee.fullName} (${data.employee.employeeNumber ?? "—"})`,
@@ -812,7 +816,7 @@ function PunchFlow({
     return () => {
       cancelled = true;
     };
-  }, [raw, gps, check, kind, data.employee, data.timezone]);
+  }, [raw, gps, check, kind, data.employee, data.timezone, data.anywhere]);
 
   const takenNow = () => clockRef.current ?? new Date();
   useEffect(() => () => (raw ? URL.revokeObjectURL(raw.url) : undefined), [raw]);
@@ -981,6 +985,11 @@ function PunchFlow({
                     {check.insideGeofence ? "Di dalam" : "Di luar"} radius{" "}
                     <span className="font-medium">{check.location.name}</span>
                     {check.distanceM !== null ? ` · ${check.distanceM} m dari titik` : ""}
+                  </>
+                ) : data.anywhere ? (
+                  <>
+                    <span className="font-medium">Bebas lokasi</span> — tidak dicek radius;
+                    koordinat tetap dicatat.
                   </>
                 ) : (
                   "Lokasi acuan belum diatur."

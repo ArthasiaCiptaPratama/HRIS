@@ -1,5 +1,6 @@
 import {
   type AttendanceLabel,
+  type AttendanceLocationSource,
   type ManualPunchInput,
   PUNCH_CANCEL_WINDOW_MIN,
   type PunchInput,
@@ -40,6 +41,7 @@ import {
 } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
+import { resolveAttendanceLocation } from "./location-setting.service.ts";
 import { closedMonths, correctionInstant, isDateClosed } from "./period.service.ts";
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
@@ -107,10 +109,16 @@ const toSite = (l: directory.DirectoryLocation): GeofenceSite | null =>
     ? { id: l.id, latitude: l.latitude, longitude: l.longitude, radiusM: l.radiusM }
     : null;
 
-/** Lokasi acuan pada tanggal kerja: lokasi crew, kalau tidak ada lokasi kerja karyawan. */
-async function expectedLocationId(employee: directory.DirectoryEmployee, workDate: string) {
-  const membership = await rosterRepo.crewOfEmployeeOn(employee.id, toDate(workDate));
-  return membership?.crew.workLocationId ?? employee.workLocationId;
+/**
+ * Lokasi acuan pada tanggal kerja (TM-D1): bebas lokasi → tanpa acuan; lokasi absen khusus; lokasi crew;
+ * lokasi kerja karyawan.
+ */
+async function expectedLocation(employee: directory.DirectoryEmployee, workDate: string) {
+  const resolved = await resolveAttendanceLocation(employee, workDate);
+  const location = resolved.locationId
+    ? ((await directory.locationsByIds([resolved.locationId])).get(resolved.locationId) ?? null)
+    : null;
+  return { location, anywhere: resolved.anywhere, source: resolved.source };
 }
 
 interface Evaluation {
@@ -173,16 +181,18 @@ async function evaluate(
     const window = shift
       ? shiftWindow(toIso(open.workDate), shiftTimes(shift), settings.timezone)
       : null;
-    const expectedId =
-      open.workLocationId ?? (await expectedLocationId(employee, toIso(open.workDate)));
-    const expected = expectedId
-      ? ((await directory.locationsByIds([expectedId])).get(expectedId) ?? null)
-      : null;
+    // Pulang mengikuti lokasi tercatat saat masuk; bebas lokasi (TM-D1) tetap tidak dicek geofence.
+    const resolved = await expectedLocation(employee, toIso(open.workDate));
+    const expected =
+      !resolved.anywhere && open.workLocationId
+        ? ((await directory.locationsByIds([open.workLocationId])).get(open.workLocationId) ?? null)
+        : resolved.location;
     const geofence = checkGeofence(
       input,
       expected ? toSite(expected) : null,
       sites,
       settings.gpsAccuracyMaxM,
+      resolved.anywhere,
     );
     return {
       kind: "OUT",
@@ -220,15 +230,14 @@ async function evaluate(
     }),
   );
   const rosterDay = byDate.get(plan.workDate);
-  const expectedId = await expectedLocationId(employee, plan.workDate);
-  const expected = expectedId
-    ? ((await directory.locationsByIds([expectedId])).get(expectedId) ?? null)
-    : null;
+  const resolved = await expectedLocation(employee, plan.workDate);
+  const expected = resolved.location;
   const geofence = checkGeofence(
     input,
     expected ? toSite(expected) : null,
     sites,
     settings.gpsAccuracyMaxM,
+    resolved.anywhere,
   );
   const stillOpen = await repository.findOpenDay(employee.id);
   return {
@@ -386,6 +395,9 @@ export interface TodayView {
     longitude: number | null;
     radiusM: number | null;
   } | null;
+  /** TM-D1: bebas lokasi (tanpa cek geofence) & asal site absen. */
+  anywhere: boolean;
+  locationSource: AttendanceLocationSource;
   openDay: DayView | null;
   recent: DayView[];
   next: "IN" | "OUT";
@@ -410,10 +422,8 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
       toDate(dates[2] as string),
     ),
   ]);
-  const locationId = await expectedLocationId(employee, dates[1] as string);
-  const location = locationId
-    ? ((await directory.locationsByIds([locationId])).get(locationId) ?? null)
-    : null;
+  const resolved = await expectedLocation(employee, dates[1] as string);
+  const location = resolved.location;
   const recent = await toDayViews(ctx, recentRows, false);
   return {
     serverTime: now.toISOString(),
@@ -440,6 +450,8 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
           radiusM: location.radiusM,
         }
       : null,
+    anywhere: resolved.anywhere,
+    locationSource: resolved.source,
     openDay: open
       ? (recent.find((d) => d.id === open.id) ?? (await toDayViews(ctx, [open], false))[0] ?? null)
       : null,

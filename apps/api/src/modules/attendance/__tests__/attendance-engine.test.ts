@@ -111,4 +111,30 @@ describe("geofence", () => {
       "LOW_ACCURACY",
     ]);
   });
+
+  // TM-D1 / PLAN §5.4: karyawan bebas lokasi tidak dicek geofence, koordinat & jarak tetap dicatat.
+  test("bebas lokasi: tanpa OUTSIDE_RADIUS/OTHER_LOCATION; jarak ke site terdekat tetap dicatat", () => {
+    const pos = (latitude: number, longitude: number, accuracyM = 20) => ({
+      latitude,
+      longitude,
+      accuracyM,
+    });
+    // Jauh dari semua site.
+    const far = checkGeofence(pos(-3.7, 115.3), site, [site, jetty], 100, true);
+    expect(far).toMatchObject({ workLocationId: null, inside: false, labels: [] });
+    expect(far.distanceM).toBeGreaterThan(0);
+    // Di dalam site lain (bukan yang "diharapkan") → tercatat di sana tanpa label OTHER_LOCATION.
+    expect(checkGeofence(pos(-3.9, 115.4), site, [site, jetty], 100, true)).toMatchObject({
+      workLocationId: "jetty",
+      inside: true,
+      labels: [],
+    });
+    // Akurasi rendah tetap dilabeli; tanpa site sama sekali → jarak null.
+    expect(checkGeofence(pos(-3.7, 115.3, 250), null, [], 100, true)).toEqual({
+      workLocationId: null,
+      distanceM: null,
+      inside: false,
+      labels: ["LOW_ACCURACY"],
+    });
+  });
 });

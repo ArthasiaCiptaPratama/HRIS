@@ -1,6 +1,6 @@
 import { ASSET_CONDITION_LABELS, type AssetCondition } from "@hris/shared";
 import { PDFDocument, type PDFFont, type PDFPage, rgb, StandardFonts } from "pdf-lib";
-import { BAST_LOGO_PNG_BASE64 } from "./bast-logo.ts";
+import { BRAND_LOGO_PNG_BASE64 } from "../../core/brand-logo.ts";
 
 // ARS-D2: PDF Berita Acara Serah Terima dibuat dari data transaksi, dicetak, ditandatangani basah, lalu
 // scan-nya diunggah sebagai dokumen BAST_ASSET. Dibuat saat diminta; tidak disimpan di server.
@@ -109,7 +109,7 @@ export async function buildBastPdf(input: BastInput): Promise<Uint8Array> {
     page.drawText(safe(t), { x, y, size, font, color });
 
   // Kop: logo Arthasia (sama dengan email) + nama PT, lalu garis pemisah.
-  const logo = await pdf.embedPng(Buffer.from(BAST_LOGO_PNG_BASE64, "base64"));
+  const logo = await pdf.embedPng(Buffer.from(BRAND_LOGO_PNG_BASE64, "base64"));
   const logoSize = 54;
   const top = 806;
   page.drawImage(logo, { x: left, y: top - logoSize, width: logoSize, height: logoSize });

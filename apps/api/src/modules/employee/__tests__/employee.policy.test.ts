@@ -445,6 +445,20 @@ describe("Dokumen (D-055)", () => {
       ),
     ).toBe(false);
   });
+  test("scan SP (WARNING_LETTER): HR ber-grant SP boleh lihat; tulis hanya grant write (ARS-D14)", () => {
+    const t = target("HR", "other", "co-A");
+    const write = actor("HR", ["employee.discipline.write"]);
+    const read = actor("HR", ["employee.discipline.read"]);
+    expect(canReadDocuments(write, t, true, "WARNING_LETTER")).toBe(true);
+    expect(canWriteDocuments(write, t, true, "WARNING_LETTER")).toBe(true);
+    expect(canReadDocuments(read, t, true, "WARNING_LETTER")).toBe(true);
+    expect(canWriteDocuments(read, t, true, "WARNING_LETTER")).toBe(false);
+    expect(canReadDocuments(write, t, true, "KTP")).toBe(false);
+    expect(canReadDocuments(actor("HR"), t, true, "WARNING_LETTER")).toBe(false);
+    expect(canReadDocuments(write, target("HR", "other", "co-B"), true, "WARNING_LETTER")).toBe(
+      false,
+    );
+  });
   test("tabel Data File: jenis sensitif tampil hanya untuk SA / pemegang grant baca", () => {
     expect(seesAllSensitiveDocuments(actor("SA"))).toBe(true);
     expect(seesAllSensitiveDocuments(actor("HR"))).toBe(false);

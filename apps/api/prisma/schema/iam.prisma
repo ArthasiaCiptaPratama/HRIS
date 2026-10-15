@@ -26,6 +26,9 @@ enum Permission {
   EMPLOYEE_CHANGES_REVIEW    @map("employee.changes.review")
   // ARS-D3 (Arsip 2a): kelola aset & pembagian APD.
   ASSET_MANAGE               @map("asset.manage")
+  // ARS-D10 (Arsip 2b): surat peringatan.
+  EMPLOYEE_DISCIPLINE_READ   @map("employee.discipline.read")
+  EMPLOYEE_DISCIPLINE_WRITE  @map("employee.discipline.write")
 
   @@schema("iam")
 }

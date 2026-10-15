@@ -19,6 +19,7 @@ export {
   inviteEmployeeAccount,
   listAssetManagers,
   listDataChangeReviewers,
+  listDisciplineWriters,
   listDocumentReminderRecipients,
   listManagerEmployeeIds,
   listOnboardingReviewers,

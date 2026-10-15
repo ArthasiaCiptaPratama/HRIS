@@ -18,6 +18,8 @@ export const tmAccess = {
   viewRoster: (me: Me) => isSa(me) || isHr(me) || me.employeeId !== null,
   /** Kelola shift, pola, crew, sel grid, import (D-069): SA; HR PT ditugaskan. */
   manageRoster: (me: Me) => isSa(me) || isHr(me),
+  /** TM-D1: lokasi absen per karyawan (bawaan / khusus / bebas lokasi): SA; HR PT ditugaskan. */
+  manageAttendanceLocations: (me: Me) => isSa(me) || isHr(me),
   /** Pengajuan perubahan / tukar shift: karyawan & atasan; HR/SA memutuskan dari inbox. */
   rosterChanges: (me: Me) => me.employeeId !== null || isSa(me) || isHr(me),
   /** Inbox keputusan perubahan roster. */

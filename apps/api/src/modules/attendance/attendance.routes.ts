@@ -4,6 +4,7 @@ import type { StorageAdmin } from "../../core/storage.ts";
 import { configureAttendance, registerAttendanceIntegrations } from "./attendance.service.ts";
 import { registerAttendanceDayRoutes } from "./attendance-day.routes.ts";
 import { registerCalendarRoutes } from "./calendar.routes.ts";
+import { registerLocationSettingRoutes } from "./location-setting.routes.ts";
 import { registerPeriodRoutes } from "./period.routes.ts";
 import { configurePeriod, registerPeriodIntegrations } from "./period.service.ts";
 import { registerRosterRoutes } from "./roster.routes.ts";
@@ -30,4 +31,6 @@ export function registerAttendanceRoutes(app: OpenAPIHono, deps: AttendanceRoute
   configurePeriod({ storage: deps.storage, storagePathPrefix: deps.storagePathPrefix ?? "" });
   registerPeriodRoutes(app, deps.protect);
   registerPeriodIntegrations();
+  // TM-D1: lokasi absen per karyawan.
+  registerLocationSettingRoutes(app, deps.protect);
 }

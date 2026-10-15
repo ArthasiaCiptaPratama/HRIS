@@ -430,6 +430,29 @@ async function statementRows(
   });
 }
 
+/**
+ * ARS-D12 (modul discipline): hari ALPHA karyawan + surat pernyataannya sebagai bukti SP mangkir.
+ * Baca-saja; pemanggil sudah memeriksa akses (HR ber-grant SP / pihak yang boleh melihat SP).
+ * `dayIds` diisi = hanya hari itu (milik karyawan yang sama); kosong = 200 hari ALPHA terbaru.
+ * `withUrls` = buat signed URL lampiran pernyataan (hanya untuk tampilan bukti; pemilih & validasi tidak).
+ */
+export async function alphaDaysForEvidence(
+  employeeId: string,
+  dayIds: string[] | null = null,
+  withUrls = false,
+): Promise<StatementRow[]> {
+  const days = await db().attendanceDay.findMany({
+    where: {
+      employeeId,
+      status: "ALPHA",
+      ...(dayIds ? { id: { in: dayIds } } : {}),
+    },
+    orderBy: { workDate: "desc" },
+    take: 200,
+  });
+  return statementRows(days, withUrls);
+}
+
 /** Hari ALPHA milik saya beserta pernyataannya. */
 export async function myStatements(ctx: RequestContext) {
   const employeeId = ctx.actor.employeeId;

@@ -21,6 +21,11 @@ export function canManageRoster(actor: Actor, companyId: string): boolean {
   return isHr(actor) && (actor.companyIds?.has(companyId) ?? false);
 }
 
+/** TM-D1: atur lokasi absen per karyawan PT tertentu: SA semua; HR PT ditugaskan (sama dengan kelola roster). */
+export function canManageAttendanceLocation(actor: Actor, companyId: string): boolean {
+  return canManageRoster(actor, companyId);
+}
+
 /** Lihat master roster (shift, pola, crew) PT: SA, HR PT-nya, MANAGER & karyawan PT tempat ia terdaftar. */
 export function canViewRosterSetup(actor: Actor, companyId: string): boolean {
   if (isSa(actor)) return true;

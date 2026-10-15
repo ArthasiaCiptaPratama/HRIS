@@ -67,7 +67,7 @@ type Call = { method: string; path: string; body: unknown };
 // `me()` memberi grants: [] (never[]); fixture ber-grant dikirim apa adanya ke /me.
 function mockFetch(
   role: Role | Record<string, unknown>,
-  opts: { seePrice?: boolean; canManage?: boolean } = {},
+  opts: { seePrice?: boolean; canManage?: boolean; masterData?: Promise<void> } = {},
 ) {
   const calls: Call[] = [];
   const seePrice = opts.seePrice ?? true;
@@ -89,7 +89,8 @@ function mockFetch(
         return json(200, { data: { status: "ok", checks: { database: "ok" }, time: "x" } });
       if (path === "/notifications")
         return json(200, { data: [], meta: { page: 1, pageSize: 5, total: 0, unreadCount: 0 } });
-      if (path === "/master-data")
+      if (path === "/master-data") {
+        await opts.masterData;
         return json(200, {
           data: {
             companies: [{ id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" }],
@@ -100,6 +101,7 @@ function mockFetch(
             workLocations: [],
           },
         });
+      }
       if (path === "/employees/summary")
         return json(200, {
           data: { active: { total: 1, byCategory: {}, uncategorized: 0 }, inactive: 0 },
@@ -257,6 +259,33 @@ describe.skipIf(!FEATURES.assets)("Arsip › Data Assets (ARS-D3)", () => {
       name: "Laptop baru",
       purchasePrice: "15000000.50",
     });
+  });
+
+  it("tambah aset: PT bawaan tetap terisi bila data master baru termuat setelah dialog dibuka", async () => {
+    // QA staging 2026-10-14: dialog dibuka sebelum /master-data selesai → PT kosong → 400.
+    let release = () => {};
+    const masterData = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const calls = mockFetch(me("SUPER_ADMIN", true), { masterData });
+    renderAt("/personal/arsip/aset");
+    await userEvent.click(await screen.findByRole("button", { name: /Tambah aset/ }));
+    const dialog = await screen.findByRole("dialog");
+    release();
+    await waitFor(() =>
+      expect(within(dialog).getByRole("combobox", { name: /Perusahaan/ })).toHaveTextContent(
+        "PT Arthasia Cipta Pratama",
+      ),
+    );
+    await userEvent.click(within(dialog).getByRole("combobox", { name: /Kategori/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /Laptop \(LPT\)/ }));
+    await userEvent.type(within(dialog).getByLabelText("Nama aset"), "Laptop baru");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Tambah aset" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "POST" && c.path === "/assets")?.body).toMatchObject({
+        companyId: "co-acp",
+      }),
+    );
   });
 });
 

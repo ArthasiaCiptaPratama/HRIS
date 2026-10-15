@@ -59,4 +59,29 @@ export const access = {
   /** Kelola aset/APD & master kategori/jenis APD: SA atau HR ber-grant `asset.manage` (PT dicek API). */
   manageAssets: (me: Me) =>
     isSuperAdmin(me) || (isHrAdmin(me) && me.grants.some((g) => g.permission === "asset.manage")),
+
+  // ARS-D10/ARS-D13 (apps/api/src/modules/discipline/discipline.policy.ts): surat peringatan.
+  /** Lihat Arsip › Riwayat Peringatan: SA, HR ber-grant SP (read/write), MANAGER (SP tim). */
+  viewWarningLetters: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) &&
+      me.grants.some(
+        (g) =>
+          g.permission === "employee.discipline.read" ||
+          g.permission === "employee.discipline.write",
+      )) ||
+    (me.role === ROLE.MANAGER && me.employeeId !== null),
+  /** Buat/terbitkan/cabut SP & kelola jenis pelanggaran: SA atau HR ber-grant write (PT dicek API). */
+  manageWarningLetters: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) && me.grants.some((g) => g.permission === "employee.discipline.write")),
+  /** Master jenis pelanggaran & pengaturan masa berlaku (baca): SA, HR ber-grant SP. */
+  viewDisciplineMasters: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) &&
+      me.grants.some(
+        (g) =>
+          g.permission === "employee.discipline.read" ||
+          g.permission === "employee.discipline.write",
+      )),
 };

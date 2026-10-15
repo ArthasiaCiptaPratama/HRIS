@@ -560,7 +560,9 @@ export function MobileProfilePage() {
       <Card className="space-y-1 text-sm">
         <p className="flex justify-between">
           <span className="text-muted-foreground">Lokasi kerja</span>
-          <span className="truncate font-medium">{data?.location?.name ?? "—"}</span>
+          <span className="truncate font-medium">
+            {data?.anywhere ? "Bebas lokasi" : (data?.location?.name ?? "—")}
+          </span>
         </p>
         <p className="flex justify-between">
           <span className="text-muted-foreground">Zona waktu</span>
