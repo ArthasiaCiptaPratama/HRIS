@@ -50,6 +50,8 @@ export const PERMISSION_CODE: Record<DbPermission, Permission> = {
   EMPLOYEE_ONBOARDING_REVIEW: "employee.onboarding.review",
   EMPLOYEE_CHANGES_REVIEW: "employee.changes.review",
   ASSET_MANAGE: "asset.manage",
+  EMPLOYEE_DISCIPLINE_READ: "employee.discipline.read",
+  EMPLOYEE_DISCIPLINE_WRITE: "employee.discipline.write",
 };
 const DB_PERMISSION = Object.fromEntries(
   Object.entries(PERMISSION_CODE).map(([db, code]) => [code, db]),
@@ -1165,6 +1167,18 @@ export async function listAssetManagers(
   const [admins, hrs] = await Promise.all([
     repository.listActiveSuperAdmins(),
     repository.findCompanyHrsWithAll(companyId, ["ASSET_MANAGE"], now),
+  ]);
+  return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
+}
+
+/** ARS-D9: penerima pengingat SP tanpa atasan = SA aktif + HR PT itu ber-grant `employee.discipline.write`. */
+export async function listDisciplineWriters(
+  companyId: string,
+  now: Date = new Date(),
+): Promise<{ accountId: string; email: string }[]> {
+  const [admins, hrs] = await Promise.all([
+    repository.listActiveSuperAdmins(),
+    repository.findCompanyHrsWithAll(companyId, ["EMPLOYEE_DISCIPLINE_WRITE"], now),
   ]);
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }

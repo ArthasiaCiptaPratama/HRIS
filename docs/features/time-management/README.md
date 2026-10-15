@@ -50,6 +50,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Aplikasi HP mandiri (2026-10-13): shell `/absen/*` (kepala + bilah bawah + tombol scan wajah di semua halaman) — Riwayat bulanan, Roster bulanan, Cuti, Koreksi, Tukar Shift, Kalender, Approval kartu (atasan/HR), Notifikasi, Profil; shortcut manifest PWA; siap dibungkus jadi aplikasi HP (Capacitor/TWA) dengan start `/absen`
 - [x] Kalender libur bergaya kalender dinding (12 bulan, Minggu merah, tanggal merah/cuti bersama), grid responsif berbasis container query (1–4 kolom), data resmi SKB 3 Menteri 2026–2027 + tombol "Isi libur resmi" (SA) (2026-10-13)
 - [x] Zona waktu jam shift dibaca dari pengaturan di semua layar (bukan WITA tetap); pengaturan bisa dibaca semua akun, ubah tetap SA (2026-10-13)
+- [x] **Lokasi absen per karyawan (TM-D1)** (tambahan 2026-10-15: permintaan pemilik projek — "user bisa dipilih akses lokasi mana yang seharusnya mereka absen, tidak manual di database"): halaman **Time › Lokasi Absen** (`/time/lokasi-absen`, SA + HR PT) — tabel karyawan aktif + site berlaku hari ini & asalnya, filter asal, pilih banyak → *bawaan* / *lokasi absen khusus* (1 lokasi ber-geofence) / *bebas lokasi* (PLAN §5.4); tabel `attendance.employee_location_settings` (migrasi `employee_location_setting`); mesin absen masuk & pulang mengikuti prioritas baru; HP menampilkan "Bebas lokasi"; audit per karyawan yang berubah — branch `HRIS/Mat/Mac`, belum develop
 - [ ] Badge & ringkasan harian (tanpa notifikasi per absen)
   - Hari absen yang sudah APPROVED mengunci sel roster (tidak bisa diedit/diimport/ditukar) (tambahan 2026-10-12)
 
@@ -90,7 +91,7 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| TM-D1 | **Lokasi absen per karyawan.** Prioritas site absen: (1) *bebas lokasi* → geofence tidak dicek (tanpa label `OUTSIDE_RADIUS`/`OTHER_LOCATION`), koordinat & jarak ke site terdekat tetap dicatat; (2) *lokasi absen khusus* (tepat 1 lokasi yang punya titik + radius) mengalahkan lokasi crew & lokasi kerja; (3) *bawaan* = lokasi crew pada tanggal kerja → lokasi kerja karyawan (perilaku lama, tanpa baris pengaturan). Absen pulang: bebas lokasi tetap tidak dicek; selain itu mengikuti lokasi tercatat saat masuk. Diatur **SUPER_ADMIN + HR_ADMIN** untuk PT cakupannya (sama dengan kelola roster); MANAGER/karyawan tidak. Absen yang sudah tercatat tidak diubah. | Pemilik projek 2026-10-15 (pilihan: 1 lokasi, ada opsi bebas lokasi, SA + HR); melengkapi PLAN §5.4 "boleh absen di luar lokasi" yang belum terimplementasi |
 
 ## Keputusan terbuka
 

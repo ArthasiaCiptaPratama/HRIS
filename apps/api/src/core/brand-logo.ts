@@ -1,7 +1,7 @@
-// Logo Arthasia untuk kop PDF BAST — sama dengan logo email (`docs/email-templates/logo-arthasia-email.png`,
+// Logo Arthasia untuk kop PDF (BAST aset, surat peringatan) — sama dengan logo email (`docs/email-templates/logo-arthasia-email.png`,
 // PNG 264×265). Ditanam sebagai base64 supaya ikut bundel api (Vercel/Docker) tanpa akses jaringan saat PDF
 // dibuat. Ganti logo: perbarui file sumber lalu bangun ulang string ini.
-export const BAST_LOGO_PNG_BASE64 = [
+export const BRAND_LOGO_PNG_BASE64 = [
   "iVBORw0KGgoAAAANSUhEUgAAAQgAAAEJCAIAAADnyC4NAABzk0lEQVR42u1dd5xU1fU/5973pu7OVpalV0EUREDFgt0oNkzssSQa",
   "NcaWRGOSX2KJiTV2Y4+xl8TeexcUxQYC0qSzvU8v757z++POzk7fWVgUYa77QdidnXnvvvO9p33POcjMUFzFVVypSxS3oLiKqwiM",
   "4iquIjCKq7iKwCiu4ioCo7iKqwiM4iquIjCKq7iKwCiu4ioCo7iKqwiM4iquIjCKq7iKwCiuzbSYAKDt7QfDTWsAAEhBkcZWBMa2",

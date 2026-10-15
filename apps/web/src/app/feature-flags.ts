@@ -14,5 +14,8 @@ export const FEATURES = {
   selfService: true, // Akun Saya › Layanan Mandiri & Administrasi › Pengajuan Perubahan Data (D-054)
   // Personal Management › Arsip › Data Assets, Master Data › Aset & APD, tab Aset, Aset saya (ARS-D1–D6)
   assets: true,
-  timeManagement: false, // Time Management (rilis: disembunyikan): absen PWA, Data Absen Harian, roster (D-067–D-071)
+  // Personal Management › Arsip › Riwayat Peringatan, Master Data › Jenis Pelanggaran, tab SP, SP saya
+  // (D-057, ARS-D7–D15) — tampil di rilis gel. 8 (2026-10-15)
+  discipline: true,
+  timeManagement: false, // Time Management (rilis: disembunyikan): absen PWA, Data Absen Harian, roster, lokasi absen (D-067–D-071, TM-D1)
 } as const;

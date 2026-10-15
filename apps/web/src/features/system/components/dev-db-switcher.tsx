@@ -1,14 +1,47 @@
 import { GripVertical, Minus } from "lucide-react";
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { env } from "@/lib/env";
+import { activeSupabaseUrl, DEV_AUTH_KEY } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 // DEV-ONLY: dirender hanya saat import.meta.env.DEV (providers.tsx, lazy → tak masuk bundle produksi).
-// Menukar DB backend lokal ⇄ Supabase lewat endpoint /dev/db yang hanya ada saat NODE_ENV=development.
-// Setelah tukar, halaman dimuat ulang agar seluruh data & sesi konsisten dengan DB baru.
+// Satu klik = pindah penuh lokal ⇄ Supabase (DB, dan Auth/Storage pada mode terpisah) lewat /dev/db yang
+// hanya ada saat NODE_ENV=development — tanpa terminal & tanpa restart. Browser lalu memakai URL Auth &
+// publishable key target baru (lib/supabase.ts) dan halaman dimuat ulang agar data & sesi konsisten.
 
 type Target = "local" | "supabase";
-type DbInfo = { target: Target; host: string; profiles: Record<Target, boolean> };
+type PublicAuth = { target: Target; url: string; anonKey: string };
+type DbInfo = {
+  target: Target;
+  host: string;
+  auth?: PublicAuth;
+  separated?: boolean;
+  profiles: Record<Target, boolean>;
+};
+
+const SYNC_GUARD = "hris.dev.authSync";
+
+/**
+ * Samakan client Supabase browser dengan Auth aktif di server. true = halaman akan dimuat ulang.
+ * Penjaga sessionStorage mencegah muat ulang berulang bila konfigurasi tak bisa disamakan.
+ */
+function syncBrowserAuth(auth: PublicAuth | undefined, force = false): boolean {
+  if (!auth?.url || !auth.anonKey) return false;
+  try {
+    if (auth.url === env.VITE_SUPABASE_URL && auth.anonKey === env.VITE_SUPABASE_ANON_KEY) {
+      localStorage.removeItem(DEV_AUTH_KEY);
+    } else {
+      localStorage.setItem(DEV_AUTH_KEY, JSON.stringify({ url: auth.url, anonKey: auth.anonKey }));
+    }
+    if (auth.url === activeSupabaseUrl && !force) return false;
+    if (!force && sessionStorage.getItem(SYNC_GUARD) === auth.url) return false;
+    sessionStorage.setItem(SYNC_GUARD, auth.url);
+  } catch {
+    return false;
+  }
+  window.location.reload();
+  return true;
+}
 
 const LABELS: Record<Target, string> = { local: "Lokal", supabase: "Supabase" };
 const PROFILE_ENV: Record<Target, string> = {
@@ -36,7 +69,8 @@ function loadSaved(): Saved {
   } catch {
     // abaikan
   }
-  return { x: 12, y: 12, open: false };
+  // Bawaan kanan-bawah: kiri-bawah menumpuk teks kaki sidebar ("Sistem normal").
+  return { x: Math.max(12, window.innerWidth - 120), y: 12, open: false };
 }
 const clamp = (v: number, max: number) => Math.min(Math.max(0, v), Math.max(0, max));
 
@@ -99,7 +133,11 @@ export function DevDbSwitcher() {
   const { pos, box, handlers, wasClick } = useDraggable(saved, (p) => persist(p));
 
   useEffect(() => {
-    void getDb().then(setInfo);
+    void getDb().then((next) => {
+      // Target diubah di luar web (mis. `bun run db:use`): ikuti Auth server tanpa langkah manual.
+      if (next && syncBrowserAuth(next.auth)) return;
+      setInfo(next);
+    });
   }, []);
 
   // Endpoint tak ada (bukan dev / api belum siap) → sembunyikan total.
@@ -126,8 +164,8 @@ export function DevDbSwitcher() {
         setBusy(false);
         return;
       }
-      // Seluruh query TanStack & sesi harus baca DB baru → muat ulang.
-      window.location.reload();
+      // Client Supabase browser ikut Auth target baru; seluruh query & sesi baca DB baru → muat ulang.
+      syncBrowserAuth(json.data.auth, true);
     } catch {
       setError("Gagal menghubungi API.");
       setBusy(false);
@@ -187,6 +225,12 @@ export function DevDbSwitcher() {
       >
         {info.host}
       </p>
+      {info.auth ? (
+        <p className="mb-2 text-[10px] text-amber-700 dark:text-amber-300">
+          Auth & Storage: <span className="font-semibold">{LABELS[info.auth.target]}</span>
+          {info.separated ? " · ikut ditukar" : " · tetap (mode DB saja)"}
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-1.5">
         {(["local", "supabase"] as const).map((t) => (
           <button

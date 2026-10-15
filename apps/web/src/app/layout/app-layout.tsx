@@ -148,7 +148,8 @@ export function AppLayout() {
               ))}
             </nav>
 
-            <div className="ml-auto flex items-center gap-1">
+            {/* min-w-0: kotak cari boleh menyempit agar pemilih PT + email panjang tidak melebarkan halaman. */}
+            <div className="ml-auto flex min-w-0 items-center gap-1">
               {/* Pemilih PT hanya berpengaruh pada data Personal Management (D-040). */}
               <CompanySwitcher
                 enabled={access.personalMenu(me) && current?.id === "personal"}
@@ -157,9 +158,9 @@ export function AppLayout() {
               <button
                 type="button"
                 onClick={() => setPaletteOpen(true)}
-                className="text-muted-foreground hover:text-foreground hover:border-foreground/20 bg-muted/40 hidden h-9 items-center gap-2 rounded-lg border px-3 text-sm whitespace-nowrap transition-colors lg:flex lg:w-72"
+                className="text-muted-foreground hover:text-foreground hover:border-foreground/20 bg-muted/40 hidden h-9 min-w-0 items-center gap-2 rounded-lg border px-3 text-sm whitespace-nowrap transition-colors lg:flex lg:w-72"
               >
-                <Search className="size-4" aria-hidden />
+                <Search className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">Cari menu atau karyawan…</span>
                 <kbd className="bg-background ml-auto shrink-0 rounded border px-1.5 font-mono text-[10px]">
                   Ctrl K

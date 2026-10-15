@@ -63,6 +63,14 @@ export const pages = {
     })),
   assets: () =>
     import("@/features/assets/pages/assets-page").then((m) => ({ Component: m.AssetsPage })),
+  warningLetters: () =>
+    import("@/features/discipline/pages/warning-letters-page").then((m) => ({
+      Component: m.WarningLettersPage,
+    })),
+  violationTypes: () =>
+    import("@/features/discipline/pages/violation-types-page").then((m) => ({
+      Component: m.ViolationTypesPage,
+    })),
   assetMasters: () =>
     import("@/features/assets/pages/asset-masters-page").then((m) => ({
       Component: m.AssetMastersPage,
@@ -115,6 +123,10 @@ export const pages = {
     import("@/features/time-management/pages/roster-setup-page").then((m) => ({
       Component: m.RosterSetupPage,
     })),
+  locationSettings: () =>
+    import("@/features/time-management/pages/location-settings-page").then((m) => ({
+      Component: m.LocationSettingsPage,
+    })),
   rosterChanges: () =>
     import("@/features/time-management/pages/roster-changes-page").then((m) => ({
       Component: m.RosterChangesPage,
@@ -162,11 +174,16 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ],
   ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
   ["/personal/arsip/aset", FEATURES.assets ? pages.assets : pages.maintenance],
+  ["/personal/arsip/peringatan", FEATURES.discipline ? pages.warningLetters : pages.maintenance],
   ["/personal/arsip", FEATURES.archive ? pages.archive : pages.maintenance],
   ["/personal/laporan", pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
   ["/master-data/jenis-dokumen", FEATURES.archive ? pages.documentTypes : pages.maintenance],
   ["/master-data/aset", FEATURES.assets ? pages.assetMasters : pages.maintenance],
+  [
+    "/master-data/jenis-pelanggaran",
+    FEATURES.discipline ? pages.violationTypes : pages.maintenance,
+  ],
   ["/master-data", pages.masterData],
   ["/penerimaan/impor", FEATURES.onboarding ? pages.onboardingImport : pages.maintenance],
   ["/penerimaan/", FEATURES.onboarding ? pages.onboardingReview : pages.maintenance],
@@ -175,6 +192,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/pengajuan-data", FEATURES.selfService ? pages.dataChanges : pages.maintenance],
   ["/time/absen-harian", FEATURES.timeManagement ? pages.attendanceDays : pages.maintenance],
   ["/time/roster/pengaturan", FEATURES.timeManagement ? pages.rosterSetup : pages.maintenance],
+  ["/time/lokasi-absen", FEATURES.timeManagement ? pages.locationSettings : pages.maintenance],
   ["/time/roster", FEATURES.timeManagement ? pages.roster : pages.maintenance],
   ["/time/perubahan-roster", FEATURES.timeManagement ? pages.rosterChanges : pages.maintenance],
   ["/time/kalender", FEATURES.timeManagement ? pages.holidays : pages.maintenance],

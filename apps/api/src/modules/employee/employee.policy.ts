@@ -166,7 +166,8 @@ export function canSeeArchiveCost(actor: Actor, target: EmployeeTarget): boolean
 // karyawan; jenis sensitif (KTP, KK, rekening, MCU, kontrak, SP, …) butuh grant baca — SA & pemilik
 // dokumen selalu boleh. Tulis: SA/HR atas karyawan dalam cakupan; jenis sensitif butuh grant tulis.
 // Buku tabungan (BANK_BOOK) bagian dari data rekening: pemegang grant rekening juga boleh (permintaan
-// pemilik projek 2026-10-05 — ditampilkan di tab Rekening).
+// pemilik projek 2026-10-05 — ditampilkan di tab Rekening). Scan surat peringatan (WARNING_LETTER) bagian
+// dari SP: HR ber-grant `employee.discipline.*` juga boleh (ARS-D14, Arsip 2b).
 export function canReadDocuments(
   actor: Actor,
   target: EmployeeTarget,
@@ -176,6 +177,13 @@ export function canReadDocuments(
   if (!canViewEmployee(actor, target)) return false;
   if (!sensitive || actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
   if (code === "BANK_BOOK" && canReadBank(actor, target)) return true;
+  if (
+    code === "WARNING_LETTER" &&
+    actor.role === ROLE.HR_ADMIN &&
+    (hasPermission(actor, "employee.discipline.read") ||
+      hasPermission(actor, "employee.discipline.write"))
+  )
+    return true;
   return hasPermission(actor, "employee.documents.read");
 }
 
@@ -188,6 +196,7 @@ export function canWriteDocuments(
   if (!canManageArchive(actor, target)) return false;
   if (!sensitive || actor.role === ROLE.SUPER_ADMIN) return true;
   if (code === "BANK_BOOK" && hasPermission(actor, "employee.bank.write")) return true;
+  if (code === "WARNING_LETTER" && hasPermission(actor, "employee.discipline.write")) return true;
   return hasPermission(actor, "employee.documents.write");
 }
 

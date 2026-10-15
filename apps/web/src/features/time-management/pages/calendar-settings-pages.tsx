@@ -213,9 +213,11 @@ export function HolidaysPage() {
                   icon={CalendarDays}
                   title={`Belum ada hari libur ${year}`}
                   description={
-                    hasOfficial
-                      ? "Isi otomatis dari SKB 3 Menteri dengan tombol di bawah."
-                      : "Data resmi tahun ini belum tersedia; tambahkan manual."
+                    !manage
+                      ? "Hari libur tahun ini belum diisi pengelola kalender."
+                      : hasOfficial
+                        ? "Isi otomatis dari SKB 3 Menteri dengan tombol di bawah."
+                        : "Data resmi tahun ini belum tersedia; tambahkan manual."
                   }
                   action={
                     manage && hasOfficial ? (

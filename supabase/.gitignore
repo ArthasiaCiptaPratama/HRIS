@@ -1,0 +1,11 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# Private key JWT Auth lokal (per developer, dibuat `bun run auth:local:up`). JANGAN commit.
+signing_keys.json
