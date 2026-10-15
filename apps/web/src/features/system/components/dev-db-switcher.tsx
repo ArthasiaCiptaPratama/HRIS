@@ -36,7 +36,8 @@ function loadSaved(): Saved {
   } catch {
     // abaikan
   }
-  return { x: 12, y: 12, open: false };
+  // Bawaan kanan-bawah: kiri-bawah menumpuk teks kaki sidebar ("Sistem normal").
+  return { x: Math.max(12, window.innerWidth - 120), y: 12, open: false };
 }
 const clamp = (v: number, max: number) => Math.min(Math.max(0, v), Math.max(0, max));
 

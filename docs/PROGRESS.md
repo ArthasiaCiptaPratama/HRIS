@@ -64,11 +64,11 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerjakan**.
 
-- **(2026-10-14, QA staging Aset)** Form Tambah aset: PT bawaan kosong bila data master belum termuat saat dialog dibuka (`asset-forms.tsx`, efek hanya bergantung `open`/`asset`) → kirim tanpa PT = 400 + toast. P3; pengguna tetap bisa memilih PT.
-- **(2026-10-14)** Top bar melebar 34 px untuk SA di layar 1440 px pada halaman Personal Management (tab Time Management + pemilih PT + email panjang) → scroll horizontal; ditemukan smoke Aset.
+- ~~**(2026-10-14, QA staging Aset)** Form Tambah aset: PT bawaan kosong bila data master terlambat~~ → diperbaiki develop 2026-10-14
+- ~~**(2026-10-14)** Top bar melebar 34 px untuk SA di layar 1440 px (Personal Management)~~ → diperbaiki develop 2026-10-14 (kotak cari menyempit)
 - **(2026-10-13, dari gabung Time Management)** Ganti adapter baca `apps/api/src/modules/attendance/directory.ts` (query langsung `employee`/`company`/`workLocation`, melanggar aturan emas #3) dengan fungsi publik di `modules/employee/index.ts` & `modules/organization/index.ts`.
 - **(2026-10-13)** Daftarkan cron `roster-extend`, `attendance-daily`, `leave-daily` di `vercel.json` (cek batas cron Vercel Hobby) sebelum rilis Time Management.
-- **(2026-10-13)** Badge "DB · Lokal" (tukar DB, dev saja) menumpuk teks di kaki sidebar.
+- ~~**(2026-10-13)** Badge "DB · Lokal" (tukar DB, dev saja) menumpuk teks di kaki sidebar~~ → bawaan kanan-bawah, develop 2026-10-14
 - ~~Atasan fungsional (garis putus-putus)~~ → dikerjakan D-051 (2026-10-05)
 - ~~Slot posisi / headcount~~ → dikerjakan D-051 (2026-10-05)
 - ~~Unit organisasi per PT~~ → dikerjakan D-052 (2026-10-05); sisa: nama unit unik per PT (saat ini unik se-grup)
@@ -92,6 +92,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-14** — PT bawaan form aset (temuan QA staging) + Backlog tampilan: top bar 1440 px, teks Kalender Libur HR, badge DB dev; web 263. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Push develop `5859111` + rilis gel. 7: Aset & APD tampil di staging (PR #49/#50, Deploy #38509894453, 35 migrasi), Time Management terpasang tersembunyi; QA staging 15/15 LEGIT. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Logo Arthasia (sama dengan email) di kop PDF BAST; dokumen instruksi diselaraskan (Fokus, RELEASE antrean #50, CODEMAP). (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Audit ulang Aset & APD: 5 temuan diperbaiki (BAST pelaku, race condition, tanggal masa depan, urutan APD, teks dialog); api 717, QA 12/12. (Oatse) → [arsip/log](features/arsip/log.md)

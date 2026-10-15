@@ -137,6 +137,12 @@ export function AssetFormDialog({
         : { ...blank, companyId: scope.selectedId ?? master.data?.companies[0]?.id ?? "" },
     );
   }, [open, asset]);
+  // Data master bisa baru termuat setelah dialog dibuka (QA staging 2026-10-14) → PT bawaan menyusul.
+  const fallbackCompanyId = scope.selectedId ?? master.data?.companies[0]?.id;
+  useEffect(() => {
+    if (open && !asset && !v.companyId && fallbackCompanyId)
+      setV((cur) => ({ ...cur, companyId: fallbackCompanyId }));
+  }, [open, asset, v.companyId, fallbackCompanyId]);
   const category = categories.data?.find((c) => c.id === v.categoryId);
   const suggest = async () => {
     if (!v.companyId || !v.categoryId) return toast.error("Pilih perusahaan dan kategori dulu.");

@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-14 — Perbaikan PT bawaan form aset + 3 Backlog tampilan (Oatse)
+- **Dikerjakan (permintaan pemilik projek "lanjut 1–3"):** (1) form Tambah aset: PT bawaan kini menyusul bila `/master-data` baru termuat setelah dialog dibuka (`asset-forms.tsx`; temuan QA staging gel. 7). (2) Backlog tampilan: top bar tidak lagi melebar 34 px untuk SA di 1440 px (grup kanan `min-w-0`, kotak cari boleh menyempit, ikon tidak menyusut — `app-layout.tsx`); teks kosong Kalender Libur untuk yang tidak mengelola tidak lagi menyebut "tombol di bawah" (`time-management/pages/calendar-settings-pages.tsx`); badge dev "DB · Lokal" bawaan kanan-bawah agar tidak menumpuk teks kaki sidebar (`dev-db-switcher.tsx`, posisi tersimpan tetap dipakai).
+- **Keputusan:** tidak ada.
+- **Verifikasi:** test web baru gagal dulu (PT kosong) lalu lulus; Playwright lokal SA `/`, `/personal`, `/time/kalender` di 1440/1280/1024 px: `scrollWidth` = lebar layar (sebelumnya 1474 di 1440); HR Kalender Libur 2026 kosong → "Hari libur tahun ini belum diisi pengelola kalender."; typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ · test shared 215 · api 717 · web 263 · build ✔.
+- **Masalah / catatan:** teks Kalender Libur ada di modul Time Management (Mat) — perubahan teks saja. Belum dirilis ke staging.
+- **Berikutnya:** gel. 2b Surat peringatan (grill).
+
 ### 2026-10-14 — Aset & APD tampil di staging (rilis gel. 7) (Oatse)
 - **Dikerjakan (permintaan pemilik projek "1 dan 2"):** (1) verifikasi penuh develop lalu push `5750a50` + `5859111` (CI #38509210626 ✔). (2) folder `HRIS-rilis`: merge develop `5859111` (`df9776e`, tanpa konflik; ikut membawa Time Management + 8 migrasi) → saklar `assets` `true`, `timeManagement` `false` (`219b372`) → PR #49 ke `HRIS/debug/database` (CI ✔, merge `6864a1a`) → PR #50 ke `HRIS/debug/fe-be` (CI ✔, merge `03dac3b`) → `Deploy staging` #38509894453 ✔ (migrasi, api, web). QA staging Playwright → arsip Drive.
 - **Keputusan:** tidak ada keputusan baru.
