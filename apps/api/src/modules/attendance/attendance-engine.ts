@@ -143,18 +143,29 @@ export interface GeofenceResult {
 }
 
 /**
- * Cek posisi terhadap lokasi yang diharapkan (crew/lokasi kerja). Di luar radius tetapi di dalam lokasi lain →
- * OTHER_LOCATION; di luar semua → OUTSIDE_RADIUS. Akurasi buruk → LOW_ACCURACY (tetap dihitung).
+ * Cek posisi terhadap lokasi yang diharapkan (lokasi khusus/crew/lokasi kerja). Di luar radius tetapi di dalam
+ * lokasi lain → OTHER_LOCATION; di luar semua → OUTSIDE_RADIUS. Akurasi buruk → LOW_ACCURACY (tetap dihitung).
+ * `anywhere` (TM-D1, PLAN §5.4 bebas lokasi): tidak pernah OUTSIDE_RADIUS/OTHER_LOCATION; koordinat tetap
+ * dicatat dan jarak diukur ke site terdekat sebagai informasi.
  */
 export function checkGeofence(
   position: Point & { accuracyM: number },
   expected: GeofenceSite | null,
   others: GeofenceSite[],
   accuracyMaxM: number,
+  anywhere = false,
 ): GeofenceResult {
   const labels: AttendanceLabel[] = [];
   if (position.accuracyM > accuracyMaxM) labels.push("LOW_ACCURACY");
   const inside = (site: GeofenceSite) => distanceM(position, site) <= site.radiusM;
+  if (anywhere) {
+    const ranked = others
+      .map((site) => ({ site, d: distanceM(position, site) }))
+      .sort((a, b) => a.d - b.d);
+    const hit = ranked.find((r) => r.d <= r.site.radiusM);
+    if (hit) return { workLocationId: hit.site.id, distanceM: hit.d, inside: true, labels };
+    return { workLocationId: null, distanceM: ranked[0]?.d ?? null, inside: false, labels };
+  }
   if (expected) {
     const d = distanceM(position, expected);
     if (d <= expected.radiusM)
