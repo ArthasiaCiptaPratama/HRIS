@@ -20,3 +20,16 @@ if (remote.length > 0 && !allowRemote) {
   out("  Sengaja ke non-lokal: set HRIS_ALLOW_REMOTE_DB=1 lalu ulangi.");
   process.exit(1);
 }
+
+// Mode terpisah penuh (LOCAL_SUPABASE_URL diisi): DB lokal WAJIB berpasangan dengan Auth/Storage lokal,
+// supaya seed/akun demo (demo:dashboard, db:seed:time --accounts) tidak pernah membuat/menautkan
+// user di Supabase Auth staging. Tanpa LOCAL_SUPABASE_URL perilaku lama tidak berubah.
+const separated = (process.env.LOCAL_SUPABASE_URL ?? "").trim() !== "";
+if (separated && remote.length === 0 && isRemoteUrl(process.env.SUPABASE_URL) && !allowRemote) {
+  out("✘ Perintah DB ditolak: DB lokal tetapi Auth/Storage masih Supabase staging.");
+  out(`  SUPABASE_URL → ${hostOf(process.env.SUPABASE_URL)}`);
+  out(
+    "  Mode terpisah penuh aktif (LOCAL_SUPABASE_URL terisi): 'bun run db:use local' lalu ulangi.",
+  );
+  process.exit(1);
+}

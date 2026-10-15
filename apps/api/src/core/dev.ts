@@ -29,14 +29,36 @@ function profileAvailable(target: "local" | "supabase"): boolean {
   return value !== undefined && value.trim() !== "";
 }
 
+// Target Auth/Storage aktif (SUPABASE_URL dibaca saat start; tidak bisa ditukar saat runtime).
+function authTarget(): "local" | "supabase" {
+  try {
+    return targetOfHost(new URL(process.env.SUPABASE_URL ?? "").host);
+  } catch {
+    return "supabase";
+  }
+}
+
+// Mode terpisah penuh (LOCAL_SUPABASE_URL diisi): DB harus sepasang dengan Auth → tombol web hanya boleh
+// ke target yang sama dengan Auth aktif; pindah penuh lewat `bun run db:use` + restart.
+function separatedMode(): boolean {
+  return (process.env.LOCAL_SUPABASE_URL ?? "").trim() !== "";
+}
+
 export function registerDevRoutes(app: OpenAPIHono, deps: { logger: Logger }): void {
   app.get("/api/v1/dev/db", (c) => {
     const host = currentDatabaseHost();
+    const auth = authTarget();
+    const lock = separatedMode();
     return c.json({
       data: {
         target: targetOfHost(host),
         host,
-        profiles: { local: profileAvailable("local"), supabase: profileAvailable("supabase") },
+        auth,
+        separated: lock,
+        profiles: {
+          local: profileAvailable("local") && (!lock || auth === "local"),
+          supabase: profileAvailable("supabase") && (!lock || auth === "supabase"),
+        },
       },
     });
   });
@@ -50,6 +72,17 @@ export function registerDevRoutes(app: OpenAPIHono, deps: { logger: Logger }): v
       );
     }
     const { target } = parsed.data;
+    if (separatedMode() && target !== authTarget()) {
+      return c.json(
+        {
+          error: {
+            code: "BUSINESS_RULE_VIOLATION",
+            message: `Mode terpisah: Auth aktif = ${authTarget()}. Pindah penuh: bun run db:use ${target} lalu restart.`,
+          },
+        },
+        422,
+      );
+    }
     const url = process.env[PROFILE_VAR[target]];
     if (!url || url.trim() === "") {
       return c.json(

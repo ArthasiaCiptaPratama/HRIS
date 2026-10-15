@@ -8,7 +8,14 @@ import { cn } from "@/lib/utils";
 // Setelah tukar, halaman dimuat ulang agar seluruh data & sesi konsisten dengan DB baru.
 
 type Target = "local" | "supabase";
-type DbInfo = { target: Target; host: string; profiles: Record<Target, boolean> };
+// auth/separated: mode terpisah penuh (Auth & Storage lokal) — DB hanya boleh sepasang dengan Auth aktif.
+type DbInfo = {
+  target: Target;
+  host: string;
+  auth?: Target;
+  separated?: boolean;
+  profiles: Record<Target, boolean>;
+};
 
 const LABELS: Record<Target, string> = { local: "Lokal", supabase: "Supabase" };
 const PROFILE_ENV: Record<Target, string> = {
@@ -187,13 +194,25 @@ export function DevDbSwitcher() {
       >
         {info.host}
       </p>
+      {info.auth ? (
+        <p className="mb-2 text-[10px] text-amber-700 dark:text-amber-300">
+          Auth & Storage: <span className="font-semibold">{LABELS[info.auth]}</span>
+          {info.separated ? " · terpisah penuh" : ""}
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-1.5">
         {(["local", "supabase"] as const).map((t) => (
           <button
             key={t}
             type="button"
             disabled={busy || !info.profiles[t]}
-            title={info.profiles[t] ? undefined : `Isi ${PROFILE_ENV[t]} di .env`}
+            title={
+              info.profiles[t]
+                ? undefined
+                : info.separated && info.auth !== t
+                  ? `Mode terpisah: jalankan "bun run db:use ${t}" lalu restart`
+                  : `Isi ${PROFILE_ENV[t]} di .env`
+            }
             onClick={() => void switchTo(t)}
             aria-pressed={info.target === t}
             className={cn(
@@ -207,7 +226,12 @@ export function DevDbSwitcher() {
           </button>
         ))}
       </div>
-      {!info.profiles.local || !info.profiles.supabase ? (
+      {info.separated ? (
+        <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+          Pindah penuh: <code>bun run db:use {info.auth === "local" ? "supabase" : "local"}</code>{" "}
+          lalu restart <code>bun run dev</code>.
+        </p>
+      ) : !info.profiles.local || !info.profiles.supabase ? (
         <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
           Isi {!info.profiles.local ? "LOCAL_DATABASE_URL" : "SUPABASE_DATABASE_URL"} di .env untuk
           mengaktifkan.
