@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
 > **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan ✔ lokal 2026-10-15 (QA lokal 12/12, belum di-push/rilis); sisa: rilis 2b, gel. 3 Laporan, impor per kategori, OD-11
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; sisa: gel. 3 Laporan, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -30,13 +30,13 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] Logo Arthasia di kop PDF BAST (tambahan 2026-10-14: permintaan pemilik projek) — sama dengan logo email, `bast-logo.ts`
     - [x] Rilis staging (migrasi `20261013095006_add_asset_module`, cron `asset-daily`, saklar `assets` di rilis) + QA staging + arsip Drive — 2026-10-14: rilis `219b372` (merge develop `5859111`, ikut membawa Time Management tersembunyi) → PR #49/#50 → `Deploy staging` #38509894453; QA staging TC-STG-073…087 **15/15** (putaran 2) → **LEGIT**, Drive `hris-qa:2026-10-14-staging-aset`
       - [x] (tambahan 2026-10-14) Temuan QA staging P3: PT bawaan di form Tambah aset kosong bila data master belum termuat saat dialog dibuka — diperbaiki di develop (efek PT bawaan menyusul data master; test web gagal-dulu), belum dirilis
-  - [x] Gel. 2b Surat peringatan (PDF, konfirmasi, cron) (ARS-D7–D15; grill 2026-10-14) — tahap A–C ✔ lokal 2026-10-15 (QA 12/12); belum di-push / dirilis
+  - [x] Gel. 2b Surat peringatan (PDF, konfirmasi, cron) (ARS-D7–D15; grill 2026-10-14) — tahap A–C ✔ lokal 2026-10-15 (QA 12/12) + audit; ✔ staging rilis gel. 8 (2026-10-15), QA LEGIT
     - [x] Tahap A (2026-10-15): shared `discipline.ts` + permission `employee.discipline.read/write`; migrasi `20261015071500_add_discipline_module` (skema `discipline`: `violation_types` + 5 jenis awal, `warning_letters`, `warning_letter_alpha_days`, `discipline_settings` 6 bulan; CHECK status/nomor/cabut); modul `apps/api/src/modules/discipline/` (policy TDD 27, service + audit, PDF template SP, 18 path, cron `discipline-daily` + `vercel.json`); `attendance/index.ts` + `alphaDaysForEvidence` (baca-saja), `iam/index.ts` + `listDisciplineWriters`; logo kop dipindah ke `core/brand-logo.ts` (dipakai BAST & SP); integration 14 skenario
     - [x] Tahap B (2026-10-15): web `features/discipline/` — Arsip › Riwayat Peringatan (`/personal/arsip/peringatan`: daftar + filter, draft dengan saran tingkat & bukti ALPHA, terbitkan nomor otomatis/manual, cabut, PDF, unggah scan → dokumen `WARNING_LETTER`, "Sudah disampaikan"); Master Data › Jenis Pelanggaran + masa berlaku (SA); tab SP di detail karyawan; Layanan Mandiri › Surat peringatan + "Sudah menerima" (`/ess?tab=sp`); saklar `FEATURES.discipline`, `access.viewWarningLetters/manageWarningLetters/viewDisciplineMasters`; test web 6 (`tests/discipline.test.tsx`)
       - [x] (tambahan 2026-10-15: temuan saat tahap B) jenis dokumen `WARNING_LETTER` bertanda sensitif → HR ber-grant SP tidak bisa unggah/lihat scan tanpa `employee.documents.*`; grant SP kini berlaku untuk dokumen jenis itu (ARS-D14, pola `BANK_BOOK`; test policy)
     - [x] Tahap C (2026-10-15): QA lokal Playwright SA → HR → MGR → EMP → HR **12/12** (TC-EMP-227…238; plan/run `2026-10-15-sp-lokal`); isi PDF dicek (`pdftotext` + render); temuan P3 "—" di nomor draf PDF tercetak "?" diperbaiki
     - [x] Audit A–C (tambahan 2026-10-15: permintaan pemilik projek; code-review + audit alur) — 7 temuan diperbaiki dengan test gagal-dulu: filter `employeeId` melebarkan cakupan MANAGER (bocor akses), nomor manual memblokir nomor otomatis, tanggal terbit mundur menurunkan saran tingkat, atasan nonaktif → tak ada yang bisa menandai disampaikan, notifikasi gagal → 500 setelah terbit/cabut, masa berlaku 6 bulan + 1 hari, tautan `/ess?tab=sp` tidak pindah tab; signed URL bukti ALPHA hanya untuk tampilan detail. api 764 · web 271, QA ulang 12/12
-    - [ ] Rilis staging (migrasi `20261015071500_add_discipline_module`, cron `discipline-daily`, saklar `discipline` di rilis, grant SP untuk HR uji) + QA staging + arsip Drive
+    - [x] Rilis staging (migrasi `20261015071500_add_discipline_module`, cron `discipline-daily`, saklar `discipline` di rilis, grant SP untuk HR uji) + QA staging + arsip Drive — 2026-10-15: rilis `905649a` (merge develop `7de4d1f`, `timeManagement` tetap `false`) → PR #51/#52 → `Deploy staging` #38718943479 (37 migrasi); grant `employee.discipline.write` HR uji (dipertahankan); QA staging TC-STG-088…102 **15/15** → **LEGIT**, Drive `hris-qa:2026-10-15-staging-sp`
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
 
@@ -83,6 +83,7 @@ Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/ass
 
 ## QA
 
+- [plans/2026-10-15-staging-sp.md](../../qa/plans/2026-10-15-staging-sp.md) · [runs/2026-10-15-staging-sp.md](../../qa/runs/2026-10-15-staging-sp.md) — staging rilis gel. 8, **LEGIT**
 - [plans/2026-10-15-sp-lokal.md](../../qa/plans/2026-10-15-sp-lokal.md) · [runs/2026-10-15-sp-lokal.md](../../qa/runs/2026-10-15-sp-lokal.md) — Surat Peringatan lokal 12/12
 - [plans/2026-10-14-aset-lokal.md](../../qa/plans/2026-10-14-aset-lokal.md) · [runs/2026-10-14-aset-lokal.md](../../qa/runs/2026-10-14-aset-lokal.md) — Aset & APD lokal 12/12
 - [plans/2026-10-13-staging-arsip.md](../../qa/plans/2026-10-13-staging-arsip.md) · [runs/2026-10-13-staging-arsip.md](../../qa/runs/2026-10-13-staging-arsip.md) — staging rilis gel. 6, **LEGIT**

@@ -15,9 +15,9 @@
 | [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
-| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ lokal (QA 12/12, belum rilis); sisa rilis 2b, gel. 3, OD-11 | ✔ gel. 6 & gel. 7 Aset (QA LEGIT) |
+| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); sisa gel. 3, OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT) |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
-| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; sisa: lembur OD-14, uji HP, cron, adapter | terpasang tersembunyi (gel. 7, saklar `false`) |
+| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; sisa: lembur OD-14, uji HP, cron, adapter | terpasang tersembunyi (gel. 7 + lokasi absen gel. 8, saklar `false`) |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
@@ -30,7 +30,7 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 - **Rilis gel. 7 ke staging (2026-10-14):** develop di-push sampai `5859111` (CI #38509210626 ✔) lalu dirilis: **Aset & APD tampil** (QA staging 15/15 LEGIT), **Time Management terpasang tersembunyi** (kode + 7 migrasi, saklar `timeManagement` `false`, cron TM belum terdaftar) — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging).
 - **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT.
 - **Arsip gel. 2a Aset & APD (ARS-D1–D6):** ✔ develop & ✔ staging (rilis gel. 7, QA LEGIT).
-- **Arsip gel. 2b Surat Peringatan (D-057, ARS-D7–D15):** ✔ lokal 2026-10-15 — modul `discipline` + web + QA lokal 12/12; menunggu izin commit/push lalu rilis staging (1 migrasi, cron `discipline-daily`, saklar `discipline`). Berikutnya gel. 3 Laporan.
+- **Rilis gel. 8 ke staging (2026-10-15):** Surat Peringatan tampil (QA staging 15/15 **LEGIT**), header detail karyawan baru, lokasi absen TM-D1 terpasang tersembunyi; 37 migrasi — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging). Berikutnya: dokumen pemindahan deployment ke akun Vercel Pro, gel. 3 Laporan.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
 
 ## Blocker & wajib sebelum produksi
@@ -94,6 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-15** — Rilis gel. 8: Surat Peringatan tampil di staging (PR #51/#52, Deploy #38718943479, 37 migrasi), header detail baru, TM tetap tersembunyi; QA staging 15/15 LEGIT + Drive. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-15** — Tampilan header detail karyawan: banner warna logo + pola statis, status karyawan vs akses aplikasi, perbesar foto; web 283. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-10-15** — Gabung `HRIS/Mat/Mac` ke develop (merge lokal): lokasi absen per karyawan TM-D1 (migrasi `20261015064508_employee_location_setting`), header profil model pas foto, switch DB dev + Auth/Storage lokal; tanpa konflik; api 777 · web 280. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-15** — Audit gel. 2b SP: 7 temuan diperbaiki (termasuk bocor akses filter MANAGER), api 764 · web 271, QA ulang 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
