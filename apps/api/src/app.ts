@@ -10,6 +10,7 @@ import { type ActorLoader, enforceOnboardingLock, loadActor } from "./core/acces
 import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
 import { registerDevRoutes } from "./core/dev.ts";
+import { supabaseTarget, switchable } from "./core/dev-runtime.ts";
 import { createLogSender, createSmtpSender, type EmailSender } from "./core/email.ts";
 import {
   AppError,
@@ -85,18 +86,17 @@ const REJECT_ALL_VERIFIER: TokenVerifier = {
   },
 };
 
+// Target Supabase dibaca lewat supabaseTarget(): sama dengan env, kecuali ditukar tombol switch (dev).
 function defaultAuthAdmin(): AuthAdmin {
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = getEnv();
-  return SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createSupabaseAdmin(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-    : UNCONFIGURED_AUTH_ADMIN;
+  const { url, serviceRoleKey } = supabaseTarget();
+  return url && serviceRoleKey ? createSupabaseAdmin(url, serviceRoleKey) : UNCONFIGURED_AUTH_ADMIN;
 }
 
 // D-037: test tidak pernah menyentuh bucket sungguhan (pakai tests/helpers/storage.ts).
 function defaultStorage(): StorageAdmin {
-  const { NODE_ENV, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } = getEnv();
-  return NODE_ENV !== "test" && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
-    ? createSupabaseStorage(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  const { url, serviceRoleKey } = supabaseTarget();
+  return getEnv().NODE_ENV !== "test" && url && serviceRoleKey
+    ? createSupabaseStorage(url, serviceRoleKey)
     : UNCONFIGURED_STORAGE;
 }
 
@@ -124,7 +124,7 @@ export function selectEmailSender(env: Env, logger: Logger): EmailSender {
 }
 
 function defaultVerifier(): TokenVerifier {
-  const supabaseUrl = getEnv().SUPABASE_URL;
+  const supabaseUrl = supabaseTarget().url;
   return supabaseUrl ? createSupabaseVerifier({ supabaseUrl }) : REJECT_ALL_VERIFIER;
 }
 
@@ -157,11 +157,14 @@ function errorJson(
 
 export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   const logger = overrides.logger ?? createLogger(getEnv().LOG_LEVEL);
+  // DEV-only: client Supabase dibangun ulang saat tombol switch menukar target (core/dev.ts).
+  const live = <T extends object>(build: () => T): T =>
+    getEnv().NODE_ENV === "development" ? switchable(build) : build();
   const deps: AppDeps = {
     logger,
     corsOrigins: overrides.corsOrigins ?? getEnv().CORS_ORIGINS,
     checkDatabase: overrides.checkDatabase ?? pingDatabase,
-    tokenVerifier: overrides.tokenVerifier ?? defaultVerifier(),
+    tokenVerifier: overrides.tokenVerifier ?? live(defaultVerifier),
     // D-040: iam memuat role/grant/PT penugasan; employee melengkapi PT tempat aktor terdaftar.
     actorLoader:
       overrides.actorLoader ??
@@ -169,8 +172,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
         const actor = await loadIamActor(authUserId);
         return actor ? withEmployeeCompanyScope(actor) : null;
       }),
-    authAdmin: overrides.authAdmin ?? defaultAuthAdmin(),
-    storage: overrides.storage ?? defaultStorage(),
+    authAdmin: overrides.authAdmin ?? live(defaultAuthAdmin),
+    storage: overrides.storage ?? live(defaultStorage),
     storagePathPrefix: overrides.storagePathPrefix ?? getEnv().STORAGE_PATH_PREFIX,
     appUrl: overrides.appUrl ?? getEnv().APP_URL,
     emailSender: overrides.emailSender ?? selectEmailSender(getEnv(), logger),

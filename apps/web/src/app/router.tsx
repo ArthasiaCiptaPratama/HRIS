@@ -249,6 +249,16 @@ export const routes: RouteObject[] = [
                 ],
               },
               {
+                // TM-D1: lokasi absen per karyawan.
+                element: <RequireAccessRoute check={tmAccess.manageAttendanceLocations} />,
+                children: [
+                  {
+                    path: "lokasi-absen",
+                    lazy: FEATURES.timeManagement ? pages.locationSettings : pages.maintenance,
+                  },
+                ],
+              },
+              {
                 element: <RequireAccessRoute check={tmAccess.rosterChanges} />,
                 children: [
                   {

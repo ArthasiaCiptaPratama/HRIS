@@ -173,6 +173,55 @@ export const crewMembersInputSchema = z.object({
 });
 export type CrewMembersInput = z.infer<typeof crewMembersInputSchema>;
 
+/**
+ * TM-D1: lokasi absen per karyawan (diatur SA + HR PT). Prioritas site absen:
+ * ANYWHERE (bebas lokasi, PLAN §5.4) → LOCATION (lokasi absen khusus) → DEFAULT (lokasi crew → lokasi kerja).
+ */
+export const ATTENDANCE_LOCATION_MODES = ["DEFAULT", "LOCATION", "ANYWHERE"] as const;
+export type AttendanceLocationMode = (typeof ATTENDANCE_LOCATION_MODES)[number];
+export const ATTENDANCE_LOCATION_MODE_LABELS: Record<AttendanceLocationMode, string> = {
+  DEFAULT: "Bawaan (crew / lokasi kerja)",
+  LOCATION: "Lokasi absen khusus",
+  ANYWHERE: "Bebas lokasi",
+};
+
+/** Asal site absen yang berlaku untuk seorang karyawan (ditampilkan di tabel & aplikasi HP). */
+export const ATTENDANCE_LOCATION_SOURCES = [
+  "ANYWHERE",
+  "CUSTOM",
+  "CREW",
+  "EMPLOYEE",
+  "NONE",
+] as const;
+export type AttendanceLocationSource = (typeof ATTENDANCE_LOCATION_SOURCES)[number];
+export const ATTENDANCE_LOCATION_SOURCE_LABELS: Record<AttendanceLocationSource, string> = {
+  ANYWHERE: "Bebas lokasi",
+  CUSTOM: "Lokasi khusus",
+  CREW: "Lokasi crew",
+  EMPLOYEE: "Lokasi kerja karyawan",
+  NONE: "Belum ada lokasi",
+};
+
+export const attendanceLocationInputSchema = z
+  .object({
+    employeeIds: z.array(z.uuid()).min(1, "Pilih minimal 1 karyawan").max(500),
+    mode: z.enum(ATTENDANCE_LOCATION_MODES),
+    workLocationId: z.uuid().nullish(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.mode === "LOCATION" && !value.workLocationId) {
+      ctx.addIssue({ code: "custom", path: ["workLocationId"], message: "Pilih lokasi absen" });
+    }
+    if (value.mode !== "LOCATION" && value.workLocationId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["workLocationId"],
+        message: "Lokasi hanya untuk mode lokasi absen khusus",
+      });
+    }
+  });
+export type AttendanceLocationInput = z.infer<typeof attendanceLocationInputSchema>;
+
 export const ROSTER_SOURCES = ["PATTERN", "MANUAL", "IMPORT", "CHANGE"] as const;
 export type RosterSource = (typeof ROSTER_SOURCES)[number];
 export const ROSTER_SOURCE_LABELS: Record<RosterSource, string> = {

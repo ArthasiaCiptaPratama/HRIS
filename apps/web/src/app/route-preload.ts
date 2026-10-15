@@ -123,6 +123,10 @@ export const pages = {
     import("@/features/time-management/pages/roster-setup-page").then((m) => ({
       Component: m.RosterSetupPage,
     })),
+  locationSettings: () =>
+    import("@/features/time-management/pages/location-settings-page").then((m) => ({
+      Component: m.LocationSettingsPage,
+    })),
   rosterChanges: () =>
     import("@/features/time-management/pages/roster-changes-page").then((m) => ({
       Component: m.RosterChangesPage,
@@ -188,6 +192,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/pengajuan-data", FEATURES.selfService ? pages.dataChanges : pages.maintenance],
   ["/time/absen-harian", FEATURES.timeManagement ? pages.attendanceDays : pages.maintenance],
   ["/time/roster/pengaturan", FEATURES.timeManagement ? pages.rosterSetup : pages.maintenance],
+  ["/time/lokasi-absen", FEATURES.timeManagement ? pages.locationSettings : pages.maintenance],
   ["/time/roster", FEATURES.timeManagement ? pages.roster : pages.maintenance],
   ["/time/perubahan-roster", FEATURES.timeManagement ? pages.rosterChanges : pages.maintenance],
   ["/time/kalender", FEATURES.timeManagement ? pages.holidays : pages.maintenance],

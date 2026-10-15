@@ -17,7 +17,7 @@
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
 | [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ lokal (QA 12/12, belum rilis); sisa rilis 2b, gel. 3, OD-11 | ✔ gel. 6 & gel. 7 Aset (QA LEGIT) |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
-| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/windows` | Berjalan — ✔ develop 2026-10-13 (`e31e934`); sisa: lembur OD-14, uji HP, cron, adapter | terpasang tersembunyi (gel. 7, saklar `false`) |
+| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; sisa: lembur OD-14, uji HP, cron, adapter | terpasang tersembunyi (gel. 7, saklar `false`) |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
@@ -94,6 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-15** — Gabung `HRIS/Mat/Mac` ke develop (merge lokal): lokasi absen per karyawan TM-D1 (migrasi `20261015064508_employee_location_setting`), header profil model pas foto, switch DB dev + Auth/Storage lokal; tanpa konflik; api 777 · web 280. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-15** — Audit gel. 2b SP: 7 temuan diperbaiki (termasuk bocor akses filter MANAGER), api 764 · web 271, QA ulang 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-15** — Arsip gel. 2b Surat Peringatan (ARS-D7–D15): modul `discipline` + migrasi, Riwayat Peringatan, Jenis Pelanggaran, tab SP, SP di Layanan Mandiri; api 759 · web 270, QA lokal 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — PT bawaan form aset (temuan QA staging) + Backlog tampilan: top bar 1440 px, teks Kalender Libur HR, badge DB dev; web 263. (Oatse) → [arsip/log](features/arsip/log.md)

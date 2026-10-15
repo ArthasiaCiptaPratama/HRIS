@@ -39,6 +39,7 @@ export function EmployeePhotoControl({
   canEdit,
   toastPosition,
   className,
+  shape = "circle",
 }: {
   employeeId: string;
   name: string;
@@ -47,6 +48,8 @@ export function EmployeePhotoControl({
   canEdit: boolean;
   toastPosition?: "bottom-center";
   className?: string;
+  /** "portrait" = kotak pas foto 3:4 (header detail karyawan). */
+  shape?: "circle" | "portrait";
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -84,7 +87,10 @@ export function EmployeePhotoControl({
       size="2xl"
       inactive={inactive}
       photoUrl={photoUrl}
-      className="ring-background shadow-sm ring-4"
+      className={cn(
+        "ring-background shadow-sm ring-4",
+        shape === "portrait" && "border-border h-36 w-28 rounded-lg border sm:h-40 sm:w-32",
+      )}
     />
   );
   if (!canEdit) return <div className={className}>{avatar}</div>;
@@ -93,7 +99,12 @@ export function EmployeePhotoControl({
     <div className={cn("relative", className)}>
       {avatar}
       {busy ? (
-        <span className="absolute inset-0 grid place-items-center rounded-full bg-zinc-950/40 text-white">
+        <span
+          className={cn(
+            "absolute inset-0 grid place-items-center bg-zinc-950/40 text-white",
+            shape === "portrait" ? "rounded-lg" : "rounded-full",
+          )}
+        >
           <Loader2 className="size-6 animate-spin" aria-hidden />
           <span className="sr-only">Memproses foto…</span>
         </span>

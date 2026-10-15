@@ -30,6 +30,8 @@
     "db:check": "bun run --filter @hris/api db:check",
     "db:use": "bun run --cwd apps/api db:use",
     "db:which": "bun run --cwd apps/api db:which",
+    "auth:local:up": "bun apps/api/scripts/auth-local.ts up",
+    "auth:local:down": "bun apps/api/scripts/auth-local.ts down",
     "env:share": "bun apps/api/scripts/env-share.ts share",
     "env:pull": "bun apps/api/scripts/env-share.ts pull",
     "bootstrap:super-admin": "bun run --cwd apps/api bootstrap:super-admin",
