@@ -68,9 +68,16 @@ bun run dev
 - `supabase/config.toml` (ter-track) = konfigurasi **ramping**: hanya db internal, auth, storage, kong. `db.migrations` & `db.seed` **dimatikan**: skema HRIS tetap lewat Prisma ke Postgres lokal :5432 (D-003). Postgres internal Supabase (:54322) hanya untuk skema auth/storage miliknya.
 - Verifier API (`core/auth/supabase-verifier.ts`) **tidak diubah**: Auth lokal memakai kunci ES256 via JWKS seperti staging. Issuer = `http://127.0.0.1:54321/auth/v1`, jadi `LOCAL_SUPABASE_URL` harus persis `API_URL` dari `supabase status` (jangan ganti ke `localhost`).
 - Kunci yang ikut ditukar: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` ← `LOCAL_<kunci>` / `STAGING_<kunci>`. Kunci tidak pernah dicetak.
-- **Pengaman:** `guard-local-db.ts` menolak seed/reset bila DB lokal tetapi `SUPABASE_URL` masih staging (seed akun demo tak akan menyentuh Auth staging). Tombol web "DB (dev)" terkunci ke target yang sama dengan Auth aktif (422 bila beda), karena Auth/`VITE_*` hanya terbaca saat start → pindah penuh lewat `db:use` + restart.
+- **Pengaman:** `guard-local-db.ts` menolak seed/reset bila DB lokal tetapi `SUPABASE_URL` masih staging (seed akun demo tak akan menyentuh Auth staging). Tombol web "DB (dev)" menukar DB + Auth/Storage sekaligus tanpa restart (lihat bagian tombol di bawah).
 - Akun DB lokal yang dulu dibuat di Auth staging punya `auth_user_id` staging → setelah pindah ke Auth lokal, buat user di Auth lokal lalu tautkan ulang `iam.accounts.auth_user_id` (DB lokal saja).
 - Matikan: `bun run auth:local:down` (data Auth lokal tetap di volume Docker).
+
+## Tombol "DB (dev)" di web — pindah tanpa terminal (2026-10-15)
+
+- Satu klik **Lokal / Supabase** = sama dengan `bun run db:use <target>`, tanpa restart: `POST /api/v1/dev/db` menjalankan `scripts/use-db.ts` (pengaman & cadangan `STAGING_*` sama; `.env` tetap sumber kebenaran sehingga restart berikutnya konsisten), lalu menerapkan **DB + Auth (verifier JWKS & Admin API) + Storage** ke proses API yang berjalan (`src/core/dev-runtime.ts`: `supabaseTarget()`, `switchable()` di `app.ts` hanya saat `NODE_ENV=development`).
+- Browser menerima URL Auth + **publishable key** target baru (publik; service role tidak pernah dikirim), disimpan di `localStorage` `hris.dev.auth` dan dipakai `lib/supabase.ts` (hanya `import.meta.env.DEV`), lalu halaman dimuat ulang → login ke Auth target baru. Bila target diubah lewat terminal, widget menyesuaikan sendiri saat halaman dibuka.
+- Bolak-balik berkali-kali didukung (diuji: token Auth lokal → 401 di mode Supabase, 200 kembali di Lokal, tanpa restart API).
+- Catatan: `STORAGE_PATH_PREFIX` untuk modul yang sudah terdaftar tetap nilai saat start sampai API restart (unggahan dev tetap di bawah prefix lama — lebih aman).
 
 ## Konfigurasi `.env` (per-developer, gitignored)
 

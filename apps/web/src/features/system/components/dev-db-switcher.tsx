@@ -1,21 +1,47 @@
 import { GripVertical, Minus } from "lucide-react";
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 import { env } from "@/lib/env";
+import { activeSupabaseUrl, DEV_AUTH_KEY } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 // DEV-ONLY: dirender hanya saat import.meta.env.DEV (providers.tsx, lazy → tak masuk bundle produksi).
-// Menukar DB backend lokal ⇄ Supabase lewat endpoint /dev/db yang hanya ada saat NODE_ENV=development.
-// Setelah tukar, halaman dimuat ulang agar seluruh data & sesi konsisten dengan DB baru.
+// Satu klik = pindah penuh lokal ⇄ Supabase (DB, dan Auth/Storage pada mode terpisah) lewat /dev/db yang
+// hanya ada saat NODE_ENV=development — tanpa terminal & tanpa restart. Browser lalu memakai URL Auth &
+// publishable key target baru (lib/supabase.ts) dan halaman dimuat ulang agar data & sesi konsisten.
 
 type Target = "local" | "supabase";
-// auth/separated: mode terpisah penuh (Auth & Storage lokal) — DB hanya boleh sepasang dengan Auth aktif.
+type PublicAuth = { target: Target; url: string; anonKey: string };
 type DbInfo = {
   target: Target;
   host: string;
-  auth?: Target;
+  auth?: PublicAuth;
   separated?: boolean;
   profiles: Record<Target, boolean>;
 };
+
+const SYNC_GUARD = "hris.dev.authSync";
+
+/**
+ * Samakan client Supabase browser dengan Auth aktif di server. true = halaman akan dimuat ulang.
+ * Penjaga sessionStorage mencegah muat ulang berulang bila konfigurasi tak bisa disamakan.
+ */
+function syncBrowserAuth(auth: PublicAuth | undefined, force = false): boolean {
+  if (!auth?.url || !auth.anonKey) return false;
+  try {
+    if (auth.url === env.VITE_SUPABASE_URL && auth.anonKey === env.VITE_SUPABASE_ANON_KEY) {
+      localStorage.removeItem(DEV_AUTH_KEY);
+    } else {
+      localStorage.setItem(DEV_AUTH_KEY, JSON.stringify({ url: auth.url, anonKey: auth.anonKey }));
+    }
+    if (auth.url === activeSupabaseUrl && !force) return false;
+    if (!force && sessionStorage.getItem(SYNC_GUARD) === auth.url) return false;
+    sessionStorage.setItem(SYNC_GUARD, auth.url);
+  } catch {
+    return false;
+  }
+  window.location.reload();
+  return true;
+}
 
 const LABELS: Record<Target, string> = { local: "Lokal", supabase: "Supabase" };
 const PROFILE_ENV: Record<Target, string> = {
@@ -106,7 +132,11 @@ export function DevDbSwitcher() {
   const { pos, box, handlers, wasClick } = useDraggable(saved, (p) => persist(p));
 
   useEffect(() => {
-    void getDb().then(setInfo);
+    void getDb().then((next) => {
+      // Target diubah di luar web (mis. `bun run db:use`): ikuti Auth server tanpa langkah manual.
+      if (next && syncBrowserAuth(next.auth)) return;
+      setInfo(next);
+    });
   }, []);
 
   // Endpoint tak ada (bukan dev / api belum siap) → sembunyikan total.
@@ -133,8 +163,8 @@ export function DevDbSwitcher() {
         setBusy(false);
         return;
       }
-      // Seluruh query TanStack & sesi harus baca DB baru → muat ulang.
-      window.location.reload();
+      // Client Supabase browser ikut Auth target baru; seluruh query & sesi baca DB baru → muat ulang.
+      syncBrowserAuth(json.data.auth, true);
     } catch {
       setError("Gagal menghubungi API.");
       setBusy(false);
@@ -196,8 +226,8 @@ export function DevDbSwitcher() {
       </p>
       {info.auth ? (
         <p className="mb-2 text-[10px] text-amber-700 dark:text-amber-300">
-          Auth & Storage: <span className="font-semibold">{LABELS[info.auth]}</span>
-          {info.separated ? " · terpisah penuh" : ""}
+          Auth & Storage: <span className="font-semibold">{LABELS[info.auth.target]}</span>
+          {info.separated ? " · ikut ditukar" : " · tetap (mode DB saja)"}
         </p>
       ) : null}
       <div className="grid grid-cols-2 gap-1.5">
@@ -206,13 +236,7 @@ export function DevDbSwitcher() {
             key={t}
             type="button"
             disabled={busy || !info.profiles[t]}
-            title={
-              info.profiles[t]
-                ? undefined
-                : info.separated && info.auth !== t
-                  ? `Mode terpisah: jalankan "bun run db:use ${t}" lalu restart`
-                  : `Isi ${PROFILE_ENV[t]} di .env`
-            }
+            title={info.profiles[t] ? undefined : `Isi ${PROFILE_ENV[t]} di .env`}
             onClick={() => void switchTo(t)}
             aria-pressed={info.target === t}
             className={cn(
@@ -226,12 +250,7 @@ export function DevDbSwitcher() {
           </button>
         ))}
       </div>
-      {info.separated ? (
-        <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-          Pindah penuh: <code>bun run db:use {info.auth === "local" ? "supabase" : "local"}</code>{" "}
-          lalu restart <code>bun run dev</code>.
-        </p>
-      ) : !info.profiles.local || !info.profiles.supabase ? (
+      {!info.profiles.local || !info.profiles.supabase ? (
         <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
           Isi {!info.profiles.local ? "LOCAL_DATABASE_URL" : "SUPABASE_DATABASE_URL"} di .env untuk
           mengaktifkan.
