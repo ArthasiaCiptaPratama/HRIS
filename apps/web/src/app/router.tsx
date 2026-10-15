@@ -91,6 +91,17 @@ export const routes: RouteObject[] = [
                   { index: true, lazy: FEATURES.assets ? pages.assets : pages.maintenance },
                 ],
               },
+              // D-057, ARS-D7–D13: Arsip › Riwayat Peringatan (SA / HR ber-grant SP / MANAGER tim).
+              {
+                path: "arsip/peringatan",
+                element: <RequireAccessRoute check={access.viewWarningLetters} />,
+                children: [
+                  {
+                    index: true,
+                    lazy: FEATURES.discipline ? pages.warningLetters : pages.maintenance,
+                  },
+                ],
+              },
               {
                 path: "arsip/:section",
                 lazy: FEATURES.archive ? pages.archive : pages.maintenance,
@@ -183,6 +194,17 @@ export const routes: RouteObject[] = [
               },
               // ARS-D1: kategori aset & jenis APD (kelola SA / HR ber-grant asset.manage).
               { path: "aset", lazy: FEATURES.assets ? pages.assetMasters : pages.maintenance },
+              // ARS-D8/D12: jenis pelanggaran SP + masa berlaku bawaan (SA / HR ber-grant SP).
+              {
+                path: "jenis-pelanggaran",
+                element: <RequireAccessRoute check={access.viewDisciplineMasters} />,
+                children: [
+                  {
+                    index: true,
+                    lazy: FEATURES.discipline ? pages.violationTypes : pages.maintenance,
+                  },
+                ],
+              },
               { path: ":kind", lazy: pages.masterData },
             ],
           },

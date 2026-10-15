@@ -9,8 +9,10 @@ import {
   Package,
   Pencil,
   Phone,
+  ShieldAlert,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { FEATURES } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
@@ -25,6 +27,7 @@ import { StatusBadge } from "@/features/data-changes/components/change-compariso
 import { DataChangeDialog } from "@/features/data-changes/components/change-dialog";
 import { FIELD_LABELS, formatValue, memberLine } from "@/features/data-changes/labels";
 import type { MyData } from "@/features/data-changes/schemas";
+import { MyWarningLetters } from "@/features/discipline/components/letter-list";
 import { useEmployeeDocuments } from "@/features/documents/api";
 import { ExpiryBadge, openDocument } from "@/features/documents/components/documents-tab";
 import { errorMessage } from "@/lib/errors";
@@ -52,6 +55,8 @@ const PERSONAL_SHOWN = [
 export function EssPage() {
   const mine = useMyData();
   const [section, setSection] = useState<DataChangeSection | null>(null);
+  // Tautan notifikasi bisa membuka tab tertentu, mis. `/ess?tab=sp` (ARS-D13).
+  const [params] = useSearchParams();
   return (
     <div>
       <PageHeader
@@ -67,7 +72,7 @@ export function EssPage() {
           description={mine.isError ? errorMessage(mine.error) : undefined}
         />
       ) : (
-        <Tabs defaultValue="data" className="gap-6">
+        <Tabs defaultValue={params.get("tab") ?? "data"} className="gap-6">
           <TabsList>
             <TabsTrigger value="data">
               <CircleUser /> Data saya
@@ -78,6 +83,11 @@ export function EssPage() {
             {FEATURES.assets ? (
               <TabsTrigger value="assets">
                 <Package /> Aset saya
+              </TabsTrigger>
+            ) : null}
+            {FEATURES.discipline ? (
+              <TabsTrigger value="sp">
+                <ShieldAlert /> Surat peringatan
               </TabsTrigger>
             ) : null}
             <TabsTrigger value="requests">
@@ -94,6 +104,12 @@ export function EssPage() {
             <TabsContent value="assets">
               {/* ARS-D2: aset & APD yang diserahkan + konfirmasi "Sudah saya terima". */}
               <MyAssets />
+            </TabsContent>
+          ) : null}
+          {FEATURES.discipline ? (
+            <TabsContent value="sp">
+              {/* ARS-D9/D13: SP milik sendiri (aktif + riwayat) + konfirmasi "Sudah menerima". */}
+              <MyWarningLetters />
             </TabsContent>
           ) : null}
           <TabsContent value="requests">

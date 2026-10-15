@@ -63,6 +63,14 @@ export const pages = {
     })),
   assets: () =>
     import("@/features/assets/pages/assets-page").then((m) => ({ Component: m.AssetsPage })),
+  warningLetters: () =>
+    import("@/features/discipline/pages/warning-letters-page").then((m) => ({
+      Component: m.WarningLettersPage,
+    })),
+  violationTypes: () =>
+    import("@/features/discipline/pages/violation-types-page").then((m) => ({
+      Component: m.ViolationTypesPage,
+    })),
   assetMasters: () =>
     import("@/features/assets/pages/asset-masters-page").then((m) => ({
       Component: m.AssetMastersPage,
@@ -162,11 +170,16 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ],
   ["/personal/struktur-organisasi", FEATURES.orgStructure ? pages.orgStructure : pages.maintenance],
   ["/personal/arsip/aset", FEATURES.assets ? pages.assets : pages.maintenance],
+  ["/personal/arsip/peringatan", FEATURES.discipline ? pages.warningLetters : pages.maintenance],
   ["/personal/arsip", FEATURES.archive ? pages.archive : pages.maintenance],
   ["/personal/laporan", pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
   ["/master-data/jenis-dokumen", FEATURES.archive ? pages.documentTypes : pages.maintenance],
   ["/master-data/aset", FEATURES.assets ? pages.assetMasters : pages.maintenance],
+  [
+    "/master-data/jenis-pelanggaran",
+    FEATURES.discipline ? pages.violationTypes : pages.maintenance,
+  ],
   ["/master-data", pages.masterData],
   ["/penerimaan/impor", FEATURES.onboarding ? pages.onboardingImport : pages.maintenance],
   ["/penerimaan/", FEATURES.onboarding ? pages.onboardingReview : pages.maintenance],

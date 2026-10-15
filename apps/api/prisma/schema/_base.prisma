@@ -11,5 +11,5 @@ generator client {
 // Prisma tidak pernah mengelola skema milik Supabase (auth, storage, dll.).
 datasource db {
   provider = "postgresql"
-  schemas  = ["iam", "organization", "employee", "attendance", "leave", "approval", "contract", "payroll", "notification", "audit", "asset"]
+  schemas  = ["iam", "organization", "employee", "attendance", "leave", "approval", "contract", "payroll", "notification", "audit", "asset", "discipline"]
 }

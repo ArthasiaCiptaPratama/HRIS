@@ -27,6 +27,7 @@ import {
   Plus,
   Power,
   RotateCcw,
+  ShieldAlert,
   UserRoundCheck,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -51,11 +52,14 @@ import {
   WorkExperienceSection,
 } from "@/features/archive/components/archive-sections";
 import { EmployeeAssetsTab } from "@/features/assets/components/holdings";
+import { useMe } from "@/features/auth/api";
+import { EmployeeWarningLettersTab } from "@/features/discipline/components/letter-list";
 import {
   AttachmentList,
   BankBookPanel,
   DocumentsTab,
 } from "@/features/documents/components/documents-tab";
+import { access as appAccess } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -166,6 +170,9 @@ function DetailBody({
   onEdit?: ((employee: EmployeeDetail) => void) | undefined;
 }) {
   const { access } = employee;
+  const me = useMe().data;
+  // ARS-D13: tab SP untuk SA, HR ber-grant SP, MANAGER (API membatasi ke tim).
+  const canSeeWarningLetters = me ? appAccess.viewWarningLetters(me) : false;
   // D-054: menu Arsip membuka detail langsung di tab terkait (?tab=education|history).
   const [params] = useSearchParams();
   const [tab, setTab] = useState(() => params.get("tab") ?? "work");
@@ -271,6 +278,11 @@ function DetailBody({
                 <Package /> Aset
               </TabsTrigger>
             ) : null}
+            {FEATURES.discipline && canSeeWarningLetters ? (
+              <TabsTrigger value="warnings">
+                <ShieldAlert /> SP
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="bank">
               <Landmark /> Rekening
             </TabsTrigger>
@@ -303,6 +315,12 @@ function DetailBody({
             <TabsContent value="assets">
               {/* ARS-D3: aset & APD yang dipegang (cakupan dicek API; tanpa harga). */}
               <EmployeeAssetsTab employeeId={employee.id} />
+            </TabsContent>
+          ) : null}
+          {FEATURES.discipline && canSeeWarningLetters ? (
+            <TabsContent value="warnings">
+              {/* ARS-D13: SP karyawan (SA, HR ber-grant SP, MANAGER tim; cakupan dicek API). */}
+              <EmployeeWarningLettersTab employeeId={employee.id} />
             </TabsContent>
           ) : null}
           <TabsContent value="bank">

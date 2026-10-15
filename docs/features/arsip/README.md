@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
-> **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; sisa: gel. 2b SP, gel. 3 Laporan, impor per kategori, OD-11
+> **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan ✔ lokal 2026-10-15 (QA lokal 12/12, belum di-push/rilis); sisa: rilis 2b, gel. 3 Laporan, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -30,7 +30,12 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] Logo Arthasia di kop PDF BAST (tambahan 2026-10-14: permintaan pemilik projek) — sama dengan logo email, `bast-logo.ts`
     - [x] Rilis staging (migrasi `20261013095006_add_asset_module`, cron `asset-daily`, saklar `assets` di rilis) + QA staging + arsip Drive — 2026-10-14: rilis `219b372` (merge develop `5859111`, ikut membawa Time Management tersembunyi) → PR #49/#50 → `Deploy staging` #38509894453; QA staging TC-STG-073…087 **15/15** (putaran 2) → **LEGIT**, Drive `hris-qa:2026-10-14-staging-aset`
       - [x] (tambahan 2026-10-14) Temuan QA staging P3: PT bawaan di form Tambah aset kosong bila data master belum termuat saat dialog dibuka — diperbaiki di develop (efek PT bawaan menyusul data master; test web gagal-dulu), belum dirilis
-  - [ ] Gel. 2b Surat peringatan (PDF, konfirmasi, cron)
+  - [x] Gel. 2b Surat peringatan (PDF, konfirmasi, cron) (ARS-D7–D15; grill 2026-10-14) — tahap A–C ✔ lokal 2026-10-15 (QA 12/12); belum di-push / dirilis
+    - [x] Tahap A (2026-10-15): shared `discipline.ts` + permission `employee.discipline.read/write`; migrasi `20261015071500_add_discipline_module` (skema `discipline`: `violation_types` + 5 jenis awal, `warning_letters`, `warning_letter_alpha_days`, `discipline_settings` 6 bulan; CHECK status/nomor/cabut); modul `apps/api/src/modules/discipline/` (policy TDD 27, service + audit, PDF template SP, 18 path, cron `discipline-daily` + `vercel.json`); `attendance/index.ts` + `alphaDaysForEvidence` (baca-saja), `iam/index.ts` + `listDisciplineWriters`; logo kop dipindah ke `core/brand-logo.ts` (dipakai BAST & SP); integration 14 skenario
+    - [x] Tahap B (2026-10-15): web `features/discipline/` — Arsip › Riwayat Peringatan (`/personal/arsip/peringatan`: daftar + filter, draft dengan saran tingkat & bukti ALPHA, terbitkan nomor otomatis/manual, cabut, PDF, unggah scan → dokumen `WARNING_LETTER`, "Sudah disampaikan"); Master Data › Jenis Pelanggaran + masa berlaku (SA); tab SP di detail karyawan; Layanan Mandiri › Surat peringatan + "Sudah menerima" (`/ess?tab=sp`); saklar `FEATURES.discipline`, `access.viewWarningLetters/manageWarningLetters/viewDisciplineMasters`; test web 6 (`tests/discipline.test.tsx`)
+      - [x] (tambahan 2026-10-15: temuan saat tahap B) jenis dokumen `WARNING_LETTER` bertanda sensitif → HR ber-grant SP tidak bisa unggah/lihat scan tanpa `employee.documents.*`; grant SP kini berlaku untuk dokumen jenis itu (ARS-D14, pola `BANK_BOOK`; test policy)
+    - [x] Tahap C (2026-10-15): QA lokal Playwright SA → HR → MGR → EMP → HR **12/12** (TC-EMP-227…238; plan/run `2026-10-15-sp-lokal`); isi PDF dicek (`pdftotext` + render); temuan P3 "—" di nomor draf PDF tercetak "?" diperbaiki
+    - [ ] Rilis staging (migrasi `20261015071500_add_discipline_module`, cron `discipline-daily`, saklar `discipline` di rilis, grant SP untuk HR uji) + QA staging + arsip Drive
   - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
 
@@ -61,6 +66,8 @@ Isi lengkap di [decisions.md](../../decisions.md).
 | ARS-D11 | **Nomor surat** otomatis per PT per tahun, mis. `007/SP1/HRD-ACP/X/2026` (urut, bulan romawi); HR boleh menimpa dengan nomor manual (unik se-sistem). | Grill 2026-10-14 ("Otomatis per PT per tahun") |
 | ARS-D12 | **Jenis pelanggaran = master data** (mis. Mangkir, Terlambat berulang, K3/APD, Indisipliner, Lainnya; dikelola SA & HR ber-grant `employee.discipline.write`) + uraian/kronologi bebas per SP. Untuk pelanggaran **mangkir**, HR **boleh menautkan hari ALPHA + surat pernyataan** (D-071) sebagai bukti — manual, tanpa SP/kandidat otomatis. | Grill 2026-10-14 ("Master jenis + uraian bebas", "Manual + tautan bukti") |
 | ARS-D13 | **Visibilitas & notifikasi:** SA semua; HR ber-grant `discipline.read/write` semua riwayat di PT-nya; MANAGER SP **tim** (aktif + riwayat) untuk menyampaikan & konfirmasi; karyawan semua SP **miliknya**; tanpa grant = tidak terlihat. Saat terbit: notifikasi in-app + **email tanpa isi** ("ada surat untuk Anda, buka aplikasi", PROMPT §3.7) ke karyawan & atasan; cron mengingatkan konfirmasi dan menandai kedaluwarsa (tanpa email). | Grill 2026-10-14 ("Sesuai matriks, riwayat tetap", "In-app + email tanpa isi") |
+| ARS-D14 | **Scan SP & izin dokumen:** jenis dokumen `WARNING_LETTER` (D-055) bertanda sensitif; HR ber-grant `employee.discipline.read` boleh melihat dan `employee.discipline.write` boleh mengunggah dokumen jenis itu tanpa grant `employee.documents.*` (pola `BANK_BOOK` + grant rekening). SA & karyawan pemilik tetap seperti D-055. | Temuan tahap B 2026-10-15 (tanpa ini HR ber-grant SP tidak bisa mengunggah scan ARS-D7); keputusan kecil pelaksana |
+| ARS-D15 | **Modul `discipline` terpisah** (skema Postgres `discipline`), bukan sub-domain modul `employee` seperti rencana design §3/§6.6; nama grant tetap `employee.discipline.*` (ARS-D10). Alasan: batas modul bersih (pola `asset`), `discipline` → `employee`/`attendance`/`iam` satu arah. | Rencana gel. 2b disetujui pemilik projek 2026-10-15 |
 
 ## Keputusan terbuka
 
@@ -71,10 +78,11 @@ OD baru: `ARS-OD1`, … (tulis di sini + ringkasan di [PROGRESS](../../PROGRESS.
 
 ## Kode
 
-Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/asset.md).
+Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/asset.md) · [discipline](../../codemap/discipline.md).
 
 ## QA
 
+- [plans/2026-10-15-sp-lokal.md](../../qa/plans/2026-10-15-sp-lokal.md) · [runs/2026-10-15-sp-lokal.md](../../qa/runs/2026-10-15-sp-lokal.md) — Surat Peringatan lokal 12/12
 - [plans/2026-10-14-aset-lokal.md](../../qa/plans/2026-10-14-aset-lokal.md) · [runs/2026-10-14-aset-lokal.md](../../qa/runs/2026-10-14-aset-lokal.md) — Aset & APD lokal 12/12
 - [plans/2026-10-13-staging-arsip.md](../../qa/plans/2026-10-13-staging-arsip.md) · [runs/2026-10-13-staging-arsip.md](../../qa/runs/2026-10-13-staging-arsip.md) — staging rilis gel. 6, **LEGIT**
 - [plans/2026-10-05-arsip-1a.md](../../qa/plans/2026-10-05-arsip-1a.md)

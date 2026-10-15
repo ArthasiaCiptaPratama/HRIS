@@ -86,11 +86,13 @@ describe("navigation.ts (satu sumber menu per role)", () => {
         "Data Karyawan Tidak Aktif",
         "Struktur Organisasi",
         "Data Kontak",
-        "Riwayat Peringatan",
         "Laporan",
       ])
         expect(items).toContain(label);
     }
+    // D-057 / ARS-D13: Riwayat Peringatan untuk SA dan HR ber-grant SP (bukan HR tanpa grant).
+    expect(labels("SUPER_ADMIN")).toContain("Riwayat Peringatan");
+    expect(labels("HR_ADMIN")).not.toContain("Riwayat Peringatan");
     // Arsip 1c: Data Keluarga & Data Bank (sensitif) hanya SA / pemegang grant baca.
     expect(labels("SUPER_ADMIN")).toEqual(expect.arrayContaining(["Data Keluarga", "Data Bank"]));
     expect(labels("HR_ADMIN")).not.toContain("Data Keluarga");
@@ -297,16 +299,16 @@ describe("halaman Personal Management", () => {
     expect(await screen.findByText("Tidak ada yang cocok")).toBeInTheDocument();
   });
 
-  it("menu Arsip menampilkan halaman Maintenance", async () => {
+  it("menu yang belum dikerjakan (Laporan) menampilkan halaman Maintenance", async () => {
     mockApi({
       "/me": [200, { data: me("HR_ADMIN") }],
       "/health": [200, health],
       "/notifications": [200, emptyNotifications],
       "/employees/summary": [200, summary],
     });
-    renderAt("/personal/arsip/peringatan");
+    renderAt("/personal/laporan");
     expect(
-      await screen.findByRole("heading", { name: "Riwayat Peringatan sedang disiapkan" }),
+      await screen.findByRole("heading", { name: "Laporan sedang disiapkan" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Maintenance")).toBeInTheDocument();
   });

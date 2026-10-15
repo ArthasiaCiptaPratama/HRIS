@@ -185,6 +185,8 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `employee.onboarding.review`     | Lihat data sensitif & dokumen calon/karyawan yang sedang onboarding, lalu setujui / minta revisi / batalkan (D-047) | HR_ADMIN              |
 | `employee.changes.review`        | Setujui/tolak pengajuan perubahan data karyawan di PT yang ditugaskan; bagian sensitif tetap butuh grant lihat & ubah bagian itu (D-054, Arsip 1c) | HR_ADMIN              |
 | `asset.manage`                   | Kelola aset per unit & pembagian APD di PT yang ditugaskan: tambah/ubah aset, serah-terima, pengembalian, tandai hilang, BAST, harga aset (ARS-D3) | HR_ADMIN              |
+| `employee.discipline.read`       | Lihat surat peringatan karyawan di PT yang ditugaskan (aktif + riwayat; tanpa draft) termasuk scan `WARNING_LETTER` (ARS-D13/D14) | HR_ADMIN              |
+| `employee.discipline.write`      | Buat, terbitkan & cabut surat peringatan, unggah scan, kelola jenis pelanggaran di PT yang ditugaskan (ARS-D10/D14) | HR_ADMIN              |
 
 Sifat grant:
 - **Cakupan:** untuk HR_ADMIN berlaku atas **semua karyawan**; untuk MANAGER hanya atas **timnya**.
@@ -235,6 +237,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Setujui pengajuan perubahan data diri (D-054) | ✅ | 🔑 `employee.changes.review` (PT sendiri) + grant bagian sensitif | ❌ | ❌ (mengajukan untuk diri sendiri) |
 | Lihat aset & pembagian APD (ARS-D3) | ✅ | ✅ PT sendiri (harga hanya ber-grant) | 👁 tim, tanpa harga | 👁 milik sendiri, tanpa harga |
 | Kelola aset, serah-terima, pengembalian, APD, BAST (ARS-D3) | ✅ | 🔑 `asset.manage` (PT sendiri) | ❌ | ✅ konfirmasi terima milik sendiri |
+| Lihat surat peringatan (aktif + riwayat; draft hanya penulis) (ARS-D13) | ✅ | 🔑 `employee.discipline.read`/`.write` (PT sendiri) | 👁 tim (tanpa alasan eskalasi & bukti) | 👁 milik sendiri |
+| Buat, terbitkan, cabut SP; jenis pelanggaran (ARS-D10/D12) | ✅ (+ masa berlaku bawaan, ARS-D8) | 🔑 `employee.discipline.write` (PT sendiri) | ✅ "Sudah disampaikan" (tim) | ✅ "Sudah menerima" milik sendiri |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
 | **Kontrak** | | | | |
 | Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
@@ -500,6 +504,15 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ARS-D4](features/arsip/README.md#keputusan) | Kode aset otomatis `<PT>-<KATEGORI>-<NNNN>`, boleh diganti; harga & tanggal beli opsional | [ARS](features/arsip/README.md) |
 | [ARS-D5](features/arsip/README.md#keputusan) | Jatuh tempo pinjaman & masa ganti APD + cron harian `asset-daily` | [ARS](features/arsip/README.md) |
 | [ARS-D6](features/arsip/README.md#keputusan) | Karyawan keluar: peringatan aset terbuka, tidak memblokir; daftar belum kembali + notifikasi | [ARS](features/arsip/README.md) |
+| [ARS-D7](features/arsip/README.md#keputusan) | Surat SP = template sistem (PDF) + scan bertanda tangan sebagai dokumen `WARNING_LETTER` | [ARS](features/arsip/README.md) |
+| [ARS-D8](features/arsip/README.md#keputusan) | Masa berlaku SP bawaan 6 bulan (diubah SA); cron menandai kedaluwarsa, riwayat tetap | [ARS](features/arsip/README.md) |
+| [ARS-D9](features/arsip/README.md#keputusan) | Konfirmasi atasan "Sudah disampaikan" + karyawan "Sudah menerima"; SP berlaku sejak terbit | [ARS](features/arsip/README.md) |
+| [ARS-D10](features/arsip/README.md#keputusan) | Pembuat SP: SA / HR ber-grant `employee.discipline.write`; saran tingkat, eskalasi beralasan, draft vs cabut | [ARS](features/arsip/README.md) |
+| [ARS-D11](features/arsip/README.md#keputusan) | Nomor SP otomatis per PT per tahun, boleh manual (unik) | [ARS](features/arsip/README.md) |
+| [ARS-D12](features/arsip/README.md#keputusan) | Jenis pelanggaran = master data; SP mangkir boleh menautkan hari ALPHA + surat pernyataan | [ARS](features/arsip/README.md) |
+| [ARS-D13](features/arsip/README.md#keputusan) | Visibilitas SP per role + notifikasi in-app & email tanpa isi | [ARS](features/arsip/README.md) |
+| [ARS-D14](features/arsip/README.md#keputusan) | Grant SP juga berlaku untuk dokumen jenis `WARNING_LETTER` (pola `BANK_BOOK`) | [ARS](features/arsip/README.md) |
+| [ARS-D15](features/arsip/README.md#keputusan) | SP di modul terpisah `discipline` (bukan sub-domain `employee`) | [ARS](features/arsip/README.md) |
 
 ## 9. Keputusan Terbuka
 

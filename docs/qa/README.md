@@ -32,8 +32,9 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-12-email-template.md](plans/2026-10-12-email-template.md) | Template email Invite & Reset bermerek + alur atur password (TC-ADM-053…057) |
 | Rencana | [plans/2026-10-13-staging-arsip.md](plans/2026-10-13-staging-arsip.md) | Arsip gel. 1 & Layanan Mandiri di staging, rilis gel. 6 (TC-STG-059…072) |
 | Rencana | [plans/2026-10-14-aset-lokal.md](plans/2026-10-14-aset-lokal.md) | Aset & APD gel. 2a lokal (TC-EMP-215…226) |
+| Rencana | [plans/2026-10-15-sp-lokal.md](plans/2026-10-15-sp-lokal.md) | Surat Peringatan gel. 2b lokal (TC-EMP-227…238) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-058 |
-| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-214 |
+| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-238 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-057 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18); staging 2026-10-12 E-01/E-02 — **LEGIT** |
@@ -65,6 +66,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-12-email-template.md](runs/2026-10-12-email-template.md) | Render lokal + staging alur atur password 14/14 + email diterima (dikonfirmasi pemilik projek) — **LEGIT** |
 | Hasil | [runs/2026-10-13-staging-arsip.md](runs/2026-10-13-staging-arsip.md) | Staging rilis gel. 6: rilis web 233 (0 dilewati), API & UI 14/14 — Arsip gel. 1 + Layanan Mandiri **LEGIT** |
 | Hasil | [runs/2026-10-14-aset-lokal.md](runs/2026-10-14-aset-lokal.md) | Lokal: shared 215 · api 713 · web 262, Playwright 12/12 (nomor BAST unik diperbaiki saat uji) — LULUS lokal |
+| Hasil | [runs/2026-10-15-sp-lokal.md](runs/2026-10-15-sp-lokal.md) | Lokal: shared 227 · api 759 · web 270, Playwright 12/12 — LULUS lokal |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 DITUTUP 2026-10-12 (staging gel. 5): sapaan Dashboard memakai email akun, bukan nama karyawan |
 | Bug | [bugs/BUG-003-lampiran-macet-koneksi-menggantung.md](bugs/BUG-003-lampiran-macet-koneksi-menggantung.md) | P2 DITUTUP 2026-10-12 (staging 4.1): panel lampiran macet saat koneksi menggantung |

@@ -41,6 +41,7 @@ import {
   purgeSelfies,
   registerAttendanceRoutes,
 } from "./modules/attendance/index.ts";
+import { registerDisciplineRoutes, runDisciplineDaily } from "./modules/discipline/index.ts";
 import {
   employeeLoginDirectory,
   employeeMasterDataSupport,
@@ -252,6 +253,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerOrganizationRoutes(app, { protect });
   // ARS-D1–D6 (Arsip 2a): aset per unit & pembagian APD.
   registerAssetRoutes(app, { protect });
+  // ARS-D7–D13 (Arsip 2b): surat peringatan.
+  registerDisciplineRoutes(app, { protect });
   // Time Management (D-067–D-072): mesin approval & modul attendance.
   registerApprovalRoutes(app, { protect });
   registerAttendanceRoutes(app, {
@@ -303,6 +306,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       "leave-daily": () => runLeaveDaily(),
       // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.
       "asset-daily": () => runAssetDaily(),
+      // ARS-D8/D9: SP kedaluwarsa + pengingat konfirmasi.
+      "discipline-daily": () => runDisciplineDaily(),
     },
   });
 
