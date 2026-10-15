@@ -59,12 +59,13 @@ import {
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useEmployee } from "../api";
+import { useEmployee, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
+import { profilePlacement } from "./profile-placement";
 import { ActiveDot, ExitReasonBadge, StatusBadge } from "./status-badge";
 
 const PARAM = "pegawai";
@@ -158,6 +159,92 @@ function DetailSkeleton() {
   );
 }
 
+/** Template profil (permintaan pemilik projek 2026-10-15): pas foto + "Label : nilai" dua kolom. */
+function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; actions?: ReactNode }) {
+  const master = useMasterData();
+  const placement = profilePlacement(employee, master.data);
+  return (
+    <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+      <EmployeePhotoControl
+        employeeId={employee.id}
+        name={employee.fullName}
+        photoUrl={employee.photoUrl}
+        inactive={!employee.isActive}
+        canEdit={employee.access.photo}
+        toastPosition="bottom-center"
+        shape="portrait"
+        className="shrink-0"
+      />
+      {/* Tombol aksi sejajar dengan kolom info (bukan di bawah foto). */}
+      <div className="w-full min-w-0 flex-1">
+        <div className="grid gap-x-10 gap-y-2.5 md:grid-cols-2">
+          <dl className="space-y-2.5">
+            <ProfileRow label="Nama Karyawan">
+              <SheetTitle className="text-base leading-snug font-semibold break-words">
+                {employee.fullName}
+              </SheetTitle>
+            </ProfileRow>
+            <ProfileRow label="Nomor Induk Pegawai" mono>
+              {employee.employeeNumber}
+            </ProfileRow>
+            <ProfileRow label="Jabatan">{employee.position.name}</ProfileRow>
+            <ProfileRow label="Divisi">{placement.division}</ProfileRow>
+            <ProfileRow label="Departemen">{placement.department}</ProfileRow>
+          </dl>
+          <dl className="space-y-2.5">
+            <ProfileRow label="Level">{placement.level}</ProfileRow>
+            <ProfileRow label="Tanggal Masuk">{formatDate(employee.joinDate)}</ProfileRow>
+            <ProfileRow label="Masa Kerja">
+              {tenure(employee.joinDate, employee.endDate)}
+            </ProfileRow>
+            <ProfileRow label="Status">
+              <span className="flex flex-wrap items-center gap-2">
+                <StatusBadge
+                  name={employee.employmentStatus.name}
+                  category={employee.employmentStatus.category}
+                />
+                <ActiveDot active={employee.isActive} />
+                <ExitReasonBadge reason={employee.exitReason} />
+              </span>
+            </ProfileRow>
+          </dl>
+        </div>
+        {actions ? (
+          <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">{actions}</div>
+        ) : null}
+      </div>
+      <SheetDescription className="sr-only">
+        {[employee.employeeNumber, employee.position.name, employee.department?.name]
+          .filter(Boolean)
+          .join(" · ")}
+      </SheetDescription>
+    </div>
+  );
+}
+
+function ProfileRow({
+  label,
+  mono,
+  children,
+}: {
+  label: string;
+  mono?: boolean;
+  children: ReactNode;
+}) {
+  const empty = children === null || children === undefined || children === "";
+  return (
+    <div className="grid grid-cols-[9.5rem_0.75rem_1fr] items-baseline text-sm">
+      <dt className="text-muted-foreground">{label}</dt>
+      <span aria-hidden className="text-muted-foreground">
+        :
+      </span>
+      <dd className={cn("min-w-0 font-medium break-words", mono && "font-mono text-[13px]")}>
+        {empty ? <span className="text-muted-foreground font-normal">—</span> : children}
+      </dd>
+    </div>
+  );
+}
+
 function DetailBody({
   employee,
   onEdit,
@@ -177,74 +264,52 @@ function DetailBody({
   return (
     // Satu area gulir: header ikut tergulir, baris tab menempel di atas (sticky).
     <div className="h-full min-h-0 overflow-y-auto">
-      <header className={cn(CONTAINER, "flex flex-col items-center pt-10 pb-6 text-center")}>
-        <EmployeePhotoControl
-          employeeId={employee.id}
-          name={employee.fullName}
-          photoUrl={employee.photoUrl}
-          inactive={!employee.isActive}
-          canEdit={access.photo}
-          toastPosition="bottom-center"
-        />
-        <SheetTitle className="mt-4 max-w-full text-2xl break-words">
-          {employee.fullName}
-        </SheetTitle>
-        <SheetDescription className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-          <span className="font-mono text-xs">{employee.employeeNumber ?? "NIP belum ada"}</span>
-          <span aria-hidden>·</span>
-          <span>{employee.position.name}</span>
-          {employee.department ? (
-            <>
-              <span aria-hidden>·</span>
-              <span>{employee.department.name}</span>
-            </>
-          ) : null}
-        </SheetDescription>
-        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-          <StatusBadge
-            name={employee.employmentStatus.name}
-            category={employee.employmentStatus.category}
-          />
-          <ActiveDot active={employee.isActive} />
-          <ExitReasonBadge reason={employee.exitReason} />
-        </div>
-        {access.manage || access.print ? (
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
-            {access.manage && employee.isActive ? (
+      <header className={cn(CONTAINER, "pt-10 pb-6")}>
+        <ProfileHeader
+          employee={employee}
+          actions={
+            access.manage || access.print ? (
               <>
-                {onEdit ? (
-                  <Button size="sm" variant="outline" onClick={() => onEdit(employee)}>
-                    <Pencil /> Ubah data
+                {access.manage && employee.isActive ? (
+                  <>
+                    {onEdit ? (
+                      <Button size="sm" variant="outline" onClick={() => onEdit(employee)}>
+                        <Pencil /> Ubah data
+                      </Button>
+                    ) : null}
+                    {FEATURES.changeStatus ? (
+                      <Button size="sm" variant="outline" asChild>
+                        <Link to={`/personal/ubah-status?pegawai=${employee.id}`}>
+                          <ArrowLeftRight /> Ubah status
+                        </Link>
+                      </Button>
+                    ) : null}
+                  </>
+                ) : null}
+                {access.print ? (
+                  <PrintEmployeeButton employeeId={employee.id} canViewPersonal={access.personal} />
+                ) : null}
+                {access.manage &&
+                employee.isActive &&
+                FEATURES.changeStatus &&
+                access.deactivate ? (
+                  <Button size="sm" variant="ghost" className="text-destructive" asChild>
+                    <Link to={`/personal/ubah-status?pegawai=${employee.id}&aksi=nonaktif`}>
+                      <Power /> Nonaktifkan
+                    </Link>
                   </Button>
                 ) : null}
-                {FEATURES.changeStatus ? (
-                  <Button size="sm" variant="outline" asChild>
-                    <Link to={`/personal/ubah-status?pegawai=${employee.id}`}>
-                      <ArrowLeftRight /> Ubah status
+                {access.manage && !employee.isActive && FEATURES.activation ? (
+                  <Button size="sm" variant="brand" asChild>
+                    <Link to={`/personal/pengaktifan?pegawai=${employee.id}`}>
+                      <RotateCcw /> Aktifkan kembali
                     </Link>
                   </Button>
                 ) : null}
               </>
-            ) : null}
-            {access.print ? (
-              <PrintEmployeeButton employeeId={employee.id} canViewPersonal={access.personal} />
-            ) : null}
-            {access.manage && employee.isActive && FEATURES.changeStatus && access.deactivate ? (
-              <Button size="sm" variant="ghost" className="text-destructive" asChild>
-                <Link to={`/personal/ubah-status?pegawai=${employee.id}&aksi=nonaktif`}>
-                  <Power /> Nonaktifkan
-                </Link>
-              </Button>
-            ) : null}
-            {access.manage && !employee.isActive && FEATURES.activation ? (
-              <Button size="sm" variant="brand" asChild>
-                <Link to={`/personal/pengaktifan?pegawai=${employee.id}`}>
-                  <RotateCcw /> Aktifkan kembali
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+            ) : null
+          }
+        />
       </header>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-0">

@@ -173,13 +173,29 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("panel detail pegawai", () => {
-  it("layar penuh; avatar & nama di tengah atas; riwayat menampilkan pengubah (nama, role, lokasi)", async () => {
+  it("layar penuh; header template profil (pas foto + Label : nilai, tombol sejajar info); riwayat menampilkan pengubah", async () => {
     mockBackend("HR_ADMIN", { manage: true, deactivate: true, print: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
     const dialog = await screen.findByRole("dialog");
     expect(await within(dialog).findByRole("heading", { name: "Agus Pratama" })).toBeVisible();
     expect(dialog.className).toContain("sm:max-w-none");
-    expect(dialog.querySelector("header")?.className).toContain("items-center");
+    const header = dialog.querySelector("header") as HTMLElement;
+    for (const label of [
+      "Nama Karyawan",
+      "Nomor Induk Pegawai",
+      "Jabatan",
+      "Divisi",
+      "Departemen",
+      "Level",
+      "Tanggal Masuk",
+      "Masa Kerja",
+      "Status",
+    ]) {
+      expect(within(header).getByText(label)).toBeInTheDocument();
+    }
+    // Tombol aksi berada di kolom info (sejajar blok data), bukan di bawah foto.
+    const edit = within(header).getByRole("button", { name: /Ubah data/ });
+    expect(edit.closest("div.flex-1")).toContainElement(within(header).getByText("Nama Karyawan"));
 
     await userEvent.click(within(dialog).getByRole("tab", { name: /Riwayat/ }));
     const history = within(dialog).getByRole("tabpanel");
