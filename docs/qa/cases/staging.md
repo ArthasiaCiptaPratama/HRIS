@@ -53,3 +53,44 @@ Otomasi: `API` = `/mnt/winD/WORK/Magang/QA/2026-09-29-staging/api.ts` (Bun + sup
 | TC-STG-056 | P1 | guard route | tanpa sesi | — | Deep link /personal/... | Dialihkan ke /login | UI |
 | TC-STG-057 | P2 | UX login | HR | — | Password salah di form | Tetap di /login + pesan "Email atau password salah…" | UI |
 | TC-STG-058 | P3 | SPA fallback | — | — | GET /lupa-password langsung | 200, halaman tampil | UI |
+
+### Rilis gelombang 6 — Arsip & Layanan Mandiri (2026-10-13; script `QA/2026-10-13-staging-arsip/stg-arsip.ts`)
+
+| ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
+|---|---|---|---|---|---|---|---|
+| TC-STG-059 | P1 | PLAN §4.5.1 / D-054 antrean | HR tanpa grant review | — | GET /data-changes | 403 | API A-01 |
+| TC-STG-060 | P1 | D-008 grant dari DB | SA → HR | 059 | POST /grants `employee.changes.review` (alasan QA), lalu HR GET /data-changes tanpa login ulang | 201; HR 200 (audit grant) | API A-02 |
+| TC-STG-061 | P1 | PLAN §4.2 Arsip (D-054) | SA / HR tanpa grant pribadi & rekening / MGR / EMP | — | GET /archive/contacts, /families, /bank-accounts | contacts SA/HR/MGR 200, EMP 403; families SA 200, HR & EMP 403; bank SA 200, HR & MGR 403 | API A-03 |
+| TC-STG-062 | P1 | D-058 ekspor | SA / HR / MGR | — | GET /archive/educations/export | SA & HR 200 `{fileName .xlsx, rows, contentBase64}` (isi zip `PK`); MGR 403 | API A-04 |
+| TC-STG-063 | P2 | D-055 katalog | SA | — | GET /document-types | 26 jenis | API A-05 |
+| TC-STG-064 | P1 | D-054 data diri ESS | EMP | — | GET /self/employee-data | 200 data diri sendiri | API B-01 |
+| TC-STG-065 | P2 | design §12.2 validasi | EMP | — | POST /data-changes EMERGENCY; ulang bagian sama | 201; ganda 409 | API B-02 |
+| TC-STG-066 | P1 | PLAN §4.5.1 tidak memutus sendiri | EMP / HR ber-grant | 065 | Pemilik POST decision; HR REJECT tanpa alasan; REJECT beralasan | 403; 400; 200 | API B-03 |
+| TC-STG-067 | P2 | design §12.2 setujui | EMP / HR ber-grant | 066 | Ajukan ulang → HR APPROVE → GET /self/employee-data | 201 → 200 → kontak darurat baru tampil | API B-04 |
+| TC-STG-068 | P1 | PROMPT §3.7 notifikasi | EMP | 067 | GET /notifications | Ada notifikasi keputusan, tanpa nama/nomor kontak | API B-05 |
+| TC-STG-069 | P2 | D-043 saklar `archive`/`selfService` | SA / HR / MGR / EMP | deploy gel. 6 | Buka Arsip (Kontak, File, Keluarga, Pendidikan), Jenis dokumen, Pengajuan Perubahan Data, `/ess` | Judul halaman sesuai, bukan "… sedang disiapkan" (Maintenance) | UI C-01 |
+| TC-STG-070 | P1 | §4.3 Arsip bukan untuk EMP | EMP | — | Deep link /personal/arsip/kontak | "Akses ditolak" | UI C-02 |
+| TC-STG-071 | P3 | Tampilan | EMP | — | HP 390 px `/ess` | Tanpa scroll horizontal | UI C-03 |
+| TC-STG-072 | P2 | kualitas | 4 role | 069–071 | Pantau konsol & jaringan halaman | 0 error JS; 0 respons ≥ 400 selain 403/404 disengaja | UI C-04 |
+
+### Rilis gel. 7 — Aset & APD (ARS-D1–D6), Time Management terpasang tersembunyi (2026-10-14)
+
+Otomasi: `PW` = `/mnt/winD/WORK/Magang/QA/2026-10-14-staging-aset/qa-aset.ts` (langkah L-01…L-12, sama dengan QA lokal TC-EMP-215…226), `TM` = `.../tm-hidden.ts`, `MCP` = Supabase MCP read-only.
+
+| ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
+|---|---|---|---|---|---|---|---|
+| TC-STG-073 | P1 | D-043 rilis, PROMPT §3.11 | — | `Deploy staging` gel. 7 | Cek `_prisma_migrations`, skema `asset`, GET /health | 35 migrasi, 0 gagal, terakhir `20261013095006_add_asset_module`; 5 tabel `asset`; health 200 `database ok`; web 200 | MCP · API |
+| TC-STG-074 | P1 | PROMPT §3.5, cron | — | 073 | GET /api/cron/asset-daily tanpa secret; GET /api/v1/asset-categories tanpa login | 401; 401 | API |
+| TC-STG-075 | P2 | D-043 saklar `timeManagement` false | SA / EMP | 073 | Buka /time/absen-harian, /time/roster, /time/kalender, /time/cuti, /absen | Halaman "… sedang disiapkan" atau "Akses ditolak" (SA tanpa data karyawan); menu TM berlabel SEGERA; isi TM tidak tampil | TM |
+| TC-STG-076 | P2 | ARS-D1 master | SA | — | = TC-EMP-215 | Kategori + 2 jenis APD tersimpan | PW L-01 |
+| TC-STG-077 | P1 | ARS-D4 kode & harga | SA | 076 | = TC-EMP-216 (PT dipilih) | Seri kosong ditahan; kode `ACP-<KAT>-0001`; harga tampil untuk SA | PW L-02 |
+| TC-STG-078 | P1 | ARS-D3 serah-terima | SA | 077 | = TC-EMP-217 | Dipegang, belum dikonfirmasi | PW L-03 |
+| TC-STG-079 | P1 | ARS-D2 BAST PDF | SA | 078 | = TC-EMP-218 | PDF lengkap (logo, pihak, kode, SN, batas kembali), tanpa harga | PW L-04 |
+| TC-STG-080 | P2 | ARS-D2 scan BAST | SA | 079 | = TC-EMP-219 (storage staging) | "Scan BAST terlampir" | PW L-05 |
+| TC-STG-081 | P1 | ARS-D3 MANAGER | MGR | 078 | = TC-EMP-220 | Aset tim tanpa harga & tanpa kelola | PW L-06 |
+| TC-STG-082 | P1 | ARS-D3 HR tanpa grant | HR | 078 | = TC-EMP-221 | Lihat saja | PW L-07 |
+| TC-STG-083 | P2 | ARS-D1 APD | SA | 076 | = TC-EMP-222 | Tampil di Pembagian APD | PW L-08 |
+| TC-STG-084 | P1 | ARS-D2 konfirmasi | EMP | 078, 083 | = TC-EMP-223 | Aset & APD "Diterima karyawan" | PW L-09 |
+| TC-STG-085 | P3 | Tampilan | EMP | — | = TC-EMP-224 (HP 390 px) | Tanpa scroll horizontal | PW L-10 |
+| TC-STG-086 | P2 | ARS-D6 keluar | SA | 078, 083 | = TC-EMP-225 (tanpa simpan) | Peringatan aset/APD belum kembali | PW L-11 |
+| TC-STG-087 | P1 | ARS-D2/D5 pengembalian | SA | 078 | = TC-EMP-226 | Perbaikan; BAST pengembalian, nomor beda dari BAST serah; 0 error JS/5xx seluruh alur | PW L-12 |

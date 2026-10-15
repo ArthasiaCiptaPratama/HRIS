@@ -304,9 +304,9 @@ describe("halaman Personal Management", () => {
       "/notifications": [200, emptyNotifications],
       "/employees/summary": [200, summary],
     });
-    renderAt("/personal/arsip/aset");
+    renderAt("/personal/arsip/peringatan");
     expect(
-      await screen.findByRole("heading", { name: "Data Assets sedang disiapkan" }),
+      await screen.findByRole("heading", { name: "Riwayat Peringatan sedang disiapkan" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Maintenance")).toBeInTheDocument();
   });

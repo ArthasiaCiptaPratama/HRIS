@@ -204,8 +204,10 @@ model Employee {
   // Sisi balik relasi iam.accounts.employee_id (wajib Prisma); jangan di-include dari modul employee.
   account           Account?
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  assetAssignments AssetAssignment[]
+  ppeIssues        PpeIssue[]
 
   @@unique([employeeNumber])
   @@unique([workEmail])

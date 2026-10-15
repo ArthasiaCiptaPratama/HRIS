@@ -3,6 +3,7 @@ import { ArrowLeftRight, ArrowRight, Power, TriangleAlert, UserRoundSearch } fro
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { FEATURES } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { OpenHoldingsWarning } from "@/features/assets/components/holdings";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { useChangeStatus, useDeactivateEmployee, useEmployee, useMasterData } from "../api";
@@ -361,6 +363,8 @@ function DeactivateForm({ employee, onDone }: { employee: EmployeeDetail; onDone
           />
         </div>
       </div>
+      {/* ARS-D6: aset & APD wajib kembali yang belum dikembalikan (peringatan, tidak memblokir). */}
+      {FEATURES.assets ? <OpenHoldingsWarning employeeId={employee.id} /> : null}
       <Alert variant="destructive">
         <TriangleAlert />
         <AlertTitle>Yang akan terjadi</AlertTitle>

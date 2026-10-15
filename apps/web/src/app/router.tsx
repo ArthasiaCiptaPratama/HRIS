@@ -83,6 +83,14 @@ export const routes: RouteObject[] = [
               { path: "pegawai-aktif", element: <Navigate to="semua" replace /> },
               { path: "pegawai-aktif/:category", lazy: pages.activeEmployees },
               // D-054: Arsip — tabel lintas karyawan (MANAGER: tim, kolom kerja; API penentu akses).
+              // ARS-D1–D6: Arsip › Data Assets (SA/HR/MANAGER; harga & kelola dicek API).
+              {
+                path: "arsip/aset",
+                element: <RequireAccessRoute check={access.viewAssets} />,
+                children: [
+                  { index: true, lazy: FEATURES.assets ? pages.assets : pages.maintenance },
+                ],
+              },
               {
                 path: "arsip/:section",
                 lazy: FEATURES.archive ? pages.archive : pages.maintenance,
@@ -173,6 +181,8 @@ export const routes: RouteObject[] = [
                 path: "jenis-dokumen",
                 lazy: FEATURES.archive ? pages.documentTypes : pages.maintenance,
               },
+              // ARS-D1: kategori aset & jenis APD (kelola SA / HR ber-grant asset.manage).
+              { path: "aset", lazy: FEATURES.assets ? pages.assetMasters : pages.maintenance },
               { path: ":kind", lazy: pages.masterData },
             ],
           },
