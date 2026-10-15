@@ -70,7 +70,6 @@ import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { profilePlacement } from "./profile-placement";
-import { ActiveDot, ExitReasonBadge, StatusBadge } from "./status-badge";
 
 const PARAM = "pegawai";
 /** Kolom isi detail: lebar baca terbatas & di tengah layar. */
@@ -113,7 +112,7 @@ export function EmployeeDetailSheet({
   return (
     <Sheet open={openId !== null} onOpenChange={(open) => !open && close()}>
       {/* Layar penuh: isi dipusatkan dengan lebar baca terbatas supaya tetap nyaman di layar lebar. */}
-      <SheetContent className="sm:max-w-none" aria-describedby={undefined} hideClose>
+      <SheetContent className="border-l-0 sm:max-w-none" aria-describedby={undefined} hideClose>
         {/* Panel layar penuh terasa seperti halaman: tombol kembali di kiri atas (Esc juga menutup). */}
         <SheetClose asChild>
           <Button
@@ -168,54 +167,80 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
   const master = useMasterData();
   const placement = profilePlacement(employee, master.data);
   return (
-    <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-      <EmployeePhotoControl
-        employeeId={employee.id}
-        name={employee.fullName}
-        photoUrl={employee.photoUrl}
-        inactive={!employee.isActive}
-        canEdit={employee.access.photo}
-        toastPosition="bottom-center"
-        shape="portrait"
-        className="shrink-0"
-      />
-      {/* Tombol aksi sejajar dengan kolom info (bukan di bawah foto). */}
-      <div className="w-full min-w-0 flex-1">
-        <div className="grid gap-x-10 gap-y-2.5 md:grid-cols-2">
-          <dl className="space-y-2.5">
-            <ProfileRow label="Nama Karyawan">
-              <SheetTitle className="text-base leading-snug font-semibold break-words">
-                {employee.fullName}
-              </SheetTitle>
-            </ProfileRow>
-            <ProfileRow label="Nomor Induk Pegawai" mono>
-              {employee.employeeNumber}
-            </ProfileRow>
-            <ProfileRow label="Jabatan">{employee.position.name}</ProfileRow>
-            <ProfileRow label="Divisi">{placement.division}</ProfileRow>
-            <ProfileRow label="Departemen">{placement.department}</ProfileRow>
-          </dl>
-          <dl className="space-y-2.5">
-            <ProfileRow label="Level">{placement.level}</ProfileRow>
-            <ProfileRow label="Tanggal Masuk">{formatDate(employee.joinDate)}</ProfileRow>
-            <ProfileRow label="Masa Kerja">
-              {tenure(employee.joinDate, employee.endDate)}
-            </ProfileRow>
-            <ProfileRow label="Status">
-              <span className="flex flex-wrap items-center gap-2">
-                <StatusBadge
-                  name={employee.employmentStatus.name}
-                  category={employee.employmentStatus.category}
-                />
-                <ActiveDot active={employee.isActive} />
-                <ExitReasonBadge reason={employee.exitReason} />
-              </span>
-            </ProfileRow>
-          </dl>
+    // Kartu header di atas pita banner warna logo (2026-10-15); susunan foto | 2 kolom | aksi tetap.
+    <div className="bg-card relative rounded-xl border p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+        <EmployeePhotoControl
+          employeeId={employee.id}
+          name={employee.fullName}
+          photoUrl={employee.photoUrl}
+          inactive={!employee.isActive}
+          canEdit={employee.access.photo}
+          toastPosition="bottom-center"
+          shape="portrait"
+          zoomable
+          subtitle={employee.employeeNumber}
+          className="shrink-0 sm:-mt-14"
+        />
+        {/* Tombol aksi sejajar dengan kolom info (bukan di bawah foto). */}
+        <div className="w-full min-w-0 flex-1">
+          <div className="grid gap-x-8 gap-y-2.5 md:grid-cols-2">
+            <dl className="space-y-2.5">
+              <ProfileRow label="Nama Karyawan">
+                <SheetTitle className="text-logo-green dark:text-foreground text-lg leading-snug font-semibold break-words">
+                  {employee.fullName}
+                </SheetTitle>
+              </ProfileRow>
+              <ProfileRow label="Nomor Induk Pegawai">
+                {employee.employeeNumber ? (
+                  <span className="bg-muted rounded-md px-1.5 py-0.5 font-mono text-[13px]">
+                    {employee.employeeNumber}
+                  </span>
+                ) : null}
+              </ProfileRow>
+              <ProfileRow label="Jabatan">{employee.position.name}</ProfileRow>
+              <ProfileRow label="Divisi">{placement.division}</ProfileRow>
+              <ProfileRow label="Departemen">{placement.department}</ProfileRow>
+            </dl>
+            <dl className="space-y-2.5">
+              <ProfileRow label="Level" narrow>
+                {placement.level}
+              </ProfileRow>
+              <ProfileRow label="Tanggal Masuk" narrow>
+                {formatDate(employee.joinDate)}
+              </ProfileRow>
+              <ProfileRow label="Masa Kerja" narrow>
+                {tenure(employee.joinDate, employee.endDate)}
+              </ProfileRow>
+              {/* Dipisah (2026-10-15): masih bekerja di perusahaan ≠ bisa login ke aplikasi. */}
+              <ProfileRow label="Status Karyawan" narrow>
+                {/* Teks rapi "kategori | masih bekerja/sudah keluar" (masukan pemilik projek 2026-10-15). */}
+                <span>
+                  {employee.employmentStatus.name}
+                  <span aria-hidden className="text-muted-foreground mx-2 font-normal">
+                    |
+                  </span>
+                  {employee.isActive ? (
+                    "Masih bekerja"
+                  ) : (
+                    <span className="text-muted-foreground">
+                      Sudah keluar
+                      {employee.exitReason ? ` · ${EXIT_REASON_LABELS[employee.exitReason]}` : ""}
+                    </span>
+                  )}
+                </span>
+              </ProfileRow>
+              <ProfileRow label="Akses Aplikasi" narrow>
+                <AccountStatus account={employee.account} />
+              </ProfileRow>
+            </dl>
+          </div>
+          {actions ? (
+            <div className="mt-5 flex flex-wrap justify-center gap-2 border-t pt-4 sm:justify-start">
+              {actions}
+            </div>
+          ) : null}
         </div>
-        {actions ? (
-          <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">{actions}</div>
-        ) : null}
       </div>
       <SheetDescription className="sr-only">
         {[employee.employeeNumber, employee.position.name, employee.department?.name]
@@ -226,18 +251,145 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
   );
 }
 
+/**
+ * Akses aplikasi: Bisa login / Tidak bisa login (teks, tanpa titik). Sebabnya (belum punya akun / akun
+ * dinonaktifkan) di tooltip; rincian & peran akun di tab Kepegawaian › Akun login.
+ */
+function AccountStatus({ account }: { account: EmployeeDetail["account"] }) {
+  if (account?.isActive) return <span>Bisa login</span>;
+  return (
+    <span
+      className="text-muted-foreground"
+      title={account ? "Akun login dinonaktifkan" : "Belum punya akun login"}
+    >
+      Tidak bisa login
+    </span>
+  );
+}
+
+/** Tetesan api (bentuk dari logo Arthasia) untuk pola banner; titik pusat (x, y), skala, putaran. */
+const FLAMES: {
+  x: number;
+  y: number;
+  s: number;
+  r: number;
+  o: number;
+  fill: boolean;
+  /** Api tengah: disembunyikan di layar < sm (SVG terpotong ke tengah → jatuh di belakang teks). */
+  mid?: boolean;
+}[] = [
+  // Ruang kosong tengah-atas (di atas kartu, jauh dari teks banner di kanan).
+  { mid: true, x: 520, y: 34, s: 0.5, r: -14, o: 0.55, fill: true },
+  { mid: true, x: 610, y: 58, s: 0.3, r: 20, o: 0.45, fill: false },
+  { mid: true, x: 705, y: 26, s: 0.38, r: 8, o: 0.4, fill: false },
+  { mid: true, x: 800, y: 52, s: 0.6, r: -6, o: 0.5, fill: true },
+  { mid: true, x: 905, y: 30, s: 0.28, r: 28, o: 0.4, fill: false },
+  // Tepi kanan (di luar kolom teks) & kiri.
+  { x: 1300, y: 40, s: 0.45, r: 14, o: 0.45, fill: false },
+  { x: 1380, y: 92, s: 0.7, r: -10, o: 0.4, fill: true },
+  { x: 150, y: 96, s: 0.32, r: -26, o: 0.35, fill: false },
+  { x: 60, y: 40, s: 0.26, r: 16, o: 0.3, fill: true },
+];
+/** Tetesan api: lengkung bawah bulat, ujung atas meruncing ke kanan (siluet api logo). */
+const FLAME_PATH =
+  "M0 -26 C10 -14 18 -4 18 8 C18 20 9 28 0 28 C-9 28 -18 20 -18 8 C-18 -6 -6 -14 0 -26 Z";
+
+/**
+ * Pita banner warna logo Arthasia di atas kartu header (2026-10-15). Pola dari logo: garis cakrawala
+ * hijau daun, tetesan api oranye, tekstur titik, watermark logo. Blok warna solid tanpa gradien (D-035),
+ * statis tanpa animasi (permintaan pemilik projek).
+ */
+function ProfileBanner({ companyName }: { companyName: string | null }) {
+  return (
+    <div className="bg-logo-green text-logo-green-foreground relative h-32 overflow-hidden">
+      <svg
+        aria-hidden
+        className="absolute inset-0 size-full"
+        viewBox="0 0 1440 128"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <defs>
+          <pattern id="profile-dots" width="18" height="18" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.2" className="fill-logo-green-foreground" opacity="0.09" />
+          </pattern>
+        </defs>
+        <rect width="1440" height="128" fill="url(#profile-dots)" />
+        {/* Watermark logo: mangkuk hijau daun + api oranye, besar & samar di kanan. */}
+        <g transform="translate(1385 78)" opacity="0.14">
+          <path d="M-70 4 A70 70 0 0 0 70 4 Z" className="fill-logo-leaf" />
+          <path
+            d="M-66 -2 C-66 -60 -20 -84 6 -112 C10 -96 22 -86 14 -70 L28 -84 L36 -74 L24 -58 L46 -74 C64 -52 70 -30 66 -2 Z"
+            className="fill-logo-orange"
+          />
+        </g>
+        {/* Garis cakrawala seperti sapuan hijau di logo. */}
+        <path
+          d="M-20 96 C 260 70, 520 112, 760 92 S 1180 58, 1460 78"
+          className="stroke-logo-leaf"
+          strokeWidth="2.5"
+          fill="none"
+          opacity="0.55"
+        />
+        <path
+          d="M-20 110 C 300 92, 560 124, 820 106 S 1220 80, 1460 96"
+          className="stroke-logo-leaf"
+          strokeWidth="1.2"
+          fill="none"
+          opacity="0.3"
+        />
+        <g>
+          {FLAMES.map((f) => (
+            <path
+              key={`${f.x}-${f.y}`}
+              d={FLAME_PATH}
+              transform={`translate(${f.x} ${f.y}) rotate(${f.r}) scale(${f.s})`}
+              fill={f.fill ? undefined : "none"}
+              strokeWidth={f.fill ? undefined : 2.5 / f.s}
+              opacity={f.o}
+              className={cn(
+                f.fill ? "fill-logo-orange" : "stroke-logo-orange",
+                f.mid && "max-sm:hidden",
+              )}
+            />
+          ))}
+        </g>
+      </svg>
+      <div className={cn(CONTAINER, "relative flex h-full items-start justify-end pt-4")}>
+        <div className="text-right">
+          <p className="text-[11px] font-semibold tracking-[0.18em] uppercase opacity-80">
+            Profil Karyawan
+          </p>
+          {companyName ? <p className="text-sm font-medium">{companyName}</p> : null}
+          <p className="text-logo-orange text-xs font-medium tracking-wide">
+            energy for the future
+          </p>
+        </div>
+      </div>
+      <div className="bg-logo-orange absolute inset-x-0 bottom-0 h-1" />
+    </div>
+  );
+}
+
 function ProfileRow({
   label,
   mono,
+  narrow,
   children,
 }: {
   label: string;
   mono?: boolean;
+  /** Kolom kanan: label lebih pendek → kolom nilai lebih lebar (badge + keterangan satu baris). */
+  narrow?: boolean;
   children: ReactNode;
 }) {
   const empty = children === null || children === undefined || children === "";
   return (
-    <div className="grid grid-cols-[9.5rem_0.75rem_1fr] items-baseline text-sm">
+    <div
+      className={cn(
+        "grid items-baseline text-sm",
+        narrow ? "grid-cols-[7.5rem_0.75rem_1fr]" : "grid-cols-[9.5rem_0.75rem_1fr]",
+      )}
+    >
       <dt className="text-muted-foreground">{label}</dt>
       <span aria-hidden className="text-muted-foreground">
         :
@@ -271,7 +423,8 @@ function DetailBody({
   return (
     // Satu area gulir: header ikut tergulir, baris tab menempel di atas (sticky).
     <div className="h-full min-h-0 overflow-y-auto">
-      <header className={cn(CONTAINER, "pt-10 pb-6")}>
+      <ProfileBanner companyName={employee.company.name} />
+      <header className={cn(CONTAINER, "-mt-12 pb-6")}>
         <ProfileHeader
           employee={employee}
           actions={
@@ -322,7 +475,12 @@ function DetailBody({
       <Tabs value={tab} onValueChange={setTab} className="gap-0">
         {/* pl-28 di bawah lg: ruang untuk tombol "Kembali" yang melayang di pojok kiri atas. */}
         <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 border-b pl-28 backdrop-blur lg:pl-0">
-          <TabsList className={cn(CONTAINER, "justify-center-safe border-b-0")}>
+          <TabsList
+            className={cn(
+              CONTAINER,
+              "justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
+            )}
+          >
             <TabsTrigger value="work">
               <BriefcaseBusiness /> Kepegawaian
             </TabsTrigger>

@@ -25,6 +25,7 @@ const TEMPLATE = readFileSync(
 );
 
 let photoUrl: string | null = null;
+let accountOverride: { role: string; isActive: boolean } | null = null;
 const detail = (access: Record<string, boolean>) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
@@ -47,7 +48,7 @@ const detail = (access: Record<string, boolean>) => ({
   emergencyPhone: null,
   emergencyContactName: null,
   emergencyContactRelationship: null,
-  account: null,
+  account: accountOverride,
   access: {
     manage: false,
     deactivate: false,
@@ -167,6 +168,7 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
 
 beforeEach(() => {
   photoUrl = null;
+  accountOverride = null;
   authState.session = { access_token: "t", user: { id: "u" } };
   vi.clearAllMocks();
 });
@@ -189,7 +191,8 @@ describe("panel detail pegawai", () => {
       "Level",
       "Tanggal Masuk",
       "Masa Kerja",
-      "Status",
+      "Status Karyawan",
+      "Akses Aplikasi",
     ]) {
       expect(within(header).getByText(label)).toBeInTheDocument();
     }
@@ -323,6 +326,68 @@ describe("foto profil di panel detail (D-037)", () => {
       expect(calls).toContain("DELETE http://api.test/api/v1/employees/e1/photo"),
     );
     await waitFor(() => expect(dialog.querySelector("img")).toBeNull());
+  });
+
+  it("status karyawan (masih bekerja) & akses aplikasi (bisa login) terpisah (2026-10-15)", async () => {
+    mockBackend("HR_ADMIN", { manage: true });
+    const view = renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    const header = (await within(dialog).findByText("Status Karyawan")).closest(
+      "header",
+    ) as HTMLElement;
+    const row = (label: string) => within(header).getByText(label).parentElement as HTMLElement;
+    expect(row("Status Karyawan")).toHaveTextContent(/PKWT\s*\|\s*Masih bekerja/);
+    // Dua keadaan saja: belum punya akun = tidak bisa login (sebab di tooltip).
+    expect(within(row("Akses Aplikasi")).getByText("Tidak bisa login")).toBeInTheDocument();
+    expect(within(row("Akses Aplikasi")).getByTitle("Belum punya akun login")).toBeInTheDocument();
+    view.unmount();
+    accountOverride = { role: "EMPLOYEE", isActive: false };
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const again = await screen.findByRole("dialog");
+    const status = (await within(again).findByText("Akses Aplikasi")).parentElement as HTMLElement;
+    expect(within(status).getByText("Tidak bisa login")).toBeInTheDocument();
+    expect(within(status).getByTitle("Akun login dinonaktifkan")).toBeInTheDocument();
+    // Peran akun tidak ditampilkan di baris ini (ada di tab Kepegawaian › Akun login).
+    expect(within(status).queryByText("Karyawan")).toBeNull();
+  });
+
+  it("klik foto membuka pop-up foto besar; tombol kamera tidak membuka pop-up; tanpa foto tidak bisa diklik", async () => {
+    photoUrl = "https://storage.test/sign/besar.webp";
+    mockBackend("HR_ADMIN", { manage: true, photo: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      await within(dialog).findByRole("button", { name: "Ganti atau hapus foto profil" }),
+    );
+    expect(await screen.findByRole("menuitem", { name: /Ganti foto/ })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Foto profil Agus Pratama" })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Perbesar foto Agus Pratama" }),
+    );
+    const zoom = (await screen.findByRole("img", { name: "Foto profil Agus Pratama" })).closest(
+      "[role=dialog]",
+    ) as HTMLElement;
+    expect(within(zoom).getByRole("img", { name: "Foto profil Agus Pratama" })).toHaveAttribute(
+      "src",
+      "https://storage.test/sign/besar.webp",
+    );
+    expect(within(zoom).getByText("ACP-2023-0007")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("img", { name: "Foto profil Agus Pratama" })).toBeNull(),
+    );
+    // Panel detail tetap terbuka (Esc hanya menutup pop-up foto).
+    expect(within(dialog).getByText("Status Karyawan")).toBeInTheDocument();
+  });
+
+  it("tanpa foto: area foto bukan tombol perbesar", async () => {
+    mockBackend("HR_ADMIN", { manage: true, photo: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("heading", { name: "Agus Pratama" });
+    expect(within(dialog).queryByRole("button", { name: /Perbesar foto/ })).toBeNull();
   });
 
   it("tanpa hak ubah foto (MANAGER): tidak ada tombol kamera", async () => {

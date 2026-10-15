@@ -1,4 +1,4 @@
-import { Camera, ImageUp, Loader2, Trash2 } from "lucide-react";
+import { Camera, ImageUp, Loader2, Trash2, ZoomIn } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,8 @@ const photoError = (error: unknown) =>
 
 /**
  * Avatar besar + tombol kamera untuk mengganti/menghapus foto profil (D-037).
- * Tanpa hak ubah (`canEdit` false) hanya menampilkan avatar.
+ * Tanpa hak ubah (`canEdit` false) hanya menampilkan avatar. `zoomable`: klik area foto (bukan tombol
+ * kamera) membuka foto ukuran besar di pop-up (2026-10-15); tanpa foto = tidak bisa diklik.
  */
 export function EmployeePhotoControl({
   employeeId,
@@ -40,6 +41,8 @@ export function EmployeePhotoControl({
   toastPosition,
   className,
   shape = "circle",
+  zoomable = false,
+  subtitle,
 }: {
   employeeId: string;
   name: string;
@@ -50,9 +53,14 @@ export function EmployeePhotoControl({
   className?: string;
   /** "portrait" = kotak pas foto 3:4 (header detail karyawan). */
   shape?: "circle" | "portrait";
+  /** Klik foto → pop-up foto besar (header detail karyawan). */
+  zoomable?: boolean;
+  /** Teks kecil di bawah nama pada pop-up (mis. NIP). */
+  subtitle?: string | null;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
   const upload = useUploadPhoto();
   const remove = useDeletePhoto();
   const busy = upload.isPending || remove.isPending;
@@ -81,7 +89,7 @@ export function EmployeePhotoControl({
       },
     );
 
-  const avatar = (
+  const image = (
     <EmployeeAvatar
       name={name}
       size="2xl"
@@ -93,7 +101,55 @@ export function EmployeePhotoControl({
       )}
     />
   );
-  if (!canEdit) return <div className={className}>{avatar}</div>;
+  const canZoom = zoomable && photoUrl !== null;
+  const avatar = canZoom ? (
+    <button
+      type="button"
+      onClick={() => setZoomed(true)}
+      aria-label={`Perbesar foto ${name}`}
+      className={cn(
+        "group/zoom focus-visible:ring-ring/50 relative block cursor-zoom-in outline-none focus-visible:ring-[3px]",
+        shape === "portrait" ? "rounded-lg" : "rounded-full",
+      )}
+    >
+      {image}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-0 grid place-items-center bg-zinc-950/0 text-white opacity-0 transition group-hover/zoom:bg-zinc-950/30 group-hover/zoom:opacity-100",
+          shape === "portrait" ? "rounded-lg" : "rounded-full",
+        )}
+      >
+        <ZoomIn className="size-6" />
+      </span>
+    </button>
+  ) : (
+    image
+  );
+  const zoomDialog = canZoom ? (
+    <Dialog open={zoomed} onOpenChange={setZoomed}>
+      <DialogContent className="w-auto max-w-[calc(100vw-2rem)] gap-3 p-3 sm:max-w-xl">
+        <img
+          src={photoUrl ?? undefined}
+          alt={`Foto profil ${name}`}
+          className="max-h-[75dvh] w-full rounded-lg object-contain"
+        />
+        <DialogHeader className="px-1 pb-1">
+          <DialogTitle className="text-base">{name}</DialogTitle>
+          <DialogDescription className={cn(!subtitle && "sr-only", "font-mono text-xs")}>
+            {subtitle || "Foto profil karyawan"}
+          </DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
+  ) : null;
+  if (!canEdit)
+    return (
+      <div className={className}>
+        {avatar}
+        {zoomDialog}
+      </div>
+    );
 
   return (
     <div className={cn("relative", className)}>
@@ -146,6 +202,7 @@ export function EmployeePhotoControl({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {zoomDialog}
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>

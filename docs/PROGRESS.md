@@ -83,7 +83,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 - Notifikasi WhatsApp
 - Pencocokan wajah pada selfie absensi
 - Approval berjenjang lebih dari satu atasan
-- Test web flaky `documents.test.tsx` "versi aktif + versi sebelumnya" (gagal ±2/3 saat suite penuh, batas waktu `findByRole` 1 detik; sudah ada sebelum 2026-10-09) — 2026-10-12: suite penuh dengan 12 worker membuat beberapa test lain ikut acak gagal (`personal-management`, `import-attachments`); dengan `--maxWorkers=4` stabil 205/205 dua kali. Usul: batasi worker vitest / naikkan batas waktu `findBy*`
+- Test web flaky `documents.test.tsx` "versi aktif + versi sebelumnya" (gagal ±2/3 saat suite penuh, batas waktu `findByRole` 1 detik; sudah ada sebelum 2026-10-09) — 2026-10-12: suite penuh dengan 12 worker membuat beberapa test lain ikut acak gagal (`personal-management`, `import-attachments`); dengan `--maxWorkers=4` stabil 205/205 dua kali. Usul: batasi worker vitest / naikkan batas waktu `findBy*` — 2026-10-15: juga `import-attachments` & `archive.test.tsx` (riwayat jabatan) gagal acak di suite penuh, lulus saat sendiri / `--maxWorkers=4` (283/283)
 - **Pekerja latar belakang untuk lampiran Drive** (2026-10-12; butuh keputusan, mengubah D-060): proses tetap jalan walau tab ditutup (mis. Vercel Queues/Workflow, atau pg_cron + Edge Function), browser cukup memantau status. Saat ini diproses dari browser per ±8 dtk + coba ulang otomatis
 - Rotasi password DB Supabase staging setelah `.env.supabase.enc` sempat di-push di branch `HRIS/Mat/windows` (2026-10-09; bagian dari daftar keamanan §2)
 - Login dengan NIP **atau** email kantor ber-domain Arthasia (D-063; tugas berikutnya setelah Import data Form asli lolos uji staging; mekanisme menyentuh D-033/D-048, butuh data email kantor dari HR)
@@ -94,6 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-15** — Tampilan header detail karyawan: banner warna logo + pola statis, status karyawan vs akses aplikasi, perbesar foto; web 283. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-10-15** — Gabung `HRIS/Mat/Mac` ke develop (merge lokal): lokasi absen per karyawan TM-D1 (migrasi `20261015064508_employee_location_setting`), header profil model pas foto, switch DB dev + Auth/Storage lokal; tanpa konflik; api 777 · web 280. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-15** — Audit gel. 2b SP: 7 temuan diperbaiki (termasuk bocor akses filter MANAGER), api 764 · web 271, QA ulang 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-15** — Arsip gel. 2b Surat Peringatan (ARS-D7–D15): modul `discipline` + migrasi, Riwayat Peringatan, Jenis Pelanggaran, tab SP, SP di Layanan Mandiri; api 759 · web 270, QA lokal 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
