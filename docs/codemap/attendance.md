@@ -14,7 +14,7 @@
 
 **[wip] 2026-10-13:** tabel nyata di `attendance.prisma` (lihat §2); file: `calendar.*` (libur + pengaturan), `roster.*` + `roster-engine.ts` + `roster-change.service.ts` (shift/pola/crew/grid/import/tukar shift, D-069), `attendance.*` + `attendance-engine.ts` + `attendance-day.routes.ts` (absen PWA selfie+GPS+label tanpa blokir D-070, hari absen, koreksi, absen manual), `period.*` (rekap, tutup periode → ALPHA + surat pernyataan, D-071), `leave-bridge.ts`, **`directory.ts` adapter baca sementara** ke tabel employee/organization (ganti dengan `index.ts` modul tersebut). Selfie di bucket private `attendance-selfies`, path wajib `attendance/<employeeId>/`. Tabel di bawah = rancangan awal (sudah digantikan).
 
-**2026-10-15 (Arsip 2b, Oatse):** `period.service.ts` + `alphaDaysForEvidence(employeeId, dayIds?)` (baca-saja: hari ALPHA + surat pernyataan, memakai `statementRows`), diekspor dari `index.ts` bersama tipe `StatementRow` — dipakai modul [discipline](discipline.md) untuk bukti SP mangkir (ARS-D12). Logika attendance tidak berubah.
+**2026-10-15 (Arsip 2b, Oatse):** `period.service.ts` + `alphaDaysForEvidence(employeeId, dayIds?, withUrls?)` (baca-saja: hari ALPHA + surat pernyataan, memakai `statementRows`; signed URL hanya bila `withUrls`), diekspor dari `index.ts` bersama tipe `StatementRow` — dipakai modul [discipline](discipline.md) untuk bukti SP mangkir (ARS-D12). Logika attendance tidak berubah.
 
 | Tabel | Isi penting |
 |---|---|

@@ -55,8 +55,19 @@ const PERSONAL_SHOWN = [
 export function EssPage() {
   const mine = useMyData();
   const [section, setSection] = useState<DataChangeSection | null>(null);
-  // Tautan notifikasi bisa membuka tab tertentu, mis. `/ess?tab=sp` (ARS-D13).
-  const [params] = useSearchParams();
+  // Tab mengikuti URL `?tab=` supaya tautan notifikasi (mis. `/ess?tab=sp`, ARS-D13) tetap berpindah tab
+  // walau halaman ini sudah terbuka (audit 2026-10-15).
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") ?? "data";
+  const setTab = (next: string) =>
+    setParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set("tab", next);
+        return p;
+      },
+      { replace: true },
+    );
   return (
     <div>
       <PageHeader
@@ -72,7 +83,7 @@ export function EssPage() {
           description={mine.isError ? errorMessage(mine.error) : undefined}
         />
       ) : (
-        <Tabs defaultValue={params.get("tab") ?? "data"} className="gap-6">
+        <Tabs value={tab} onValueChange={setTab} className="gap-6">
           <TabsList>
             <TabsTrigger value="data">
               <CircleUser /> Data saya

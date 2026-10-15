@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { addMonths, type ErrorBody } from "@hris/shared";
+import { addMonths, type ErrorBody, formatWarningNumber } from "@hris/shared";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
@@ -56,6 +56,7 @@ const ids = {
   emp2: "",
   mgr2: "",
   hrEmp: "",
+  emp3: "",
   mangkir: "",
   telat: "",
   alphaDay: "",
@@ -154,7 +155,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const employees = [ids.mgr, ids.emp, ids.emp2, ids.mgr2, ids.hrEmp].filter(Boolean);
+  const employees = [ids.mgr, ids.emp, ids.emp2, ids.mgr2, ids.hrEmp, ids.emp3].filter(Boolean);
   const accounts = [sa, hr, hrRead, hrPlain, hrOther, mgr, mgrOther, emp, emp2]
     .filter((a): a is Login => a !== undefined)
     .map((a) => a.account.id);
@@ -318,7 +319,8 @@ describe("terbit, saran tingkat & nomor (ARS-D8/D10/D11)", () => {
     expect(body.number).toMatch(
       new RegExp(`^\\d{3}/SP1/HRD-${ids.acpCode}/${month}/${TODAY.slice(0, 4)}$`),
     );
-    expect(body.effectiveUntil).toBe(addMonths(TODAY, 6));
+    // PP 35/2021: paling lama 6 bulan → hari terakhir = terbit + 6 bulan − 1 hari (audit 2026-10-15).
+    expect(body.effectiveUntil).toBe(dayBefore(addMonths(TODAY, 6), 1));
     expect(body.state).toBe("ACTIVE");
     expect(body.suggestedLevel).toBe("SP1");
     const again = await call("POST", `/warning-letters/${ids.sp1}/issue`, hr.headers, {
@@ -386,6 +388,17 @@ describe("terbit, saran tingkat & nomor (ARS-D8/D10/D11)", () => {
 });
 
 describe("lihat & konfirmasi (ARS-D9/D13)", () => {
+  test("filter employeeId tidak membuka SP di luar tim MANAGER (audit 2026-10-15)", async () => {
+    const other = await data(
+      await call("GET", `/warning-letters?employeeId=${ids.emp}`, mgrOther.headers),
+    );
+    expect(other.data).toHaveLength(0);
+    const own = await data(
+      await call("GET", `/warning-letters?employeeId=${ids.emp}`, mgr.headers),
+    );
+    expect(own.data.length).toBeGreaterThan(0);
+  });
+
   test("karyawan melihat miliknya; MANAGER tim; MANAGER lain & HR PT lain 404; tanpa grant 403 di tab", async () => {
     const own = await data(await call("GET", "/self/warning-letters", emp.headers));
     expect(own.data.map((l: { id: string }) => l.id).sort()).toEqual([ids.sp1, ids.sp3].sort());
@@ -451,6 +464,60 @@ describe("lihat & konfirmasi (ARS-D9/D13)", () => {
     const pdf = await call("GET", `/warning-letters/${ids.sp1}/pdf`, emp.headers);
     expect(pdf.status).toBe(200);
     expect((await data(pdf)).data.fileName).toStartWith("SP1-");
+  });
+});
+
+describe("audit 2026-10-15: penomoran, tanggal mundur, atasan nonaktif", () => {
+  const issue = async (body: Record<string, unknown>, issued: Record<string, unknown>) => {
+    const created = await call("POST", "/warning-letters", hr.headers, draft(body));
+    const id = (await data(created)).data.id as string;
+    return call("POST", `/warning-letters/${id}/issue`, hr.headers, issued);
+  };
+
+  test("nomor manual yang sama dengan nomor otomatis berikutnya tidak memblokir penomoran otomatis", async () => {
+    ids.emp3 = await employee("G", { managerId: ids.mgr2 });
+    const year = Number(TODAY.slice(0, 4));
+    const max = await prisma.warningLetter.aggregate({
+      where: { companyId: ids.acp, numberYear: year },
+      _max: { numberSeq: true },
+    });
+    const next = formatWarningNumber((max._max.numberSeq ?? 0) + 1, "SP1", ids.acpCode, TODAY);
+    const manual = await issue({ employeeId: ids.emp3 }, { issuedAt: TODAY, number: next });
+    expect(manual.status).toBe(200);
+    const auto = await issue({ employeeId: ids.emp3 }, { issuedAt: TODAY });
+    expect(auto.status).toBe(200);
+    const number = (await data(auto)).data.number as string;
+    expect(number).not.toBe(next);
+    expect(number).toContain("/SP1/");
+  });
+
+  test("tanggal terbit mundur tetap menghitung SP yang masih berlaku (saran tingkat tidak turun)", async () => {
+    // emp3 punya 2 SP1 berlaku sejak hari ini → saran SP2 walau tanggal terbit 10 hari lalu.
+    const res = await issue(
+      { employeeId: ids.emp3, level: "SP2" },
+      { issuedAt: dayBefore(TODAY, 10) },
+    );
+    expect(res.status).toBe(200);
+    expect((await data(res)).data.suggestedLevel).toBe("SP2");
+  });
+
+  test("atasan saat terbit tidak aktif lagi → penulis SP boleh menandai disampaikan", async () => {
+    const res = await issue(
+      { employeeId: ids.emp3, level: "SP3", escalationReason: "Uji audit." },
+      { issuedAt: TODAY },
+    );
+    const id = (await data(res)).data.id as string;
+    expect((await call("POST", `/warning-letters/${id}/deliver`, hr.headers)).status).toBe(403);
+    await prisma.account.update({ where: { id: mgrOther.account.id }, data: { isActive: false } });
+    try {
+      const detail = await data(await call("GET", `/warning-letters/${id}`, hr.headers));
+      expect(detail.data.can.deliver).toBe(true);
+      const ok = await call("POST", `/warning-letters/${id}/deliver`, hr.headers);
+      expect(ok.status).toBe(200);
+      expect((await data(ok)).data.deliveredAt).not.toBeNull();
+    } finally {
+      await prisma.account.update({ where: { id: mgrOther.account.id }, data: { isActive: true } });
+    }
   });
 });
 

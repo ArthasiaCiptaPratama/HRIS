@@ -56,7 +56,12 @@ type Call = { method: string; path: string; body: unknown };
 
 function mockFetch(
   role: ReturnType<typeof me> | Record<string, unknown>,
-  opts: { list?: unknown[]; self?: unknown[]; detail?: Record<string, unknown> } = {},
+  opts: {
+    list?: unknown[];
+    self?: unknown[];
+    detail?: Record<string, unknown>;
+    notifications?: unknown[];
+  } = {},
 ) {
   const calls: Call[] = [];
   vi.stubGlobal(
@@ -74,8 +79,13 @@ function mockFetch(
       if (path === "/me") return json(200, { data: role });
       if (path === "/health")
         return json(200, { data: { status: "ok", checks: { database: "ok" }, time: "x" } });
-      if (path === "/notifications")
-        return json(200, { data: [], meta: { page: 1, pageSize: 5, total: 0, unreadCount: 0 } });
+      if (path === "/notifications") {
+        const items = opts.notifications ?? [];
+        return json(200, {
+          data: items,
+          meta: { page: 1, pageSize: 5, total: items.length, unreadCount: items.length },
+        });
+      }
       if (path === "/master-data")
         return json(200, {
           data: {
@@ -226,6 +236,40 @@ describe.skipIf(!FEATURES.discipline || !FEATURES.selfService)(
           ),
         ).toBe(true),
       );
+    });
+  },
+);
+
+describe.skipIf(!FEATURES.discipline || !FEATURES.selfService)(
+  "Tautan notifikasi ke tab SP (audit 2026-10-15)",
+  () => {
+    it("sudah di /ess (tab Data saya) → klik notifikasi /ess?tab=sp membuka tab Surat peringatan", async () => {
+      mockFetch(me("EMPLOYEE", false, "e1"), {
+        self: [letter()],
+        notifications: [
+          {
+            id: "n1",
+            type: "discipline.letter.issued",
+            title: "Ada surat untuk Anda",
+            body: null,
+            link: "/ess?tab=sp",
+            readAt: "2026-10-15T01:00:00.000Z",
+            createdAt: "2026-10-15T01:00:00.000Z",
+          },
+        ],
+      });
+      renderAt("/ess");
+      const dataTab = await screen.findByRole("tab", { name: /Data saya/ });
+      expect(dataTab).toHaveAttribute("aria-selected", "true");
+      await userEvent.click(screen.getByRole("button", { name: /Notifikasi/ }));
+      await userEvent.click(await screen.findByText("Ada surat untuk Anda"));
+      await waitFor(() =>
+        expect(screen.getByRole("tab", { name: /Surat peringatan/ })).toHaveAttribute(
+          "aria-selected",
+          "true",
+        ),
+      );
+      expect(await screen.findByText("Mangkir")).toBeInTheDocument();
     });
   },
 );

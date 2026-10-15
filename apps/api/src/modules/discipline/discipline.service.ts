@@ -135,6 +135,7 @@ function letterDto(
   briefs: Map<string, EmployeeBrief>,
   lookup: MasterLookup,
   today: string,
+  reachable: Set<string>,
 ) {
   const employee = briefs.get(l.employeeId);
   const managerId = l.managerEmployeeId ?? employee?.managerId ?? null;
@@ -182,7 +183,15 @@ function letterDto(
       revoke: writer && l.status === "ISSUED",
       attachScan: writer && l.status !== "DRAFT",
       deliver:
-        t !== null && live && !l.deliveredAt && policy.canDeliver(ctx.actor, letterTarget(l), t),
+        t !== null &&
+        live &&
+        !l.deliveredAt &&
+        policy.canDeliver(
+          ctx.actor,
+          letterTarget(l),
+          t,
+          managerId !== null && reachable.has(managerId),
+        ),
       acknowledge: t !== null && live && !l.acknowledgedAt && policy.canAcknowledge(ctx.actor, t),
     },
   };
@@ -198,10 +207,21 @@ async function briefsForLetters(rows: repo.LetterRow[]) {
   return first;
 }
 
+/** Atasan (saat terbit, atau sekarang) yang punya akun aktif — dasar `canDeliver` (ARS-D9). */
+async function reachableManagers(ids: (string | null)[]) {
+  const wanted = [...new Set(ids.filter((id): id is string => id !== null))];
+  if (wanted.length === 0) return new Set<string>();
+  const states = await getEmployeeAccountStates(wanted);
+  return new Set(states.filter((a) => a.isActive).map((a) => a.employeeId));
+}
+
 async function dtos(ctx: RequestContext, rows: repo.LetterRow[], now: Date) {
   const [briefs, lookup] = await Promise.all([briefsForLetters(rows), getMasterLookup()]);
+  const reachable = await reachableManagers(
+    rows.map((r) => r.managerEmployeeId ?? briefs.get(r.employeeId)?.managerId ?? null),
+  );
   const today = todayInJakarta(now);
-  return rows.map((r) => letterDto(ctx, r, briefs, lookup, today));
+  return rows.map((r) => letterDto(ctx, r, briefs, lookup, today, reachable));
 }
 
 async function one(ctx: RequestContext, row: repo.LetterRow, now: Date) {
@@ -317,12 +337,14 @@ export async function listLetters(ctx: RequestContext, query: LetterListQuery, n
     orManager = scope.managerId;
     draftCompanyIds = [];
   }
+  // Filter karyawan = AND di dalam cakupan. MANAGER: karyawan tim, atau bukan tim tetapi SP-nya
+  // diterima sebagai atasan saat terbit (audit 2026-10-15: filter tidak boleh melebarkan cakupan).
+  let onlyManagerEmployeeId: string | null = null;
   if (query.employeeId) {
-    employeeIds = employeeIds && !employeeIds.includes(query.employeeId) ? [] : [query.employeeId];
-    if (orManager) {
-      // Filter karyawan tetap berlaku untuk SP yang diterima sebagai atasan saat terbit.
-      employeeIds = [query.employeeId];
-    }
+    const inTeam = employeeIds === null || employeeIds.includes(query.employeeId);
+    if (!inTeam && orManager) onlyManagerEmployeeId = orManager;
+    employeeIds = inTeam || orManager ? [query.employeeId] : [];
+    orManager = null;
   }
   const q = query.q?.trim() || null;
   const qEmployeeIds = q
@@ -339,7 +361,8 @@ export async function listLetters(ctx: RequestContext, query: LetterListQuery, n
       companyIds,
       draftCompanyIds,
       employeeIds,
-      orManagerEmployeeId: query.employeeId ? null : orManager,
+      orManagerEmployeeId: orManager,
+      managerEmployeeId: onlyManagerEmployeeId,
       statuses: statuses ? [...statuses] : null,
       level: query.level ?? null,
       violationTypeId: query.violationTypeId ?? null,
@@ -381,6 +404,7 @@ export async function getLetter(ctx: RequestContext, id: string, now = new Date(
       ? await alphaDaysForEvidence(
           letter.employeeId,
           letter.alphaDays.map((d) => d.attendanceDayId),
+          true,
         )
       : [];
   return { ...dto, alphaEvidence: evidence };
@@ -593,10 +617,16 @@ export async function issueLetter(ctx: RequestContext, id: string, raw: unknown,
   for (let attempt = 0; ; attempt++) {
     try {
       await repo.transaction(async (tx) => {
-        const seq = input.number ? null : await repo.nextNumberSeq(tx, letter.companyId, year);
+        let seq = input.number ? null : await repo.nextNumberSeq(tx, letter.companyId, year);
         number =
           input.number ??
           formatWarningNumber(seq as number, letter.level, companyCode, input.issuedAt);
+        // Nomor manual bisa sama dengan nomor otomatis berikutnya (number_seq manual = null) → lompati
+        // urutan yang sudah terpakai (audit 2026-10-15).
+        while (seq !== null && (await repo.numberTaken(tx, number))) {
+          seq += 1;
+          number = formatWarningNumber(seq, letter.level, companyCode, input.issuedAt);
+        }
         const ok = await repo.updateIfStatus(tx, letter.id, "DRAFT", {
           status: "ISSUED",
           number,
@@ -636,7 +666,13 @@ export async function issueLetter(ctx: RequestContext, id: string, raw: unknown,
     }
   }
 
-  // ARS-D13: in-app + email TANPA isi (PROMPT §3.7) ke karyawan & atasan.
+  // ARS-D13: in-app + email TANPA isi (PROMPT §3.7) ke karyawan & atasan. SP sudah terbit: kegagalan
+  // notifikasi tidak boleh membuat respons gagal (audit 2026-10-15).
+  await notifyIssued(employee, now).catch(() => {});
+  return getLetter(ctx, id, now);
+}
+
+async function notifyIssued(employee: EmployeeBrief, now: Date) {
   const [self, boss] = await Promise.all([accountOf(employee.id), accountOf(employee.managerId)]);
   if (self) {
     await notify(
@@ -664,7 +700,6 @@ export async function issueLetter(ctx: RequestContext, id: string, raw: unknown,
       now,
     );
   }
-  return getLetter(ctx, id, now);
 }
 
 export async function revokeLetter(
@@ -699,33 +734,38 @@ export async function revokeLetter(
       tx,
     );
   });
-  const [self, boss] = await Promise.all([
-    accountOf(employee.id),
-    accountOf(letter.managerEmployeeId),
-  ]);
-  for (const [recipient, link] of [
-    [self, SELF_LINK],
-    [boss, LETTERS_LINK],
-  ] as const) {
-    if (!recipient) continue;
-    await notify(
-      {
-        recipients: [recipient],
-        type: "discipline.letter.revoked",
-        title: "Surat peringatan dicabut",
-        body: `Surat ${letter.number ?? ""} dicabut oleh HR.`,
-        link,
-        email: false,
-      },
-      now,
-    );
-  }
+  // SP sudah dicabut: kegagalan notifikasi tidak membuat respons gagal (audit 2026-10-15).
+  await (async () => {
+    const [self, boss] = await Promise.all([
+      accountOf(employee.id),
+      accountOf(letter.managerEmployeeId),
+    ]);
+    for (const [recipient, link] of [
+      [self, SELF_LINK],
+      [boss, LETTERS_LINK],
+    ] as const) {
+      if (!recipient) continue;
+      await notify(
+        {
+          recipients: [recipient],
+          type: "discipline.letter.revoked",
+          title: "Surat peringatan dicabut",
+          body: `Surat ${letter.number ?? ""} dicabut oleh HR.`,
+          link,
+          email: false,
+        },
+        now,
+      );
+    }
+  })().catch(() => {});
   return getLetter(ctx, id, now);
 }
 
 export async function deliverLetter(ctx: RequestContext, id: string, now = new Date()) {
   const { letter, employee } = await loadVisible(ctx, id);
-  if (!policy.canDeliver(ctx.actor, letterTarget(letter), target(employee)))
+  const managerId = letter.managerEmployeeId ?? employee.managerId;
+  const reachable = (await reachableManagers([managerId])).has(managerId ?? "");
+  if (!policy.canDeliver(ctx.actor, letterTarget(letter), target(employee), reachable))
     throw new ForbiddenError();
   if (letter.status !== "ISSUED" && letter.status !== "EXPIRED")
     throw new BusinessRuleError("SP ini tidak berlaku.");

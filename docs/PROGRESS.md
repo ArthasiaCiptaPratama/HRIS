@@ -77,6 +77,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 - Edit struktur bagan dengan seret-sambung di kanvas (D-051, tidak dipilih saat ini)
 - Menu web Struktur Organisasi untuk EMPLOYEE (lewat ESS; API sudah mendukung) (D-051)
 - Aktifkan *Leaked Password Protection* Supabase Auth bila tersedia di paket (advisor WARN, dari tugas deploy Vercel 2026-09-29)
+- **(2026-10-15, dari audit Surat Peringatan)** Helper `todayInJakarta` / `isUniqueViolation` (P2002) terduplikasi ±7 kali di modul `asset`, `discipline`, `employee`, `leave`, `attendance` → satukan di `core/` (mis. `core/dates.ts`, `core/prisma-errors.ts`); cron `discipline-daily` lalu tidak perlu mengimpor `discipline.service.ts`.
 - Aplikasi mobile (projek terpisah, memakai API yang sama)
 - MFA untuk SUPER_ADMIN/HR_ADMIN
 - Notifikasi WhatsApp
@@ -93,6 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-15** — Audit gel. 2b SP: 7 temuan diperbaiki (termasuk bocor akses filter MANAGER), api 764 · web 271, QA ulang 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-15** — Arsip gel. 2b Surat Peringatan (ARS-D7–D15): modul `discipline` + migrasi, Riwayat Peringatan, Jenis Pelanggaran, tab SP, SP di Layanan Mandiri; api 759 · web 270, QA lokal 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — PT bawaan form aset (temuan QA staging) + Backlog tampilan: top bar 1440 px, teks Kalender Libur HR, badge DB dev; web 263. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-14** — Push develop `5859111` + rilis gel. 7: Aset & APD tampil di staging (PR #49/#50, Deploy #38509894453, 35 migrasi), Time Management terpasang tersembunyi; QA staging 15/15 LEGIT. (Oatse) → [arsip/log](features/arsip/log.md)

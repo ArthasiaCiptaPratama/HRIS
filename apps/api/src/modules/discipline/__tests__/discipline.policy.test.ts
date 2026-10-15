@@ -131,20 +131,32 @@ describe("lihat SP (ARS-D13)", () => {
 
 describe("konfirmasi (ARS-D9)", () => {
   test('"Sudah disampaikan": atasan tim / atasan saat terbit, bukan karyawan sendiri', () => {
-    expect(canDeliver(actor("MGR"), letter(), employee("MGR", "team"))).toBe(true);
+    expect(canDeliver(actor("MGR"), letter(), employee("MGR", "team"), true)).toBe(true);
     expect(
-      canDeliver(actor("MGR"), letter("ISSUED", "co-A", "emp-MGR"), employee("MGR", "other")),
+      canDeliver(actor("MGR"), letter("ISSUED", "co-A", "emp-MGR"), employee("MGR", "other"), true),
     ).toBe(true);
-    expect(canDeliver(actor("MGR"), letter(), employee("MGR", "other"))).toBe(false);
-    expect(canDeliver(actor("HR", WRITE), letter(), employee("HR", "other"))).toBe(false);
-    expect(canDeliver(actor("EMP"), letter(), employee("EMP", "self"))).toBe(false);
+    expect(canDeliver(actor("MGR"), letter(), employee("MGR", "other"), true)).toBe(false);
+    expect(canDeliver(actor("HR", WRITE), letter(), employee("HR", "other"), true)).toBe(false);
+    expect(canDeliver(actor("EMP"), letter(), employee("EMP", "self"), true)).toBe(false);
   });
 
   test("karyawan tanpa atasan: penulis SP PT itu yang menyampaikan", () => {
     const noBoss = { employeeId: "emp-target", managerId: null, companyId: "co-A" };
-    expect(canDeliver(actor("HR", WRITE), letter("ISSUED", "co-A", null), noBoss)).toBe(true);
-    expect(canDeliver(actor("HR", READ), letter("ISSUED", "co-A", null), noBoss)).toBe(false);
-    expect(canDeliver(actor("SA"), letter("ISSUED", "co-A", null), noBoss)).toBe(true);
+    expect(canDeliver(actor("HR", WRITE), letter("ISSUED", "co-A", null), noBoss, false)).toBe(
+      true,
+    );
+    expect(canDeliver(actor("HR", READ), letter("ISSUED", "co-A", null), noBoss, false)).toBe(
+      false,
+    );
+    expect(canDeliver(actor("SA"), letter("ISSUED", "co-A", null), noBoss, false)).toBe(true);
+  });
+
+  test("atasan tidak aktif lagi: penulis SP PT itu boleh menyampaikan; karyawan sendiri tetap tidak", () => {
+    expect(canDeliver(actor("HR", WRITE), letter(), employee("HR", "other"), false)).toBe(true);
+    expect(canDeliver(actor("HR", WRITE, ["co-B"]), letter(), employee("HR", "other"), false)).toBe(
+      false,
+    );
+    expect(canDeliver(actor("EMP"), letter(), employee("EMP", "self"), false)).toBe(false);
   });
 
   test('"Sudah menerima": hanya karyawan penerima', () => {

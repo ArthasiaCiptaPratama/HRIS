@@ -7,12 +7,13 @@
 ```
 ├── index.ts                      [done] registerDisciplineRoutes, runDisciplineDaily
 ├── discipline.policy.ts          [done] canWriteLetters (SA / HR ber-grant employee.discipline.write di PT), canViewLetter (SA; HR read/write PT; MANAGER tim
-│                                        atau atasan saat terbit; diri sendiri; draft hanya penulis), canSeeInternalNotes, canDeliver, canAcknowledge,
+│                                        atau atasan saat terbit; diri sendiri; draft hanya penulis), canSeeInternalNotes, canDeliver (atasan; tak terjangkau → penulis), canAcknowledge,
 │                                        canManageViolationTypes, canReadDisciplineMasters, canChangeSettings (SA), letterListScope
 ├── discipline.repository.ts      [done] jenis pelanggaran, pengaturan (satu baris), SP (filter cakupan/status/berlaku/kedaluwarsa), update bersyarat
-│                                        (`updateIfStatus`, `updateDraft`/`deleteDraft` hanya DRAFT, `confirmOnce`) agar aksi bersamaan tidak sama-sama lolos
+│                                        (`updateIfStatus`, `updateDraft`/`deleteDraft` hanya DRAFT, `confirmOnce`) agar aksi bersamaan tidak sama-sama lolos;
+│                                        `numberTaken`; `activeLettersOf` = SP berlaku pada/sesudah tanggal terbit (tanggal mundur tidak menurunkan saran)
 ├── discipline.service.ts         [done] aturan ARS-D7–D13, audit `discipline.*` (alasan eskalasi & cabut di kolom reason), saran tingkat, nomor otomatis per
-│                                        PT per tahun (coba ulang bila bentrok), notifikasi in-app + email tanpa isi (PROMPT §3.7), bukti ALPHA lewat attendance
+│                                        PT per tahun (lompati nomor terpakai; coba ulang bila bentrok); notifikasi gagal tidak menggagalkan respons, notifikasi in-app + email tanpa isi (PROMPT §3.7), bukti ALPHA lewat attendance
 ├── warning-letter-pdf.ts         [done] PDF SP dari template sistem (pdf-lib, A4, font standar WinAnsi, kop `core/brand-logo.ts`, multi-halaman,
 │                                        tanda air DRAF untuk draft, 3 kolom tanda tangan)
 ├── discipline-daily.service.ts   [done] cron `discipline-daily`: ISSUED lewat berlaku s/d → EXPIRED (+ audit sistem); pengingat konfirmasi ≥ 2 hari (dedupe per SP)
@@ -22,8 +23,8 @@
 ```
 
 - Shared: `packages/shared/src/discipline.ts` — tingkat & status + label, `warningLetterState` (status tampilan), `suggestWarningLevel`, `isAboveSuggestion`, `formatWarningNumber` (`NNN/SPx/HRD-<PT>/<romawi>/<tahun>`), `warningEffectiveUntil`, skema input. Test `packages/shared/tests/discipline.test.ts`.
-- Pendukung di modul lain (lewat `index.ts`): `attendance` → `alphaDaysForEvidence` (baca-saja hari ALPHA + surat pernyataan, `period.service.ts`); `employee` → `getEmployeeBriefs`, `listEmployeeBriefs`, `getEmployeeDocumentRef`; `iam` → `listDisciplineWriters`, `getAccountSummaries`, `getEmployeeAccountStates`; `employee.policy` `canRead/WriteDocuments` menerima grant SP untuk jenis `WARNING_LETTER` (ARS-D14).
-- Integration: `apps/api/tests/integration/discipline/warning-letters.test.ts` (14 skenario: master & pengaturan, draft & akses, bukti ALPHA, terbit + nomor + notifikasi, eskalasi & nomor manual, terbit tak bisa diubah, lihat per role, konfirmasi idempoten, scan, PDF, cabut, cron kedaluwarsa + pengingat dedupe).
+- Pendukung di modul lain (lewat `index.ts`): `attendance` → `alphaDaysForEvidence` (baca-saja hari ALPHA + surat pernyataan, `period.service.ts`; signed URL lampiran hanya bila `withUrls`); `employee` → `getEmployeeBriefs`, `listEmployeeBriefs`, `getEmployeeDocumentRef`; `iam` → `listDisciplineWriters`, `getAccountSummaries`, `getEmployeeAccountStates`; `employee.policy` `canRead/WriteDocuments` menerima grant SP untuk jenis `WARNING_LETTER` (ARS-D14).
+- Integration: `apps/api/tests/integration/discipline/warning-letters.test.ts` (18 skenario, termasuk 4 dari audit 2026-10-15: master & pengaturan, draft & akses, bukti ALPHA, terbit + nomor + notifikasi, eskalasi & nomor manual, terbit tak bisa diubah, lihat per role, konfirmasi idempoten, scan, PDF, cabut, cron kedaluwarsa + pengingat dedupe).
 
 ## Web (`apps/web/src/features/discipline/`, 2026-10-15)
 

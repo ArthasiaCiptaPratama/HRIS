@@ -48,9 +48,14 @@ export const WARNING_LETTER_STATE_LABELS: Record<WarningLetterState, string> = {
 /** ARS-D8: masa berlaku bawaan (PP 35/2021); diubah SA di pengaturan. */
 export const DEFAULT_WARNING_VALIDITY_MONTHS = 6;
 
-/** ARS-D8: berlaku s/d = tanggal terbit + N bulan (tanggal terakhir masih berlaku). */
+/**
+ * ARS-D8: berlaku s/d = hari terakhir masa N bulan sejak terbit (inklusif), mis. terbit 15 Okt + 6 bulan
+ * → s/d 14 Apr (PP 35/2021: paling lama 6 bulan; audit 2026-10-15 — sebelumnya 6 bulan + 1 hari).
+ */
 export function warningEffectiveUntil(issuedAt: string, months: number): string {
-  return addMonths(issuedAt, months);
+  const end = new Date(`${addMonths(issuedAt, months)}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10);
 }
 
 export function warningLetterState(

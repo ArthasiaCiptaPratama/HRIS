@@ -30,9 +30,10 @@ describe("surat peringatan (ARS-D8–D11)", () => {
     expect(formatWarningNumber(123, "SP3", "ABC", "2027-01-02")).toBe("123/SP3/HRD-ABC/I/2027");
   });
 
-  test("berlaku s/d = terbit + N bulan (akhir bulan dipotong)", () => {
-    expect(warningEffectiveUntil("2026-10-15", 6)).toBe("2027-04-15");
-    expect(warningEffectiveUntil("2026-08-31", 6)).toBe("2027-02-28");
+  test("berlaku s/d = hari terakhir N bulan sejak terbit (PP 35/2021: paling lama 6 bulan)", () => {
+    expect(warningEffectiveUntil("2026-10-15", 6)).toBe("2027-04-14");
+    expect(warningEffectiveUntil("2026-01-01", 6)).toBe("2026-06-30");
+    expect(warningEffectiveUntil("2026-08-31", 6)).toBe("2027-02-27");
   });
 
   test("status tampilan", () => {

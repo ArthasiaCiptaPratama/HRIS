@@ -85,14 +85,19 @@ function isLetterManager(actor: Actor, letter: LetterTarget, employee: EmployeeT
 }
 
 /**
- * ARS-D9: "Sudah disampaikan" oleh atasan (saat terbit atau atasan sekarang). Karyawan tanpa atasan →
- * penulis SP di PT itu yang menyampaikan.
+ * ARS-D9: "Sudah disampaikan" oleh atasan (saat terbit atau atasan sekarang). Bila atasan tidak bisa
+ * dijangkau (tidak ada, atau akunnya tidak aktif — `managerReachable` dari pemanggil), penulis SP di PT itu
+ * yang menyampaikan; sama dengan penerima pengingat cron (audit 2026-10-15).
  */
-export function canDeliver(actor: Actor, letter: LetterTarget, employee: EmployeeTarget): boolean {
+export function canDeliver(
+  actor: Actor,
+  letter: LetterTarget,
+  employee: EmployeeTarget,
+  managerReachable: boolean,
+): boolean {
   if (isSelf(actor, employee)) return false;
-  if (letter.managerEmployeeId === null && employee.managerId === null)
-    return canWriteLetters(actor, letter.companyId);
-  return isLetterManager(actor, letter, employee);
+  if (isLetterManager(actor, letter, employee)) return true;
+  return !managerReachable && canWriteLetters(actor, letter.companyId);
 }
 
 /** ARS-D9: "Sudah menerima" hanya oleh karyawan penerima SP. */

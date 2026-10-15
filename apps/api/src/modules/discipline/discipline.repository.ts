@@ -52,6 +52,8 @@ export interface LetterFilter {
   employeeIds: string[] | null;
   /** MANAGER: SP yang ia terima sebagai atasan saat terbit (selain tim). */
   orManagerEmployeeId: string | null;
+  /** Wajib: atasan saat terbit = ini (MANAGER memfilter karyawan di luar timnya). */
+  managerEmployeeId: string | null;
   statuses: WarningLetterStatus[] | null;
   level: "SP1" | "SP2" | "SP3" | null;
   violationTypeId: string | null;
@@ -78,6 +80,7 @@ function letterWhere(f: LetterFilter): Prisma.WarningLetterWhereInput {
     if (f.orManagerEmployeeId) or.push({ managerEmployeeId: f.orManagerEmployeeId });
     and.push({ OR: or });
   }
+  if (f.managerEmployeeId) and.push({ managerEmployeeId: f.managerEmployeeId });
   if (f.statuses) and.push({ status: { in: f.statuses } });
   if (f.level) and.push({ level: f.level });
   if (f.violationTypeId) and.push({ violationTypeId: f.violationTypeId });
@@ -123,7 +126,10 @@ export const lettersOfEmployee = (employeeId: string, includeDrafts: boolean) =>
     orderBy: [{ issuedAt: { sort: "desc", nulls: "first" } }, { createdAt: "desc" }],
   });
 
-/** SP terbit yang masih berlaku pada `on` (dasar saran tingkat, ARS-D10). */
+/**
+ * SP terbit yang masih berlaku pada `on` atau sesudahnya (dasar saran tingkat, ARS-D10). Termasuk SP yang
+ * terbit setelah `on`, supaya tanggal terbit mundur tidak menurunkan saran (audit 2026-10-15).
+ */
 export const activeLettersOf = (
   employeeId: string,
   on: Date,
@@ -134,7 +140,6 @@ export const activeLettersOf = (
     where: {
       employeeId,
       status: "ISSUED",
-      issuedAt: { lte: on },
       effectiveUntil: { gte: on },
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
@@ -183,6 +188,10 @@ export async function nextNumberSeq(tx: DisciplineTx, companyId: string, year: n
   });
   return (agg._max.numberSeq ?? 0) + 1;
 }
+
+/** Nomor surat sudah dipakai (otomatis maupun manual)? */
+export const numberTaken = async (tx: DisciplineTx, number: string) =>
+  (await tx.warningLetter.count({ where: { number } })) > 0;
 
 /** Ubah bersyarat status (terbit / cabut / kedaluwarsa); false = status sudah berubah. */
 export async function updateIfStatus(
