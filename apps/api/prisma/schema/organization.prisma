@@ -26,6 +26,7 @@ model Company {
   updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
   assets            Asset[]
+  warningLetters    WarningLetter[]
 
   @@unique([code])
   @@unique([name])

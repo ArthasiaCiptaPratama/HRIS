@@ -448,6 +448,11 @@ Enum iam.permission {
   "employee.documents.write"
   "contract.manage"
   "payroll.period.prepare"
+  "employee.onboarding.review"
+  "employee.changes.review"
+  "asset.manage"
+  "employee.discipline.read"
+  "employee.discipline.write"
 }
 
 Table iam.accounts {
@@ -748,4 +753,75 @@ Table asset.ppe_issues {
     ppe_type_id
     issued_at
   }
+}
+
+// ── discipline (Arsip gel. 2b Surat Peringatan, D-057 + ARS-D7–D13; migrasi 20261015071500_add_discipline_module) ──
+Enum discipline.warning_level { SP1 SP2 SP3 }
+Enum discipline.warning_letter_status { DRAFT ISSUED EXPIRED REVOKED }
+
+Table discipline.violation_types {
+  id uuid [pk]
+  code varchar(10) [not null, unique]
+  name varchar(100) [not null, unique]
+  links_attendance boolean [not null, default: false, note: 'jenis mangkir: boleh ditautkan ke hari ALPHA (ARS-D12)']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+}
+
+Table discipline.warning_letters {
+  id uuid [pk]
+  employee_id uuid [not null, ref: > employee.employees.id]
+  company_id uuid [not null, ref: > organization.companies.id, note: 'PT karyawan saat draft dibuat']
+  level discipline.warning_level [not null]
+  violation_type_id uuid [not null, ref: > discipline.violation_types.id]
+  incident_date date
+  description varchar(4000) [not null]
+  status discipline.warning_letter_status [not null, default: 'DRAFT', note: 'CHECK: draft tanpa nomor/tanggal; selain draft wajib nomor, issued_at, effective_until']
+  suggested_level discipline.warning_level [note: 'saran sistem saat terbit (ARS-D10)']
+  escalation_reason varchar(500) [note: 'wajib bila tingkat di atas saran; hanya HR/SA']
+  number varchar(60) [unique, note: 'otomatis NNN/SPx/HRD-<PT>/<romawi>/<tahun> atau manual (ARS-D11)']
+  number_year int
+  number_seq int [note: 'null = nomor manual; unik (company_id, number_year, number_seq)']
+  issued_at date
+  effective_until date [note: 'terbit + N bulan (bawaan 6, ARS-D8); CHECK > issued_at']
+  manager_employee_id uuid [note: 'atasan saat terbit (ARS-D9); tanpa FK']
+  delivered_at timestamptz
+  delivered_by uuid
+  acknowledged_at timestamptz
+  scan_document_id uuid [note: 'employee_documents jenis WARNING_LETTER; tanpa FK']
+  revoked_at timestamptz [note: 'CHECK: REVOKED ⇔ revoked_at & revoke_reason terisi']
+  revoked_by uuid
+  revoke_reason varchar(500)
+  created_by uuid [not null]
+  issued_by uuid
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    (company_id, number_year, number_seq) [unique]
+    (employee_id, status)
+    (company_id, status)
+    (status, effective_until)
+    manager_employee_id
+    violation_type_id
+  }
+}
+
+Table discipline.warning_letter_alpha_days {
+  id uuid [pk]
+  letter_id uuid [not null, ref: > discipline.warning_letters.id, note: 'ON DELETE CASCADE']
+  attendance_day_id uuid [not null, note: 'attendance.attendance_days ALPHA (D-071); tanpa FK lintas modul']
+  work_date date [not null]
+
+  indexes {
+    (letter_id, attendance_day_id) [unique]
+  }
+}
+
+Table discipline.discipline_settings {
+  id int [pk, default: 1, note: 'satu baris; CHECK id = 1']
+  validity_months int [not null, default: 6, note: 'CHECK 1–24 (ARS-D8)']
+  updated_by_account_id uuid
+  updated_at timestamptz [not null]
 }

@@ -1,0 +1,113 @@
+// Modul discipline — Arsip gelombang 2b Surat Peringatan (D-057, ARS-D7–D13;
+// docs/features/arsip/README.md#keputusan). FK lintas modul hanya ke modul inti employee & organization
+// (PLAN §3.2). Scan surat bertanda tangan = employee_documents (jenis WARNING_LETTER, D-055) dan hari ALPHA
+// (attendance_days, D-071) dirujuk sebagai UUID tanpa FK.
+
+enum WarningLevel {
+  SP1
+  SP2
+  SP3
+
+  @@schema("discipline")
+}
+
+enum WarningLetterStatus {
+  DRAFT
+  ISSUED
+  // ARS-D8: ditandai cron `discipline-daily` setelah lewat effective_until.
+  EXPIRED
+  REVOKED
+
+  @@schema("discipline")
+}
+
+// ARS-D12: jenis pelanggaran = master data (berlaku semua PT).
+model ViolationType {
+  id              String          @id @default(uuid()) @db.Uuid
+  code            String          @db.VarChar(10)
+  name            String          @db.VarChar(100)
+  // ARS-D12: jenis mangkir boleh ditautkan ke hari ALPHA + surat pernyataan.
+  linksAttendance Boolean         @default(false) @map("links_attendance")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  letters         WarningLetter[]
+
+  @@unique([code])
+  @@unique([name])
+  @@map("violation_types")
+  @@schema("discipline")
+}
+
+model WarningLetter {
+  id                String                  @id @default(uuid()) @db.Uuid
+  employeeId        String                  @map("employee_id") @db.Uuid
+  // PT karyawan saat draft dibuat (cakupan HR & penomoran per PT).
+  companyId         String                  @map("company_id") @db.Uuid
+  level             WarningLevel
+  violationTypeId   String                  @map("violation_type_id") @db.Uuid
+  incidentDate      DateTime?               @map("incident_date") @db.Date
+  description       String                  @db.VarChar(4000)
+  status            WarningLetterStatus     @default(DRAFT)
+  // ARS-D10: saran sistem saat terbit + alasan bila tingkat di atas saran.
+  suggestedLevel    WarningLevel?           @map("suggested_level")
+  escalationReason  String?                 @map("escalation_reason") @db.VarChar(500)
+  // ARS-D11: nomor terisi saat terbit; otomatis = (PT, tahun, urut), manual = number_seq null.
+  number            String?                 @db.VarChar(60)
+  numberYear        Int?                    @map("number_year")
+  numberSeq         Int?                    @map("number_seq")
+  issuedAt          DateTime?               @map("issued_at") @db.Date
+  effectiveUntil    DateTime?               @map("effective_until") @db.Date
+  // ARS-D9: atasan langsung saat terbit (yang menekan "Sudah disampaikan").
+  managerEmployeeId String?                 @map("manager_employee_id") @db.Uuid
+  deliveredAt       DateTime?               @map("delivered_at") @db.Timestamptz(6)
+  deliveredBy       String?                 @map("delivered_by") @db.Uuid
+  acknowledgedAt    DateTime?               @map("acknowledged_at") @db.Timestamptz(6)
+  // ARS-D7: scan bertanda tangan (employee_documents, jenis WARNING_LETTER).
+  scanDocumentId    String?                 @map("scan_document_id") @db.Uuid
+  revokedAt         DateTime?               @map("revoked_at") @db.Timestamptz(6)
+  revokedBy         String?                 @map("revoked_by") @db.Uuid
+  revokeReason      String?                 @map("revoke_reason") @db.VarChar(500)
+  createdBy         String                  @map("created_by") @db.Uuid
+  issuedBy          String?                 @map("issued_by") @db.Uuid
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  employee          Employee                @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  violationType     ViolationType           @relation(fields: [violationTypeId], references: [id], onDelete: Restrict)
+  alphaDays         WarningLetterAlphaDay[]
+
+  @@unique([number])
+  @@unique([companyId, numberYear, numberSeq])
+  @@index([employeeId, status])
+  @@index([companyId, status])
+  @@index([status, effectiveUntil])
+  @@index([managerEmployeeId])
+  @@index([violationTypeId])
+  @@map("warning_letters")
+  @@schema("discipline")
+}
+
+// ARS-D12: hari ALPHA (D-071) yang ditautkan sebagai bukti SP mangkir; tanggal disalin untuk tampilan.
+model WarningLetterAlphaDay {
+  id              String        @id @default(uuid()) @db.Uuid
+  letterId        String        @map("letter_id") @db.Uuid
+  attendanceDayId String        @map("attendance_day_id") @db.Uuid
+  workDate        DateTime      @map("work_date") @db.Date
+  letter          WarningLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@unique([letterId, attendanceDayId])
+  @@map("warning_letter_alpha_days")
+  @@schema("discipline")
+}
+
+// ARS-D8: pengaturan modul (satu baris, id = 1; CHECK di migrasi).
+model DisciplineSetting {
+  id                 Int      @id @default(1)
+  validityMonths     Int      @default(6) @map("validity_months")
+  updatedByAccountId String?  @map("updated_by_account_id") @db.Uuid
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("discipline_settings")
+  @@schema("discipline")
+}

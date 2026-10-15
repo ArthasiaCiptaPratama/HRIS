@@ -122,6 +122,22 @@ model CrewMember {
   @@schema("attendance")
 }
 
+// TM-D1: pengaturan lokasi absen per karyawan (SA + HR PT). Tidak ada baris = bawaan (lokasi crew → lokasi
+// kerja). anywhere = bebas lokasi (PLAN §5.4: tanpa cek geofence, koordinat tetap dicatat); selain itu
+// work_location_id = lokasi absen khusus yang mengalahkan lokasi crew/lokasi kerja.
+model EmployeeLocationSetting {
+  employeeId         String   @id @map("employee_id") @db.Uuid
+  workLocationId     String?  @map("work_location_id") @db.Uuid
+  anywhere           Boolean  @default(false)
+  updatedByAccountId String   @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workLocationId])
+  @@map("employee_location_settings")
+  @@schema("attendance")
+}
+
 enum RosterSource {
   PATTERN
   MANUAL

@@ -2,6 +2,7 @@ export * from "./archive.ts";
 export * from "./asset.ts";
 export * from "./dashboard.ts";
 export * from "./data-changes.ts";
+export * from "./discipline.ts";
 export * from "./documents.ts";
 export * from "./employee.ts";
 export * from "./enums.ts";

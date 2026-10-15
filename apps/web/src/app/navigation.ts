@@ -28,6 +28,7 @@ import {
   Landmark,
   LayoutDashboard,
   type LucideIcon,
+  MapPinned,
   Network,
   Package,
   Plane,
@@ -122,26 +123,37 @@ const ARCHIVE_GRANTED: Record<string, (me: Me) => boolean> = {
   bank: access.readBankArchive,
 };
 const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem =>
-  // ARS-D1–D6: Data Assets punya halaman & saklar sendiri (FEATURES.assets).
-  id === "aset"
+  // D-057, ARS-D7–D13: Riwayat Peringatan punya halaman & saklar sendiri (FEATURES.discipline).
+  id === "peringatan"
     ? {
         id,
         label,
-        to: "/personal/arsip/aset",
+        to: "/personal/arsip/peringatan",
         icon,
-        visible: FEATURES.assets ? access.viewAssets : manage,
-        maintenance: !FEATURES.assets,
+        visible: FEATURES.discipline ? access.viewWarningLetters : manage,
+        maintenance: !FEATURES.discipline,
         keywords,
       }
-    : {
-        id,
-        label,
-        to: `/personal/arsip/${id}`,
-        icon,
-        visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
-        maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
-        keywords,
-      };
+    : // ARS-D1–D6: Data Assets punya halaman & saklar sendiri (FEATURES.assets).
+      id === "aset"
+      ? {
+          id,
+          label,
+          to: "/personal/arsip/aset",
+          icon,
+          visible: FEATURES.assets ? access.viewAssets : manage,
+          maintenance: !FEATURES.assets,
+          keywords,
+        }
+      : {
+          id,
+          label,
+          to: `/personal/arsip/${id}`,
+          icon,
+          visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
+          maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
+          keywords,
+        };
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -255,7 +267,12 @@ export const NAV_GROUPS: NavGroup[] = [
           ),
           archive("file", "Data File", FolderArchive, "dokumen berkas"),
           archive("bank", "Data Bank", Landmark, "rekening"),
-          archive("peringatan", "Riwayat Peringatan", TriangleAlert, "sp surat peringatan"),
+          archive(
+            "peringatan",
+            "Riwayat Peringatan",
+            TriangleAlert,
+            "sp surat peringatan sp1 sp2 sp3 pelanggaran mangkir disiplin",
+          ),
         ],
       },
       {
@@ -357,6 +374,15 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: CalendarCog,
             visible: tmAccess.manageRoster,
             keywords: "master shift pola siklus crew anggota import roster",
+          },
+          {
+            id: "attendance-locations",
+            maintenance: !FEATURES.timeManagement,
+            label: "Lokasi Absen",
+            to: "/time/lokasi-absen",
+            icon: MapPinned,
+            visible: tmAccess.manageAttendanceLocations,
+            keywords: "lokasi absen site geofence radius bebas lokasi karyawan",
           },
         ],
       },
@@ -527,6 +553,16 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: Package,
             visible: access.viewMasterData,
             keywords: "kategori aset jenis apd helm sepatu safety seragam masa ganti",
+          },
+          {
+            // ARS-D8/D12: jenis pelanggaran SP + masa berlaku bawaan.
+            id: "master-violation-types",
+            maintenance: !FEATURES.discipline,
+            label: "Jenis Pelanggaran",
+            to: `${MASTER_DATA_BASE}/jenis-pelanggaran`,
+            icon: TriangleAlert,
+            visible: FEATURES.discipline ? access.viewDisciplineMasters : access.viewMasterData,
+            keywords: "jenis pelanggaran surat peringatan sp masa berlaku mangkir",
           },
         ],
       },

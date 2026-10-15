@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/asset-daily",
       "schedule": "30 0 * * *"
+    },
+    {
+      "path": "/api/cron/discipline-daily",
+      "schedule": "45 0 * * *"
     }
   ]
 }

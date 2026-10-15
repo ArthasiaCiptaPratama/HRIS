@@ -1,3 +1,4 @@
+import { ATTENDANCE_LOCATION_SOURCES } from "@hris/shared";
 import { z } from "zod";
 
 // Subset respons API Time Management (apps/api/src/modules/attendance & approval). Sumber kebenaran
@@ -100,6 +101,9 @@ export const todaySchema = z.object({
       radiusM: z.number().nullable(),
     })
     .nullable(),
+  /** TM-D1: bebas lokasi & asal site absen (opsional: API lama tidak mengirim). */
+  anywhere: z.boolean().optional(),
+  locationSource: z.enum(ATTENDANCE_LOCATION_SOURCES).optional(),
   openDay: daySchema.nullable(),
   recent: z.array(daySchema),
   next: z.enum(["IN", "OUT"]),

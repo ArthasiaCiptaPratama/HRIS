@@ -18,6 +18,9 @@ export const PERMISSIONS = [
   "employee.changes.review",
   // ARS-D3 (Arsip 2a): kelola aset per unit & pembagian APD di PT yang ditugaskan.
   "asset.manage",
+  // ARS-D10 (Arsip 2b): lihat / buat & terbitkan surat peringatan di PT yang ditugaskan.
+  "employee.discipline.read",
+  "employee.discipline.write",
 ] as const;
 
 export const permissionSchema = z.enum(PERMISSIONS);
@@ -38,6 +41,8 @@ export const PERMISSION_GRANTABLE_TO: Record<Permission, readonly Role[]> = {
   "employee.onboarding.review": HR_ONLY,
   "employee.changes.review": HR_ONLY,
   "asset.manage": HR_ONLY,
+  "employee.discipline.read": HR_ONLY,
+  "employee.discipline.write": HR_ONLY,
 };
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
@@ -56,6 +61,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
     "Setujui/tolak pengajuan perubahan data karyawan (bagian sensitif tetap butuh izin lihat & ubah bagian itu)",
   "asset.manage":
     "Kelola aset & pembagian APD (tambah/ubah aset, serah-terima, pengembalian, BAST, harga aset)",
+  "employee.discipline.read": "Lihat surat peringatan karyawan",
+  "employee.discipline.write": "Buat, terbitkan & cabut surat peringatan; kelola jenis pelanggaran",
 };
 
 export function isPermissionGrantableTo(permission: Permission, role: Role): boolean {

@@ -82,7 +82,7 @@ Atribut jenis dokumen: `code`, `name`, `category` (identitas, pendidikan, kompet
 
 ## 5. Arsitektur
 
-- **Modul**: semua data Arsip milik modul **`employee`** (sudah memiliki tabelnya), kecuali **Aset** = modul baru **`asset`** (skema Postgres `asset`; FK ke `employee` diperbolehkan karena modul inti, PLAN §3.2). SP di modul `employee` (sub-domain disiplin) — bisa diekstrak nanti.
+- **Modul**: semua data Arsip milik modul **`employee`** (sudah memiliki tabelnya), kecuali **Aset** = modul baru **`asset`** (skema Postgres `asset`; FK ke `employee` diperbolehkan karena modul inti, PLAN §3.2). SP di modul baru **`discipline`** (skema `discipline`; ARS-D15, 2026-10-15 — mengubah rencana awal "di modul `employee`").
 - **API per kategori** (pola sama untuk setiap menu):
   - `GET /archive/<kategori>?q=&companyId=&departmentId=&status=&page=&pageSize=&sort=` — tabel lintas karyawan (paginasi server, cakupan PT, kolom sensitif dihilangkan bila tidak berhak).
   - `GET|POST|PATCH|DELETE /employees/{id}/<kategori>[/{itemId}]` — kelola per karyawan (tab detail).
@@ -146,6 +146,10 @@ asset.asset_assignments (id, asset_id FK, employee_id FK employee.employees, ass
 ~~Saat karyawan dinonaktifkan: `employee` memanggil `asset.index.ts#openAssignmentsOf(employeeId)`~~ → **diganti ARS-D6**: dialog nonaktifkan (web) memanggil `GET /asset-holdings/{employeeId}?openOnly=true` milik modul asset; `employee` tidak mengimpor `asset` (aturan `no-circular`).
 
 ### 6.6 Surat peringatan
+
+> **Dikodekan 2026-10-15** (gel. 2b, ARS-D7–D15) dengan bentuk akhir di [codemap/discipline.md](../../codemap/discipline.md): skema `discipline` (`violation_types`, `warning_letters`, `warning_letter_alpha_days`, `discipline_settings`). Perbedaan dari rencana di bawah: status tersimpan `DRAFT/ISSUED/EXPIRED/REVOKED` ("Dikonfirmasi" = tampilan bila atasan & karyawan sudah konfirmasi, ARS-D9); jenis pelanggaran = master data (ARS-D12); nomor otomatis per PT per tahun (ARS-D11); tanpa `previous_letter_id` (saran tingkat dihitung dari SP yang masih berlaku); scan = `scan_document_id` (dokumen `WARNING_LETTER`).
+
+Rencana awal (2026-10-05):
 ```
 employee.warning_letters (id, employee_id FK, level enum(SP1, SP2, SP3), letter_number varchar(60) UNIQUE,
   violation varchar(200), description text, issued_date date, effective_until date,

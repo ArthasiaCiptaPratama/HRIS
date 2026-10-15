@@ -28,6 +28,13 @@
   --brand-foreground: oklch(0.985 0 0);
   --brand-soft: oklch(0.955 0.025 180);
   --brand-soft-foreground: oklch(0.38 0.07 182);
+  /* Warna logo Arthasia (hijau tua tulisan, hijau daun, oranye api) — aksen lokal header detail
+     karyawan (2026-10-15); `--brand` aplikasi tetap teal. */
+  --logo-green: oklch(0.34 0.08 155);
+  --logo-green-foreground: oklch(0.985 0 0);
+  --logo-leaf: oklch(0.58 0.13 140);
+  --logo-leaf-soft: oklch(0.96 0.03 140);
+  --logo-orange: oklch(0.66 0.18 45);
   --success: oklch(0.55 0.12 155);
   --success-soft: oklch(0.96 0.03 155);
   /* Teks di atas success-soft: ≥ 4.5:1 (WCAG AA; audit 2026-09-30). */
@@ -69,6 +76,11 @@
   --brand-foreground: oklch(0.17 0.005 285.9);
   --brand-soft: oklch(0.3 0.04 180);
   --brand-soft-foreground: oklch(0.85 0.06 180);
+  --logo-green: oklch(0.3 0.06 155);
+  --logo-green-foreground: oklch(0.96 0.002 286);
+  --logo-leaf: oklch(0.72 0.14 140);
+  --logo-leaf-soft: oklch(0.28 0.04 140);
+  --logo-orange: oklch(0.72 0.17 50);
   --success: oklch(0.7 0.13 155);
   --success-soft: oklch(0.3 0.04 155);
   --success-soft-foreground: oklch(0.85 0.1 155);
@@ -92,6 +104,11 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-soft: var(--brand-soft);
   --color-brand-soft-foreground: var(--brand-soft-foreground);
+  --color-logo-green: var(--logo-green);
+  --color-logo-green-foreground: var(--logo-green-foreground);
+  --color-logo-leaf: var(--logo-leaf);
+  --color-logo-leaf-soft: var(--logo-leaf-soft);
+  --color-logo-orange: var(--logo-orange);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-success-soft-foreground: var(--success-soft-foreground);
