@@ -351,7 +351,7 @@ Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variab
 |---|---|---|
 | `STAGING_DIRECT_URL` | `deploy-staging.yml` | Connection string **session pooler** Supabase staging: `postgresql://postgres.iwgzuwcxsxnbjibhbqgh:<password>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres` (port **5432**, bukan 6543; host direct hanya IPv6). **Rahasia**, sudah diisi 2026-09-28 |
 | `VERCEL_TOKEN` | `deploy-staging.yml` | **Rahasia**. Token akun Vercel `oatse` untuk CLI (D-036) |
-| `VERCEL_ORG_ID` | `deploy-staging.yml` | `team_LT9rBNwfha3zcvHfBB85LEXk` (scope akun `oatse`) |
+| `VERCEL_ORG_ID` | `deploy-staging.yml` | `team_xDA1pGujNeVtv8qdSzzYoTqJ` (team Pro "Arthasia Akselerasi", FND-D1; sebelum 2026-10-16: `team_LT9rBNwfha3zcvHfBB85LEXk` akun `oatse`) |
 | `VERCEL_PROJECT_ID_API`, `VERCEL_PROJECT_ID_WEB` | `deploy-staging.yml` | `prj_YikNSEXpoKlOMC6Jli7a0MPjk0vu` (`hris-staging-api`), `prj_YZVG4UA4Ug5vhAPkbZBaA4e1tm7W` (`hris-staging-web`) |
 
 Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal memakai Supabase staging (tidak ada port lokal).

@@ -18,7 +18,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Keputusan:** FND-D1 (akun Vercel produksi & staging = team Pro "Arthasia Akselerasi"; menjawab OD-4 bagian Vercel, mengubah D-036 (1)).
 - **Verifikasi:** id project tetap; env api 14/14, web 4/4; 6 cron; domain tetap; SSO hanya preview; Deploy #38841245033 ✔ (3 job); deployment production terbaru oleh akun baru READY; health 200, web 200, cron 401; smoke Playwright ✔ (ulang setelah timeout cold start).
 - **Masalah / catatan:** percobaan pertama menerima transfer 404 (variabel shell kosong di lingkungan agen) → permintaan pertama tertunda dibiarkan kedaluwarsa, diulang lewat skrip Python. Cadangan nilai env tidak bisa (env *sensitive*) — tidak dibutuhkan karena env ikut transfer. Token deploy pernah tertulis di chat → rotasi.
-- **Berikutnya:** rotasi token, cabut token lama akun `oatse`; project produksi saat OD-4 Supabase siap.
+- **Berikutnya:** cabut token lama akun `oatse`; project produksi saat OD-4 Supabase siap. Token deploy yang pernah tertulis di chat: pemilik projek memutuskan **tidak dirotasi** (2026-10-16).
 
 ### 2026-10-15 — Panduan pindah deployment ke akun Vercel Pro (Oatse)
 - **Dikerjakan (permintaan pemilik projek):** `pindah-akun-vercel.md` — inventaris 2 project staging (id, root, region, proteksi), 18 env api + 4 env web (nama saja), 6 cron `vercel.json` (+ 3 cron TM belum terdaftar), 5 secret GitHub, URL Supabase Auth; jalur A transfer project (fitur Vercel transfer-request) vs B buat baru; verifikasi (`vercel crons ls`, health, 401 cron, email, storage); rollback; peluang setelah Pro.

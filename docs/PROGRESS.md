@@ -68,7 +68,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 - ~~**(2026-10-14, QA staging Aset)** Form Tambah aset: PT bawaan kosong bila data master terlambat~~ → diperbaiki develop 2026-10-14
 - ~~**(2026-10-14)** Top bar melebar 34 px untuk SA di layar 1440 px (Personal Management)~~ → diperbaiki develop 2026-10-14 (kotak cari menyempit)
 - **(2026-10-13, dari gabung Time Management)** Ganti adapter baca `apps/api/src/modules/attendance/directory.ts` (query langsung `employee`/`company`/`workLocation`, melanggar aturan emas #3) dengan fungsi publik di `modules/employee/index.ts` & `modules/organization/index.ts`.
-- **(2026-10-13)** Daftarkan cron `roster-extend`, `attendance-daily`, `leave-daily` di `vercel.json` (cek batas cron Vercel Hobby) sebelum rilis Time Management.
+- **(2026-10-13)** Daftarkan cron `roster-extend`, `attendance-daily`, `leave-daily` di `vercel.json` (Vercel kini Pro — FND-D1 — cron boleh lebih rapat dari 1×/hari) sebelum rilis Time Management.
 - ~~**(2026-10-13)** Badge "DB · Lokal" (tukar DB, dev saja) menumpuk teks di kaki sidebar~~ → bawaan kanan-bawah, develop 2026-10-14
 - ~~Atasan fungsional (garis putus-putus)~~ → dikerjakan D-051 (2026-10-05)
 - ~~Slot posisi / headcount~~ → dikerjakan D-051 (2026-10-05)

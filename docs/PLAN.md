@@ -146,8 +146,8 @@ Catatan untuk Vercel:
 - Region function diset ke **Singapura (`sin1`)**.
 - Upload selfie dan dokumen dilakukan **langsung dari browser ke Supabase Storage** memakai signed upload URL dari API, jadi file tidak melewati function.
 - Bun runtime di Vercel masih **Public Beta**. Kode api tidak boleh memakai API khusus Vercel di logika bisnis, dan `Dockerfile` api tetap dirawat supaya bisa pindah ke VPS.
-- **Staging (D-036):** project `hris-staging-api` & `hris-staging-web` di akun pribadi `oatse` (Hobby), dideploy oleh GitHub Actions lewat Vercel CLI setelah migrasi. Api dibundel `bun build` (`hono` external) ke `apps/api/dist/index.js` sebelum diunggah; builder Vercel tidak mengompilasi TS per file.
-- Paket Vercel **Hobby hanya untuk non-komersial**. Sebelum ada data karyawan sungguhan, projek harus berada di **akun/team milik kantor dengan paket berbayar** (lihat OD-4).
+- **Staging (D-036):** project `hris-staging-api` & `hris-staging-web` di team Vercel **Pro "Arthasia Akselerasi"** (FND-D1, pindah 2026-10-16 dari akun pribadi `oatse` Hobby), dideploy oleh GitHub Actions lewat Vercel CLI setelah migrasi. Api dibundel `bun build` (`hono` external) ke `apps/api/dist/index.js` sebelum diunggah; builder Vercel tidak mengompilasi TS per file.
+- Paket Vercel **Hobby hanya untuk non-komersial**. Sebelum ada data karyawan sungguhan, projek harus berada di **akun/team milik kantor dengan paket berbayar** (lihat OD-4). ✔ Vercel sudah di team Pro kantor (FND-D1); Supabase produksi masih menunggu OD-4.
 
 ---
 
@@ -531,7 +531,7 @@ Daftar & status terkini: [PROGRESS — Keputusan terbuka](PROGRESS.md#keputusan-
 | Batas koneksi database dari serverless | Transaction pooler Supabase + pool kecil per instance. |
 | Development bergantung pada Supabase staging (D-023): internet, dan project Free di-pause setelah ± 7 hari tidak aktif | Staging dipakai rutin; jika ter-pause, pulihkan dari dashboard. Pertimbangkan staging di paket berbayar saat OD-4 diputuskan. Test otomatis tidak bergantung pada staging. |
 | Batas kirim Google Workspace (± 2.000 email/hari per akun; cek ulang) terlampaui, atau akun pengirim dikunci Google | Email aplikasi lokal hanya ke log; tidak ada email massal; tidak mengirim ke alamat fiktif; `email_outbox` + cron `email-retry` menampung email gagal; pindah ke SMTP relay Workspace bila perlu. |
-| Pelanggaran ToS Vercel Hobby untuk penggunaan komersial | Pindah ke team kantor berpaket berbayar sebelum data asli (OD-4). |
+| Pelanggaran ToS Vercel Hobby untuk penggunaan komersial | Pindah ke team kantor berpaket berbayar sebelum data asli (OD-4). ✔ Selesai untuk Vercel 2026-10-16 (FND-D1). |
 | Kebocoran data pribadi (UU No. 27/2022 PDP) | RBAC + grant, audit log, bucket private, email tanpa data sensitif, tidak log PII, retensi selfie. |
 | Perbedaan Linux vs Windows (dual boot) | `.gitattributes` LF, script via Bun (bukan bash), verifikasi di kedua OS di Fase 1. |
 | GPS palsu (fake GPS) | Diterima di v1 — PWA tidak bisa mendeteksi aplikasi pemalsu lokasi (D-067); mitigasi: selfie, label di luar radius/akurasi rendah, approval MANAGER + HR setiap hari (D-068); bisa diperketat di aplikasi native. |
