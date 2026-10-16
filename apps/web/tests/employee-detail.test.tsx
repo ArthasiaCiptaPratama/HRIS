@@ -4,6 +4,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt, supabaseMock } from "./helpers";
 
 // Canvas tidak ada di jsdom: kompres foto diganti blob tetap (geometri diuji di employee-print.test).
@@ -146,6 +147,15 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
     if (key === "/employees/e1") return json(200, { data: detail(access) });
+    if (key === "/employees/e1/application-form")
+      return json(200, {
+        data: {
+          fileName: "ACP-2023-0007-Agus-Pratama-formulir-aplikasi.pdf",
+          contentType: "application/pdf",
+          contentBase64: btoa("%PDF-1.7"),
+          photo: "none",
+        },
+      });
     if (key === "/employees/e1/photo/upload-url")
       return json(200, {
         data: {
@@ -257,6 +267,33 @@ describe("panel detail pegawai", () => {
     click.mockRestore();
   });
 
+  it.skipIf(!FEATURES.applicationForm)(
+    "HR: Formulir Aplikasi → pilih PDF → unduh dari /application-form?format=pdf (EMP-D1)",
+    async () => {
+      const calls = mockBackend("HR_ADMIN", { manage: true, print: true, personal: true });
+      const createObjectURL = vi.fn((_blob: Blob) => "blob:pdf");
+      vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+      const clicked: string[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        clicked.push(this.download);
+      });
+      renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(
+        await within(dialog).findByRole("button", { name: /Formulir Aplikasi/ }),
+      );
+      await userEvent.click(await screen.findByRole("menuitem", { name: /PDF/ }));
+      await waitFor(() =>
+        expect(clicked).toEqual(["ACP-2023-0007-Agus-Pratama-formulir-aplikasi.pdf"]),
+      );
+      expect(calls.some((c) => c.endsWith("/employees/e1/application-form?format=pdf"))).toBe(true);
+      expect(createObjectURL.mock.calls[0]?.[0]?.type).toBe("application/pdf");
+      click.mockRestore();
+    },
+  );
+
   it("MANAGER (tanpa hak print): tombol Print data & Ubah data tidak tampil", async () => {
     mockBackend("MANAGER", {});
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
@@ -264,6 +301,9 @@ describe("panel detail pegawai", () => {
     await within(dialog).findByRole("heading", { name: "Agus Pratama" });
     expect(within(dialog).queryByRole("button", { name: /Print data/ })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Ubah data/ })).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("button", { name: /Formulir Aplikasi/ }),
+    ).not.toBeInTheDocument();
   });
 });
 

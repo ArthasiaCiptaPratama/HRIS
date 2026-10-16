@@ -155,6 +155,22 @@ export function fetchEmployeeForPrint(id: string) {
   );
 }
 
+const applicationFormFileSchema = one(
+  z.object({
+    fileName: z.string(),
+    contentType: z.string(),
+    contentBase64: z.string(),
+    photo: z.enum(["included", "none", "unsupported", "failed"]),
+  }),
+);
+
+/** EMP-D1: Formulir Aplikasi dari template Word (dibuat server, tercatat di audit `employee.printed`). */
+export function fetchApplicationForm(id: string, format: "docx" | "pdf") {
+  return api(`/employees/${id}/application-form?format=${format}`, {
+    schema: applicationFormFileSchema,
+  }).then((r) => r.data);
+}
+
 export function useMasterData(enabled = true) {
   return useQuery({
     queryKey: employeeKeys.masterData,

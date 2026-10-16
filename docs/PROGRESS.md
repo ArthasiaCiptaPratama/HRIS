@@ -97,6 +97,7 @@ Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log
 
 - **2026-10-16** — Arsip gel. 3 Laporan batch 1: modul `report` + menu Laporan (4 laporan, ekspor Excel); api 792 · web 289, QA lokal 11/11. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-16** — Laporan: perbaikan UI/UX (kartu, keterbacaan, klik → saring / panel profil, tabel sama dengan Data Karyawan Aktif) + Excel bergaya (penulis xlsx bersama: judul, format, autofilter, cetak); shared 246 · api 792 · web 291, QA 19/19. (Oatse) → [arsip/log](features/arsip/log.md)
+- **2026-10-16** — Formulir Aplikasi Word/PDF dari template kantor (EMP-D1, fitur lokal di balik saklar `applicationForm`): docxtemplater + Gotenberg (docker lokal); api 806 · web 287, QA 4/4. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-10-16** — Staging pindah ke team Vercel Pro "Arthasia Akselerasi" (transfer project, secret GitHub, Deploy #38841245033 ✔, smoke ✔); FND-D1, OD-4 sebagian. (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-15** — Panduan pindah deployment staging ke akun Vercel Pro (env, cron, secret, transfer vs buat baru). (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-15** — Rilis gel. 8: Surat Peringatan tampil di staging (PR #51/#52, Deploy #38718943479, 37 migrasi), header detail baru, TM tetap tersembunyi; QA staging 15/15 LEGIT + Drive. (Oatse) → [arsip/log](features/arsip/log.md)

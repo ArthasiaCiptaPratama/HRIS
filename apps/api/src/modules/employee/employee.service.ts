@@ -586,6 +586,8 @@ export async function getEmployee(
   ctx: RequestContext,
   id: string,
   view: DetailView = "full",
+  /** Format berkas yang dicatat di audit `employee.printed` (view=print): xlsx (web) / docx / pdf (EMP-D1). */
+  printFormat: "xlsx" | "docx" | "pdf" = "xlsx",
 ): Promise<EmployeeDetail> {
   const row = await repository.findEmployee(id);
   const target = row ? targetOf(row) : null;
@@ -634,7 +636,7 @@ export async function getEmployee(
       ...auditBase(ctx),
       action: "employee.printed",
       entityId: id,
-      after: { format: "xlsx", sections },
+      after: { format: printFormat, sections },
     });
   } else if (sections.length > 0 && ctx.actor.employeeId !== id) {
     await writeAudit({
