@@ -12,7 +12,7 @@
 | [fondasi](features/fondasi/README.md) | 0–1 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai (sisa: uji Windows, OD-9, OD-12) | ✔ |
 | [iam](features/iam/README.md) | 2 | Oatse | `HRIS/Oatse/Linux-Windows` | Review (sisa: captcha ditunda, OD-5) | ✔ |
 | [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan (sisa: profil perusahaan, pengaturan sistem) | ✔ |
-| [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan | ✔ |
+| [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1) ✔ lokal `a2ce380` (belum push, EMP-OD1) | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
 | [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ lokal (QA 11/11 + UI/UX 19/19); sisa rilis batch 1, batch 2, OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT) |
@@ -32,6 +32,8 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 - **Arsip gel. 2a Aset & APD (ARS-D1–D6):** ✔ develop & ✔ staging (rilis gel. 7, QA LEGIT).
 - **Rilis gel. 8 ke staging (2026-10-15):** Surat Peringatan tampil (QA staging 15/15 **LEGIT**), header detail karyawan baru, lokasi absen TM-D1 terpasang tersembunyi; 37 migrasi — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging). Staging **pindah ke team Vercel Pro "Arthasia Akselerasi"** 2026-10-16 (FND-D1, [panduan & status](features/fondasi/pindah-akun-vercel.md)). **Arsip gel. 3 Laporan batch 1** ✔ lokal 2026-10-16 (ARS-D16–D18: headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; modul `report`; QA lokal 11/11; lalu perbaikan UI/UX interaktif + Excel bergaya, QA 19/19) — menunggu izin commit/push lalu rilis staging; batch 2 menyusul.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
+
+- **Status 2026-10-16 (menunggu instruksi pemilik projek):** (1) **Laporan batch 1** ✔ develop `78b1a90` (pushed, CI ✔) — saklar `reports` di salinan kerja diatur pemilik projek, belum dirilis; laporan **kehadiran & performa ditunda** sampai instruksi mentor. (2) **Formulir Aplikasi Word/PDF** (EMP-D1) ✔ lokal `a2ce380` — **belum push**; layanan PDF staging/produksi = EMP-OD1. (3) Nilai saklar `FEATURES` di salinan kerja develop = pengaturan lokal pemilik projek → **jangan disentuh**. (4) Database staging akan di-reset pemilik projek.
 
 ## Blocker & wajib sebelum produksi
 
@@ -60,10 +62,15 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 | OD-13 | Format file Excel roster dari site (D-069) | Tahap B import roster | Menunggu keputusan (nomor awal OD-12 di branch Mat; import sementara mengenali dua bentuk umum) |
 | OD-14 | Lembur: otomatis dari absen vs shift, atau pengajuan | Tahap F | Menunggu keputusan (nomor awal OD-13; usulan: pengajuan + usulan jam otomatis) |
 | OD-15 | Batas waktu approval absen & pengingat (D-068) | Tahap D | Menunggu keputusan (nomor awal OD-14; sementara pengaturan 2 hari) |
+| EMP-OD1 | Tempat layanan konversi PDF (Gotenberg) staging/produksi untuk Formulir Aplikasi (EMP-D1) | Rilis Formulir Aplikasi | Menunggu instruksi pemilik projek (2026-10-16) |
 
 ## Backlog
 
 Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerjakan**.
+
+- **(2026-10-16, EMP-D1 tahap 2)** Halaman **Template Dokumen** (Master Data): unduh template + daftar penanda, unggah versi baru, cek penanda otomatis, pratinjau PDF data fiktif, aktifkan/kembali ke versi lama, audit; bisa dipakai ulang untuk surat SP / keterangan kerja. Menunggu instruksi.
+- **(2026-10-16)** Template Formulir Aplikasi baru dari HR (bagian kontak darurat berubah; data kontak darurat ke-2 sudah tersedia sebagai `{ec2Name}` dst.). Kolom "No. Sertifikasi" belum ada di data pelatihan (sementara diisi penyelenggara).
+- **(2026-10-16, ditunda sampai instruksi mentor)** Laporan **kehadiran** (batch 2: hadir/terlambat/alpa, cuti) dan **performa** (penilaian kinerja di luar cakupan v1 — PLAN §1; alternatif sementara indikator kehadiran + SP).
 
 - ~~**(2026-10-14, QA staging Aset)** Form Tambah aset: PT bawaan kosong bila data master terlambat~~ → diperbaiki develop 2026-10-14
 - ~~**(2026-10-14)** Top bar melebar 34 px untuk SA di layar 1440 px (Personal Management)~~ → diperbaiki develop 2026-10-14 (kotak cari menyempit)

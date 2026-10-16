@@ -51,7 +51,9 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 ## Keputusan terbuka
 
-Tidak ada.
+| ID | Pertanyaan | Memblokir | Status |
+|---|---|---|---|
+| EMP-OD1 | Di mana layanan konversi PDF (Gotenberg/LibreOffice) dijalankan untuk staging & produksi (mis. Cloud Run, Railway, server kantor)? Tanpa layanan ini Formulir Aplikasi hanya bisa diunduh sebagai Word. | Rilis Formulir Aplikasi (EMP-D1) | Menunggu instruksi pemilik projek (2026-10-16) |
 
 OD baru: `EMP-OD1`, … (tulis di sini + ringkasan di [PROGRESS](../../PROGRESS.md#keputusan-terbuka)).
 

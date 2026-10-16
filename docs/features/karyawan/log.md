@@ -31,3 +31,10 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Verifikasi penuh:** typecheck ✔ · `biome ci` ✔ (1 warning lama) · boundaries ✔ (468) · shared 246 · api **806** · web 287 (+5 dilewati sesuai saklar salinan kerja) ✔.
 - **Berikutnya:** commit lokal (izin 2026-10-16), **tidak di-push** sampai instruksi pemilik projek; tahap 2 halaman Template Dokumen; keputusan tempat Gotenberg staging/produksi.
 - **Catatan:** pengambilan data Sefail (staging, view=print) tercatat di audit staging atas nama akun QA SA. Data Sefail tampak data asli → konfirmasi ke pemilik projek (memicu rotasi kredensial OD-4). `FEATURES.reports` di develop diubah pemilik projek ke `true` (belum di-commit; jangan disentuh).
+
+### 2026-10-16 — Arahan pemilik projek setelah commit `a2ce380` (Oatse)
+- **Saklar `FEATURES`:** nilai saklar di salinan kerja develop (saat ini `reports: true`, `timeManagement: false`, `applicationForm: false`) adalah pengaturan lokal pemilik projek → **jangan disentuh/di-commit** sampai ada instruksi; commit hanya membawa saklar baru milik tugas (dibuat dari HEAD).
+- **Push:** `a2ce380` (+ commit lain yang belum di-push) menunggu instruksi.
+- **Layanan PDF (EMP-OD1):** tempat Gotenberg staging/produksi menunggu instruksi tambahan; sementara hanya lokal (`bun run pdf:up`).
+- **Data staging:** database staging akan di-reset pemilik projek (data Sefail Sutanto yang dipakai uji formulir ikut hilang) → tidak perlu tindak lanjut sekarang; rotasi kredensial tetap wajib sebelum data asli (RELEASE §6).
+- **Berikutnya (setelah instruksi):** tahap 2 halaman Template Dokumen (unggah, cek penanda, pratinjau, versi, audit); bila template baru datang (bagian kontak darurat berubah), ganti `apps/api/templates/formulir-aplikasi.docx` → `bun run templates:embed`.
