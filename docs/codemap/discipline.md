@@ -24,6 +24,7 @@
 
 - Shared: `packages/shared/src/discipline.ts` — tingkat & status + label, `warningLetterState` (status tampilan), `suggestWarningLevel`, `isAboveSuggestion`, `formatWarningNumber` (`NNN/SPx/HRD-<PT>/<romawi>/<tahun>`), `warningEffectiveUntil`, skema input. Test `packages/shared/tests/discipline.test.ts`.
 - Pendukung di modul lain (lewat `index.ts`): `attendance` → `alphaDaysForEvidence` (baca-saja hari ALPHA + surat pernyataan, `period.service.ts`; signed URL lampiran hanya bila `withUrls`); `employee` → `getEmployeeBriefs`, `listEmployeeBriefs`, `getEmployeeDocumentRef`; `iam` → `listDisciplineWriters`, `getAccountSummaries`, `getEmployeeAccountStates`; `employee.policy` `canRead/WriteDocuments` menerima grant SP untuk jenis `WARNING_LETTER` (ARS-D14).
+- Laporan (2026-10-16): `report-data.service.ts` `listWarningLettersForReport` (+ `discipline.repository` `lettersForReport`) diekspor dari `index.ts` untuk modul [report](report.md) — tanpa uraian/alasan.
 - Integration: `apps/api/tests/integration/discipline/warning-letters.test.ts` (18 skenario, termasuk 4 dari audit 2026-10-15: master & pengaturan, draft & akses, bukti ALPHA, terbit + nomor + notifikasi, eskalasi & nomor manual, terbit tak bisa diubah, lihat per role, konfirmasi idempoten, scan, PDF, cabut, cron kedaluwarsa + pengingat dedupe).
 
 ## Web (`apps/web/src/features/discipline/`, 2026-10-15)

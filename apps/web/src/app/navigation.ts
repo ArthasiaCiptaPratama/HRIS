@@ -284,9 +284,11 @@ export const NAV_GROUPS: NavGroup[] = [
             label: "Laporan",
             to: "/personal/laporan",
             icon: ChartColumn,
-            visible: manage,
-            maintenance: true,
-            keywords: "rekap export",
+            // ARS-D16: batch 1 (headcount & turnover, dokumen kedaluwarsa, kelengkapan, SP aktif).
+            visible: FEATURES.reports ? access.viewReports : manage,
+            maintenance: !FEATURES.reports,
+            keywords:
+              "rekap export laporan headcount turnover karyawan keluar dokumen kedaluwarsa kelengkapan data sp",
           },
         ],
       },

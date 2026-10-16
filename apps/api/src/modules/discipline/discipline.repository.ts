@@ -256,3 +256,28 @@ export const unconfirmedIssued = (issuedOnOrBefore: Date) =>
       acknowledgedAt: true,
     },
   });
+
+// --- Laporan SP aktif (ARS-D17, modul report lewat index.ts) ---
+
+export const lettersForReport = (employeeIds: string[], since: Date) =>
+  getPrisma().warningLetter.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      status: { in: ["ISSUED", "EXPIRED", "REVOKED"] },
+      issuedAt: { gte: since },
+    },
+    select: {
+      id: true,
+      employeeId: true,
+      companyId: true,
+      level: true,
+      number: true,
+      status: true,
+      issuedAt: true,
+      effectiveUntil: true,
+      deliveredAt: true,
+      acknowledgedAt: true,
+      violationType: { select: { id: true, name: true } },
+    },
+    orderBy: { issuedAt: "desc" },
+  });

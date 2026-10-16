@@ -240,6 +240,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Lihat surat peringatan (aktif + riwayat; draft hanya penulis) (ARS-D13) | ✅ | 🔑 `employee.discipline.read`/`.write` (PT sendiri) | 👁 tim (tanpa alasan eskalasi & bukti) | 👁 milik sendiri |
 | Buat, terbitkan, cabut SP; jenis pelanggaran (ARS-D10/D12) | ✅ (+ masa berlaku bawaan, ARS-D8) | 🔑 `employee.discipline.write` (PT sendiri) | ✅ "Sudah disampaikan" (tim) | ✅ "Sudah menerima" milik sendiri |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
+| Laporan (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; ekspor Excel) (ARS-D16) | ✅ | ✅ PT ditugaskan (daftar per orang jenis sensitif butuh grant terkait) | ❌ | ❌ |
 | **Kontrak** | | | | |
 | Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
 | Lihat kontrak sendiri | ✅ | ✅ | ✅ | ✅ |
@@ -513,6 +514,9 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ARS-D13](features/arsip/README.md#keputusan) | Visibilitas SP per role + notifikasi in-app & email tanpa isi | [ARS](features/arsip/README.md) |
 | [ARS-D14](features/arsip/README.md#keputusan) | Grant SP juga berlaku untuk dokumen jenis `WARNING_LETTER` (pola `BANK_BOOK`) | [ARS](features/arsip/README.md) |
 | [ARS-D15](features/arsip/README.md#keputusan) | SP di modul terpisah `discipline` (bukan sub-domain `employee`) | [ARS](features/arsip/README.md) |
+| [ARS-D16](features/arsip/README.md#keputusan) | Laporan gel. 3: batch 1 = 4 laporan inti; SA + HR PT; layar + Excel; periode & rinci (Dashboard tetap ringkasan) | [ARS](features/arsip/README.md) |
+| [ARS-D17](features/arsip/README.md#keputusan) | Definisi 4 laporan batch 1 (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif) | [ARS](features/arsip/README.md) |
+| [ARS-D18](features/arsip/README.md#keputusan) | Batasan laporan batch 1: unit/status saat ini, reaktivasi, dokumen wajib SITE belum dihitung | [ARS](features/arsip/README.md) |
 | [TM-D1](features/time-management/README.md#keputusan) | Lokasi absen per karyawan: bebas lokasi / 1 lokasi khusus ber-geofence / bawaan (crew → lokasi kerja); diatur SA + HR PT | [TM](features/time-management/README.md) |
 | [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
 

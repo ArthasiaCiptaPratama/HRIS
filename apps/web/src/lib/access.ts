@@ -84,4 +84,6 @@ export const access = {
           g.permission === "employee.discipline.read" ||
           g.permission === "employee.discipline.write",
       )),
+  // ARS-D16 (apps/api/src/modules/report/report.policy.ts): menu Laporan untuk SA & HR (PT di API).
+  viewReports: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
 };

@@ -104,6 +104,7 @@ apps/api/
 │   │   ├── leave/                    → docs/codemap/leave.md
 │   │   ├── asset/                    → docs/codemap/asset.md (Arsip 2a, 2026-10-13)
 │   │   ├── discipline/               → docs/codemap/discipline.md (Arsip 2b Surat Peringatan, 2026-10-15)
+│   │   ├── report/                   → docs/codemap/report.md (Arsip 3 Laporan batch 1, 2026-10-16; tanpa tabel)
 │   │   └── <modul>/                  # lihat §4 untuk struktur standar
 │   └── jobs/cron.ts                  [done] `GET /api/cron/grant-expiry`, `GET /api/cron/email-retry`, `GET /api/cron/document-expiry` (D-055: pengingat dokumen kedaluwarsa), `GET /api/cron/onboarding-maintenance` (D-045 d: hapus calon batal > 30 hari, pengingat undangan > 14 hari, sisa antrean undangan; dirakit di app.ts lewat `extraJobs`); `Authorization: Bearer ${CRON_SECRET}` (timing-safe; secret kosong → selalu 401)
 ├── scripts/
@@ -257,6 +258,7 @@ Request ─▶ core: request-id → logger → auth (verifikasi JWT) → muat ko
 | `employee`     | `employee`     | ✔ `/employees`, `/employees/summary`, `/employees/manager-options`, `/employees/:id` (`?view=work\|full\|print`), `/employees/:id/photo` (POST/DELETE) + `/employees/:id/photo/upload-url` (D-037), `/employees/:id/{status-change,deactivate,reactivate}`, `/org-structure` (D-035), `/employee-imports` (+ `/preview`, `/:id`, `/mappings/:signature`; D-042; D-060: `/:id/attachments` (+ `/process`, `/retry`), `/attachments/open`); `/dashboard` (SA/HR, agregat tanpa data per orang, cakupan PT aktor D-040); ✔ D-054 Arsip 1c (lokal, belum diverifikasi ulang): `/self/employee-data`, `/self/documents/upload-url`, `/self/data-changes`, `/data-changes` (POST ajukan, GET antrean), `/data-changes/{id}` (+ `/cancel`, `/decision`), `/archive/{families,bank-accounts}`; D-058 (1d): `/archive/{category}/export`; rencana: tulis langsung data pribadi/rekening/keluarga oleh HR | organization            | iam, organization                    | 4    | `[wip]` |
 | `asset`        | `asset`        | ✔ `/asset-categories`, `/ppe-types`, `/assets` (+ `next-code`, `{id}/status`, `{id}/assign`), `/asset-assignments/{id}/{return,lost,bast,bast-pdf}`, `/asset-holdings/{employeeId}`, `/asset-returns/pending`, `/ppe-issues` (+ `{id}/{return,bast,bast-pdf}`), `/self/assets`, `/self/{asset-assignments,ppe-issues}/{id}/acknowledge` | employee, organization | employee, iam, notification, organization | 4 | `[done]` API 2026-10-13 · web 2026-10-14 · QA lokal 12/12 |
 | `discipline`   | `discipline`   | ✔ `/violation-types` (+ `{id}`), `/discipline-settings`, `/warning-letters` (+ `{id}`, `suggestion/{employeeId}`, `alpha-days/{employeeId}`, `employee/{employeeId}`, `{id}/{issue,revoke,deliver,scan,pdf}`), `/self/warning-letters` (+ `{id}/acknowledge`) | employee, organization | attendance, employee, iam, notification, organization | 4 | `[done]` API & web 2026-10-15 · QA lokal 12/12 |
+| `report`       | – (tanpa tabel) | ✔ `/reports/{headcount,document-expiry,completeness,warning-letters}` (+ `/export`) | – | discipline, employee, organization | 4 | `[done]` API & web 2026-10-16 · QA lokal 11/11 |
 | `approval`     | `approval`     | ✔ `/approvals` (inbox, `/{id}`, `/{id}/decision`, `/decisions` massal)          | employee                | iam, employee, notification          | 5    | `[wip]` 2026-10-13 |
 | `attendance`   | `attendance`   | ✔ `/holidays`, `/time-settings`, `/shifts`, `/roster-patterns`, `/crews`, `/roster`, `/roster-changes`, `/attendance/*` (absen PWA, hari absen, koreksi, absen manual, periode, surat pernyataan) | employee, organization | approval, leave; data karyawan/PT/lokasi sementara lewat adapter baca `directory.ts` (⚠ aturan emas #3, Backlog) | 5 | `[wip]` 2026-10-13 |
 | `leave`        | `leave`        | ✔ `/leave-types`, `/leave-years`, `/leave`, `/leave-requests`, `/leave-balances`, `/leave-jobs` | employee                | approval, attendance                 | 6    | `[wip]` 2026-10-13 |
@@ -288,6 +290,7 @@ Rincian per modul (pohon file api & web, tabel, catatan) ada di **`docs/codemap/
 | `payroll` | [codemap/payroll.md](codemap/payroll.md) | [payroll](features/payroll/README.md) |
 | `asset` | [codemap/asset.md](codemap/asset.md) | [arsip](features/arsip/README.md) |
 | `discipline` | [codemap/discipline.md](codemap/discipline.md) | [arsip](features/arsip/README.md) |
+| `report` | [codemap/report.md](codemap/report.md) | [arsip](features/arsip/README.md) |
 | Prisma (skema, migrasi, seed) | [codemap/database.md](codemap/database.md) | semua |
 
 ---

@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
-> **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; sisa: gel. 3 Laporan, impor per kategori, OD-11
+> **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`, `reports`
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ lokal 2026-10-16 (QA 11/11 + perbaikan UI/UX & Excel 19/19, belum rilis); sisa: rilis batch 1, batch 2, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -37,7 +37,10 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] Tahap C (2026-10-15): QA lokal Playwright SA → HR → MGR → EMP → HR **12/12** (TC-EMP-227…238; plan/run `2026-10-15-sp-lokal`); isi PDF dicek (`pdftotext` + render); temuan P3 "—" di nomor draf PDF tercetak "?" diperbaiki
     - [x] Audit A–C (tambahan 2026-10-15: permintaan pemilik projek; code-review + audit alur) — 7 temuan diperbaiki dengan test gagal-dulu: filter `employeeId` melebarkan cakupan MANAGER (bocor akses), nomor manual memblokir nomor otomatis, tanggal terbit mundur menurunkan saran tingkat, atasan nonaktif → tak ada yang bisa menandai disampaikan, notifikasi gagal → 500 setelah terbit/cabut, masa berlaku 6 bulan + 1 hari, tautan `/ess?tab=sp` tidak pindah tab; signed URL bukti ALPHA hanya untuk tampilan detail. api 764 · web 271, QA ulang 12/12
     - [x] Rilis staging (migrasi `20261015071500_add_discipline_module`, cron `discipline-daily`, saklar `discipline` di rilis, grant SP untuk HR uji) + QA staging + arsip Drive — 2026-10-15: rilis `905649a` (merge develop `7de4d1f`, `timeManagement` tetap `false`) → PR #51/#52 → `Deploy staging` #38718943479 (37 migrasi); grant `employee.discipline.write` HR uji (dipertahankan); QA staging TC-STG-088…102 **15/15** → **LEGIT**, Drive `hris-qa:2026-10-15-staging-sp`
-  - [ ] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"
+  - [~] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"; grill 2026-10-16 → ARS-D16/D17 (batch 1 = 4 laporan inti)
+    - [x] Batch 1 (2026-10-16): shared `report.ts`; agregat baca-saja `employee` & `discipline` lewat `index.ts`; modul `report` (policy 7, 8 operasi, ekspor xlsx + audit `report.export`); web `/personal/laporan` 4 tab + filter unit/tahun + grafik + ekspor, saklar `FEATURES.reports`; integration 8, web 6; QA lokal Playwright **11/11** (TC-EMP-239…249, plan/run `2026-10-16-laporan-lokal`)
+    - [ ] Rilis staging batch 1 + QA staging
+    - [ ] Batch 2: masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan perubahan data (kontrak PKWT menunggu Fase 7)
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
 
 ## Keputusan
@@ -69,6 +72,9 @@ Isi lengkap di [decisions.md](../../decisions.md).
 | ARS-D13 | **Visibilitas & notifikasi:** SA semua; HR ber-grant `discipline.read/write` semua riwayat di PT-nya; MANAGER SP **tim** (aktif + riwayat) untuk menyampaikan & konfirmasi; karyawan semua SP **miliknya**; tanpa grant = tidak terlihat. Saat terbit: notifikasi in-app + **email tanpa isi** ("ada surat untuk Anda, buka aplikasi", PROMPT §3.7) ke karyawan & atasan; cron mengingatkan konfirmasi dan menandai kedaluwarsa (tanpa email). | Grill 2026-10-14 ("Sesuai matriks, riwayat tetap", "In-app + email tanpa isi") |
 | ARS-D14 | **Scan SP & izin dokumen:** jenis dokumen `WARNING_LETTER` (D-055) bertanda sensitif; HR ber-grant `employee.discipline.read` boleh melihat dan `employee.discipline.write` boleh mengunggah dokumen jenis itu tanpa grant `employee.documents.*` (pola `BANK_BOOK` + grant rekening). SA & karyawan pemilik tetap seperti D-055. | Temuan tahap B 2026-10-15 (tanpa ini HR ber-grant SP tidak bisa mengunggah scan ARS-D7); keputusan kecil pelaksana |
 | ARS-D15 | **Modul `discipline` terpisah** (skema Postgres `discipline`), bukan sub-domain modul `employee` seperti rencana design §3/§6.6; nama grant tetap `employee.discipline.*` (ARS-D10). Alasan: batas modul bersih (pola `asset`), `discipline` → `employee`/`attendance`/`iam` satu arah. | Rencana gel. 2b disetujui pemilik projek 2026-10-15 |
+| ARS-D16 | **Laporan gel. 3 — cakupan & akses (melengkapi D-058, design §10):** batch 1 = **4 laporan inti**: Headcount & turnover, Dokumen kedaluwarsa, Kelengkapan data, SP aktif; batch 2 menyusul (masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan perubahan data; kontrak PKWT menunggu modul Kontrak Fase 7). Menu Laporan untuk **SA + HR (PT ditugaskan)**; angka agregat untuk semua HR, daftar per orang yang menyentuh jenis sensitif hanya bila ber-grant terkait (dokumen sensitif → `employee.documents.read`, SP → `employee.discipline.*`); MANAGER & karyawan tidak. Keluaran **layar (grafik + tabel, filter PT/unit/periode) + ekspor Excel** (aturan ekspor D-058); Laporan = **perbandingan periode & rincian**, Dashboard (D-065) tetap ringkasan saat ini (tidak menduplikasi pivot). | Grill pemilik projek 2026-10-16 (semua rekomendasi) |
+| ARS-D17 | **Definisi batch 1:** (1) **Headcount & turnover** — pilih tahun → 12 bulan: aktif awal & akhir bulan, masuk, keluar, turnover % = keluar ÷ rata-rata (awal + akhir) / 2, ringkasan tahunan, rincian keluar per alasan, per PT/unit/status. (2) **Dokumen kedaluwarsa** — kelompok sudah lewat, ≤ 30, ≤ 60, ≤ 90 hari, per jenis & PT/lokasi + daftar per orang (versi dokumen aktif). (3) **Kelengkapan data** — dokumen wajib menurut master jenis dokumen (semua / site / jabatan) + data inti: NIK KTP, NPWP, BPJS TK & Kesehatan, rekening, kontak darurat, email kantor; % lengkap per PT/unit + daftar orang & item kurang (status terisi/kosong saja, **nilai sensitif tidak pernah ditampilkan**). (4) **SP aktif** — jumlah SP berlaku per tingkat & jenis pelanggaran per PT/unit, tren terbit per bulan, daftar SP berlaku yang belum dikonfirmasi lengkap. | Grill pemilik projek 2026-10-16 |
+| ARS-D18 | **Batasan laporan batch 1 (keputusan kecil pelaksana):** rincian per unit/status memakai unit & status karyawan **saat ini** (belum ada snapshot historis); karyawan yang diaktifkan kembali tidak lagi terhitung keluar pada periode lama (`endDate` dikosongkan); dokumen wajib berlingkup **SITE** belum dihitung di Kelengkapan data karena belum ada penanda lokasi site (halaman menampilkan keterangannya). Ketiganya dicatat di Backlog. | Temuan saat implementasi 2026-10-16 |
 
 ## Keputusan terbuka
 
@@ -79,10 +85,11 @@ OD baru: `ARS-OD1`, … (tulis di sini + ringkasan di [PROGRESS](../../PROGRESS.
 
 ## Kode
 
-Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/asset.md) · [discipline](../../codemap/discipline.md).
+Detail modul: [employee](../../codemap/employee.md) · [asset](../../codemap/asset.md) · [discipline](../../codemap/discipline.md) · [report](../../codemap/report.md).
 
 ## QA
 
+- [plans/2026-10-16-laporan-lokal.md](../../qa/plans/2026-10-16-laporan-lokal.md) · [runs/2026-10-16-laporan-lokal.md](../../qa/runs/2026-10-16-laporan-lokal.md) — Laporan batch 1 lokal 11/11; putaran 2 (UI/UX + Excel) 19/19
 - [plans/2026-10-15-staging-sp.md](../../qa/plans/2026-10-15-staging-sp.md) · [runs/2026-10-15-staging-sp.md](../../qa/runs/2026-10-15-staging-sp.md) — staging rilis gel. 8, **LEGIT**
 - [plans/2026-10-15-sp-lokal.md](../../qa/plans/2026-10-15-sp-lokal.md) · [runs/2026-10-15-sp-lokal.md](../../qa/runs/2026-10-15-sp-lokal.md) — Surat Peringatan lokal 12/12
 - [plans/2026-10-14-aset-lokal.md](../../qa/plans/2026-10-14-aset-lokal.md) · [runs/2026-10-14-aset-lokal.md](../../qa/runs/2026-10-14-aset-lokal.md) — Aset & APD lokal 12/12
