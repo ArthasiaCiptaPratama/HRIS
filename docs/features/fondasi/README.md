@@ -41,7 +41,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Api dibundel sendiri untuk Vercel: `bun build src/index.ts --external hono` → `dist/index.js` + `outputDirectory: dist` (tambahan 2026-09-29: kompilasi per file oleh `@vercel/node` tidak cocok dengan monorepo paket sumber TS — (1) memilih `src/app.ts` tanpa default export sebagai entry, (2) tidak membaca `extends` tsconfig sehingga strict mati, (3) import `./x.ts` & `exports` `@hris/shared` tetap `.ts` setelah dikompilasi → `ResolveMessage` di deploy #36529746512, (4) tambalan `exports` `.js` membuat `packages/shared` tidak ikut (`BuildMessage`, deploy #36530682448). Tambalan PR #11/#12 dikembalikan; bundel diuji dari **clone bersih** + simulasi function terisolasi: health 200 ke DB staging, 401, 404, OpenAPI 200)
   - [x] Proteksi Vercel Authentication hanya untuk preview (tambahan 2026-09-29: default project baru melindungi URL `*.vercel.app` production sehingga web tidak bisa memanggil api)
   - [x] Isi data staging: seed dummy (5 departemen, 12 jabatan, 5 status, 5 grade, 2 lokasi, 21 karyawan) + akun uji HR/MGR/EMP ke DB staging, diverifikasi via MCP (tambahan 2026-09-29: D-036 poin 4)
-  - [ ] Pindah deployment staging ke akun/team Vercel **Pro** (tambahan 2026-10-15: permintaan pemilik projek) — panduan [pindah-akun-vercel.md](pindah-akun-vercel.md) (inventaris env/cron/secret, jalur transfer vs buat baru, verifikasi, rollback); belum dijalankan, menunggu pilihan jalur & domain
+  - [x] Pindah deployment staging ke akun/team Vercel **Pro** "Arthasia Akselerasi" (tambahan 2026-10-15: permintaan pemilik projek) — ✔ 2026-10-16 transfer project (id, env, cron, domain tetap), secret `VERCEL_ORG_ID`/`VERCEL_TOKEN` diganti, `Deploy staging` #38841245033 ✔, smoke ✔ — [pindah-akun-vercel.md](pindah-akun-vercel.md) (FND-D1)
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
 - [ ] Verifikasi `bun install && bun run dev` di **Windows**
@@ -80,7 +80,7 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| FND-D1 | **Akun Vercel = team Pro "Arthasia Akselerasi"** (`team_xDA1pGujNeVtv8qdSzzYoTqJ`, owner `oatse2458@arthasia.com`) untuk **produksi** dan staging (mengubah D-036 (1): staging tidak lagi di akun pribadi Hobby `oatse`). Staging = project `hris-staging-api/web` yang ditransfer (id tetap); produksi = project terpisah di team yang sama saat OD-4 (Supabase produksi) siap. Deploy tetap GitHub Actions + Vercel CLI (migrasi sebelum deploy, D-030/D-036). Menjawab OD-4 bagian Vercel. | Pemilik projek 2026-10-15/16 ("untuk produksi", transfer) |
 
 ## Keputusan terbuka
 

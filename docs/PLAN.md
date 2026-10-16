@@ -514,6 +514,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ARS-D14](features/arsip/README.md#keputusan) | Grant SP juga berlaku untuk dokumen jenis `WARNING_LETTER` (pola `BANK_BOOK`) | [ARS](features/arsip/README.md) |
 | [ARS-D15](features/arsip/README.md#keputusan) | SP di modul terpisah `discipline` (bukan sub-domain `employee`) | [ARS](features/arsip/README.md) |
 | [TM-D1](features/time-management/README.md#keputusan) | Lokasi absen per karyawan: bebas lokasi / 1 lokasi khusus ber-geofence / bawaan (crew → lokasi kerja); diatur SA + HR PT | [TM](features/time-management/README.md) |
+| [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
 
 ## 9. Keputusan Terbuka
 

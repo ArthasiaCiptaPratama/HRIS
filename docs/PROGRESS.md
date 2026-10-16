@@ -30,7 +30,7 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 - **Rilis gel. 7 ke staging (2026-10-14):** develop di-push sampai `5859111` (CI #38509210626 ✔) lalu dirilis: **Aset & APD tampil** (QA staging 15/15 LEGIT), **Time Management terpasang tersembunyi** (kode + 7 migrasi, saklar `timeManagement` `false`, cron TM belum terdaftar) — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging).
 - **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT.
 - **Arsip gel. 2a Aset & APD (ARS-D1–D6):** ✔ develop & ✔ staging (rilis gel. 7, QA LEGIT).
-- **Rilis gel. 8 ke staging (2026-10-15):** Surat Peringatan tampil (QA staging 15/15 **LEGIT**), header detail karyawan baru, lokasi absen TM-D1 terpasang tersembunyi; 37 migrasi — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging). Berikutnya: pindah deployment ke akun Vercel Pro ([panduan](features/fondasi/pindah-akun-vercel.md), menunggu pilihan jalur/domain), gel. 3 Laporan.
+- **Rilis gel. 8 ke staging (2026-10-15):** Surat Peringatan tampil (QA staging 15/15 **LEGIT**), header detail karyawan baru, lokasi absen TM-D1 terpasang tersembunyi; 37 migrasi — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging). Staging **pindah ke team Vercel Pro "Arthasia Akselerasi"** 2026-10-16 (FND-D1, [panduan & status](features/fondasi/pindah-akun-vercel.md)). Berikutnya gel. 3 Laporan.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
 
 ## Blocker & wajib sebelum produksi
@@ -48,7 +48,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 | OD-1 | Metode PPh 21 (gross/gross-up/net)          | Fase 8    | Menunggu keputusan  |
 | OD-2 | THR dihitung sistem?                        | Fase 8    | Menunggu keputusan  |
 | OD-3 | Verifikator golden cases payroll            | Fase 8    | Menunggu keputusan  |
-| OD-4 | Kepemilikan akun Vercel/Supabase & paket     | Rilis 1   | Menunggu keputusan  |
+| OD-4 | Kepemilikan akun Vercel/Supabase & paket     | Rilis 1   | Sebagian: Vercel → FND-D1 (team Pro "Arthasia Akselerasi", staging sudah pindah 2026-10-16); Supabase produksi menunggu |
 | OD-5 | Email: penyedia = Google Workspace (D-025); akun pengirim final (produksi) | Rilis 1   | Sebagian: staging `admin.arthasia@gmail.com` (D-032) |
 | OD-6 | Ubah data sensitif/gaji milik sendiri       | Fase 4    | Terjawab → D-054 (lewat pengajuan; saat onboarding D-046) |
 | OD-7 | Cara `db:deploy` & env per environment      | Fase 1    | Terjawab → D-030 (GitHub Actions) |
@@ -94,6 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-16** — Staging pindah ke team Vercel Pro "Arthasia Akselerasi" (transfer project, secret GitHub, Deploy #38841245033 ✔, smoke ✔); FND-D1, OD-4 sebagian. (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-15** — Panduan pindah deployment staging ke akun Vercel Pro (env, cron, secret, transfer vs buat baru). (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-15** — Rilis gel. 8: Surat Peringatan tampil di staging (PR #51/#52, Deploy #38718943479, 37 migrasi), header detail baru, TM tetap tersembunyi; QA staging 15/15 LEGIT + Drive. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-15** — Tampilan header detail karyawan: banner warna logo + pola statis, status karyawan vs akses aplikasi, perbesar foto; web 283. (Oatse) → [karyawan/log](features/karyawan/log.md)

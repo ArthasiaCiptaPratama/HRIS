@@ -5,13 +5,14 @@
 
 Rujukan: [D-016](../../decisions.md#d-016) · [D-029](../../decisions.md#d-029) · [D-030](../../decisions.md#d-030) · [D-036](../../decisions.md#d-036) · [RELEASE §6 rotasi rahasia](../../RELEASE.md#6-wajib-sebelum-produksi) · workflow `.github/workflows/deploy-staging.yml` · `apps/api/vercel.json` · `apps/web/vercel.json`.
 
-## Checkpoint 2026-10-15 (berhenti di sini; lanjut dari sini)
+## Status: ✔ SELESAI 2026-10-16 (jalur A, transfer)
 
-- **Tujuan dipilih pemilik projek:** team Vercel **Pro "Arthasia Akselerasi"** (`arthasia-akselerasi`, `team_xDA1pGujNeVtv8qdSzzYoTqJ`, owner `oatse2458@arthasia.com`, Mat = viewer) — untuk **produksi**; staging ikut dipindah ke sana (jalur **A. transfer**). Domain sendiri ditunda. Team Pro masih **kosong**.
-- **Sudah:** akun baru login di CLI dengan config terpisah (`vercel login --global-config <scratchpad>/vercel-pro`; CLI default tetap akun lama `oatse` / `oatses-projects`). Dibaca dari project lama: api root `apps/api` (hono, Node 24, files outside root ✔), web root `apps/web` (vite); proteksi SSO hanya preview; **6 cron terdaftar** (verifikasi §5 sebagian ✔); env Production api 14 (`APP_URL`, `CORS_ORIGINS`, `CRON_SECRET`, `DATABASE_URL`, `EMAIL_FROM`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `LOGIN_EMAIL_DOMAIN`, `LOG_LEVEL`, `SMTP_HOST/PASS/PORT/USER`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`), web 4 (`VITE_*`).
-- **Cadangan nilai env GAGAL:** env bertipe *sensitive* → `vercel env pull` hanya memberi variabel sistem. Sebelum transfer, pastikan nilai bisa diisi ulang bila tidak ikut (sumber: Supabase dashboard, `.env` lokal staging, akun SMTP, JSON service account).
-- **Token deploy Vercel** (scope Arthasia Akselerasi) sudah dibuat pemilik projek dan **pernah tertulis di chat** → wajib dirotasi (RELEASE §6); dipasang ke GitHub `VERCEL_TOKEN` **setelah** transfer.
-- **Belum:** transfer (akun lama: request transfer → akun baru: terima), ganti secret `VERCEL_ORG_ID` = `team_xDA1pGujNeVtv8qdSzzYoTqJ` + `VERCEL_TOKEN`, cek `VERCEL_PROJECT_ID_*`, Run workflow `Deploy staging`, verifikasi §5, catat `FND-D1` + OD-4 (sebagian terjawab).
+- **Tujuan (pemilik projek):** team Vercel **Pro "Arthasia Akselerasi"** (`arthasia-akselerasi`, `team_xDA1pGujNeVtv8qdSzzYoTqJ`, owner `oatse2458@arthasia.com`, Mat = viewer) — untuk **produksi**; staging ikut pindah ke sana (FND-D1). Domain sendiri ditunda.
+- **Transfer:** `hris-staging-api` (`prj_YikNSEXpoKlOMC6Jli7a0MPjk0vu`) & `hris-staging-web` (`prj_YZVG4UA4Ug5vhAPkbZBaA4e1tm7W`) lewat REST transfer-request (akun lama `oatse` membuat permintaan, akun baru menerima). Dicek setelah transfer: **id project tetap**, env 14/14 (api) & 4/4 (web) ikut, **6 cron** terdaftar, domain `hris-staging-*.vercel.app` tetap, proteksi SSO hanya preview.
+- **GitHub secrets:** `VERCEL_ORG_ID` = `team_xDA1pGujNeVtv8qdSzzYoTqJ`, `VERCEL_TOKEN` = token baru scope team Pro (dipasang lewat stdin `gh secret set`); `VERCEL_PROJECT_ID_API/WEB` tidak berubah.
+- **Verifikasi:** `Deploy staging` #38841245033 (workflow_dispatch) ✔ migrasi + api + web; deployment production terbaru kedua project dibuat `oatse2458-4955` (READY); health 200, web 200, cron tanpa secret 401; smoke Playwright login SA + detail karyawan + TM tertutup ✔ (`QA/2026-10-16-pindah-vercel/`). Smoke pertama sempat timeout login (cold start deployment baru) — ulang lulus.
+- **Sisa:** token deploy baru **pernah tertulis di chat** → rotasi (RELEASE §6); cabut token Vercel lama milik akun `oatse` (tidak lagi dipakai); alias lama `hris-staging-*-oatses-projects.vercel.app` masih menempel (tidak dipakai, boleh dihapus); cron Time Management masih menunggu rilis TM; project **produksi** dibuat terpisah di team ini saat OD-4 (Supabase produksi) siap.
+- **Catatan teknis:** di lingkungan agen ini variabel shell tidak terbawa antar-perintah → panggil API lewat skrip Python (kode transfer tidak dicetak).
 
 ---
 
