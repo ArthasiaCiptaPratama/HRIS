@@ -297,6 +297,110 @@ describe("draft & akses (ARS-D10/ARS-D13)", () => {
     expect(body.alphaDays).toHaveLength(1);
     expect(body.alphaEvidence[0].dayId).toBe(ids.alphaDay);
   });
+
+  test("tanggal kejadian wajib & tidak di masa depan; draft lama tanpa tanggal tidak bisa terbit (ARS-D19)", async () => {
+    const missing = await call(
+      "POST",
+      "/warning-letters",
+      hr.headers,
+      draft({ employeeId: ids.emp2, incidentDate: undefined }),
+    );
+    expect(missing.status).toBe(400);
+    const nulled = await call(
+      "POST",
+      "/warning-letters",
+      hr.headers,
+      draft({ employeeId: ids.emp2, incidentDate: null }),
+    );
+    expect(nulled.status).toBe(400);
+    const future = new Date(Date.parse(`${TODAY}T00:00:00Z`) + 2 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const ahead = await call(
+      "POST",
+      "/warning-letters",
+      hr.headers,
+      draft({ employeeId: ids.emp2, incidentDate: future }),
+    );
+    expect(ahead.status).toBe(422);
+    const legacy = (
+      await data(
+        await call("POST", "/warning-letters", hr.headers, draft({ employeeId: ids.emp2 })),
+      )
+    ).data;
+    await prisma.warningLetter.update({ where: { id: legacy.id }, data: { incidentDate: null } });
+    const issue = await call("POST", `/warning-letters/${legacy.id}/issue`, hr.headers, {
+      issuedAt: TODAY,
+    });
+    expect(issue.status).toBe(422);
+    expect((await call("DELETE", `/warning-letters/${legacy.id}`, hr.headers)).status).toBe(204);
+  });
+});
+
+describe("draft massal (ARS-D20)", () => {
+  const bulk = (extra: Record<string, unknown> = {}) => {
+    const { employeeId: _ignored, ...rest } = draft();
+    return { ...rest, employeeIds: [ids.emp2, ids.mgr2], level: "AUTO", ...extra };
+  };
+  const draftsOf = (employeeId: string) =>
+    prisma.warningLetter.count({ where: { employeeId, status: "DRAFT" } });
+
+  test("401 tanpa login; 403 HR read / PT lain; 400 kosong / tanpa tanggal", async () => {
+    expect((await call("POST", "/warning-letters/bulk", {}, bulk())).status).toBe(401);
+    expect((await call("POST", "/warning-letters/bulk", hrRead.headers, bulk())).status).toBe(403);
+    expect((await call("POST", "/warning-letters/bulk", hrOther.headers, bulk())).status).toBe(403);
+    const empty = await call(
+      "POST",
+      "/warning-letters/bulk",
+      hr.headers,
+      bulk({ employeeIds: [] }),
+    );
+    expect(empty.status).toBe(400);
+    const noDate = await call(
+      "POST",
+      "/warning-letters/bulk",
+      hr.headers,
+      bulk({ incidentDate: undefined }),
+    );
+    expect(noDate.status).toBe(400);
+  });
+
+  test("satu karyawan ditolak → tidak ada draft yang dibuat (rollback)", async () => {
+    const before = await draftsOf(ids.emp2);
+    const res = await call(
+      "POST",
+      "/warning-letters/bulk",
+      hr.headers,
+      bulk({ employeeIds: [ids.emp2, ids.hrEmp] }),
+    );
+    expect(res.status).toBe(422);
+    expect(await draftsOf(ids.emp2)).toBe(before);
+  });
+
+  test("AUTO = saran per karyawan; tingkat tetap memakai alasan; satu draft per karyawan", async () => {
+    const auto = await call("POST", "/warning-letters/bulk", hr.headers, bulk());
+    expect(auto.status).toBe(201);
+    const rows = (await data(auto)).data as { id: string; level: string; state: string }[];
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.level === "SP1" && r.state === "DRAFT")).toBe(true);
+    const fixed = await call(
+      "POST",
+      "/warning-letters/bulk",
+      hr.headers,
+      bulk({ level: "SP2", escalationReason: "Pelanggaran berat K3 di area tambang." }),
+    );
+    expect(fixed.status).toBe(201);
+    const fixedRows = (await data(fixed)).data as {
+      id: string;
+      level: string;
+      escalationReason: string;
+    }[];
+    expect(fixedRows.map((r) => r.level)).toEqual(["SP2", "SP2"]);
+    expect(fixedRows[0]?.escalationReason).toBe("Pelanggaran berat K3 di area tambang.");
+    for (const r of [...rows, ...fixedRows]) {
+      expect((await call("DELETE", `/warning-letters/${r.id}`, hr.headers)).status).toBe(204);
+    }
+  });
 });
 
 describe("terbit, saran tingkat & nomor (ARS-D8/D10/D11)", () => {
