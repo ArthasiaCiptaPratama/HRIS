@@ -594,8 +594,8 @@ export async function getEmployee(
   ctx: RequestContext,
   id: string,
   view: DetailView = "full",
-  /** Format berkas yang dicatat di audit `employee.printed` (view=print): xlsx (web) / docx / pdf (EMP-D1). */
-  printFormat: "xlsx" | "docx" | "pdf" = "xlsx",
+  /** Format berkas yang dicatat di audit `employee.printed`: pdf (Print data); xlsx = data view=print diambil langsung. */
+  printFormat: "xlsx" | "pdf" = "xlsx",
 ): Promise<EmployeeDetail> {
   const row = await repository.findEmployee(id);
   const target = row ? targetOf(row) : null;
