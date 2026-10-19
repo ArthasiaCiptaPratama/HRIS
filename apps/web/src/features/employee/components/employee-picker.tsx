@@ -1,4 +1,4 @@
-import { Search, SearchX } from "lucide-react";
+import { Check, Search, SearchX } from "lucide-react";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
@@ -9,17 +9,25 @@ import { useCompanyScope, useEmployees } from "../api";
 import { EmployeeAvatar } from "./employee-avatar";
 import { StatusBadge } from "./status-badge";
 
+export type PickerEmployee = NonNullable<ReturnType<typeof useEmployees>["data"]>["data"][number];
+
 // Daftar pilih pegawai (aktif/nonaktif) dengan pencarian; dipakai menu Ubah Status & Pengaktifan.
+// `multiple` = baris bercentang (mis. SP massal, ARS-D20); pemanggil menyimpan daftar terpilih.
 export function EmployeePicker({
   active,
   selectedId,
+  selectedIds,
+  multiple = false,
   onSelect,
   title,
   className,
 }: {
   active: boolean;
   selectedId: string | null;
-  onSelect: (id: string) => void;
+  /** Mode `multiple`: semua id terpilih. */
+  selectedIds?: string[];
+  multiple?: boolean;
+  onSelect: (id: string, row: PickerEmployee) => void;
   title: string;
   /** Mis. tinggi lebih pendek saat dipakai di dalam dialog. */
   className?: string;
@@ -87,7 +95,9 @@ export function EmployeePicker({
         ) : (
           <ul className="space-y-0.5" aria-label={title}>
             {rows.map((row, index) => {
-              const selected = row.id === selectedId;
+              const selected = multiple
+                ? (selectedIds ?? []).includes(row.id)
+                : row.id === selectedId;
               return (
                 <li
                   key={row.id}
@@ -97,12 +107,25 @@ export function EmployeePicker({
                   <button
                     type="button"
                     aria-pressed={selected}
-                    onClick={() => onSelect(row.id)}
+                    onClick={() => onSelect(row.id, row)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                       selected ? "bg-brand-soft" : "hover:bg-muted/70",
                     )}
                   >
+                    {multiple ? (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "flex size-4 shrink-0 items-center justify-center rounded border",
+                          selected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-input bg-background",
+                        )}
+                      >
+                        {selected ? <Check className="size-3" /> : null}
+                      </span>
+                    ) : null}
                     <EmployeeAvatar
                       name={row.fullName}
                       photoUrl={row.photoUrl}

@@ -224,7 +224,7 @@ Semua dengan Zod + OpenAPI, policy eksplisit (`onboarding.policy` di modul emplo
 | Risiko | Mitigasi |
 |---|---|
 | Limit email Supabase (± 30/jam) & Gmail (± 500/hari) | Antrean + batas per jam yang bisa diatur; naikkan limit di dashboard; produksi pakai Workspace (OD-5) |
-| Vercel Hobby cron 1×/hari | Pemroses dipicu halaman HR; cron hanya cadangan; Vercel Pro (OD-4) memungkinkan cron rapat |
+| Vercel Hobby cron 1×/hari | Pemroses dipicu halaman HR; cron hanya cadangan; Vercel Pro (OD-4) memungkinkan cron rapat — ✔ staging kini di team Pro (FND-D1, 2026-10-16) |
 | Calon tidak punya NPWP/BPJS | Centang "belum punya" (tercatat, ditindaklanjuti HR) |
 | Pergantian email Auth gagal saat approve | Satu operasi: gagal Auth → approve dibatalkan & bisa diulang |
 | Akun uji & Playwright memakai login email | Script migrasi + pembaruan helper uji di bagian c |

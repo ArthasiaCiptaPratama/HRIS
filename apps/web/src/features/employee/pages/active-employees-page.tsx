@@ -68,8 +68,10 @@ export function ActiveEmployeesPage() {
                   <FileUp /> Import
                 </Link>
               </Button>
-              <Button onClick={() => setForm({ open: true, employee: null })}>
-                <UserPlus /> Tambah karyawan
+              <Button asChild>
+                <Link to={`/personal/tambah-karyawan?dari=${view.slug}`}>
+                  <UserPlus /> Tambah karyawan
+                </Link>
               </Button>
             </>
           ) : null
@@ -116,12 +118,10 @@ export function ActiveEmployeesPage() {
         }
         emptyAction={
           canManage ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setForm({ open: true, employee: null })}
-            >
-              <UserPlus /> Tambah karyawan
+            <Button size="sm" variant="outline" asChild>
+              <Link to={`/personal/tambah-karyawan?dari=${view.slug}`}>
+                <UserPlus /> Tambah karyawan
+              </Link>
             </Button>
           ) : null
         }

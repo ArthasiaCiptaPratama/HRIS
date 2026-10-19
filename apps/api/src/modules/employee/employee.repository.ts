@@ -259,6 +259,11 @@ export async function findActorEmployee(id: string) {
   });
 }
 
+/** EMP-D2: email pribadi (unik) dari profil tambah manual. */
+export async function setPersonalEmail(tx: EmployeeTx, id: string, personalEmail: string) {
+  await tx.employee.update({ where: { id }, data: { personalEmail } });
+}
+
 export async function createEmployee(tx: EmployeeTx, data: Prisma.EmployeeUncheckedCreateInput) {
   return tx.employee.create({ data, select: { id: true } });
 }

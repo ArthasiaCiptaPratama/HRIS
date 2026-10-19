@@ -121,6 +121,36 @@ function mockFetch(
         return json(200, {
           data: { ...letter({ acknowledgedAt: "2026-10-15T03:00:00.000Z" }), alphaEvidence: [] },
         });
+      if (path === "/employees") {
+        const row = (id: string, fullName: string, employeeNumber: string) => ({
+          id,
+          employeeNumber,
+          fullName,
+          workEmail: null,
+          phoneNumber: null,
+          gender: null,
+          joinDate: "2024-01-02",
+          endDate: null,
+          isActive: true,
+          exitReason: null,
+          employmentStatus: { id: "st", name: "Karyawan Tetap", category: "PERMANENT" },
+          company: { id: "co-acp", name: "PT Arthasia Cipta Pratama", code: "ACP" },
+          position: { id: "p1", name: "GA Staff" },
+          department: null,
+          workLocation: null,
+          grade: null,
+          manager: null,
+          photoUrl: null,
+        });
+        const rows = [row("e1", "Agus Pratama", "ACP-1"), row("e2", "Budi Santoso", "ACP-2")];
+        return json(200, { data: rows, meta: { page: 1, pageSize: 50, total: rows.length } });
+      }
+      if (path.startsWith("/warning-letters/suggestion/"))
+        return json(200, {
+          data: { suggestedLevel: path.endsWith("e2") ? "SP2" : "SP1", active: [] },
+        });
+      if (path === "/warning-letters/bulk" && method === "POST")
+        return json(201, { data: [letter({ status: "DRAFT", state: "DRAFT" })] });
       if (path === "/document-types") return json(200, { data: [] });
       if (path === "/self/employee-data")
         return json(200, {
@@ -216,6 +246,42 @@ describe.skipIf(!FEATURES.discipline)("Arsip › Riwayat Peringatan (ARS-D13)", 
     const sp3 = await screen.findByRole("dialog");
     expect(await within(sp3).findByText(/pertimbangkan proses PHK/)).toBeInTheDocument();
     expect(within(sp3).getByRole("button", { name: /Cabut/ })).toBeInTheDocument();
+  });
+});
+
+describe.skipIf(!FEATURES.discipline)("Buat SP untuk banyak karyawan (ARS-D20)", () => {
+  it("centang dua karyawan → satu permintaan bulk, tingkat ikut saran; tanggal kejadian wajib", async () => {
+    const calls = mockFetch({ ...me("HR_ADMIN"), grants: [grant("employee.discipline.write")] });
+    renderAt("/personal/arsip/peringatan");
+    await userEvent.click(await screen.findByRole("button", { name: /Buat SP/ }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(await within(dialog).findByRole("button", { name: /Agus Pratama/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: /Budi Santoso/ }));
+    expect(within(dialog).getByText("2 dipilih · satu draft per karyawan")).toBeInTheDocument();
+    expect(within(dialog).getByRole("combobox", { name: /Tingkat/ })).toHaveTextContent(
+      "Ikuti saran sistem",
+    );
+    expect(within(dialog).queryByText("Opsional.")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Tanggal kejadian")).toBeRequired();
+    await userEvent.click(within(dialog).getByRole("combobox", { name: /Jenis pelanggaran/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Terlambat" }));
+    await userEvent.type(within(dialog).getByLabelText("Tanggal kejadian"), "2026-10-10");
+    await userEvent.type(
+      within(dialog).getByLabelText("Uraian / kronologi"),
+      "Terlambat masuk kerja 4 kali dalam sebulan.",
+    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan 2 draft" }));
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.method === "POST" && c.path === "/warning-letters/bulk")?.body,
+      ).toMatchObject({
+        employeeIds: ["e1", "e2"],
+        level: "AUTO",
+        violationTypeId: "v2",
+        incidentDate: "2026-10-10",
+        escalationReason: null,
+      }),
+    );
   });
 });
 

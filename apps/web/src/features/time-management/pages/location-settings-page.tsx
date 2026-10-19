@@ -120,24 +120,34 @@ export function LocationSettingsPage() {
                 label,
               }))}
             />
+            {/* Atur = banyak karyawan yang dicentang; satu karyawan cukup klik namanya. */}
+            <Button
+              variant="brand"
+              className="h-9"
+              disabled={selected.length === 0}
+              title={
+                selected.length === 0 ? "Centang karyawan dulu, atau klik nama karyawan" : undefined
+              }
+              onClick={() => setEditing(chosen)}
+            >
+              <Settings2 /> Atur{selected.length > 0 ? ` (${selected.length})` : ""}
+            </Button>
           </div>
 
           {selected.length > 0 ? (
             <div className="bg-brand-soft text-brand-soft-foreground flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-sm">
               <span className="font-medium">{selected.length} karyawan dipilih</span>
-              <Button
-                size="sm"
-                variant="brand"
-                className="ml-auto"
-                onClick={() => setEditing(chosen)}
-              >
-                <Settings2 /> Atur lokasi absen
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
+              <span className="text-xs opacity-80">— tekan Atur untuk mengatur sekaligus</span>
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelected([])}>
                 Batal pilih
               </Button>
             </div>
-          ) : null}
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              Klik nama karyawan untuk mengatur satu orang, atau centang beberapa karyawan lalu
+              tekan Atur.
+            </p>
+          )}
 
           {query.isLoading ? (
             <Skeleton className="h-64 w-full" />
@@ -162,23 +172,40 @@ export function LocationSettingsPage() {
                     <TableHead>Karyawan</TableHead>
                     <TableHead>Pengaturan</TableHead>
                     <TableHead>Site absen hari ini</TableHead>
-                    <TableHead className="w-20" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rows.map((row) => (
-                    <TableRow key={row.employeeId}>
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          className="accent-brand size-4"
-                          aria-label={`Pilih ${row.fullName}`}
-                          checked={selected.includes(row.employeeId)}
-                          onChange={() => toggle(row.employeeId)}
-                        />
+                    // Klik di mana saja pada baris = atur karyawan ini. Keyboard: tombol nama (Tab + Enter).
+                    <TableRow
+                      key={row.employeeId}
+                      className="hover:bg-muted/60 cursor-pointer"
+                      onClick={() => setEditing([row])}
+                    >
+                      {/* Sel centang: hanya memilih (tidak membuka dialog); area klik diperbesar. */}
+                      <TableCell className="p-0" onClick={(e) => e.stopPropagation()}>
+                        <label className="flex h-full cursor-pointer items-center justify-center p-3">
+                          <input
+                            type="checkbox"
+                            className="accent-brand size-4"
+                            aria-label={`Pilih ${row.fullName}`}
+                            checked={selected.includes(row.employeeId)}
+                            onChange={() => toggle(row.employeeId)}
+                          />
+                        </label>
                       </TableCell>
                       <TableCell>
-                        <p className="font-medium">{row.fullName}</p>
+                        <button
+                          type="button"
+                          className="text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+                          title="Atur lokasi absen karyawan ini"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditing([row]);
+                          }}
+                        >
+                          {row.fullName}
+                        </button>
                         <p className="text-muted-foreground font-mono text-xs">
                           {row.employeeNumber ?? "—"}
                         </p>
@@ -195,11 +222,6 @@ export function LocationSettingsPage() {
                       </TableCell>
                       <TableCell>
                         <EffectiveCell row={row} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="xs" variant="outline" onClick={() => setEditing([row])}>
-                          Atur
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

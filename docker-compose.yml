@@ -23,5 +23,14 @@ services:
       timeout: 3s
       retries: 30
 
+  # EMP-D1: konversi Formulir Aplikasi .docx → PDF (opsional; `bun run pdf:up`, lalu GOTENBERG_URL=http://localhost:3999).
+  gotenberg:
+    build: ./docker/gotenberg
+    image: hris-gotenberg:8
+    profiles: ["pdf"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3999:3000"
+
 volumes:
   hris-pgdata:

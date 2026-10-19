@@ -90,7 +90,7 @@ Atribut jenis dokumen: `code`, `name`, `category` (identitas, pendidikan, kompet
 - **Layer**: routes → policy (matriks §8) → service (aturan, transaksi, audit, notifikasi) → repository. Modul lain hanya lewat `index.ts`.
 - **Web**: `features/archive/` — satu halaman generik berbasis konfigurasi kolom per kategori (mirip `MasterDataPage`), memakai `DataTable` + filter; tab detail karyawan memakai komponen form yang sama.
 - **Penyimpanan file**: bucket private `employee-documents` (sudah ada), path `prefix/<employeeId>/<docTypeCode>/<uuid>.<ext>`, URL baca bertanda tangan ≤ 10 menit, unggah lewat signed upload URL (pola D-037/D-045 b). Surat SP & BAST yang dihasilkan sistem juga disimpan di bucket ini.
-- **Cron baru** (Vercel Cron, CODEMAP §7): `document-expiry` (harian: pengingat kedaluwarsa, dedupe per dokumen+ambang), `warning-letter-expiry` (harian: SP lewat masa berlaku → EXPIRED). Batas Vercel Hobby (cron harian) cukup.
+- **Cron baru** (Vercel Cron, CODEMAP §7): `document-expiry` (harian: pengingat kedaluwarsa, dedupe per dokumen+ambang), `discipline-daily` (dikodekan 2026-10-15: SP lewat masa berlaku → EXPIRED + pengingat konfirmasi; rencana awal bernama `warning-letter-expiry`). Batas Vercel Hobby (cron harian) cukup.
 
 ## 6. Desain database (rencana; semua migrasi **hanya menambah**, pola expand → contract)
 
