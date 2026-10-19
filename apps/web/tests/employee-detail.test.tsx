@@ -21,7 +21,7 @@ vi.mock("@/lib/supabase", async () => ({
 
 let photoUrl: string | null = null;
 let accountOverride: { role: string; isActive: boolean } | null = null;
-const detail = (access: Record<string, boolean>) => ({
+const detail = (access: Record<string, boolean>, full = false) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
   fullName: "Agus Pratama",
@@ -53,6 +53,39 @@ const detail = (access: Record<string, boolean>) => ({
     photo: false,
     ...access,
   },
+  // Seperti API: data sensitif hanya di view=full (panel memakai view=work).
+  ...(access.personal && full
+    ? {
+        personal: {
+          ktpNumber: "3200000000000001",
+          npwpNumber: null,
+          kkNumber: null,
+          birthPlace: "Bandung",
+          birthDate: "1990-01-02",
+          ktpAddress: null,
+          domicileAddress: "Jl. Lama 1",
+          maritalStatus: "MARRIED",
+          religion: "ISLAM",
+          bpjsEmploymentNumber: null,
+          bpjsHealthNumber: null,
+          ptkpStatus: "K1",
+          originCity: null,
+          drivingLicenseTypes: ["C"],
+          drivingLicenseNumbers: { C: "SIM-C-1" },
+        },
+        familyMembers: [
+          {
+            id: "f1",
+            name: "Siti",
+            relationship: "SPOUSE",
+            address: null,
+            birthDate: null,
+            phoneNumber: "081200009999",
+            education: "S1",
+          },
+        ],
+      }
+    : {}),
   educations: [],
   trainings: [],
   histories: [
@@ -93,14 +126,30 @@ const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
 /** fetch palsu yang membedakan query (?view=...). */
-function mockBackend(role: Parameters<typeof me>[0], access: Record<string, boolean>) {
+const sentBodies: Record<string, unknown> = {};
+
+function mockBackend(
+  role: Parameters<typeof me>[0],
+  access: Record<string, boolean>,
+  grants: string[] = [],
+) {
   const calls: string[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = String(input);
     calls.push(`${init?.method ?? "GET"} ${raw}`);
     const url = new URL(raw);
     const key = url.pathname.replace("/api/v1", "");
-    if (key === "/me") return json(200, { data: me(role, false, "e-self") });
+    if (init?.body && typeof init.body === "string")
+      sentBodies[`${init.method} ${key}`] = JSON.parse(init.body);
+    if (key === "/me")
+      return json(200, {
+        data: {
+          ...me(role, false, "e-self"),
+          grants: grants.map((permission) => ({ permission, expiresAt: null })),
+        },
+      });
+    if (key === "/employees/e1/profile" && init?.method === "PATCH")
+      return json(200, { data: detail(access, true) });
     if (key === "/health")
       return json(200, { data: { status: "ok", checks: { database: "ok" }, time: "x" } });
     if (key === "/notifications")
@@ -137,7 +186,8 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
       });
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
-    if (key === "/employees/e1") return json(200, { data: detail(access) });
+    if (key === "/employees/e1")
+      return json(200, { data: detail(access, url.searchParams.get("view") === "full") });
     if (key === "/employees/e1/print")
       return json(200, {
         data: {
@@ -279,6 +329,51 @@ describe("form ubah karyawan & master data terarsip (D-049)", () => {
     // Radix Select merender nilai terpilih + <option> tersembunyi → bisa lebih dari satu.
     expect((await screen.findAllByText("GA Staff (diarsipkan)")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Human Resources & GA (diarsipkan)").length).toBeGreaterThan(0);
+  });
+});
+
+describe("Ubah data bertab: pribadi, keluarga, rekening (EMP-D4)", () => {
+  it("HR ber-grant: ubah tempat lahir → hanya PATCH /profile bagian pribadi; keluarga & SIM tetap utuh", async () => {
+    const calls = mockBackend("HR_ADMIN", { manage: true, personal: true }, [
+      "employee.personal.read",
+      "employee.personal.write",
+    ]);
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah data/ }));
+    const form = await screen.findByRole("dialog", { name: "Ubah data karyawan" });
+    await userEvent.click(within(form).getByRole("tab", { name: /Pribadi & alamat/ }));
+    const place = within(form).getByLabelText(/Tempat lahir/);
+    expect(place).toHaveValue("Bandung");
+    await userEvent.clear(place);
+    await userEvent.type(place, "Garut");
+    // Rekening terkunci (tanpa grant bank).
+    await userEvent.click(within(form).getByRole("tab", { name: /Rekening/ }));
+    expect(within(form).getByText(/employee\.bank\.read\/write/)).toBeInTheDocument();
+    await userEvent.click(within(form).getByRole("button", { name: "Simpan perubahan" }));
+    await waitFor(() =>
+      expect(calls).toContain("PATCH http://api.test/api/v1/employees/e1/profile"),
+    );
+    expect(calls).not.toContain("PATCH http://api.test/api/v1/employees/e1");
+    const body = sentBodies["PATCH /employees/e1/profile"] as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(["personal"]);
+    expect(body.personal).toMatchObject({
+      birthPlace: "Garut",
+      ktpNumber: "3200000000000001",
+      ptkpStatus: "K1",
+      drivingLicenses: [{ type: "C", number: "SIM-C-1" }],
+    });
+  });
+
+  it("HR tanpa grant: tab Pribadi & Keluarga terkunci, form tidak tampil", async () => {
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah data/ }));
+    const form = await screen.findByRole("dialog", { name: "Ubah data karyawan" });
+    await userEvent.click(within(form).getByRole("tab", { name: /Keluarga/ }));
+    expect(within(form).getByText(/employee\.personal\.read\/write/)).toBeInTheDocument();
+    expect(within(form).queryByLabelText(/Nama \/ Name/)).not.toBeInTheDocument();
   });
 });
 

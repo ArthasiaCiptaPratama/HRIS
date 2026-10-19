@@ -295,6 +295,46 @@ describe("kontak darurat, keluarga, batal", () => {
     expect(await prisma.familyMember.count({ where: { employeeId: ids.self } })).toBe(1);
   });
 
+  test("keluarga disetujui: anggota yang sama diperbarui, kolom lain (pendidikan, pekerjaan) tidak hilang", async () => {
+    const [existing] = await prisma.familyMember.findMany({ where: { employeeId: ids.self } });
+    if (!existing) throw new Error("data uji keluarga tidak ada");
+    await prisma.familyMember.update({
+      where: { id: existing.id },
+      data: { education: "S1", occupation: "Guru", gender: "FEMALE" },
+    });
+    const id = (
+      await body(
+        await submit(emp, "FAMILY", {
+          members: [
+            {
+              name: ` ${existing.name.toUpperCase()} `,
+              relationship: existing.relationship,
+              phoneNumber: "081200001111",
+            },
+            { name: `Anak Baru ${RUN}`, relationship: "CHILD", birthDate: "2021-02-03" },
+          ],
+        }),
+      )
+    ).data.id;
+    expect((await decide(hrFull, id, "APPROVE")).status).toBe(200);
+    const after = await prisma.familyMember.findMany({
+      where: { employeeId: ids.self },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(after).toHaveLength(2);
+    expect(after[0]).toMatchObject({
+      id: existing.id,
+      education: "S1",
+      occupation: "Guru",
+      gender: "FEMALE",
+      phoneNumber: "081200001111",
+    });
+    expect(after[1]?.name).toBe(`Anak Baru ${RUN}`);
+    // Kembalikan data uji untuk test berikutnya.
+    await prisma.familyMember.delete({ where: { id: after[1]?.id as string } });
+    await prisma.familyMember.update({ where: { id: existing.id }, data: { name: existing.name } });
+  });
+
   test("HR memeriksa pengajuannya sendiri → 403", async () => {
     const id = (await body(await submit(hrSelf, "EMERGENCY", { name: "Kontak HR" }))).data.id;
     expect((await decide(hrSelf, id, "APPROVE")).status).toBe(403);

@@ -7,6 +7,8 @@ import {
   GENDER_LABELS,
   MARITAL_STATUS_LABELS,
   MARITAL_STATUSES,
+  PTKP_LABELS,
+  PTKP_STATUSES,
   RELIGION_LABELS,
   RELIGIONS,
 } from "@hris/shared";
@@ -233,6 +235,12 @@ export function PersonalStep({
             label="Golongan darah / Blood group"
             placeholder="A, B, AB, O"
             {...t("bloodType")}
+          />
+          <Text label="Kota asal" {...t("originCity")} />
+          <Choice
+            label="Status PTKP (pajak)"
+            {...t("ptkpStatus")}
+            options={PTKP_STATUSES.map((v) => ({ value: v, label: PTKP_LABELS[v] }))}
           />
         </Grid>
       </Section>
@@ -520,6 +528,12 @@ export function FamilyStep({
     set({ children: update(value.children, i, patch) });
   return (
     <div className="space-y-8">
+      {value.others.length > 0 ? (
+        <p className="text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 text-xs">
+          {value.others.length} anggota keluarga lain (hubungan "Lainnya" atau data ganda) tidak
+          tampil di form ini dan tetap tersimpan apa adanya.
+        </p>
+      ) : null}
       <Section title="Istri/Suami / Spouse">
         <Grid>
           <Text

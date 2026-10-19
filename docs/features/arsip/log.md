@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Perbaikan: setuju pengajuan Keluarga tidak lagi menghapus kolom lain (Oatse)
+- **Dikerjakan:** `onboarding-wizard.repository.ts` `replaceFamily` (dipakai pengajuan FAMILY & wizard onboarding): anggota dengan hubungan + nama sama diperbarui (kolom Import/HR seperti pendidikan, pekerjaan, almarhum tetap), yang hilang dihapus, yang baru dibuat.
+- **Keputusan:** –
+- **Verifikasi:** integration `data-changes.test.ts` 11 (+1).
+- **Masalah / catatan:** ditemukan saat memetakan form Ubah data (EMP-D4, karyawan/log).
+- **Berikutnya:** ikut rilis bersama EMP-D4.
+
 ### 2026-10-19 — Perbaikan UI/UX Surat Peringatan + SP massal (Oatse)
 - **Dikerjakan:** detail Riwayat Peringatan dikelompokkan (kartu Karyawan · Pelanggaran · Proses & dokumen; label alasan eskalasi tanpa "(—)"); kolom Tingkat/Jenis/Tanggal rata, tanggal kejadian wajib; Buat SP untuk banyak karyawan (`POST /warning-letters/bulk`, chip terpilih, "Ikuti saran sistem"); dialog form SP header & tombol tetap, isi scroll (checklist "Perbaikan UI/UX Surat Peringatan").
 - **Keputusan:** ARS-D19 (tanggal kejadian wajib), ARS-D20 (draft SP massal satu transaksi).
