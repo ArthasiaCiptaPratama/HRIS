@@ -24,7 +24,8 @@
     "demo:dashboard": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-dashboard-demo.ts",
     "storage:setup": "bun --env-file=../../.env scripts/setup-storage.ts",
     "auth:migrate-login-nik": "bun --env-file=../../.env scripts/migrate-login-nik.ts",
-    "org:import-local": "bun --env-file=../../.env scripts/import-org-local.ts"
+    "org:import-local": "bun --env-file=../../.env scripts/import-org-local.ts",
+    "templates:embed": "bun scripts/embed-templates.ts"
   },
   "dependencies": {
     "@hono/swagger-ui": "0.6.1",
@@ -33,12 +34,14 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@supabase/supabase-js": "2.117.2",
+    "docxtemplater": "3.68.2",
     "hono": "4.13.9",
     "jimp": "1.6.1",
     "jose": "6.2.12",
     "nodemailer": "10.0.11",
     "pdf-lib": "1.17.1",
     "pg": "8.23.0",
+    "pizzip": "3.2.0",
     "zod": "4.6.5"
   },
   "devDependencies": {

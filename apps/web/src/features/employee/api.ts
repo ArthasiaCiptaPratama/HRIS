@@ -1,4 +1,9 @@
-import type { EmploymentCategory, EmploymentCategoryGroup, ExitReason } from "@hris/shared";
+import type {
+  EmployeeProfileInput,
+  EmploymentCategory,
+  EmploymentCategoryGroup,
+  ExitReason,
+} from "@hris/shared";
 import {
   keepPreviousData,
   type QueryClient,
@@ -155,6 +160,22 @@ export function fetchEmployeeForPrint(id: string) {
   );
 }
 
+const applicationFormFileSchema = one(
+  z.object({
+    fileName: z.string(),
+    contentType: z.string(),
+    contentBase64: z.string(),
+    photo: z.enum(["included", "none", "unsupported", "failed"]),
+  }),
+);
+
+/** EMP-D1: Formulir Aplikasi dari template Word (dibuat server, tercatat di audit `employee.printed`). */
+export function fetchApplicationForm(id: string, format: "docx" | "pdf") {
+  return api(`/employees/${id}/application-form?format=${format}`, {
+    schema: applicationFormFileSchema,
+  }).then((r) => r.data);
+}
+
 export function useMasterData(enabled = true) {
   return useQuery({
     queryKey: employeeKeys.masterData,
@@ -249,6 +270,8 @@ export interface EmployeeWriteBody {
   orgPostId?: string | null;
   /** D-053: true = atasan manual; false = otomatis dari pos. */
   managerOverride?: boolean;
+  /** EMP-D2: data profil lengkap saat tambah (hanya POST). */
+  profile?: EmployeeProfileInput;
 }
 
 export const useCreateEmployee = () =>

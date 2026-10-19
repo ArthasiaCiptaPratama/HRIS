@@ -17,5 +17,10 @@ export const FEATURES = {
   // Personal Management › Arsip › Riwayat Peringatan, Master Data › Jenis Pelanggaran, tab SP, SP saya
   // (D-057, ARS-D7–D15) — tampil di rilis gel. 8 (2026-10-15)
   discipline: true,
+  // Personal Management › Laporan batch 1: headcount & turnover, dokumen kedaluwarsa, kelengkapan, SP aktif
+  // (ARS-D16/D17) — tampil di rilis gel. 9 (2026-10-19).
+  reports: true,
+  // Detail karyawan › Formulir Aplikasi Word/PDF (EMP-D1) — rilis: disembunyikan (layanan PDF staging, EMP-OD1).
+  applicationForm: false,
   timeManagement: false, // Time Management (rilis: disembunyikan): absen PWA, Data Absen Harian, roster, lokasi absen (D-067–D-071, TM-D1)
 } as const;

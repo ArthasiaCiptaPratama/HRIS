@@ -118,7 +118,10 @@ export const warningLetterDraftInputSchema = z.object({
   employeeId: z.uuid("Pilih karyawan."),
   level: warningLevelSchema,
   violationTypeId: z.uuid("Pilih jenis pelanggaran."),
-  incidentDate: isoDate.nullish().transform((v) => v ?? null),
+  /** ARS-D19: tanggal kejadian wajib (tercetak di surat). */
+  incidentDate: z
+    .string("Isi tanggal kejadian.")
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Isi tanggal kejadian."),
   description: z
     .string()
     .trim()
@@ -130,6 +133,20 @@ export const warningLetterDraftInputSchema = z.object({
   alphaDayIds: z.array(z.uuid()).max(31, "Maksimal 31 hari ALPHA.").default([]),
 });
 export type WarningLetterDraftInput = z.infer<typeof warningLetterDraftInputSchema>;
+
+/** ARS-D20: buat draft SP untuk banyak karyawan sekaligus (satu transaksi; semua atau tidak sama sekali). */
+export const WARNING_LETTER_BULK_MAX = 50;
+export const warningLetterBulkDraftInputSchema = warningLetterDraftInputSchema
+  .omit({ employeeId: true, level: true, alphaDayIds: true })
+  .extend({
+    employeeIds: z
+      .array(z.uuid("Pilih karyawan."))
+      .min(1, "Pilih minimal satu karyawan.")
+      .max(WARNING_LETTER_BULK_MAX, `Maksimal ${WARNING_LETTER_BULK_MAX} karyawan sekaligus.`),
+    /** AUTO = tingkat mengikuti saran sistem per karyawan (ARS-D10). */
+    level: z.union([warningLevelSchema, z.literal("AUTO")]),
+  });
+export type WarningLetterBulkDraftInput = z.infer<typeof warningLetterBulkDraftInputSchema>;
 
 export const issueWarningLetterInputSchema = z.object({
   issuedAt: isoDate,

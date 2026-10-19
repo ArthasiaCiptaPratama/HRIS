@@ -146,8 +146,8 @@ Catatan untuk Vercel:
 - Region function diset ke **Singapura (`sin1`)**.
 - Upload selfie dan dokumen dilakukan **langsung dari browser ke Supabase Storage** memakai signed upload URL dari API, jadi file tidak melewati function.
 - Bun runtime di Vercel masih **Public Beta**. Kode api tidak boleh memakai API khusus Vercel di logika bisnis, dan `Dockerfile` api tetap dirawat supaya bisa pindah ke VPS.
-- **Staging (D-036):** project `hris-staging-api` & `hris-staging-web` di akun pribadi `oatse` (Hobby), dideploy oleh GitHub Actions lewat Vercel CLI setelah migrasi. Api dibundel `bun build` (`hono` external) ke `apps/api/dist/index.js` sebelum diunggah; builder Vercel tidak mengompilasi TS per file.
-- Paket Vercel **Hobby hanya untuk non-komersial**. Sebelum ada data karyawan sungguhan, projek harus berada di **akun/team milik kantor dengan paket berbayar** (lihat OD-4).
+- **Staging (D-036):** project `hris-staging-api` & `hris-staging-web` di team Vercel **Pro "Arthasia Akselerasi"** (FND-D1, pindah 2026-10-16 dari akun pribadi `oatse` Hobby), dideploy oleh GitHub Actions lewat Vercel CLI setelah migrasi. Api dibundel `bun build` (`hono` external) ke `apps/api/dist/index.js` sebelum diunggah; builder Vercel tidak mengompilasi TS per file.
+- Paket Vercel **Hobby hanya untuk non-komersial**. Sebelum ada data karyawan sungguhan, projek harus berada di **akun/team milik kantor dengan paket berbayar** (lihat OD-4). ✔ Vercel sudah di team Pro kantor (FND-D1); Supabase produksi masih menunggu OD-4.
 
 ---
 
@@ -240,6 +240,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Lihat surat peringatan (aktif + riwayat; draft hanya penulis) (ARS-D13) | ✅ | 🔑 `employee.discipline.read`/`.write` (PT sendiri) | 👁 tim (tanpa alasan eskalasi & bukti) | 👁 milik sendiri |
 | Buat, terbitkan, cabut SP; jenis pelanggaran (ARS-D10/D12) | ✅ (+ masa berlaku bawaan, ARS-D8) | 🔑 `employee.discipline.write` (PT sendiri) | ✅ "Sudah disampaikan" (tim) | ✅ "Sudah menerima" milik sendiri |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
+| Laporan (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; ekspor Excel) (ARS-D16) | ✅ | ✅ PT ditugaskan (daftar per orang jenis sensitif butuh grant terkait) | ❌ | ❌ |
 | **Kontrak** | | | | |
 | Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
 | Lihat kontrak sendiri | ✅ | ✅ | ✅ | ✅ |
@@ -513,7 +514,15 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ARS-D13](features/arsip/README.md#keputusan) | Visibilitas SP per role + notifikasi in-app & email tanpa isi | [ARS](features/arsip/README.md) |
 | [ARS-D14](features/arsip/README.md#keputusan) | Grant SP juga berlaku untuk dokumen jenis `WARNING_LETTER` (pola `BANK_BOOK`) | [ARS](features/arsip/README.md) |
 | [ARS-D15](features/arsip/README.md#keputusan) | SP di modul terpisah `discipline` (bukan sub-domain `employee`) | [ARS](features/arsip/README.md) |
+| [ARS-D16](features/arsip/README.md#keputusan) | Laporan gel. 3: batch 1 = 4 laporan inti; SA + HR PT; layar + Excel; periode & rinci (Dashboard tetap ringkasan) | [ARS](features/arsip/README.md) |
+| [ARS-D17](features/arsip/README.md#keputusan) | Definisi 4 laporan batch 1 (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif) | [ARS](features/arsip/README.md) |
+| [ARS-D18](features/arsip/README.md#keputusan) | Batasan laporan batch 1: unit/status saat ini, reaktivasi, dokumen wajib SITE belum dihitung | [ARS](features/arsip/README.md) |
+| [ARS-D19](features/arsip/README.md#keputusan) | Tanggal kejadian SP wajib; draft lama tanpa tanggal tidak bisa terbit | [ARS](features/arsip/README.md) |
+| [ARS-D20](features/arsip/README.md#keputusan) | Draft SP massal (1–50 karyawan, satu transaksi, tingkat ikut saran per karyawan) | [ARS](features/arsip/README.md) |
 | [TM-D1](features/time-management/README.md#keputusan) | Lokasi absen per karyawan: bebas lokasi / 1 lokasi khusus ber-geofence / bawaan (crew → lokasi kerja); diatur SA + HR PT | [TM](features/time-management/README.md) |
+| [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
+| [EMP-D1](features/karyawan/README.md#keputusan) | Formulir Aplikasi dari template Word bertanda (docxtemplater) + PDF lewat Gotenberg/LibreOffice (layanan terpisah); tahap 1 template tersemat, tahap 2 halaman pengelolaan template; fitur lokal dulu | [EMP](features/karyawan/README.md) |
+| [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
 
 ## 9. Keputusan Terbuka
 
@@ -530,7 +539,7 @@ Daftar & status terkini: [PROGRESS — Keputusan terbuka](PROGRESS.md#keputusan-
 | Batas koneksi database dari serverless | Transaction pooler Supabase + pool kecil per instance. |
 | Development bergantung pada Supabase staging (D-023): internet, dan project Free di-pause setelah ± 7 hari tidak aktif | Staging dipakai rutin; jika ter-pause, pulihkan dari dashboard. Pertimbangkan staging di paket berbayar saat OD-4 diputuskan. Test otomatis tidak bergantung pada staging. |
 | Batas kirim Google Workspace (± 2.000 email/hari per akun; cek ulang) terlampaui, atau akun pengirim dikunci Google | Email aplikasi lokal hanya ke log; tidak ada email massal; tidak mengirim ke alamat fiktif; `email_outbox` + cron `email-retry` menampung email gagal; pindah ke SMTP relay Workspace bila perlu. |
-| Pelanggaran ToS Vercel Hobby untuk penggunaan komersial | Pindah ke team kantor berpaket berbayar sebelum data asli (OD-4). |
+| Pelanggaran ToS Vercel Hobby untuk penggunaan komersial | Pindah ke team kantor berpaket berbayar sebelum data asli (OD-4). ✔ Selesai untuk Vercel 2026-10-16 (FND-D1). |
 | Kebocoran data pribadi (UU No. 27/2022 PDP) | RBAC + grant, audit log, bucket private, email tanpa data sensitif, tidak log PII, retensi selfie. |
 | Perbedaan Linux vs Windows (dual boot) | `.gitattributes` LF, script via Bun (bukan bash), verifikasi di kedua OS di Fase 1. |
 | GPS palsu (fake GPS) | Diterima di v1 — PWA tidak bisa mendeteksi aplikasi pemalsu lokasi (D-067); mitigasi: selfie, label di luar radius/akurasi rendah, approval MANAGER + HR setiap hari (D-068); bisa diperketat di aplikasi native. |

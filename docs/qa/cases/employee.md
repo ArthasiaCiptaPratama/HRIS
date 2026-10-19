@@ -252,3 +252,19 @@ Otomasi api: `apps/api/tests/integration/employee/employees.test.ts` (INT), Arsi
 | TC-EMP-236 | P2 | ARS-D13 akses & HP | EMPLOYEE | — | Buka Riwayat Peringatan; Layanan Mandiri di 390 px | Akses ditolak; daftar SP tanpa geser samping | web · PW S-10 |
 | TC-EMP-237 | P1 | ARS-D10 cabut | HR ber-grant write | SP berlaku | Cabut dengan alasan; buka tab SP detail karyawan | Status Dicabut, tetap di riwayat; tidak dihitung untuk saran berikutnya; HR read 403; tanpa alasan 400 | api · PW S-11 |
 | TC-EMP-238 | P1 | ARS-D13 tanpa grant & cron | HR tanpa grant / sistem | — | Grant dicabut lalu buka menu; cron `discipline-daily` | HR tanpa grant: API 403 + Akses ditolak; cron menandai Kedaluwarsa & mengingatkan konfirmasi sekali (in-app, tanpa email) | api (cron) · PW S-12 |
+
+### Arsip gelombang 3 — Laporan batch 1 (ARS-D16/D17, 2026-10-16)
+
+| ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
+|---|---|---|---|---|---|---|---|
+| TC-EMP-239 | P1 | ARS-D16 menu | SA | — | Buka Personal Management › Laporan | Halaman Laporan (bukan Maintenance), 4 tab, filter unit & tahun | web `reports.test.tsx` · PW R-01 |
+| TC-EMP-240 | P1 | ARS-D17 headcount & turnover | SA / HR | karyawan masuk & keluar | Tab Headcount, tahun berjalan & tahun lalu | Aktif awal/akhir, masuk, keluar, turnover % = keluar ÷ rata-rata (awal + akhir); per bulan s/d hari ini; per PT/unit/status; alasan keluar; daftar karyawan keluar | shared `report.test.ts` · api `reports.test.ts` · PW R-01/R-02 |
+| TC-EMP-241 | P2 | ARS-D17 filter unit | HR | unit berjenjang | Filter unit induk | Sub-unit ikut terhitung; unit lain tidak | api `reports.test.ts` |
+| TC-EMP-242 | P1 | ARS-D17 dokumen kedaluwarsa | SA | dokumen ber-masa berlaku | Tab Dokumen kedaluwarsa | Kelompok lewat / ≤ 30 / 31–60 / 61–90 hari; > 90 tidak masuk; per jenis + daftar | api · PW R-03 |
+| TC-EMP-243 | P1 | ARS-D16 dokumen sensitif | HR tanpa `employee.documents.read` | dokumen sensitif ≤ 90 hari | Tab Dokumen kedaluwarsa | Jumlah tetap terhitung; baris sensitif tidak tampil + keterangan "N dokumen sensitif tidak ditampilkan" | api · PW R-08 |
+| TC-EMP-244 | P1 | ARS-D17 kelengkapan | SA / HR | — | Tab Kelengkapan data | % lengkap, data paling sering kosong, per PT, daftar karyawan + data kurang; **tanpa nilai** data pribadi; NPWP/BPJS "tidak punya" dianggap lengkap | api · PW R-04 |
+| TC-EMP-245 | P1 | ARS-D17 SP aktif | SA / HR ber-grant SP | SP berlaku | Tab SP aktif | Jumlah per tingkat, belum dikonfirmasi, tren terbit per bulan, per jenis & PT, daftar SP berlaku | api · PW R-05 |
+| TC-EMP-246 | P1 | ARS-D16 SP tanpa grant | HR tanpa `employee.discipline.*` | SP berlaku | Tab SP aktif; ekspor | Jumlah tampil, daftar per orang tersembunyi; ekspor SP 403 | api · web · PW R-07 |
+| TC-EMP-247 | P2 | D-058 ekspor | SA / HR | — | Ekspor Excel tab aktif | File `laporan-<jenis>-<tanggal>.xlsx` sesuai isi layar; audit `report.export`; maks 10.000 baris | api · web · PW R-06 |
+| TC-EMP-248 | P1 | ARS-D16 akses | MANAGER / EMPLOYEE / HR PT lain | — | Buka Laporan / panggil API | Menu tidak tampil, "Akses ditolak", API 403; HR PT lain tidak melihat data PT lain | api · web · PW R-09/R-10 |
+| TC-EMP-249 | P3 | Tampilan | SA | — | Laporan di HP 390 px | Tanpa geser samping; tabel lebar menggulir di dalam kartu | PW R-11 |

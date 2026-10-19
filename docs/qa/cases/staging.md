@@ -94,3 +94,25 @@ Otomasi: `PW` = `/mnt/winD/WORK/Magang/QA/2026-10-14-staging-aset/qa-aset.ts` (l
 | TC-STG-085 | P3 | Tampilan | EMP | — | = TC-EMP-224 (HP 390 px) | Tanpa scroll horizontal | PW L-10 |
 | TC-STG-086 | P2 | ARS-D6 keluar | SA | 078, 083 | = TC-EMP-225 (tanpa simpan) | Peringatan aset/APD belum kembali | PW L-11 |
 | TC-STG-087 | P1 | ARS-D2/D5 pengembalian | SA | 078 | = TC-EMP-226 | Perbaikan; BAST pengembalian, nomor beda dari BAST serah; 0 error JS/5xx seluruh alur | PW L-12 |
+
+### Rilis gel. 8 — Surat Peringatan (ARS-D7–D15) + header detail karyawan, Time Management tetap tersembunyi (2026-10-15)
+
+Otomasi: `PW` = `/mnt/winD/WORK/Magang/QA/2026-10-15-staging-sp/qa-staging-sp.ts` (langkah S-01…S-11, sama dengan QA lokal TC-EMP-227…237, tanpa hari ALPHA karena TM tersembunyi), `S12` = `.../qa-staging-s12.ts` (header + TM), `MCP` = Supabase MCP read-only.
+
+| ID | Prioritas | Aturan | Role/grant | Prasyarat | Langkah | Hasil diharapkan | Otomasi |
+|---|---|---|---|---|---|---|---|
+| TC-STG-088 | P1 | D-043 rilis, PROMPT §3.11 | — | `Deploy staging` gel. 8 | Cek `_prisma_migrations`, skema `discipline`, GET /health | 37 migrasi, 0 gagal (+`20261015064508_employee_location_setting`, `20261015071500_add_discipline_module`); 5 jenis pelanggaran, masa berlaku 6; health 200 | MCP · API |
+| TC-STG-089 | P1 | PROMPT §3.5, cron | — | 088 | GET /api/cron/discipline-daily tanpa secret | 401 | API |
+| TC-STG-090 | P2 | D-043 saklar `timeManagement` false | SA | 088 | Buka /time/absen-harian, /time/lokasi-absen (baru), /absen | "… sedang disiapkan" / Akses ditolak (SA tanpa data karyawan) — TM tidak terbuka | S12 |
+| TC-STG-091 | P2 | ARS-D8/D12 master | SA | — | = TC-EMP-227 | 5 jenis awal, jenis QA tersimpan (lalu diarsipkan), masa berlaku 6 | PW S-01 |
+| TC-STG-092 | P1 | ARS-D10 draft | HR ber-grant write | grant diberikan SA | = TC-EMP-228 tanpa ALPHA | Draft, saran SP 1, "tidak punya hari ALPHA" | PW S-02 |
+| TC-STG-093 | P2 | ARS-D7 PDF draft | HR | 092 | = TC-EMP-229 | Nomor "(draf, belum bernomor)" + tanda air | PW S-03 |
+| TC-STG-094 | P1 | ARS-D8/D11 terbit | HR | 092 | = TC-EMP-230 | Nomor otomatis `001/SP1/HRD-ACP/X/2026`, berlaku s/d terbit + 6 bulan − 1 hari | PW S-04 |
+| TC-STG-095 | P1 | ARS-D7 isi surat | HR | 094 | = TC-EMP-231 | Kop, nomor, data, uraian, berlaku, 3 tanda tangan | PW S-05 |
+| TC-STG-096 | P1 | ARS-D7/D14 scan | HR ber-grant SP saja | 094 | = TC-EMP-232 (storage staging) | Terlampir sebagai dokumen `WARNING_LETTER` | PW S-06 |
+| TC-STG-097 | P1 | ARS-D10 eskalasi | HR | 094 | = TC-EMP-233 | Alasan wajib, nomor manual, catatan PHK | PW S-07 |
+| TC-STG-098 | P1 | ARS-D9/D13 atasan | MGR | 094 | = TC-EMP-234 | Tanpa alasan & tombol kelola; "Sudah disampaikan" | PW S-08 |
+| TC-STG-099 | P1 | ARS-D9/D13 karyawan | EMP | 098 | = TC-EMP-235 (email nyata ke akun uji) | Notifikasi tanpa isi; "Berlaku · dikonfirmasi" | PW S-09 |
+| TC-STG-100 | P2 | ARS-D13 akses & HP | EMP | — | = TC-EMP-236 | Akses ditolak; HP 390 px tanpa geser | PW S-10 |
+| TC-STG-101 | P1 | ARS-D10 cabut + tab SP | HR | 097 | = TC-EMP-237 | Dicabut, saran kembali SP 2, tab SP detail karyawan | PW S-11 |
+| TC-STG-102 | P2 | Tampilan header detail karyawan | SA | — | Buka detail Rizky | Banner "Profil Karyawan", "Status Karyawan : Karyawan Tetap \| Masih bekerja", "Akses Aplikasi : Bisa login"; 0 error JS | S12 |

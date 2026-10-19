@@ -207,10 +207,17 @@ describe.skipIf(!FEATURES.archive)("Arsip › Data Pelatihan (D-054)", () => {
     expect(screen.queryByRole("button", { name: /Ekspor Excel/ })).toBeNull();
   });
 
-  it("menu yang belum dikerjakan (Laporan) tetap Maintenance", async () => {
+  it("menu Laporan mengikuti FEATURES.reports (ARS-D16)", async () => {
     mockFetch(me("SUPER_ADMIN", true));
     renderAt("/personal/laporan");
-    expect(await screen.findByRole("heading", { name: /sedang disiapkan/ })).toBeInTheDocument();
+    // Halaman Laporan memuat ECharts (lazy): beri waktu lebih di suite penuh.
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: FEATURES.reports ? "Laporan" : /sedang disiapkan/ },
+        { timeout: 5000 },
+      ),
+    ).toBeInTheDocument();
   });
 });
 

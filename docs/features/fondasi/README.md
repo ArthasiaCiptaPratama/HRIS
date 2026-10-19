@@ -5,7 +5,7 @@
 
 Monorepo Bun, Prisma 7 multi-skema, CI GitHub Actions, staging Supabase + Vercel (D-029, D-030, D-036), jalur develop/rilis (D-043), tooling lokal (Docker Postgres, `db:use`), skill projek.
 
-Dokumen fitur ini: **README** (status, checklist, keputusan) · [log.md](log.md). Induk: [PROGRESS](../../PROGRESS.md).
+Dokumen fitur ini: **README** (status, checklist, keputusan) · [log.md](log.md) · [pindah-akun-vercel.md](pindah-akun-vercel.md) (panduan pindah deployment ke akun Vercel Pro). Induk: [PROGRESS](../../PROGRESS.md).
 
 ## Checklist
 
@@ -36,11 +36,12 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Test: `bun test` (api) & Vitest (web) dengan contoh test
 - [x] GitHub Actions: typecheck, lint, boundaries, migrasi dari DB kosong + test (service container Postgres), build — run #36375129344 hijau (commit `1815b3c`)
 - [x] Keputusan OD-7 ✔ (D-030), lalu `db:deploy` migrasi awal ke staging — workflow `Deploy staging` run #36385730691 sukses (2 migrasi, `db:check` tanpa selisih), diverifikasi via MCP
-- [x] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; ~~preview~~ staging untuk `HRIS/debug/fe-be` (D-036) — `hris-staging-api` & `hris-staging-web` (akun `oatse`, Hobby), deploy otomatis `Deploy staging` #36531510460 ✔, health/CORS/cron teruji live 2026-09-29
+- [x] Vercel: project `api` (Bun runtime, region `sin1`) dan `web`; ~~preview~~ staging untuk `HRIS/debug/fe-be` (D-036) — `hris-staging-api` & `hris-staging-web` (semula akun `oatse` Hobby; sejak 2026-10-16 team Pro "Arthasia Akselerasi", FND-D1), deploy otomatis `Deploy staging` #36531510460 ✔, health/CORS/cron teruji live 2026-09-29
   - [x] Job `vercel` di `deploy-staging.yml`: Vercel CLI `pull/build/deploy --prebuilt --prod` setelah migrasi + secret `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_API/WEB` (tambahan 2026-09-29: repo private milik organisasi tidak bisa dihubungkan ke Vercel Hobby, D-036)
   - [x] Api dibundel sendiri untuk Vercel: `bun build src/index.ts --external hono` → `dist/index.js` + `outputDirectory: dist` (tambahan 2026-09-29: kompilasi per file oleh `@vercel/node` tidak cocok dengan monorepo paket sumber TS — (1) memilih `src/app.ts` tanpa default export sebagai entry, (2) tidak membaca `extends` tsconfig sehingga strict mati, (3) import `./x.ts` & `exports` `@hris/shared` tetap `.ts` setelah dikompilasi → `ResolveMessage` di deploy #36529746512, (4) tambalan `exports` `.js` membuat `packages/shared` tidak ikut (`BuildMessage`, deploy #36530682448). Tambalan PR #11/#12 dikembalikan; bundel diuji dari **clone bersih** + simulasi function terisolasi: health 200 ke DB staging, 401, 404, OpenAPI 200)
   - [x] Proteksi Vercel Authentication hanya untuk preview (tambahan 2026-09-29: default project baru melindungi URL `*.vercel.app` production sehingga web tidak bisa memanggil api)
   - [x] Isi data staging: seed dummy (5 departemen, 12 jabatan, 5 status, 5 grade, 2 lokasi, 21 karyawan) + akun uji HR/MGR/EMP ke DB staging, diverifikasi via MCP (tambahan 2026-09-29: D-036 poin 4)
+  - [x] Pindah deployment staging ke akun/team Vercel **Pro** "Arthasia Akselerasi" (tambahan 2026-10-15: permintaan pemilik projek) — ✔ 2026-10-16 transfer project (id, env, cron, domain tetap), secret `VERCEL_ORG_ID`/`VERCEL_TOKEN` diganti, `Deploy staging` #38841245033 ✔, smoke ✔ — [pindah-akun-vercel.md](pindah-akun-vercel.md) (FND-D1)
 - [x] `Dockerfile` api (build lokal berhasil)
 - [x] Verifikasi `bun install && bun run dev` di **Linux**
 - [ ] Verifikasi `bun install && bun run dev` di **Windows**
@@ -57,6 +58,11 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Workflow `.github/workflows/deploy-staging.yml` (D-030) + secret repo `STAGING_DIRECT_URL` (session pooler `aws-0-ap-northeast-2`, port 5432) (tambahan 2026-09-28: host direct Supabase hanya IPv6)
 - [x] Perbaikan advisor staging: RLS `public._prisma_migrations` (ERROR → INFO disengaja) & index `departments.parent_id` (tambahan 2026-09-28)
 - [x] Uji SMTP langsung (Gmail) & undangan Supabase Auth; user uji dibersihkan dari Auth staging (tambahan 2026-09-28)
+
+- [~] **Perbaikan tampilan umum** (tambahan 2026-10-19: temuan pemilik projek poin 2 & 5) — lokal, belum commit
+  - [x] Sidebar Administrasi › Master Data jadi bab → sub (Organisasi · Kepegawaian · Arsip & Disiplin, bisa dibuka-tutup seperti Personal Management); sub "Segera" untuk fitur bersaklar mati
+  - [x] Header & sidebar tetap, hanya isi (`<main>`) yang di-scroll: tinggi layar dikunci (`h-dvh`), tidak lagi bergantung `position: sticky`; gulir ke atas saat pindah halaman memakai `<main>`
+  - [x] QA visual Playwright lokal (Q-01, Q-02 di `docs/qa/runs/2026-10-19-ui-ux-lokal.md`); akar masalah "hanya terjadi di lokal" belum dipastikan (tata letak baru tidak bergantung padanya)
 
 ## Keputusan
 
@@ -79,7 +85,7 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| FND-D1 | **Akun Vercel = team Pro "Arthasia Akselerasi"** (`team_xDA1pGujNeVtv8qdSzzYoTqJ`, owner `oatse2458@arthasia.com`) untuk **produksi** dan staging (mengubah D-036 (1): staging tidak lagi di akun pribadi Hobby `oatse`). Staging = project `hris-staging-api/web` yang ditransfer (id tetap); produksi = project terpisah di team yang sama saat OD-4 (Supabase produksi) siap. Deploy tetap GitHub Actions + Vercel CLI (migrasi sebelum deploy, D-030/D-036). Menjawab OD-4 bagian Vercel. | Pemilik projek 2026-10-15/16 ("untuk produksi", transfer) |
 
 ## Keputusan terbuka
 

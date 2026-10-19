@@ -4,7 +4,7 @@ import {
   WARNING_LEVELS,
   type WarningLevel,
 } from "@hris/shared";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { Loader2, TriangleAlert, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 import { FormSelect } from "@/components/form-select";
@@ -20,14 +20,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { EmployeePicker } from "@/features/employee/components/employee-picker";
+import {
+  EmployeePicker,
+  type PickerEmployee,
+} from "@/features/employee/components/employee-picker";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   useAlphaCandidates,
   useDisciplineMutations,
   useDisciplineSettings,
   useLevelSuggestion,
+  useLevelSuggestions,
   useViolationTypes,
 } from "../api";
 import type { WarningLetter, WarningLetterDetail } from "../schemas";
@@ -50,7 +55,7 @@ function Field({
   hint?: string;
 }) {
   return (
-    <div className="grid gap-2">
+    <div className="grid content-start gap-2">
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
@@ -92,14 +97,22 @@ function FormDialog({
   };
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className={wide ? "sm:max-w-2xl" : "sm:max-w-lg"}>
-        <form onSubmit={submit} className="grid max-h-[80dvh] gap-5 overflow-y-auto pr-1">
-          <DialogHeader>
+      <DialogContent
+        className={cn(
+          "flex max-h-[min(90dvh,860px)] flex-col gap-0 overflow-hidden p-0",
+          wide ? "sm:max-w-2xl" : "sm:max-w-lg",
+        )}
+      >
+        {/* Judul & tombol tetap terlihat; hanya isi yang di-scroll (temuan 2026-10-19). */}
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b px-6 pt-6 pr-12 pb-4">
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
-          {children}
-          <DialogFooter>
+          <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5">
+            {children}
+          </div>
+          <DialogFooter className="border-t px-6 py-4">
             <Button type="button" variant="ghost" onClick={onClose}>
               Batal
             </Button>
@@ -139,9 +152,14 @@ function Notice({
   );
 }
 
+type Picked = Pick<PickerEmployee, "id" | "fullName" | "employeeNumber">;
+type LevelChoice = WarningLevel | "AUTO";
+
 /**
  * Buat (letter = null) atau ubah draft SP. Saran tingkat dari SP yang masih berlaku (ARS-D10); tingkat
- * di atas saran wajib beralasan; hari ALPHA hanya untuk jenis mangkir (ARS-D12).
+ * di atas saran wajib beralasan; hari ALPHA hanya untuk jenis mangkir (ARS-D12). Saat membuat, bisa
+ * memilih banyak karyawan sekaligus (ARS-D20): satu draft per karyawan, tingkat bawaan = saran sistem
+ * per karyawan, bukti hari ALPHA ditautkan per draft lewat Ubah draft.
  */
 export function DraftDialog({
   open,
@@ -155,9 +173,9 @@ export function DraftDialog({
   onSaved?: (letter: WarningLetter) => void;
 }) {
   const types = useViolationTypes(open);
-  const { createDraft, updateDraft } = useDisciplineMutations();
-  const [employeeId, setEmployeeId] = useState<string | null>(null);
-  const [level, setLevel] = useState<WarningLevel>("SP1");
+  const { createDraft, createDrafts, updateDraft } = useDisciplineMutations();
+  const [picked, setPicked] = useState<Picked[]>([]);
+  const [level, setLevel] = useState<LevelChoice>("SP1");
   const [levelTouched, setLevelTouched] = useState(false);
   const [violationTypeId, setViolationTypeId] = useState("");
   const [incidentDate, setIncidentDate] = useState("");
@@ -165,13 +183,30 @@ export function DraftDialog({
   const [escalationReason, setEscalationReason] = useState("");
   const [alphaDayIds, setAlphaDayIds] = useState<string[]>([]);
   const id = useId();
+  const multi = !letter && picked.length > 1;
+  const employeeId = letter
+    ? letter.employee.employeeId
+    : picked.length === 1
+      ? (picked[0]?.id ?? null)
+      : null;
   const suggestion = useLevelSuggestion(open ? employeeId : null);
+  const suggestions = useLevelSuggestions(open && multi ? picked.map((p) => p.id) : []);
   const type = types.data?.find((t) => t.id === violationTypeId);
   const alpha = useAlphaCandidates(employeeId, open && Boolean(type?.linksAttendance));
 
   useEffect(() => {
     if (!open) return;
-    setEmployeeId(letter?.employee.employeeId ?? null);
+    setPicked(
+      letter
+        ? [
+            {
+              id: letter.employee.employeeId,
+              fullName: letter.employee.fullName,
+              employeeNumber: letter.employee.employeeNumber,
+            },
+          ]
+        : [],
+    );
     setLevel(letter?.level ?? "SP1");
     setLevelTouched(Boolean(letter));
     setViolationTypeId(letter?.violationType.id ?? "");
@@ -181,15 +216,46 @@ export function DraftDialog({
     setAlphaDayIds(letter?.alphaDays.map((d) => d.attendanceDayId) ?? []);
   }, [open, letter]);
 
-  // Tingkat mengikuti saran sistem sampai pengguna memilih sendiri.
+  // Tingkat mengikuti saran sistem sampai pengguna memilih sendiri (banyak karyawan: "Ikuti saran").
   const suggested = suggestion.data?.suggestedLevel ?? null;
   useEffect(() => {
-    if (suggested && !levelTouched) setLevel(suggested);
-  }, [suggested, levelTouched]);
+    if (levelTouched) return;
+    if (multi) setLevel("AUTO");
+    else if (suggested) setLevel(suggested);
+    else setLevel((prev) => (prev === "AUTO" ? "SP1" : prev));
+  }, [suggested, levelTouched, multi]);
 
-  const above = suggested ? isAboveSuggestion(level, suggested) : false;
+  // Karyawan yang tingkat pilihannya di atas saran sistem → alasan wajib.
+  const aboveNames =
+    level === "AUTO"
+      ? []
+      : multi
+        ? picked
+            .filter((p) => {
+              const s = suggestions.byId.get(p.id)?.suggestedLevel;
+              return s ? isAboveSuggestion(level, s) : false;
+            })
+            .map((p) => p.fullName)
+        : suggested && isAboveSuggestion(level, suggested)
+          ? [picked[0]?.fullName ?? letter?.employee.fullName ?? ""]
+          : [];
+  const above = aboveNames.length > 0;
+
   const toggleDay = (dayId: string, on: boolean) =>
     setAlphaDayIds((prev) => (on ? [...prev, dayId] : prev.filter((d) => d !== dayId)));
+  const togglePerson = (row: Picked) => {
+    setPicked((prev) =>
+      prev.some((p) => p.id === row.id) ? prev.filter((p) => p.id !== row.id) : [...prev, row],
+    );
+    setLevelTouched(false);
+    setAlphaDayIds([]);
+  };
+
+  const levelOptions = [
+    ...(multi ? [{ value: "AUTO", label: "Ikuti saran sistem" }] : []),
+    ...WARNING_LEVELS.map((l) => ({ value: l, label: WARNING_LEVEL_LABELS[l] })),
+  ];
+  const pending = createDraft.isPending || createDrafts.isPending || updateDraft.isPending;
 
   return (
     <FormDialog
@@ -198,20 +264,37 @@ export function DraftDialog({
       wide
       title={letter ? "Ubah draft surat peringatan" : "Buat surat peringatan"}
       description="Draft bisa diubah atau dihapus kapan saja. Setelah diterbitkan, surat tidak bisa diubah — hanya dicabut lalu diterbitkan ulang."
-      pending={createDraft.isPending || updateDraft.isPending}
-      submitLabel={letter ? "Simpan draft" : "Simpan sebagai draft"}
+      pending={pending}
+      submitLabel={
+        letter ? "Simpan draft" : multi ? `Simpan ${picked.length} draft` : "Simpan sebagai draft"
+      }
       onSubmit={async () => {
-        if (!employeeId) throw new Error("Pilih karyawan.");
+        if (picked.length === 0) throw new Error("Pilih karyawan.");
         if (!violationTypeId) throw new Error("Pilih jenis pelanggaran.");
+        if (!incidentDate) throw new Error("Isi tanggal kejadian.");
         if (above && escalationReason.trim().length < 5)
           throw new Error("Tingkat di atas saran sistem: tulis alasannya.");
-        const body = {
-          employeeId,
-          level,
+        const common = {
           violationTypeId,
-          incidentDate: incidentDate || null,
+          incidentDate,
           description: description.trim(),
-          escalationReason: escalationReason.trim() || null,
+          escalationReason: above ? escalationReason.trim() : null,
+        };
+        if (multi) {
+          const created = await createDrafts.mutateAsync({
+            ...common,
+            employeeIds: picked.map((p) => p.id),
+            level,
+          });
+          toast.success(
+            `${created.length} draft dibuat. Periksa PDF lalu terbitkan satu per satu.`,
+          );
+          return;
+        }
+        const body = {
+          ...common,
+          employeeId: picked[0]?.id ?? letter?.employee.employeeId,
+          level: level === "AUTO" ? (suggested ?? "SP1") : level,
           alphaDayIds: type?.linksAttendance ? alphaDayIds : [],
         };
         if (letter) {
@@ -229,19 +312,61 @@ export function DraftDialog({
           Karyawan: <span className="font-medium">{letter.employee.fullName}</span>
         </p>
       ) : (
-        <EmployeePicker
-          active
-          selectedId={employeeId}
-          onSelect={(next) => {
-            setEmployeeId(next);
-            setLevelTouched(false);
-            setAlphaDayIds([]);
-          }}
-          title="Karyawan"
-          className="h-56"
-        />
+        <section className="grid gap-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <Label>Karyawan</Label>
+            <span className="text-muted-foreground text-xs">
+              {picked.length === 0
+                ? "Centang satu atau beberapa karyawan."
+                : `${picked.length} dipilih · satu draft per karyawan`}
+            </span>
+          </div>
+          {picked.length > 0 ? (
+            <ul className="flex flex-wrap gap-1.5" aria-label="Karyawan terpilih">
+              {picked.map((p) => (
+                <li
+                  key={p.id}
+                  className="bg-brand-soft text-brand-soft-foreground flex max-w-full items-center gap-1 rounded-full py-0.5 pr-1 pl-2.5 text-xs"
+                >
+                  <span className="truncate font-medium">{p.fullName}</span>
+                  <button
+                    type="button"
+                    onClick={() => togglePerson(p)}
+                    className="hover:bg-background/60 rounded-full p-0.5"
+                    aria-label={`Batalkan ${p.fullName}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </li>
+              ))}
+              {picked.length > 1 ? (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPicked([]);
+                      setLevelTouched(false);
+                    }}
+                    className="text-muted-foreground hover:text-foreground px-1.5 py-0.5 text-xs underline-offset-2 hover:underline"
+                  >
+                    Hapus semua
+                  </button>
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
+          <EmployeePicker
+            active
+            multiple
+            selectedId={null}
+            selectedIds={picked.map((p) => p.id)}
+            onSelect={(_, row) => togglePerson(row)}
+            title="Daftar karyawan"
+            className="h-64 min-h-0"
+          />
+        </section>
       )}
-      {suggestion.data && suggestion.data.active.length > 0 ? (
+      {!multi && suggestion.data && suggestion.data.active.length > 0 ? (
         <Notice tone="info">
           Masih berlaku:{" "}
           {suggestion.data.active
@@ -253,21 +378,17 @@ export function DraftDialog({
           . Saran sistem: <b>{WARNING_LEVEL_LABELS[suggestion.data.suggestedLevel]}</b>.
         </Notice>
       ) : null}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field
-          label="Tingkat"
-          htmlFor={`${id}-level`}
-          hint={suggested ? `Saran: ${WARNING_LEVEL_LABELS[suggested]}` : undefined}
-        >
+      <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-3">
+        <Field label="Tingkat" htmlFor={`${id}-level`}>
           <FormSelect
             id={`${id}-level`}
             value={level}
             onChange={(value) => {
-              setLevel(value as WarningLevel);
+              setLevel(value as LevelChoice);
               setLevelTouched(true);
             }}
             placeholder="Tingkat"
-            options={WARNING_LEVELS.map((l) => ({ value: l, label: WARNING_LEVEL_LABELS[l] }))}
+            options={levelOptions}
           />
         </Field>
         <Field label="Jenis pelanggaran" htmlFor={`${id}-type`}>
@@ -281,21 +402,44 @@ export function DraftDialog({
               .map((t) => ({ value: t.id, label: t.name }))}
           />
         </Field>
-        <Field label="Tanggal kejadian" htmlFor={`${id}-date`} hint="Opsional.">
+        <Field label="Tanggal kejadian" htmlFor={`${id}-date`}>
           <Input
             id={`${id}-date`}
             type="date"
+            required
             max={todayIso()}
             value={incidentDate}
             onChange={(e) => setIncidentDate(e.target.value)}
           />
         </Field>
       </div>
+      {!multi && suggested ? (
+        <p className="text-muted-foreground -mt-2 text-xs">
+          Saran sistem untuk karyawan ini: {WARNING_LEVEL_LABELS[suggested]}.
+        </p>
+      ) : null}
+      {multi && level === "AUTO" ? (
+        <p className="text-muted-foreground -mt-2 text-xs">
+          Tingkat tiap karyawan mengikuti SP yang masih berlaku
+          {suggestions.pending
+            ? "…"
+            : `: ${picked
+                .map((p) => {
+                  const s = suggestions.byId.get(p.id)?.suggestedLevel;
+                  return `${p.fullName} ${s ? WARNING_LEVEL_LABELS[s] : "SP 1"}`;
+                })
+                .join(", ")}.`}
+        </p>
+      ) : null}
       {above ? (
         <Field
           label="Alasan tingkat di atas saran"
           htmlFor={`${id}-reason`}
-          hint="Wajib; tercatat di audit dan hanya terlihat HR."
+          hint={
+            multi
+              ? `Wajib untuk: ${aboveNames.join(", ")}. Tercatat di audit dan hanya terlihat HR.`
+              : "Wajib; tercatat di audit dan hanya terlihat HR."
+          }
         >
           <Textarea
             id={`${id}-reason`}
@@ -317,7 +461,11 @@ export function DraftDialog({
       <Field
         label="Uraian / kronologi"
         htmlFor={`${id}-desc`}
-        hint="Tercetak di surat. Tulis fakta: apa, kapan, di mana."
+        hint={
+          multi
+            ? "Tercetak sama di setiap surat. Tulis fakta: apa, kapan, di mana."
+            : "Tercetak di surat. Tulis fakta: apa, kapan, di mana."
+        }
       >
         <Textarea
           id={`${id}-desc`}
@@ -329,7 +477,13 @@ export function DraftDialog({
           onChange={(e) => setDescription(e.target.value)}
         />
       </Field>
-      {type?.linksAttendance && employeeId ? (
+      {type?.linksAttendance && multi ? (
+        <Notice tone="info">
+          Bukti hari ALPHA berbeda per karyawan — tautkan lewat <b>Ubah draft</b> pada tiap draft
+          setelah disimpan.
+        </Notice>
+      ) : null}
+      {type?.linksAttendance && employeeId && !multi ? (
         <section className="grid gap-2">
           <Label>Hari ALPHA sebagai bukti (opsional)</Label>
           {alpha.isPending ? (

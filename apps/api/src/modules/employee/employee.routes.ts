@@ -7,6 +7,7 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
+import * as applicationForm from "./application-form.service.ts";
 import { registerArchiveRoutes } from "./archive.routes.ts";
 import * as pivot from "./dashboard-pivot.service.ts";
 import { registerDataChangeRoutes } from "./data-change.routes.ts";
@@ -203,6 +204,34 @@ const routes = {
       ...errors(400, 401, 403, 404, 500),
     },
   }),
+  applicationForm: createRoute({
+    method: "get",
+    path: `${P}/employees/{id}/application-form`,
+    tags: TAGS,
+    summary:
+      "Unduh Formulir Aplikasi dari template Word (docx; pdf bila GOTENBERG_URL diisi) — SA/HR, dicatat di audit (EMP-D1)",
+    security,
+    request: {
+      params: idParamSchema,
+      query: z.object({ format: z.enum(["docx", "pdf"]).default("docx") }),
+    },
+    responses: {
+      200: json(
+        "Berkas formulir (base64)",
+        dataEnvelope(
+          z
+            .object({
+              fileName: z.string(),
+              contentType: z.string(),
+              contentBase64: z.string(),
+              photo: z.enum(["included", "none", "unsupported", "failed"]),
+            })
+            .openapi("ApplicationFormFile"),
+        ),
+      ),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
   create: createRoute({
     method: "post",
     path: `${P}/employees`,
@@ -345,6 +374,18 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   app.openapi(guard(routes.get), async (c) =>
     c.json(
       ok(await service.getEmployee(ctx(c), c.req.valid("param").id, c.req.valid("query").view)),
+      200,
+    ),
+  );
+  app.openapi(guard(routes.applicationForm), async (c) =>
+    c.json(
+      ok(
+        await applicationForm.exportApplicationForm(
+          ctx(c),
+          c.req.valid("param").id,
+          c.req.valid("query").format,
+        ),
+      ),
       200,
     ),
   );
