@@ -7,7 +7,6 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
-import * as applicationForm from "./application-form.service.ts";
 import { registerArchiveRoutes } from "./archive.routes.ts";
 import * as pivot from "./dashboard-pivot.service.ts";
 import { registerDataChangeRoutes } from "./data-change.routes.ts";
@@ -36,6 +35,7 @@ import {
   updateEmployeeBodySchema,
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
+import * as employeeForm from "./employee-form.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
 import { registerOnboardingRoutes } from "./onboarding.routes.ts";
 import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
@@ -204,32 +204,44 @@ const routes = {
       ...errors(400, 401, 403, 404, 500),
     },
   }),
-  applicationForm: createRoute({
-    method: "get",
-    path: `${P}/employees/{id}/application-form`,
+  printForm: createRoute({
+    method: "post",
+    path: `${P}/employees/{id}/print`,
     tags: TAGS,
     summary:
-      "Unduh Formulir Aplikasi dari template Word (docx; pdf bila GOTENBERG_URL diisi) — SA/HR, dicatat di audit (EMP-D1)",
+      "Print data: Formulir Data Karyawan (PDF dari template HR) — SA/HR, data pribadi bila berhak, dicatat di audit",
     security,
     request: {
       params: idParamSchema,
-      query: z.object({ format: z.enum(["docx", "pdf"]).default("docx") }),
+      body: {
+        content: {
+          "application/json": {
+            schema: z
+              .object({
+                /** Pas foto JPEG/PNG (base64) dari browser — foto profil tersimpan WebP, pdf-lib tidak bisa. */
+                photoBase64: z.string().max(4_000_000).nullable().optional(),
+              })
+              .openapi("EmployeeFormInput"),
+          },
+        },
+        required: false,
+      },
     },
     responses: {
       200: json(
-        "Berkas formulir (base64)",
+        "Berkas PDF (base64)",
         dataEnvelope(
           z
             .object({
               fileName: z.string(),
-              contentType: z.string(),
+              contentType: z.literal("application/pdf"),
               contentBase64: z.string(),
               photo: z.enum(["included", "none", "unsupported", "failed"]),
             })
-            .openapi("ApplicationFormFile"),
+            .openapi("EmployeeFormFile"),
         ),
       ),
-      ...errors(400, 401, 403, 404, 422, 500),
+      ...errors(400, 401, 403, 404, 500),
     },
   }),
   create: createRoute({
@@ -377,13 +389,13 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
       200,
     ),
   );
-  app.openapi(guard(routes.applicationForm), async (c) =>
+  app.openapi(guard(routes.printForm), async (c) =>
     c.json(
       ok(
-        await applicationForm.exportApplicationForm(
+        await employeeForm.exportEmployeeForm(
           ctx(c),
           c.req.valid("param").id,
-          c.req.valid("query").format,
+          c.req.valid("json")?.photoBase64 ?? null,
         ),
       ),
       200,

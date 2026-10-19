@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ErrorBody } from "@hris/shared";
-import PizZip from "pizzip";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
@@ -824,62 +823,51 @@ describe("GET /employees/:id?view=print (formulir data pegawai .xlsx)", () => {
   });
 });
 
-// EMP-D1: Formulir Aplikasi dari template Word (docx; pdf lewat Gotenberg bila GOTENBERG_URL diisi).
-describe("GET /employees/:id/application-form (EMP-D1)", () => {
+// Print data (2026-10-19): Formulir Data Karyawan = template PDF HR + isian (menggantikan .xlsx & Formulir Aplikasi).
+describe("POST /employees/:id/print (Print data PDF)", () => {
   const printed = (actorAccountId: string, entityId: string) =>
     prisma.auditLog.findMany({ where: { action: "employee.printed", actorAccountId, entityId } });
 
-  test("HR dengan grant: .docx berisi nama & NIK; audit employee.printed format docx", async () => {
-    const res = await call("GET", `/employees/${ids.otherEmp}/application-form`, hrGranted.headers);
+  test("HR dengan grant: PDF 3 halaman; audit employee.printed format pdf + bagian pribadi", async () => {
+    const res = await call("POST", `/employees/${ids.otherEmp}/print`, hrGranted.headers);
     expect(res.status).toBe(200);
     const { data } = await body(res);
-    expect(data.fileName).toMatch(/formulir-aplikasi\.docx$/);
-    expect(data.contentType).toBe(
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    );
+    expect(data.fileName).toMatch(/data-karyawan\.pdf$/);
+    expect(data.contentType).toBe("application/pdf");
     expect(data.photo).toBe("none");
-    const xml =
-      new PizZip(Buffer.from(data.contentBase64, "base64")).file("word/document.xml")?.asText() ??
-      "";
-    const detail = (
-      await body(await call("GET", `/employees/${ids.otherEmp}?view=full`, hrGranted.headers))
-    ).data;
-    expect(xml).toContain(detail.fullName);
-    expect(xml).toContain(detail.personal.ktpNumber);
-    expect(xml).not.toMatch(/\{[#/]?[a-zA-Z0-9]+\}/);
+    const bytes = Buffer.from(data.contentBase64, "base64");
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
     const audits = await printed(hrGranted.account.id, ids.otherEmp);
-    expect(audits.map((a) => a.after)).toContainEqual({ format: "docx", sections: ["personal"] });
+    expect(audits.map((a) => a.after)).toContainEqual({ format: "pdf", sections: ["personal"] });
   });
 
-  test("PDF: dengan GOTENBERG_URL → berkas %PDF; tanpa → 422 dengan saran unduh Word", async () => {
-    const res = await call(
-      "GET",
-      `/employees/${ids.otherEmp}/application-form?format=pdf`,
-      hr.headers,
+  test("foto dari browser hanya dipakai bila karyawan punya foto profil", async () => {
+    const res = await call("POST", `/employees/${ids.otherEmp}/print`, hr.headers, {
+      photoBase64: Buffer.from("bukan foto").toString("base64"),
+    });
+    expect(res.status).toBe(200);
+    expect((await body(res)).data.photo).toBe("none");
+  });
+
+  test("HR tanpa grant: tetap 200, audit tanpa bagian sensitif", async () => {
+    const res = await call("POST", `/employees/${ids.otherEmp}/print`, hr.headers);
+    expect(res.status).toBe(200);
+    const audits = await printed(hr.account.id, ids.otherEmp);
+    expect(audits.map((a) => a.after)).toContainEqual({ format: "pdf", sections: [] });
+  });
+
+  test("MANAGER & EMPLOYEE 403; tanpa token 401; id bukan uuid 400; rute lama 404", async () => {
+    expect(await code(await call("POST", `/employees/${ids.otherEmp}/print`, emp.headers))).toBe(
+      "FORBIDDEN",
     );
-    if (process.env.GOTENBERG_URL) {
-      expect(res.status).toBe(200);
-      const { data } = await body(res);
-      expect(data.contentType).toBe("application/pdf");
-      expect(Buffer.from(data.contentBase64, "base64").subarray(0, 4).toString()).toBe("%PDF");
-    } else {
-      expect(res.status).toBe(422);
-      expect(await code(res)).toBe("BUSINESS_RULE_VIOLATION");
-    }
-  });
-
-  test("MANAGER & EMPLOYEE 403; tanpa token 401; format salah 400", async () => {
+    expect(await code(await call("POST", `/employees/${ids.teamEmp}/print`, mgr.headers))).toBe(
+      "FORBIDDEN",
+    );
+    expect((await call("POST", `/employees/${ids.otherEmp}/print`, {})).status).toBe(401);
+    expect((await call("POST", "/employees/bukan-uuid/print", hr.headers)).status).toBe(400);
     expect(
-      await code(await call("GET", `/employees/${ids.otherEmp}/application-form`, emp.headers)),
-    ).toBe("FORBIDDEN");
-    expect(
-      await code(await call("GET", `/employees/${ids.teamEmp}/application-form`, mgr.headers)),
-    ).toBe("FORBIDDEN");
-    expect((await call("GET", `/employees/${ids.otherEmp}/application-form`, {})).status).toBe(401);
-    expect(
-      (await call("GET", `/employees/${ids.otherEmp}/application-form?format=xlsx`, hr.headers))
-        .status,
-    ).toBe(400);
+      (await call("GET", `/employees/${ids.otherEmp}/application-form`, hr.headers)).status,
+    ).toBe(404);
   });
 });
 

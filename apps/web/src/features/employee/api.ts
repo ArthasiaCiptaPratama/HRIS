@@ -154,13 +154,7 @@ export function useEmployee(id: string | null, view: DetailView = "work", enable
  * Bahan formulir cetak (.xlsx): selalu diambil baru (tidak di-cache) karena setiap unduhan
  * tercatat di audit log (`employee.printed`). API menolak (403) selain SA/HR.
  */
-export function fetchEmployeeForPrint(id: string) {
-  return api(`/employees/${id}?view=print`, { schema: one(employeeDetailSchema) }).then(
-    (r) => r.data,
-  );
-}
-
-const applicationFormFileSchema = one(
+const employeeFormFileSchema = one(
   z.object({
     fileName: z.string(),
     contentType: z.string(),
@@ -169,10 +163,15 @@ const applicationFormFileSchema = one(
   }),
 );
 
-/** EMP-D1: Formulir Aplikasi dari template Word (dibuat server, tercatat di audit `employee.printed`). */
-export function fetchApplicationForm(id: string, format: "docx" | "pdf") {
-  return api(`/employees/${id}/application-form?format=${format}`, {
-    schema: applicationFormFileSchema,
+/**
+ * Print data: Formulir Data Karyawan (PDF dari template HR, dibuat server, tercatat di audit).
+ * `photoBase64` = pas foto JPEG yang disiapkan browser (foto profil tersimpan WebP).
+ */
+export function fetchEmployeeForm(id: string, photoBase64: string | null) {
+  return api(`/employees/${id}/print`, {
+    method: "POST",
+    body: { photoBase64 },
+    schema: employeeFormFileSchema,
   }).then((r) => r.data);
 }
 

@@ -523,6 +523,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
 | [EMP-D1](features/karyawan/README.md#keputusan) | Formulir Aplikasi dari template Word bertanda (docxtemplater) + PDF lewat Gotenberg/LibreOffice (layanan terpisah); tahap 1 template tersemat, tahap 2 halaman pengelolaan template; fitur lokal dulu | [EMP](features/karyawan/README.md) |
 | [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
+| [EMP-D3](features/karyawan/README.md#keputusan) | Print data = PDF dari template PDF HR "Formulir Data Karyawan" (pdf-lib, posisi tetap); Excel & Formulir Aplikasi Word (EMP-D1, Gotenberg) dihapus | [EMP](features/karyawan/README.md) |
 
 ## 9. Keputusan Terbuka
 

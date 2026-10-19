@@ -1,13 +1,10 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FEATURES } from "@/app/feature-flags";
 import { authState, me, renderAt, supabaseMock } from "./helpers";
 
-// Canvas tidak ada di jsdom: kompres foto diganti blob tetap (geometri diuji di employee-print.test).
+// Canvas tidak ada di jsdom: kompres foto diganti blob tetap.
 vi.mock("@/lib/image", async (original) => ({
   ...(await original<typeof import("@/lib/image")>()),
   prepareProfilePhoto: vi.fn(async () => ({
@@ -21,9 +18,6 @@ vi.mock("@/lib/supabase", async () => ({
 }));
 
 // Panel detail pegawai: layar penuh, avatar di tengah, riwayat "diubah oleh", tombol Print data.
-const TEMPLATE = readFileSync(
-  path.join(import.meta.dirname, "..", "public", "template", "Template-excel.xlsx"),
-);
 
 let photoUrl: string | null = null;
 let accountOverride: { role: string; isActive: boolean } | null = null;
@@ -98,15 +92,12 @@ const detail = (access: Record<string, boolean>) => ({
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** fetch palsu yang membedakan query (?view=...) dan melayani file template. */
+/** fetch palsu yang membedakan query (?view=...). */
 function mockBackend(role: Parameters<typeof me>[0], access: Record<string, boolean>) {
   const calls: string[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = String(input);
     calls.push(`${init?.method ?? "GET"} ${raw}`);
-    if (raw.endsWith("/template/Template-excel.xlsx")) {
-      return new Response(TEMPLATE, { status: 200 });
-    }
     const url = new URL(raw);
     const key = url.pathname.replace("/api/v1", "");
     if (key === "/me") return json(200, { data: me(role, false, "e-self") });
@@ -147,10 +138,10 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
     if (key === "/employees/e1") return json(200, { data: detail(access) });
-    if (key === "/employees/e1/application-form")
+    if (key === "/employees/e1/print")
       return json(200, {
         data: {
-          fileName: "ACP-2023-0007-Agus-Pratama-formulir-aplikasi.pdf",
+          fileName: "ACP-2023-0007-Agus-Pratama-data-karyawan.pdf",
           contentType: "application/pdf",
           contentBase64: btoa("%PDF-1.7"),
           photo: "none",
@@ -235,9 +226,9 @@ describe("panel detail pegawai", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("HR: Print data → ambil ?view=print lalu unduh .xlsx bernama karyawan", async () => {
+  it("HR: Print data → unduh PDF Formulir Data Karyawan dari /employees/:id/print", async () => {
     const calls = mockBackend("HR_ADMIN", { manage: true, deactivate: true, print: true });
-    const createObjectURL = vi.fn((_blob: Blob) => "blob:xlsx");
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:pdf");
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
     const success = vi.spyOn(toast, "success");
     const clicked: string[] = [];
@@ -251,48 +242,22 @@ describe("panel detail pegawai", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(await within(dialog).findByRole("button", { name: /Print data/ }));
 
-    await waitFor(() =>
-      expect(clicked).toEqual(["Data Karyawan - ACP-2023-0007 - Agus Pratama.xlsx"]),
-    );
-    expect(calls.some((c) => c.endsWith("/employees/e1?view=print"))).toBe(true);
-    const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
-    expect(blob.type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    expect(blob.size).toBeGreaterThan(10_000);
+    await waitFor(() => expect(clicked).toEqual(["ACP-2023-0007-Agus-Pratama-data-karyawan.pdf"]));
+    expect(calls.some((c) => c.endsWith("/employees/e1/print"))).toBe(true);
+    expect(calls.some((c) => c.includes("view=print"))).toBe(false);
+    expect(createObjectURL.mock.calls[0]?.[0]?.type).toBe("application/pdf");
     await waitFor(() =>
       expect(success).toHaveBeenCalledWith(
-        "Data Agus Pratama diunduh (.xlsx).",
+        "ACP-2023-0007-Agus-Pratama-data-karyawan.pdf diunduh.",
         expect.objectContaining({ description: expect.stringContaining("dikosongkan") }),
       ),
     );
+    // Formulir Aplikasi Word dihapus (2026-10-19): hanya satu tombol cetak.
+    expect(
+      within(dialog).queryByRole("button", { name: /Formulir Aplikasi/ }),
+    ).not.toBeInTheDocument();
     click.mockRestore();
   });
-
-  it.skipIf(!FEATURES.applicationForm)(
-    "HR: Formulir Aplikasi → pilih PDF → unduh dari /application-form?format=pdf (EMP-D1)",
-    async () => {
-      const calls = mockBackend("HR_ADMIN", { manage: true, print: true, personal: true });
-      const createObjectURL = vi.fn((_blob: Blob) => "blob:pdf");
-      vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
-      const clicked: string[] = [];
-      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-        this: HTMLAnchorElement,
-      ) {
-        clicked.push(this.download);
-      });
-      renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
-      const dialog = await screen.findByRole("dialog");
-      await userEvent.click(
-        await within(dialog).findByRole("button", { name: /Formulir Aplikasi/ }),
-      );
-      await userEvent.click(await screen.findByRole("menuitem", { name: /PDF/ }));
-      await waitFor(() =>
-        expect(clicked).toEqual(["ACP-2023-0007-Agus-Pratama-formulir-aplikasi.pdf"]),
-      );
-      expect(calls.some((c) => c.endsWith("/employees/e1/application-form?format=pdf"))).toBe(true);
-      expect(createObjectURL.mock.calls[0]?.[0]?.type).toBe("application/pdf");
-      click.mockRestore();
-    },
-  );
 
   it("MANAGER (tanpa hak print): tombol Print data & Ubah data tidak tampil", async () => {
     mockBackend("MANAGER", {});
@@ -301,9 +266,6 @@ describe("panel detail pegawai", () => {
     await within(dialog).findByRole("heading", { name: "Agus Pratama" });
     expect(within(dialog).queryByRole("button", { name: /Print data/ })).not.toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: /Ubah data/ })).not.toBeInTheDocument();
-    expect(
-      within(dialog).queryByRole("button", { name: /Formulir Aplikasi/ }),
-    ).not.toBeInTheDocument();
   });
 });
 
