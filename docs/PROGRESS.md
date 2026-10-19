@@ -12,7 +12,7 @@
 | [fondasi](features/fondasi/README.md) | 0–1 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai (sisa: uji Windows, OD-9, OD-12) | ✔ |
 | [iam](features/iam/README.md) | 2 | Oatse | `HRIS/Oatse/Linux-Windows` | Review (sisa: captcha ditunda, OD-5) | ✔ |
 | [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan (sisa: profil perusahaan, pengaturan sistem) | ✔ |
-| [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1) ✔ lokal `a2ce380` (belum push, EMP-OD1); template Formulir Data Karyawan + Tambah karyawan bertahap (EMP-D2) ✔ staging gel. 9; Print data PDF dari template (EMP-D3) ✔ staging gel. 10; Ubah data lengkap (EMP-D4) ✔ lokal 2026-10-19 (belum commit) | ✔ |
+| [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1) ✔ lokal `a2ce380` (belum push, EMP-OD1); template Formulir Data Karyawan + Tambah karyawan bertahap (EMP-D2) ✔ staging gel. 9; Print data PDF dari template (EMP-D3) ✔ staging gel. 10; Ubah data lengkap (EMP-D4) ✔ staging gel. 11 | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
 | [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ staging gel. 9 (QA LEGIT); sisa batch 2, OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT), gel. 9 Laporan |
@@ -108,6 +108,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-19** — Rilis gel. 11 ke staging: Ubah data lengkap (EMP-D4) + perbaikan pengajuan Keluarga (PR #57/#58, Deploy #39228019978, tanpa migrasi). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
 - **2026-10-19** — Ubah data lengkap dari detail (EMP-D4: pribadi, keluarga, rekening) + perbaikan pengajuan Keluarga yang menghapus kolom; api 816 · web 270. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-10-19** — Rilis gel. 10 ke staging: Print data PDF dari template (PR #55/#56, Deploy #39213066393, tanpa migrasi). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
 - **2026-10-19** — Print data jadi PDF dari template Formulir Data Karyawan (EMP-D3), Formulir Aplikasi Word & Gotenberg dihapus; api 812 · web 268, QA browser lokal ✔. (Oatse) → [karyawan/log](features/karyawan/log.md)
