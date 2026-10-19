@@ -51,6 +51,13 @@ export const access = {
     isSuperAdmin(me) || isHrAdmin(me) || (me.role === ROLE.MANAGER && me.employeeId !== null),
   /** Tambah/ubah, ubah status, aktifkan/nonaktifkan, arsip & laporan. */
   manageEmployees: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
+  /** EMP-D2 (employee.policy canWriteSensitiveOnCreate): isi data pribadi/keluarga & rekening saat tambah. */
+  writePersonalOnCreate: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) && me.grants.some((g) => g.permission === "employee.personal.write")),
+  writeBankOnCreate: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) && me.grants.some((g) => g.permission === "employee.bank.write")),
 
   // ARS-D3 (apps/api/src/modules/asset/asset.policy.ts): aset & APD.
   /** Lihat Arsip › Data Assets: SA, HR (PT sendiri), MANAGER (aset tim). */

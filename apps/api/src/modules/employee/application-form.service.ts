@@ -1,5 +1,6 @@
 import { BusinessRuleError } from "../../core/errors.ts";
 import { convertDocxToPdf, pdfConversionAvailable } from "../../core/pdf-convert.ts";
+import { getMasterLookup } from "../organization/index.ts";
 import { applicationFormData, renderApplicationForm } from "./application-form.ts";
 import { getEmployee, type RequestContext } from "./employee.service.ts";
 
@@ -22,6 +23,19 @@ async function fetchPhoto(url: string | null): Promise<Uint8Array | null | "fail
   }
 }
 
+/** Divisi = unit berjenis Divisi terdekat di atas (atau sama dengan) unit karyawan (D-050). */
+async function divisionOf(departmentId: string | null): Promise<string | null> {
+  if (!departmentId) return null;
+  const { departments } = await getMasterLookup();
+  const seen = new Set<string>();
+  for (let unit = departments.get(departmentId); unit && !seen.has(unit.id); ) {
+    if (unit.unitType === "DIVISION") return unit.name;
+    seen.add(unit.id);
+    unit = unit.parentId ? departments.get(unit.parentId) : undefined;
+  }
+  return null;
+}
+
 const safeName = (s: string) =>
   s
     .normalize("NFKD")
@@ -42,9 +56,12 @@ export async function exportApplicationForm(
     );
   }
   const detail = await getEmployee(ctx, id, "print", format);
-  const fetched = await fetchPhoto(detail.photoUrl);
+  const [fetched, division] = await Promise.all([
+    fetchPhoto(detail.photoUrl),
+    divisionOf(detail.department?.id ?? null),
+  ]);
   const { docx, photo } = renderApplicationForm(
-    applicationFormData(detail, JAKARTA_DATE.format(now)),
+    applicationFormData(detail, JAKARTA_DATE.format(now), { division }),
     fetched === "failed" ? null : fetched,
   );
   const base = safeName(

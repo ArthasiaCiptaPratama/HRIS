@@ -41,6 +41,10 @@ const detail = (over: Record<string, unknown> = {}) =>
     workEmail: null,
     gender: "MALE",
     company: { id: "c1", code: "ACP", name: "PT Arthasia Cipta Pratama" },
+    position: { id: "p1", name: "GA Staff" },
+    department: { id: "d1", name: "General Affair" },
+    joinDate: "2023-03-01",
+    bankAccount: { bankName: "BRI", accountNumber: "1234567890", accountHolder: "Budi Santoso" },
     photoUrl: null,
     emergencyContactName: "Siti",
     emergencyPhone: "0813",
@@ -126,6 +130,29 @@ describe("applicationFormData", () => {
     });
     expect(d.certifications).toHaveLength(APPLICATION_FORM_MIN_ROWS.certifications);
     expect(d.ec2Name).toBe("Andi");
+  });
+
+  test("template 2026-10-19: kepegawaian (divisi dari unit), rekening, tabel kontak darurat 2 baris", () => {
+    const d = applicationFormData(detail(), "2026-10-19", { division: "Divisi Operasional" });
+    expect(d).toMatchObject({
+      department: "General Affair",
+      division: "Divisi Operasional",
+      position: "GA Staff",
+      joinDate: "1 Maret 2023",
+      bankName: "BRI",
+      bankHolder: "Budi Santoso",
+      bankAccount: "1234567890",
+    });
+    expect(d.contacts).toHaveLength(APPLICATION_FORM_MIN_ROWS.contacts);
+    expect(d.contacts[0]).toMatchObject({ name: "Siti", relation: "Istri", phone: "0813" });
+    expect(d.contacts[1]).toMatchObject({ name: "Andi" });
+    const noBank = applicationFormData(detail({ bankAccount: undefined, department: null }), "x");
+    expect([noBank.bankName, noBank.bankAccount, noBank.department, noBank.division]).toEqual([
+      "",
+      "",
+      "",
+      "",
+    ]);
   });
 
   test("tanpa hak data pribadi: bagian pribadi kosong", () => {

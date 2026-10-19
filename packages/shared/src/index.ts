@@ -5,6 +5,7 @@ export * from "./data-changes.ts";
 export * from "./discipline.ts";
 export * from "./documents.ts";
 export * from "./employee.ts";
+export * from "./employee-profile.ts";
 export * from "./enums.ts";
 export * from "./holidays-id.ts";
 export * from "./import/index.ts";

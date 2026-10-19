@@ -1,4 +1,9 @@
-import type { EmploymentCategory, EmploymentCategoryGroup, ExitReason } from "@hris/shared";
+import type {
+  EmployeeProfileInput,
+  EmploymentCategory,
+  EmploymentCategoryGroup,
+  ExitReason,
+} from "@hris/shared";
 import {
   keepPreviousData,
   type QueryClient,
@@ -265,6 +270,8 @@ export interface EmployeeWriteBody {
   orgPostId?: string | null;
   /** D-053: true = atasan manual; false = otomatis dari pos. */
   managerOverride?: boolean;
+  /** EMP-D2: data profil lengkap saat tambah (hanya POST). */
+  profile?: EmployeeProfileInput;
 }
 
 export const useCreateEmployee = () =>

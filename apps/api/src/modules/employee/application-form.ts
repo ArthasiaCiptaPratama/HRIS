@@ -4,7 +4,8 @@ import PizZip from "pizzip";
 import { APPLICATION_FORM_TEMPLATE_BASE64 } from "./application-form-template.ts";
 import type { EmployeeDetail } from "./employee.schema.ts";
 
-// EMP-D1: Formulir Aplikasi (.docx) dari template Word bertanda docxtemplater (`templates/formulir-aplikasi.docx`).
+// EMP-D1: Formulir Aplikasi (.docx) dari template Word bertanda docxtemplater (`templates/formulir-aplikasi.docx`;
+// sejak 2026-10-19 = "Formulir Data Karyawan" HR tanpa pernyataan, daftar dokumen, dan tanda tangan Pelamar).
 // Template boleh diubah HR di Word asalkan penanda di bawah dipakai: {fullName}, {#children}…{/children}, dst.
 // Pas foto = gambar bernama FOTO_KARYAWAN di template (diganti foto, ukuran menyesuaikan rasio; dihapus bila
 // tanpa foto). Tabel berulang diisi sampai jumlah baris minimum supaya tetap berbentuk formulir.
@@ -30,6 +31,7 @@ export const APPLICATION_FORM_MIN_ROWS = {
   siblings: 5,
   educations: 3,
   certifications: 11,
+  contacts: 2,
 } as const;
 
 export const longDate = (iso: string | null | undefined) =>
@@ -59,8 +61,17 @@ export function familyAge(member: Family, todayIso: string): string {
   return text(member.ageAtEntry);
 }
 
+/** Data organisasi yang tidak ada di detail karyawan (divisi = unit berjenis Divisi di atas departemen). */
+export interface ApplicationFormOrg {
+  division: string | null;
+}
+
 /** Nilai penanda template dari detail karyawan (view=print). Data pribadi kosong bila pencetak tidak berhak. */
-export function applicationFormData(e: EmployeeDetail, todayIso: string) {
+export function applicationFormData(
+  e: EmployeeDetail,
+  todayIso: string,
+  org: ApplicationFormOrg = { division: null },
+) {
   const p = e.personal;
   const family = e.familyMembers ?? [];
   const of = (relationship: Family["relationship"]) =>
@@ -155,11 +166,37 @@ export function applicationFormData(e: EmployeeDetail, todayIso: string) {
       APPLICATION_FORM_MIN_ROWS.certifications,
       ["type", "number", "year"],
     ),
+    // Template "Formulir Data Karyawan" (2026-10-19): kepegawaian, rekening, tabel kontak darurat.
+    department: text(e.department?.name),
+    division: text(org.division),
+    position: text(e.position.name),
+    joinDate: longDate(e.joinDate),
+    bankName: text(e.bankAccount?.bankName),
+    bankHolder: text(e.bankAccount?.accountHolder),
+    bankAccount: text(e.bankAccount?.accountNumber),
+    contacts: padRows(
+      [
+        {
+          name: text(e.emergencyContactName),
+          relation: text(e.emergencyContactRelationship),
+          phone: text(e.emergencyPhone),
+          address: text(p?.emergencyContactAddress),
+        },
+        {
+          name: text(p?.emergencyContact2Name),
+          relation: text(p?.emergencyContact2Relationship),
+          phone: text(p?.emergencyContact2Phone),
+          address: text(p?.emergencyContact2Address),
+        },
+      ].filter((c) => c.name || c.phone),
+      APPLICATION_FORM_MIN_ROWS.contacts,
+      ["name", "relation", "phone", "address"],
+    ),
     ec1Name: text(e.emergencyContactName),
     ec1Phone: text(e.emergencyPhone),
     ec1Relation: text(e.emergencyContactRelationship),
     ec1Address: text(p?.emergencyContactAddress),
-    // Kontak darurat ke-2: siap dipakai bila template diberi kotak kedua.
+    // Penanda lama (template 2026-10-16) tetap tersedia untuk template yang masih memakainya.
     ec2Name: text(p?.emergencyContact2Name),
     ec2Phone: text(p?.emergencyContact2Phone),
     ec2Relation: text(p?.emergencyContact2Relationship),
