@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Print data jadi PDF dari template Formulir Data Karyawan; Formulir Aplikasi Word dihapus (Oatse)
+- **Dikerjakan:** checklist "Print data → PDF" — renderer pdf-lib berlatar template PDF HR, `POST /employees/{id}/print`, tombol web (foto WebP → JPEG di browser), hapus Excel & seluruh Formulir Aplikasi Word/Gotenberg.
+- **Keputusan:** EMP-D3; EMP-OD1 gugur.
+- **Verifikasi:** typecheck ✔ · biome ✔ (tanpa warning) · boundaries ✔ (469 modul) · test shared 250 · api 812 · web 268 + 5 dilewati · QA browser lokal: PDF 3 halaman, foto tampil, tanpa tombol Formulir Aplikasi.
+- **Masalah / catatan:** (1) foto profil tersimpan WebP → pdf-lib tidak bisa; diselesaikan dengan konversi di browser (sama seperti Excel lama). (2) **Data Rekening di PDF selalu kosong**: Print data sejak awal tidak membaca rekening (view=print) — perlu keputusan pemilik projek bila rekening mau ikut tercetak. (3) Sheet arsip per kategori dari Excel lama (D-058) tidak ada di PDF.
+- **Berikutnya:** izin commit → rilis staging + QA staging.
+
 ### 2026-10-19 — Arahan: Print data jadi PDF dari template, Formulir Aplikasi Word dihapus (Oatse)
 - **Dikerjakan:** hanya dokumen — rencana dicatat di checklist ("Print data → PDF dari template Formulir Data Karyawan") & Backlog PROGRESS; belum ada kode.
 - **Keputusan:** arahan pemilik projek: temuan poin 8 maksudnya tombol **Print data** (bukan Formulir Aplikasi) → PDF memakai template PDF yang diberikan; Formulir Aplikasi Word dihapus. EMP-OD1 akan gugur; **EMP-OD2** baru (template dinamis vs posisi tetap).

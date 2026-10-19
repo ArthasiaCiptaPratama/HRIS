@@ -31,7 +31,7 @@ Cara: (a) `git push origin HRIS/Oatse/Linux-Windows` (cadangan + CI, tidak men-d
 | `assets` | [arsip](features/arsip/README.md) gel. 2a Aset & APD | true | true (gel. 7, 2026-10-14) |
 | `discipline` | [arsip](features/arsip/README.md) gel. 2b Surat Peringatan | true | true (gel. 8, 2026-10-15) |
 | `reports` | [arsip](features/arsip/README.md) gel. 3 Laporan batch 1 | **false** di commit develop (salinan kerja pemilik projek: true) | true (gel. 9, 2026-10-19) |
-| `applicationForm` | [karyawan](features/karyawan/README.md) Formulir Aplikasi Word/PDF (EMP-D1) | true (lokal) | false (kode terpasang gel. 9; layanan PDF staging = EMP-OD1) |
+| ~~`applicationForm`~~ | [karyawan](features/karyawan/README.md) Formulir Aplikasi Word/PDF (EMP-D1) | dihapus 2026-10-19 (EMP-D3) | dihapus saat rilis berikutnya |
 | `timeManagement` | [time-management](features/time-management/README.md) | true | **false** (kode & migrasi terpasang sejak gel. 7, 2026-10-14; lokasi absen TM-D1 sejak gel. 8, 2026-10-15) |
 
 ## 4. Riwayat rilis staging
