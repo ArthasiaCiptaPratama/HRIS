@@ -1,5 +1,6 @@
 import type {
   EmployeeProfileInput,
+  EmployeeProfileUpdateInput,
   EmploymentCategory,
   EmploymentCategoryGroup,
   ExitReason,
@@ -282,6 +283,24 @@ export const useUpdateEmployee = () =>
   useEmployeeMutation(({ id, body }: { id: string; body: Partial<EmployeeWriteBody> }) =>
     api(`/employees/${id}`, { method: "PATCH", body, schema: item }),
   );
+
+/** EMP-D4: ubah data pribadi / keluarga / rekening langsung (bagian yang dikirim diganti utuh). */
+export function useUpdateEmployeeProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: EmployeeProfileUpdateInput }) =>
+      api(`/employees/${id}/profile`, {
+        method: "PATCH",
+        body,
+        schema: one(employeeDetailSchema),
+      }).then((r) => r.data),
+    // Detail terbaru langsung dari respons: dialog yang segera dibuka lagi tidak memakai data lama.
+    onSuccess: (detail) => {
+      queryClient.setQueryData(employeeKeys.detail(detail.id, "full"), detail);
+      return queryClient.invalidateQueries({ queryKey: employeeKeys.all });
+    },
+  });
+}
 
 export const useChangeStatus = () =>
   useEmployeeMutation(

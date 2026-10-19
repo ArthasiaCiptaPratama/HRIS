@@ -256,6 +256,32 @@ const routes = {
       ...errors(400, 401, 403, 409, 422, 500),
     },
   }),
+  updateProfile: createRoute({
+    method: "patch",
+    path: `${P}/employees/{id}/profile`,
+    tags: TAGS,
+    summary:
+      "Ubah data pribadi, keluarga, rekening karyawan langsung (EMP-D4) — SA / HR ber-grant employee.personal.write / employee.bank.write di PT-nya",
+    security,
+    request: {
+      params: idParamSchema,
+      body: {
+        content: {
+          "application/json": {
+            schema: z.record(z.string(), z.unknown()).openapi("UpdateEmployeeProfile", {
+              description:
+                "`{ personal?, family?, bank? }` — bagian yang dikirim diganti utuh (employeeProfileUpdateSchema)",
+            }),
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Detail karyawan setelah diubah", dataEnvelope(employeeDetailSchema)),
+      ...errors(400, 401, 403, 404, 409, 500),
+    },
+  }),
   update: createRoute({
     method: "patch",
     path: `${P}/employees/{id}`,
@@ -407,6 +433,12 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   app.openapi(guard(routes.update), async (c) =>
     c.json(
       ok(await service.updateEmployee(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
+    ),
+  );
+  app.openapi(guard(routes.updateProfile), async (c) =>
+    c.json(
+      ok(await service.updateEmployeeProfile(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
       200,
     ),
   );

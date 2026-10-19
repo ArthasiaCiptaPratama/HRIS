@@ -524,6 +524,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [EMP-D1](features/karyawan/README.md#keputusan) | Formulir Aplikasi dari template Word bertanda (docxtemplater) + PDF lewat Gotenberg/LibreOffice (layanan terpisah); tahap 1 template tersemat, tahap 2 halaman pengelolaan template; fitur lokal dulu | [EMP](features/karyawan/README.md) |
 | [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
 | [EMP-D3](features/karyawan/README.md#keputusan) | Print data = PDF dari template PDF HR "Formulir Data Karyawan" (pdf-lib, posisi tetap); Excel & Formulir Aplikasi Word (EMP-D1, Gotenberg) dihapus | [EMP](features/karyawan/README.md) |
+| [EMP-D4](features/karyawan/README.md#keputusan) | HR ber-grant ubah data pribadi/keluarga/rekening karyawan lain langsung dari detail; data diri sendiri tetap lewat pengajuan; rekening berubah → karyawan diberi tahu | [EMP](features/karyawan/README.md) |
 
 ## 9. Keputusan Terbuka
 
