@@ -126,10 +126,13 @@ describe.skipIf(!FEATURES.timeManagement)("Time Management › Lokasi Absen (TM-
     const user = userEvent.setup();
     const calls = mockFetch(me("SUPER_ADMIN"));
     renderAt("/time/lokasi-absen");
+    // Atur hanya aktif setelah ada karyawan yang dicentang.
+    const atur = await screen.findByRole("button", { name: /^Atur/ });
+    expect(atur).toBeDisabled();
     await user.click(await screen.findByRole("checkbox", { name: "Pilih Agus Pratama" }));
     await user.click(screen.getByRole("checkbox", { name: "Pilih Citra Lestari" }));
     expect(screen.getByText("2 karyawan dipilih")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Atur lokasi absen/ }));
+    await user.click(screen.getByRole("button", { name: "Atur (2)" }));
 
     const dialog = await screen.findByRole("dialog");
     const save = within(dialog).getByRole("button", { name: "Simpan" });
@@ -147,12 +150,11 @@ describe.skipIf(!FEATURES.timeManagement)("Time Management › Lokasi Absen (TM-
     );
   });
 
-  it("satu karyawan → bebas lokasi (tanpa lokasi dikirim)", async () => {
+  it("klik nama satu karyawan → bebas lokasi (tanpa lokasi dikirim)", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(me("SUPER_ADMIN"));
     renderAt("/time/lokasi-absen");
-    const row = (await screen.findByText("Agus Pratama")).closest("tr") as HTMLElement;
-    await user.click(within(row).getByRole("button", { name: "Atur" }));
+    await user.click(await screen.findByRole("button", { name: "Agus Pratama" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("radio", { name: /Bebas lokasi/ }));
     await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
@@ -162,6 +164,19 @@ describe.skipIf(!FEATURES.timeManagement)("Time Management › Lokasi Absen (TM-
         mode: "ANYWHERE",
       }),
     );
+  });
+
+  it("klik di mana saja pada baris membuka pengaturan karyawan itu; kotak centang hanya memilih", async () => {
+    const user = userEvent.setup();
+    mockFetch(me("SUPER_ADMIN"));
+    renderAt("/time/lokasi-absen");
+    const row = (await screen.findByText("Citra Lestari")).closest("tr") as HTMLElement;
+    await user.click(within(row).getByRole("checkbox", { name: "Pilih Citra Lestari" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("1 karyawan dipilih")).toBeInTheDocument();
+    await user.click(within(row).getByText(/selalu berlabel di luar radius/));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Citra Lestari/)).toBeInTheDocument();
   });
 
   it("MANAGER & karyawan tidak bisa membuka halaman", async () => {
