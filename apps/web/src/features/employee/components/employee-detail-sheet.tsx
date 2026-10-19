@@ -66,7 +66,6 @@ import { cn } from "@/lib/utils";
 import { useEmployee, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail } from "../schemas";
-import { ApplicationFormButton } from "./application-form-button";
 import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
@@ -448,11 +447,9 @@ function DetailBody({
                   </>
                 ) : null}
                 {access.print ? (
-                  <PrintEmployeeButton employeeId={employee.id} canViewPersonal={access.personal} />
-                ) : null}
-                {access.print && FEATURES.applicationForm ? (
-                  <ApplicationFormButton
+                  <PrintEmployeeButton
                     employeeId={employee.id}
+                    photoUrl={employee.photoUrl}
                     canViewPersonal={access.personal}
                   />
                 ) : null}

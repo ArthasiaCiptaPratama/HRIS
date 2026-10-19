@@ -55,9 +55,6 @@ const envSchema = z
     // D-060: isi file kunci service account Google (JSON satu baris) untuk lampiran Drive di Import.
     // Kosong = lampiran tercatat di antrean, belum bisa diproses.
     GOOGLE_SERVICE_ACCOUNT_JSON: optionalString,
-    // EMP-D1: layanan konversi DOCX → PDF (Gotenberg/LibreOffice), mis. http://localhost:3999 (docker compose).
-    // Kosong = Formulir Aplikasi hanya bisa diunduh sebagai Word (.docx).
-    GOTENBERG_URL: optionalString.pipe(z.url().optional()),
     // PLAN §3.3: lokal `dev/<nama-developer>/` (bucket staging dipakai bersama); staging/produksi kosong.
     STORAGE_PATH_PREFIX: z
       .string()

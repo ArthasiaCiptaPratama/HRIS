@@ -20,8 +20,5 @@ export const FEATURES = {
   // Personal Management › Laporan batch 1: headcount & turnover, dokumen kedaluwarsa, kelengkapan, SP aktif
   // (ARS-D16/D17). False dulu atas permintaan pemilik projek 2026-10-16 (menu tetap "Maintenance").
   reports: false,
-  // Detail karyawan › Formulir Aplikasi Word/PDF dari template Word (EMP-D1) — fitur lokal: develop `true`,
-  // rilis `false` sampai ada instruksi pemilik projek (tombol Print data .xlsx tetap ada).
-  applicationForm: true,
   timeManagement: true, // Time Management: absen PWA, Data Absen Harian, roster (D-067–D-071)
 } as const;

@@ -22,7 +22,6 @@
     "test:shared": "bun run --filter @hris/shared test",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
-    "pdf:up": "docker compose --profile pdf up -d --build gotenberg",
     "db:generate": "bun run --filter @hris/api db:generate",
     "db:migrate": "bun run --filter @hris/api db:migrate",
     "db:deploy": "bun run --filter @hris/api db:deploy",
