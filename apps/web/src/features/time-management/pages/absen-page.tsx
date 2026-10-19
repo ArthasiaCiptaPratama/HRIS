@@ -174,7 +174,8 @@ export function MobileShell() {
   const tz = data?.timezone ?? fallbackTz;
   // D-073: Clock Out tanpa Clock In kemungkinan salah pencet → tawarkan Clock In.
   const startPunch = (kind: "IN" | "OUT") => {
-    if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
+    if (data?.next === "DONE") toast.info(DONE_TEXT);
+    else if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
     else setFlow(kind);
   };
   const isHome = pathname === "/absen" || pathname === "/absen/";
@@ -230,9 +231,9 @@ export function MobileShell() {
           </main>
 
           <BottomNav
-            canPunch={Boolean(data) && online}
+            canPunch={Boolean(data) && online && data?.next !== "DONE"}
             next={data?.next ?? "IN"}
-            onPunch={() => data && setFlow(data.next)}
+            onPunch={() => data && data.next !== "DONE" && setFlow(data.next)}
           />
         </div>
         {noOpenWarning ? (
@@ -305,6 +306,16 @@ export function AbsenHome() {
 /** Kompatibilitas: nama lama halaman absen. */
 export const AbsenPage = AbsenHome;
 
+/** Absen masuk hanya sekali per hari (permintaan pemilik projek 2026-10-19). */
+const DONE_TEXT = "Absen hari ini sudah tercatat — absen berikutnya besok sesuai jadwal.";
+
+/** "15 Okt" pada zona waktu jam shift. */
+function shortDate(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", timeZone }).format(
+    new Date(iso),
+  );
+}
+
 function TodayCard({
   data,
   clock,
@@ -324,6 +335,8 @@ function TodayCard({
   const current = data.openDay ?? data.recent.find((d) => d.workDate === date) ?? null;
   const inAt = current?.punches.find((p) => p.kind === "IN")?.at ?? null;
   const outAt = current?.punches.find((p) => p.kind === "OUT")?.at ?? null;
+  // Absen masuk yang masih terbuka dari tanggal lain (mis. shift malam kemarin): tampilkan tanggalnya.
+  const otherDate = current && current.workDate !== date ? current.workDate : null;
   const dateText = new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
@@ -369,7 +382,8 @@ function TodayCard({
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
           type="button"
-          disabled={!online}
+          disabled={!online || data.next === "DONE"}
+          title={data.next === "DONE" ? DONE_TEXT : undefined}
           onClick={() => onPunch("IN")}
           className={cn(
             "flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl bg-emerald-600 text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
@@ -380,13 +394,14 @@ function TodayCard({
             <LogIn className="size-5" /> Datang
           </span>
           <span className="font-mono text-sm tabular-nums">
-            {inAt ? timeIn(inAt, tz) : "--:--"}
+            {inAt ? `${otherDate ? `${shortDate(inAt, tz)} ` : ""}${timeIn(inAt, tz)}` : "--:--"}
           </span>
           <span className="text-[10px] opacity-80">Clock In</span>
         </button>
         <button
           type="button"
-          disabled={!online}
+          disabled={!online || data.next === "DONE"}
+          title={data.next === "DONE" ? DONE_TEXT : undefined}
           onClick={() => onPunch("OUT")}
           className={cn(
             "flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl bg-blue-600 text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
@@ -403,7 +418,11 @@ function TodayCard({
         </button>
       </div>
       <p className="text-muted-foreground mt-2 text-center text-[11px]">
-        Jam masuk/pulang mengikuti data kehadiran Anda hari ini.
+        {data.next === "DONE"
+          ? DONE_TEXT
+          : otherDate && !outAt
+            ? `Masih tercatat Clock In tanggal kerja ${workDateLabel(otherDate)} — lakukan Clock Out.`
+            : "Jam masuk/pulang mengikuti data kehadiran Anda hari ini."}
       </p>
     </section>
   );
@@ -622,7 +641,7 @@ function BottomNav({
   onPunch,
 }: {
   canPunch: boolean;
-  next: "IN" | "OUT";
+  next: "IN" | "OUT" | "DONE";
   onPunch: () => void;
 }) {
   const { pathname } = useLocation();
@@ -654,13 +673,19 @@ function BottomNav({
             type="button"
             disabled={!canPunch}
             onClick={onPunch}
-            aria-label={next === "IN" ? "Absen wajah: Clock In" : "Absen wajah: Clock Out"}
+            aria-label={
+              next === "DONE"
+                ? "Absen hari ini sudah lengkap"
+                : next === "IN"
+                  ? "Absen wajah: Clock In"
+                  : "Absen wajah: Clock Out"
+            }
             className="ring-card -mt-7 grid size-16 place-items-center rounded-full bg-violet-600 text-white shadow-lg ring-4 transition active:scale-95 disabled:opacity-50"
           >
             <ScanFace className="size-7" />
           </button>
           <span className="text-muted-foreground pb-1 text-[10px]">
-            {next === "IN" ? "Clock In" : "Clock Out"}
+            {next === "DONE" ? "Selesai" : next === "IN" ? "Clock In" : "Clock Out"}
           </span>
         </div>
         {item(Plane, "Cuti", "/absen/cuti")}

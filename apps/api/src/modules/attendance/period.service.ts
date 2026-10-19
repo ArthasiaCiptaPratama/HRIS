@@ -1,5 +1,7 @@
 import {
   type CorrectionInput,
+  canStillCorrect,
+  correctionDeadline,
   type PeriodCloseInput,
   STATEMENT_ATTACHMENT_MAX_BYTES,
   STATEMENT_ATTACHMENT_TYPES,
@@ -25,8 +27,9 @@ import {
   listActionable,
   registerApprovalHandler,
 } from "../approval/index.ts";
+import { markNoAttendanceAlpha } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
-import { offsetMinutes } from "./attendance-engine.ts";
+import { localDate, offsetMinutes } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import { isoAddDays } from "./roster-engine.ts";
@@ -183,6 +186,10 @@ export interface RecapRow {
   earlyLeave: number;
   outsideRoster: number;
   statements: number;
+  /** TM-D3: Alpha karena tidak absen yang lalu dikoreksi & disetujui. */
+  corrected: number;
+  /** TM-D3: Alpha karena tidak absen yang batas koreksinya sudah lewat. */
+  expired: number;
 }
 
 async function scopedEmployees(actor: Actor, companyId: string) {
@@ -202,6 +209,8 @@ export async function monthlyRecap(ctx: RequestContext, companyId: string, month
   const { from, to } = monthRange(month);
   const today = todayJakarta();
   const ids = employees.map((e) => e.id);
+  await markNoAttendanceAlpha(new Date(), ids);
+  const shiftToday = localDate(new Date(), (await readTimeSettings()).timezone);
   const [all, statements, period] = await Promise.all([
     cells(ids, from, to),
     db().attendanceStatement.groupBy({
@@ -230,6 +239,13 @@ export async function monthlyRecap(ctx: RequestContext, companyId: string, month
       earlyLeave: hasLabel("EARLY_LEAVE"),
       outsideRoster: hasLabel("OUTSIDE_ROSTER") + hasLabel("NO_ROSTER"),
       statements: statementCount.get(e.id) ?? 0,
+      corrected: count((c) => c.labels.includes("NO_ATTENDANCE") && c.status === "APPROVED"),
+      expired: count(
+        (c) =>
+          c.status === "ALPHA" &&
+          c.labels.includes("NO_ATTENDANCE") &&
+          !canStillCorrect(c.date, shiftToday),
+      ),
     };
   });
   return {
@@ -589,13 +605,26 @@ export async function createCorrection(ctx: RequestContext, input: CorrectionInp
   if (input.workDate >= todayJakarta()) {
     throw new BusinessRuleError("Koreksi hanya untuk hari yang sudah lewat.");
   }
+  // TM-D3: semua koreksi hanya s.d. tanggal kerja + 3 hari (zona waktu jam shift).
+  const settingsTz = (await readTimeSettings()).timezone;
+  if (!canStillCorrect(input.workDate, localDate(new Date(), settingsTz))) {
+    throw new BusinessRuleError(
+      `Batas koreksi untuk tanggal ini sudah lewat (paling lambat ${correctionDeadline(input.workDate)}).`,
+    );
+  }
   if (await isDateClosed(employee.companyId, input.workDate)) {
     throw new BusinessRuleError("Periode tanggal ini sudah ditutup; koreksi tidak bisa diajukan.");
   }
   const day = await db().attendanceDay.findUnique({
     where: { employeeId_workDate: { employeeId, workDate: toDate(input.workDate) } },
   });
-  if (day && (day.status === "APPROVED" || day.status === "LEAVE" || day.status === "ALPHA")) {
+  // TM-D3: Alpha karena tidak absen (NO_ATTENDANCE) boleh dikoreksi dalam batas waktu; Alpha tutup periode tidak.
+  const correctableAlpha = day?.status === "ALPHA" && day.labels.includes("NO_ATTENDANCE");
+  if (
+    day &&
+    !correctableAlpha &&
+    (day.status === "APPROVED" || day.status === "LEAVE" || day.status === "ALPHA")
+  ) {
     throw new BusinessRuleError(
       "Hari ini sudah disetujui, cuti, atau Alpha; tidak perlu/bisa dikoreksi.",
     );
@@ -690,7 +719,8 @@ export function registerPeriodIntegrations() {
     });
     // Hari absen menjadi disetujui; approval hari absen yang masih menunggu dibatalkan (diganti koreksi).
     if (day) {
-      if (day.status === "ALPHA" || day.status === "LEAVE") return;
+      const noAttendanceAlpha = day.status === "ALPHA" && day.labels.includes("NO_ATTENDANCE");
+      if ((day.status === "ALPHA" && !noAttendanceAlpha) || day.status === "LEAVE") return;
       await cancelApprovalRequest(tx, "ATTENDANCE_DAY", day.id, event.decidedAt);
       await cancelPunchApprovals(tx, day.id, event.decidedAt);
       await tx.attendanceDay.update({

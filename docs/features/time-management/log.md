@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Alpha harian & koreksi maks. 3 hari, TM-D3 (Mat, branch `HRIS/Mat/Mac`)
+- **Dikerjakan:** checklist "Alpha harian & koreksi maks. 3 hari (TM-D3)". Keputusan pemilik projek: batas dari tanggal kerja; hari yang batasnya lewat saat aktif langsung permanen; batas berlaku untuk semua koreksi; rekam jejak di halaman Koreksi, detail karyawan, rekap. Juga hari ini: hari OPEN lama lewat batas ditutup saat aplikasi dibuka (tombol Clock In tidak lagi tertahan), tabel Data Absen Harian diringkas (16 → 7 kolom), lokasi pada input manual HR, nama lokasi pada label "Di lokasi lain".
+- **Keputusan:** TM-D3 (README); D-071 ditandai "sebagian diubah oleh TM-D3".
+- **Verifikasi (Mac, DB & Auth lokal):** test api **798** (baru: `alpha.test.ts` 4; `period.test.ts` disesuaikan — koreksi 2001 kini ditolak batas H+3, alur koreksi memakai tanggal baru-baru ini) · shared **246** · web: `attendance-record.test.tsx` 3 baru + detail karyawan lulus · typecheck · lint (1 warning lama) · boundaries ✔. Data lokal: karyawan demo (roster mulai 14 Okt) mendapat 4–5 Alpha; 16–18 Okt masih bisa dikoreksi.
+- **Masalah / catatan:** judul test lama di `period.test.ts` berisi karakter rusak "â†’" (dari merge Windows) — dibiarkan. Penandaan memanggil `markNoAttendanceAlpha()` tanpa filter dari Data Absen Harian (ringan di lokal; produksi mengandalkan cron).
+- **Berikutnya:** izin commit + push; pengingat absen harian (TM-D2) memakai aturan ini.
+
 ### 2026-10-15 — Lokasi absen per karyawan, TM-D1 (Mat, branch `HRIS/Mat/Mac`)
 - **Dikerjakan:** checklist "Lokasi absen per karyawan (TM-D1)". Permintaan pemilik projek: lokasi absen tiap user bisa dipilih lewat UI, bukan diubah manual di DB. Pilihan pemilik projek: 1 lokasi per karyawan, ada opsi bebas lokasi (PLAN §5.4), diatur SA + HR PT. API: tabel `attendance.employee_location_settings` (migrasi `20261015064508_employee_location_setting`, hanya `CREATE TABLE`), `location-setting.{repository,service,routes}.ts`, `GET`/`PUT /attendance-locations`, policy `canManageAttendanceLocation`; `attendance.service` memakai `resolveAttendanceLocation` (masuk, pulang, `me/today` + `anywhere`/`locationSource`); `checkGeofence` dapat parameter `anywhere`. Web: halaman `/time/lokasi-absen` + menu Roster › Lokasi Absen; HP menampilkan "Bebas lokasi" di kepala, hasil pra-cek, cap foto & profil.
 - **Keputusan:** TM-D1 (lihat README).

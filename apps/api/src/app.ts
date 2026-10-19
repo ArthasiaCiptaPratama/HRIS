@@ -39,6 +39,7 @@ import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
 import {
   closeOverdueDays,
   extendAllRosters,
+  markNoAttendanceAlpha,
   purgeSelfies,
   registerAttendanceRoutes,
 } from "./modules/attendance/index.ts";
@@ -304,6 +305,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       // D-070: hari absen tanpa absen pulang → NO_CHECKOUT + approval; D-013: retensi selfie 12 bulan.
       "attendance-daily": async () => ({
         noCheckout: await closeOverdueDays(),
+        // TM-D3: hari kerja tanpa absen sama sekali → Alpha (koreksi s.d. tanggal kerja + 3 hari).
+        noAttendance: await markNoAttendanceAlpha(),
         // Lokal (bukan produksi): foto absen disimpan selamanya (permintaan pemilik projek 2026-10-12).
         purgeSelfies:
           getEnv().NODE_ENV === "production" ? await purgeSelfies() : { purged: 0, skipped: true },

@@ -302,6 +302,8 @@ export const ATTENDANCE_LABELS = [
   "NO_CHECKOUT",
   "CORRECTED",
   "MANUAL",
+  // TM-D3: hari kerja roster tanpa absen sama sekali → Alpha (penanda tetap ada walau dikoreksi).
+  "NO_ATTENDANCE",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
@@ -315,6 +317,7 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   NO_CHECKOUT: "Tidak absen pulang",
   CORRECTED: "Dikoreksi",
   MANUAL: "Input manual HR",
+  NO_ATTENDANCE: "Tidak absen",
 };
 
 export const ATTENDANCE_DAY_STATUSES = [
@@ -378,6 +381,8 @@ export const manualPunchInputSchema = z.object({
   kind: z.enum(PUNCH_KINDS),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format jam HH:mm"),
   reason: z.string().trim().min(5, "Tulis alasan minimal 5 karakter").max(500),
+  /** Lokasi absen yang dipilih HR untuk input manual (opsional; tanpa ini absen manual tanpa lokasi). */
+  workLocationId: z.uuid().nullish(),
 });
 export type ManualPunchInput = z.infer<typeof manualPunchInputSchema>;
 export type PunchInput = z.infer<typeof punchInputSchema>;
@@ -550,6 +555,45 @@ export const correctionInputSchema = z
     path: ["checkIn"],
   });
 export type CorrectionInput = z.infer<typeof correctionInputSchema>;
+
+/**
+ * TM-D3: mulai tanggal ini, hari kerja roster tanpa absen sama sekali langsung menjadi Alpha setelah harinya
+ * lewat (tidak menunggu tutup periode). Hari sebelum tanggal ini tetap mengikuti D-071.
+ */
+export const ALPHA_RULE_START = "2026-10-01";
+/** TM-D3: koreksi absen apa pun hanya bisa diajukan sampai tanggal kerja + 3 hari (pukul 23.59). */
+export const CORRECTION_WINDOW_DAYS = 3;
+
+/** Tanggal terakhir koreksi boleh diajukan untuk tanggal kerja (YYYY-MM-DD). */
+export function correctionDeadline(workDate: string): string {
+  const d = new Date(`${workDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + CORRECTION_WINDOW_DAYS);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Masih boleh mengajukan koreksi pada `today` (YYYY-MM-DD, zona waktu jam shift)? */
+export function canStillCorrect(workDate: string, today: string): boolean {
+  return today <= correctionDeadline(workDate);
+}
+
+/** TM-D3: hasil akhir hari bermasalah di riwayat (rekam jejak, tidak pernah dihapus). */
+export const ATTENDANCE_RECORD_OUTCOMES = [
+  "ALPHA_CORRECTABLE",
+  "ALPHA_EXPIRED",
+  "ALPHA_PERIOD",
+  "CORRECTION_PENDING",
+  "CORRECTED",
+  "CORRECTION_REJECTED",
+] as const;
+export type AttendanceRecordOutcome = (typeof ATTENDANCE_RECORD_OUTCOMES)[number];
+export const ATTENDANCE_RECORD_OUTCOME_LABELS: Record<AttendanceRecordOutcome, string> = {
+  ALPHA_CORRECTABLE: "Alpha — masih bisa dikoreksi",
+  ALPHA_EXPIRED: "Alpha — batas koreksi lewat",
+  ALPHA_PERIOD: "Alpha — tutup periode",
+  CORRECTION_PENDING: "Koreksi menunggu",
+  CORRECTED: "Dikoreksi (disetujui)",
+  CORRECTION_REJECTED: "Koreksi ditolak",
+};
 
 export const CORRECTION_STATUS_LABELS = {
   PENDING: "Menunggu persetujuan",

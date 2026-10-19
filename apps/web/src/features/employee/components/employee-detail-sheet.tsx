@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   BriefcaseBusiness,
   Building2,
+  CalendarX2,
   CircleUser,
   FolderArchive,
   GraduationCap,
@@ -59,6 +60,7 @@ import {
   BankBookPanel,
   DocumentsTab,
 } from "@/features/documents/components/documents-tab";
+import { EmployeeAttendanceRecord } from "@/features/time-management/components/attendance-record";
 import { access as appAccess } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -506,6 +508,11 @@ function DetailBody({
                 <ShieldAlert /> SP
               </TabsTrigger>
             ) : null}
+            {FEATURES.timeManagement ? (
+              <TabsTrigger value="attendance">
+                <CalendarX2 /> Absensi
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="bank">
               <Landmark /> Rekening
             </TabsTrigger>
@@ -544,6 +551,12 @@ function DetailBody({
             <TabsContent value="warnings">
               {/* ARS-D13: SP karyawan (SA, HR ber-grant SP, MANAGER tim; cakupan dicek API). */}
               <EmployeeWarningLettersTab employeeId={employee.id} />
+            </TabsContent>
+          ) : null}
+          {FEATURES.timeManagement ? (
+            <TabsContent value="attendance">
+              {/* TM-D3: rekam jejak Alpha & koreksi (SA, HR PT, atasan tim, karyawan sendiri; dicek API). */}
+              {tab === "attendance" ? <EmployeeAttendanceRecord employeeId={employee.id} /> : null}
             </TabsContent>
           ) : null}
           <TabsContent value="bank">
