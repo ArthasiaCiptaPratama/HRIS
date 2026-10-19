@@ -1,14 +1,15 @@
-// EMP-D1: sematkan template dokumen (.docx) ke kode api sebagai base64 supaya ikut bundel (Vercel/Docker)
-// tanpa berkas terpisah — pola sama dengan logo kop (`src/core/brand-logo.ts`).
-// Pakai: ubah `templates/formulir-aplikasi.docx` di Word → `bun run templates:embed` → commit keduanya.
-const SOURCE = new URL("../templates/formulir-aplikasi.docx", import.meta.url);
-const TARGET = new URL("../src/modules/employee/application-form-template.ts", import.meta.url);
+// Print data PDF: sematkan template "Formulir Data Karyawan" (PDF dari HR) ke kode api sebagai base64 supaya
+// ikut bundel (Vercel/Docker) tanpa berkas terpisah — pola sama dengan logo kop (`src/core/brand-logo.ts`).
+// Pakai: ganti `templates/formulir-data-karyawan.pdf` → `bun run templates:embed` → sesuaikan posisi isian
+// di `employee-form-pdf.ts` bila tata letak berubah (posisi tetap, EMP-OD2) → commit.
+const SOURCE = new URL("../templates/formulir-data-karyawan.pdf", import.meta.url);
+const TARGET = new URL("../src/modules/employee/employee-form-template.ts", import.meta.url);
 
 const base64 = Buffer.from(await Bun.file(SOURCE).arrayBuffer()).toString("base64");
 const lines = base64.match(/.{1,100}/g) ?? [];
-const body = `// DIBUAT OTOMATIS oleh \`bun run templates:embed\` dari \`apps/api/templates/formulir-aplikasi.docx\` — jangan diedit.
-// EMP-D1: template Formulir Aplikasi (bertanda docxtemplater) yang diisi data karyawan.
-export const APPLICATION_FORM_TEMPLATE_BASE64 = [
+const body = `// DIBUAT OTOMATIS oleh \`bun run templates:embed\` dari \`apps/api/templates/formulir-data-karyawan.pdf\` — jangan diedit.
+// Template PDF "Formulir Data Karyawan" (HR) — latar Print data karyawan.
+export const EMPLOYEE_FORM_TEMPLATE_BASE64 = [
 ${lines.map((l) => `  "${l}",`).join("\n")}
 ].join("");
 `;
