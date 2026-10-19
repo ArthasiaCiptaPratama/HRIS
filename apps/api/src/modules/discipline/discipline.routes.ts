@@ -119,6 +119,19 @@ export function registerDisciplineRoutes(app: OpenAPIHono, deps: DisciplineRoute
   );
   app.openapi(
     route({
+      method: "post",
+      path: `${P}/warning-letters/bulk`,
+      summary: "Buat draft SP untuk banyak karyawan sekaligus (ARS-D20; satu transaksi)",
+      request: body(s.bulkDraftBodySchema),
+      responses: {
+        201: json("Draft dibuat", dataEnvelope(z.array(s.letterSchema))),
+        ...write,
+      },
+    }),
+    async (c) => c.json(ok(await service.createDrafts(ctxOf(c), c.req.valid("json"))), 201),
+  );
+  app.openapi(
+    route({
       method: "get",
       path: `${P}/warning-letters/suggestion/{employeeId}`,
       summary: "Saran tingkat SP berikut + SP yang masih berlaku (ARS-D10)",

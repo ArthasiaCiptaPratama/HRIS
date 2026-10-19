@@ -34,7 +34,11 @@ export const settingsBodySchema = looseBody(
 );
 export const draftBodySchema = looseBody(
   "WarningLetterDraftInput",
-  "`{ employeeId, level, violationTypeId, incidentDate?, description, escalationReason?, alphaDayIds? }`",
+  "`{ employeeId, level, violationTypeId, incidentDate, description, escalationReason?, alphaDayIds? }`",
+);
+export const bulkDraftBodySchema = looseBody(
+  "WarningLetterBulkDraftInput",
+  "`{ employeeIds[1–50], level: SP1|SP2|SP3|AUTO, violationTypeId, incidentDate, description, escalationReason? }` (ARS-D20)",
 );
 export const issueBodySchema = looseBody(
   "IssueWarningLetterInput",

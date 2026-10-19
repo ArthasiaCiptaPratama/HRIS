@@ -4,6 +4,7 @@ import {
   isAboveSuggestion,
   suggestWarningLevel,
   warningEffectiveUntil,
+  warningLetterBulkDraftInputSchema,
   warningLetterDraftInputSchema,
   warningLetterState,
 } from "../src/index.ts";
@@ -55,21 +56,51 @@ describe("surat peringatan (ARS-D8–D11)", () => {
     ).toBe("DRAFT");
   });
 
-  test("draft: uraian minimal 10 karakter, maks 31 hari ALPHA", () => {
-    const ok = warningLetterDraftInputSchema.safeParse({
+  test("draft: uraian minimal 10 karakter, tanggal kejadian wajib (ARS-D19), maks 31 hari ALPHA", () => {
+    const base = {
       employeeId: crypto.randomUUID(),
       level: "SP1",
       violationTypeId: crypto.randomUUID(),
+      incidentDate: "2026-10-10",
       description: "Tidak hadir 3 hari berturut-turut.",
-    });
+    };
+    const ok = warningLetterDraftInputSchema.safeParse(base);
     expect(ok.success).toBe(true);
     expect(ok.data?.alphaDayIds).toEqual([]);
-    const short = warningLetterDraftInputSchema.safeParse({
-      employeeId: crypto.randomUUID(),
-      level: "SP1",
+    expect(
+      warningLetterDraftInputSchema.safeParse({ ...base, description: "pendek" }).success,
+    ).toBe(false);
+    const noDate = warningLetterDraftInputSchema.safeParse({ ...base, incidentDate: undefined });
+    expect(noDate.success).toBe(false);
+    expect(noDate.error?.issues[0]?.message).toBe("Isi tanggal kejadian.");
+    expect(warningLetterDraftInputSchema.safeParse({ ...base, incidentDate: "" }).success).toBe(
+      false,
+    );
+  });
+
+  test("draft massal (ARS-D20): 1–50 karyawan, tingkat AUTO atau SP1–SP3", () => {
+    const { employeeId: _e, ...rest } = {
+      employeeId: "",
       violationTypeId: crypto.randomUUID(),
-      description: "pendek",
-    });
-    expect(short.success).toBe(false);
+      incidentDate: "2026-10-10",
+      description: "Tidak hadir 3 hari berturut-turut.",
+    };
+    const ids = (n: number) => Array.from({ length: n }, () => crypto.randomUUID());
+    expect(
+      warningLetterBulkDraftInputSchema.safeParse({ ...rest, employeeIds: ids(2), level: "AUTO" })
+        .success,
+    ).toBe(true);
+    expect(
+      warningLetterBulkDraftInputSchema.safeParse({ ...rest, employeeIds: [], level: "SP1" })
+        .success,
+    ).toBe(false);
+    expect(
+      warningLetterBulkDraftInputSchema.safeParse({ ...rest, employeeIds: ids(51), level: "SP1" })
+        .success,
+    ).toBe(false);
+    expect(
+      warningLetterBulkDraftInputSchema.safeParse({ ...rest, employeeIds: ids(1), level: "SP4" })
+        .success,
+    ).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ErrorBody } from "@hris/shared";
+import PizZip from "pizzip";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
@@ -417,6 +418,130 @@ describe("POST /employees & PATCH /employees/:id", () => {
   });
 });
 
+describe("EMP-D2 tambah manual dengan profil lengkap", () => {
+  const nik = () =>
+    `32${String(Date.now()).slice(-10)}${String(Math.floor(Math.random() * 1e4)).padStart(4, "0")}`;
+  const base = (n: string) => ({
+    employeeNumber: NUM(n),
+    fullName: `Uji ${RUN} Profil ${n}`,
+    joinDate: "2026-09-01",
+    companyId: ids.acp,
+    employmentStatusId: ids.status,
+    positionId: ids.position,
+  });
+  const profile = (ktpNumber: string) => ({
+    personal: {
+      birthPlace: "Bandung",
+      birthDate: "1992-04-12",
+      religion: "ISLAM",
+      maritalStatus: "MARRIED",
+      nationality: "Indonesia",
+      bloodType: "o+",
+      personalEmail: `Profil-${RUN}@Contoh.Test`,
+      ktpNumber,
+      npwpNumber: "00.000.000.0-000.000",
+      domicileAddress: "Jl. Contoh 1",
+      domicileCity: "Kota Contoh",
+      ktpProvince: "Jawa Barat",
+      drivingLicenses: [
+        { type: "A", number: "SIM-A-1" },
+        { type: "C", number: "" },
+      ],
+      emergencyContact2Name: "Andi",
+      emergencyContact2Phone: "081300002222",
+    },
+    family: [
+      { relationship: "SPOUSE", name: "Siti", birthDate: "1994-08-01", occupation: "Guru" },
+      { relationship: "SIBLING", name: "Kakak", ageAtEntry: 38, relationDetail: "Kakak" },
+    ],
+    educations: [{ level: "S1", schoolName: "Univ Contoh", entryYear: 2010, graduationYear: 2014 }],
+    certifications: [{ name: "K3 Umum", number: "K3-001", year: 2022 }],
+    bank: { bankName: "Bank Contoh", accountNumber: "0000-1111-22", accountHolder: "Profil" },
+  });
+  let writer: Login;
+  beforeAll(async () => {
+    writer = await auth.loginAs("HR_ADMIN", {
+      grants: [{ permission: "EMPLOYEE_PERSONAL_WRITE" }, { permission: "EMPLOYEE_BANK_WRITE" }],
+    });
+  });
+
+  test("HR tanpa grant tulis: profil pribadi 403, rekening 403; tanpa profil tetap 201", async () => {
+    const personal = await call("POST", "/employees", hr.headers, {
+      ...base("P0"),
+      profile: { personal: { birthPlace: "Bandung" } },
+    });
+    expect(personal.status).toBe(403);
+    const bank = await call("POST", "/employees", hr.headers, {
+      ...base("P0"),
+      profile: { bank: { bankName: "BRI", accountNumber: "123456" } },
+    });
+    expect(bank.status).toBe(403);
+    // Pendidikan & sertifikasi tidak sensitif.
+    const plain = await call("POST", "/employees", hr.headers, {
+      ...base("P0"),
+      profile: { educations: [{ schoolName: "SMA Contoh" }] },
+    });
+    expect(plain.status).toBe(201);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("P0") } })).toBe(1);
+  });
+
+  test("NIK salah 400 tanpa membuat karyawan; profil lengkap 201 + tersimpan; NIK kembar 409 (rollback)", async () => {
+    const bad = await call("POST", "/employees", writer.headers, {
+      ...base("P1"),
+      profile: { personal: { ktpNumber: "123" } },
+    });
+    expect(bad.status).toBe(400);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("P1") } })).toBe(0);
+    const ktp = nik();
+    const res = await call("POST", "/employees", writer.headers, {
+      ...base("P1"),
+      profile: profile(ktp),
+    });
+    expect(res.status).toBe(201);
+    const id = (await body(res)).data.id as string;
+    const row = await prisma.employee.findUniqueOrThrow({
+      where: { id },
+      include: {
+        personal: true,
+        familyMembers: true,
+        educations: true,
+        trainings: true,
+        bankAccount: true,
+      },
+    });
+    expect(row.personalEmail).toBe(`profil-${RUN}@contoh.test`);
+    expect(row.personal).toMatchObject({
+      ktpNumber: ktp,
+      npwpNumber: "000000000000000",
+      bloodType: "O+",
+      drivingLicenseTypes: ["A", "C"],
+      drivingLicenseNumber: "SIM-A-1",
+      drivingLicenseNumbers: { A: "SIM-A-1" },
+      emergencyContact2Name: "Andi",
+    });
+    expect(row.familyMembers.map((m) => m.relationship).sort()).toEqual(["SIBLING", "SPOUSE"]);
+    expect(row.educations[0]).toMatchObject({ level: "S1", entryYear: 2010 });
+    expect(row.trainings[0]).toMatchObject({
+      trainingField: "K3 Umum",
+      certificateNumber: "K3-001",
+    });
+    expect(row.bankAccount?.accountNumber).toBe("0000111122");
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: id, action: "employee.employee.create" },
+    });
+    expect(JSON.stringify(audit.after)).not.toContain(ktp);
+    // Kunci sensitif (personal, bank) disamarkan audit; jumlah baris berulang tetap tercatat.
+    expect(audit.after).toMatchObject({ profile: { family: 2, educations: 1, certifications: 1 } });
+
+    const twin = await call("POST", "/employees", writer.headers, {
+      ...base("P2"),
+      profile: { personal: { ktpNumber: ktp } },
+    });
+    expect(twin.status).toBe(409);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("P2") } })).toBe(0);
+  });
+});
+
 describe("D-063 NIP boleh kosong", () => {
   test("buat tanpa NIP → 201 (NIP null); filter 'NIP belum ada'; isi NIP lalu tidak bisa dikosongkan", async () => {
     const res = await call("POST", "/employees", hr.headers, {
@@ -696,6 +821,65 @@ describe("GET /employees/:id?view=print (formulir data pegawai .xlsx)", () => {
         },
       }),
     ).toBe(0);
+  });
+});
+
+// EMP-D1: Formulir Aplikasi dari template Word (docx; pdf lewat Gotenberg bila GOTENBERG_URL diisi).
+describe("GET /employees/:id/application-form (EMP-D1)", () => {
+  const printed = (actorAccountId: string, entityId: string) =>
+    prisma.auditLog.findMany({ where: { action: "employee.printed", actorAccountId, entityId } });
+
+  test("HR dengan grant: .docx berisi nama & NIK; audit employee.printed format docx", async () => {
+    const res = await call("GET", `/employees/${ids.otherEmp}/application-form`, hrGranted.headers);
+    expect(res.status).toBe(200);
+    const { data } = await body(res);
+    expect(data.fileName).toMatch(/formulir-aplikasi\.docx$/);
+    expect(data.contentType).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+    expect(data.photo).toBe("none");
+    const xml =
+      new PizZip(Buffer.from(data.contentBase64, "base64")).file("word/document.xml")?.asText() ??
+      "";
+    const detail = (
+      await body(await call("GET", `/employees/${ids.otherEmp}?view=full`, hrGranted.headers))
+    ).data;
+    expect(xml).toContain(detail.fullName);
+    expect(xml).toContain(detail.personal.ktpNumber);
+    expect(xml).not.toMatch(/\{[#/]?[a-zA-Z0-9]+\}/);
+    const audits = await printed(hrGranted.account.id, ids.otherEmp);
+    expect(audits.map((a) => a.after)).toContainEqual({ format: "docx", sections: ["personal"] });
+  });
+
+  test("PDF: dengan GOTENBERG_URL → berkas %PDF; tanpa → 422 dengan saran unduh Word", async () => {
+    const res = await call(
+      "GET",
+      `/employees/${ids.otherEmp}/application-form?format=pdf`,
+      hr.headers,
+    );
+    if (process.env.GOTENBERG_URL) {
+      expect(res.status).toBe(200);
+      const { data } = await body(res);
+      expect(data.contentType).toBe("application/pdf");
+      expect(Buffer.from(data.contentBase64, "base64").subarray(0, 4).toString()).toBe("%PDF");
+    } else {
+      expect(res.status).toBe(422);
+      expect(await code(res)).toBe("BUSINESS_RULE_VIOLATION");
+    }
+  });
+
+  test("MANAGER & EMPLOYEE 403; tanpa token 401; format salah 400", async () => {
+    expect(
+      await code(await call("GET", `/employees/${ids.otherEmp}/application-form`, emp.headers)),
+    ).toBe("FORBIDDEN");
+    expect(
+      await code(await call("GET", `/employees/${ids.teamEmp}/application-form`, mgr.headers)),
+    ).toBe("FORBIDDEN");
+    expect((await call("GET", `/employees/${ids.otherEmp}/application-form`, {})).status).toBe(401);
+    expect(
+      (await call("GET", `/employees/${ids.otherEmp}/application-form?format=xlsx`, hr.headers))
+        .status,
+    ).toBe(400);
   });
 });
 

@@ -1,6 +1,19 @@
 import { WARNING_LEVEL_LABELS, WARNING_LEVELS, type WarningLevel } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Ban, Pencil, Plus, SearchX, Send, ShieldAlert, Trash2 } from "lucide-react";
+import {
+  Ban,
+  CheckCircle2,
+  Circle,
+  ListChecks,
+  type LucideIcon,
+  Pencil,
+  Plus,
+  SearchX,
+  Send,
+  ShieldAlert,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import { type ReactNode, useDeferredValue, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -294,6 +307,52 @@ function LetterDetailSheet() {
   );
 }
 
+function DetailSection({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="bg-card rounded-xl border p-4">
+      <h3 className="text-muted-foreground mb-3 flex items-center gap-2 text-[11px] font-medium tracking-wider uppercase">
+        <Icon className="size-3.5" /> {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+/** Satu langkah alur SP: selesai (waktu / keterangan) atau belum. */
+function ProcessStep({
+  label,
+  at,
+  doneText,
+}: {
+  label: string;
+  at: string | null;
+  doneText?: string;
+}) {
+  return (
+    <li className="flex gap-2.5 text-sm">
+      {at ? (
+        <CheckCircle2 className="text-success-soft-foreground mt-0.5 size-4 shrink-0" />
+      ) : (
+        <Circle className="text-muted-foreground/50 mt-0.5 size-4 shrink-0" />
+      )}
+      <span className={at ? "font-medium" : "text-muted-foreground"}>
+        {label}
+        <span className="text-muted-foreground block text-xs font-normal">
+          {at ? (doneText ?? formatDateTime(at)) : "Belum"}
+        </span>
+      </span>
+    </li>
+  );
+}
+
 function Info({
   label,
   children,
@@ -328,7 +387,6 @@ function LetterDetailBody({
   const [editing, setEditing] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [revoking, setRevoking] = useState(false);
-  const live = letter.status === "ISSUED" || letter.status === "EXPIRED";
   const remove = async () => {
     if (!window.confirm("Hapus draft surat ini?")) return;
     try {
@@ -339,53 +397,59 @@ function LetterDetailBody({
       toast.error(errorMessage(error));
     }
   };
+  const steps: { label: string; at: string | null; note?: string | null }[] = [
+    { label: "Diterbitkan", at: letter.issuedAt },
+    { label: "Disampaikan atasan", at: letter.deliveredAt },
+    { label: "Diterima karyawan", at: letter.acknowledgedAt },
+  ];
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <LevelBadge level={letter.level} />
-        <StateBadge state={letter.state} />
-        {live ? (
-          <>
-            <ConfirmBadge label="Disampaikan" at={letter.deliveredAt} />
-            <ConfirmBadge label="Diterima" at={letter.acknowledgedAt} />
-          </>
-        ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {letter.can.issue ? (
-          <Button size="sm" onClick={() => setIssuing(true)}>
-            <Send /> Terbitkan
-          </Button>
-        ) : null}
-        {letter.can.edit ? (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            <Pencil /> Ubah draft
-          </Button>
-        ) : null}
-        <PdfButton letter={letter} />
-        <ScanButton letter={letter} />
-        <ConfirmButtons letter={letter} />
-        {letter.can.edit ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => void remove()}
-            disabled={removeDraft.isPending}
-          >
-            <Trash2 /> Hapus draft
-          </Button>
-        ) : null}
-        {letter.can.revoke ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => setRevoking(true)}
-          >
-            <Ban /> Cabut
-          </Button>
-        ) : null}
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <LevelBadge level={letter.level} />
+          <StateBadge state={letter.state} />
+          <span className="text-muted-foreground text-xs">
+            {letter.issuedAt
+              ? `Berlaku ${formatDate(letter.issuedAt)} – ${formatDate(letter.effectiveUntil)}`
+              : "Belum diterbitkan — periksa PDF lalu terbitkan."}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {letter.can.issue ? (
+            <Button size="sm" onClick={() => setIssuing(true)}>
+              <Send /> Terbitkan
+            </Button>
+          ) : null}
+          {letter.can.edit ? (
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+              <Pencil /> Ubah draft
+            </Button>
+          ) : null}
+          <PdfButton letter={letter} />
+          <ScanButton letter={letter} />
+          <ConfirmButtons letter={letter} />
+          {letter.can.edit ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              onClick={() => void remove()}
+              disabled={removeDraft.isPending}
+            >
+              <Trash2 /> Hapus draft
+            </Button>
+          ) : null}
+          {letter.can.revoke ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              onClick={() => setRevoking(true)}
+            >
+              <Ban /> Cabut
+            </Button>
+          ) : null}
+        </div>
       </div>
       {letter.level === "SP3" && letter.can.revoke ? (
         <p className="bg-warning-soft text-warning-soft-foreground rounded-lg p-3 text-sm">
@@ -393,52 +457,67 @@ function LetterDetailBody({
           (tidak diproses otomatis).
         </p>
       ) : null}
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-        <Info label="Karyawan">
-          {letter.employee.fullName}
-          {letter.employee.employeeNumber ? (
-            <span className="text-muted-foreground block text-xs font-normal">
-              {letter.employee.employeeNumber}
+      <DetailSection icon={UserRound} title="Karyawan">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
+          <Info label="Nama">
+            {letter.employee.fullName}
+            <span className="text-muted-foreground block font-mono text-xs font-normal">
+              {letter.employee.employeeNumber ?? "NIP belum ada"}
             </span>
+          </Info>
+          <Info label="Perusahaan">{letter.companyName}</Info>
+          <Info label="Atasan langsung">{letter.manager?.fullName}</Info>
+        </dl>
+      </DetailSection>
+      <DetailSection icon={ShieldAlert} title="Pelanggaran">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-3">
+          <Info label="Jenis pelanggaran">{letter.violationType.name}</Info>
+          <Info label="Tanggal kejadian">
+            {letter.incidentDate ? formatDate(letter.incidentDate) : null}
+          </Info>
+          <Info label="Tingkat">{WARNING_LEVEL_LABELS[letter.level]}</Info>
+          <Info label="Uraian / kronologi" className="sm:col-span-3">
+            <span className="bg-muted/50 block rounded-lg p-3 font-normal whitespace-pre-line">
+              {letter.description}
+            </span>
+          </Info>
+          {letter.escalationReason ? (
+            <Info
+              label={
+                letter.suggestedLevel
+                  ? `Alasan tingkat di atas saran sistem (saran: ${WARNING_LEVEL_LABELS[letter.suggestedLevel]})`
+                  : "Alasan tingkat di atas saran sistem"
+              }
+              className="sm:col-span-3"
+            >
+              <span className="font-normal">{letter.escalationReason}</span>
+            </Info>
           ) : null}
-        </Info>
-        <Info label="Perusahaan">{letter.companyName}</Info>
-        <Info label="Atasan">{letter.manager?.fullName}</Info>
-        <Info label="Jenis pelanggaran">{letter.violationType.name}</Info>
-        <Info label="Tanggal kejadian">
-          {letter.incidentDate ? formatDate(letter.incidentDate) : null}
-        </Info>
-        <Info label="Berlaku">
-          {letter.issuedAt
-            ? `${formatDate(letter.issuedAt)} – ${formatDate(letter.effectiveUntil)}`
-            : null}
-        </Info>
-        <Info label="Uraian / kronologi" className="col-span-2 sm:col-span-3">
-          <span className="font-normal whitespace-pre-line">{letter.description}</span>
-        </Info>
-        {letter.escalationReason ? (
-          <Info
-            label={`Alasan di atas saran (${letter.suggestedLevel ? WARNING_LEVEL_LABELS[letter.suggestedLevel] : "—"})`}
-            className="col-span-2 sm:col-span-3"
-          >
-            {letter.escalationReason}
-          </Info>
-        ) : null}
-        {letter.deliveredAt ? (
-          <Info label="Disampaikan atasan">{formatDateTime(letter.deliveredAt)}</Info>
-        ) : null}
-        {letter.acknowledgedAt ? (
-          <Info label="Diterima karyawan">{formatDateTime(letter.acknowledgedAt)}</Info>
-        ) : null}
-        {letter.revokedAt ? (
-          <Info label="Dicabut" className="col-span-2 sm:col-span-3">
-            {formatDateTime(letter.revokedAt)} — {letter.revokeReason}
-          </Info>
-        ) : null}
-        <Info label="Scan bertanda tangan">
-          {letter.scanDocumentId ? "Terlampir di dokumen karyawan" : null}
-        </Info>
-      </dl>
+        </dl>
+      </DetailSection>
+      <DetailSection icon={ListChecks} title="Proses & dokumen">
+        <ol className="space-y-2.5">
+          {steps.map((step) => (
+            <ProcessStep key={step.label} label={step.label} at={step.at} />
+          ))}
+          <ProcessStep
+            label="Scan bertanda tangan"
+            at={letter.scanDocumentId ? "done" : null}
+            doneText="Terlampir di dokumen karyawan"
+          />
+          {letter.revokedAt ? (
+            <li className="text-destructive flex gap-2.5 text-sm">
+              <Ban className="mt-0.5 size-4 shrink-0" />
+              <span>
+                <span className="font-medium">Dicabut</span> · {formatDateTime(letter.revokedAt)}
+                {letter.revokeReason ? (
+                  <span className="text-muted-foreground block text-xs">{letter.revokeReason}</span>
+                ) : null}
+              </span>
+            </li>
+          ) : null}
+        </ol>
+      </DetailSection>
       {letter.alphaEvidence.length > 0 ? (
         <section>
           <h3 className="mb-2 text-sm font-semibold">

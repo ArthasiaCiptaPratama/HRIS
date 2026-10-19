@@ -2,3 +2,4 @@
 
 export { type DisciplineRouteDeps, registerDisciplineRoutes } from "./discipline.routes.ts";
 export { runDisciplineDaily } from "./discipline-daily.service.ts";
+export { listWarningLettersForReport, type ReportWarningLetter } from "./report-data.service.ts";

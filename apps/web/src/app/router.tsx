@@ -119,6 +119,8 @@ export const routes: RouteObject[] = [
                   },
                   // D-042: import data karyawan dari .xlsx/.csv (dibuka dari Data Karyawan Aktif).
                   { path: "import", lazy: pages.importEmployees },
+                  // EMP-D2: tambah karyawan bertahap (urutan Google Form).
+                  { path: "tambah-karyawan", lazy: pages.createEmployee },
                   {
                     path: "pengaktifan",
                     lazy: FEATURES.activation ? pages.activation : pages.maintenance,
@@ -127,7 +129,14 @@ export const routes: RouteObject[] = [
                     path: "pegawai-tidak-aktif",
                     lazy: FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
                   },
-                  { path: "laporan", lazy: pages.maintenance },
+                  // ARS-D16: Laporan batch 1 (SA & HR; cakupan PT & grant dicek API).
+                  {
+                    path: "laporan",
+                    element: <RequireAccessRoute check={access.viewReports} />,
+                    children: [
+                      { index: true, lazy: FEATURES.reports ? pages.reports : pages.maintenance },
+                    ],
+                  },
                 ],
               },
             ],

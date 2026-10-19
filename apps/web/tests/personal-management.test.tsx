@@ -299,18 +299,25 @@ describe("halaman Personal Management", () => {
     expect(await screen.findByText("Tidak ada yang cocok")).toBeInTheDocument();
   });
 
-  it("menu yang belum dikerjakan (Laporan) menampilkan halaman Maintenance", async () => {
+  it("menu Laporan mengikuti FEATURES.reports (ARS-D16)", async () => {
     mockApi({
       "/me": [200, { data: me("HR_ADMIN") }],
       "/health": [200, health],
       "/notifications": [200, emptyNotifications],
       "/employees/summary": [200, summary],
+      "/master-data": [200, masterData],
     });
     renderAt("/personal/laporan");
-    expect(
-      await screen.findByRole("heading", { name: "Laporan sedang disiapkan" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Maintenance")).toBeInTheDocument();
+    if (FEATURES.reports) {
+      // Halaman Laporan memuat ECharts (lazy): beri waktu lebih di suite penuh.
+      expect(
+        await screen.findByRole("heading", { name: "Laporan" }, { timeout: 5000 }),
+      ).toBeInTheDocument();
+    } else {
+      expect(
+        await screen.findByRole("heading", { name: "Laporan sedang disiapkan" }),
+      ).toBeInTheDocument();
+    }
   });
 
   // Menu b–e mengikuti saklar FEATURES: aktif → halaman asli; nonaktif → Maintenance ("Segera").

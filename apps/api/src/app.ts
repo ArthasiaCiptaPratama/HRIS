@@ -57,6 +57,7 @@ import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./mo
 import { registerLeaveRoutes, runLeaveDaily } from "./modules/leave/index.ts";
 import { configureNotification, registerNotificationRoutes } from "./modules/notification/index.ts";
 import { configureOrganization, registerOrganizationRoutes } from "./modules/organization/index.ts";
+import { registerReportRoutes } from "./modules/report/index.ts";
 
 export interface AppDeps {
   logger: Logger;
@@ -258,6 +259,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerAssetRoutes(app, { protect });
   // ARS-D7–D13 (Arsip 2b): surat peringatan.
   registerDisciplineRoutes(app, { protect });
+  // ARS-D16/D17 (Arsip 3): laporan batch 1.
+  registerReportRoutes(app, { protect });
   // Time Management (D-067–D-072): mesin approval & modul attendance.
   registerApprovalRoutes(app, { protect });
   registerAttendanceRoutes(app, {

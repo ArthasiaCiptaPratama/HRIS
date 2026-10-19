@@ -11,6 +11,7 @@ import {
   type WarningLetterState,
   type WarningLevel,
   warningEffectiveUntil,
+  warningLetterBulkDraftInputSchema,
   warningLetterDraftInputSchema,
   warningLetterState,
 } from "@hris/shared";
@@ -466,6 +467,9 @@ async function validateDraft(
   ctx: RequestContext,
   input: z.infer<typeof warningLetterDraftInputSchema>,
 ) {
+  if (input.incidentDate > todayInJakarta()) {
+    throw new BusinessRuleError("Tanggal kejadian tidak boleh di masa depan.");
+  }
   const employee = await writableEmployee(ctx, input.employeeId);
   if (!employee.isActive) throw new BusinessRuleError("Karyawan tidak aktif.");
   if (ctx.actor.employeeId === employee.id) {
@@ -499,7 +503,7 @@ export async function createDraft(ctx: RequestContext, raw: unknown, now = new D
         companyId: employee.companyId,
         level: input.level,
         violationTypeId: input.violationTypeId,
-        incidentDate: input.incidentDate ? toDate(input.incidentDate) : null,
+        incidentDate: toDate(input.incidentDate),
         description: input.description,
         escalationReason: input.escalationReason,
         createdBy: ctx.actor.accountId,
@@ -519,6 +523,60 @@ export async function createDraft(ctx: RequestContext, raw: unknown, now = new D
     return created;
   });
   return one(ctx, row, now);
+}
+
+/**
+ * ARS-D20: draft untuk banyak karyawan dalam satu transaksi — satu gagal, semua batal. Tingkat AUTO =
+ * saran sistem per karyawan. Bukti hari ALPHA tidak ikut (beda per orang; tambahkan lewat Ubah draft).
+ */
+export async function createDrafts(ctx: RequestContext, raw: unknown, now = new Date()) {
+  const input = parse(warningLetterBulkDraftInputSchema, raw);
+  const employeeIds = [...new Set(input.employeeIds)];
+  const today = toDate(todayInJakarta(now));
+  const planned: { employeeId: string; companyId: string; level: WarningLevel }[] = [];
+  for (const employeeId of employeeIds) {
+    const level = input.level === "AUTO" ? "SP1" : input.level;
+    const { employee } = await validateDraft(ctx, { ...input, employeeId, level, alphaDayIds: [] });
+    const resolved =
+      input.level === "AUTO"
+        ? suggestWarningLevel(
+            (await repo.activeLettersOf(employee.id, today, null)).map((a) => a.level),
+          )
+        : input.level;
+    planned.push({ employeeId: employee.id, companyId: employee.companyId, level: resolved });
+  }
+  const rows = await repo.transaction(async (tx) => {
+    const created: repo.LetterRow[] = [];
+    for (const p of planned) {
+      const row = await repo.createLetter(
+        tx,
+        {
+          employeeId: p.employeeId,
+          companyId: p.companyId,
+          level: p.level,
+          violationTypeId: input.violationTypeId,
+          incidentDate: toDate(input.incidentDate),
+          description: input.description,
+          escalationReason: input.level === "AUTO" ? null : input.escalationReason,
+          createdBy: ctx.actor.accountId,
+        },
+        [],
+      );
+      await audit(
+        ctx,
+        {
+          action: "discipline.letter.create_draft",
+          entityType: "warning_letter",
+          entityId: row.id,
+          after: { employeeId: p.employeeId, level: p.level, alphaDays: 0, bulk: planned.length },
+        },
+        tx,
+      );
+      created.push(row);
+    }
+    return created;
+  });
+  return dtos(ctx, rows, now);
 }
 
 export async function updateDraft(ctx: RequestContext, id: string, raw: unknown, now = new Date()) {
@@ -542,7 +600,7 @@ export async function updateDraft(ctx: RequestContext, id: string, raw: unknown,
       {
         level: input.level,
         violationTypeId: input.violationTypeId,
-        incidentDate: input.incidentDate ? toDate(input.incidentDate) : null,
+        incidentDate: toDate(input.incidentDate),
         description: input.description,
         escalationReason: input.escalationReason,
       },
@@ -599,6 +657,10 @@ export async function issueLetter(ctx: RequestContext, id: string, raw: unknown,
     throw new BusinessRuleError("Tanggal terbit tidak boleh di masa depan.");
   }
   if (!employee.isActive) throw new BusinessRuleError("Karyawan tidak aktif.");
+  // ARS-D19: draft lama (sebelum tanggal kejadian wajib) harus dilengkapi dulu.
+  if (!letter.incidentDate) {
+    throw new BusinessRuleError("Isi tanggal kejadian lewat Ubah draft sebelum menerbitkan.");
+  }
   const issuedAt = toDate(input.issuedAt);
   const active = await repo.activeLettersOf(employee.id, issuedAt, letter.id);
   const suggested = suggestWarningLevel(active.map((a) => a.level));

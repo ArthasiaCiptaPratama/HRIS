@@ -2,7 +2,9 @@ import {
   CATEGORIES_BY_GROUP,
   EMPLOYMENT_CATEGORIES,
   EMPLOYMENT_CATEGORY_LABELS,
+  type EmployeeProfile,
   type EmploymentCategory,
+  employeeProfileInputSchema,
   POSITION_LEVELS,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
@@ -12,6 +14,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  ValidationError,
 } from "../../core/errors.ts";
 import type { GoogleDriveReader } from "../../core/google-drive.ts";
 import {
@@ -59,6 +62,7 @@ import type {
   SummaryQuery,
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
+import * as importRepo from "./employee-import.repository.ts";
 import { markActivatedOnLogin } from "./onboarding.service.ts";
 import {
   assertPositionCompany,
@@ -261,7 +265,11 @@ function rethrowUnique(error: unknown): never {
     throw new ConflictError(
       target.includes("work_email") || target.includes("workEmail")
         ? "Email kantor sudah dipakai karyawan lain."
-        : "NIP sudah dipakai.",
+        : target.includes("ktp")
+          ? "NIK KTP sudah dipakai karyawan lain."
+          : target.includes("personal")
+            ? "Email pribadi sudah dipakai karyawan lain."
+            : "NIP sudah dipakai.",
     );
   }
   throw error;
@@ -586,6 +594,8 @@ export async function getEmployee(
   ctx: RequestContext,
   id: string,
   view: DetailView = "full",
+  /** Format berkas yang dicatat di audit `employee.printed` (view=print): xlsx (web) / docx / pdf (EMP-D1). */
+  printFormat: "xlsx" | "docx" | "pdf" = "xlsx",
 ): Promise<EmployeeDetail> {
   const row = await repository.findEmployee(id);
   const target = row ? targetOf(row) : null;
@@ -634,7 +644,7 @@ export async function getEmployee(
       ...auditBase(ctx),
       action: "employee.printed",
       entityId: id,
-      after: { format: "xlsx", sections },
+      after: { format: printFormat, sections },
     });
   } else if (sections.length > 0 && ctx.actor.employeeId !== id) {
     await writeAudit({
@@ -808,12 +818,94 @@ function assertNotBeforeJoin(effectiveDate: string, joinDate: Date) {
 
 const nullable = <T>(value: T | null | undefined) => (value === undefined ? undefined : value);
 
+// ── EMP-D2: profil lengkap saat tambah manual ───────────────────────────────
+
+function parseProfile(raw: unknown): EmployeeProfile {
+  const parsed = employeeProfileInputSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ValidationError(
+      parsed.error.issues.map((i) => ({
+        path: ["profile", ...i.path].join("."),
+        message: i.message,
+      })),
+      parsed.error.issues[0]?.message,
+    );
+  }
+  return parsed.data;
+}
+
+/** Bagian yang benar-benar diisi (untuk cek grant & audit; isi tidak dicatat). */
+function profileSections(p: EmployeeProfile) {
+  const personal = p.personal
+    ? Object.values(p.personal).some((v) =>
+        Array.isArray(v) ? v.length > 0 : v !== null && v !== undefined,
+      )
+    : false;
+  return {
+    personal,
+    family: p.family.length,
+    educations: p.educations.length,
+    certifications: p.certifications.length,
+    bank: Boolean(p.bank),
+  };
+}
+
+function assertProfileAccess(actor: Actor, sections: ReturnType<typeof profileSections>) {
+  if (
+    (sections.personal || sections.family > 0) &&
+    !policy.canWriteSensitiveOnCreate(actor, "personal")
+  ) {
+    throw new ForbiddenError("Data pribadi & keluarga butuh izin employee.personal.write.");
+  }
+  if (sections.bank && !policy.canWriteSensitiveOnCreate(actor, "bank")) {
+    throw new ForbiddenError("Data rekening butuh izin employee.bank.write.");
+  }
+}
+
+async function writeProfile(tx: repository.EmployeeTx, employeeId: string, p: EmployeeProfile) {
+  if (p.personal) {
+    const { personalEmail, drivingLicenses, ...rest } = p.personal;
+    const licenses = drivingLicenses.filter(
+      (l, i, all) => all.findIndex((x) => x.type === l.type) === i,
+    );
+    const numbers = Object.fromEntries(
+      licenses.filter((l) => l.number).map((l) => [l.type, l.number as string]),
+    );
+    await importRepo.upsertPersonal(tx, employeeId, {
+      ...rest,
+      birthDate: rest.birthDate ? toDate(rest.birthDate) : null,
+      drivingLicenseTypes: licenses.map((l) => l.type),
+      drivingLicenseNumbers: Object.keys(numbers).length ? numbers : undefined,
+      drivingLicenseNumber: licenses.find((l) => l.number)?.number ?? null,
+    });
+    if (personalEmail) await repository.setPersonalEmail(tx, employeeId, personalEmail);
+  }
+  for (const { birthDate, ...m } of p.family)
+    await importRepo.createFamilyMember(tx, {
+      employeeId,
+      ...m,
+      birthDate: birthDate ? toDate(birthDate) : null,
+    });
+  for (const ed of p.educations) await importRepo.createEducation(tx, { employeeId, ...ed });
+  for (const c of p.certifications)
+    await importRepo.createTraining(tx, {
+      employeeId,
+      trainingField: c.name,
+      certificateNumber: c.number ?? null,
+      trainingYear: c.year ?? null,
+    });
+  if (p.bank) await importRepo.upsertBank(tx, employeeId, p.bank, false);
+}
+
 export async function createEmployee(
   ctx: RequestContext,
   input: CreateEmployeeInput,
 ): Promise<EmployeeListItem> {
   assertCanManage(ctx.actor);
   assertCanCreateIn(ctx.actor, input.companyId);
+  const profile = input.profile === undefined ? null : parseProfile(input.profile);
+  const sections = profile ? profileSections(profile) : null;
+  if (sections) assertProfileAccess(ctx.actor, sections);
   assertRefs(await getMasterLookup(), input);
   const id = await repository
     .withTransaction(async (tx) => {
@@ -871,10 +963,12 @@ export async function createEmployee(
             managerId: input.managerId ?? null,
             orgPostId: input.orgPostId ?? null,
             managerOverride,
+            ...(sections ? { profile: sections } : {}),
           },
         },
         tx,
       );
+      if (profile) await writeProfile(tx, created.id, profile);
       return created.id;
     })
     .catch(rethrowUnique);

@@ -254,7 +254,13 @@ function SidebarItem({
                   <span className="truncate" title={child.label}>
                     {child.label}
                   </span>
-                  <Count value={summaryCount(summary, child.summaryKey)} active={active} />
+                  {child.maintenance ? (
+                    <span className="text-muted-foreground ml-auto text-[10px] tracking-wide uppercase">
+                      Segera
+                    </span>
+                  ) : (
+                    <Count value={summaryCount(summary, child.summaryKey)} active={active} />
+                  )}
                 </NavLink>
               </li>
             );

@@ -18,6 +18,10 @@ export const pages = {
     import("@/features/employee/pages/change-status-page").then((m) => ({
       Component: m.ChangeStatusPage,
     })),
+  createEmployee: () =>
+    import("@/features/employee/create/employee-create-page").then((m) => ({
+      Component: m.EmployeeCreatePage,
+    })),
   importEmployees: () =>
     import("@/features/employee/import/import-page").then((m) => ({
       Component: m.ImportEmployeesPage,
@@ -63,6 +67,8 @@ export const pages = {
     })),
   assets: () =>
     import("@/features/assets/pages/assets-page").then((m) => ({ Component: m.AssetsPage })),
+  reports: () =>
+    import("@/features/reports/pages/reports-page").then((m) => ({ Component: m.ReportsPage })),
   warningLetters: () =>
     import("@/features/discipline/pages/warning-letters-page").then((m) => ({
       Component: m.WarningLettersPage,
@@ -167,6 +173,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/pegawai-aktif", pages.activeEmployees],
   ["/personal/ubah-status", FEATURES.changeStatus ? pages.changeStatus : pages.maintenance],
   ["/personal/import", pages.importEmployees],
+  ["/personal/tambah-karyawan", pages.createEmployee],
   ["/personal/pengaktifan", FEATURES.activation ? pages.activation : pages.maintenance],
   [
     "/personal/pegawai-tidak-aktif",
@@ -176,7 +183,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/arsip/aset", FEATURES.assets ? pages.assets : pages.maintenance],
   ["/personal/arsip/peringatan", FEATURES.discipline ? pages.warningLetters : pages.maintenance],
   ["/personal/arsip", FEATURES.archive ? pages.archive : pages.maintenance],
-  ["/personal/laporan", pages.maintenance],
+  ["/personal/laporan", FEATURES.reports ? pages.reports : pages.maintenance],
   ["/master-data/pos-jabatan", pages.orgPosts],
   ["/master-data/jenis-dokumen", FEATURES.archive ? pages.documentTypes : pages.maintenance],
   ["/master-data/aset", FEATURES.assets ? pages.assetMasters : pages.maintenance],

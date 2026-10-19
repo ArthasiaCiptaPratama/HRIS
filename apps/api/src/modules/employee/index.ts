@@ -20,3 +20,14 @@ export {
   purgeCancelledCandidates,
   remindStaleInvitations,
 } from "./onboarding-maintenance.service.ts";
+export {
+  listCompletenessFacts,
+  listExpiringDocuments,
+  listReportEmployees,
+  listRequiredDocumentTypes,
+  type ReportCompletenessFacts,
+  type ReportEmployee,
+  type ReportEmployeeFilter,
+  type ReportExpiringDocument,
+  type RequiredDocumentType,
+} from "./report-data.service.ts";
