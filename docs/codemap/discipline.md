@@ -36,8 +36,8 @@
 ├── components/letter-display.tsx   [done] LevelBadge, StateBadge, ConfirmBadge
 ├── components/letter-list.tsx      [done] LetterCard, PdfButton, ScanButton (unggah dokumen WARNING_LETTER → tautkan), ConfirmButtons,
 │                                          EmployeeWarningLettersTab (tab SP detail karyawan), MyWarningLetters (Layanan Mandiri). Tanpa impor fitur employee
-├── components/letter-forms.tsx     [done] DraftDialog (EmployeePicker, saran tingkat, alasan eskalasi, hari ALPHA), IssueDialog (nomor otomatis/manual), RevokeDialog
-├── pages/warning-letters-page.tsx  [done] /personal/arsip/peringatan — daftar + filter, panel ?sp=<id>
+├── components/letter-forms.tsx     [done] DraftDialog (EmployeePicker `multiple` → SP massal ARS-D20, tingkat "Ikuti saran sistem", saran tingkat, alasan eskalasi, hari ALPHA untuk 1 karyawan, tanggal kejadian wajib ARS-D19), IssueDialog (nomor otomatis/manual), RevokeDialog; FormDialog header & tombol tetap, isi scroll
+├── pages/warning-letters-page.tsx  [done] /personal/arsip/peringatan — daftar + filter, panel ?sp=<id> (kartu Karyawan · Pelanggaran · Proses & dokumen, 2026-10-19)
 └── pages/violation-types-page.tsx  [done] /master-data/jenis-pelanggaran — jenis pelanggaran + masa berlaku (SA)
 ```
 
@@ -51,3 +51,5 @@ Pemasangan: `app/router.tsx` (route `arsip/peringatan` sebelum `arsip/:section`,
 | `warning_letters` | karyawan (FK), PT (FK, saat draft), `level` (SP1–SP3), jenis, `incident_date?`, `description` (≤ 4000), `status` (DRAFT/ISSUED/EXPIRED/REVOKED), `suggested_level?`, `escalation_reason?`, `number` unik + `number_year`/`number_seq` (unik per PT per tahun), `issued_at`/`effective_until`, `manager_employee_id` (atasan saat terbit), `delivered_at/by`, `acknowledged_at`, `scan_document_id` (UUID dokumen WARNING_LETTER tanpa FK), `revoked_at/by/reason`; CHECK: draft tanpa nomor/tanggal, non-draft wajib nomor & tanggal, berlaku s/d > terbit, dicabut wajib waktu & alasan, tahun+urut berpasangan |
 | `warning_letter_alpha_days` | SP ↔ `attendance_day_id` (UUID tanpa FK) + `work_date` salinan; unik per SP + hari; ikut terhapus bersama draft |
 | `discipline_settings` | satu baris (`id` = 1, CHECK), `validity_months` 1–24 (bawaan 6) |
+
+**2026-10-19 (ARS-D19/D20):** shared `discipline.ts` (`incidentDate` wajib; `warningLetterBulkDraftInputSchema`, `WARNING_LETTER_BULK_MAX` 50); api `discipline.service.ts` (`createDrafts` satu transaksi, `AUTO` → `suggestWarningLevel` per karyawan; tanggal kejadian tidak di masa depan; terbit draft tanpa tanggal 422), route `POST /warning-letters/bulk`, `bulkDraftBodySchema`; web `api.ts` (`createDrafts`, `useLevelSuggestions` via `useQueries`). Test: integration `warning-letters.test.ts` 22 (+ tanggal wajib, massal: 401/403/400, rollback, AUTO & tingkat tetap), shared `discipline.test.ts` (+1), web `discipline.test.tsx` 8 (+ SP massal).

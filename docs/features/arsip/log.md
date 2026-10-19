@@ -13,6 +13,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Perbaikan UI/UX Surat Peringatan + SP massal (Oatse)
+- **Dikerjakan:** detail Riwayat Peringatan dikelompokkan (kartu Karyawan · Pelanggaran · Proses & dokumen; label alasan eskalasi tanpa "(—)"); kolom Tingkat/Jenis/Tanggal rata, tanggal kejadian wajib; Buat SP untuk banyak karyawan (`POST /warning-letters/bulk`, chip terpilih, "Ikuti saran sistem"); dialog form SP header & tombol tetap, isi scroll (checklist "Perbaikan UI/UX Surat Peringatan").
+- **Keputusan:** ARS-D19 (tanggal kejadian wajib), ARS-D20 (draft SP massal satu transaksi).
+- **Verifikasi:** typecheck ✔ 3 workspace · `bunx biome ci .` ✔ (1 warning lama `employee-print.test.ts`) · boundaries ✔ (473 modul) · test shared **250** · api **813** · web **294** + 5 dilewati (`--maxWorkers=4`; suite 12 worker: 5 gagal acak karena batas waktu, termasuk Backlog flaky lama); integration SP 22, web SP 8.
+- **Masalah / catatan:** dialog tidak bisa di-scroll di staging karena `EmployeePicker` punya `min-h-[420px]` yang menimpa `h-56`; dialog aset (`asset-forms.tsx`) memakai pola sama (belum diubah, lihat Temuan laporan). QA visual Playwright lokal 11/11 (`docs/qa/runs/2026-10-19-ui-ux-lokal.md`).
+- **Berikutnya:** izin commit.
+
+
 ### 2026-10-16 — Arsip gel. 3 Laporan batch 1: API, web, QA lokal (Oatse)
 - **Dikerjakan (rencana disetujui pemilik projek):** checklist "Gel. 3 Laporan" batch 1. Shared `report.ts` (rumus turnover, kelompok kedaluwarsa, % lengkap); fungsi baca-saja `employee` (`report-data.*`) & `discipline` (`listWarningLettersForReport`) lewat `index.ts`; modul baru `report` (policy, 4 laporan + 4 ekspor xlsx, audit `report.export`); web `features/reports/` (menu Laporan tidak lagi Maintenance, 4 tab, filter unit/tahun, grafik ECharts palet Dashboard, tabel, ekspor), saklar `FEATURES.reports`, `access.viewReports`; 2 test web lama "Laporan = Maintenance" diubah jadi "mengikuti `FEATURES.reports`".
 - **Keputusan:** ARS-D18 (batasan: unit/status saat ini, reaktivasi, dokumen wajib SITE belum dihitung).

@@ -13,6 +13,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Sidebar Master Data bab → sub + header tetap (Oatse)
+- **Dikerjakan:** Administrasi › Master Data jadi induk berlipat Organisasi/Kepegawaian/Arsip & Disiplin; tata letak aplikasi tinggi layar dikunci, hanya isi yang di-scroll (checklist "Perbaikan tampilan umum").
+- **Keputusan:** –
+- **Verifikasi:** typecheck ✔ 3 workspace · `bunx biome ci .` ✔ (1 warning lama `employee-print.test.ts`) · boundaries ✔ (473 modul) · test shared **250** · api **813** · web **294** + 5 dilewati (`--maxWorkers=4`; suite 12 worker: 5 gagal acak karena batas waktu, termasuk Backlog flaky lama); navigasi + halaman admin 100, layout/routing 45.
+- **Masalah / catatan:** penyebab header ikut ter-scroll hanya di lokal belum dipastikan (tata letak baru tidak bergantung pada `sticky`). QA visual Playwright lokal 11/11 (`docs/qa/runs/2026-10-19-ui-ux-lokal.md`).
+- **Berikutnya:** izin commit.
+
+
 ### 2026-10-16 — Staging pindah ke team Vercel Pro "Arthasia Akselerasi" (Oatse)
 - **Dikerjakan (izin pemilik projek "ya"):** login akun `oatse2458@arthasia.com` di CLI (device flow, config terpisah; OTP tidak dibagikan) → transfer `hris-staging-api` & `hris-staging-web` (REST transfer-request: akun lama membuat, akun baru menerima) → cek env/cron/domain/proteksi → `gh secret set` `VERCEL_ORG_ID` & `VERCEL_TOKEN` (stdin) → `Deploy staging` (workflow_dispatch) → verifikasi.
 - **Keputusan:** FND-D1 (akun Vercel produksi & staging = team Pro "Arthasia Akselerasi"; menjawab OD-4 bagian Vercel, mengubah D-036 (1)).

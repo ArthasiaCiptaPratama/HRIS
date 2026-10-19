@@ -517,9 +517,12 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ARS-D16](features/arsip/README.md#keputusan) | Laporan gel. 3: batch 1 = 4 laporan inti; SA + HR PT; layar + Excel; periode & rinci (Dashboard tetap ringkasan) | [ARS](features/arsip/README.md) |
 | [ARS-D17](features/arsip/README.md#keputusan) | Definisi 4 laporan batch 1 (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif) | [ARS](features/arsip/README.md) |
 | [ARS-D18](features/arsip/README.md#keputusan) | Batasan laporan batch 1: unit/status saat ini, reaktivasi, dokumen wajib SITE belum dihitung | [ARS](features/arsip/README.md) |
+| [ARS-D19](features/arsip/README.md#keputusan) | Tanggal kejadian SP wajib; draft lama tanpa tanggal tidak bisa terbit | [ARS](features/arsip/README.md) |
+| [ARS-D20](features/arsip/README.md#keputusan) | Draft SP massal (1–50 karyawan, satu transaksi, tingkat ikut saran per karyawan) | [ARS](features/arsip/README.md) |
 | [TM-D1](features/time-management/README.md#keputusan) | Lokasi absen per karyawan: bebas lokasi / 1 lokasi khusus ber-geofence / bawaan (crew → lokasi kerja); diatur SA + HR PT | [TM](features/time-management/README.md) |
 | [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
 | [EMP-D1](features/karyawan/README.md#keputusan) | Formulir Aplikasi dari template Word bertanda (docxtemplater) + PDF lewat Gotenberg/LibreOffice (layanan terpisah); tahap 1 template tersemat, tahap 2 halaman pengelolaan template; fitur lokal dulu | [EMP](features/karyawan/README.md) |
+| [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
 
 ## 9. Keputusan Terbuka
 

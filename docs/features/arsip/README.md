@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
 > **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`, `reports`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ lokal 2026-10-16 (QA 11/11 + perbaikan UI/UX & Excel 19/19, belum rilis); sisa: rilis batch 1, batch 2, impor per kategori, OD-11
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ lokal 2026-10-16 (QA 11/11 + perbaikan UI/UX & Excel 19/19, belum rilis); perbaikan UI/UX SP + SP massal ✔ lokal 2026-10-19 (ARS-D19/D20, belum commit); sisa: rilis batch 1, batch 2, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -42,6 +42,12 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [ ] Rilis staging batch 1 + QA staging
     - [ ] Batch 2: masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan perubahan data (kontrak PKWT menunggu Fase 7)
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
+  - [~] **Perbaikan UI/UX Surat Peringatan** (tambahan 2026-10-19: temuan pemilik projek) — lokal, belum commit
+    - [x] Detail Riwayat Peringatan dikelompokkan (kartu Karyawan · Pelanggaran · Proses & dokumen; label alasan eskalasi tanpa "(—)")
+    - [x] Tingkat / Jenis pelanggaran / Tanggal kejadian sejajar; **tanggal kejadian wajib** (web + API + terbit draft lama ditolak) — ARS-D19
+    - [x] **Buat SP untuk banyak karyawan sekaligus** (`POST /warning-letters/bulk`, satu transaksi, tingkat "Ikuti saran sistem" per karyawan) — ARS-D20
+    - [x] Dialog form SP: judul & tombol tetap, isi bisa di-scroll (penyebab: `min-h-[420px]` pemilih karyawan menimpa `h-56`)
+    - [x] QA visual Playwright lokal 11/11 (`docs/qa/runs/2026-10-19-ui-ux-lokal.md`)
 
 ## Keputusan
 
@@ -74,6 +80,8 @@ Isi lengkap di [decisions.md](../../decisions.md).
 | ARS-D15 | **Modul `discipline` terpisah** (skema Postgres `discipline`), bukan sub-domain modul `employee` seperti rencana design §3/§6.6; nama grant tetap `employee.discipline.*` (ARS-D10). Alasan: batas modul bersih (pola `asset`), `discipline` → `employee`/`attendance`/`iam` satu arah. | Rencana gel. 2b disetujui pemilik projek 2026-10-15 |
 | ARS-D16 | **Laporan gel. 3 — cakupan & akses (melengkapi D-058, design §10):** batch 1 = **4 laporan inti**: Headcount & turnover, Dokumen kedaluwarsa, Kelengkapan data, SP aktif; batch 2 menyusul (masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan perubahan data; kontrak PKWT menunggu modul Kontrak Fase 7). Menu Laporan untuk **SA + HR (PT ditugaskan)**; angka agregat untuk semua HR, daftar per orang yang menyentuh jenis sensitif hanya bila ber-grant terkait (dokumen sensitif → `employee.documents.read`, SP → `employee.discipline.*`); MANAGER & karyawan tidak. Keluaran **layar (grafik + tabel, filter PT/unit/periode) + ekspor Excel** (aturan ekspor D-058); Laporan = **perbandingan periode & rincian**, Dashboard (D-065) tetap ringkasan saat ini (tidak menduplikasi pivot). | Grill pemilik projek 2026-10-16 (semua rekomendasi) |
 | ARS-D17 | **Definisi batch 1:** (1) **Headcount & turnover** — pilih tahun → 12 bulan: aktif awal & akhir bulan, masuk, keluar, turnover % = keluar ÷ rata-rata (awal + akhir) / 2, ringkasan tahunan, rincian keluar per alasan, per PT/unit/status. (2) **Dokumen kedaluwarsa** — kelompok sudah lewat, ≤ 30, ≤ 60, ≤ 90 hari, per jenis & PT/lokasi + daftar per orang (versi dokumen aktif). (3) **Kelengkapan data** — dokumen wajib menurut master jenis dokumen (semua / site / jabatan) + data inti: NIK KTP, NPWP, BPJS TK & Kesehatan, rekening, kontak darurat, email kantor; % lengkap per PT/unit + daftar orang & item kurang (status terisi/kosong saja, **nilai sensitif tidak pernah ditampilkan**). (4) **SP aktif** — jumlah SP berlaku per tingkat & jenis pelanggaran per PT/unit, tren terbit per bulan, daftar SP berlaku yang belum dikonfirmasi lengkap. | Grill pemilik projek 2026-10-16 |
+| ARS-D19 | **Tanggal kejadian SP wajib** (sebelumnya opsional): divalidasi di skema bersama (`warningLetterDraftInputSchema`), tidak boleh di masa depan; draft lama tanpa tanggal harus dilengkapi lewat Ubah draft sebelum terbit (422). Surat yang sudah terbit tidak diubah. | Pemilik projek 2026-10-19 (temuan UI/UX poin 4, rencana disetujui) |
+| ARS-D20 | **Draft SP massal**: satu form → satu draft per karyawan (1–50) dalam **satu transaksi** (satu ditolak → semua batal), endpoint `POST /warning-letters/bulk`; tingkat `AUTO` = saran sistem per karyawan (ARS-D10), tingkat tetap di atas saran wajib alasan (dicek web; terbit tetap memeriksa); bukti hari ALPHA tidak ikut (beda per orang → tautkan lewat Ubah draft); terbit tetap satu per satu (nomor & PDF per surat). | Pemilik projek 2026-10-19 (pilih "bisa pilih banyak orang") |
 | ARS-D18 | **Batasan laporan batch 1 (keputusan kecil pelaksana):** rincian per unit/status memakai unit & status karyawan **saat ini** (belum ada snapshot historis); karyawan yang diaktifkan kembali tidak lagi terhitung keluar pada periode lama (`endDate` dikosongkan); dokumen wajib berlingkup **SITE** belum dihitung di Kelengkapan data karena belum ada penanda lokasi site (halaman menampilkan keterangannya). Ketiganya dicatat di Backlog. | Temuan saat implementasi 2026-10-16 |
 
 ## Keputusan terbuka

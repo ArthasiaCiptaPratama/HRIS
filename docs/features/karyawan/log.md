@@ -13,6 +13,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Template Formulir Data Karyawan + Tambah karyawan bertahap (Oatse)
+- **Dikerjakan:** template Formulir Aplikasi diganti "Formulir Data Karyawan" HR (tanpa pernyataan, daftar dokumen, tanda tangan; + kepegawaian, divisi, rekening, tabel kontak darurat); halaman Tambah karyawan 7 langkah urutan Google Form + `POST /employees` `profile` (checklist EMP-D1 sub-item, EMP-D2).
+- **Keputusan:** EMP-D2 (form bertahap, simpan sekali, grant tulis per bagian, audit tanpa nilai).
+- **Verifikasi:** typecheck ✔ 3 workspace · `bunx biome ci .` ✔ (1 warning lama `employee-print.test.ts`) · boundaries ✔ (473 modul) · test shared **250** · api **813** · web **294** + 5 dilewati (`--maxWorkers=4`; suite 12 worker: 5 gagal acak karena batas waktu, termasuk Backlog flaky lama); application-form 12, integration employees 38, shared profil 3, web tambah karyawan 3; PDF fiktif Gotenberg lokal 3 halaman (`QA/2026-10-19-ui-ux/contoh-fiktif-*.pdf`).
+- **Masalah / catatan:** kolom "No. Sertifikasi" formulir masih memakai penyelenggara (data `certificateNumber` belum dikirim di detail); log audit menyamarkan kunci `personal`/`bank` (disengaja). QA visual Playwright lokal 11/11 (`docs/qa/runs/2026-10-19-ui-ux-lokal.md`).
+- **Berikutnya:** izin commit (Formulir tetap lokal, EMP-OD1).
+
+
 ### 2026-10-15 — Tampilan header detail karyawan (Oatse)
 - **Dikerjakan (rencana disetujui pemilik projek):** checklist "Tampilan header detail karyawan". Banner warna logo + pola statis (revisi atas masukan: celah putih di kiri banner = `border-l` panel → dihapus; pola shape ditambah; tanpa animasi), kartu header, status karyawan vs status akun dipisah (beberapa putaran masukan: dua "Aktif" membingungkan → Status Karyawan "Magang | Masih bekerja", Akses Aplikasi "Bisa login / Tidak bisa login", teks rapi tanpa badge & titik, sebab di tooltip, peran akun hanya di tab Kepegawaian; pemilik projek: "untuk sementara boleh gini"), pop-up perbesar foto profil.
 - **Keputusan:** tidak ada keputusan baru (warna logo hanya token lokal halaman ini; tetap tanpa gradien sesuai tema D-035).
