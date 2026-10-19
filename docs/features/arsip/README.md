@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
 > **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`, `reports`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ lokal 2026-10-16 (QA 11/11 + perbaikan UI/UX & Excel 19/19, belum rilis); perbaikan UI/UX SP + SP massal ✔ lokal 2026-10-19 (ARS-D19/D20, belum commit); sisa: rilis batch 1, batch 2, impor per kategori, OD-11
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ staging gel. 9 (2026-10-19, QA LEGIT); perbaikan UI/UX SP + SP massal (ARS-D19/D20) ✔ staging gel. 9 (2026-10-19, QA LEGIT); sisa: batch 2, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 

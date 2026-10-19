@@ -1,7 +1,7 @@
 # Karyawan — Personal Management
 
 > **Kode prefix:** `EMP` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `changeStatus`
-> **Status:** Berjalan — ✔ staging (daftar, detail, form, ubah status, foto, print, multi-PT)
+> **Status:** Berjalan — ✔ staging (daftar, detail, form, ubah status, foto, multi-PT); gel. 9: Tambah karyawan bertahap (EMP-D2); gel. 10: Print data PDF dari template (EMP-D3)
 
 Data karyawan aktif per kategori, detail layar penuh bertab, tambah/ubah, ubah status & nonaktif/aktifkan, riwayat, foto profil (D-037), Print data, data sensitif ber-grant.
 
