@@ -104,8 +104,9 @@ export function AppLayout() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: bereaksi pada perubahan path saja
   useEffect(() => {
     setMobileOpen(false);
-    document.getElementById("main")?.focus({ preventScroll: true });
-    window.scrollTo({ top: 0 });
+    const main = document.getElementById("main");
+    main?.focus({ preventScroll: true });
+    main?.scrollTo?.({ top: 0 });
   }, [pathname]);
 
   const toggleCollapsed = () =>
@@ -120,7 +121,9 @@ export function AppLayout() {
 
   return (
     <TooltipProvider>
-      <div className="bg-background min-h-[100dvh]">
+      {/* Tinggi layar dikunci: header & sidebar diam, hanya <main> yang di-scroll (temuan 2026-10-19;
+          tidak lagi bergantung pada position: sticky). */}
+      <div className="bg-background flex h-[100dvh] flex-col overflow-hidden">
         <RouteProgress />
         <a
           href="#main"
@@ -129,7 +132,7 @@ export function AppLayout() {
           Lompat ke konten
         </a>
 
-        <header className="bg-background/85 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-40 border-b backdrop-blur-md">
+        <header className="bg-background/85 supports-[backdrop-filter]:bg-background/70 relative z-40 shrink-0 border-b backdrop-blur-md">
           <div className="flex h-14 items-center gap-3 px-3 md:gap-6 md:px-5">
             <Button
               variant="ghost"
@@ -188,11 +191,11 @@ export function AppLayout() {
           </div>
         </header>
 
-        <div className="flex">
+        <div className="flex min-h-0 flex-1">
           {current ? (
             <aside
               className={cn(
-                "bg-sidebar sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 flex-col border-r transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:flex",
+                "bg-sidebar hidden h-full shrink-0 flex-col border-r transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:flex",
                 collapsed ? "w-[68px]" : "w-[18.5rem]",
               )}
             >
@@ -211,7 +214,11 @@ export function AppLayout() {
             </aside>
           ) : null}
 
-          <main id="main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
+          <main
+            id="main"
+            tabIndex={-1}
+            className="min-w-0 flex-1 overflow-y-auto outline-none [scrollbar-gutter:stable]"
+          >
             <div key={pathname} className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
               <CompanySwitcher
                 enabled={access.personalMenu(me) && current?.id === "personal"}

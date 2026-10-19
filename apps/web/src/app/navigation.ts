@@ -24,6 +24,7 @@ import {
   GraduationCap,
   HeartHandshake,
   History,
+  IdCard,
   KeyRound,
   Landmark,
   LayoutDashboard,
@@ -122,6 +123,34 @@ const ARCHIVE_GRANTED: Record<string, (me: Me) => boolean> = {
   keluarga: access.readFamilyArchive,
   bank: access.readBankArchive,
 };
+/** Item halaman master data dari konfigurasi organisasi (D-049). */
+const masterPage = (kind: (typeof MASTER_DATA_PAGES)[number]["kind"]): NavItem => {
+  const page = MASTER_DATA_PAGES.find((p) => p.kind === kind);
+  if (!page) throw new Error(`Halaman master data tidak dikenal: ${kind}`);
+  return {
+    id: `master-${page.kind}`,
+    label: page.label,
+    to: `${MASTER_DATA_BASE}/${page.slug}`,
+    icon: page.icon,
+    visible: access.viewMasterData,
+    keywords: "master data organisasi",
+  };
+};
+
+/** Induk berlipat master data; tujuan induk = anak pertama. */
+const masterFolder = (
+  id: string,
+  label: string,
+  icon: LucideIcon,
+  children: NavItem[],
+): NavItem => ({
+  id,
+  label,
+  to: children[0]?.to ?? MASTER_DATA_BASE,
+  icon,
+  children,
+});
+
 const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): NavItem =>
   // D-057, ARS-D7–D13: Riwayat Peringatan punya halaman & saklar sendiri (FEATURES.discipline).
   id === "peringatan"
@@ -515,57 +544,62 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
-        // D-049: master data organisasi (SA kelola, HR lihat).
+        // D-049: master data organisasi (SA kelola, HR lihat). Temuan 2026-10-19: dikelompokkan bab → sub
+        // seperti Personal Management (induk berlipat; `to` induk = anak pertama).
         id: "master-data",
         label: "Master Data",
         items: [
-          ...MASTER_DATA_PAGES.map((page) => ({
-            id: `master-${page.kind}`,
-            label: page.label,
-            to: `${MASTER_DATA_BASE}/${page.slug}`,
-            icon: page.icon,
-            visible: access.viewMasterData,
-            keywords: "master data organisasi",
-          })),
-          {
-            // D-051: kursi di bagan organisasi (atasan, garis fungsional, slot).
-            id: "master-org-posts",
-            label: "Pos jabatan",
-            to: `${MASTER_DATA_BASE}/pos-jabatan`,
-            icon: Workflow,
-            visible: access.viewMasterData,
-            keywords: "pos jabatan bagan org chart slot vacant kosong atasan fungsional",
-          },
-          {
-            // D-055: katalog jenis dokumen karyawan (masa berlaku, sensitif, wajib).
-            id: "master-document-types",
-            maintenance: !FEATURES.archive,
-            label: "Jenis dokumen",
-            to: `${MASTER_DATA_BASE}/jenis-dokumen`,
-            icon: FileText,
-            visible: access.viewMasterData,
-            keywords: "jenis dokumen berkas file sertifikat masa berlaku kedaluwarsa",
-          },
-          {
-            // ARS-D1/D5/D6: kategori aset per unit & jenis APD/seragam.
-            id: "master-assets",
-            maintenance: !FEATURES.assets,
-            label: "Aset & APD",
-            to: `${MASTER_DATA_BASE}/aset`,
-            icon: Package,
-            visible: access.viewMasterData,
-            keywords: "kategori aset jenis apd helm sepatu safety seragam masa ganti",
-          },
-          {
-            // ARS-D8/D12: jenis pelanggaran SP + masa berlaku bawaan.
-            id: "master-violation-types",
-            maintenance: !FEATURES.discipline,
-            label: "Jenis Pelanggaran",
-            to: `${MASTER_DATA_BASE}/jenis-pelanggaran`,
-            icon: TriangleAlert,
-            visible: FEATURES.discipline ? access.viewDisciplineMasters : access.viewMasterData,
-            keywords: "jenis pelanggaran surat peringatan sp masa berlaku mangkir",
-          },
+          masterFolder("master-group-org", "Organisasi", Building2, [
+            masterPage("companies"),
+            masterPage("departments"),
+            masterPage("positions"),
+            {
+              // D-051: kursi di bagan organisasi (atasan, garis fungsional, slot).
+              id: "master-org-posts",
+              label: "Pos jabatan",
+              to: `${MASTER_DATA_BASE}/pos-jabatan`,
+              icon: Workflow,
+              visible: access.viewMasterData,
+              keywords: "pos jabatan bagan org chart slot vacant kosong atasan fungsional",
+            },
+            masterPage("work-locations"),
+          ]),
+          masterFolder("master-group-employment", "Kepegawaian", IdCard, [
+            masterPage("employment-statuses"),
+            masterPage("grades"),
+          ]),
+          masterFolder("master-group-archive", "Arsip & Disiplin", FolderArchive, [
+            {
+              // D-055: katalog jenis dokumen karyawan (masa berlaku, sensitif, wajib).
+              id: "master-document-types",
+              maintenance: !FEATURES.archive,
+              label: "Jenis dokumen",
+              to: `${MASTER_DATA_BASE}/jenis-dokumen`,
+              icon: FileText,
+              visible: access.viewMasterData,
+              keywords: "jenis dokumen berkas file sertifikat masa berlaku kedaluwarsa",
+            },
+            {
+              // ARS-D1/D5/D6: kategori aset per unit & jenis APD/seragam.
+              id: "master-assets",
+              maintenance: !FEATURES.assets,
+              label: "Aset & APD",
+              to: `${MASTER_DATA_BASE}/aset`,
+              icon: Package,
+              visible: access.viewMasterData,
+              keywords: "kategori aset jenis apd helm sepatu safety seragam masa ganti",
+            },
+            {
+              // ARS-D8/D12: jenis pelanggaran SP + masa berlaku bawaan.
+              id: "master-violation-types",
+              maintenance: !FEATURES.discipline,
+              label: "Jenis Pelanggaran",
+              to: `${MASTER_DATA_BASE}/jenis-pelanggaran`,
+              icon: TriangleAlert,
+              visible: FEATURES.discipline ? access.viewDisciplineMasters : access.viewMasterData,
+              keywords: "jenis pelanggaran surat peringatan sp masa berlaku mangkir",
+            },
+          ]),
         ],
       },
     ],
@@ -617,7 +651,9 @@ export function visibleGroups(me: Me): NavGroup[] {
               ...(item.children
                 ? { children: item.children.filter((child) => isVisible(me, child)) }
                 : {}),
-            })),
+            }))
+            // Induk berlipat yang semua anaknya tersembunyi tidak ditampilkan.
+            .filter((item) => !item.children || item.children.length > 0),
         }))
         .filter((section) => section.items.length > 0),
     }))
