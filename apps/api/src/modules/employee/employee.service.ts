@@ -5,6 +5,7 @@ import {
   type EmployeeProfile,
   type EmploymentCategory,
   employeeProfileInputSchema,
+  employeeProfileUpdateSchema,
   POSITION_LEVELS,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
@@ -30,9 +31,11 @@ import {
   deactivateAccountOfEmployee,
   getAccountLinksForEmployees,
   getAccountSummaries,
+  getEmployeeAccountStates,
   listManagerEmployeeIds,
   type NikLoginDeps,
 } from "../iam/index.ts";
+import { notify } from "../notification/index.ts";
 import {
   getMasterLookup,
   type MasterLookup,
@@ -862,30 +865,43 @@ function assertProfileAccess(actor: Actor, sections: ReturnType<typeof profileSe
   }
 }
 
+type PersonalProfile = NonNullable<EmployeeProfile["personal"]>;
+
+/** Kolom `employee_personal` dari isian profil (SIM per jenis → jenis, nomor pertama, nomor per jenis). */
+function personalRow(p: PersonalProfile, clearEmptyLicenses: boolean) {
+  const { personalEmail: _email, drivingLicenses, ...rest } = p;
+  const licenses = drivingLicenses.filter(
+    (l, i, all) => all.findIndex((x) => x.type === l.type) === i,
+  );
+  const numbers = Object.fromEntries(
+    licenses.filter((l) => l.number).map((l) => [l.type, l.number as string]),
+  );
+  return {
+    ...rest,
+    birthDate: rest.birthDate ? toDate(rest.birthDate) : null,
+    drivingLicenseTypes: licenses.map((l) => l.type),
+    drivingLicenseNumbers: Object.keys(numbers).length
+      ? numbers
+      : clearEmptyLicenses
+        ? repository.JSON_NULL
+        : undefined,
+    drivingLicenseNumber: licenses.find((l) => l.number)?.number ?? null,
+  };
+}
+
+const familyRow = ({ birthDate, ...m }: EmployeeProfile["family"][number]) => ({
+  ...m,
+  birthDate: birthDate ? toDate(birthDate) : null,
+});
+
 async function writeProfile(tx: repository.EmployeeTx, employeeId: string, p: EmployeeProfile) {
   if (p.personal) {
-    const { personalEmail, drivingLicenses, ...rest } = p.personal;
-    const licenses = drivingLicenses.filter(
-      (l, i, all) => all.findIndex((x) => x.type === l.type) === i,
-    );
-    const numbers = Object.fromEntries(
-      licenses.filter((l) => l.number).map((l) => [l.type, l.number as string]),
-    );
-    await importRepo.upsertPersonal(tx, employeeId, {
-      ...rest,
-      birthDate: rest.birthDate ? toDate(rest.birthDate) : null,
-      drivingLicenseTypes: licenses.map((l) => l.type),
-      drivingLicenseNumbers: Object.keys(numbers).length ? numbers : undefined,
-      drivingLicenseNumber: licenses.find((l) => l.number)?.number ?? null,
-    });
-    if (personalEmail) await repository.setPersonalEmail(tx, employeeId, personalEmail);
+    await importRepo.upsertPersonal(tx, employeeId, personalRow(p.personal, false));
+    if (p.personal.personalEmail)
+      await repository.setPersonalEmail(tx, employeeId, p.personal.personalEmail);
   }
-  for (const { birthDate, ...m } of p.family)
-    await importRepo.createFamilyMember(tx, {
-      employeeId,
-      ...m,
-      birthDate: birthDate ? toDate(birthDate) : null,
-    });
+  for (const m of p.family)
+    await importRepo.createFamilyMember(tx, { employeeId, ...familyRow(m) });
   for (const ed of p.educations) await importRepo.createEducation(tx, { employeeId, ...ed });
   for (const c of p.certifications)
     await importRepo.createTraining(tx, {
@@ -973,6 +989,84 @@ export async function createEmployee(
     })
     .catch(rethrowUnique);
   return loadListItem(id, ctx);
+}
+
+/**
+ * EMP-D4: HR ber-grant mengubah data pribadi, keluarga, dan rekening karyawan langsung (satu transaksi).
+ * Bagian yang dikirim diganti utuh. Audit `employee.sensitive.write` mencatat bagian (tanpa nilai);
+ * rekening berubah → karyawan diberi tahu (D-054 poin 3).
+ */
+export async function updateEmployeeProfile(ctx: RequestContext, id: string, raw: unknown) {
+  assertCanManage(ctx.actor);
+  const parsed = employeeProfileUpdateSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new ValidationError(
+      parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      parsed.error.issues[0]?.message,
+    );
+  }
+  const input = parsed.data;
+  const row = await loadInScope(ctx, id);
+  const target = targetOf(row);
+  if (
+    (input.personal || input.family) &&
+    !policy.canWriteSensitive(ctx.actor, target, "personal")
+  ) {
+    throw new ForbiddenError("Ubah data pribadi & keluarga butuh izin employee.personal.write.");
+  }
+  if (input.bank && !policy.canWriteSensitive(ctx.actor, target, "bank")) {
+    throw new ForbiddenError("Ubah rekening butuh izin employee.bank.write.");
+  }
+  const bankChanged = await repository
+    .withTransaction(async (tx) => {
+      if (input.personal) {
+        await importRepo.upsertPersonal(tx, id, personalRow(input.personal, true));
+        await repository.setPersonalEmail(tx, id, input.personal.personalEmail ?? null);
+      }
+      if (input.family) await repository.replaceFamilyMembers(tx, id, input.family.map(familyRow));
+      let changed = false;
+      if (input.bank) {
+        const before = await repository.findBankAccount(tx, id);
+        changed =
+          before?.bankName !== input.bank.bankName ||
+          before?.accountNumber !== input.bank.accountNumber ||
+          (before?.accountHolder ?? null) !== (input.bank.accountHolder ?? null);
+        await importRepo.upsertBank(tx, id, input.bank, before !== null);
+      }
+      await writeAudit(
+        {
+          ...auditBase(ctx),
+          action: "employee.sensitive.write",
+          entityId: id,
+          after: {
+            source: "detail",
+            sections: [
+              input.personal && "personal",
+              input.family && "family",
+              input.bank && "bank",
+            ].filter(Boolean),
+          },
+        },
+        tx,
+      );
+      return changed;
+    })
+    .catch(rethrowUnique);
+  if (bankChanged) {
+    const [account] = await getEmployeeAccountStates([id]);
+    if (account?.isActive && account.accountId !== ctx.actor.accountId) {
+      await notify({
+        recipients: [{ accountId: account.accountId, email: account.email }],
+        type: "employee.bank_changed",
+        title: "Rekening Anda diperbarui",
+        body: "HR memperbarui data rekening Anda. Hubungi HR bila Anda tidak mengenali perubahan ini.",
+        link: "/ess",
+        dedupeKey: `bank-changed:${id}:${Date.now()}`,
+        email: true,
+      });
+    }
+  }
+  return getEmployee(ctx, id, "full");
 }
 
 export async function updateEmployee(

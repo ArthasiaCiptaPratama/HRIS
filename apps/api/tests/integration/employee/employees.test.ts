@@ -541,6 +541,136 @@ describe("EMP-D2 tambah manual dengan profil lengkap", () => {
   });
 });
 
+describe("EMP-D4 PATCH /employees/:id/profile (HR ubah data sensitif langsung)", () => {
+  let writer: Login;
+  let bankOnly: Login;
+  const nik = () =>
+    `33${String(Date.now()).slice(-10)}${String(Math.floor(Math.random() * 1e4)).padStart(4, "0")}`;
+  beforeAll(async () => {
+    writer = await auth.loginAs("HR_ADMIN", {
+      grants: [
+        { permission: "EMPLOYEE_PERSONAL_READ" },
+        { permission: "EMPLOYEE_PERSONAL_WRITE" },
+        { permission: "EMPLOYEE_BANK_WRITE" },
+      ],
+    });
+    bankOnly = await auth.loginAs("HR_ADMIN", { grants: [{ permission: "EMPLOYEE_BANK_WRITE" }] });
+  });
+  const path = () => `/employees/${ids.teamEmp}/profile`;
+  const personal = (ktpNumber: string) => ({
+    birthPlace: "Bandung",
+    birthDate: "1990-01-02",
+    religion: "ISLAM",
+    ptkpStatus: "K1",
+    originCity: "Garut",
+    ktpNumber,
+    domicileCity: "Kota Contoh",
+    personalEmail: `Profil-Ubah-${RUN}@Contoh.Test`,
+    drivingLicenses: [{ type: "C", number: "SIM-C-9" }],
+  });
+
+  test("401; 403 tanpa grant tulis / bagian lain / PT lain; 400 kosong & NIK salah", async () => {
+    expect(
+      (await call("PATCH", path(), {}, { bank: { bankName: "BRI", accountNumber: "123456" } }))
+        .status,
+    ).toBe(401);
+    expect(
+      (await call("PATCH", path(), hrGranted.headers, { personal: personal(nik()) })).status,
+    ).toBe(403);
+    expect((await call("PATCH", path(), bankOnly.headers, { family: [] })).status).toBe(403);
+    expect((await call("PATCH", path(), hrOther.headers, { family: [] })).status).toBe(404);
+    expect((await call("PATCH", path(), mgr.headers, { family: [] })).status).toBe(403);
+    expect((await call("PATCH", path(), writer.headers, {})).status).toBe(400);
+    expect(
+      (await call("PATCH", path(), writer.headers, { personal: { ktpNumber: "12" } })).status,
+    ).toBe(400);
+  });
+
+  test("HR ber-grant: pribadi + keluarga (semua kolom) + rekening tersimpan; audit tanpa nilai; karyawan diberi tahu", async () => {
+    const ktp = nik();
+    const res = await call("PATCH", path(), writer.headers, {
+      personal: personal(ktp),
+      family: [
+        { relationship: "SPOUSE", name: "Siti", occupation: "Guru", phoneNumber: "081200002222" },
+        { relationship: "CHILD", name: "Anak", gender: "MALE", education: "SD" },
+      ],
+      bank: { bankName: "Bank Contoh", accountNumber: "1234-5678-90", accountHolder: "Uji" },
+    });
+    expect(res.status).toBe(200);
+    const detail = (await body(res)).data;
+    expect(detail.personal).toMatchObject({
+      ktpNumber: ktp,
+      ptkpStatus: "K1",
+      originCity: "Garut",
+    });
+    expect(detail.personal.personalEmail).toBe(`profil-ubah-${RUN}@contoh.test`);
+    const row = await prisma.employee.findUniqueOrThrow({
+      where: { id: ids.teamEmp },
+      include: { personal: true, familyMembers: true, bankAccount: true },
+    });
+    expect(row.personal?.drivingLicenseTypes).toEqual(["C"]);
+    expect(row.familyMembers.find((m) => m.relationship === "SPOUSE")).toMatchObject({
+      occupation: "Guru",
+      phoneNumber: "081200002222",
+    });
+    expect(row.bankAccount?.accountNumber).toBe("1234567890");
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: ids.teamEmp, action: "employee.sensitive.write" },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(JSON.stringify(audit.after)).not.toContain(ktp);
+    const note = await prisma.notification.findFirst({
+      where: { recipientAccountId: teamAccount.account.id, type: "employee.bank_changed" },
+    });
+    expect(note?.title).toContain("Rekening");
+
+    // Ganti keluarga utuh + SIM dikosongkan; rekening sama → tanpa notifikasi baru.
+    const before = await prisma.notification.count({
+      where: { recipientAccountId: teamAccount.account.id, type: "employee.bank_changed" },
+    });
+    const again = await call("PATCH", path(), writer.headers, {
+      personal: { ...personal(ktp), drivingLicenses: [], personalEmail: "" },
+      family: [{ relationship: "FATHER", name: "Ayah", isDeceased: true }],
+      bank: { bankName: "Bank Contoh", accountNumber: "1234567890", accountHolder: "Uji" },
+    });
+    expect(again.status).toBe(200);
+    const after = await prisma.employee.findUniqueOrThrow({
+      where: { id: ids.teamEmp },
+      include: { personal: true, familyMembers: true },
+    });
+    expect(after.personalEmail).toBeNull();
+    expect(after.personal?.drivingLicenseTypes).toEqual([]);
+    expect(after.personal?.drivingLicenseNumbers).toBeNull();
+    expect(after.familyMembers.map((m) => [m.relationship, m.isDeceased])).toEqual([
+      ["FATHER", true],
+    ]);
+    expect(
+      await prisma.notification.count({
+        where: { recipientAccountId: teamAccount.account.id, type: "employee.bank_changed" },
+      }),
+    ).toBe(before);
+  });
+
+  test("NIK dipakai karyawan lain → 409; PATCH /employees mengabaikan profile", async () => {
+    const used = nik();
+    await prisma.employeePersonal.upsert({
+      where: { employeeId: ids.otherEmp },
+      create: { employeeId: ids.otherEmp, ktpNumber: used },
+      update: { ktpNumber: used },
+    });
+    expect(
+      (await call("PATCH", path(), writer.headers, { personal: { ktpNumber: used } })).status,
+    ).toBe(409);
+    const res = await call("PATCH", `/employees/${ids.teamEmp}`, sa.headers, {
+      fullName: `Uji ${RUN} T1`,
+      profile: { personal: { birthPlace: "Tidak Disimpan" } },
+    });
+    expect(res.status).toBe(200);
+    const p = await prisma.employeePersonal.findUnique({ where: { employeeId: ids.teamEmp } });
+    expect(p?.birthPlace).not.toBe("Tidak Disimpan");
+  });
+});
+
 describe("D-063 NIP boleh kosong", () => {
   test("buat tanpa NIP → 201 (NIP null); filter 'NIP belum ada'; isi NIP lalu tidak bisa dikosongkan", async () => {
     const res = await call("POST", "/employees", hr.headers, {
