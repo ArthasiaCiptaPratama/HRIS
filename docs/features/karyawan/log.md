@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Arahan: Print data jadi PDF dari template, Formulir Aplikasi Word dihapus (Oatse)
+- **Dikerjakan:** hanya dokumen — rencana dicatat di checklist ("Print data → PDF dari template Formulir Data Karyawan") & Backlog PROGRESS; belum ada kode.
+- **Keputusan:** arahan pemilik projek: temuan poin 8 maksudnya tombol **Print data** (bukan Formulir Aplikasi) → PDF memakai template PDF yang diberikan; Formulir Aplikasi Word dihapus. EMP-OD1 akan gugur; **EMP-OD2** baru (template dinamis vs posisi tetap).
+- **Verifikasi:** – (dokumen saja)
+- **Masalah / catatan:** salah tafsir sebelumnya — poin 8 sempat dikerjakan pada Formulir Aplikasi (EMP-D1, tersembunyi di rilis), bukan Print data.
+- **Berikutnya:** kerjakan checklist Print data PDF bila diminta.
+
 ### 2026-10-19 — Template Formulir Data Karyawan + Tambah karyawan bertahap (Oatse)
 - **Dikerjakan:** template Formulir Aplikasi diganti "Formulir Data Karyawan" HR (tanpa pernyataan, daftar dokumen, tanda tangan; + kepegawaian, divisi, rekening, tabel kontak darurat); halaman Tambah karyawan 7 langkah urutan Google Form + `POST /employees` `profile` (checklist EMP-D1 sub-item, EMP-D2).
 - **Keputusan:** EMP-D2 (form bertahap, simpan sekali, grant tulis per bagian, audit tanpa nilai).
