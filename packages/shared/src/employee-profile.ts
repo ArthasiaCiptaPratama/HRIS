@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { educationLevelSchema, genderSchema } from "./employee.ts";
+import { educationLevelSchema, genderSchema, ptkpStatusSchema } from "./employee.ts";
 import {
   familyRelationshipSchema,
   maritalStatusSchema,
@@ -46,6 +46,9 @@ const year = z.number().int().min(1950, "Tahun tidak valid.").max(2100).nullable
 
 export const profilePersonalInputSchema = z.object({
   nickname: text(50),
+  /** D-041: kota asal & status PTKP (pajak). */
+  originCity: text(100),
+  ptkpStatus: ptkpStatusSchema.nullable().optional(),
   birthPlace: text(100),
   birthDate: isoDate,
   religion: religionSchema.nullable().optional(),
@@ -108,6 +111,8 @@ export const profileFamilyInputSchema = z.object({
   relationDetail: text(30),
   ageAtEntry: z.number().int().min(0).max(130).nullable().optional(),
   isDeceased: z.boolean().default(false),
+  phoneNumber: phone,
+  address: text(500),
 });
 
 export const profileEducationInputSchema = z.object({
@@ -146,3 +151,21 @@ export const employeeProfileInputSchema = z.object({
 });
 export type EmployeeProfileInput = z.input<typeof employeeProfileInputSchema>;
 export type EmployeeProfile = z.output<typeof employeeProfileInputSchema>;
+
+/**
+ * EMP-D4: HR ber-grant mengubah data sensitif karyawan langsung dari detail. Bagian yang dikirim
+ * diganti utuh: `personal` (semua kolom pribadi + email pribadi), `family` (daftar lengkap pengganti),
+ * `bank` (rekening). Bagian yang tidak dikirim tidak berubah.
+ */
+export const employeeProfileUpdateSchema = z
+  .object({
+    personal: profilePersonalInputSchema.optional(),
+    family: z.array(profileFamilyInputSchema).max(30, "Maksimal 30 anggota keluarga.").optional(),
+    bank: profileBankInputSchema.optional(),
+  })
+  .refine(
+    (v) => v.personal !== undefined || v.family !== undefined || v.bank !== undefined,
+    "Tidak ada perubahan yang dikirim.",
+  );
+export type EmployeeProfileUpdateInput = z.input<typeof employeeProfileUpdateSchema>;
+export type EmployeeProfileUpdate = z.output<typeof employeeProfileUpdateSchema>;

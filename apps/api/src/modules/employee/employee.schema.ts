@@ -351,8 +351,9 @@ export const createEmployeeBodySchema = z
 export type CreateEmployeeInput = z.infer<typeof createEmployeeBodySchema>;
 
 // Status kepegawaian diubah lewat /status-change supaya selalu tercatat di riwayat.
+// `profile` hanya untuk tambah (EMP-D2); ubah data sensitif lewat PATCH /employees/{id}/profile (EMP-D4).
 export const updateEmployeeBodySchema = createEmployeeBodySchema
-  .omit({ employmentStatusId: true })
+  .omit({ employmentStatusId: true, profile: true })
   .partial()
   .refine((body) => Object.keys(body).length > 0, "Tidak ada perubahan yang dikirim.")
   .openapi("UpdateEmployee");

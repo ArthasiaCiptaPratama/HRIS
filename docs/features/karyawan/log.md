@@ -13,12 +13,20 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-19 — Ubah data lengkap dari detail karyawan (EMP-D4) + perbaikan pengajuan Keluarga (Oatse)
+- **Dikerjakan:** checklist "Ubah data lengkap" — `PATCH /employees/{id}/profile`, dialog Ubah data bertab, tombol di semua panel detail; perbaikan `replaceFamily` (pengajuan/onboarding) yang menghapus kolom keluarga lain; `PATCH /employees` tidak menerima `profile`.
+- **Keputusan:** EMP-D4.
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (469 modul) · test shared 250 · api 816 · web 270 + 5 dilewati. QA browser lokal ✔ (tab, 5 tab terisi, simpan & kembalikan, kolom lain utuh).
+- **Insiden QA (DB lokal saja):** QA pertama menemukan dialog memakai detail view work (tanpa data pribadi) → menyimpan Kota asal **mengosongkan data pribadi "Calon Uji Oatse"** (tempat/tgl lahir, agama, status kawin, NIK, alamat, email pribadi). Dipulihkan dari PDF Print data lokal pagi ini; **No. KK & status PTKP tidak bisa dipulihkan** (tidak ada salinan). Bug diperbaiki sebelum commit (dialog memuat view full) + test regresi.
+- **Masalah / catatan:** temuan agen eksplorasi: (1) persetujuan pengajuan Keluarga menghapus jenis kelamin/pendidikan/pekerjaan/almarhum semua anggota — kini anggota yang sama (hubungan + nama) diperbarui, bukan dibuat ulang; (2) `profile` di PATCH /employees diam-diam diabaikan (bug EMP-D2) — kini dibuang dari skema.
+- **Berikutnya:** QA visual lokal → izin commit → rilis staging.
+
 ### 2026-10-19 — Print data jadi PDF dari template Formulir Data Karyawan; Formulir Aplikasi Word dihapus (Oatse)
 - **Dikerjakan:** checklist "Print data → PDF" — renderer pdf-lib berlatar template PDF HR, `POST /employees/{id}/print`, tombol web (foto WebP → JPEG di browser), hapus Excel & seluruh Formulir Aplikasi Word/Gotenberg.
 - **Keputusan:** EMP-D3; EMP-OD1 gugur.
 - **Verifikasi:** typecheck ✔ · biome ✔ (tanpa warning) · boundaries ✔ (469 modul) · test shared 250 · api 812 · web 268 + 5 dilewati · QA browser lokal: PDF 3 halaman, foto tampil, tanpa tombol Formulir Aplikasi.
-- **Masalah / catatan:** (1) foto profil tersimpan WebP → pdf-lib tidak bisa; diselesaikan dengan konversi di browser (sama seperti Excel lama). (2) **Data Rekening di PDF selalu kosong**: Print data sejak awal tidak membaca rekening (view=print) — perlu keputusan pemilik projek bila rekening mau ikut tercetak. (3) Sheet arsip per kategori dari Excel lama (D-058) tidak ada di PDF.
-- **Berikutnya:** izin commit → rilis staging + QA staging.
+- **Masalah / catatan:** (1) foto profil tersimpan WebP → pdf-lib tidak bisa; diselesaikan dengan konversi di browser (sama seperti Excel lama). (2) Data Rekening di PDF kosong (Print data tidak membaca rekening) — **pemilik projek memutuskan tetap kosong** (2026-10-19). (3) Sheet arsip per kategori dari Excel lama (D-058) tidak ada di PDF.
+- **Berikutnya:** ✔ rilis gel. 10 + QA staging lulus (Print data PDF berfoto, data asli). Ide: kolom alamat di tabel kontak darurat boleh 2 baris (sekarang mengecil & terpotong).
 
 ### 2026-10-19 — Arahan: Print data jadi PDF dari template, Formulir Aplikasi Word dihapus (Oatse)
 - **Dikerjakan:** hanya dokumen — rencana dicatat di checklist ("Print data → PDF dari template Formulir Data Karyawan") & Backlog PROGRESS; belum ada kode.

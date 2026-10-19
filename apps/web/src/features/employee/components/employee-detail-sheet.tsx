@@ -67,6 +67,7 @@ import { useEmployee, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
+import { EmployeeFormDialog } from "./employee-form-dialog";
 import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { profilePlacement } from "./profile-placement";
@@ -102,12 +103,14 @@ export function useEmployeeSheet() {
 export function EmployeeDetailSheet({
   onEdit,
 }: {
-  /** Tombol "Ubah data" (hanya halaman yang punya form). */
+  /** Tombol "Ubah data" memakai form halaman ini; tanpa prop → form bawaan panel (EMP-D4, semua halaman). */
   onEdit?: (employee: EmployeeDetail) => void;
 }) {
   const { openId, close } = useEmployeeSheet();
   const detail = useEmployee(openId);
   const employee = detail.data;
+  const [editing, setEditing] = useState<EmployeeDetail | null>(null);
+  const edit = onEdit ?? setEditing;
 
   return (
     <Sheet open={openId !== null} onOpenChange={(open) => !open && close()}>
@@ -135,9 +138,16 @@ export function EmployeeDetailSheet({
             />
           </div>
         ) : (
-          <DetailBody key={employee.id} employee={employee} onEdit={onEdit} />
+          <DetailBody key={employee.id} employee={employee} onEdit={edit} />
         )}
       </SheetContent>
+      {onEdit ? null : (
+        <EmployeeFormDialog
+          open={editing !== null}
+          onOpenChange={(open) => (open ? null : setEditing(null))}
+          employee={editing}
+        />
+      )}
     </Sheet>
   );
 }

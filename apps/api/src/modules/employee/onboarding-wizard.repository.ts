@@ -130,6 +130,11 @@ export async function upsertBank(
   });
 }
 
+/**
+ * Ganti daftar keluarga dari wizard / pengajuan (hanya nama, hubungan, tgl lahir, HP). Anggota yang sama
+ * (hubungan + nama, huruf besar/kecil & spasi diabaikan) **diperbarui**, bukan dihapus-buat-ulang, supaya kolom
+ * lain hasil Import/HR (jenis kelamin, pendidikan, pekerjaan, almarhum, …) tidak hilang (perbaikan 2026-10-19).
+ */
 export async function replaceFamily(
   tx: EmployeeTx,
   employeeId: string,
@@ -140,9 +145,29 @@ export async function replaceFamily(
     phoneNumber: string | null;
   }[],
 ) {
-  await tx.familyMember.deleteMany({ where: { employeeId } });
-  if (members.length > 0) {
-    await tx.familyMember.createMany({ data: members.map((m) => ({ employeeId, ...m })) });
+  const key = (relationship: string, name: string) =>
+    `${relationship}:${name.trim().toLowerCase().replace(/\s+/g, " ")}`;
+  const existing = await tx.familyMember.findMany({
+    where: { employeeId },
+    select: { id: true, name: true, relationship: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const kept = new Set<string>();
+  const fresh: typeof members = [];
+  for (const m of members) {
+    const match = existing.find(
+      (e) => !kept.has(e.id) && key(e.relationship, e.name) === key(m.relationship, m.name),
+    );
+    if (match) {
+      kept.add(match.id);
+      await tx.familyMember.update({ where: { id: match.id }, data: m });
+    } else fresh.push(m);
+  }
+  await tx.familyMember.deleteMany({
+    where: { employeeId, id: { notIn: [...kept] } },
+  });
+  if (fresh.length > 0) {
+    await tx.familyMember.createMany({ data: fresh.map((m) => ({ employeeId, ...m })) });
   }
 }
 
