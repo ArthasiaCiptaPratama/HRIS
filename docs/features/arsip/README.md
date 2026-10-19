@@ -39,10 +39,10 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
     - [x] Rilis staging (migrasi `20261015071500_add_discipline_module`, cron `discipline-daily`, saklar `discipline` di rilis, grant SP untuk HR uji) + QA staging + arsip Drive — 2026-10-15: rilis `905649a` (merge develop `7de4d1f`, `timeManagement` tetap `false`) → PR #51/#52 → `Deploy staging` #38718943479 (37 migrasi); grant `employee.discipline.write` HR uji (dipertahankan); QA staging TC-STG-088…102 **15/15** → **LEGIT**, Drive `hris-qa:2026-10-15-staging-sp`
   - [~] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"; grill 2026-10-16 → ARS-D16/D17 (batch 1 = 4 laporan inti)
     - [x] Batch 1 (2026-10-16): shared `report.ts`; agregat baca-saja `employee` & `discipline` lewat `index.ts`; modul `report` (policy 7, 8 operasi, ekspor xlsx + audit `report.export`); web `/personal/laporan` 4 tab + filter unit/tahun + grafik + ekspor, saklar `FEATURES.reports`; integration 8, web 6; QA lokal Playwright **11/11** (TC-EMP-239…249, plan/run `2026-10-16-laporan-lokal`)
-    - [ ] Rilis staging batch 1 + QA staging
+    - [~] Rilis staging batch 1 ✔ gel. 9 (2026-10-19, Deploy #39199139468); QA staging belum
     - [ ] Batch 2: masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan perubahan data (kontrak PKWT menunggu Fase 7)
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
-  - [~] **Perbaikan UI/UX Surat Peringatan** (tambahan 2026-10-19: temuan pemilik projek) — lokal, belum commit
+  - [x] **Perbaikan UI/UX Surat Peringatan** (tambahan 2026-10-19: temuan pemilik projek) — ✔ staging rilis gel. 9 (QA staging belum)
     - [x] Detail Riwayat Peringatan dikelompokkan (kartu Karyawan · Pelanggaran · Proses & dokumen; label alasan eskalasi tanpa "(—)")
     - [x] Tingkat / Jenis pelanggaran / Tanggal kejadian sejajar; **tanggal kejadian wajib** (web + API + terbit draft lama ditolak) — ARS-D19
     - [x] **Buat SP untuk banyak karyawan sekaligus** (`POST /warning-letters/bulk`, satu transaksi, tingkat "Ikuti saran sistem" per karyawan) — ARS-D20
