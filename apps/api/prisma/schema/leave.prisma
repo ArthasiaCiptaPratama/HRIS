@@ -42,6 +42,10 @@ model LeaveType {
   maxDaysPerRequest         Int?          @map("max_days_per_request") @db.SmallInt
   /// Dokumen wajib bila hari > nilai ini (0 = selalu wajib); null = tidak wajib.
   documentRequiredAfterDays Int?          @map("document_required_after_days") @db.SmallInt
+  /// Keterangan untuk karyawan (kapan izin ini dipakai); diatur SA di Master Cuti.
+  description               String?       @db.VarChar(300)
+  /// Berkas yang diperlukan (mis. "Surat keterangan dokter"); wajib/opsional tetap dari documentRequiredAfterDays.
+  documentLabel             String?       @map("document_label") @db.VarChar(120)
   isActive                  Boolean       @default(true) @map("is_active")
   sortOrder                 Int           @default(0) @map("sort_order") @db.SmallInt
   createdAt                 DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

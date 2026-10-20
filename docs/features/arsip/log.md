@@ -13,6 +13,20 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-20 — Audit Laporan: bilah filter sticky, 10 tab, tanggal WIB pengajuan (Oatse)
+- **Dikerjakan:** audit ulang batch 2 atas temuan pemilik projek (bilah filter menutupi isi). (1) `reports-page.tsx` bilah filter `md:top-14` → `md:top-0` — sejak `bdf869e` (header tetap, 2026-10-19) yang digulir `<main>`, offset lama menyisakan celah 56px (bug sejak batch 1); halaman lain tidak memakai offset itu. (2) 10 tab tidak muat di 1440px (Ulang tahun terpotong, Aset & Pengajuan data tersembunyi) → `md:flex-wrap`, HP tetap geser + tab aktif digulir masuk layar. (3) Pengajuan data: tahun/bulan/umur antrean dari tanggal WIB (sebelumnya potongan tanggal UTC). (4) Mutasi: `historyId` sebagai kunci baris. (5) Catatan batasan mutasi (hanya karyawan yang saat ini di PT/unit terpilih) di halaman, Excel, codemap; CODEMAP.md & indeks qa/README.md diperbarui.
+- **Keputusan:** –
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ · build ✔ · shared 268 · api 826 (integration batch 2: kasus 31 Des 20.00 UTC = 1 Jan WIB) · web 281 (`--maxWorkers=2`). QA ulang: lihat `docs/qa/runs/2026-10-20-laporan-batch2-lokal.md` putaran audit.
+- **Masalah / catatan:** bug (1) & (2) sebenarnya terlihat di screenshot QA putaran 1 (Q-04, Q-05) tetapi terlewat saat ditinjau → script QA ditambah cek posisi sticky & visibilitas tab.
+- **Berikutnya:** commit (izin), rilis staging.
+
+### 2026-10-20 — Laporan batch 2: masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan data (Oatse)
+- **Dikerjakan:** checklist "Batch 2" gel. 3 Laporan. Shared `report.ts` (`fullYears`, `tenureBucket`/`ageBucket` memakai kelompok Dashboard, `jubileeYears`, `movementKind`, `averageDays`, `monthQuerySchema`, 6 jenis laporan baru); employee `report-data` (`listDemographicFacts` — tanggal lahir tidak keluar modul, hanya kelompok usia; `listBirthdaysInMonth` — `MM-DD` saja; `listMovements`; `listDataChangeFacts` tanpa nilai); asset `report-data.service.ts` baru (`listAssetsForReport` tanpa harga, `listUnreturnedPpeForReport`); report: `report-common.ts` (cakupan + pembantu ekspor dipindah dari `report.service.ts`), `report-batch2.service.ts` (6 laporan + sheet Excel), `canListDataChanges`, 12 route baru. Web: 6 tab di `features/reports/components/tabs/`, filter Bulan (`?bulan=`), pembantu dipisah ke `report-helpers.ts` & `components/report-state.tsx`.
+- **Keputusan:** ARS-D21 (definisi & akses batch 2, grill 2026-10-20 semua rekomendasi).
+- **Verifikasi:** typecheck ✔ · `bunx biome ci .` ✔ · boundaries ✔ (480 modul) · build ✔ · test shared **268** · api **826** · web **281** (`--maxWorkers=2`; suite penuh paralel sambil dev server jalan: 2–3 test lama timeout acak — arsip/company-scope/dashboard/import-attachments — lulus saat diulang) · QA lokal Playwright **12/12**, 0 error JS/5xx (`docs/qa/runs/2026-10-20-laporan-batch2-lokal.md`).
+- **Masalah / catatan:** konstanta `TENURE_BUCKETS`/`AGE_BUCKETS` sudah ada di `dashboard.ts` (rentang sama) → dipakai ulang, bukan dibuat baru. Tabel rincian 7 kolom terpotong di panel 7/12 → grafik 4/12 + tabel 8/12; KPI Aset 6 → 5 kartu. Data lokal tidak punya mutasi 2026 (keadaan kosong teruji, angka diuji di integration).
+- **Berikutnya:** commit ke `HRIS/Oatse/Linux-Windows` (izin), rilis staging + QA staging; Fase 5 Time Management.
+
 ### 2026-10-19 — Perbaikan: setuju pengajuan Keluarga tidak lagi menghapus kolom lain (Oatse)
 - **Dikerjakan:** `onboarding-wizard.repository.ts` `replaceFamily` (dipakai pengajuan FAMILY & wizard onboarding): anggota dengan hubungan + nama sama diperbarui (kolom Import/HR seperti pendidikan, pekerjaan, almarhum tetap), yang hilang dihapus, yang baru dibuat.
 - **Keputusan:** –

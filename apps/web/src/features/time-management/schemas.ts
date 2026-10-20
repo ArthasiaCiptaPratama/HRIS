@@ -59,6 +59,8 @@ export const punchSchema = z.object({
   altitudeM: z.number().nullable().optional(),
   distanceM: z.number().nullable(),
   insideGeofence: z.boolean(),
+  /** Lokasi tercatat (GPS: site acuan/terdekat; manual: dipilih HR). Opsional: API lama tidak mengirim. */
+  location: z.object({ id: z.string(), name: z.string() }).nullable().optional(),
   labels: z.array(z.string()),
   reason: z.string().nullable(),
   selfieUrl: z.string().nullable(),
@@ -106,7 +108,8 @@ export const todaySchema = z.object({
   locationSource: z.enum(ATTENDANCE_LOCATION_SOURCES).optional(),
   openDay: daySchema.nullable(),
   recent: z.array(daySchema),
-  next: z.enum(["IN", "OUT"]),
+  // DONE = hari ini sudah Clock In (absen masuk hanya sekali per hari).
+  next: z.enum(["IN", "OUT", "DONE"]),
 });
 export type Today = z.infer<typeof todaySchema>;
 

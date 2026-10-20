@@ -4,7 +4,7 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import * as service from "./report.service.ts";
 
-// ARS-D16/D17 (Arsip gelombang 3, Laporan batch 1): 4 laporan + ekspor Excel. Query divalidasi skema
+// ARS-D16/D17 (batch 1, 4 laporan) + ARS-D21 (batch 2, 6 laporan) + ekspor Excel. Query divalidasi skema
 // @hris/shared di service; respons ditulis longgar di OpenAPI (bentuk lengkap: report.service.ts).
 
 export interface ReportRouteDeps {
@@ -23,6 +23,7 @@ const filterQuery = z.object({
   workLocationId: z.uuid().optional(),
 });
 const yearQuery = filterQuery.extend({ year: z.coerce.number().int().min(2000).max(2100) });
+const monthQuery = yearQuery.extend({ month: z.coerce.number().int().min(1).max(12) });
 const loose = (name: string) => z.record(z.string(), z.unknown()).openapi(name);
 const fileSchema = z
   .object({ fileName: z.string(), rows: z.number(), contentBase64: z.string() })
@@ -62,6 +63,43 @@ const REPORTS = [
     query: yearQuery,
     run: service.warningLettersReport,
     summary: "SP aktif, tren terbit per bulan",
+  },
+  // Batch 2 (ARS-D21)
+  {
+    kind: "tenure",
+    query: monthQuery,
+    run: service.tenureReport,
+    summary: "Masa kerja + jubilee bulan terpilih",
+  },
+  {
+    kind: "demographics",
+    query: filterQuery,
+    run: service.demographicsReport,
+    summary: "Demografi agregat (usia, gender, pendidikan, kota asal)",
+  },
+  {
+    kind: "movements",
+    query: yearQuery,
+    run: service.movementsReport,
+    summary: "Mutasi & promosi (tahun)",
+  },
+  {
+    kind: "birthdays",
+    query: monthQuery,
+    run: service.birthdaysReport,
+    summary: "Ulang tahun bulan terpilih (tanggal-bulan saja)",
+  },
+  {
+    kind: "assets",
+    query: filterQuery,
+    run: service.assetsReport,
+    summary: "Aset per status/kategori/lokasi + belum kembali dari karyawan keluar",
+  },
+  {
+    kind: "data-changes",
+    query: yearQuery,
+    run: service.dataChangesReport,
+    summary: "Pengajuan perubahan data & waktu proses (tahun)",
   },
 ] as const;
 

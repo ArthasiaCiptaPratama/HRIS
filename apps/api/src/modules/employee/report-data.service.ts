@@ -1,4 +1,15 @@
-import type { CoreCompletenessItem, DocumentRequirement, ExitReason } from "@hris/shared";
+import {
+  type AgeBucket,
+  ageBucket,
+  type CoreCompletenessItem,
+  type DataChangeSection,
+  type DataChangeStatus,
+  type DocumentRequirement,
+  EDUCATION_LEVELS,
+  type EducationLevel,
+  type ExitReason,
+  type Gender,
+} from "@hris/shared";
 import * as repository from "./report-data.repository.ts";
 
 // ARS-D16/D17 (Laporan batch 1): data mentah untuk modul `report` — tanpa cek akses (pemanggil wajib
@@ -96,4 +107,119 @@ export interface RequiredDocumentType {
 export async function listRequiredDocumentTypes(): Promise<RequiredDocumentType[]> {
   const rows = await repository.findRequiredDocumentTypes();
   return rows.map((r) => ({ ...r, requiredScope: r.requiredScope as DocumentRequirement }));
+}
+
+// --- Batch 2 (ARS-D21) ---
+
+/**
+ * Demografi per karyawan: tanggal lahir tidak keluar dari modul ini (hanya kelompok usia). Kota asal
+ * dikembalikan apa adanya (dirapikan) untuk dihitung — pemanggil tidak boleh menampilkannya per orang.
+ */
+export interface ReportDemographicFacts {
+  employeeId: string;
+  gender: Gender | null;
+  ageBucket: AgeBucket | null;
+  /** Jenjang tertinggi; `OTHER` hanya bila tidak ada jenjang lain. */
+  education: EducationLevel | null;
+  originCity: string | null;
+}
+
+/** "JAKARTA", "jakarta", "Jakarta" → satu kelompok "Jakarta". */
+const titleCase = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/(^|[\s/(-])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase());
+
+const EDUCATION_RANK = EDUCATION_LEVELS.filter((l) => l !== "OTHER");
+
+export async function listDemographicFacts(
+  employeeIds: string[],
+  today: string,
+): Promise<ReportDemographicFacts[]> {
+  if (employeeIds.length === 0) return [];
+  const rows = await repository.findDemographicFacts(employeeIds);
+  return rows.map((r) => {
+    const levels = r.educations.map((e) => e.level).filter((l): l is EducationLevel => l !== null);
+    const ranked = levels
+      .filter((l) => l !== "OTHER")
+      .sort((a, b) => EDUCATION_RANK.indexOf(b) - EDUCATION_RANK.indexOf(a));
+    const birth = r.personal?.birthDate;
+    const city = r.personal?.originCity?.trim().replace(/\s+/g, " ");
+    return {
+      employeeId: r.id,
+      gender: r.gender as Gender | null,
+      ageBucket: birth ? ageBucket(toIso(birth), today) : null,
+      education: ranked[0] ?? (levels.length > 0 ? "OTHER" : null),
+      originCity: city ? titleCase(city) : null,
+    };
+  });
+}
+
+/** Ulang tahun pada bulan `month`: hanya bulan-tanggal (`MM-DD`), tanpa tahun lahir (ARS-D21). */
+export async function listBirthdaysInMonth(
+  employeeIds: string[],
+  month: number,
+): Promise<{ employeeId: string; monthDay: string }[]> {
+  if (employeeIds.length === 0) return [];
+  const prefix = String(month).padStart(2, "0");
+  const rows = await repository.findBirthDates(employeeIds);
+  return rows
+    .map((r) => ({ employeeId: r.employeeId, monthDay: toIso(r.birthDate as Date).slice(5) }))
+    .filter((r) => r.monthDay.startsWith(prefix));
+}
+
+export interface ReportMovement {
+  id: string;
+  employeeId: string;
+  changeType: "POSITION_CHANGED" | "COMPANY_CHANGED";
+  effectiveDate: string;
+  fromPositionId: string | null;
+  toPositionId: string | null;
+  fromCompanyId: string | null;
+  toCompanyId: string | null;
+}
+
+export async function listMovements(
+  employeeIds: string[],
+  from: string,
+  to: string,
+): Promise<ReportMovement[]> {
+  if (employeeIds.length === 0) return [];
+  const rows = await repository.findMovementHistories(
+    employeeIds,
+    new Date(`${from}T00:00:00.000Z`),
+    new Date(`${to}T00:00:00.000Z`),
+  );
+  return rows.map((r) => ({
+    ...r,
+    changeType: r.changeType as ReportMovement["changeType"],
+    effectiveDate: toIso(r.effectiveDate),
+  }));
+}
+
+export interface ReportDataChange {
+  id: string;
+  employeeId: string;
+  section: DataChangeSection;
+  status: DataChangeStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export async function listDataChangeFacts(
+  employeeIds: string[],
+  since: string,
+): Promise<ReportDataChange[]> {
+  if (employeeIds.length === 0) return [];
+  const rows = await repository.findDataChangeFacts(
+    employeeIds,
+    new Date(`${since}T00:00:00.000Z`),
+  );
+  return rows.map((r) => ({
+    ...r,
+    section: r.section as DataChangeSection,
+    status: r.status as DataChangeStatus,
+    createdAt: r.createdAt.toISOString(),
+    reviewedAt: r.reviewedAt ? r.reviewedAt.toISOString() : null,
+  }));
 }

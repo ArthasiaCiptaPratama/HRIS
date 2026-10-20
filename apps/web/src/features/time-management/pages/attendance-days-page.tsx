@@ -8,9 +8,11 @@ import { createColumnHelper } from "@tanstack/react-table";
 import {
   Check,
   ClipboardCheck,
+  Clock,
   ExternalLink,
   Eye,
   ImageOff,
+  MapPin,
   PenLine,
   SearchX,
   X,
@@ -39,7 +41,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
-import { useCompanyScope, useEmployees } from "@/features/employee/api";
+import { useCompanyScope, useEmployees, useMasterData } from "@/features/employee/api";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
@@ -54,10 +56,8 @@ import {
 import {
   ApprovalSteps,
   addDays,
-  CoordLink,
   DayStatusBadge,
   LabelChips,
-  StepBadge,
   timeIn,
   todayIn,
   workDateLabel,
@@ -184,105 +184,44 @@ export function AttendanceDaysPage() {
           <div className="text-sm whitespace-nowrap">
             <p className="font-medium">{workDateLabel(row.original.workDate)}</p>
             <p className="text-muted-foreground text-xs">
-              {row.original.shiftCode ?? "Tanpa jadwal"}
+              {row.original.shiftCode ? (
+                <>
+                  <span className="text-foreground font-medium">{row.original.shiftCode}</span>
+                  {row.original.scheduledStart && row.original.scheduledEnd
+                    ? ` · ${timeIn(row.original.scheduledStart, tz)}–${timeIn(row.original.scheduledEnd, tz)}`
+                    : ""}
+                </>
+              ) : (
+                "Tanpa jadwal"
+              )}
             </p>
           </div>
         ),
       }),
-      col({
-        id: "sched-in",
-        header: "Jadwal Masuk",
-        cell: ({ row }) => <TimeText iso={row.original.scheduledStart} tz={tz} muted />,
-      }),
-      col({
-        id: "sched-out",
-        header: "Jadwal Pulang",
-        cell: ({ row }) => <TimeText iso={row.original.scheduledEnd} tz={tz} muted />,
-      }),
+      // Satu sel per absen: foto, jam, lokasi, persetujuan Atasan & HR (rapi, tanpa 12 kolom terpisah).
       ...KINDS.map((kind) =>
         col({
-          id: `time-${kind}`,
+          id: `punch-${kind}`,
           header: KIND_TEXT[kind],
-          cell: ({ row }) => {
-            const punch = punchOf(row.original, kind);
-            return (
-              <div className="space-y-0.5">
-                <TimeText iso={punch?.at ?? null} tz={tz} />
-                {punch?.source === "MANUAL" ? (
-                  <Badge variant="muted" className="text-[10px]">
-                    Manual
-                  </Badge>
-                ) : null}
-              </div>
-            );
-          },
-        }),
-      ),
-      ...KINDS.map((kind) =>
-        col({
-          id: `photo-${kind}`,
-          header: `Foto ${KIND_TEXT[kind]}`,
-          cell: ({ row }) => {
-            const punch = punchOf(row.original, kind);
-            return punch ? <SelfieThumb punch={punch} /> : <Dash />;
-          },
-        }),
-      ),
-      ...KINDS.map((kind) =>
-        col({
-          id: `coord-${kind}`,
-          header: `Lokasi ${KIND_TEXT[kind]}`,
-          cell: ({ row }) => {
-            const punch = punchOf(row.original, kind);
-            if (!punch || punch.latitude === null || punch.longitude === null) return <Dash />;
-            return (
-              <div className="space-y-0.5">
-                <CoordLink
-                  latitude={punch.latitude}
-                  longitude={punch.longitude}
-                  altitudeM={punch.altitudeM}
-                />
-                <p
-                  className={cn(
-                    "text-[10px]",
-                    punch.insideGeofence ? "text-success" : "text-destructive",
-                  )}
-                >
-                  {punch.insideGeofence ? "dalam" : "luar"} radius
-                  {punch.distanceM !== null ? ` · ${punch.distanceM} m` : ""}
-                </p>
-              </div>
-            );
-          },
-        }),
-      ),
-      ...KINDS.map((kind) =>
-        col({
-          id: `approval-${kind}`,
-          header: `Persetujuan ${kind === "IN" ? "In" : "Out"}`,
           cell: ({ row }) => (
-            <PunchDecision
+            <PunchCell
               day={row.original}
               kind={kind}
+              tz={tz}
               onOpen={() => setParam("id", row.original.id)}
             />
           ),
         }),
       ),
       col({
-        id: "labels",
-        header: "Label",
-        cell: ({ row }) =>
-          row.original.labels.length ? (
-            <LabelChips labels={row.original.labels} />
-          ) : (
-            <span className="text-muted-foreground text-xs">—</span>
-          ),
-      }),
-      col({
         id: "status",
-        header: "Status hari",
-        cell: ({ row }) => <DayStatusBadge status={row.original.status} />,
+        header: "Status",
+        cell: ({ row }) => (
+          <div className="min-w-36 space-y-1.5">
+            <DayStatusBadge status={row.original.status} />
+            <LabelChips labels={row.original.labels} />
+          </div>
+        ),
       }),
       col({
         id: "action",
@@ -444,65 +383,173 @@ function TimeText({ iso, tz, muted }: { iso: string | null; tz: string; muted?: 
   );
 }
 
-/** Badge Atasan/HR satu absen + setujui/tolak cepat. */
-function PunchDecision({
+const STEP_LOOK = {
+  PENDING: {
+    icon: Clock,
+    className: "bg-warning-soft text-warning-soft-foreground",
+    text: "menunggu",
+  },
+  APPROVED: {
+    icon: Check,
+    className: "bg-success-soft text-success-soft-foreground",
+    text: "disetujui",
+  },
+  REJECTED: { icon: X, className: "bg-destructive/10 text-destructive", text: "ditolak" },
+} as const;
+
+/** Langkah Atasan/HR dalam satu pil kecil (ikon = keputusan). */
+function StepPill({
+  approval,
+  kind,
+}: {
+  approval: AttendanceDay["punches"][number]["approval"];
+  kind: "MANAGER" | "HR";
+}) {
+  const step = approval?.steps.find((s) => s.kind === kind);
+  const label = kind === "MANAGER" ? "Atasan" : "HR";
+  if (!step) return null;
+  const look = STEP_LOOK[step.decision];
+  const Icon = look.icon;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap",
+        look.className,
+      )}
+      title={[`${label} ${look.text}`, step.note, step.isOverride ? "Diambil alih" : null]
+        .filter(Boolean)
+        .join(" · ")}
+    >
+      <Icon className="size-3" aria-hidden />
+      {label}
+      <span className="sr-only"> {look.text}</span>
+    </span>
+  );
+}
+
+/** Satu absen dalam satu sel: foto, jam, lokasi (tautan peta), persetujuan + setujui/tolak cepat. */
+function PunchCell({
   day,
   kind,
+  tz,
   onOpen,
 }: {
   day: AttendanceDay;
   kind: "IN" | "OUT";
+  tz: string;
   onOpen: () => void;
 }) {
   const punch = punchOf(day, kind);
   const decide = useDecideApproval();
-  if (!punch) return <Dash />;
+  if (!punch) {
+    return <span className="text-muted-foreground text-xs">Belum {KIND_TEXT[kind]}</span>;
+  }
   const approval = punch.approval;
   const quick = approval?.status === "PENDING" && approval.canDecide;
+  const hasCoord = punch.latitude !== null && punch.longitude !== null;
+  // Sebut lokasinya: "Dalam radius X" (lokasi seharusnya), "Di lokasi lain: Y" (dalam radius site lain),
+  // atau "Luar radius X" — supaya label OTHER_LOCATION & "dalam radius" tidak tampak bertentangan.
+  const distance = punch.distanceM !== null ? ` · ${punch.distanceM} m` : "";
+  const siteName = punch.location?.name ?? "";
+  const place = punch.labels.includes("OTHER_LOCATION")
+    ? {
+        text: `Di lokasi lain: ${siteName || "site lain"}${distance}`,
+        tone: "text-amber-700 dark:text-amber-300",
+      }
+    : punch.insideGeofence
+      ? { text: `Dalam radius${siteName ? ` ${siteName}` : ""}${distance}`, tone: "text-success" }
+      : {
+          text: `Luar radius${siteName ? ` ${siteName}` : ""}${distance}`,
+          tone: "text-destructive",
+        };
   return (
-    <div className="min-w-32 space-y-1">
-      <div className="grid grid-cols-[auto_auto] items-center gap-x-1.5 gap-y-1 text-[10px]">
-        <span className="text-muted-foreground">Atasan</span>
-        <StepBadge approval={approval} kind="MANAGER" />
-        <span className="text-muted-foreground">HR</span>
-        <StepBadge approval={approval} kind="HR" />
-      </div>
-      {quick ? (
-        <div className="flex gap-1">
-          <Button
-            size="icon-xs"
-            variant="outline"
-            className="text-success"
-            aria-label={`Setujui ${KIND_TEXT[kind]}`}
-            disabled={decide.isPending}
-            onClick={(e) => {
-              e.stopPropagation();
-              decide.mutate(
-                { requestId: approval.id, decision: "APPROVED" },
-                {
-                  onSuccess: () =>
-                    toast.success(`${KIND_TEXT[kind]} ${day.employee.fullName} disetujui.`),
-                  onError: (err) => toast.error(errorMessage(err)),
-                },
-              );
-            }}
-          >
-            <Check />
-          </Button>
-          <Button
-            size="icon-xs"
-            variant="outline"
-            className="text-destructive"
-            aria-label={`Tolak ${KIND_TEXT[kind]}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen();
-            }}
-          >
-            <X />
-          </Button>
+    <div className="flex min-w-56 items-start gap-2.5">
+      <SelfieThumb punch={punch} />
+      <div className="min-w-0 space-y-1">
+        <div className="flex items-center gap-1.5">
+          <TimeText iso={punch.at} tz={tz} />
+          {punch.source === "MANUAL" ? (
+            <Badge variant="muted" className="text-[10px]">
+              Manual
+            </Badge>
+          ) : null}
         </div>
-      ) : null}
+        {punch.source === "MANUAL" && punch.location ? (
+          <p
+            className="text-brand flex items-center gap-1 text-[11px] whitespace-nowrap"
+            title="Lokasi dipilih HR saat input manual (bukan GPS HP)"
+          >
+            <MapPin className="size-3" aria-hidden />
+            {punch.location.name} · dipilih HR
+          </p>
+        ) : hasCoord ? (
+          <a
+            href={`https://www.openstreetmap.org/?mlat=${punch.latitude}&mlon=${punch.longitude}#map=18/${punch.latitude}/${punch.longitude}`}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            title={[
+              place.text,
+              day.workLocation ? `Lokasi absen seharusnya: ${day.workLocation.name}` : null,
+              `Lat ${punch.latitude?.toFixed(6)} · Long ${punch.longitude?.toFixed(6)} · Alt ${
+                punch.altitudeM === null ? "—" : `${punch.altitudeM} m`
+              }`,
+              "Klik untuk buka peta",
+            ]
+              .filter(Boolean)
+              .join("\n")}
+            className={cn(
+              "flex max-w-60 items-center gap-1 text-[11px] hover:underline",
+              place.tone,
+            )}
+          >
+            <MapPin className="size-3 shrink-0" aria-hidden />
+            <span className="truncate">{place.text}</span>
+          </a>
+        ) : (
+          <p className="text-muted-foreground text-[11px]">Tanpa lokasi</p>
+        )}
+        <div className="flex flex-wrap items-center gap-1">
+          <StepPill approval={approval} kind="MANAGER" />
+          <StepPill approval={approval} kind="HR" />
+          {quick ? (
+            <>
+              <Button
+                size="icon-xs"
+                variant="outline"
+                className="text-success ml-0.5"
+                aria-label={`Setujui ${KIND_TEXT[kind]}`}
+                disabled={decide.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  decide.mutate(
+                    { requestId: approval.id, decision: "APPROVED" },
+                    {
+                      onSuccess: () =>
+                        toast.success(`${KIND_TEXT[kind]} ${day.employee.fullName} disetujui.`),
+                      onError: (err) => toast.error(errorMessage(err)),
+                    },
+                  );
+                }}
+              >
+                <Check />
+              </Button>
+              <Button
+                size="icon-xs"
+                variant="outline"
+                className="text-destructive"
+                aria-label={`Tolak ${KIND_TEXT[kind]}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen();
+                }}
+              >
+                <X />
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -812,6 +859,9 @@ function DayDialog({
               workDate: d.workDate,
               kind: manualKind,
               time: punchOf(d, manualKind) ? timeIn(punchOf(d, manualKind)?.at, tz) : "",
+              // Bawaan: lokasi absen yang sudah tercatat, lalu lokasi hari kerja.
+              workLocationId:
+                punchOf(d, manualKind)?.location?.id ?? d.workLocation?.id ?? undefined,
             }}
             onClose={() => setManualKind(null)}
           />
@@ -833,10 +883,13 @@ function ManualDialog({
     workDate: string;
     kind: "IN" | "OUT";
     time: string;
+    workLocationId?: string | undefined;
   };
   onClose: () => void;
 }) {
   const manual = useManualPunch();
+  const master = useMasterData();
+  const [locationId, setLocationId] = useState(preset?.workLocationId ?? "");
   const [employee, setEmployee] = useState(preset?.employee ?? null);
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search.trim());
@@ -853,7 +906,7 @@ function ManualDialog({
   const submit = () => {
     if (!employee) return;
     manual.mutate(
-      { employeeId: employee.id, workDate, kind, time, reason },
+      { employeeId: employee.id, workDate, kind, time, reason, workLocationId: locationId },
       {
         onSuccess: () => {
           toast.success(
@@ -961,6 +1014,23 @@ function ManualDialog({
             </div>
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="mn-location">Lokasi absen</Label>
+            <FormSelect
+              id="mn-location"
+              value={locationId}
+              onChange={setLocationId}
+              placeholder="Pilih lokasi"
+              options={(master.data?.workLocations ?? []).map((l) => ({
+                value: l.id,
+                label: l.city ? `${l.name} · ${l.city}` : l.name,
+              }))}
+            />
+            <p className="text-muted-foreground text-xs">
+              Lokasi tempat karyawan bekerja pada jam ini — dicatat sebagai lokasi dipilih HR, bukan
+              GPS HP.
+            </p>
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="mn-reason">Alasan</Label>
             <Textarea
               id="mn-reason"
@@ -976,7 +1046,9 @@ function ManualDialog({
           </Button>
           <Button
             variant="brand"
-            disabled={!employee || !time || reason.trim().length < 5 || manual.isPending}
+            disabled={
+              !employee || !time || !locationId || reason.trim().length < 5 || manual.isPending
+            }
             onClick={submit}
           >
             Simpan

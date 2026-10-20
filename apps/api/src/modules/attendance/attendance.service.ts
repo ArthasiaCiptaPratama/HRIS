@@ -1,6 +1,8 @@
 import {
   type AttendanceLabel,
   type AttendanceLocationSource,
+  canStillCorrect,
+  correctionDeadline,
   type ManualPunchInput,
   PUNCH_CANCEL_WINDOW_MIN,
   type PunchInput,
@@ -27,6 +29,7 @@ import {
   listActionable,
   registerApprovalHandler,
 } from "../approval/index.ts";
+import { markNoAttendanceAlpha } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
 import * as repository from "./attendance.repository.ts";
 import {
@@ -46,6 +49,7 @@ import { closedMonths, correctionInstant, isDateClosed } from "./period.service.
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
+import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
 // Tahap C/D — absen PWA (D-067, D-070) & approval hari absen (D-068).
 
@@ -171,6 +175,8 @@ async function evaluate(
   now: Date,
 ): Promise<Evaluation> {
   const settings = await readTimeSettings();
+  // Hari menggantung lewat batas absen pulang ditutup dulu (sama dengan cron; tak bergantung jadwal cron).
+  await closeOverdueDays(now, [employee.id]);
   const [allSites] = await Promise.all([directory.geofencedLocations()]);
   const sites = allSites.map(toSite).filter((s): s is GeofenceSite => s !== null);
 
@@ -266,6 +272,8 @@ export interface PunchView {
   altitudeM: number | null;
   distanceM: number | null;
   insideGeofence: boolean;
+  /** Lokasi tercatat (GPS: site terdekat/diharapkan; manual: dipilih HR). */
+  location: { id: string; name: string } | null;
   labels: string[];
   reason: string | null;
   selfieUrl: string | null;
@@ -315,7 +323,9 @@ async function toDayViews(
 ): Promise<DayView[]> {
   const people = await directory.employeesByIds(rows.map((r) => r.employeeId));
   const locations = await directory.locationsByIds(
-    rows.map((r) => r.workLocationId).filter((id): id is string => id !== null),
+    rows
+      .flatMap((r) => [r.workLocationId, ...r.punches.map((p) => p.workLocationId)])
+      .filter((id): id is string => id !== null),
   );
   const approvals = await getApprovalViews(
     ctx.actor,
@@ -368,6 +378,10 @@ async function toDayViews(
         altitudeM: p.altitudeM,
         distanceM: p.distanceM,
         insideGeofence: p.insideGeofence,
+        location: (() => {
+          const loc = p.workLocationId ? locations.get(p.workLocationId) : undefined;
+          return loc ? { id: loc.id, name: loc.name } : null;
+        })(),
         labels: p.labels,
         reason: p.reason,
         selfieUrl: p.selfiePath ? (urls.get(p.selfiePath) ?? null) : null,
@@ -400,7 +414,8 @@ export interface TodayView {
   locationSource: AttendanceLocationSource;
   openDay: DayView | null;
   recent: DayView[];
-  next: "IN" | "OUT";
+  /** DONE = hari ini sudah Clock In (dan tidak ada yang terbuka): tidak boleh absen masuk lagi. */
+  next: "IN" | "OUT" | "DONE";
 }
 
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
@@ -409,6 +424,11 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
   if (!employee) throw new NotFoundError();
   const settings = await readTimeSettings();
   const dates = candidateDates(now, settings.timezone);
+  // Hari menggantung lewat batas absen pulang → NO_CHECKOUT (sama dengan cron), supaya tombol kembali
+  // ke Clock In dan hari lama tidak tampil sebagai absen yang sedang berjalan.
+  await closeOverdueDays(now, [employeeId]);
+  // TM-D3: hari kerja tanpa absen yang sudah lewat → Alpha (riwayat & HP langsung akurat tanpa cron).
+  await markNoAttendanceAlpha(now, [employeeId]);
   const [rosterDays, open, recentRows] = await Promise.all([
     rosterRepo.rosterDaysBetween(
       [employeeId],
@@ -456,7 +476,13 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
       ? (recent.find((d) => d.id === open.id) ?? (await toDayViews(ctx, [open], false))[0] ?? null)
       : null,
     recent,
-    next: open ? "OUT" : "IN",
+    next: open
+      ? "OUT"
+      : recentRows.some(
+            (d) => toIso(d.workDate) === dates[1] && d.punches.some((p) => p.kind === "IN"),
+          )
+        ? "DONE"
+        : "IN",
   };
 }
 
@@ -487,6 +513,19 @@ const openDayInfo = (open: repository.DayRow | null) =>
       }
     : null;
 
+/**
+ * Satu absen masuk per hari: sudah Clock In pada tanggal kerja yang direncanakan ATAU pada tanggal
+ * hari ini (zona waktu jam shift) → absen masuk baru ditolak (permintaan pemilik projek 2026-10-19).
+ */
+async function checkedInAlready(employeeId: string, workDate: string, now: Date) {
+  const today = localDate(now, (await readTimeSettings()).timezone);
+  for (const date of new Set([workDate, today])) {
+    const day = await repository.findDay(employeeId, toDate(date));
+    if (day?.punches.some((p) => p.kind === "IN")) return true;
+  }
+  return false;
+}
+
 export async function precheck(
   ctx: RequestContext,
   input: PunchPrecheckInput,
@@ -497,6 +536,7 @@ export async function precheck(
   const e = await evaluate(employee, input, now);
   const existing =
     e.kind === "IN" ? await repository.findDay(employee.id, toDate(e.workDate)) : null;
+  const done = e.kind === "IN" && (await checkedInAlready(employee.id, e.workDate, now));
   return {
     kind: e.kind,
     workDate: e.workDate,
@@ -506,7 +546,7 @@ export async function precheck(
     insideGeofence: e.geofence.inside,
     location: e.location ? { id: e.location.id, name: e.location.name } : null,
     reasonRequired: e.labels.length > 0,
-    alreadyCheckedIn: existing !== null,
+    alreadyCheckedIn: existing !== null || done,
     suspicion: e.suspicion,
     scheduledStart: e.window?.start.toISOString() ?? null,
     scheduledEnd: e.window?.end.toISOString() ?? null,
@@ -567,6 +607,9 @@ export async function punch(
   // Absen masuk ganda pada tanggal kerja yang sama → bentrok (bukan sekadar peringatan).
   if (e.kind === "IN" && (await repository.findDay(employeeId, toDate(e.workDate)))) {
     throw new ConflictError("Sudah absen masuk untuk tanggal kerja ini.");
+  }
+  if (e.kind === "IN" && (await checkedInAlready(employeeId, e.workDate, now))) {
+    throw new ConflictError("Anda sudah Clock In hari ini; absen berikutnya besok sesuai jadwal.");
   }
   if (e.suspicion && !input.confirmed) {
     throw new BusinessRuleError(SUSPICION_TEXT[e.suspicion], [{ suspicion: e.suspicion }]);
@@ -687,6 +730,8 @@ export interface DayListQuery {
 
 /** Data Absen Harian: inbox = menunggu keputusan aktor; all = semua hari dalam cakupan aktor. */
 export async function listDays(ctx: RequestContext, query: DayListQuery): Promise<DayView[]> {
+  // TM-D3: Data Absen Harian ikut menampilkan Alpha karena tidak absen tanpa menunggu cron.
+  await markNoAttendanceAlpha();
   const actor = ctx.actor;
   let rows: repository.DayRow[];
   if (query.scope === "inbox") {
@@ -807,6 +852,25 @@ export function registerAttendanceIntegrations() {
       data: { status: event.status, decidedAt: event.decidedAt },
     });
     await recomputeDay(tx, punch.dayId);
+    if (event.status === "REJECTED") {
+      const day = await tx.attendanceDay.findUnique({
+        where: { id: punch.dayId },
+        select: { employeeId: true, workDate: true },
+      });
+      if (day) {
+        const date = toIso(day.workDate);
+        await notifyEmployees([
+          {
+            employeeId: day.employeeId,
+            type: "attendance.punch_rejected",
+            title: `${punch.kind === "IN" ? "Clock In" : "Clock Out"} ${dateLabel(date)} ditolak`,
+            body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
+            link: "/time/pernyataan",
+            dedupeKey: `tm-punch-rejected:${punch.id}`,
+          },
+        ]);
+      }
+    }
   });
   registerApprovalHandler("ATTENDANCE_DAY", async (tx, event) => {
     if (event.status !== "APPROVED" && event.status !== "REJECTED") return;
@@ -903,9 +967,25 @@ export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) 
   if (await isDateClosed(employee.companyId, input.workDate)) {
     throw new BusinessRuleError("Periode tanggal ini sudah ditutup.");
   }
+  // TM-D3: input manual HR termasuk koreksi → hanya s.d. tanggal kerja + 3 hari.
+  if (!canStillCorrect(input.workDate, localDate(new Date(), settings.timezone))) {
+    throw new BusinessRuleError(
+      `Batas koreksi untuk tanggal ini sudah lewat (paling lambat ${correctionDeadline(input.workDate)}).`,
+    );
+  }
   const workDate = toDate(input.workDate);
+  // Lokasi dipilih HR: titik site disimpan sebagai lokasi absen (sumber MANUAL, bukan GPS perangkat).
+  const manualLocation = input.workLocationId
+    ? ((await directory.locationsByIds([input.workLocationId])).get(input.workLocationId) ?? null)
+    : null;
+  if (input.workLocationId && !manualLocation) throw new NotFoundError("Lokasi tidak ditemukan.");
   const result = await repository.withTransactionDay(async (tx) => {
     let day = await repository.findDay(employee.id, workDate, tx);
+    // TM-D3: Alpha karena tidak absen boleh diisi manual (dalam batas waktu); penanda NO_ATTENDANCE tetap.
+    if (day?.status === "ALPHA" && day.labels.includes("NO_ATTENDANCE")) {
+      await repository.updateDay(tx, day.id, { status: "OPEN" });
+      day = (await repository.findDay(employee.id, workDate, tx)) as repository.DayRow;
+    }
     if (day && (day.status === "ALPHA" || day.status === "LEAVE")) {
       throw new BusinessRuleError("Hari ini berstatus Alpha atau cuti; tidak bisa diisi manual.");
     }
@@ -956,7 +1036,15 @@ export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) 
         dayId: day.id,
         kind: input.kind,
         at,
-        insideGeofence: false,
+        ...(manualLocation
+          ? {
+              workLocationId: manualLocation.id,
+              latitude: manualLocation.latitude,
+              longitude: manualLocation.longitude,
+              distanceM: manualLocation.latitude === null ? null : 0,
+              insideGeofence: manualLocation.latitude !== null,
+            }
+          : { insideGeofence: false }),
         labels: ["MANUAL"],
         reason: input.reason,
         source: "MANUAL",

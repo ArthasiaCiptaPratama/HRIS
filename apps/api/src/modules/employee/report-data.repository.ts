@@ -92,3 +92,59 @@ export const findRequiredDocumentTypes = () =>
     },
     orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
   });
+
+// --- Batch 2 (ARS-D21) ---
+
+/** Demografi: dibaca di modul ini saja; service mengubah tanggal lahir menjadi kelompok usia. */
+export const findDemographicFacts = (employeeIds: string[]) =>
+  getPrisma().employee.findMany({
+    where: { id: { in: employeeIds } },
+    select: {
+      id: true,
+      gender: true,
+      personal: { select: { birthDate: true, originCity: true } },
+      educations: { select: { level: true } },
+    },
+  });
+
+/** Tanggal lahir untuk ulang tahun — service hanya mengembalikan bulan-tanggal. */
+export const findBirthDates = (employeeIds: string[]) =>
+  getPrisma().employeePersonal.findMany({
+    where: { employeeId: { in: employeeIds }, birthDate: { not: null } },
+    select: { employeeId: true, birthDate: true },
+  });
+
+export const findMovementHistories = (employeeIds: string[], from: Date, to: Date) =>
+  getPrisma().employmentHistory.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      changeType: { in: ["POSITION_CHANGED", "COMPANY_CHANGED"] },
+      effectiveDate: { gte: from, lte: to },
+    },
+    select: {
+      id: true,
+      employeeId: true,
+      changeType: true,
+      effectiveDate: true,
+      fromPositionId: true,
+      toPositionId: true,
+      fromCompanyId: true,
+      toCompanyId: true,
+    },
+    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
+  });
+
+/** Pengajuan perubahan data (tanpa nilai usulan/lama). */
+export const findDataChangeFacts = (employeeIds: string[], since: Date) =>
+  getPrisma().dataChangeRequest.findMany({
+    where: { employeeId: { in: employeeIds }, createdAt: { gte: since } },
+    select: {
+      id: true,
+      employeeId: true,
+      section: true,
+      status: true,
+      createdAt: true,
+      reviewedAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });

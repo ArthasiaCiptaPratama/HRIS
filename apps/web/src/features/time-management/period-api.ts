@@ -43,6 +43,9 @@ export const recapRowSchema = z.object({
   earlyLeave: z.number(),
   outsideRoster: z.number(),
   statements: z.number(),
+  // TM-D3 (API lama tidak mengirim → 0).
+  corrected: z.number().default(0),
+  expired: z.number().default(0),
 });
 export type RecapRow = z.infer<typeof recapRowSchema>;
 

@@ -1,4 +1,8 @@
-import { CORRECTION_STATUS_LABELS, STATEMENT_ATTACHMENT_TYPES } from "@hris/shared";
+import {
+  CORRECTION_STATUS_LABELS,
+  CORRECTION_WINDOW_DAYS,
+  STATEMENT_ATTACHMENT_TYPES,
+} from "@hris/shared";
 import {
   Check,
   Download,
@@ -37,6 +41,7 @@ import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useAttendanceDays, useDecideApproval, useEmployeeRoster, useTimezone } from "../api";
+import { MyAttendanceRecord } from "../components/attendance-record";
 import {
   ApprovalSteps,
   addDays,
@@ -79,7 +84,7 @@ export function CorrectionsStatementsPage() {
     <div>
       <PageHeader
         title="Koreksi & Surat Pernyataan"
-        description="Ajukan koreksi bila lupa absen atau absen ditolak, selama periode belum ditutup. Hari yang sudah menjadi Alpha wajib dibuatkan surat pernyataan."
+        description="Hari kerja tanpa absen langsung menjadi Alpha. Koreksi (lupa absen / absen ditolak) hanya bisa diajukan paling lambat 3 hari setelah tanggal kerja — setelah itu tetap Alpha dan wajib dibuatkan surat pernyataan."
       />
       <Tabs defaultValue={self ? "corrections" : "inbox"}>
         <TabsList>
@@ -135,11 +140,17 @@ function CorrectionCard({ row, children }: { row: Correction; children?: React.R
 function MyCorrections() {
   const list = useCorrections("mine");
   const { cancel } = useCorrectionActions();
-  const [open, setOpen] = useState(false);
+  // TM-D3: tanggal terisi otomatis saat koreksi dibuka dari daftar hari Alpha.
+  const [open, setOpen] = useState<{ workDate?: string } | null>(null);
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button variant="brand" onClick={() => setOpen(true)}>
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Hari Alpha & rekam jejak</h2>
+        <MyAttendanceRecord onCorrect={(workDate) => setOpen({ workDate })} />
+      </section>
+      <div className="flex items-center justify-between gap-2 pt-2">
+        <h2 className="text-sm font-semibold">Pengajuan koreksi</h2>
+        <Button variant="brand" onClick={() => setOpen({})}>
           <Plus /> Ajukan koreksi
         </Button>
       </div>
@@ -169,14 +180,20 @@ function MyCorrections() {
           ))}
         </ul>
       )}
-      {open ? <CorrectionDialog onClose={() => setOpen(false)} /> : null}
+      {open ? <CorrectionDialog workDate={open.workDate} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }
 
-function CorrectionDialog({ onClose }: { onClose: () => void }) {
+function CorrectionDialog({
+  workDate: preset,
+  onClose,
+}: {
+  workDate?: string | undefined;
+  onClose: () => void;
+}) {
   const { create } = useCorrectionActions();
-  const [workDate, setWorkDate] = useState(addDays(todayIn(), -1));
+  const [workDate, setWorkDate] = useState(preset ?? addDays(todayIn(), -1));
   const [checkIn, setCheckIn] = useState("07:00");
   const [checkOut, setCheckOut] = useState("19:00");
   const [reason, setReason] = useState("");
@@ -211,10 +228,14 @@ function CorrectionDialog({ onClose }: { onClose: () => void }) {
             <Input
               id="cr-date"
               type="date"
+              min={addDays(todayIn(), -CORRECTION_WINDOW_DAYS)}
               max={addDays(todayIn(), -1)}
               value={workDate}
               onChange={(e) => setWorkDate(e.target.value)}
             />
+            <p className="text-muted-foreground text-xs">
+              Paling lambat {CORRECTION_WINDOW_DAYS} hari setelah tanggal kerja.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
@@ -434,6 +455,8 @@ const RECAP_COLUMNS: { key: keyof Omit<RecapRow, "employee">; label: string }[] 
   { key: "rejected", label: "Ditolak" },
   { key: "noRecord", label: "Tanpa absen" },
   { key: "alpha", label: "Alpha" },
+  { key: "expired", label: "Alpha permanen" },
+  { key: "corrected", label: "Alpha dikoreksi" },
   { key: "leave", label: "Cuti/izin/sakit" },
   { key: "late", label: "Telat" },
   { key: "earlyLeave", label: "Pulang cepat" },
@@ -571,7 +594,7 @@ export function RecapPage() {
                           className={cn(
                             "px-2 py-2 text-right tabular-nums",
                             row[c.key] === 0 && "text-muted-foreground",
-                            (c.key === "alpha" || c.key === "noRecord") &&
+                            (c.key === "alpha" || c.key === "noRecord" || c.key === "expired") &&
                               row[c.key] > 0 &&
                               "text-destructive font-medium",
                           )}

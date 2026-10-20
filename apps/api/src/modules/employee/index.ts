@@ -21,13 +21,20 @@ export {
   remindStaleInvitations,
 } from "./onboarding-maintenance.service.ts";
 export {
+  listBirthdaysInMonth,
   listCompletenessFacts,
+  listDataChangeFacts,
+  listDemographicFacts,
   listExpiringDocuments,
+  listMovements,
   listReportEmployees,
   listRequiredDocumentTypes,
   type ReportCompletenessFacts,
+  type ReportDataChange,
+  type ReportDemographicFacts,
   type ReportEmployee,
   type ReportEmployeeFilter,
   type ReportExpiringDocument,
+  type ReportMovement,
   type RequiredDocumentType,
 } from "./report-data.service.ts";

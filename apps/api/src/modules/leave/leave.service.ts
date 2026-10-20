@@ -27,11 +27,13 @@ import {
   registerApprovalHandler,
 } from "../approval/index.ts";
 import {
+  dateLabel,
   datesWithPunches,
   employeeDirectory,
   holidaysBetween,
   isDateClosed,
   markLeaveDays,
+  notifyEmployees,
   type RequestContext,
   rosteredWithoutAttendance,
   rosterMarks,
@@ -109,15 +111,34 @@ async function audit(
 // ── Jenis & Master Cuti ────────────────────────────────────────────────────────
 
 /** Jenis bawaan dibuat sekali bila tabel masih kosong (SA bisa mengubah/menonaktifkan). */
+// Keterangan & berkas bawaan sama dengan migrasi `leave_type_description` (SA bisa mengubahnya).
 const DEFAULT_TYPES = [
-  { code: "CUTI_TAHUNAN", name: "Cuti tahunan", category: "ANNUAL", sortOrder: 0 },
-  { code: "SAKIT", name: "Sakit", category: "SICK", documentRequiredAfterDays: 1, sortOrder: 10 },
+  {
+    code: "CUTI_TAHUNAN",
+    name: "Cuti tahunan",
+    category: "ANNUAL",
+    description:
+      "Cuti tahunan dari saldo cuti Anda. Hari OFF roster dan tanggal merah tidak dihitung.",
+    sortOrder: 0,
+  },
+  {
+    code: "SAKIT",
+    name: "Sakit",
+    category: "SICK",
+    documentRequiredAfterDays: 1,
+    description:
+      "Tidak masuk karena sakit. Lebih dari 1 hari wajib melampirkan surat keterangan dokter.",
+    documentLabel: "Surat keterangan dokter",
+    sortOrder: 10,
+  },
   {
     code: "IZIN_MENIKAH",
     name: "Izin menikah",
     category: "PERMIT",
     maxDaysPerRequest: 3,
     documentRequiredAfterDays: 0,
+    description: "Pernikahan karyawan sendiri.",
+    documentLabel: "Undangan pernikahan / buku nikah",
     sortOrder: 20,
   },
   {
@@ -125,6 +146,8 @@ const DEFAULT_TYPES = [
     name: "Izin menikahkan anak",
     category: "PERMIT",
     maxDaysPerRequest: 2,
+    description: "Menikahkan anak kandung.",
+    documentLabel: "Undangan pernikahan anak",
     sortOrder: 21,
   },
   {
@@ -132,6 +155,8 @@ const DEFAULT_TYPES = [
     name: "Izin khitanan/baptis anak",
     category: "PERMIT",
     maxDaysPerRequest: 2,
+    description: "Khitanan atau pembaptisan anak.",
+    documentLabel: "Undangan / surat keterangan acara",
     sortOrder: 22,
   },
   {
@@ -139,6 +164,8 @@ const DEFAULT_TYPES = [
     name: "Izin istri melahirkan/keguguran",
     category: "PERMIT",
     maxDaysPerRequest: 2,
+    description: "Istri melahirkan atau keguguran kandungan.",
+    documentLabel: "Surat keterangan kelahiran / dokter / bidan",
     sortOrder: 23,
   },
   {
@@ -146,6 +173,8 @@ const DEFAULT_TYPES = [
     name: "Izin duka (keluarga inti)",
     category: "PERMIT",
     maxDaysPerRequest: 2,
+    description: "Suami/istri, orang tua/mertua, atau anak/menantu meninggal dunia.",
+    documentLabel: "Surat keterangan kematian",
     sortOrder: 24,
   },
   {
@@ -153,9 +182,18 @@ const DEFAULT_TYPES = [
     name: "Izin duka (anggota serumah)",
     category: "PERMIT",
     maxDaysPerRequest: 1,
+    description: "Anggota keluarga dalam satu rumah meninggal dunia.",
+    documentLabel: "Surat keterangan kematian",
     sortOrder: 25,
   },
-  { code: "IZIN_LAIN", name: "Izin lainnya", category: "PERMIT", sortOrder: 90 },
+  {
+    code: "IZIN_LAIN",
+    name: "Izin lainnya",
+    category: "PERMIT",
+    description: "Keperluan lain di luar jenis di atas — jelaskan di kolom alasan.",
+    documentLabel: "Dokumen pendukung (bila ada)",
+    sortOrder: 90,
+  },
 ] as const;
 
 let typesSeeded: Promise<unknown> | undefined;
@@ -174,6 +212,9 @@ export interface LeaveTypeDto {
   category: "ANNUAL" | "PERMIT" | "SICK";
   maxDaysPerRequest: number | null;
   documentRequiredAfterDays: number | null;
+  /** Keterangan untuk karyawan & berkas yang diperlukan (diatur SA). */
+  description: string | null;
+  documentLabel: string | null;
   isActive: boolean;
   sortOrder: number;
 }
@@ -184,6 +225,8 @@ const typeDto = (row: LeaveTypeDto): LeaveTypeDto => ({
   category: row.category,
   maxDaysPerRequest: row.maxDaysPerRequest,
   documentRequiredAfterDays: row.documentRequiredAfterDays,
+  description: row.description,
+  documentLabel: row.documentLabel,
   isActive: row.isActive,
   sortOrder: row.sortOrder,
 });
@@ -212,6 +255,8 @@ export async function saveType(
     category: input.category,
     maxDaysPerRequest: input.maxDaysPerRequest,
     documentRequiredAfterDays: input.documentRequiredAfterDays,
+    description: input.description?.trim() || null,
+    documentLabel: input.documentLabel?.trim() || null,
     isActive: input.isActive,
     ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
   };
@@ -251,7 +296,7 @@ const yearDto = (row: {
 });
 
 export async function listYears(ctx: RequestContext): Promise<LeaveYearDto[]> {
-  if (!policy.canViewLeaveMaster(ctx.actor)) throw new ForbiddenError();
+  if (!policy.canViewLeaveYears(ctx.actor)) throw new ForbiddenError();
   return (await repository.listYears()).map(yearDto);
 }
 
@@ -317,9 +362,28 @@ async function balanceMap(employeeId: string, years: number[], tx?: repository.L
   return new Map(years.map((year) => [year, sums.get(`${employeeId}|${year}`) ?? 0]));
 }
 
+/**
+ * Hari yang memotong saldo cuti tahunan: cuti tahunan = semua hari; izin = hari yang melebihi batas
+ * "maks. hari per pengajuan" jenisnya (hari-hari terakhir rentang; permintaan pemilik projek 2026-10-19 —
+ * izin boleh melebihi batas, kelebihannya memakai cuti tahunan, saldo boleh minus/hutang seperti D-072).
+ * Sakit tidak pernah memotong cuti tahunan.
+ */
+export function annualChargedDates(
+  type: { category: string; maxDaysPerRequest: number | null },
+  dates: string[],
+): string[] {
+  if (type.category === "ANNUAL") return dates;
+  if (type.category === "PERMIT" && type.maxDaysPerRequest !== null) {
+    return [...dates].sort().slice(type.maxDaysPerRequest);
+  }
+  return [];
+}
+
 export interface LeavePreview {
   dates: string[];
   days: number;
+  /** Hari yang memotong saldo cuti tahunan (izin: hanya kelebihan dari batas jenisnya). */
+  annualDays: number;
   charges: { year: number; days: number }[];
   balances: { year: number; balance: number }[];
   documentRequired: boolean;
@@ -336,11 +400,13 @@ export async function previewLeave(
   if (!type?.isActive) throw new BusinessRuleError("Jenis cuti/izin tidak tersedia.");
   const dates = await countedDates(employeeId, input.startDate, input.endDate);
   const years = yearsAround(dates);
-  const balances = type.category === "ANNUAL" ? await balanceMap(employeeId, years) : new Map();
-  const charges = type.category === "ANNUAL" ? allocateCharges(dates, balances).byYear : new Map();
+  const charged = annualChargedDates(type, dates);
+  const balances = charged.length > 0 ? await balanceMap(employeeId, years) : new Map();
+  const charges = charged.length > 0 ? allocateCharges(charged, balances).byYear : new Map();
   return {
     dates,
     days: dates.length,
+    annualDays: charged.length,
     charges: [...charges.entries()].map(([year, days]) => ({ year, days })),
     balances: [...balances.entries()]
       .map(([year, balance]) => ({ year, balance }))
@@ -384,6 +450,8 @@ export interface LeaveRequestDto {
   endDate: string;
   workDates: string[];
   days: number;
+  /** Bagian hari yang memotong saldo cuti tahunan (izin melebihi batas / cuti tahunan). */
+  annualDays: number;
   reason: string;
   attachmentUrl: string | null;
   status: string;
@@ -402,6 +470,7 @@ async function toDtos(
   withAttachment = false,
 ): Promise<LeaveRequestDto[]> {
   const people = await employeeDirectory.employeesByIds(rows.map((r) => r.employeeId));
+  const charged = await repository.chargedDaysByRequest(rows.map((r) => r.id));
   const approvals = new Map<string, ApprovalView>();
   for (const subject of ["LEAVE", "PERMIT"] as const) {
     const ids = rows.filter((r) => subjectOf(r.category) === subject).map((r) => r.id);
@@ -436,6 +505,7 @@ async function toDtos(
       endDate: toIso(row.endDate),
       workDates: row.workDates.map(toIso),
       days: row.days,
+      annualDays: charged.get(row.id) ?? 0,
       reason: row.reason,
       attachmentUrl: row.attachmentPath ? (urls.get(row.attachmentPath) ?? null) : null,
       status: row.status,
@@ -463,11 +533,17 @@ export async function createLeaveRequest(
   if (dates.length === 0) {
     throw new BusinessRuleError("Tidak ada hari kerja roster pada rentang ini (semua OFF/libur).");
   }
-  if (type.maxDaysPerRequest !== null && dates.length > type.maxDaysPerRequest) {
+  // Izin boleh melebihi batas (kelebihan memotong cuti tahunan); batas tetap berlaku untuk sakit.
+  if (
+    type.category === "SICK" &&
+    type.maxDaysPerRequest !== null &&
+    dates.length > type.maxDaysPerRequest
+  ) {
     throw new BusinessRuleError(
       `${type.name} maksimal ${type.maxDaysPerRequest} hari per pengajuan.`,
     );
   }
+  const charged = annualChargedDates(type, dates);
   const needsDocument =
     type.documentRequiredAfterDays !== null && dates.length > type.documentRequiredAfterDays;
   if (needsDocument && !input.attachmentPath) {
@@ -518,11 +594,11 @@ export async function createLeaveRequest(
       attachmentPath: input.attachmentPath ?? null,
       createdByEmployeeId: employeeId,
     });
-    if (type.category === "ANNUAL") {
+    if (charged.length > 0) {
       // Hutang diperbolehkan (D-072): tahanan tetap dicatat walau saldo menjadi minus.
       const { byYear } = allocateCharges(
-        dates,
-        await balanceMap(employeeId, yearsAround(dates), tx),
+        charged,
+        await balanceMap(employeeId, yearsAround(charged), tx),
       );
       await repository.addEntries(
         tx,
@@ -546,11 +622,28 @@ export async function createLeaveRequest(
     });
     return created;
   });
+  if (employee.managerId) {
+    await notifyEmployees([
+      {
+        employeeId: employee.managerId,
+        type: "leave.request_new",
+        title: `Pengajuan ${type.name} dari ${employee.fullName}`,
+        body: `${dateLabel(input.startDate)} – ${dateLabel(input.endDate)} (${dates.length} hari${
+          charged.length > 0 && type.category !== "ANNUAL"
+            ? `, ${charged.length} hari memotong cuti tahunan`
+            : ""
+        }).`,
+        link: "/time/persetujuan-cuti",
+        dedupeKey: `tm-leave-new:${row.id}`,
+      },
+    ]);
+  }
   await audit(ctx, "leave.request.create", row.id, null, {
     type: type.code,
     startDate: input.startDate,
     endDate: input.endDate,
     days: dates.length,
+    annualDays: charged.length,
   });
   return (await toDtos(ctx, [row]))[0] as LeaveRequestDto;
 }
@@ -618,6 +711,23 @@ export function registerLeaveIntegrations() {
       status: event.status,
       decidedAt: event.decidedAt,
     });
+    if (event.status === "APPROVED" || event.status === "REJECTED") {
+      await notifyEmployees([
+        {
+          employeeId: row.employeeId,
+          type: "leave.request_decided",
+          title: `${row.type.name} ${dateLabel(toIso(row.startDate))} ${
+            event.status === "APPROVED" ? "disetujui" : "ditolak"
+          }`,
+          body:
+            event.status === "APPROVED"
+              ? `${row.days} hari tercatat sebagai cuti/izin.`
+              : "Tahanan saldo dikembalikan. Lihat catatan penolakan di halaman Cuti.",
+          link: "/absen/cuti",
+          dedupeKey: `tm-leave-decided:${row.id}`,
+        },
+      ]);
+    }
   };
   registerApprovalHandler("LEAVE", handler);
   registerApprovalHandler("PERMIT", handler);
