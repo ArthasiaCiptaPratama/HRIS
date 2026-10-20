@@ -71,6 +71,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-14-aset-lokal.md](runs/2026-10-14-aset-lokal.md) | Lokal: shared 215 · api 713 · web 262, Playwright 12/12 (nomor BAST unik diperbaiki saat uji) — LULUS lokal |
 | Hasil | [runs/2026-10-15-sp-lokal.md](runs/2026-10-15-sp-lokal.md) | Lokal: shared 227 · api 759 · web 270, Playwright 12/12 (+ audit: api 764 · web 271, ulang 12/12) — LULUS lokal |
 | Hasil | [runs/2026-10-16-laporan-lokal.md](runs/2026-10-16-laporan-lokal.md) | Lokal: shared 243 · api 792 · web 289, Playwright 11/11 — LULUS lokal |
+| Hasil | [runs/2026-10-20-staging-gel12.md](runs/2026-10-20-staging-gel12.md) | Staging rilis gel. 12: Laporan batch 2 17/17 (akun SA) — **LEGIT** |
 | Hasil | [runs/2026-10-20-laporan-batch2-lokal.md](runs/2026-10-20-laporan-batch2-lokal.md) | Lokal: shared 268 · api 826 · web 281, Playwright 12/12; putaran audit + gabungan Mat api 840 · web 290, 17/17 — LULUS lokal |
 | Hasil | [runs/2026-10-15-staging-sp.md](runs/2026-10-15-staging-sp.md) | Staging rilis gel. 8: SP 11/11 + header & TM tersembunyi — Surat Peringatan **LEGIT** |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
