@@ -21,3 +21,19 @@
 - Akun UI hanya HR tanpa grant; jalur ber-grant (`employee.changes.review`) diuji di integration & web test.
 
 **Kesimpulan:** semua P1/P2 LULUS di lokal; belum LEGIT (butuh uji staging setelah rilis).
+
+## Putaran audit — perbaikan sticky, tab, WIB + gabungan Mat (2026-10-20)
+
+- **Commit:** develop `69b20a5` (merge `HRIS/Mat/Mac` `ca6faa5` di atas `9f7f4e9`) · migrasi lokal `20261019071235_leave_type_description` diterapkan, `db:check` tanpa selisih.
+- **Perintah & ringkasan:** typecheck ✔ · biome ✔ · boundaries ✔ (487 modul) · build ✔ · shared **268** · api **840** · web **290** (`--maxWorkers=2`).
+- **Script:** sama, ditambah Q-13…Q-17 — **17/17**, 0 error JS/console/5xx.
+
+| Langkah | Hasil | Bukti |
+|---|---|---|
+| Q-13 bilah filter setelah gulir: celah ke tepi atas area gulir 0 px (sebelumnya 56 px) | LULUS | `Q-13-sticky.png` |
+| Q-14 / Q-15 10 tab terlihat penuh di 1440 / 1024 (turun baris) | LULUS | `Q-14-tab.png`, `Q-15-tab.png` |
+| Q-16 HP 390: tab aktif Pengajuan data digulir masuk layar | LULUS | — |
+| Q-17 smoke gabungan Mat: Time › Absen harian & Cuti tanpa error | LULUS | `Q-17.png` |
+| Q-01…Q-12 ulang | LULUS | screenshot diperbarui |
+
+**Kesimpulan putaran audit:** LULUS lokal; lanjut rilis gel. 12.
