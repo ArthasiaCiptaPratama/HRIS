@@ -355,6 +355,9 @@ function LeaveApprovalCard({ request }: { request: LeaveRequest }) {
           <p className="truncate text-sm font-medium">{request.employee.fullName}</p>
           <p className="text-muted-foreground text-xs">
             {request.type.name} · {request.days} hari
+            {request.type.category !== "ANNUAL" && request.annualDays > 0
+              ? ` (${request.annualDays} hari memotong cuti tahunan)`
+              : ""}
           </p>
           <p className="text-xs">
             {workDateLabel(request.startDate)}

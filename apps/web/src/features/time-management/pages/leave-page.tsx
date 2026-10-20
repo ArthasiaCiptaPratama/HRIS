@@ -51,6 +51,13 @@ const STATUS_VARIANT: Record<LeaveRequestStatus, "warning" | "success" | "destru
     CANCELLED: "muted",
   };
 
+/** Aturan lampiran sebuah jenis untuk ditampilkan ke karyawan (null = tidak pernah wajib). */
+function documentRule(requiredAfterDays: number | null): string {
+  if (requiredAfterDays === null) return "opsional";
+  if (requiredAfterDays === 0) return "wajib dilampirkan";
+  return `wajib bila lebih dari ${requiredAfterDays} hari, selain itu opsional`;
+}
+
 export function LeaveStatusBadge({ status }: { status: string }) {
   const key = status as LeaveRequestStatus;
   return (
@@ -215,6 +222,9 @@ export function RequestCard({
         <div className="min-w-0">
           <p className="font-medium">
             {request.type.name} · {request.days} hari
+            {request.type.category !== "ANNUAL" && request.annualDays > 0
+              ? ` (${request.annualDays} hari memotong cuti tahunan)`
+              : ""}
           </p>
           <p className="text-sm">{dateRange(request.startDate, request.endDate)}</p>
           <p className="text-muted-foreground text-xs">
@@ -263,7 +273,10 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
       toast.error(errorMessage(e));
     }
   };
-  const tooMany = Boolean(type?.maxDaysPerRequest && p && p.days > type.maxDaysPerRequest);
+  // Izin boleh melebihi batas (kelebihan memotong cuti tahunan); batas hanya mengikat untuk sakit.
+  const tooMany = Boolean(
+    type?.category === "SICK" && type.maxDaysPerRequest && p && p.days > type.maxDaysPerRequest,
+  );
   const valid =
     Boolean(type && p && p.days > 0 && p.conflicts.length === 0 && !tooMany) &&
     reason.trim().length >= 3 &&
@@ -288,9 +301,22 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
                 label: `${t.name} (${LEAVE_CATEGORY_LABELS[t.category as LeaveCategory]})`,
               }))}
             />
+            {type?.description || type?.documentLabel ? (
+              <div className="bg-muted/50 space-y-0.5 rounded-md px-2.5 py-2 text-xs">
+                {type.description ? <p>{type.description}</p> : null}
+                {type.documentLabel ? (
+                  <p className="text-muted-foreground">
+                    Berkas: <span className="text-foreground">{type.documentLabel}</span> —{" "}
+                    {documentRule(type.documentRequiredAfterDays)}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             {type?.maxDaysPerRequest ? (
               <p className="text-muted-foreground text-xs">
-                Maksimal {type.maxDaysPerRequest} hari per pengajuan.
+                {type.category === "PERMIT"
+                  ? `Jatah ${type.maxDaysPerRequest} hari per pengajuan; kelebihannya memotong cuti tahunan.`
+                  : `Maksimal ${type.maxDaysPerRequest} hari per pengajuan.`}
               </p>
             ) : null}
           </div>
@@ -334,6 +360,13 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
                   {p.charges.map((c) => `${c.days} hari saldo ${c.year}`).join(" + ") || "—"}. Saldo
                   boleh minus (hutang), dilunasi dari jatah tahun berikutnya.
                 </p>
+              ) : p.annualDays > 0 ? (
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  <b>{p.days - p.annualDays}</b> hari {type.name} +{" "}
+                  <b>{p.annualDays} hari memotong cuti tahunan</b> (
+                  {p.charges.map((c) => `saldo ${c.year}`).join(" + ")}) karena melebihi jatah{" "}
+                  {type.maxDaysPerRequest} hari. Saldo boleh minus (hutang).
+                </p>
               ) : (
                 <p className="text-muted-foreground text-xs">Tidak memotong saldo cuti tahunan.</p>
               )}
@@ -363,9 +396,9 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="lv-file">
-              Lampiran{" "}
+              Lampiran{type?.documentLabel ? ` — ${type.documentLabel}` : ""}{" "}
               {p?.documentRequired ? (
-                <span className="text-destructive">* wajib (mis. surat dokter)</span>
+                <span className="text-destructive">* wajib</span>
               ) : (
                 <span className="text-muted-foreground font-normal">(opsional)</span>
               )}

@@ -8,9 +8,15 @@ const isHr = (actor: Actor) => actor.role === ROLE.HR_ADMIN;
 const hrOf = (actor: Actor, companyId: string) =>
   isHr(actor) && (actor.companyIds?.has(companyId) ?? false);
 
-/** Master Cuti per tahun & jenis cuti/izin/sakit: SA kelola; semua akun melihat. */
+/** Jenis cuti/izin/sakit: semua akun melihat (dipakai form pengajuan cuti karyawan). SA kelola. */
 export const canViewLeaveMaster = (actor: Actor) => actor.accountId.length > 0;
 export const canManageLeaveMaster = (actor: Actor) => isSa(actor);
+/**
+ * Halaman Master Cuti (kuota per tahun): SA, HR, MANAGER — tidak untuk karyawan biasa (pemilik projek
+ * 2026-10-19). Karyawan tetap melihat saldo & jenis cuti miliknya lewat halaman Cuti.
+ */
+export const canViewLeaveYears = (actor: Actor) =>
+  isSa(actor) || isHr(actor) || actor.role === ROLE.MANAGER;
 
 export interface LeaveTarget {
   employeeId: string;

@@ -20,3 +20,9 @@ export {
 } from "./leave-bridge.ts";
 export { alphaDaysForEvidence, isDateClosed, type StatementRow } from "./period.service.ts";
 export { extendAllRosters } from "./roster.service.ts";
+export {
+  dateLabel,
+  notifyEmployees,
+  runApprovalDigest,
+  runAttendanceReminders,
+} from "./time-notify.service.ts";

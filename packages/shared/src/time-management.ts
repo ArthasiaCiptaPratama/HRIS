@@ -444,6 +444,10 @@ export const leaveTypeInputSchema = z.object({
   category: leaveCategorySchema,
   maxDaysPerRequest: z.number().int().min(1).max(365).nullable(),
   documentRequiredAfterDays: z.number().int().min(0).max(365).nullable(),
+  /** Keterangan kapan izin ini dipakai (tampil di form karyawan). */
+  description: z.string().trim().max(300).nullish(),
+  /** Berkas yang diperlukan, mis. "Surat keterangan dokter". Wajib/opsional tetap dari documentRequiredAfterDays. */
+  documentLabel: z.string().trim().max(120).nullish(),
   isActive: z.boolean(),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });

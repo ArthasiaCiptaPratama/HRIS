@@ -56,7 +56,9 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
+import { AlphaBanner, HomeSummary, PunchReminder } from "../components/home-insights";
 import { RosterWeek } from "../components/roster-week";
+import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
 
 // D-067: absen lewat PWA (tata letak HP, wajib online). Login sama dengan web. Selfie kamera langsung +
@@ -295,7 +297,10 @@ export function AbsenHome() {
   }
   return (
     <>
+      <PunchReminder data={data} clock={clock} />
+      <AlphaBanner />
       <TodayCard data={data} clock={clock} online={online} onPunch={startPunch} />
+      <HomeSummary data={data} />
       <MenuGrid me={me} />
       <RosterStrip data={data} today={todayIn(tz)} />
       <History data={data} tz={tz} />
@@ -434,17 +439,25 @@ function MenuTile({
   icon: Icon,
   label,
   tone,
+  count,
 }: {
   to?: string;
   onClick?: () => void;
   icon: typeof House;
   label: string;
   tone: string;
+  /** Angka antrean (mis. pengajuan menunggu keputusan). */
+  count?: number | undefined;
 }) {
   const inner = (
     <>
-      <span className={cn("grid size-11 place-items-center rounded-xl", tone)}>
+      <span className={cn("relative grid size-11 place-items-center rounded-xl", tone)}>
         <Icon className="size-5" />
+        {count ? (
+          <span className="absolute -top-1.5 -right-1.5 min-w-5 rounded-full bg-red-600 px-1 text-center text-[10px] leading-5 font-semibold text-white">
+            {count > 99 ? "99+" : count}
+          </span>
+        ) : null}
       </span>
       <span className="text-center text-[11px] leading-tight font-medium">{label}</span>
     </>
@@ -464,6 +477,7 @@ function MenuTile({
 
 function MenuGrid({ me }: { me: Me }) {
   const approver = tmAccess.reviewDays(me) || tmAccess.decideLeave(me);
+  const queue = useTimeQueue(approver).data;
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">
       <h2 className="mb-2 px-1 text-sm font-semibold">Menu</h2>
@@ -510,6 +524,7 @@ function MenuGrid({ me }: { me: Me }) {
             icon={ClipboardCheck}
             label="Approval"
             tone="bg-teal-100 text-teal-700"
+            count={queue?.total}
           />
         ) : null}
         <MenuTile

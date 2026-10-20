@@ -42,6 +42,8 @@ import {
   markNoAttendanceAlpha,
   purgeSelfies,
   registerAttendanceRoutes,
+  runApprovalDigest,
+  runAttendanceReminders,
 } from "./modules/attendance/index.ts";
 import { registerDisciplineRoutes, runDisciplineDaily } from "./modules/discipline/index.ts";
 import {
@@ -311,6 +313,10 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
         purgeSelfies:
           getEnv().NODE_ENV === "production" ? await purgeSelfies() : { purged: 0, skipped: true },
       }),
+      // TM-D2: pengingat Clock In/Out per shift + hari terakhir koreksi Alpha (disarankan tiap 30 menit).
+      "attendance-reminders": () => runAttendanceReminders(),
+      // Ringkasan antrean keputusan harian untuk SA/HR/atasan (rekomendasi OD-15).
+      "approval-digest": () => runApprovalDigest(),
       // D-072: jatah 1 Jan, pelunasan hutang akhir Jan, hangus 31 Mar, cuti bersama tanpa absen.
       "leave-daily": () => runLeaveDaily(),
       // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.

@@ -35,8 +35,9 @@ export const tmAccess = {
   decideLeave: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Saldo cuti per PT, penyesuaian & import: SA; HR PT ditugaskan. */
   manageLeaveBalances: (me: Me) => isSa(me) || isHr(me),
-  /** Master Cuti & jenis: SA kelola; semua melihat. */
+  /** Master Cuti & jenis: SA kelola; SA, HR, MANAGER melihat — karyawan biasa tidak (2026-10-19). */
   manageLeaveMaster: (me: Me) => isSa(me),
+  viewLeaveMaster: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Koreksi & surat pernyataan (D-071): karyawan sendiri; pemutus koreksi (SA/HR/MANAGER). */
   correctionsStatements: (me: Me) => me.employeeId !== null || isSa(me) || isHr(me),
   /** Rekap bulanan & daftar Alpha: SA, HR (PT), MANAGER (tim). Tutup periode dicek API (grant). */

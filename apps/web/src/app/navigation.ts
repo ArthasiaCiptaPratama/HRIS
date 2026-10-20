@@ -55,6 +55,7 @@ import {
 } from "@/features/employee/active-views";
 import { MASTER_DATA_BASE, MASTER_DATA_PAGES } from "@/features/organization/config";
 import { tmAccess } from "@/features/time-management/access";
+import type { TimeQueueKey } from "@/features/time-management/queue-api";
 import { access } from "@/lib/access";
 import { FEATURES } from "./feature-flags";
 
@@ -74,6 +75,8 @@ export interface NavItem {
   maintenance?: boolean;
   /** Angka badge dari GET /employees/summary. */
   summaryKey?: SummaryKey;
+  /** Angka antrean keputusan dari GET /time/queue (tampil bila > 0). */
+  queueKey?: TimeQueueKey;
   children?: NavItem[];
   keywords?: string;
 }
@@ -323,6 +326,7 @@ export const NAV_GROUPS: NavGroup[] = [
             maintenance: !FEATURES.timeManagement,
             label: "Data Absen Harian",
             to: "/time/absen-harian",
+            queueKey: "attendance",
             icon: ClipboardCheck,
             visible: tmAccess.reviewDays,
             keywords: "approval persetujuan absensi kehadiran harian telat label",
@@ -332,6 +336,7 @@ export const NAV_GROUPS: NavGroup[] = [
             maintenance: !FEATURES.timeManagement,
             label: "Koreksi & Pernyataan",
             to: "/time/pernyataan",
+            queueKey: "corrections",
             icon: FilePenLine,
             visible: tmAccess.correctionsStatements,
             keywords: "koreksi absensi lupa absen surat pernyataan alpha",
@@ -364,6 +369,7 @@ export const NAV_GROUPS: NavGroup[] = [
             maintenance: !FEATURES.timeManagement,
             label: "Perubahan Roster",
             to: "/time/perubahan-roster",
+            queueKey: "rosterChanges",
             icon: Repeat,
             visible: tmAccess.rosterChanges,
             keywords: "tukar shift ganti jadwal swap",
@@ -407,6 +413,7 @@ export const NAV_GROUPS: NavGroup[] = [
             maintenance: !FEATURES.timeManagement,
             label: "Persetujuan Cuti",
             to: "/time/persetujuan-cuti",
+            queueKey: "leave",
             icon: CalendarCheck,
             visible: tmAccess.decideLeave,
             keywords: "approval persetujuan cuti izin sakit",
@@ -426,6 +433,7 @@ export const NAV_GROUPS: NavGroup[] = [
             label: "Master Cuti",
             to: "/time/master-cuti",
             icon: BookOpen,
+            visible: tmAccess.viewLeaveMaster,
             keywords: "kuota cuti tahunan jenis izin sakit",
           },
         ],

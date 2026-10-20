@@ -49,6 +49,7 @@ import { closedMonths, correctionInstant, isDateClosed } from "./period.service.
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
+import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
 // Tahap C/D — absen PWA (D-067, D-070) & approval hari absen (D-068).
 
@@ -851,6 +852,25 @@ export function registerAttendanceIntegrations() {
       data: { status: event.status, decidedAt: event.decidedAt },
     });
     await recomputeDay(tx, punch.dayId);
+    if (event.status === "REJECTED") {
+      const day = await tx.attendanceDay.findUnique({
+        where: { id: punch.dayId },
+        select: { employeeId: true, workDate: true },
+      });
+      if (day) {
+        const date = toIso(day.workDate);
+        await notifyEmployees([
+          {
+            employeeId: day.employeeId,
+            type: "attendance.punch_rejected",
+            title: `${punch.kind === "IN" ? "Clock In" : "Clock Out"} ${dateLabel(date)} ditolak`,
+            body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
+            link: "/time/pernyataan",
+            dedupeKey: `tm-punch-rejected:${punch.id}`,
+          },
+        ]);
+      }
+    }
   });
   registerApprovalHandler("ATTENDANCE_DAY", async (tx, event) => {
     if (event.status !== "APPROVED" && event.status !== "REJECTED") return;

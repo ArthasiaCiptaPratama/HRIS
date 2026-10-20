@@ -193,7 +193,17 @@ function DecisionRow({ request, onOpen }: { request: LeaveRequest; onOpen: () =>
       </td>
       <td className="px-3 py-2 whitespace-nowrap">{workDateLabel(request.startDate)}</td>
       <td className="px-3 py-2 whitespace-nowrap">{workDateLabel(request.endDate)}</td>
-      <td className="px-3 py-2 text-right tabular-nums">{request.days}</td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {request.days}
+        {request.type.category !== "ANNUAL" && request.annualDays > 0 ? (
+          <span
+            className="block text-[11px] text-amber-700 dark:text-amber-300"
+            title="Izin melebihi jatah jenisnya; kelebihannya memotong cuti tahunan"
+          >
+            {request.annualDays} potong cuti
+          </span>
+        ) : null}
+      </td>
       <td className="px-3 py-2 text-center">
         {request.attachmentUrl ? (
           <a
@@ -793,6 +803,15 @@ function TypesTab({ manage }: { manage: boolean }) {
               <span className="min-w-0 flex-1">
                 <span className="font-medium">{t.name}</span>{" "}
                 <span className="text-muted-foreground font-mono text-xs">{t.code}</span>
+                {t.description ? (
+                  <span className="text-muted-foreground block text-xs">{t.description}</span>
+                ) : null}
+                {t.documentLabel ? (
+                  <span className="text-muted-foreground block text-xs">
+                    Berkas: {t.documentLabel}
+                    {t.documentRequiredAfterDays === null ? " (opsional)" : ""}
+                  </span>
+                ) : null}
               </span>
               <Badge
                 variant={
@@ -837,6 +856,8 @@ function TypeDialog({ type, onClose }: { type: LeaveType | null; onClose: () => 
     category: (type?.category ?? "PERMIT") as LeaveCategory,
     maxDaysPerRequest: type?.maxDaysPerRequest?.toString() ?? "",
     documentRequiredAfterDays: type?.documentRequiredAfterDays?.toString() ?? "",
+    description: type?.description ?? "",
+    documentLabel: type?.documentLabel ?? "",
     isActive: type?.isActive ?? true,
   });
   const num = (v: string) => (v.trim() === "" ? null : Number(v));
@@ -849,6 +870,8 @@ function TypeDialog({ type, onClose }: { type: LeaveType | null; onClose: () => 
         category: form.category,
         maxDaysPerRequest: num(form.maxDaysPerRequest),
         documentRequiredAfterDays: num(form.documentRequiredAfterDays),
+        description: form.description.trim() || null,
+        documentLabel: form.documentLabel.trim() || null,
         isActive: form.isActive,
       },
       {
@@ -864,7 +887,10 @@ function TypeDialog({ type, onClose }: { type: LeaveType | null; onClose: () => 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{type ? `Ubah ${type.name}` : "Tambah jenis"}</DialogTitle>
-          <DialogDescription>Hanya cuti tahunan yang memotong saldo.</DialogDescription>
+          <DialogDescription>
+            Cuti tahunan memotong saldo. Izin yang melebihi maks hari/pengajuan memotong cuti
+            tahunan untuk kelebihannya. Keterangan & berkas tampil di form pengajuan karyawan.
+          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -912,6 +938,31 @@ function TypeDialog({ type, onClose }: { type: LeaveType | null; onClose: () => 
               value={form.documentRequiredAfterDays}
               onChange={(e) => setForm({ ...form, documentRequiredAfterDays: e.target.value })}
             />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="lt-desc">Keterangan untuk karyawan</Label>
+            <Textarea
+              id="lt-desc"
+              rows={2}
+              maxLength={300}
+              placeholder="Kapan izin ini dipakai, mis. Pernikahan karyawan sendiri."
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="lt-doclabel">Berkas yang diperlukan</Label>
+            <Input
+              id="lt-doclabel"
+              maxLength={120}
+              placeholder="mis. Surat keterangan dokter"
+              value={form.documentLabel}
+              onChange={(e) => setForm({ ...form, documentLabel: e.target.value })}
+            />
+            <p className="text-muted-foreground text-xs">
+              Wajib/opsional mengikuti "Dokumen wajib bila &gt; hari". Kosongkan kolom itu agar
+              lampiran tetap opsional.
+            </p>
           </div>
           <label className="col-span-2 flex items-center gap-2 text-sm">
             <input

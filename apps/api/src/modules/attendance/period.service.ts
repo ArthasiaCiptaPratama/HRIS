@@ -33,6 +33,7 @@ import { localDate, offsetMinutes } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import { isoAddDays } from "./roster-engine.ts";
+import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
 // Tahap F — tutup periode → ALPHA, surat pernyataan absensi, rekap bulanan, koreksi absensi (D-071).
 
@@ -667,6 +668,18 @@ export async function createCorrection(ctx: RequestContext, input: CorrectionInp
     return created;
   });
   await audit(ctx, "attendance.correction.create", row.id, input);
+  if (employee.managerId) {
+    await notifyEmployees([
+      {
+        employeeId: employee.managerId,
+        type: "attendance.correction_new",
+        title: `Koreksi absen baru dari ${employee.fullName}`,
+        body: `Tanggal kerja ${dateLabel(input.workDate)}: “${input.reason}”`,
+        link: "/time/pernyataan",
+        dedupeKey: `tm-correction-new:${row.id}`,
+      },
+    ]);
+  }
   return (await correctionDtos(ctx, [row]))[0] as CorrectionDto;
 }
 
@@ -713,6 +726,23 @@ export function registerPeriodIntegrations() {
       where: { id: row.id },
       data: { status: event.status, decidedAt: event.decidedAt },
     });
+    if (event.status === "APPROVED" || event.status === "REJECTED") {
+      const date = toIso(row.workDate);
+      await notifyEmployees([
+        {
+          employeeId: row.employeeId,
+          type: "attendance.correction_decided",
+          title: `Koreksi absen ${dateLabel(date)} ${event.status === "APPROVED" ? "disetujui" : "ditolak"}`,
+          ...(event.status === "REJECTED"
+            ? {
+                body: "Hari itu tetap sesuai data absen; cek catatan penolakan di halaman Koreksi.",
+              }
+            : {}),
+          link: "/time/pernyataan",
+          dedupeKey: `tm-correction-decided:${row.id}`,
+        },
+      ]);
+    }
     if (event.status !== "APPROVED") return;
     const day = await tx.attendanceDay.findUnique({
       where: { employeeId_workDate: { employeeId: row.employeeId, workDate: row.workDate } },

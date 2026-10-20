@@ -11,6 +11,7 @@ import * as policy from "./attendance.policy.ts";
 import { localDate, shiftWindow } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
+import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
 // TM-D3 — hari kerja roster tanpa absen sama sekali langsung Alpha setelah batas absen pulang shift-nya
 // lewat (mulai ALPHA_RULE_START); koreksi hanya s.d. tanggal kerja + 3 hari; rekam jejak tidak pernah dihapus.
@@ -68,6 +69,26 @@ export async function markNoAttendanceAlpha(
   });
   // skipDuplicates: aman bila absen/penandaan lain menulis hari yang sama bersamaan (unik employee+tanggal).
   const result = await db().attendanceDay.createMany({ data: rows, skipDuplicates: true });
+  if (result.count > 0) {
+    // Satu notifikasi per hari Alpha (dedupe); hari yang sudah lewat batas koreksi tidak diberi tombol.
+    await notifyEmployees(
+      rows.map((r) => {
+        const date = toIso(r.workDate);
+        const open = canStillCorrect(date, today);
+        return {
+          employeeId: r.employeeId,
+          type: "attendance.alpha",
+          title: `Tidak ada absen ${dateLabel(date)} — dihitung Alpha`,
+          body: open
+            ? `Gaji hari itu tidak dihitung. Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} bila ada kesalahan.`
+            : "Batas koreksi sudah lewat; hari itu tetap Alpha dan wajib dibuatkan surat pernyataan.",
+          link: "/time/pernyataan",
+          dedupeKey: `tm-alpha:${r.employeeId}:${date}`,
+        };
+      }),
+      now,
+    );
+  }
   return { marked: result.count };
 }
 
