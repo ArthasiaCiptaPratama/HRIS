@@ -12,122 +12,60 @@ import {
   expiryBucket,
   headcountQuerySchema,
   monthlyTurnover,
+  monthQuerySchema,
   REPORT_LABELS,
   type ReportKind,
   reportFilterSchema,
   WARNING_LEVEL_LABELS,
   WARNING_LEVELS,
-  type XlsxCell,
-  type XlsxFormat,
   type XlsxSheet,
   yearlyTurnover,
 } from "@hris/shared";
-import type { z } from "zod";
-import type { Actor } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
-import { BusinessRuleError, ForbiddenError, ValidationError } from "../../core/errors.ts";
+import { BusinessRuleError, ForbiddenError } from "../../core/errors.ts";
 import { listWarningLettersForReport } from "../discipline/index.ts";
 import {
   listCompletenessFacts,
   listExpiringDocuments,
-  listReportEmployees,
   listRequiredDocumentTypes,
   type ReportEmployee,
 } from "../employee/index.ts";
-import { getMasterLookup, type MasterLookup } from "../organization/index.ts";
+import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./report.policy.ts";
+import { isBatch2Kind, sheetsForBatch2 } from "./report-batch2.service.ts";
+import {
+  addDays,
+  d,
+  dmy,
+  group,
+  MONTH_NAMES,
+  PERSON_FORMATS,
+  PERSON_HEADERS,
+  parse,
+  pct,
+  people,
+  person,
+  personDto,
+  type RequestContext,
+  scopedEmployees,
+  share,
+  todayInJakarta,
+  unitOf,
+} from "./report-common.ts";
+
+export {
+  assetsReport,
+  birthdaysReport,
+  dataChangesReport,
+  demographicsReport,
+  movementsReport,
+  tenureReport,
+} from "./report-batch2.service.ts";
+export type { RequestContext } from "./report-common.ts";
 
 // ARS-D16/D17 (Arsip gelombang 3, Laporan batch 1): headcount & turnover, dokumen kedaluwarsa,
 // kelengkapan data, SP aktif. Agregat dari modul pemilik data lewat index.ts (aturan emas #3); nilai
 // sensitif tidak pernah ditampilkan; daftar per orang yang sensitif hanya bila ber-grant (ARS-D16).
-
-export interface RequestContext {
-  actor: Actor;
-  requestId?: string | undefined;
-  ip?: string | undefined;
-}
-
-const NO_MATCH = "00000000-0000-0000-0000-000000000000";
-const JAKARTA_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
-const todayInJakarta = (now = new Date()) => JAKARTA_DATE.format(now);
-const addDays = (iso: string, days: number) =>
-  new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
-
-function parse<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
-  const result = schema.safeParse(raw);
-  if (!result.success) {
-    throw new ValidationError(
-      result.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
-    );
-  }
-  return result.data;
-}
-
-// --- Cakupan & filter ---
-
-/** Unit + seluruh sub-unitnya (D-050). */
-function unitSubtree(lookup: MasterLookup, unitId: string): Set<string> {
-  const ids = new Set([unitId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const d of lookup.departments.values()) {
-      if (d.parentId && ids.has(d.parentId) && !ids.has(d.id)) {
-        ids.add(d.id);
-        grew = true;
-      }
-    }
-  }
-  return ids;
-}
-
-async function scopedEmployees(ctx: RequestContext, raw: unknown) {
-  if (!policy.canViewReports(ctx.actor)) throw new ForbiddenError();
-  const filter = parse(reportFilterSchema, raw);
-  const lookup = await getMasterLookup();
-  const scope = policy.reportCompanyScope(ctx.actor);
-  let companyIds: string[] | null = scope;
-  if (filter.companyId) {
-    companyIds = scope && !scope.includes(filter.companyId) ? [NO_MATCH] : [filter.companyId];
-  }
-  if (companyIds && companyIds.length === 0) companyIds = [NO_MATCH];
-  let positionIds: string[] | null = null;
-  if (filter.unitId) {
-    const units = unitSubtree(lookup, filter.unitId);
-    positionIds = [...lookup.positions.values()]
-      .filter((p) => p.departmentId && units.has(p.departmentId))
-      .map((p) => p.id);
-    if (positionIds.length === 0) positionIds = [NO_MATCH];
-  }
-  const employees = await listReportEmployees({
-    companyIds,
-    positionIds,
-    workLocationId: filter.workLocationId,
-  });
-  return { employees, lookup, filter };
-}
-
-const unitOf = (lookup: MasterLookup, e: ReportEmployee) => {
-  const departmentId = lookup.positions.get(e.positionId)?.departmentId;
-  return departmentId ? (lookup.departments.get(departmentId)?.name ?? null) : null;
-};
-const personDto = (lookup: MasterLookup, e: ReportEmployee) => ({
-  employeeId: e.id,
-  fullName: e.fullName,
-  employeeNumber: e.employeeNumber,
-  company: lookup.companies.get(e.companyId)?.code ?? "",
-  unit: unitOf(lookup, e),
-  position: lookup.positions.get(e.positionId)?.name ?? null,
-});
-
-function group<T>(items: readonly T[], key: (t: T) => string) {
-  const map = new Map<string, T[]>();
-  for (const it of items) {
-    const k = key(it);
-    map.set(k, [...(map.get(k) ?? []), it]);
-  }
-  return map;
-}
 
 // --- (1) Headcount & turnover ---
 
@@ -381,42 +319,8 @@ export async function warningLettersReport(ctx: RequestContext, raw: unknown, no
 // Tata letak laporan dari penulis xlsx bersama: sheet Ringkasan + rincian, judul & keterangan filter,
 // header berwarna, format angka/persen/tanggal, autofilter, siap cetak A4 lanskap.
 
-const d = (iso: string | null | undefined) => (iso ? new Date(`${iso}T00:00:00Z`) : null);
-const dmy = (iso: string) => iso.split("-").reverse().join("/");
-const PERSON_HEADERS = ["NIP", "Nama", "PT", "Unit", "Jabatan"];
-const PERSON_FORMATS: XlsxFormat[] = ["text", "text", "text", "text", "text"];
-const person = (r: {
-  employeeNumber: string | null;
-  fullName: string;
-  company: string;
-  unit: string | null;
-  position: string | null;
-}): XlsxCell[] => [r.employeeNumber, r.fullName, r.company, r.unit, r.position];
-const MONTH_NAMES = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
-const pct = (value: number): XlsxCell => ({ value, format: "percent" });
-const share = (part: number, whole: number) =>
-  whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
 const BATASAN =
   "Batasan (ARS-D18): rincian per unit/status memakai unit & status karyawan saat ini; karyawan yang diaktifkan kembali tidak lagi terhitung keluar pada periode lama.";
-
-/** Sheet data per orang: NIP + Nama ikut dibekukan saat menggulir ke kanan. */
-const people = (sheet: Omit<XlsxSheet, "freezeColumns">): XlsxSheet => ({
-  ...sheet,
-  freezeColumns: 2,
-});
 
 interface ExportFrame {
   /** Baris keterangan di bawah judul tiap sheet (filter, waktu, kerahasiaan). */
@@ -430,6 +334,7 @@ async function sheetsFor(
   frame: ExportFrame,
 ): Promise<XlsxSheet[]> {
   const sheet = (s: XlsxSheet): XlsxSheet => ({ ...s, info: frame.info });
+  if (isBatch2Kind(kind)) return sheetsForBatch2(ctx, kind, raw, sheet);
   if (kind === "headcount") {
     const r = await headcountReport(ctx, raw);
     const breakdown = (name: string, label: string, rows: typeof r.byCompany) =>
@@ -766,7 +671,15 @@ async function exportFrame(ctx: RequestContext, kind: ReportKind, raw: unknown, 
   if (filter.workLocationId) {
     parts.push(`Lokasi ${lookup.locations.get(filter.workLocationId)?.name ?? "-"}`);
   }
-  if (kind === "headcount" || kind === "warning-letters") {
+  if (kind === "tenure" || kind === "birthdays") {
+    const q = parse(monthQuerySchema, raw);
+    parts.push(`${MONTH_NAMES[q.month - 1]} ${q.year}`);
+  } else if (
+    kind === "headcount" ||
+    kind === "warning-letters" ||
+    kind === "movements" ||
+    kind === "data-changes"
+  ) {
     parts.push(`Tahun ${parse(headcountQuerySchema, raw).year}`);
   }
   const today = todayInJakarta(now);

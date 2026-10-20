@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { AGE_BUCKETS, TENURE_BUCKETS } from "./dashboard.ts";
 import { daysUntil } from "./documents.ts";
+import { POSITION_LEVELS, type PositionLevel } from "./organization.ts";
 
 // ARS-D16/ARS-D17 (Arsip gelombang 3, Laporan batch 1; docs/features/arsip/README.md#keputusan):
 // headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif. Aturan hitung murni dipakai
@@ -24,6 +26,12 @@ export const REPORT_KINDS = [
   "document-expiry",
   "completeness",
   "warning-letters",
+  "tenure",
+  "demographics",
+  "movements",
+  "birthdays",
+  "assets",
+  "data-changes",
 ] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export const REPORT_LABELS: Record<ReportKind, string> = {
@@ -31,6 +39,12 @@ export const REPORT_LABELS: Record<ReportKind, string> = {
   "document-expiry": "Dokumen kedaluwarsa",
   completeness: "Kelengkapan data",
   "warning-letters": "SP aktif",
+  tenure: "Masa kerja",
+  demographics: "Demografi",
+  movements: "Mutasi & promosi",
+  birthdays: "Ulang tahun",
+  assets: "Aset",
+  "data-changes": "Pengajuan perubahan data",
 };
 
 // --- Headcount & turnover ---
@@ -175,3 +189,84 @@ export const headcountQuerySchema = reportFilterSchema.extend({
   year: z.coerce.number().int().min(2000).max(2100),
 });
 export type HeadcountQuery = z.infer<typeof headcountQuerySchema>;
+
+// --- Batch 2 (ARS-D21) ---
+
+/** Tahun penuh dari `from` sampai `today` (YYYY-MM-DD); belum genap ulang tanggal = belum dihitung. */
+export function fullYears(from: string, today: string): number {
+  const years = Number(today.slice(0, 4)) - Number(from.slice(0, 4));
+  return today.slice(5) < from.slice(5) ? years - 1 : years;
+}
+
+// Masa kerja — kelompok sama dengan Dashboard (TENURE_BUCKETS / AGE_BUCKETS di dashboard.ts).
+export type TenureBucket = (typeof TENURE_BUCKETS)[number];
+
+/** ARS-D21: kelompok masa kerja per `today` (batas bawah inklusif: genap 3 tahun = "3–5 tahun"). */
+export function tenureBucket(joinDate: string, today: string): TenureBucket {
+  const years = fullYears(joinDate, today);
+  if (years < 1) return "<1";
+  if (years < 3) return "1-3";
+  if (years < 5) return "3-5";
+  if (years < 10) return "5-10";
+  return "10+";
+}
+
+export const JUBILEE_YEARS = [5, 10, 15, 20, 25] as const;
+
+/** ARS-D21: tahun jubilee bila tanggal masuk genap 5/10/15/20/25 tahun pada bulan `year`-`month`; selain itu null. */
+export function jubileeYears(joinDate: string, year: number, month: number): number | null {
+  if (Number(joinDate.slice(5, 7)) !== month) return null;
+  const years = year - Number(joinDate.slice(0, 4));
+  return (JUBILEE_YEARS as readonly number[]).includes(years) ? years : null;
+}
+
+// Demografi
+export type AgeBucket = (typeof AGE_BUCKETS)[number];
+
+export function ageBucket(birthDate: string, today: string): AgeBucket {
+  const age = fullYears(birthDate, today);
+  if (age < 25) return "<25";
+  if (age < 35) return "25-34";
+  if (age < 45) return "35-44";
+  if (age < 55) return "45-54";
+  return "55+";
+}
+
+// Mutasi & promosi
+export const MOVEMENT_KINDS = ["PROMOTION", "DEMOTION", "TRANSFER", "UNRANKED"] as const;
+export type MovementKind = (typeof MOVEMENT_KINDS)[number];
+export const MOVEMENT_KIND_LABELS: Record<MovementKind, string> = {
+  PROMOTION: "Promosi",
+  DEMOTION: "Demosi",
+  TRANSFER: "Mutasi",
+  UNRANKED: "Perpindahan (level belum diisi)",
+};
+
+/**
+ * ARS-D21: level jabatan (D-050) naik = Promosi, turun = Demosi, sama = Mutasi; salah satu kosong =
+ * "Perpindahan (level belum diisi)". POSITION_LEVELS berurutan dari puncak (indeks kecil = lebih tinggi).
+ */
+export function movementKind(from: PositionLevel | null, to: PositionLevel | null): MovementKind {
+  if (!from || !to) return "UNRANKED";
+  const a = POSITION_LEVELS.indexOf(from);
+  const b = POSITION_LEVELS.indexOf(to);
+  if (b < a) return "PROMOTION";
+  if (b > a) return "DEMOTION";
+  return "TRANSFER";
+}
+
+// Pengajuan perubahan data
+
+/** Rata-rata hari (1 desimal) dari pasangan diajukan → diputuskan (ISO datetime); null bila kosong. */
+export function averageDays(pairs: readonly { from: string; to: string }[]): number | null {
+  if (pairs.length === 0) return null;
+  const total = pairs.reduce((s, p) => s + (Date.parse(p.to) - Date.parse(p.from)), 0);
+  return Math.round((total / pairs.length / 86_400_000) * 10) / 10;
+}
+
+// Query batch 2
+export const monthQuerySchema = reportFilterSchema.extend({
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+});
+export type MonthQuery = z.infer<typeof monthQuerySchema>;

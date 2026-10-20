@@ -34,9 +34,10 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-14-aset-lokal.md](plans/2026-10-14-aset-lokal.md) | Aset & APD gel. 2a lokal (TC-EMP-215…226) |
 | Rencana | [plans/2026-10-15-sp-lokal.md](plans/2026-10-15-sp-lokal.md) | Surat Peringatan gel. 2b lokal (TC-EMP-227…238) |
 | Rencana | [plans/2026-10-16-laporan-lokal.md](plans/2026-10-16-laporan-lokal.md) | Laporan batch 1 lokal (TC-EMP-239…249) |
+| Rencana | [plans/2026-10-20-laporan-batch2-lokal.md](plans/2026-10-20-laporan-batch2-lokal.md) | Laporan batch 2 lokal (TC-EMP-250…257) |
 | Rencana | [plans/2026-10-15-staging-sp.md](plans/2026-10-15-staging-sp.md) | Surat Peringatan + header detail di staging, rilis gel. 8 (TC-STG-088…102) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-102 |
-| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-249 |
+| Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-257 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-057 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18); staging 2026-10-12 E-01/E-02 — **LEGIT** |
@@ -70,6 +71,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-14-aset-lokal.md](runs/2026-10-14-aset-lokal.md) | Lokal: shared 215 · api 713 · web 262, Playwright 12/12 (nomor BAST unik diperbaiki saat uji) — LULUS lokal |
 | Hasil | [runs/2026-10-15-sp-lokal.md](runs/2026-10-15-sp-lokal.md) | Lokal: shared 227 · api 759 · web 270, Playwright 12/12 (+ audit: api 764 · web 271, ulang 12/12) — LULUS lokal |
 | Hasil | [runs/2026-10-16-laporan-lokal.md](runs/2026-10-16-laporan-lokal.md) | Lokal: shared 243 · api 792 · web 289, Playwright 11/11 — LULUS lokal |
+| Hasil | [runs/2026-10-20-laporan-batch2-lokal.md](runs/2026-10-20-laporan-batch2-lokal.md) | Lokal: shared 268 · api 826 · web 281, Playwright 12/12 + putaran audit — LULUS lokal |
 | Hasil | [runs/2026-10-15-staging-sp.md](runs/2026-10-15-staging-sp.md) | Staging rilis gel. 8: SP 11/11 + header & TM tersembunyi — Surat Peringatan **LEGIT** |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 DITUTUP 2026-10-12 (staging gel. 5): sapaan Dashboard memakai email akun, bukan nama karyawan |

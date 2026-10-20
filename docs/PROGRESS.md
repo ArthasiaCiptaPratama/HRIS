@@ -15,7 +15,7 @@
 | [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1) ✔ lokal `a2ce380` (belum push, EMP-OD1); template Formulir Data Karyawan + Tambah karyawan bertahap (EMP-D2) ✔ staging gel. 9; Print data PDF dari template (EMP-D3) ✔ staging gel. 10; Ubah data lengkap (EMP-D4) ✔ staging gel. 11 (QA LEGIT) | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
-| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ staging gel. 9 (QA LEGIT); sisa batch 2, OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT), gel. 9 Laporan |
+| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ staging gel. 9 (QA LEGIT); Laporan batch 2 (ARS-D21) ✔ lokal 2026-10-20 (QA 12/12, belum staging); sisa OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT), gel. 9 Laporan |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
 | [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; sisa: lembur OD-14, uji HP, cron, adapter | terpasang tersembunyi (gel. 7 + lokasi absen gel. 8, saklar `false`) |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
@@ -108,6 +108,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-20** — Laporan batch 2 (ARS-D21): masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan data; api 826 · web 281 · QA lokal 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-19** — Rilis gel. 11 ke staging: Ubah data lengkap (EMP-D4) + perbaikan pengajuan Keluarga (PR #57/#58, Deploy #39228019978, tanpa migrasi). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
 - **2026-10-19** — Ubah data lengkap dari detail (EMP-D4: pribadi, keluarga, rekening) + perbaikan pengajuan Keluarga yang menghapus kolom; api 816 · web 270. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-10-19** — Rilis gel. 10 ke staging: Print data PDF dari template (PR #55/#56, Deploy #39213066393, tanpa migrasi). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)

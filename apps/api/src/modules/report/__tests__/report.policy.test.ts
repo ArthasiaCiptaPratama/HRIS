@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Permission, Role } from "@hris/shared";
 import type { Actor } from "../../../core/access/index.ts";
 import {
+  canListDataChanges,
   canListSensitiveDocument,
   canListWarningLetters,
   canViewReports,
@@ -66,5 +67,11 @@ describe("daftar per orang yang sensitif", () => {
     expect(canListWarningLetters(actor("HR", ["employee.discipline.write"]))).toBe(true);
     expect(canListWarningLetters(actor("HR", ["employee.discipline.read"]))).toBe(true);
     expect(canListWarningLetters(actor("HR"))).toBe(false);
+  });
+
+  test("daftar pengajuan perubahan data (ARS-D21): SA / pemeriksa ber-grant", () => {
+    expect(canListDataChanges(actor("SA"))).toBe(true);
+    expect(canListDataChanges(actor("HR", ["employee.changes.review"]))).toBe(true);
+    expect(canListDataChanges(actor("HR"))).toBe(false);
   });
 });

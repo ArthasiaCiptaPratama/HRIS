@@ -4,18 +4,26 @@ import { z } from "zod";
 import { api } from "@/lib/api";
 import { downloadBytes } from "@/lib/xlsx-write";
 import {
+  assetsSchema,
+  birthdaysSchema,
   completenessSchema,
+  dataChangesSchema,
+  demographicsSchema,
   documentExpirySchema,
   headcountSchema,
+  movementsSchema,
+  tenureSchema,
   warningLettersSchema,
 } from "./schemas";
 
-// ARS-D16/D17: hook laporan batch 1 (data dihitung server; cakupan PT dicek API).
+// ARS-D16/D17 (batch 1) & ARS-D21 (batch 2): hook laporan (data dihitung server; cakupan PT dicek API).
 
 export interface ReportParams {
   companyId?: string | undefined;
   unitId?: string | undefined;
   year?: number | undefined;
+  /** 1–12 (masa kerja/jubilee, ulang tahun). */
+  month?: number | undefined;
 }
 
 const toSearch = (params: ReportParams) => {
@@ -31,6 +39,12 @@ const SCHEMAS = {
   "document-expiry": documentExpirySchema,
   completeness: completenessSchema,
   "warning-letters": warningLettersSchema,
+  tenure: tenureSchema,
+  demographics: demographicsSchema,
+  movements: movementsSchema,
+  birthdays: birthdaysSchema,
+  assets: assetsSchema,
+  "data-changes": dataChangesSchema,
 } as const;
 
 export function useReport<K extends ReportKind>(kind: K, params: ReportParams, enabled = true) {
