@@ -12,21 +12,26 @@ import {
 } from "@hris/shared";
 import {
   AlertTriangle,
+  ArrowLeftRight,
+  Award,
   Building2,
+  Cake,
   CalendarClock,
   CalendarX2,
+  ChartPie,
   CheckCircle2,
   ExternalLink,
   FileClock,
   FileDown,
+  FilePen,
   FileWarning,
   Hourglass,
   ListChecks,
   Loader2,
   MailQuestion,
+  Package,
   Percent,
   RotateCcw,
-  SearchX,
   ShieldAlert,
   UserCheck,
   UserMinus,
@@ -34,15 +39,13 @@ import {
   Users,
   UserX,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { EmptyState } from "@/components/empty-state";
 import { FormSelect } from "@/components/form-select";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanyScope, useMasterData } from "@/features/employee/api";
@@ -53,6 +56,7 @@ import { cn } from "@/lib/utils";
 import { exportReport, type ReportParams, useReport } from "../api";
 import { PeopleList, personColumn, unitColumn } from "../components/people-list";
 import { ReportChart } from "../components/report-chart";
+import { AsOf, State } from "../components/report-state";
 import {
   BarCell,
   type Column,
@@ -67,7 +71,25 @@ import {
   PercentBar,
   Segmented,
 } from "../components/report-ui";
+import { AssetsTab } from "../components/tabs/assets-tab";
+import { BirthdaysTab } from "../components/tabs/birthdays-tab";
+import { DataChangesTab } from "../components/tabs/data-changes-tab";
+import { DemographicsTab } from "../components/tabs/demographics-tab";
+import { MovementsTab } from "../components/tabs/movements-tab";
+import { TenureTab } from "../components/tabs/tenure-tab";
 import { fmt, pct } from "../format";
+import {
+  type DetailTab,
+  MONTH_NAMES,
+  MONTHS,
+  maxOf,
+  personSearch,
+  scrollToId,
+  sum,
+  thisMonth,
+  thisYear,
+  useOpenProfile,
+} from "../report-helpers";
 import type {
   CompletenessReport,
   DocumentExpiryReport,
@@ -76,9 +98,10 @@ import type {
 } from "../schemas";
 
 // ARS-D16/D17 (Arsip gelombang 3): Personal Management › Laporan — batch 1 (headcount & turnover,
-// dokumen kedaluwarsa, kelengkapan data, SP aktif). SA & HR (PT ditugaskan); angka dihitung server;
+// dokumen kedaluwarsa, kelengkapan data, SP aktif) + batch 2 ARS-D21 (masa kerja, demografi, mutasi &
+// promosi, ulang tahun, aset, pengajuan data; tab di components/tabs/). SA & HR (PT ditugaskan); angka dihitung server;
 // daftar per orang yang sensitif hanya bila ber-grant (API). Dashboard tetap ringkasan saat ini.
-// URL: ?laporan=<slug>&unit=&tahun= (bisa dibagikan); ?pegawai=<id>&tab=<tab detail> membuka profil
+// URL: ?laporan=<slug>&unit=&tahun=&bulan= (bisa dibagikan); ?pegawai=<id>&tab=<tab detail> membuka profil
 // karyawan di panel yang sama (pola halaman Arsip). Saringan hasil klik hanya di tampilan.
 
 const TABS: { kind: ReportKind; slug: string; label: string; icon: typeof Users }[] = [
@@ -86,47 +109,22 @@ const TABS: { kind: ReportKind; slug: string; label: string; icon: typeof Users 
   { kind: "document-expiry", slug: "dokumen", label: "Dokumen kedaluwarsa", icon: FileClock },
   { kind: "completeness", slug: "kelengkapan", label: "Kelengkapan data", icon: ListChecks },
   { kind: "warning-letters", slug: "sp", label: "SP aktif", icon: ShieldAlert },
+  // Batch 2 (ARS-D21)
+  { kind: "tenure", slug: "masa-kerja", label: "Masa kerja", icon: Award },
+  { kind: "demographics", slug: "demografi", label: "Demografi", icon: ChartPie },
+  { kind: "movements", slug: "mutasi", label: "Mutasi & promosi", icon: ArrowLeftRight },
+  { kind: "birthdays", slug: "ulang-tahun", label: "Ulang tahun", icon: Cake },
+  { kind: "assets", slug: "aset", label: "Aset", icon: Package },
+  { kind: "data-changes", slug: "pengajuan-data", label: "Pengajuan data", icon: FilePen },
 ];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-const MONTH_NAMES = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
-const thisYear = Number(
-  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date()).slice(0, 4),
-);
 
-/** Tab di panel detail karyawan (employee-detail-sheet). */
-type DetailTab = "work" | "personal" | "documents" | "warnings" | "bank" | "history";
-
-/** Buka profil karyawan di panel (Back menutup panel). */
-function useOpenProfile() {
-  const [, setParams] = useSearchParams();
-  return (employeeId: string, tab: DetailTab) =>
-    setParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set("pegawai", employeeId);
-      next.set("tab", tab);
-      return next;
-    });
-}
-
-const scrollToId = (id: string) =>
-  requestAnimationFrame(() =>
-    document.getElementById(id)?.scrollIntoView?.({ behavior: "smooth", block: "start" }),
-  );
-const personSearch = (p: { fullName: string; employeeNumber: string | null }) =>
-  `${p.fullName} ${p.employeeNumber ?? ""}`;
+const YEAR_KINDS = new Set<ReportKind>([
+  "headcount",
+  "warning-letters",
+  "tenure",
+  "movements",
+  "data-changes",
+]);
 
 export function ReportsPage() {
   const [params, setParams] = useSearchParams();
@@ -147,17 +145,29 @@ export function ReportsPage() {
     );
   const scope = useCompanyScope();
   const master = useMasterData();
-  const usesYear = tab.kind === "headcount" || tab.kind === "warning-letters";
+  // 10 tab tidak muat di HP: tab aktif (mis. dari URL) digulir supaya terlihat.
+  useEffect(() => {
+    document
+      .querySelector(`#report-tabs [id$="-trigger-${tab.slug}"]`)
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [tab.slug]);
+  const monthParam = Number(params.get("bulan"));
+  const month = monthParam >= 1 && monthParam <= 12 ? monthParam : thisMonth;
+  const usesMonth = tab.kind === "tenure" || tab.kind === "birthdays";
+  // Ulang tahun hanya butuh bulan; tahun tetap dikirim (skema API) tanpa pilihan di layar.
+  const usesYear = YEAR_KINDS.has(tab.kind);
   const filter: ReportParams = {
     companyId: scope.selectedId,
     unitId: unitId || undefined,
-    ...(usesYear ? { year } : {}),
+    ...(usesYear || usesMonth ? { year: usesYear ? year : thisYear } : {}),
+    ...(usesMonth ? { month } : {}),
   };
   const units = (master.data?.departments ?? []).filter(
     (d) => !scope.selectedId || !d.companyId || d.companyId === scope.selectedId,
   );
   const company = scope.companies.find((c) => c.id === scope.selectedId);
-  const dirty = Boolean(unitId) || (usesYear && year !== thisYear);
+  const dirty =
+    Boolean(unitId) || (usesYear && year !== thisYear) || (usesMonth && month !== thisMonth);
   const [exporting, setExporting] = useState(false);
   const onExport = async () => {
     setExporting(true);
@@ -177,8 +187,11 @@ export function ReportsPage() {
         description="Rekap per periode untuk HR. Klik angka, grafik, atau nama karyawan untuk menelusuri; data sensitif per orang hanya tampil bila Anda punya izinnya."
       />
       <Tabs value={tab.slug} onValueChange={(slug) => setParam("laporan", slug)} className="gap-4">
-        {/* HP: tab digulir ke samping (bukan bertumpuk). */}
-        <TabsList className="max-w-full justify-start overflow-x-auto [scrollbar-width:none]">
+        {/* HP: tab digulir ke samping (tab aktif digulir masuk layar); md ke atas: turun baris bila tidak muat. */}
+        <TabsList
+          id="report-tabs"
+          className="max-w-full justify-start overflow-x-auto [scrollbar-width:none] md:flex-wrap md:gap-y-1 md:overflow-visible"
+        >
           {TABS.map((t) => (
             <TabsTrigger key={t.slug} value={t.slug}>
               <t.icon /> {t.label}
@@ -186,7 +199,7 @@ export function ReportsPage() {
           ))}
         </TabsList>
         {/* Bilah filter menempel di bawah header aplikasi (layar md ke atas). */}
-        <div className="bg-background/90 supports-[backdrop-filter]:bg-background/75 z-20 -mx-1 rounded-xl px-1 py-1 backdrop-blur md:sticky md:top-14">
+        <div className="bg-background/90 supports-[backdrop-filter]:bg-background/75 z-20 -mx-1 rounded-xl px-1 py-1 backdrop-blur md:sticky md:top-0">
           <div className="bg-card flex flex-col gap-2 rounded-xl border p-2 shadow-xs sm:flex-row sm:flex-wrap sm:items-center">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -219,6 +232,16 @@ export function ReportsPage() {
                 }))}
               />
             ) : null}
+            {usesMonth ? (
+              <FormSelect
+                aria-label="Bulan"
+                className="h-9 sm:w-36"
+                value={String(month)}
+                onChange={(v) => setParam("bulan", v === String(thisMonth) ? undefined : v)}
+                placeholder="Bulan"
+                options={MONTH_NAMES.map((name, i) => ({ value: String(i + 1), label: name }))}
+              />
+            ) : null}
             {dirty ? (
               <Button
                 variant="ghost"
@@ -230,6 +253,7 @@ export function ReportsPage() {
                       const next = new URLSearchParams(prev);
                       next.delete("unit");
                       next.delete("tahun");
+                      next.delete("bulan");
                       return next;
                     },
                     { replace: true },
@@ -251,8 +275,8 @@ export function ReportsPage() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                Berisi ringkasan + seluruh rincian sesuai filter PT/unit/tahun. Saringan hasil klik
-                di halaman tidak ikut.
+                Berisi ringkasan + seluruh rincian sesuai filter PT/unit/periode. Saringan hasil
+                klik di halaman tidak ikut.
               </TooltipContent>
             </Tooltip>
           </div>
@@ -269,53 +293,29 @@ export function ReportsPage() {
         <TabsContent value="sp">
           <WarningLettersTab params={filter} enabled={tab.kind === "warning-letters"} />
         </TabsContent>
+        <TabsContent value="masa-kerja">
+          <TenureTab params={filter} enabled={tab.kind === "tenure"} />
+        </TabsContent>
+        <TabsContent value="demografi">
+          <DemographicsTab params={filter} enabled={tab.kind === "demographics"} />
+        </TabsContent>
+        <TabsContent value="mutasi">
+          <MovementsTab params={filter} enabled={tab.kind === "movements"} />
+        </TabsContent>
+        <TabsContent value="ulang-tahun">
+          <BirthdaysTab params={filter} enabled={tab.kind === "birthdays"} />
+        </TabsContent>
+        <TabsContent value="aset">
+          <AssetsTab params={filter} enabled={tab.kind === "assets"} />
+        </TabsContent>
+        <TabsContent value="pengajuan-data">
+          <DataChangesTab params={filter} enabled={tab.kind === "data-changes"} />
+        </TabsContent>
       </Tabs>
       <EmployeeDetailSheet />
     </div>
   );
 }
-
-// --- Bersama ---
-
-function State({ query }: { query: { isPending: boolean; isError: boolean; error: unknown } }) {
-  if (query.isPending)
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          {Array.from({ length: 5 }, (_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: kerangka statis
-            <Skeleton key={i} className="h-28 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-72 rounded-xl" />
-      </div>
-    );
-  if (query.isError)
-    return (
-      <EmptyState
-        icon={SearchX}
-        title="Laporan gagal dimuat"
-        description={errorMessage(query.error)}
-      />
-    );
-  return null;
-}
-
-/** Tanggal data (pojok kanan atas tiap tab). */
-function AsOf({ date, children }: { date: string; children?: ReactNode }) {
-  return (
-    <p className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
-      <CalendarClock className="size-3.5" aria-hidden />
-      Data per {formatDate(date)}
-      {children}
-    </p>
-  );
-}
-
-const sum = <T,>(rows: readonly T[], value: (row: T) => number) =>
-  rows.reduce((total, row) => total + value(row), 0);
-const maxOf = <T,>(rows: readonly T[], value: (row: T) => number) =>
-  Math.max(0, ...rows.map(value));
 
 // --- (1) Headcount & turnover ---
 

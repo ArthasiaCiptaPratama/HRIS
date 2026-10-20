@@ -12,6 +12,10 @@ import { createFakeStorage } from "../../helpers/storage.ts";
 // Bulan 2001-01 dipakai supaya tidak ada data nyata yang ikut ditutup.
 const RUN = crypto.randomUUID().slice(0, 6).toUpperCase();
 const MONTH = "2001-01";
+// TM-D3: koreksi hanya s.d. tanggal kerja + 3 hari → alur koreksi diuji pada tanggal baru-baru ini.
+const RECENT = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(
+  new Date(Date.now() - 2 * 86_400_000),
+);
 const auth = createAuthFixture(RUN.toLowerCase());
 const prisma = getPrisma();
 const fake = createFakeStorage();
@@ -157,9 +161,21 @@ afterAll(async () => {
 });
 
 describe("koreksi absensi", () => {
-  test("lupa absen â†’ koreksi; Atasan + HR setuju â†’ hari disetujui berlabel CORRECTED", async () => {
+  test("koreksi lewat batas tanggal kerja + 3 hari ditolak (TM-D3)", async () => {
     const res = await call("POST", "/attendance/corrections", h.a, {
       workDate: "2001-01-10",
+      checkIn: "07:00",
+      reason: "Lupa absen, HP tertinggal",
+    });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain(
+      "Batas koreksi",
+    );
+  });
+
+  test("lupa absen â†’ koreksi; Atasan + HR setuju â†’ hari disetujui berlabel CORRECTED", async () => {
+    const res = await call("POST", "/attendance/corrections", h.a, {
+      workDate: RECENT,
       checkIn: "07:00",
       checkOut: "19:00",
       reason: "Lupa absen, HP tertinggal",
@@ -171,12 +187,12 @@ describe("koreksi absensi", () => {
       checkInAt: string;
       checkOutAt: string;
     }>(res);
-    expect(created.checkInAt).toBe(localToIso("2001-01-10", "07:00"));
-    expect(created.checkOutAt).toBe(localToIso("2001-01-10", "19:00"));
+    expect(created.checkInAt).toBe(localToIso(RECENT, "07:00"));
+    expect(created.checkOutAt).toBe(localToIso(RECENT, "19:00"));
     expect(
       (
         await call("POST", "/attendance/corrections", h.a, {
-          workDate: "2001-01-10",
+          workDate: RECENT,
           checkIn: "07:00",
           reason: "Dobel",
         })
@@ -193,7 +209,7 @@ describe("koreksi absensi", () => {
       expect(r.status).toBe(200);
     }
     const day = await prisma.attendanceDay.findUnique({
-      where: { employeeId_workDate: { employeeId: emp.a, workDate: D("2001-01-10") } },
+      where: { employeeId_workDate: { employeeId: emp.a, workDate: D(RECENT) } },
     });
     expect(day).toMatchObject({ status: "APPROVED", labels: ["CORRECTED"] });
   });
@@ -214,7 +230,7 @@ describe("rekap & tutup periode", () => {
     expect(recap.period.status).toBe("OPEN");
     expect(recap.rows.find((r) => r.employee.id === emp.a)).toMatchObject({
       workDays: 3,
-      present: 1,
+      present: 0,
       rejected: 1,
       leave: 1,
     });
@@ -229,12 +245,14 @@ describe("rekap & tutup periode", () => {
     const preview = await data<{ sample: { employee: { id: string }; date: string }[] }>(
       await call("POST", "/attendance/periods/preview", h.hrGrant, body),
     );
+    // 2001-01-10 tanpa absen (koreksi lewat batas TM-D3) ikut menjadi ALPHA saat tutup periode.
     expect(preview.sample.filter((s) => s.employee.id === emp.a).map((s) => s.date)).toEqual([
+      "2001-01-10",
       "2001-01-11",
     ]);
     expect((await call("POST", "/attendance/periods/close", h.hrGrant, body)).status).toBe(200);
     expect(await dayStatus(emp.a, "2001-01-11")).toBe("ALPHA");
-    expect(await dayStatus(emp.a, "2001-01-10")).toBe("APPROVED");
+    expect(await dayStatus(emp.a, "2001-01-10")).toBe("ALPHA");
     expect(await dayStatus(emp.a, "2001-01-15")).toBe("LEAVE");
     expect((await call("POST", "/attendance/periods/close", h.sa, body)).status).toBe(409);
     expect(

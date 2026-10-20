@@ -269,6 +269,26 @@ describe("absen PWA", () => {
     ]);
   });
 
+  // Absen masuk hanya sekali per hari (pemilik projek 2026-10-19): setelah masuk & pulang, aplikasi
+  // tidak lagi menawarkan Clock In dan server menolak absen masuk kedua sejak pra-cek.
+  test("sudah Clock In & Clock Out hari ini → langkah DONE; Clock In kedua ditolak", async () => {
+    const today = await data<{ next: string }>(await call("GET", "/attendance/me/today", h.a));
+    expect(today.next).toBe("DONE");
+    const pre = await data<{ alreadyCheckedIn: boolean }>(
+      await call("POST", "/attendance/precheck", h.a, { kind: "IN", ...SITE, accuracyM: 15 }),
+    );
+    expect(pre.alreadyCheckedIn).toBe(true);
+    const again = await call("POST", "/attendance/punch", h.a, {
+      kind: "IN",
+      ...SITE,
+      accuracyM: 15,
+      selfiePath: await selfie(h.a),
+      confirmed: true,
+      reason: "Coba absen lagi",
+    });
+    expect(again.status).toBe(409);
+  });
+
   test("tanpa roster: label NO_ROSTER; salah pencet bisa dibatalkan sendiri lalu absen ulang", async () => {
     const pre = await data<{ labels: string[] }>(
       await call("POST", "/attendance/precheck", h.b, { kind: "IN", ...SITE, accuracyM: 10 }),
@@ -356,6 +376,7 @@ describe("approval per absen & data harian", () => {
 
   test("autentikasi manual HR: jam masuk & pulang kemarin; langkah HR otomatis, atasan memutuskan", async () => {
     const yesterday = addDays(todayWita, -1);
+    // Jam pulang manual membawa lokasi pilihan HR; jam masuk tanpa lokasi (kompatibel API lama).
     const manual = (who: Record<string, string>, kind: string, time: string) =>
       call("POST", "/attendance/manual", who, {
         employeeId: emp.a,
@@ -363,6 +384,7 @@ describe("approval per absen & data harian", () => {
         kind,
         time,
         reason: "HP rusak, absen dicatat pos jaga",
+        ...(kind === "OUT" ? { workLocationId: ids.location } : {}),
       });
     expect((await manual(h.a, "IN", "07:00")).status).toBe(403);
     expect((await manual(h.hr, "OUT", "19:00")).status).toBe(422);
@@ -375,9 +397,16 @@ describe("approval per absen & data harian", () => {
         kind: string;
         source: string;
         at: string;
+        location: { id: string; name: string } | null;
+        latitude: number | null;
+        insideGeofence: boolean;
         approval: { id: string; steps: { kind: string; decision: string }[] };
       }[];
     }>(await manual(h.hr, "OUT", "19:10"));
+    const out = day.punches.find((p) => p.kind === "OUT");
+    expect(out?.location).toEqual({ id: ids.location, name: `Site AT ${RUN}` });
+    expect(out).toMatchObject({ latitude: SITE.latitude, insideGeofence: true });
+    expect(day.punches.find((p) => p.kind === "IN")?.location).toBeNull();
     expect(day.status).toBe("PENDING");
     expect(day.labels).toContain("MANUAL");
     expect(day.punches.map((p) => p.source)).toEqual(["MANUAL", "MANUAL"]);
@@ -405,6 +434,28 @@ describe("cron harian", () => {
     );
     expect(days[0]).toMatchObject({ status: "PENDING" });
     expect(days[0]?.labels).toContain("NO_CHECKOUT");
+  });
+
+  // Tanpa cron (lokal / cron belum terjadwal): hari lama yang menggantung tidak boleh tampil sebagai
+  // absen yang sedang berjalan — dibuka aplikasi → ditutup NO_CHECKOUT, tombol kembali ke Clock In.
+  test("hari OPEN lama lewat batas ditutup saat aplikasi dibuka; langkah berikutnya Clock In", async () => {
+    const stale = await prisma.attendanceDay.create({
+      data: {
+        employeeId: emp.mgr,
+        companyId,
+        workDate: new Date(`${addDays(todayWita, -4)}T00:00:00Z`),
+        status: "OPEN",
+        labels: [],
+        checkOutDeadline: new Date(Date.now() - 3 * 86_400_000),
+      },
+    });
+    const today = await data<{ next: string; openDay: unknown }>(
+      await call("GET", "/attendance/me/today", h.mgr),
+    );
+    expect(today).toMatchObject({ next: "IN", openDay: null });
+    const after = await prisma.attendanceDay.findUnique({ where: { id: stale.id } });
+    expect(after).toMatchObject({ status: "PENDING" });
+    expect(after?.labels).toContain("NO_CHECKOUT");
   });
 
   test("selfie > masa simpan dihapus dari storage; data absen tetap", async () => {

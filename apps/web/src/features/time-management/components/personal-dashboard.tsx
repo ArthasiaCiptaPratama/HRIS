@@ -284,7 +284,12 @@ export function PersonalDashboard({ me }: { me: Me }) {
             </div>
             <Button variant="brand" className="w-full" asChild>
               <Link to="/absen">
-                <ScanFace /> {data.next === "IN" ? "Clock In sekarang" : "Clock Out sekarang"}
+                <ScanFace />{" "}
+                {data.next === "DONE"
+                  ? "Absen hari ini sudah tercatat"
+                  : data.next === "IN"
+                    ? "Clock In sekarang"
+                    : "Clock Out sekarang"}
               </Link>
             </Button>
           </div>

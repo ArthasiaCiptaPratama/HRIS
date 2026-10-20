@@ -215,6 +215,14 @@ export async function listActiveSuperAdmins() {
   });
 }
 
+/** Akun aktif yang bisa memutuskan approval Time Management (ringkasan antrean harian). */
+export async function listApproverAccounts() {
+  return getPrisma().account.findMany({
+    where: { role: { in: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"] }, isActive: true },
+    select: { id: true, email: true, authUserId: true },
+  });
+}
+
 /** Grant aktif yang kedaluwarsa dalam rentang (now, until], beserta email pemiliknya (akun aktif). */
 export async function findGrantsExpiringBetween(now: Date, until: Date) {
   return getPrisma().permissionGrant.findMany({

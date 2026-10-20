@@ -24,6 +24,9 @@ export const leaveTypeSchema = z.object({
   category: z.enum(["ANNUAL", "PERMIT", "SICK"]),
   maxDaysPerRequest: z.number().nullable(),
   documentRequiredAfterDays: z.number().nullable(),
+  /** Keterangan untuk karyawan & berkas yang diperlukan (API lama → null). */
+  description: z.string().nullable().default(null),
+  documentLabel: z.string().nullable().default(null),
   isActive: z.boolean(),
   sortOrder: z.number(),
 });
@@ -64,6 +67,8 @@ export const leaveRequestSchema = z.object({
   endDate: z.string(),
   workDates: z.array(z.string()),
   days: z.number(),
+  /** Bagian hari yang memotong cuti tahunan (izin melebihi jatah). API lama → 0. */
+  annualDays: z.number().default(0),
   reason: z.string(),
   attachmentUrl: z.string().nullable(),
   status: z.string(),
@@ -96,6 +101,8 @@ const myLeaveSchema = z.object({
 const previewSchema = z.object({
   dates: z.array(z.string()),
   days: z.number(),
+  /** Hari yang memotong cuti tahunan (izin: kelebihan dari batas jenisnya). API lama → 0. */
+  annualDays: z.number().default(0),
   charges: z.array(z.object({ year: z.number(), days: z.number() })),
   balances: z.array(z.object({ year: z.number(), balance: z.number() })),
   documentRequired: z.boolean(),
