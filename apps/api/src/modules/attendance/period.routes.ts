@@ -8,6 +8,7 @@ import {
 import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import * as alpha from "./alpha.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import * as service from "./period.service.ts";
 import { strict } from "./roster.routes.ts";
@@ -84,6 +85,21 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       anyBody,
     ),
     async (c) => service.closePeriod(ctxOf(c), strict(periodCloseInputSchema, await body(c))),
+  ],
+  [
+    route("get", "/attendance/record/me", "Rekam jejak Alpha & koreksi saya (TM-D3)"),
+    (c) => alpha.myAttendanceRecord(ctxOf(c)),
+  ],
+  [
+    route(
+      "get",
+      "/attendance/record/employees/{id}",
+      "Rekam jejak Alpha & koreksi karyawan (TM-D3)",
+      {
+        params: z.object({ id: z.uuid() }),
+      },
+    ),
+    (c) => alpha.employeeAttendanceRecord(ctxOf(c), c.req.param("id") as string),
   ],
   [
     route("get", "/attendance/statements/me", "Hari ALPHA saya & surat pernyataannya"),

@@ -9,6 +9,7 @@ import { registerPeriodRoutes } from "./period.routes.ts";
 import { configurePeriod, registerPeriodIntegrations } from "./period.service.ts";
 import { registerRosterRoutes } from "./roster.routes.ts";
 import { registerRosterChangeHandler } from "./roster-change.service.ts";
+import { registerTimeNotifyRoutes } from "./time-notify.routes.ts";
 
 // Pintu masuk route modul attendance (Time Management, D-067–D-072). Tahap berikutnya menambah grup route di sini.
 export interface AttendanceRouteDeps {
@@ -33,4 +34,6 @@ export function registerAttendanceRoutes(app: OpenAPIHono, deps: AttendanceRoute
   registerPeriodIntegrations();
   // TM-D1: lokasi absen per karyawan.
   registerLocationSettingRoutes(app, deps.protect);
+  // Paket UX 2026-10-20: angka antrean keputusan untuk badge menu.
+  registerTimeNotifyRoutes(app, deps.protect);
 }

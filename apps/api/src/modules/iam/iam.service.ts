@@ -1159,6 +1159,17 @@ export async function listDataChangeReviewers(
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }
 
+/** Ringkasan antrean Time Management: akun aktif SA, HR, MANAGER (authUserId untuk memuat aktor). */
+export async function listApproverAccounts(): Promise<
+  { accountId: string; email: string; authUserId: string }[]
+> {
+  return (await repository.listApproverAccounts()).map((a) => ({
+    accountId: a.id,
+    email: a.email,
+    authUserId: a.authUserId,
+  }));
+}
+
 /** ARS-D3: penerima pengingat aset PT `companyId` = SA aktif + HR PT itu ber-grant `asset.manage`. */
 export async function listAssetManagers(
   companyId: string,

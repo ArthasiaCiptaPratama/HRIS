@@ -16,3 +16,25 @@ describe("navigasi: grup aktif sesuai item", () => {
     }
   }
 });
+
+// Master Cuti (kuota per tahun) tidak untuk karyawan biasa (pemilik projek 2026-10-19).
+describe("navigasi: Master Cuti", () => {
+  const item = flatten(NAV_GROUPS.flatMap((g) => g.sections.flatMap((s) => s.items))).find(
+    (i) => i.to === "/time/master-cuti",
+  ) as NavItem;
+  const me = (role: "SUPER_ADMIN" | "HR_ADMIN" | "MANAGER" | "EMPLOYEE") => ({
+    id: "a",
+    email: "x@example.test",
+    role,
+    isPrimarySuperAdmin: false,
+    employeeId: "e1",
+    lastLoginAt: null,
+    grants: [],
+  });
+  it("tersembunyi untuk karyawan; tampil untuk SA, HR, MANAGER", () => {
+    expect(item.visible?.(me("EMPLOYEE") as never)).toBe(false);
+    for (const role of ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"] as const) {
+      expect(item.visible?.(me(role) as never)).toBe(true);
+    }
+  });
+});

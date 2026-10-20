@@ -82,6 +82,21 @@ export async function heldByYear(tx: LeaveTx, requestId: string): Promise<Map<nu
   return new Map(rows.map((r) => [r.year, -(r._sum.days ?? 0)]));
 }
 
+/** Hari yang pernah ditahan dari saldo cuti tahunan per pengajuan (HOLD; tetap tercatat setelah selesai). */
+export async function chargedDaysByRequest(requestIds: string[]): Promise<Map<string, number>> {
+  if (requestIds.length === 0) return new Map();
+  const rows = await getPrisma().leaveLedger.groupBy({
+    by: ["requestId"],
+    where: { requestId: { in: requestIds }, kind: "HOLD" satisfies LeaveLedgerKind },
+    _sum: { days: true },
+  });
+  return new Map(
+    rows
+      .filter((r): r is typeof r & { requestId: string } => r.requestId !== null)
+      .map((r) => [r.requestId, -(r._sum.days ?? 0)]),
+  );
+}
+
 // ── Pengajuan ──────────────────────────────────────────────────────────────────
 const withType = { type: true } satisfies Prisma.LeaveRequestInclude;
 export type RequestRow = Prisma.LeaveRequestGetPayload<{ include: typeof withType }>;
