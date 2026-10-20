@@ -1,7 +1,7 @@
 # Arsip karyawan & Layanan Mandiri
 
 > **Kode prefix:** `ARS` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `archive`, `selfService`, `assets`, `discipline`, `reports`
-> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ staging gel. 9 (2026-10-19, QA LEGIT); **Laporan batch 2 (ARS-D21) ✔ lokal 2026-10-20** (belum commit/staging); perbaikan UI/UX SP + SP massal (ARS-D19/D20) ✔ staging gel. 9 (2026-10-19, QA LEGIT); sisa: rilis batch 2, impor per kategori, OD-11
+> **Status:** Gel. 1a–1d ✔ develop & **✔ tampil di staging (rilis gel. 6, 2026-10-13), QA LEGIT**; gel. 2a Aset & APD **✔ tampil di staging (rilis gel. 7, 2026-10-14), QA LEGIT**; gel. 2b Surat Peringatan **✔ tampil di staging (rilis gel. 8, 2026-10-15), QA LEGIT**; gel. 3 Laporan batch 1 ✔ staging gel. 9 (2026-10-19, QA LEGIT); **Laporan batch 2 (ARS-D21) ✔ staging gel. 12 (2026-10-20)**, QA staging menunggu; perbaikan UI/UX SP + SP massal (ARS-D19/D20) ✔ staging gel. 9 (2026-10-19, QA LEGIT); sisa: QA staging batch 2, impor per kategori, OD-11
 
 Arsip lintas karyawan (kontak, pendidikan, pelatihan, riwayat), dokumen bermasa berlaku (D-055), pengajuan perubahan data milik sendiri (D-054), ekspor & cetak (D-058); rencana aset (D-056), surat peringatan (D-057), laporan.
 
@@ -40,13 +40,13 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [~] Gel. 3 Laporan (10 laporan awal) — menggantikan menu Laporan "Maintenance"; grill 2026-10-16 → ARS-D16/D17 (batch 1 = 4 laporan inti)
     - [x] Batch 1 (2026-10-16): shared `report.ts`; agregat baca-saja `employee` & `discipline` lewat `index.ts`; modul `report` (policy 7, 8 operasi, ekspor xlsx + audit `report.export`); web `/personal/laporan` 4 tab + filter unit/tahun + grafik + ekspor, saklar `FEATURES.reports`; integration 8, web 6; QA lokal Playwright **11/11** (TC-EMP-239…249, plan/run `2026-10-16-laporan-lokal`)
     - [x] Rilis staging batch 1 ✔ gel. 9 (2026-10-19, Deploy #39199139468); QA staging 15/15 LEGIT (`docs/qa/runs/2026-10-19-staging-gel9.md`)
-    - [x] Batch 2 (2026-10-20, ARS-D21): masa kerja + jubilee, demografi agregat, mutasi & promosi (level jabatan), ulang tahun (tanggal-bulan), aset (tanpa harga) + belum kembali, pengajuan perubahan data; ekspor Excel tiap laporan; kontrak PKWT menunggu Fase 7. ✔ lokal (QA 12/12, `docs/qa/runs/2026-10-20-laporan-batch2-lokal.md`); staging menyusul
+    - [x] Batch 2 (2026-10-20, ARS-D21): masa kerja + jubilee, demografi agregat, mutasi & promosi (level jabatan), ulang tahun (tanggal-bulan), aset (tanpa harga) + belum kembali, pengajuan perubahan data; ekspor Excel tiap laporan; kontrak PKWT menunggu Fase 7. ✔ lokal (QA 17/17, `docs/qa/runs/2026-10-20-laporan-batch2-lokal.md`); ✔ staging gel. 12 (2026-10-20), QA staging menunggu
       - [x] Shared: kelompok masa kerja/usia (sama dengan Dashboard), jubilee, jenis perpindahan, rata-rata waktu proses — `report-batch2.test.ts` 18 (tambahan 2026-10-20: rencana batch 2)
       - [x] Penyedia data baca-saja employee (demografi, riwayat jabatan, ulang tahun, pengajuan) & asset (tambahan 2026-10-20)
       - [x] API 6 laporan + ekspor + policy `canListDataChanges` + integration `reports-batch2.test.ts` 9 (tambahan 2026-10-20)
       - [x] Web 6 tab (`components/tabs/`) + filter bulan; web test +6 (tambahan 2026-10-20)
       - [x] Verifikasi penuh + QA lokal 12/12 (tambahan 2026-10-20)
-      - [ ] Rilis staging + QA staging (tambahan 2026-10-20)
+      - [~] Rilis staging + QA staging (tambahan 2026-10-20) — ✔ rilis gel. 12 (PR #59/#60, Deploy #39390300300, smoke ✔); QA staging menunggu sesi login
   - [ ] Keputusan OD-11 (masa simpan data karyawan keluar) sebelum rilis produksi gelombang 1
   - [x] **Perbaikan UI/UX Surat Peringatan** (tambahan 2026-10-19: temuan pemilik projek) — ✔ staging rilis gel. 9, QA staging LEGIT
     - [x] Detail Riwayat Peringatan dikelompokkan (kartu Karyawan · Pelanggaran · Proses & dokumen; label alasan eskalasi tanpa "(—)")
