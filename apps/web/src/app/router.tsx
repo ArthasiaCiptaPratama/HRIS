@@ -319,8 +319,14 @@ export const routes: RouteObject[] = [
                 ],
               },
               {
-                path: "master-cuti",
-                lazy: FEATURES.timeManagement ? pages.leaveMaster : pages.maintenance,
+                // Master Cuti: SA, HR, MANAGER — bukan untuk karyawan biasa.
+                element: <RequireAccessRoute check={tmAccess.viewLeaveMaster} />,
+                children: [
+                  {
+                    path: "master-cuti",
+                    lazy: FEATURES.timeManagement ? pages.leaveMaster : pages.maintenance,
+                  },
+                ],
               },
               {
                 path: "kalender",

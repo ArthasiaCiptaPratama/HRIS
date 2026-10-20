@@ -56,7 +56,9 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
+import { AlphaBanner, HomeSummary, PunchReminder } from "../components/home-insights";
 import { RosterWeek } from "../components/roster-week";
+import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
 
 // D-067: absen lewat PWA (tata letak HP, wajib online). Login sama dengan web. Selfie kamera langsung +
@@ -174,7 +176,8 @@ export function MobileShell() {
   const tz = data?.timezone ?? fallbackTz;
   // D-073: Clock Out tanpa Clock In kemungkinan salah pencet → tawarkan Clock In.
   const startPunch = (kind: "IN" | "OUT") => {
-    if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
+    if (data?.next === "DONE") toast.info(DONE_TEXT);
+    else if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
     else setFlow(kind);
   };
   const isHome = pathname === "/absen" || pathname === "/absen/";
@@ -230,9 +233,9 @@ export function MobileShell() {
           </main>
 
           <BottomNav
-            canPunch={Boolean(data) && online}
+            canPunch={Boolean(data) && online && data?.next !== "DONE"}
             next={data?.next ?? "IN"}
-            onPunch={() => data && setFlow(data.next)}
+            onPunch={() => data && data.next !== "DONE" && setFlow(data.next)}
           />
         </div>
         {noOpenWarning ? (
@@ -294,7 +297,10 @@ export function AbsenHome() {
   }
   return (
     <>
+      <PunchReminder data={data} clock={clock} />
+      <AlphaBanner />
       <TodayCard data={data} clock={clock} online={online} onPunch={startPunch} />
+      <HomeSummary data={data} />
       <MenuGrid me={me} />
       <RosterStrip data={data} today={todayIn(tz)} />
       <History data={data} tz={tz} />
@@ -304,6 +310,16 @@ export function AbsenHome() {
 
 /** Kompatibilitas: nama lama halaman absen. */
 export const AbsenPage = AbsenHome;
+
+/** Absen masuk hanya sekali per hari (permintaan pemilik projek 2026-10-19). */
+const DONE_TEXT = "Absen hari ini sudah tercatat — absen berikutnya besok sesuai jadwal.";
+
+/** "15 Okt" pada zona waktu jam shift. */
+function shortDate(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", timeZone }).format(
+    new Date(iso),
+  );
+}
 
 function TodayCard({
   data,
@@ -324,6 +340,8 @@ function TodayCard({
   const current = data.openDay ?? data.recent.find((d) => d.workDate === date) ?? null;
   const inAt = current?.punches.find((p) => p.kind === "IN")?.at ?? null;
   const outAt = current?.punches.find((p) => p.kind === "OUT")?.at ?? null;
+  // Absen masuk yang masih terbuka dari tanggal lain (mis. shift malam kemarin): tampilkan tanggalnya.
+  const otherDate = current && current.workDate !== date ? current.workDate : null;
   const dateText = new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
@@ -369,7 +387,8 @@ function TodayCard({
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
           type="button"
-          disabled={!online}
+          disabled={!online || data.next === "DONE"}
+          title={data.next === "DONE" ? DONE_TEXT : undefined}
           onClick={() => onPunch("IN")}
           className={cn(
             "flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl bg-emerald-600 text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
@@ -380,13 +399,14 @@ function TodayCard({
             <LogIn className="size-5" /> Datang
           </span>
           <span className="font-mono text-sm tabular-nums">
-            {inAt ? timeIn(inAt, tz) : "--:--"}
+            {inAt ? `${otherDate ? `${shortDate(inAt, tz)} ` : ""}${timeIn(inAt, tz)}` : "--:--"}
           </span>
           <span className="text-[10px] opacity-80">Clock In</span>
         </button>
         <button
           type="button"
-          disabled={!online}
+          disabled={!online || data.next === "DONE"}
+          title={data.next === "DONE" ? DONE_TEXT : undefined}
           onClick={() => onPunch("OUT")}
           className={cn(
             "flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl bg-blue-600 text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
@@ -403,7 +423,11 @@ function TodayCard({
         </button>
       </div>
       <p className="text-muted-foreground mt-2 text-center text-[11px]">
-        Jam masuk/pulang mengikuti data kehadiran Anda hari ini.
+        {data.next === "DONE"
+          ? DONE_TEXT
+          : otherDate && !outAt
+            ? `Masih tercatat Clock In tanggal kerja ${workDateLabel(otherDate)} — lakukan Clock Out.`
+            : "Jam masuk/pulang mengikuti data kehadiran Anda hari ini."}
       </p>
     </section>
   );
@@ -415,17 +439,25 @@ function MenuTile({
   icon: Icon,
   label,
   tone,
+  count,
 }: {
   to?: string;
   onClick?: () => void;
   icon: typeof House;
   label: string;
   tone: string;
+  /** Angka antrean (mis. pengajuan menunggu keputusan). */
+  count?: number | undefined;
 }) {
   const inner = (
     <>
-      <span className={cn("grid size-11 place-items-center rounded-xl", tone)}>
+      <span className={cn("relative grid size-11 place-items-center rounded-xl", tone)}>
         <Icon className="size-5" />
+        {count ? (
+          <span className="absolute -top-1.5 -right-1.5 min-w-5 rounded-full bg-red-600 px-1 text-center text-[10px] leading-5 font-semibold text-white">
+            {count > 99 ? "99+" : count}
+          </span>
+        ) : null}
       </span>
       <span className="text-center text-[11px] leading-tight font-medium">{label}</span>
     </>
@@ -445,6 +477,7 @@ function MenuTile({
 
 function MenuGrid({ me }: { me: Me }) {
   const approver = tmAccess.reviewDays(me) || tmAccess.decideLeave(me);
+  const queue = useTimeQueue(approver).data;
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">
       <h2 className="mb-2 px-1 text-sm font-semibold">Menu</h2>
@@ -491,6 +524,7 @@ function MenuGrid({ me }: { me: Me }) {
             icon={ClipboardCheck}
             label="Approval"
             tone="bg-teal-100 text-teal-700"
+            count={queue?.total}
           />
         ) : null}
         <MenuTile
@@ -622,7 +656,7 @@ function BottomNav({
   onPunch,
 }: {
   canPunch: boolean;
-  next: "IN" | "OUT";
+  next: "IN" | "OUT" | "DONE";
   onPunch: () => void;
 }) {
   const { pathname } = useLocation();
@@ -654,13 +688,19 @@ function BottomNav({
             type="button"
             disabled={!canPunch}
             onClick={onPunch}
-            aria-label={next === "IN" ? "Absen wajah: Clock In" : "Absen wajah: Clock Out"}
+            aria-label={
+              next === "DONE"
+                ? "Absen hari ini sudah lengkap"
+                : next === "IN"
+                  ? "Absen wajah: Clock In"
+                  : "Absen wajah: Clock Out"
+            }
             className="ring-card -mt-7 grid size-16 place-items-center rounded-full bg-violet-600 text-white shadow-lg ring-4 transition active:scale-95 disabled:opacity-50"
           >
             <ScanFace className="size-7" />
           </button>
           <span className="text-muted-foreground pb-1 text-[10px]">
-            {next === "IN" ? "Clock In" : "Clock Out"}
+            {next === "DONE" ? "Selesai" : next === "IN" ? "Clock In" : "Clock Out"}
           </span>
         </div>
         {item(Plane, "Cuti", "/absen/cuti")}

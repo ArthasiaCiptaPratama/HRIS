@@ -39,8 +39,11 @@ import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
 import {
   closeOverdueDays,
   extendAllRosters,
+  markNoAttendanceAlpha,
   purgeSelfies,
   registerAttendanceRoutes,
+  runApprovalDigest,
+  runAttendanceReminders,
 } from "./modules/attendance/index.ts";
 import { registerDisciplineRoutes, runDisciplineDaily } from "./modules/discipline/index.ts";
 import {
@@ -304,10 +307,16 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       // D-070: hari absen tanpa absen pulang → NO_CHECKOUT + approval; D-013: retensi selfie 12 bulan.
       "attendance-daily": async () => ({
         noCheckout: await closeOverdueDays(),
+        // TM-D3: hari kerja tanpa absen sama sekali → Alpha (koreksi s.d. tanggal kerja + 3 hari).
+        noAttendance: await markNoAttendanceAlpha(),
         // Lokal (bukan produksi): foto absen disimpan selamanya (permintaan pemilik projek 2026-10-12).
         purgeSelfies:
           getEnv().NODE_ENV === "production" ? await purgeSelfies() : { purged: 0, skipped: true },
       }),
+      // TM-D2: pengingat Clock In/Out per shift + hari terakhir koreksi Alpha (disarankan tiap 30 menit).
+      "attendance-reminders": () => runAttendanceReminders(),
+      // Ringkasan antrean keputusan harian untuk SA/HR/atasan (rekomendasi OD-15).
+      "approval-digest": () => runApprovalDigest(),
       // D-072: jatah 1 Jan, pelunasan hutang akhir Jan, hangus 31 Mar, cuti bersama tanpa absen.
       "leave-daily": () => runLeaveDaily(),
       // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.

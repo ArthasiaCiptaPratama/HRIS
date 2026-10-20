@@ -36,3 +36,8 @@ export function canListWarningLetters(actor: Actor): boolean {
     hasPermission(actor, "employee.discipline.write")
   );
 }
+
+/** Daftar per pengajuan perubahan data (ARS-D21): SA atau pemeriksa ber-grant; jumlah untuk semua HR. */
+export function canListDataChanges(actor: Actor): boolean {
+  return actor.role === ROLE.SUPER_ADMIN || hasPermission(actor, "employee.changes.review");
+}

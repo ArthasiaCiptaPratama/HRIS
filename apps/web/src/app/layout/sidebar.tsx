@@ -9,6 +9,7 @@ import { ACTIVE_BASE, activeCount } from "@/features/employee/active-views";
 import { prefetchEmployees, useCompanyScope, useEmployeeSummary } from "@/features/employee/api";
 import type { EmployeeSummary } from "@/features/employee/schemas";
 import { useHealth } from "@/features/system/api";
+import { useTimeQueue } from "@/features/time-management/queue-api";
 import { cn } from "@/lib/utils";
 
 function summaryCount(summary: EmployeeSummary | undefined, key: SummaryKey | undefined) {
@@ -124,6 +125,7 @@ function SidebarItem({
   onWarm: (item: NavItem) => void;
   onNavigate?: (() => void) | undefined;
 }) {
+  const queue = useTimeQueue(Boolean(item.queueKey)).data;
   const hasChildren = Boolean(item.children?.length) && !collapsed;
   const [open, setOpen] = useState(true);
   const selfActive = activeId === item.id && !hasChildren;
@@ -173,7 +175,14 @@ function SidebarItem({
         </span>
       ) : null}
       {!collapsed && !hasChildren && !item.maintenance ? (
-        <Count value={summaryCount(summary, item.summaryKey)} active={selfActive} />
+        <Count
+          value={
+            item.queueKey
+              ? queue?.[item.queueKey] || undefined
+              : summaryCount(summary, item.summaryKey)
+          }
+          active={selfActive}
+        />
       ) : null}
     </NavLink>
   );

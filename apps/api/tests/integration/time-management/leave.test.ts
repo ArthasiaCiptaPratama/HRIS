@@ -168,6 +168,16 @@ describe("master jenis & saldo", () => {
     expect((await call("POST", "/leave-types", h.sa, body)).status).toBe(409);
   });
 
+  // Master Cuti (kuota per tahun) bukan untuk karyawan biasa (pemilik projek 2026-10-19);
+  // jenis cuti tetap terbaca karyawan untuk form pengajuan.
+  test("Master Cuti per tahun: karyawan 403; SA, HR, MANAGER boleh melihat", async () => {
+    expect((await call("GET", "/leave-years", h.a)).status).toBe(403);
+    for (const who of [h.sa, h.hr, h.mgr]) {
+      expect((await call("GET", "/leave-years", who)).status).toBe(200);
+    }
+    expect((await call("GET", "/leave-types", h.a)).status).toBe(200);
+  });
+
   test("penyesuaian saldo oleh HR PT (alasan wajib); karyawan 403", async () => {
     const adjust = (employeeId: string, year: number, days: number, who = h.hr) =>
       call("POST", "/leave-balances/adjust", who, {
@@ -364,5 +374,126 @@ describe("pekerjaan cuti", () => {
     ).toBe(403);
     const mine = await data<{ requests: { id: string }[] }>(await call("GET", "/leave/me", h.a));
     expect(mine.requests.some((r) => r.id === approvedId)).toBe(true);
+  });
+});
+
+// Izin boleh melebihi jatah jenisnya; kelebihannya memotong cuti tahunan, saldo boleh minus
+// (pemilik projek 2026-10-19). Jenis uji `UJI_<RUN>`: izin, jatah 1 hari per pengajuan.
+describe("izin melebihi jatah → kelebihan memotong cuti tahunan", () => {
+  const WORK = ["2098-07-06", "2098-07-07", "2098-07-08"];
+  test("pratinjau & ajukan 3 hari: 1 hari izin + 2 hari cuti tahunan; tolak → kembali; setuju → terpakai", async () => {
+    await prisma.rosterDay.createMany({
+      data: [...WORK, "2098-07-13", "2098-07-14", "2098-07-15"].map((date) => ({
+        employeeId: emp.a,
+        workDate: D(date),
+        shiftId,
+        source: "MANUAL" as const,
+      })),
+    });
+    const list = await data<{ id: string; code: string }[]>(await call("GET", "/leave-types", h.a));
+    const permit = list.find((x) => x.code === `UJI_${RUN}`)?.id as string;
+    types[`UJI_${RUN}`] = permit;
+    const preview = await data<{ days: number; annualDays: number }>(
+      await call("POST", "/leave/preview", h.a, {
+        leaveTypeId: permit,
+        startDate: WORK[0],
+        endDate: WORK[2],
+      }),
+    );
+    expect(preview).toMatchObject({ days: 3, annualDays: 2 });
+
+    const before = await balance(emp.a, 2098);
+    const first = await data<{ id: string; days: number; annualDays: number }>(
+      await call("POST", "/leave-requests", h.a, {
+        leaveTypeId: permit,
+        startDate: WORK[0],
+        endDate: WORK[2],
+        reason: "Urusan keluarga di luar kota",
+      }),
+    );
+    expect(first).toMatchObject({ days: 3, annualDays: 2 });
+    expect(await balance(emp.a, 2098)).toBe(before - 2);
+    const req = await data<{ approval: { id: string } }>(
+      await call("GET", `/leave-requests/${first.id}`, h.mgr),
+    );
+    await call("POST", `/approvals/${req.approval.id}/decision`, h.mgr, {
+      decision: "REJECTED",
+      note: "Jadwal padat",
+    });
+    expect(await balance(emp.a, 2098)).toBe(before);
+
+    const second = await data<{ id: string; annualDays: number }>(
+      await call("POST", "/leave-requests", h.a, {
+        leaveTypeId: permit,
+        startDate: "2098-07-13",
+        endDate: "2098-07-15",
+        reason: "Urusan keluarga di luar kota",
+      }),
+    );
+    expect(second.annualDays).toBe(2);
+    await approveBoth(second.id);
+    expect(await balance(emp.a, 2098)).toBe(before - 2);
+    const used = await prisma.leaveLedger.aggregate({
+      where: { requestId: second.id, kind: "USE" },
+      _sum: { days: true },
+    });
+    expect(used._sum.days).toBe(-2);
+  });
+
+  test("izin dalam jatah tidak memotong cuti tahunan", async () => {
+    const preview = await data<{ annualDays: number }>(
+      await call("POST", "/leave/preview", h.a, {
+        leaveTypeId: types[`UJI_${RUN}`],
+        startDate: "2098-07-06",
+        endDate: "2098-07-06",
+      }),
+    );
+    expect(preview.annualDays).toBe(0);
+  });
+});
+
+// Keterangan & berkas per jenis izin (diatur SA); lampiran yang tidak diwajibkan tetap opsional.
+describe("keterangan & berkas per jenis izin", () => {
+  type T = {
+    id: string;
+    code: string;
+    description: string | null;
+    documentLabel: string | null;
+    documentRequiredAfterDays: number | null;
+  };
+  test("jenis bawaan membawa keterangan & berkas; SA mengubahnya; wajib/opsional tidak berubah", async () => {
+    const list = await data<T[]>(await call("GET", "/leave-types", h.a));
+    const duka = list.find((x) => x.code === "IZIN_DUKA") as T;
+    expect(duka.description).toContain("meninggal");
+    expect(duka.documentLabel).toBe("Surat keterangan kematian");
+    expect(duka.documentRequiredAfterDays).toBeNull(); // tetap opsional
+
+    const custom = list.find((x) => x.code === `UJI_${RUN}`) as T;
+    const body = {
+      code: `UJI_${RUN}`,
+      name: "Izin uji",
+      category: "PERMIT",
+      maxDaysPerRequest: 1,
+      documentRequiredAfterDays: null,
+      isActive: true,
+      description: "Izin khusus uji coba.",
+      documentLabel: "Surat tugas",
+    };
+    expect((await call("PUT", `/leave-types/${custom.id}`, h.a, body)).status).toBe(403);
+    const saved = await data<T>(await call("PUT", `/leave-types/${custom.id}`, h.sa, body));
+    expect(saved).toMatchObject({
+      description: "Izin khusus uji coba.",
+      documentLabel: "Surat tugas",
+      documentRequiredAfterDays: null,
+    });
+    // Tanpa lampiran tetap boleh (opsional).
+    const preview = await data<{ documentRequired: boolean }>(
+      await call("POST", "/leave/preview", h.a, {
+        leaveTypeId: custom.id,
+        startDate: "2098-07-06",
+        endDate: "2098-07-06",
+      }),
+    );
+    expect(preview.documentRequired).toBe(false);
   });
 });

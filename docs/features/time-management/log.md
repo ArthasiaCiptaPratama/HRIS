@@ -13,6 +13,32 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-20 — Paket UX: notifikasi, pengingat absen (TM-D2), antrean menu, beranda HP (Mat, `HRIS/Mat/Mac`)
+- **Dikerjakan:** uji coba (smoke API 4 role: semua 4–106 ms, tanpa 5xx; temuan utama: modul absensi/cuti/approval tanpa notifikasi) → `time-notify.service.ts` (penerima via `iam`, `queueFor`, `runAttendanceReminders`, `runApprovalDigest`), `time-notify.routes.ts` (`GET /time/queue`), pemicu di keputusan absen/koreksi/cuti, pengajuan baru, penandaan Alpha; `iam.listApproverAccounts`; cron `attendance-reminders` & `approval-digest` (app.ts). Web: `queue-api.ts` + `queueKey` di menu (Data Absen Harian, Koreksi, Perubahan Roster, Persetujuan Cuti), badge tile Approval HP, `home-insights.tsx` (banner belum Clock In/waktunya Clock Out, banner Alpha bisa dikoreksi, kartu saldo cuti & status kemarin).
+- **Keputusan:** TM-D2 (README).
+- **Verifikasi:** test dijalankan ke DB lokal (server pengguna sedang mode Supabase, tidak diubah) · api **806** (baru: `time-notify.test.ts` 3) · web **293** (baru: `home-insights.test.tsx` 3; 8 dilewati saklar) · typecheck · lint (1 warning lama) · boundaries ✔. Uji tampilan Playwright ditunda (perlu mode Lokal).
+- **Masalah / catatan:** cron `attendance-daily`, `attendance-reminders`, `approval-digest` belum di `vercel.json` (tambahkan saat rilis Time Management). Uji fixture "pengingat belum Clock In" memakai shift yang mulai 2 jam lalu — bisa meleset bila dijalankan sekitar tengah malam.
+- **Berikutnya:** izin commit + push; uji tampilan di mode Lokal.
+
+### 2026-10-19 — Keterangan & berkas per jenis izin (TM-D5) (Mat, `HRIS/Mat/Mac`)
+- **Dikerjakan:** kolom `description` & `document_label` di `leave.leave_types` (migrasi `20261019071235_leave_type_description` + isian bawaan 9 jenis), DTO & simpan jenis, dialog Master Cuti (Keterangan, Berkas yang diperlukan), daftar jenis menampilkan keduanya, form pengajuan menampilkan keterangan + aturan berkas dan label lampiran sesuai jenis (teks lama "mis. surat dokter" dihapus).
+- **Keputusan:** TM-D5 (README).
+- **Verifikasi:** migrasi lokal saja · `db:check` ✔ · api **803** (baru: 1 test keterangan & berkas, SA ubah, lampiran tetap opsional) · shared 246 · web 75 (subset time-management/navigasi/riwayat) · boundaries ✔ · lint (1 warning lama).
+- **Berikutnya:** izin commit + push.
+
+### 2026-10-19 — Izin melebihi jatah memotong cuti tahunan (TM-D4) & Master Cuti bukan untuk karyawan (Mat, `HRIS/Mat/Mac`)
+- **Dikerjakan:** `annualChargedDates` (cuti tahunan = semua hari; izin = kelebihan dari jatah), tahanan saldo untuk kelebihan izin, `annualDays` di pratinjau & DTO (dari buku besar HOLD), form web tidak lagi memblokir izin melebihi jatah (sakit tetap), label "X hari memotong cuti tahunan" di daftar & inbox. Master Cuti: `canViewLeaveYears` (SA/HR/MANAGER), `tmAccess.viewLeaveMaster`, menu & route dijaga.
+- **Keputusan:** TM-D4 (README).
+- **Verifikasi:** api **802** (baru: 2 izin melebihi jatah, 1 akses Master Cuti) · shared 246 · web navigasi + time-management 70 · lint (1 warning lama) · boundaries ✔.
+- **Berikutnya:** izin commit + push.
+
+### 2026-10-19 — Alpha harian & koreksi maks. 3 hari, TM-D3 (Mat, branch `HRIS/Mat/Mac`)
+- **Dikerjakan:** checklist "Alpha harian & koreksi maks. 3 hari (TM-D3)". Keputusan pemilik projek: batas dari tanggal kerja; hari yang batasnya lewat saat aktif langsung permanen; batas berlaku untuk semua koreksi; rekam jejak di halaman Koreksi, detail karyawan, rekap. Juga hari ini: hari OPEN lama lewat batas ditutup saat aplikasi dibuka (tombol Clock In tidak lagi tertahan), tabel Data Absen Harian diringkas (16 → 7 kolom), lokasi pada input manual HR, nama lokasi pada label "Di lokasi lain".
+- **Keputusan:** TM-D3 (README); D-071 ditandai "sebagian diubah oleh TM-D3".
+- **Verifikasi (Mac, DB & Auth lokal):** test api **798** (baru: `alpha.test.ts` 4; `period.test.ts` disesuaikan — koreksi 2001 kini ditolak batas H+3, alur koreksi memakai tanggal baru-baru ini) · shared **246** · web: `attendance-record.test.tsx` 3 baru + detail karyawan lulus · typecheck · lint (1 warning lama) · boundaries ✔. Data lokal: karyawan demo (roster mulai 14 Okt) mendapat 4–5 Alpha; 16–18 Okt masih bisa dikoreksi.
+- **Masalah / catatan:** judul test lama di `period.test.ts` berisi karakter rusak "â†’" (dari merge Windows) — dibiarkan. Penandaan memanggil `markNoAttendanceAlpha()` tanpa filter dari Data Absen Harian (ringan di lokal; produksi mengandalkan cron).
+- **Berikutnya:** izin commit + push; pengingat absen harian (TM-D2) memakai aturan ini.
+
 ### 2026-10-15 — Lokasi absen per karyawan, TM-D1 (Mat, branch `HRIS/Mat/Mac`)
 - **Dikerjakan:** checklist "Lokasi absen per karyawan (TM-D1)". Permintaan pemilik projek: lokasi absen tiap user bisa dipilih lewat UI, bukan diubah manual di DB. Pilihan pemilik projek: 1 lokasi per karyawan, ada opsi bebas lokasi (PLAN §5.4), diatur SA + HR PT. API: tabel `attendance.employee_location_settings` (migrasi `20261015064508_employee_location_setting`, hanya `CREATE TABLE`), `location-setting.{repository,service,routes}.ts`, `GET`/`PUT /attendance-locations`, policy `canManageAttendanceLocation`; `attendance.service` memakai `resolveAttendanceLocation` (masuk, pulang, `me/today` + `anywhere`/`locationSource`); `checkGeofence` dapat parameter `anywhere`. Web: halaman `/time/lokasi-absen` + menu Roster › Lokasi Absen; HP menampilkan "Bebas lokasi" di kepala, hasil pra-cek, cap foto & profil.
 - **Keputusan:** TM-D1 (lihat README).
