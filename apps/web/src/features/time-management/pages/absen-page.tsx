@@ -184,6 +184,8 @@ export function MobileShell() {
   const startPunch = (kind: PunchKind) => {
     if (kind === "BREAK_START" || kind === "BREAK_END") setFlow(kind);
     else if (data?.next === "DONE") toast.info(DONE_TEXT);
+    // TM-D7: Clock Out baru bisa setelah Selesai istirahat (server juga menolak).
+    else if (kind === "OUT" && data?.breakState === "ON_BREAK") toast.warning(ON_BREAK_TEXT);
     else if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
     else setFlow(kind);
   };
@@ -242,7 +244,7 @@ export function MobileShell() {
           <BottomNav
             canPunch={Boolean(data) && online && data?.next !== "DONE"}
             next={data?.next ?? "IN"}
-            onPunch={() => data && data.next !== "DONE" && setFlow(data.next)}
+            onPunch={() => data && data.next !== "DONE" && startPunch(data.next)}
           />
         </div>
         {noOpenWarning ? (
@@ -317,6 +319,8 @@ export function AbsenHome() {
 
 /** Kompatibilitas: nama lama halaman absen. */
 export const AbsenPage = AbsenHome;
+
+const ON_BREAK_TEXT = "Anda masih istirahat. Lakukan Selesai istirahat sebelum Clock Out.";
 
 /** Absen masuk hanya sekali per hari (permintaan pemilik projek 2026-10-19). */
 const DONE_TEXT = "Absen hari ini sudah tercatat — absen berikutnya besok sesuai jadwal.";

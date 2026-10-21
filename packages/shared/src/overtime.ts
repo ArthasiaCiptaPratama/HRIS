@@ -197,8 +197,10 @@ export function computeOvertimeDay(input: OvertimeDayInput): OvertimeDayResult {
 
   const start = input.scheduledStart as number;
   const end = input.scheduledEnd as number;
-  const earlyMin = minutesBetween(input.checkIn, start);
-  const afterMin = minutesBetween(end, input.checkOut);
+  // Hanya waktu yang benar-benar dijalani di luar jadwal: datang awal dibatasi jam pulang (Clock In jauh
+  // sebelum shift lalu pulang sebelum shift mulai ≠ lembur), pulang lewat dibatasi jam masuk.
+  const earlyMin = minutesBetween(input.checkIn, Math.min(start, input.checkOut));
+  const afterMin = minutesBetween(Math.max(end, input.checkIn), input.checkOut);
   const lateMin =
     input.checkIn > start + input.lateToleranceMin * MINUTE
       ? minutesBetween(start, input.checkIn)

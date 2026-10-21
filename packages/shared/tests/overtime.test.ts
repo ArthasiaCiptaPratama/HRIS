@@ -113,6 +113,27 @@ describe("hitung lembur satu hari", () => {
     expect(r.proposedMin).toBe(90);
   });
 
+  test("Clock In di luar jadwal lalu pulang sebelum shift mulai → bukan lembur (temuan E2E 2026-10-21)", () => {
+    const r = computeOvertimeDay({
+      ...office,
+      scheduledStart: at("19:00"),
+      scheduledEnd: at("07:00", "2026-10-22"),
+      breakRequired: false,
+      breakStart: null,
+      breakEnd: null,
+      checkIn: at("10:18"),
+      checkOut: at("10:19"),
+    });
+    expect(r.earlyMin).toBe(1);
+    expect(r.proposedMin).toBe(0);
+  });
+
+  test("datang 2 jam sebelum shift & pulang tepat → datang awal 120 menit", () => {
+    const r = computeOvertimeDay({ ...office, checkIn: at("06:00"), checkOut: at("17:00") });
+    expect(r.earlyMin).toBe(120);
+    expect(r.proposedMin).toBe(120);
+  });
+
   test("lupa absen istirahat → dianggap sesuai jatah + label NO_BREAK_PUNCH", () => {
     const r = computeOvertimeDay({
       ...office,

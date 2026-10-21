@@ -13,7 +13,7 @@ import {
 } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
 
-// TM-D8 — template roster siap pakai. Saat ini hanya JT (pelabuhan): 3 shift × 8 jam (7 jam normal + 1 jam
+// TM-D8 — template roster siap pakai. Saat ini hanya JT (Jetty & Loading team): 3 shift × 8 jam (7 jam normal + 1 jam
 // lembur rutin, istirahat dibayar di dalam shift), pola 6 kerja + 1 OFF, rotasi maju tiap minggu
 // Pagi → Sore → Malam (siklus 21 hari). Hari ke-6 (5 jam) diatur pengguna sendiri di grid roster.
 

@@ -236,7 +236,7 @@ function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: ()
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Template JT (pelabuhan)</DialogTitle>
+          <DialogTitle>Template JT (Jetty & Loading team)</DialogTitle>
           <DialogDescription>
             Membuat shift JTP 07–15, JTS 15–23, JTM 23–07 (7 jam normal + 1 jam lembur rutin,
             istirahat 60 mnt dibayar), pola 6 kerja + 1 OFF dengan rotasi Pagi → Sore → Malam tiap
