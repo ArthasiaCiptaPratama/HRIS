@@ -18,7 +18,10 @@ export function registerOpenApi(app: OpenAPIHono): void {
     info: {
       title: "Akselerasi Arthasia API",
       version: "1.0.0",
-      description: "REST API Akselerasi Arthasia (HRIS PT Arthasia Cipta Pratama).",
+      description:
+        "REST API Akselerasi Arthasia (HRIS PT Arthasia Cipta Pratama). App mobile mengirim header " +
+        "`X-App-Version: MAJOR.MINOR.PATCH`; versi di bawah minimum dibalas 426 APP_UPDATE_REQUIRED " +
+        "dengan `details[0] = { minVersion, downloadUrl }`.",
     },
     servers: [{ url: "/" }],
   });

@@ -551,6 +551,8 @@ Table notification.notifications {
   body text [note: 'Tanpa data sensitif']
   link varchar(500)
   dedupe_key varchar(200) [note: 'Anti-duplikat cron, unik per penerima']
+  target_type varchar(50) [note: 'MOB-D6: layar tujuan app mobile']
+  target_id varchar(64)
   read_at timestamptz
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null]
@@ -577,6 +579,25 @@ Table notification.email_outbox {
 
   indexes {
     (status, next_attempt_at)
+  }
+}
+
+Enum notification.push_platform {
+  ANDROID
+}
+
+Table notification.push_devices {
+  id uuid [pk, default: `gen_random_uuid()`]
+  account_id uuid [not null, note: 'UUID iam.accounts, tanpa FK']
+  token varchar(512) [not null, unique, note: 'Token FCM; pindah ke akun terakhir yang login']
+  platform notification.push_platform [not null]
+  app_version varchar(40)
+  last_seen_at timestamptz [not null, default: `now()`]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+
+  indexes {
+    account_id
   }
 }
 

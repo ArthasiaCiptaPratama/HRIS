@@ -86,6 +86,9 @@ apps/api/
 │   │   ├── access/                   [done] `Actor` (+ `companyIds`: null = semua PT, D-040), `isInCompanyScope`, `hasRole`, `hasPermission` (grant hanya untuk role penerima sah), `isGrantActive`, `isSelf`, `isInTeam` (tim = manager_id target = employee aktor, murni tanpa query), middleware `loadActor(loader)` (tanpa akun aktif → 401), `requireRole`, `requirePermission` (→ 403)
 │   │   ├── errors.ts                 [done] AppError + ValidationError/UnauthenticatedError/ForbiddenError/NotFoundError/ConflictError/BusinessRuleError
 │   │   ├── response.ts               [done] `ok()`, `paginated()`, `dataEnvelope()`, `paginatedEnvelope()`, `ERROR_RESPONSES` (OpenAPI)
+│   │   ├── app-version.ts            [done] MOB-D7: `appVersionGate` (header `X-App-Version` < env `MOBILE_MIN_VERSION` → 426 `APP_UPDATE_REQUIRED` + `MOBILE_APK_URL`; tanpa header lolos; format salah → 400)
+│   │   ├── google-auth.ts            [done] Token OAuth service account Google (jose; `parseServiceAccountKey`, `serviceAccountTokenSource`) — dipakai `google-drive.ts` & `push.ts`
+│   │   ├── push.ts                   [done] MOB-D6: `PushSender` + `createFcmSender` (FCM HTTP v1, env `FCM_SERVICE_ACCOUNT_JSON`) + `UNCONFIGURED_PUSH`; test tidak pernah mengirim push sungguhan
 │   │   ├── email.ts                  [done] `EmailSender`: `createSmtpSender` (nodemailer, 587 STARTTLS/465 TLS) & `createLogSender` (lokal, hanya penerima+subjek, D-025)
 │   │   ├── logger.ts                 [done] Log JSON satu baris ke stdout, `redact()` field sensitif (jaring pengaman), `requestLogger()` (tanpa query string)
 │   │   ├── audit.ts                  [done] `writeAudit(entry, client?)`: bisa ikut transaksi; before/after diredaksi (jaring pengaman); `listAuditLogs(filter)`
@@ -93,7 +96,7 @@ apps/api/
 │   │   ├── storage.ts                [done] D-037: antarmuka `StorageAdmin` (signed upload URL, signed URL baca, info objek, hapus, `ensurePrivateBucket`) + `createSupabaseStorage()` (service role) + `UNCONFIGURED_STORAGE`; konstanta bucket `employee-photos` (2 MB, jpeg/png/webp). Test memakai `tests/helpers/storage.ts` (palsu); `NODE_ENV=test` tidak pernah memakai Storage sungguhan
 │   │   ├── supabase-admin.ts         [done] antarmuka `AuthAdmin` (`findUserByEmail`, `inviteUser`, `createConfirmedUser`, `setBanned`) + `createSupabaseAdmin()` (service role; server/script saja) + `UNCONFIGURED_AUTH_ADMIN` (kunci kosong → 422 jelas)
 │   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1), `/api/v1/docs` (Swagger UI)
-│   │   └── __tests__/                [done] Unit test app core, env, logger
+│   │   └── __tests__/                [done] Unit test app core, env, logger, versi app, push FCM
 │   ├── modules/
 │   │   ├── iam/                      → docs/codemap/iam.md
 │   │   ├── organization/             → docs/codemap/organization.md

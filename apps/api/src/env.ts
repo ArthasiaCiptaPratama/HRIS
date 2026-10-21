@@ -55,6 +55,17 @@ const envSchema = z
     // D-060: isi file kunci service account Google (JSON satu baris) untuk lampiran Drive di Import.
     // Kosong = lampiran tercatat di antrean, belum bisa diproses.
     GOOGLE_SERVICE_ACCOUNT_JSON: optionalString,
+    // MOB-D6: isi file kunci service account Firebase (JSON satu baris) untuk push FCM. Kosong = tanpa push.
+    FCM_SERVICE_ACCOUNT_JSON: optionalString,
+    // MOB-D7: versi minimum app mobile (MAJOR.MINOR.PATCH). Kosong = semua versi diterima.
+    MOBILE_MIN_VERSION: optionalString.pipe(
+      z
+        .string()
+        .regex(/^\d{1,5}\.\d{1,5}\.\d{1,5}$/, "MAJOR.MINOR.PATCH, e.g. 1.0.0")
+        .optional(),
+    ),
+    // MOB-D4: tautan unduh APK terbaru, dikirim bersama galat APP_UPDATE_REQUIRED.
+    MOBILE_APK_URL: optionalString.pipe(z.url().optional()),
     // PLAN §3.3: lokal `dev/<nama-developer>/` (bucket staging dipakai bersama); staging/produksi kosong.
     STORAGE_PATH_PREFIX: z
       .string()

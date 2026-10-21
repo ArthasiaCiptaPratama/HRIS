@@ -53,4 +53,15 @@ export class BusinessRuleError extends AppError {
   }
 }
 
+export class AppUpdateRequiredError extends AppError {
+  constructor(details: { minVersion: string; downloadUrl: string | null }) {
+    super(
+      426,
+      "APP_UPDATE_REQUIRED",
+      "Versi aplikasi sudah tidak didukung. Perbarui aplikasi untuk melanjutkan.",
+      [details],
+    );
+  }
+}
+
 export const INTERNAL_ERROR_MESSAGE = "Terjadi kesalahan pada server. Silakan coba lagi.";

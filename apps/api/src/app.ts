@@ -7,6 +7,7 @@ import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { type ActorLoader, enforceOnboardingLock, loadActor } from "./core/access/index.ts";
+import { type AppVersionPolicy, appVersionGate } from "./core/app-version.ts";
 import { authenticate, createSupabaseVerifier, type TokenVerifier } from "./core/auth/index.ts";
 import { pingDatabase } from "./core/db.ts";
 import { registerDevRoutes } from "./core/dev.ts";
@@ -26,6 +27,7 @@ import {
 import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
+import { createFcmSender, type PushSender, UNCONFIGURED_PUSH } from "./core/push.ts";
 import { createSupabaseStorage, type StorageAdmin, UNCONFIGURED_STORAGE } from "./core/storage.ts";
 import {
   type AuthAdmin,
@@ -81,6 +83,10 @@ export interface AppDeps {
   loginEmailDomain: string | undefined;
   /** D-060: Google Drive (service account) untuk lampiran Import. */
   googleDrive: GoogleDriveReader;
+  /** MOB-D6: pengirim push FCM ke app mobile. */
+  pushSender: PushSender;
+  /** MOB-D7: versi minimum app mobile; undefined = semua versi diterima. */
+  appVersion: AppVersionPolicy | undefined;
 }
 
 // Hanya terjadi saat NODE_ENV=test tanpa SUPABASE_URL (env.ts mewajibkannya di tempat lain).
@@ -125,6 +131,21 @@ export function selectEmailSender(env: Env, logger: Logger): EmailSender {
         from: EMAIL_FROM,
       })
     : createLogSender(logger);
+}
+
+// MOB-D6: test tidak pernah mengirim push sungguhan (pakai pengirim palsu lewat overrides).
+function defaultPushSender(): PushSender {
+  const { NODE_ENV, FCM_SERVICE_ACCOUNT_JSON } = getEnv();
+  return NODE_ENV !== "test" && FCM_SERVICE_ACCOUNT_JSON
+    ? createFcmSender(FCM_SERVICE_ACCOUNT_JSON)
+    : UNCONFIGURED_PUSH;
+}
+
+function defaultAppVersion(): AppVersionPolicy | undefined {
+  const { MOBILE_MIN_VERSION, MOBILE_APK_URL } = getEnv();
+  return MOBILE_MIN_VERSION
+    ? { minVersion: MOBILE_MIN_VERSION, downloadUrl: MOBILE_APK_URL ?? null }
+    : undefined;
 }
 
 function defaultVerifier(): TokenVerifier {
@@ -187,6 +208,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     loginEmailDomain:
       "loginEmailDomain" in overrides ? overrides.loginEmailDomain : getEnv().LOGIN_EMAIL_DOMAIN,
     googleDrive: overrides.googleDrive ?? defaultGoogleDrive(),
+    pushSender: overrides.pushSender ?? defaultPushSender(),
+    appVersion: "appVersion" in overrides ? overrides.appVersion : defaultAppVersion(),
   };
   // D-045: undangan aktivasi kembali ke /auth/callback web (atur password).
   const invitations = {
@@ -194,7 +217,12 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     redirectTo: `${deps.appUrl.replace(/\/+$/, "")}/auth/callback`,
     perHour: deps.onboardingInvitesPerHour,
   };
-  configureNotification({ sender: deps.emailSender, appUrl: deps.appUrl, logger: deps.logger });
+  configureNotification({
+    sender: deps.emailSender,
+    appUrl: deps.appUrl,
+    logger: deps.logger,
+    push: deps.pushSender,
+  });
   configureIam({ employeeScope: employeeScopeForIam });
   // D-049: organization tidak membaca tabel employee; jumlah pemakai & gabungkan disuntik dari employee.
   configureOrganization({ employeeSupport: employeeMasterDataSupport });
@@ -235,6 +263,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     await next();
     if (!c.res.headers.has("Cache-Control")) c.header("Cache-Control", "private, no-store");
   });
+
+  app.use("/api/*", appVersionGate(deps.appVersion));
 
   registerOpenApi(app);
   registerHealth(app, deps.checkDatabase);

@@ -21,6 +21,7 @@
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
+| [mobile](features/mobile/README.md) | – | Oatse | repo app terpisah; BE `HRIS/Oatse/Linux-Windows` | Belum mulai — analisis BE 2026-10-21 (siap dengan celah), menunggu grill | – |
 
 Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan, import, onboarding, arsip, dashboard · 5–6 time-management · 7 kontrak · 8 payroll · 9 hardening · Rilis 1–3 → [RELEASE.md](RELEASE.md).
 
@@ -93,7 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 - Aktifkan *Leaked Password Protection* Supabase Auth bila tersedia di paket (advisor WARN, dari tugas deploy Vercel 2026-09-29)
 - **(2026-10-15, dari audit Surat Peringatan)** Helper `todayInJakarta` / `isUniqueViolation` (P2002) terduplikasi ±7 kali di modul `asset`, `discipline`, `employee`, `leave`, `attendance` → satukan di `core/` (mis. `core/dates.ts`, `core/prisma-errors.ts`); cron `discipline-daily` lalu tidak perlu mengimpor `discipline.service.ts`.
 - **(2026-10-16, dari Laporan batch 1, ARS-D18)** Penanda lokasi **site** (mis. kolom jenis lokasi kerja) agar dokumen wajib lingkup `SITE` bisa dihitung di laporan Kelengkapan; snapshot historis unit/status untuk headcount per periode; riwayat keluar yang tetap tercatat saat karyawan diaktifkan kembali.
-- Aplikasi mobile (projek terpisah, memakai API yang sama)
+- Aplikasi mobile (projek terpisah, memakai API yang sama) → mulai dibahas 2026-10-21: [features/mobile](features/mobile/README.md)
 - MFA untuk SUPER_ADMIN/HR_ADMIN
 - Notifikasi WhatsApp
 - Pencocokan wajah pada selfie absensi
@@ -109,6 +110,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-21** — Analisis kesiapan BE untuk app Flutter (siap dengan celah: OpenAPI TM/Leave belum bertipe, push, cek versi, anti-kecurangan) + Android SDK Windows belum terpasang; folder fitur `mobile` (MOB). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-10-21** — TM: adapter `attendance/directory.ts` lewat interface publik employee/organization (tanpa Prisma) + 5 cron TM di `vercel.json`; shared 268 · api 840 · web 290. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-20** — Rilis gel. 12 ke staging: Laporan batch 2 + gabungan TM Mat tersembunyi (PR #59/#60, Deploy #39390300300, migrasi 38). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
 - **2026-10-20** — Gabung `HRIS/Mat/Mac` (`e9fb9e4`, `ca6faa5`: Alpha harian, koreksi 3 hari, notifikasi TM, aturan izin, beranda HP; 1 migrasi) ke develop `69b20a5`, tanpa konflik; api 840 · web 290. (Oatse) → [time-management/log](features/time-management/log.md)
