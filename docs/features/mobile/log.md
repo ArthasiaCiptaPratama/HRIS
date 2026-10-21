@@ -11,6 +11,11 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-21 — Penutup hari: semua BE app di develop, app M1 selesai (Oatse)
+- **Dikerjakan:** develop berisi tahap 1 (`f99f0c9`), merge Mat (`247c0fa`, `bc50142`), tahap 3 (`cf9de90`), `operationId` (`c34eb22`) — semua di-push, CI ✔ (terakhir #39582217626). App: klien generate dipakai `core/api`, `Me` generate, config `API_ORIGIN` (M1 selesai).
+- **Verifikasi:** CI develop ✔; app `flutter analyze` 0 isu, 12 test, terpasang di POCO X6 Pro tanpa galat log.
+- **Berikutnya:** app M2 Absen (2026-10-22) — titik mulai `Arthasia-Mobile/docs/phases/m2-absen.md`; Mat merge develop setelah dikabari.
+
 ### 2026-10-21 — operationId OpenAPI untuk klien app (Oatse)
 - **Dikerjakan (`HRIS/mobile-app`):** `core/openapi.ts` — dokumen dibuat lewat `getOpenAPI31Document` lalu `withOperationIds`: nama app dari `APP_OPERATION_IDS` (41 endpoint: `getMe`, `getMyAttendanceToday`, `precheckPunch`, `createPunch`, `listLeaveTypes`, `getTimeQueue`, `listNotifications`, …), sisanya otomatis `operationIdFor` (`<method><Path>`, parameter → `By<Nama>`). File rute TM tidak diubah (menghindari bentrok dengan Mat). PROMPT §5 diberi aturannya.
 - **Verifikasi:** `core/__tests__/openapi.test.ts` (3: contoh nama, semua operasi punya id unik, setiap nama app menunjuk path yang ada); typecheck ✔; biome ✔ 640 file; boundaries ✔ 519 modul; shared 335; api 887 di DB kosong `hris_ci`; web 313. App: generate ulang → `getMe()`, `getMyAttendanceToday()`, `createPunch()`; `flutter analyze` 0 isu.

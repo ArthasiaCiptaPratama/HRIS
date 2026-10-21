@@ -1,7 +1,7 @@
 # Aplikasi mobile (Flutter)
 
 > **Kode prefix:** `MOB` · **Fase:** – (di luar PLAN §7; backlog "Aplikasi mobile") · **PIC:** Oatse · **Branch BE:** `HRIS/mobile-app` (folder `/mnt/winD/WORK/Magang/HRIS-mobile`, DB `hris_mobile`, MOB-D16; tahap 1 terlanjur di develop) · **Repo app:** `/mnt/winD/WORK/Magang/Arthasia-Mobile` → `ArthasiaCiptaPratama/Arthasia-Mobile` (private, belum dibuat; MOB-D8) · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — tahap 1 BE ✔ develop; tahap 2 (merge Mat) ✔ develop; tahap 3 ✔ di `HRIS/mobile-app` 2026-10-21 (belum digabung ke develop); app: scaffold ✔ jalan di HP, dokumen & skill repo app ✔ (status app: `Arthasia-Mobile/docs/PROGRESS.md`); berikutnya tahap 2 (gabung branch Mat)
+> **Status:** Berjalan — BE tahap 1–3 + `operationId` ✔ develop (CI ✔ 2026-10-21); app M0 & M1 ✔; **berikutnya app M2 Absen (2026-10-22)** — status app: `Arthasia-Mobile/docs/PROGRESS.md`
 
 Aplikasi Flutter untuk **karyawan** (layanan mandiri: absen, roster, cuti/izin, koreksi, approval atasan, notifikasi, profil & pengajuan data, aset, SP, dokumen) di **repo & folder terpisah**, memakai API HRIS yang sama (`/api/v1`). **Dokumen ini hanya sisi BE** (kesiapan BE, checklist celah BE, status). **Keputusan `MOB-D*`, roadmap app (M0–M6), dan dokumen app ada di repo app** — `Arthasia-Mobile/docs/decisions.md` adalah sumber kebenaran keputusan (MOB-D13); tabel di bawah hanya indeks.
 
