@@ -12,6 +12,8 @@ export interface DirectoryEmployee {
   companyId: string;
   managerId: string | null;
   workLocationId: string | null;
+  /** TM-D6: grade → upah grade untuk estimasi rupiah lembur. */
+  gradeId: string | null;
   isActive: boolean;
 }
 
@@ -22,6 +24,7 @@ const select = {
   companyId: true,
   managerId: true,
   workLocationId: true,
+  gradeId: true,
   isActive: true,
 } as const;
 
@@ -148,4 +151,32 @@ export async function activeEmployeesForGrant(): Promise<GrantCandidate[]> {
     where: { ...APPROVED, isActive: true },
     select: { id: true, companyId: true, joinDate: true },
   });
+}
+
+export interface DirectoryGrade {
+  id: string;
+  name: string;
+}
+
+/** TM-D6: semua grade aktif (tabel upah grade). */
+export async function activeGrades(): Promise<DirectoryGrade[]> {
+  return getPrisma().grade.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+/** TM-D7: semua lokasi kerja aktif (pengaturan lokasi wajib absen istirahat). */
+export async function activeLocations(): Promise<DirectoryLocation[]> {
+  const rows = await getPrisma().workLocation.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true, city: true, latitude: true, longitude: true, radiusM: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((row) => ({
+    ...row,
+    latitude: row.latitude === null ? null : Number(row.latitude),
+    longitude: row.longitude === null ? null : Number(row.longitude),
+  }));
 }

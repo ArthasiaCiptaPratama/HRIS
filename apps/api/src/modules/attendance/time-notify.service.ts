@@ -89,6 +89,7 @@ export interface TimeQueue {
   leave: number;
   corrections: number;
   rosterChanges: number;
+  overtime: number;
   total: number;
 }
 
@@ -97,11 +98,12 @@ const QUEUE_SUBJECTS: Record<Exclude<keyof TimeQueue, "total">, ApprovalSubject[
   leave: ["LEAVE", "PERMIT"],
   corrections: ["ATTENDANCE_CORRECTION"],
   rosterChanges: ["ROSTER_CHANGE"],
+  overtime: ["OVERTIME"],
 };
 
 /** Jumlah pengajuan yang menunggu keputusan aktor ini (sama dengan inbox masing-masing). */
 export async function queueFor(actor: Actor): Promise<TimeQueue> {
-  const counts = { attendance: 0, leave: 0, corrections: 0, rosterChanges: 0 };
+  const counts = { attendance: 0, leave: 0, corrections: 0, rosterChanges: 0, overtime: 0 };
   for (const [key, subjects] of Object.entries(QUEUE_SUBJECTS) as [
     keyof typeof counts,
     ApprovalSubject[],
@@ -226,6 +228,7 @@ export async function runApprovalDigest(now = new Date()) {
       queue.leave ? `${queue.leave} cuti/izin` : null,
       queue.corrections ? `${queue.corrections} koreksi` : null,
       queue.rosterChanges ? `${queue.rosterChanges} perubahan roster` : null,
+      queue.overtime ? `${queue.overtime} lembur` : null,
     ].filter(Boolean);
     try {
       const r = await notify(
@@ -238,7 +241,9 @@ export async function runApprovalDigest(now = new Date()) {
             ? "/time/absen-harian"
             : queue.leave
               ? "/time/persetujuan-cuti"
-              : "/time/pernyataan",
+              : queue.overtime && !queue.corrections
+                ? "/time/lembur"
+                : "/time/pernyataan",
           dedupeKey: `tm-digest:${account.accountId}:${today}`,
           email: false,
         },

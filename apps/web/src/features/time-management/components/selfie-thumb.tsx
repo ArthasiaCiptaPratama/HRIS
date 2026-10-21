@@ -1,3 +1,4 @@
+import { PUNCH_KIND_LABELS } from "@hris/shared";
 import { ImageOff, PenLine } from "lucide-react";
 import { useState } from "react";
 import {
@@ -8,8 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Punch } from "../schemas";
-
-const KIND_TEXT = { IN: "Clock In", OUT: "Clock Out" } as const;
 
 /** Foto kecil di tabel; klik → foto penuh (cap waktu & koordinat terbaca). */
 export function SelfieThumb({ punch }: { punch: Punch }) {
@@ -44,7 +43,7 @@ export function SelfieThumb({ punch }: { punch: Punch }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Foto {KIND_TEXT[punch.kind]}</DialogTitle>
+            <DialogTitle>Foto {PUNCH_KIND_LABELS[punch.kind]}</DialogTitle>
             <DialogDescription>
               {punch.latitude !== null && punch.longitude !== null
                 ? `${punch.latitude.toFixed(6)}, ${punch.longitude.toFixed(6)} · ±${punch.accuracyM ?? "?"} m`

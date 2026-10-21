@@ -37,12 +37,14 @@ import {
   Settings2,
   Sheet,
   Smartphone,
+  Timer,
   TriangleAlert,
   UserPlus,
   UserRound,
   UserRoundCheck,
   Users,
   UserX,
+  Wallet,
   Workflow,
 } from "lucide-react";
 import type { Me } from "@/features/auth/schemas";
@@ -350,6 +352,17 @@ export const NAV_GROUPS: NavGroup[] = [
             visible: tmAccess.viewRecap,
             keywords: "rekap bulanan tutup periode alpha payroll csv",
           },
+          {
+            // TM-D6: usulan lembur otomatis + persetujuan Atasan & HR + rekap.
+            id: "overtime",
+            maintenance: !FEATURES.timeManagement,
+            label: "Lembur",
+            to: "/time/lembur",
+            queueKey: "overtime",
+            icon: Timer,
+            visible: tmAccess.overtime,
+            keywords: "lembur overtime jam setara upah rekap persetujuan regular",
+          },
         ],
       },
       {
@@ -458,6 +471,16 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: Settings2,
             visible: tmAccess.viewSettings,
             keywords: "gps akurasi selfie retensi zona waktu",
+          },
+          {
+            // TM-D6: upah per grade (SA ubah; HR ber-grant Biaya lihat).
+            id: "grade-wages",
+            maintenance: !FEATURES.timeManagement,
+            label: "Upah Grade",
+            to: "/time/upah-grade",
+            icon: Wallet,
+            visible: tmAccess.viewGradeWages,
+            keywords: "upah grade gaji pokok tunjangan tetap lembur per jam biaya",
           },
         ],
       },

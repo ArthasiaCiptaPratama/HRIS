@@ -220,6 +220,7 @@ export function AttendanceDaysPage() {
           <div className="min-w-36 space-y-1.5">
             <DayStatusBadge status={row.original.status} />
             <LabelChips labels={row.original.labels} />
+            <BreakLine day={row.original} tz={tz} />
           </div>
         ),
       }),
@@ -428,6 +429,18 @@ function StepPill({
 }
 
 /** Satu absen dalam satu sel: foto, jam, lokasi (tautan peta), persetujuan + setujui/tolak cepat. */
+/** TM-D7: jam istirahat (absen istirahat tanpa approval sendiri; dinilai lewat label & lembur). */
+function BreakLine({ day, tz }: { day: AttendanceDay; tz: string }) {
+  const start = day.punches.find((p) => p.kind === "BREAK_START");
+  const end = day.punches.find((p) => p.kind === "BREAK_END");
+  if (!start) return null;
+  return (
+    <p className="text-muted-foreground text-[11px] tabular-nums">
+      Istirahat {timeIn(start.at, tz)}–{end ? timeIn(end.at, tz) : "…"}
+    </p>
+  );
+}
+
 function PunchCell({
   day,
   kind,
@@ -835,6 +848,7 @@ function DayDialog({
             <div className="flex flex-wrap items-center gap-2">
               <DayStatusBadge status={d.status} />
               <LabelChips labels={d.labels} />
+              <BreakLine day={d} tz={tz} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {KINDS.map((kind) => (

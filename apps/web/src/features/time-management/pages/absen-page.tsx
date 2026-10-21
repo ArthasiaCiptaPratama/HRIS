@@ -1,4 +1,9 @@
-import { ATTENDANCE_LABEL_TEXT, type AttendanceLabel } from "@hris/shared";
+import {
+  ATTENDANCE_LABEL_TEXT,
+  type AttendanceLabel,
+  PUNCH_KIND_LABELS,
+  type PunchKind,
+} from "@hris/shared";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -8,6 +13,7 @@ import {
   Camera,
   CircleAlert,
   ClipboardCheck,
+  Coffee,
   FilePenLine,
   History as HistoryIcon,
   House,
@@ -133,7 +139,7 @@ interface MobileContextValue {
   clock: Date | null;
   online: boolean;
   tz: string;
-  startPunch: (kind: "IN" | "OUT") => void;
+  startPunch: (kind: PunchKind) => void;
 }
 const MobileContext = createContext<MobileContextValue | null>(null);
 
@@ -169,14 +175,15 @@ export function MobileShell() {
   const navigate = useNavigate();
   const todayQuery = useToday();
   const clock = useServerClock(todayQuery.data?.serverTime, todayQuery.dataUpdatedAt);
-  const [flow, setFlow] = useState<"IN" | "OUT" | null>(null);
+  const [flow, setFlow] = useState<PunchKind | null>(null);
   const [noOpenWarning, setNoOpenWarning] = useState(false);
   const data = todayQuery.data;
   const fallbackTz = useTimezone();
   const tz = data?.timezone ?? fallbackTz;
   // D-073: Clock Out tanpa Clock In kemungkinan salah pencet → tawarkan Clock In.
-  const startPunch = (kind: "IN" | "OUT") => {
-    if (data?.next === "DONE") toast.info(DONE_TEXT);
+  const startPunch = (kind: PunchKind) => {
+    if (kind === "BREAK_START" || kind === "BREAK_END") setFlow(kind);
+    else if (data?.next === "DONE") toast.info(DONE_TEXT);
     else if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
     else setFlow(kind);
   };
@@ -330,7 +337,7 @@ function TodayCard({
   data: Today;
   clock: Date | null;
   online: boolean;
-  onPunch: (kind: "IN" | "OUT") => void;
+  onPunch: (kind: PunchKind) => void;
 }) {
   const tz = data.timezone;
   const now = clock ?? new Date();
@@ -422,6 +429,7 @@ function TodayCard({
           <span className="text-[10px] opacity-80">Clock Out</span>
         </button>
       </div>
+      <BreakButton data={data} online={online} onPunch={onPunch} />
       <p className="text-muted-foreground mt-2 text-center text-[11px]">
         {data.next === "DONE"
           ? DONE_TEXT
@@ -430,6 +438,51 @@ function TodayCard({
             : "Jam masuk/pulang mengikuti data kehadiran Anda hari ini."}
       </p>
     </section>
+  );
+}
+
+/** TM-D7: lokasi wajib absen istirahat — Mulai/Selesai istirahat sekali per hari (selfie + GPS). */
+function BreakButton({
+  data,
+  online,
+  onPunch,
+}: {
+  data: Today;
+  online: boolean;
+  onPunch: (kind: PunchKind) => void;
+}) {
+  const state = data.breakState ?? "NOT_REQUIRED";
+  if (state === "NOT_REQUIRED" || data.next !== "OUT") return null;
+  const tz = data.timezone;
+  const punches = data.openDay?.punches ?? [];
+  const startAt = punches.find((p) => p.kind === "BREAK_START")?.at ?? null;
+  const endAt = punches.find((p) => p.kind === "BREAK_END")?.at ?? null;
+  if (state === "DONE") {
+    return (
+      <p className="text-muted-foreground mt-3 flex items-center justify-center gap-1.5 text-xs">
+        <Coffee className="size-3.5" /> Istirahat {startAt ? timeIn(startAt, tz) : "--:--"}–
+        {endAt ? timeIn(endAt, tz) : "--:--"}
+      </p>
+    );
+  }
+  const kind: PunchKind = state === "ON_BREAK" ? "BREAK_END" : "BREAK_START";
+  return (
+    <button
+      type="button"
+      disabled={!online}
+      onClick={() => onPunch(kind)}
+      className={cn(
+        "mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold shadow-sm transition active:scale-[0.98] disabled:opacity-40",
+        state === "ON_BREAK"
+          ? "bg-amber-500 text-amber-950"
+          : "border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100",
+      )}
+    >
+      <Coffee className="size-4" />
+      {state === "ON_BREAK"
+        ? `Selesai istirahat (mulai ${startAt ? timeIn(startAt, tz) : "--:--"})`
+        : "Mulai istirahat"}
+    </button>
   );
 }
 
@@ -718,13 +771,13 @@ function PunchFlow({
   clock,
   onClose,
 }: {
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   data: Today;
   clock: Date | null;
   onClose: () => void;
 }) {
   const accuracyMax = data.gpsAccuracyMaxM;
-  const [kind, setKind] = useState<"IN" | "OUT">(initialKind);
+  const [kind, setKind] = useState<PunchKind>(initialKind);
   const [confirmed, setConfirmed] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -833,7 +886,7 @@ function PunchFlow({
         ? `Bebas lokasi${check.distanceM !== null ? ` (${check.distanceM} m dari site terdekat)` : ""}`
         : "Lokasi acuan belum diatur";
     void stampSelfie(raw.blob, {
-      title: kind === "IN" ? "ABSEN DATANG" : "ABSEN PULANG",
+      title: FLOW_TEXT[kind].stamp,
       employee: `${data.employee.fullName} (${data.employee.employeeNumber ?? "—"})`,
       at: raw.takenAt,
       timezone: data.timezone,
@@ -910,11 +963,7 @@ function PunchFlow({
         selfie: stamped.blob,
         contentType: "image/jpeg",
       });
-      toast.success(
-        kind === "IN"
-          ? "Absen datang tercatat. Persetujuan berjalan setelah absen pulang."
-          : "Absen pulang tercatat. Menunggu persetujuan Atasan & HR.",
-      );
+      toast.success(FLOW_TEXT[kind].done);
       onClose();
     } catch (error) {
       toast.error(errorMessage(error));
@@ -934,7 +983,7 @@ function PunchFlow({
   const ready = Boolean(
     stamped && gps && check && !blocked && (!check.suspicion || confirmed) && !reasonMissing,
   );
-  const switchKind = (next: "IN" | "OUT") => {
+  const switchKind = (next: PunchKind) => {
     setKind(next);
     setCheck(null);
     setConfirmed(false);
@@ -948,9 +997,7 @@ function PunchFlow({
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Tutup">
             <ArrowLeft />
           </Button>
-          <h1 className="text-lg font-semibold">
-            {kind === "IN" ? "Absen Datang" : "Absen Pulang"}
-          </h1>
+          <h1 className="text-lg font-semibold">{FLOW_TEXT[kind].title}</h1>
         </div>
 
         <div className="bg-muted relative aspect-[3/4] overflow-hidden rounded-2xl">
@@ -1057,7 +1104,7 @@ function PunchFlow({
         {check?.suspicion ? (
           <SuspicionCard
             check={check}
-            kind={kind}
+            kind={kind === "IN" ? "IN" : "OUT"}
             tz={data.timezone}
             confirmed={confirmed}
             onConfirm={setConfirmed}
@@ -1132,19 +1179,49 @@ function PunchFlow({
           onClick={() => void submit()}
           className={cn(
             "mt-auto h-14 rounded-2xl text-base font-semibold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
-            kind === "IN" ? "bg-emerald-600" : "bg-blue-600",
+            FLOW_TEXT[kind].tone,
           )}
         >
-          {punch.isPending
-            ? "Menyimpan…"
-            : kind === "IN"
-              ? "Kirim absen datang"
-              : "Kirim absen pulang"}
+          {punch.isPending ? "Menyimpan…" : FLOW_TEXT[kind].submit}
         </button>
       </div>
     </div>
   );
 }
+
+const FLOW_TEXT: Record<
+  PunchKind,
+  { title: string; stamp: string; submit: string; done: string; tone: string }
+> = {
+  IN: {
+    title: "Absen Datang",
+    stamp: "ABSEN DATANG",
+    submit: "Kirim absen datang",
+    done: "Absen datang tercatat. Persetujuan berjalan setelah absen pulang.",
+    tone: "bg-emerald-600",
+  },
+  OUT: {
+    title: "Absen Pulang",
+    stamp: "ABSEN PULANG",
+    submit: "Kirim absen pulang",
+    done: "Absen pulang tercatat. Menunggu persetujuan Atasan & HR.",
+    tone: "bg-blue-600",
+  },
+  BREAK_START: {
+    title: PUNCH_KIND_LABELS.BREAK_START,
+    stamp: "MULAI ISTIRAHAT",
+    submit: "Kirim mulai istirahat",
+    done: "Mulai istirahat tercatat. Jangan lupa Selesai istirahat sesuai jatah.",
+    tone: "bg-amber-600",
+  },
+  BREAK_END: {
+    title: PUNCH_KIND_LABELS.BREAK_END,
+    stamp: "SELESAI ISTIRAHAT",
+    submit: "Kirim selesai istirahat",
+    done: "Selesai istirahat tercatat.",
+    tone: "bg-amber-600",
+  },
+};
 
 function minutesText(minutes: number) {
   const abs = Math.abs(minutes);

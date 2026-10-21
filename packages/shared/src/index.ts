@@ -13,6 +13,7 @@ export * from "./onboarding.ts";
 export * from "./onboarding-form.ts";
 export * from "./org-chart.ts";
 export * from "./organization.ts";
+export * from "./overtime.ts";
 export * from "./permissions.ts";
 export * from "./personal-fields.ts";
 export * from "./report.ts";

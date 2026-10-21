@@ -18,6 +18,7 @@ export {
   rosteredWithoutAttendance,
   rosterMarks,
 } from "./leave-bridge.ts";
+export { syncOvertimeForDay } from "./overtime.service.ts";
 export { alphaDaysForEvidence, isDateClosed, type StatementRow } from "./period.service.ts";
 export { extendAllRosters } from "./roster.service.ts";
 export {

@@ -52,6 +52,7 @@ export const PERMISSION_CODE: Record<DbPermission, Permission> = {
   ASSET_MANAGE: "asset.manage",
   EMPLOYEE_DISCIPLINE_READ: "employee.discipline.read",
   EMPLOYEE_DISCIPLINE_WRITE: "employee.discipline.write",
+  LABOR_COST_READ: "labor.cost.read",
 };
 const DB_PERMISSION = Object.fromEntries(
   Object.entries(PERMISSION_CODE).map(([db, code]) => [code, db]),

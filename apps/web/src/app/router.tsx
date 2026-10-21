@@ -266,6 +266,25 @@ export const routes: RouteObject[] = [
                 ],
               },
               {
+                // TM-D6: lembur & upah grade.
+                element: <RequireAccessRoute check={tmAccess.overtime} />,
+                children: [
+                  {
+                    path: "lembur",
+                    lazy: FEATURES.timeManagement ? pages.overtime : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.viewGradeWages} />,
+                children: [
+                  {
+                    path: "upah-grade",
+                    lazy: FEATURES.timeManagement ? pages.gradeWages : pages.maintenance,
+                  },
+                ],
+              },
+              {
                 element: <RequireAccessRoute check={tmAccess.rosterChanges} />,
                 children: [
                   {

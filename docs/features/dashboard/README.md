@@ -25,7 +25,7 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| DSB-D1 | **Dashboard analitik SDM & biaya** (rencana, menunggu Paket 3). Kartu: aktif awal bulan, + masuk, − keluar per alasan, = aktif akhir bulan + turnover (grafik 12 bulan); gender; masa kerja vs pemakaian cuti; cuti hari ini (sedang cuti, menunggu, terpakai, sisa); efisiensi = jam efektif ÷ jam terjadwal + % lembur/telat/Alpha per unit/lokasi; proyeksi 12 bulan (PKWT habis, ambang masa kerja pesangon/UPMK, pensiun); labor cost kontrak vs tetap; kewajiban pesangon/UPMK/UPH cuti dengan skenario PHK yang dipilih (TM-D10). **Tata letak:** kartu angka 1/4 lebar, grafik 1/3 lebar; persentase = porsi dari total + perubahan vs bulan lalu. **Akses:** SA & HR (PT cakupan) bagian non-rupiah; Atasan hanya timnya; kartu rupiah hanya SA + HR ber-grant "Biaya" (Atasan: total lembur Rp tim). | Pemilik projek 2026-10-21 (grill) |
 
 ## Keputusan terbuka
 

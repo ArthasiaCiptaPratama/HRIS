@@ -29,6 +29,8 @@ enum Permission {
   // ARS-D10 (Arsip 2b): surat peringatan.
   EMPLOYEE_DISCIPLINE_READ   @map("employee.discipline.read")
   EMPLOYEE_DISCIPLINE_WRITE  @map("employee.discipline.write")
+  // TM-D6: lihat biaya tenaga kerja (upah grade, rupiah lembur, kompensasi, labor cost).
+  LABOR_COST_READ            @map("labor.cost.read")
 
   @@schema("iam")
 }

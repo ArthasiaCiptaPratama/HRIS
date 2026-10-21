@@ -131,6 +131,11 @@ export const shiftInputSchema = z.object({
   lateToleranceMin: minutes(240),
   earlyLeaveToleranceMin: minutes(240),
   checkOutCloseMin: minutes(720),
+  /** TM-D7: jatah istirahat (menit) & istirahat dibayar (termasuk jam kerja, mis. JT). */
+  breakMin: minutes(240).default(0),
+  breakPaid: z.boolean().default(false),
+  /** TM-D6: menit terakhir shift yang merupakan lembur rutin (JT: 60). */
+  regularOvertimeMin: minutes(600).default(0),
   color: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
@@ -304,6 +309,11 @@ export const ATTENDANCE_LABELS = [
   "MANUAL",
   // TM-D3: hari kerja roster tanpa absen sama sekali → Alpha (penanda tetap ada walau dikoreksi).
   "NO_ATTENDANCE",
+  // TM-D7: istirahat lebih dari jatah / tidak absen istirahat di lokasi wajib (peringatan, tidak memblokir).
+  "BREAK_OVER",
+  "NO_BREAK_PUNCH",
+  // TM-D6: lembur rutin shift dijalani kurang dari jadwal (dibayar riil).
+  "REGULAR_OT_SHORT",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
@@ -318,6 +328,9 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   CORRECTED: "Dikoreksi",
   MANUAL: "Input manual HR",
   NO_ATTENDANCE: "Tidak absen",
+  BREAK_OVER: "Istirahat lebih",
+  NO_BREAK_PUNCH: "Tanpa absen istirahat",
+  REGULAR_OT_SHORT: "Lembur rutin kurang",
 };
 
 export const ATTENDANCE_DAY_STATUSES = [
@@ -338,8 +351,18 @@ export const ATTENDANCE_DAY_STATUS_LABELS: Record<AttendanceDayStatus, string> =
   LEAVE: "Cuti/izin/sakit",
 };
 
-export const PUNCH_KINDS = ["IN", "OUT"] as const;
+/** Absen masuk/pulang (+ TM-D7 mulai/selesai istirahat; sekali per hari, geofence + selfie). */
+export const PUNCH_KINDS = ["IN", "OUT", "BREAK_START", "BREAK_END"] as const;
 export type PunchKind = (typeof PUNCH_KINDS)[number];
+/** Absen yang menentukan hari & butuh approval (D-073); istirahat hanya bukti. */
+export const CLOCK_KINDS = ["IN", "OUT"] as const;
+export type ClockKind = (typeof CLOCK_KINDS)[number];
+export const PUNCH_KIND_LABELS: Record<PunchKind, string> = {
+  IN: "Clock In",
+  OUT: "Clock Out",
+  BREAK_START: "Mulai istirahat",
+  BREAK_END: "Selesai istirahat",
+};
 
 /** Selfie dikompres di browser (± 200 KB); batas server 1 MB. */
 export const SELFIE_MAX_BYTES = 1024 * 1024;
@@ -378,7 +401,7 @@ export const PUNCH_CANCEL_WINDOW_MIN = 15;
 export const manualPunchInputSchema = z.object({
   employeeId: z.uuid(),
   workDate: isoDate,
-  kind: z.enum(PUNCH_KINDS),
+  kind: z.enum(CLOCK_KINDS),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format jam HH:mm"),
   reason: z.string().trim().min(5, "Tulis alasan minimal 5 karakter").max(500),
   /** Lokasi absen yang dipilih HR untuk input manual (opsional; tanpa ini absen manual tanpa lokasi). */

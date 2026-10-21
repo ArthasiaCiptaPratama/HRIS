@@ -58,7 +58,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 | OD-11 | Masa simpan data karyawan keluar (UU PDP)    | Rilis Arsip gel. 1 | Menunggu keputusan (usulan: kepegawaian & pajak 10 thn, identitas/kesehatan 5 thn) |
 | OD-12 | Repo GitHub ternyata PUBLIC (2026-10-12; 2026-09-28 masih private) | Rilis 1 | Menunggu keputusan pemilik organisasi (usulan: kembalikan private) |
 | OD-13 | Format file Excel roster dari site (D-069) | Tahap B import roster | Menunggu keputusan (nomor awal OD-12 di branch Mat; import sementara mengenali dua bentuk umum) |
-| OD-14 | Lembur: otomatis dari absen vs shift, atau pengajuan | Tahap F | Menunggu keputusan (nomor awal OD-13; usulan: pengajuan + usulan jam otomatis) |
+| OD-14 | Lembur: otomatis dari absen vs shift, atau pengajuan | Tahap F | Terjawab → TM-D6 (2026-10-21: usulan otomatis + Atasan & HR) |
 | OD-15 | Batas waktu approval absen & pengingat (D-068) | Tahap D | Menunggu keputusan (nomor awal OD-14; sementara pengaturan 2 hari) |
 
 ## Backlog

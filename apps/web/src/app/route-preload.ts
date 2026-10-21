@@ -125,6 +125,14 @@ export const pages = {
     import("@/features/time-management/pages/roster-setup-page").then((m) => ({
       Component: m.RosterSetupPage,
     })),
+  overtime: () =>
+    import("@/features/time-management/pages/overtime-pages").then((m) => ({
+      Component: m.OvertimePage,
+    })),
+  gradeWages: () =>
+    import("@/features/time-management/pages/overtime-pages").then((m) => ({
+      Component: m.GradeWagesPage,
+    })),
   locationSettings: () =>
     import("@/features/time-management/pages/location-settings-page").then((m) => ({
       Component: m.LocationSettingsPage,
