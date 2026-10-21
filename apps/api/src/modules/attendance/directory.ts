@@ -227,3 +227,77 @@ export async function exitStatusOf(
   });
   return new Map(rows.map((r) => [r.id, { isActive: r.isActive, endDate: r.endDate }]));
 }
+
+export interface AnalyticsEmployee {
+  id: string;
+  fullName: string;
+  companyId: string;
+  managerId: string | null;
+  workLocationId: string | null;
+  gradeId: string | null;
+  gender: string | null;
+  joinDate: Date;
+  endDate: Date | null;
+  exitReason: string | null;
+  isActive: boolean;
+  /** Kategori status kerja (PERMANENT, PKWT, …) — null bila status tanpa kategori. */
+  category: string | null;
+  /** Hanya diisi bila pemanggil boleh melihat data pribadi (grant employee.personal.*). */
+  birthDate: Date | null;
+}
+
+/**
+ * DSB-D1: karyawan yang aktif pada sebagian rentang [from, to] (masuk ≤ to, belum keluar sebelum from).
+ * Baca-saja. `withBirthDate` = pemanggil berhak atas data pribadi (proyeksi pensiun).
+ */
+export async function analyticsEmployees(input: {
+  companyIds?: string[] | undefined;
+  managerId?: string | undefined;
+  from: Date;
+  to: Date;
+  withBirthDate: boolean;
+}): Promise<AnalyticsEmployee[]> {
+  const rows = await getPrisma().employee.findMany({
+    where: {
+      ...APPROVED,
+      joinDate: { lte: input.to },
+      OR: [{ endDate: null }, { endDate: { gte: input.from } }],
+      ...(input.companyIds ? { companyId: { in: input.companyIds } } : {}),
+      ...(input.managerId ? { managerId: input.managerId } : {}),
+    },
+    select: {
+      id: true,
+      fullName: true,
+      companyId: true,
+      managerId: true,
+      workLocationId: true,
+      gradeId: true,
+      gender: true,
+      joinDate: true,
+      endDate: true,
+      exitReason: true,
+      isActive: true,
+      employmentStatus: { select: { category: true } },
+      ...(input.withBirthDate ? { personal: { select: { birthDate: true } } } : {}),
+    },
+  });
+  return rows.map((r) => {
+    const { employmentStatus, ...rest } = r;
+    const personal = (r as { personal?: { birthDate: Date | null } | null }).personal;
+    return {
+      id: rest.id,
+      fullName: rest.fullName,
+      companyId: rest.companyId,
+      managerId: rest.managerId,
+      workLocationId: rest.workLocationId,
+      gradeId: rest.gradeId,
+      gender: rest.gender ?? null,
+      joinDate: rest.joinDate,
+      endDate: rest.endDate,
+      exitReason: rest.exitReason ?? null,
+      isActive: rest.isActive,
+      category: employmentStatus?.category ?? null,
+      birthDate: personal?.birthDate ?? null,
+    };
+  });
+}

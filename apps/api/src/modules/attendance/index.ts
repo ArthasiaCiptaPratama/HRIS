@@ -1,6 +1,12 @@
 // Interface publik modul attendance (PLAN §3.2.5): hanya file ini yang boleh di-import dari luar modul.
 
 export { markNoAttendanceAlpha } from "./alpha.service.ts";
+export {
+  type AttendanceFactsRow,
+  attendanceFacts,
+  formulasOfEmployees,
+  monthlyWagesOfGrades,
+} from "./analytics-facts.ts";
 export { canSeeLaborCost } from "./attendance.policy.ts";
 export { type AttendanceRouteDeps, registerAttendanceRoutes } from "./attendance.routes.ts";
 export { closeOverdueDays, purgeSelfies } from "./attendance.service.ts";

@@ -186,7 +186,7 @@ export async function setGradeWage(
   return (await listGradeWages(ctx)).find((g) => g.gradeId === gradeId) as GradeWageView;
 }
 
-async function wagesOfGrades(gradeIds: (string | null)[]) {
+export async function wagesOfGrades(gradeIds: (string | null)[]) {
   const ids = [...new Set(gradeIds.filter((id): id is string => id !== null))];
   if (ids.length === 0) return new Map<string, { basePay: number; fixedAllowance: number }>();
   const rows = await getPrisma().gradeWage.findMany({ where: { gradeId: { in: ids } } });
@@ -232,7 +232,7 @@ export async function exitWageBasis(
 
 type DayWithPunches = Prisma.AttendanceDayGetPayload<{ include: { punches: true } }>;
 
-interface CalcContext {
+export interface CalcContext {
   shifts: Map<
     string,
     {
@@ -248,7 +248,10 @@ interface CalcContext {
 }
 
 /** Muat shift, tanggal merah, pola crew, & lokasi wajib istirahat untuk sekumpulan hari sekaligus. */
-async function loadCalcContext(tx: Tx | undefined, days: DayWithPunches[]): Promise<CalcContext> {
+export async function loadCalcContext(
+  tx: Tx | undefined,
+  days: DayWithPunches[],
+): Promise<CalcContext> {
   const shiftIds = [...new Set(days.map((d) => d.shiftId).filter((x): x is string => !!x))];
   const dates = days.map((d) => toIso(d.workDate)).sort();
   const [shifts, holidays, rosterDays, breakIds] = await Promise.all([
@@ -302,7 +305,7 @@ export interface DayCalc {
 }
 
 /** Lembur satu hari (null = belum lengkap / tidak dihitung: tanpa Clock Out, ditolak, Alpha, cuti). */
-function calcDay(ctx: CalcContext, day: DayWithPunches): DayCalc | null {
+export function calcDay(ctx: CalcContext, day: DayWithPunches): DayCalc | null {
   if (day.status === "ALPHA" || day.status === "LEAVE" || day.status === "REJECTED") return null;
   const inP = day.punches.find((p) => p.kind === "IN");
   const outP = day.punches.find((p) => p.kind === "OUT");

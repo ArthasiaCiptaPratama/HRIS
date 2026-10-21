@@ -34,6 +34,7 @@ import {
 } from "./core/supabase-admin.ts";
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
+import { registerAnalyticsRoutes } from "./modules/analytics/index.ts";
 import { registerApprovalRoutes } from "./modules/approval/index.ts";
 import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
 import {
@@ -264,6 +265,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerDisciplineRoutes(app, { protect });
   // ARS-D16/D17 (Arsip 3): laporan batch 1.
   registerReportRoutes(app, { protect });
+  // DSB-D1: dashboard analitik SDM & biaya.
+  registerAnalyticsRoutes(app, { protect });
   // Time Management (D-067–D-072): mesin approval & modul attendance.
   registerApprovalRoutes(app, { protect });
   registerAttendanceRoutes(app, {

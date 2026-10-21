@@ -1,5 +1,5 @@
 import type { PivotChartType, PivotDimension } from "@hris/shared";
-import { BarChart, HeatmapChart, PieChart } from "echarts/charts";
+import { BarChart, HeatmapChart, LineChart, PieChart } from "echarts/charts";
 import {
   GridComponent,
   LegendComponent,
@@ -19,6 +19,7 @@ import { type PivotView, percent } from "./pivot-data";
 echarts.use([
   BarChart,
   HeatmapChart,
+  LineChart,
   PieChart,
   GridComponent,
   LegendComponent,
@@ -28,7 +29,7 @@ echarts.use([
   CanvasRenderer,
 ]);
 
-type ChartOption = Parameters<ReturnType<typeof echarts.init>["setOption"]>[0];
+export type ChartOption = Parameters<ReturnType<typeof echarts.init>["setOption"]>[0];
 
 // ── Tema: ikuti kelas .dark di <html> (toggle tema aplikasi) ─────────────────
 function subscribeTheme(onChange: () => void) {
@@ -41,16 +42,16 @@ const readMode = (): Mode =>
 export const useThemeMode = () =>
   useSyncExternalStore<Mode>(subscribeTheme, readMode, () => "light");
 
-const FONT = '"Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif';
+export const FONT = '"Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif';
 
 /** Label master data diisi pengguna → wajib di-escape sebelum masuk tooltip HTML. */
-const esc = (text: string) =>
+export const esc = (text: string) =>
   text.replace(
     /[&<>"']/g,
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch] ?? ch,
   );
 const fmt = new Intl.NumberFormat("id-ID");
-const dot = (color: string) =>
+export const dot = (color: string) =>
   `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:${color}"></span>`;
 
 export interface PivotChartProps {
@@ -85,6 +86,23 @@ export function donutVisibleTotal(view: PivotView, hidden: readonly string[]): n
   return view.rows.reduce((sum, r) => (off.has(r.label) ? sum : sum + r.total), 0);
 }
 
+/** Opsi dasar bersama (font, warna tinta, tooltip) — dipakai grafik pivot & widget analitik. */
+export function chartBase(mode: Mode, animate: boolean) {
+  const ink = CHROME[mode];
+  return {
+    animation: animate,
+    animationDuration: 400,
+    textStyle: { fontFamily: FONT, color: ink.ink },
+    tooltip: {
+      confine: true,
+      backgroundColor: mode === "dark" ? "#27272a" : "#ffffff",
+      borderColor: ink.axis,
+      textStyle: { color: ink.ink, fontSize: 12, fontFamily: FONT },
+      extraCssText: "border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);",
+    },
+  };
+}
+
 /** Diekspor untuk pratinjau render di luar React (cek visual). `hidden` = label legenda yang dimatikan. */
 export function buildOption(
   props: PivotChartProps,
@@ -97,18 +115,7 @@ export function buildOption(
   // Widget sempit (mis. 1/3 atau 1/4 lebar): sumbu & label diringkas supaya tidak bertumpuk.
   const compact = width < 420;
   const ink = CHROME[mode];
-  const base = {
-    animation: animate,
-    animationDuration: 400,
-    textStyle: { fontFamily: FONT, color: ink.ink },
-    tooltip: {
-      confine: true,
-      backgroundColor: mode === "dark" ? "#27272a" : "#ffffff",
-      borderColor: ink.axis,
-      textStyle: { color: ink.ink, fontSize: 12, fontFamily: FONT },
-      extraCssText: "border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);",
-    },
-  };
+  const base = chartBase(mode, animate);
   const rowLabels = view.rows.map((r) => r.label);
   const hasSeries = view.cols.length > 0;
 
@@ -455,4 +462,54 @@ export function PivotChart(props: PivotChartProps) {
   return (
     <div ref={mount} role="img" aria-label={props.label} className="w-full" style={{ height }} />
   );
+}
+
+/**
+ * DSB-D1: kanvas ECharts generik untuk widget analitik. `build` menerima mode tema & lebar widget
+ * (dibulatkan per 20 px) supaya grafik sempit bisa meringkas label.
+ */
+export function EChart({
+  build,
+  height,
+  label,
+}: {
+  build: (ctx: { mode: Mode; width: number; animate: boolean }) => ChartOption;
+  height: number;
+  label: string;
+}) {
+  const mount = useRef<HTMLDivElement>(null);
+  const instance = useRef<ReturnType<typeof echarts.init> | null>(null);
+  const mode = useThemeMode();
+  const animate = useMemo(
+    () => !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
+  const [width, setWidth] = useState(0);
+  const option = useMemo(
+    () => build({ mode, width: width || 600, animate }),
+    [build, mode, width, animate],
+  );
+
+  useEffect(() => {
+    if (!mount.current) return;
+    const chart = echarts.init(mount.current, null, { renderer: "canvas" });
+    instance.current = chart;
+    const observer = new ResizeObserver((entries) => {
+      chart.resize();
+      const w = entries[0]?.contentRect.width ?? 0;
+      if (w > 0) setWidth(Math.round(w / 20) * 20);
+    });
+    observer.observe(mount.current);
+    return () => {
+      observer.disconnect();
+      chart.dispose();
+      instance.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    instance.current?.setOption(option, { notMerge: true });
+  }, [option]);
+
+  return <div ref={mount} role="img" aria-label={label} className="w-full" style={{ height }} />;
 }

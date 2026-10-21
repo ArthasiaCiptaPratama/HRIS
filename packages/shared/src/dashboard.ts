@@ -157,7 +157,18 @@ export const WIDGET_SIZE_LABELS: Record<WidgetSize, string> = {
   lg: "Lebar penuh",
 };
 
-export const STAT_METRICS = ["total", "active", "inactive", "avgTenure"] as const;
+export const STAT_METRICS = [
+  "total",
+  "active",
+  "inactive",
+  "avgTenure",
+  // DSB-D1 (GET /dashboard/analytics, per bulan periode analitik):
+  "turnover",
+  "onLeave",
+  "efficiency",
+  /** Rupiah — hanya SA / HR ber-grant labor.cost.read (tanpa grant widget disembunyikan). */
+  "liability",
+] as const;
 export const statMetricSchema = z.enum(STAT_METRICS);
 export type StatMetric = z.infer<typeof statMetricSchema>;
 export const STAT_METRIC_LABELS: Record<StatMetric, string> = {
@@ -165,7 +176,44 @@ export const STAT_METRIC_LABELS: Record<StatMetric, string> = {
   active: "Karyawan Aktif",
   inactive: "Karyawan Nonaktif",
   avgTenure: "Rata-rata Masa Kerja",
+  turnover: "Turnover Bulan Ini",
+  onLeave: "Sedang Cuti Hari Ini",
+  efficiency: "Efisiensi Jam Kerja",
+  liability: "Kewajiban Kompensasi",
 };
+/** Statistik dari GET /dashboard/analytics (bukan GET /dashboard). */
+export const ANALYTICS_STAT_METRICS: readonly StatMetric[] = [
+  "turnover",
+  "onLeave",
+  "efficiency",
+  "liability",
+];
+
+// DSB-D1: widget "Analitik SDM & biaya" (isi tetap, tanpa pengaturan selain ukuran).
+export const INSIGHT_KINDS = [
+  "headcount",
+  "gender",
+  "tenureLeave",
+  "leave",
+  "efficiency",
+  "projection",
+  "laborCost",
+  "liability",
+] as const;
+export const insightKindSchema = z.enum(INSIGHT_KINDS);
+export type InsightKind = z.infer<typeof insightKindSchema>;
+export const INSIGHT_LABELS: Record<InsightKind, string> = {
+  headcount: "Pergerakan Karyawan",
+  gender: "Komposisi Jenis Kelamin",
+  tenureLeave: "Masa Kerja vs Cuti",
+  leave: "Ringkasan Cuti",
+  efficiency: "Efisiensi Jam Kerja",
+  projection: "Proyeksi 12 Bulan",
+  laborCost: "Biaya Tenaga Kerja",
+  liability: "Kewajiban Kompensasi",
+};
+/** Widget rupiah: tampil hanya bila API mengirim angka biaya (grant "Biaya"). */
+export const COST_INSIGHTS: readonly InsightKind[] = ["laborCost", "liability"];
 
 export const PIVOT_CHART_TYPES = [
   "bar",
@@ -232,15 +280,24 @@ export const shortcutsWidgetSchema = z.object({
   items: z.array(z.string().min(1).max(60)).max(16),
 });
 
+export const insightWidgetSchema = z.object({
+  id: widgetId,
+  kind: z.literal("insight"),
+  size: widgetSizeSchema,
+  insight: insightKindSchema,
+});
+
 export const dashboardWidgetSchema = z.discriminatedUnion("kind", [
   statWidgetSchema,
   pivotWidgetSchema,
   shortcutsWidgetSchema,
+  insightWidgetSchema,
 ]);
 export type DashboardWidget = z.infer<typeof dashboardWidgetSchema>;
 export type StatWidget = z.infer<typeof statWidgetSchema>;
 export type PivotWidget = z.infer<typeof pivotWidgetSchema>;
 export type ShortcutsWidget = z.infer<typeof shortcutsWidgetSchema>;
+export type InsightWidget = z.infer<typeof insightWidgetSchema>;
 
 /**
  * Widget kecil (¼) hanya donut atau bar — grafik lain (bertumpuk, 100%, berdampingan, heatmap, tabel)
@@ -268,6 +325,7 @@ export const DASHBOARD_SECTION_LABELS: Record<DashboardSection, string> = {
   shortcuts: "Menu Cepat",
   charts: "Grafik",
 };
+/** Analitik (insight) & pivot → section Grafik; stat (termasuk statistik analitik) → Angka ringkas. */
 export const widgetSection = (widget: DashboardWidget): DashboardSection =>
   widget.kind === "stat" ? "stats" : widget.kind === "shortcuts" ? "shortcuts" : "charts";
 /** Urutkan per section (stabil: urutan di dalam section dipertahankan). */
@@ -314,6 +372,13 @@ const pivot = (
   ...extra,
 });
 
+const insight = (kind: InsightKind, size: WidgetSize): InsightWidget => ({
+  id: `insight-${kind.toLowerCase()}`,
+  kind: "insight",
+  size,
+  insight: kind,
+});
+
 /** Susunan bawaan (akun yang belum pernah menyimpan, atau "Reset ke bawaan"). */
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
   version: DASHBOARD_LAYOUT_VERSION,
@@ -322,6 +387,8 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
     { id: "stat-active", kind: "stat", size: "sm", metric: "active" },
     { id: "stat-inactive", kind: "stat", size: "sm", metric: "inactive" },
     { id: "stat-tenure", kind: "stat", size: "sm", metric: "avgTenure" },
+    { id: "stat-turnover", kind: "stat", size: "sm", metric: "turnover" },
+    { id: "stat-onleave", kind: "stat", size: "sm", metric: "onLeave" },
     {
       id: "shortcuts",
       kind: "shortcuts",
@@ -341,5 +408,12 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
     }),
     pivot("position-level", "Level Jabatan", "positionLevel", null, "bar"),
     pivot("join-year", "Tren Tahun Masuk", "joinYear", null, "bar", { horizontal: false }),
+    insight("headcount", "md"),
+    insight("gender", "sm"),
+    insight("tenureLeave", "md"),
+    insight("efficiency", "md"),
+    insight("projection", "md"),
+    insight("laborCost", "sm"),
+    insight("liability", "sm"),
   ],
 };
