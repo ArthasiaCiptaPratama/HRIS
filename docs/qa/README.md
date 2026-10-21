@@ -35,9 +35,11 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-15-sp-lokal.md](plans/2026-10-15-sp-lokal.md) | Surat Peringatan gel. 2b lokal (TC-EMP-227…238) |
 | Rencana | [plans/2026-10-16-laporan-lokal.md](plans/2026-10-16-laporan-lokal.md) | Laporan batch 1 lokal (TC-EMP-239…249) |
 | Rencana | [plans/2026-10-20-laporan-batch2-lokal.md](plans/2026-10-20-laporan-batch2-lokal.md) | Laporan batch 2 lokal (TC-EMP-250…257) |
+| Rencana | [plans/2026-10-21-tm-paket-lokal.md](plans/2026-10-21-tm-paket-lokal.md) | Time Management Paket 1–3 + dashboard analitik lokal, akun uji `db:seed:qa` (TC-TM-001…027, TC-DSB-001…009) |
 | Rencana | [plans/2026-10-15-staging-sp.md](plans/2026-10-15-staging-sp.md) | Surat Peringatan + header detail di staging, rilis gel. 8 (TC-STG-088…102) |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-102 |
 | Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-257 |
+| Kasus | [cases/time-management.md](cases/time-management.md) | TC-TM-001 s.d. TC-TM-027, TC-DSB-001 s.d. TC-DSB-009 |
 | Kasus | [cases/administrasi.md](cases/administrasi.md) | TC-ADM-001 s.d. TC-ADM-057 |
 | Hasil | [runs/2026-09-29-staging.md](runs/2026-09-29-staging.md) | Staging `43b2b69`: API 43/43, UI 31/31 LULUS; BUG-001 (P3) |
 | Hasil | [runs/2026-09-29-personal-management.md](runs/2026-09-29-personal-management.md) | Lokal, Linux; semua P1 & P2 LULUS; + sesi akun HR (18/18); staging 2026-10-12 E-01/E-02 — **LEGIT** |

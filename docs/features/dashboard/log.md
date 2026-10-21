@@ -27,3 +27,8 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Masalah / catatan:** estimasi (upah grade, bukan gaji per orang); usia pensiun 58 th (konstanta); layout bawaan berubah (akun yang belum menyimpan susunan langsung melihat widget baru).
 - **Berikutnya:** papan dashboard untuk atasan (cakupan tim); uji tampilan HP.
 
+## 2026-10-21 (lanjutan) — analitik tim atasan & akun uji
+- **Dikerjakan:** panel **Analitik tim** untuk MANAGER (`team-analytics.tsx`, widget hanya baca: pergerakan, gender, cuti, efisiensi, masa kerja vs cuti); `BoardActions.readOnly` menyembunyikan menu widget. Sapuan HP 390 px 17 halaman per role tanpa gulir horizontal.
+- **QA:** kasus TC-DSB-001…009 di `docs/qa/cases/time-management.md`, rencana `docs/qa/plans/2026-10-21-tm-paket-lokal.md`; akun uji `hr.biaya@arthasia.test` (grant Biaya + data pribadi) lewat `bun run db:seed:qa` (lokal saja).
+- **Berikutnya:** jalankan rencana uji manual → `runs/2026-10-21-tm-paket-lokal.md`.
+

@@ -73,3 +73,9 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Tinjauan aturan emas:** absen tanpa jam dari perangkat (waktu server, #9) ✔ · `selfiePath` wajib berawalan `attendance/<employeeId>/` ✔ · migrasi tanpa objek Supabase/`CREATE EXTENSION` ✔ · tidak ada log data sensitif di modul baru ✔ · **⚠ #3 batas modul:** `attendance/directory.ts` membaca tabel `employee`/`organization` langsung (adapter sementara, ditandai Mat) → Backlog.
 - **Berikutnya:** izin commit merge + push develop; lalu tindak lanjut Backlog (adapter → `index.ts`, cron `vercel.json`), uji HP, dan jawaban OD-13–OD-15 sebelum rilis Time Management.
 
+## 2026-10-21 (lanjutan) — template 13+1 & 5+2, akun & rencana uji
+- **Dikerjakan:** `ROSTER_TEMPLATES` = JT, ROT_13_1, WEEK_5_2 (`roster-template.service.ts`, dialog "Pakai template" dengan pilihan template) — `c664054`.
+- **Data & akun uji (lokal saja):** script `apps/api/scripts/seed-qa-time.ts` (`bun run db:seed:qa`, dijaga `guard-local-db`, idempoten): upah grade Staf, lokasi demo wajib istirahat, shift uji `QA` 08–17, karyawan Dimas (TMDEMO-LAP, tim Budi, roster 14 hari), karyawan keluar Sari (TMDEMO-EXIT, sisa cuti 9 hari), akun `hr.biaya@arthasia.test` & `lapangan.lokal@arthasia.test`. Dicek: dijalankan 2× (kedua kali "unchanged"), login kedua akun, `/dashboard/analytics` 200 (hr.biaya, ada laborCost & liability) · 403 (lapangan) · hr.lokal tanpa rupiah.
+- **QA:** `docs/qa/cases/time-management.md` (TC-TM-001…027) + rencana `docs/qa/plans/2026-10-21-tm-paket-lokal.md`.
+- **Berikutnya:** eksekusi rencana uji manual; izin push `HRIS/Mat/Mac`; cron `leave-daily`/`attendance-daily` ke `vercel.json`.
+
