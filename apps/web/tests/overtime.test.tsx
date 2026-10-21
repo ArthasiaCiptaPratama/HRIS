@@ -10,7 +10,9 @@ vi.mock("@/lib/supabase", async () => ({
 
 // TM-D6 lembur & upah grade, TM-D7 tombol istirahat di HP.
 
-type Role = ReturnType<typeof me>;
+type Role = Omit<ReturnType<typeof me>, "grants"> & {
+  grants: { permission: string; expiresAt: string | null }[];
+};
 type Call = { method: string; path: string; search: string; body: unknown };
 
 const approval = (id: string) => ({
@@ -21,8 +23,22 @@ const approval = (id: string) => ({
   createdAt: "2026-10-05T12:00:00.000Z",
   decidedAt: null,
   steps: [
-    { kind: "MANAGER", decision: "PENDING", decidedAt: null, note: null, isOverride: false, myRight: "regular" },
-    { kind: "HR", decision: "PENDING", decidedAt: null, note: null, isOverride: false, myRight: null },
+    {
+      kind: "MANAGER",
+      decision: "PENDING",
+      decidedAt: null,
+      note: null,
+      isOverride: false,
+      myRight: "regular",
+    },
+    {
+      kind: "HR",
+      decision: "PENDING",
+      decidedAt: null,
+      note: null,
+      isOverride: false,
+      myRight: null,
+    },
   ],
   canDecide: true,
   canOverride: false,

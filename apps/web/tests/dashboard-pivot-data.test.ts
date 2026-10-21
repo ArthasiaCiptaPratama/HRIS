@@ -93,3 +93,30 @@ describe("seriesColors", () => {
     expect(colors.get("NONE")).toBe(colors.get(OTHER_KEY));
   });
 });
+
+describe("donut: angka tengah mengikuti legenda (2026-10-21)", () => {
+  it("item legenda yang dimatikan tidak ikut dihitung di total & persen", async () => {
+    const { buildOption, donutVisibleTotal } = await import("@/features/dashboard/pivot-chart");
+    const view = buildPivotView(result, { sort: "natural", limit: null, rowsAsSeries: true });
+    expect(donutVisibleTotal(view, [])).toBe(20);
+    expect(donutVisibleTotal(view, ["Amuntai"])).toBe(11);
+    expect(donutVisibleTotal(view, ["Amuntai", "Banjar"])).toBe(6);
+    const props = {
+      view,
+      chart: "donut" as const,
+      rowsDim: "location" as const,
+      colsDim: null,
+      horizontal: false,
+      label: "Lokasi",
+    };
+    const option = buildOption(props, "light", false, ["Amuntai"]) as {
+      title: { text: string };
+      legend: { selected: Record<string, boolean> };
+    };
+    expect(option.title.text).toBe("11");
+    expect(option.legend.selected).toEqual({ Amuntai: false });
+    expect((buildOption(props, "light", false) as { title: { text: string } }).title.text).toBe(
+      "20",
+    );
+  });
+});

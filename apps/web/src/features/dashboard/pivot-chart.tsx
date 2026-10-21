@@ -9,7 +9,7 @@ import {
 } from "echarts/components";
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { CHROME, HEATMAP_RAMP, type Mode, SINGLE, seriesColors } from "./palette";
 import { type PivotView, percent } from "./pivot-data";
 
@@ -71,8 +71,23 @@ export function chartHeight(view: PivotView, chart: PivotChartProps["chart"], ho
   return Math.min(Math.max(rows * 30 + 50 + legend, 180), 620);
 }
 
-/** Diekspor untuk pratinjau render di luar React (cek visual). */
-export function buildOption(props: PivotChartProps, mode: Mode, animate: boolean): ChartOption {
+/**
+ * Total donut yang masih tampil: baris yang dimatikan lewat legenda tidak dihitung (permintaan pemilik
+ * projek 2026-10-21 — angka tengah ikut berkurang saat ada yang di-unselect).
+ */
+export function donutVisibleTotal(view: PivotView, hidden: readonly string[]): number {
+  if (hidden.length === 0) return view.total;
+  const off = new Set(hidden);
+  return view.rows.reduce((sum, r) => (off.has(r.label) ? sum : sum + r.total), 0);
+}
+
+/** Diekspor untuk pratinjau render di luar React (cek visual). `hidden` = label legenda yang dimatikan. */
+export function buildOption(
+  props: PivotChartProps,
+  mode: Mode,
+  animate: boolean,
+  hidden: readonly string[] = [],
+): ChartOption {
   const { view, chart, horizontal } = props;
   const ink = CHROME[mode];
   const base = {
@@ -97,10 +112,11 @@ export function buildOption(props: PivotChartProps, mode: Mode, animate: boolean
       view.rows.map((r) => r.key),
       mode,
     );
+    const visibleTotal = donutVisibleTotal(view, hidden);
     return {
       ...base,
       title: {
-        text: fmt.format(view.total),
+        text: fmt.format(visibleTotal),
         subtext: "karyawan",
         left: "center",
         top: "36%",
@@ -112,10 +128,12 @@ export function buildOption(props: PivotChartProps, mode: Mode, animate: boolean
         ...base.tooltip,
         trigger: "item",
         formatter: (p: { name: string; value: number; color: string }) =>
-          `${dot(p.color)}<b>${esc(p.name)}</b><br/>${fmt.format(p.value)} orang · ${percent(p.value, view.total)}%`,
+          `${dot(p.color)}<b>${esc(p.name)}</b><br/>${fmt.format(p.value)} orang · ${percent(p.value, visibleTotal)}%`,
       },
       legend: {
         type: "scroll",
+        // Status legenda dipertahankan saat opsi dibangun ulang (setOption notMerge).
+        selected: Object.fromEntries(hidden.map((name) => [name, false])),
         bottom: 0,
         icon: "roundRect",
         itemWidth: 10,
@@ -353,9 +371,19 @@ export function PivotChart(props: PivotChartProps) {
     [],
   );
   const { view, chart, rowsDim, colsDim, horizontal, label } = props;
+  // Donut: label legenda yang dimatikan (angka tengah & persen dihitung dari yang masih tampil).
+  const [hidden, setHidden] = useState<string[]>([]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: data/bentuk baru → semua item tampil lagi
+  useEffect(() => setHidden([]), [view, chart]);
   const option = useMemo(
-    () => buildOption({ view, chart, rowsDim, colsDim, horizontal, label }, mode, animate),
-    [view, chart, rowsDim, colsDim, horizontal, label, mode, animate],
+    () =>
+      buildOption(
+        { view, chart, rowsDim, colsDim, horizontal, label },
+        mode,
+        animate,
+        chart === "donut" ? hidden : [],
+      ),
+    [view, chart, rowsDim, colsDim, horizontal, label, mode, animate, hidden],
   );
   const height = chartHeight(props.view, props.chart, props.horizontal);
 
@@ -375,6 +403,23 @@ export function PivotChart(props: PivotChartProps) {
   useEffect(() => {
     instance.current?.setOption(option, { notMerge: true });
   }, [option]);
+
+  useEffect(() => {
+    const instanceNow = instance.current;
+    if (!instanceNow || chart !== "donut") return;
+    const onLegend = (event: unknown) => {
+      const selected = (event as { selected?: Record<string, boolean> }).selected ?? {};
+      setHidden(
+        Object.entries(selected)
+          .filter(([, on]) => !on)
+          .map(([name]) => name),
+      );
+    };
+    instanceNow.on("legendselectchanged", onLegend);
+    return () => {
+      instanceNow.off("legendselectchanged", onLegend);
+    };
+  }, [chart]);
 
   return (
     <div ref={mount} role="img" aria-label={props.label} className="w-full" style={{ height }} />
