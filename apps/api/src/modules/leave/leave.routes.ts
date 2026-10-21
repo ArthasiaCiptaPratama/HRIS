@@ -15,7 +15,7 @@ import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { RequestContext } from "../attendance/index.ts";
 import * as service from "./leave.service.ts";
-import * as exits from "./leave-exit.service.ts";
+import { registerLeaveExitRoutes } from "./leave-exit.routes.ts";
 
 // Tahap E — cuti, izin, sakit (D-072). Body divalidasi skema @hris/shared di handler (400 VALIDATION_ERROR).
 const P = API_BASE_PATH;
@@ -184,31 +184,6 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       service.importBalances(ctxOf(c), strict(leaveBalanceImportSchema, await body(c)), true),
   ],
   [
-    route("get", "/leave-exit-settlements", "Hak cuti karyawan keluar (TM-D9) (SA, HR PT)", {
-      query: z.object({ companyId: z.uuid().optional() }),
-    }),
-    (c) => exits.listExitSettlements(ctxOf(c), c.req.query("companyId") || undefined),
-  ],
-  [
-    route("post", "/leave-exit-settlements/{id}/recalculate", "Hitung ulang hak cuti keluar", {
-      params: idParam,
-    }),
-    (c) => exits.recalculateExitSettlement(ctxOf(c), param(c)),
-  ],
-  [
-    route("post", "/leave-exit-settlements/{id}/paid", "Tandai hak cuti keluar sudah diproses", {
-      params: idParam,
-      ...anyBody,
-    }),
-    async (c) => {
-      const input = strict(
-        z.object({ note: z.string().trim().max(300).optional() }),
-        await body(c),
-      );
-      return exits.markExitSettlementPaid(ctxOf(c), param(c), input.note);
-    },
-  ],
-  [
     route(
       "post",
       "/leave-jobs",
@@ -241,6 +216,7 @@ export function registerLeaveRoutes(app: OpenAPIHono, deps: LeaveRouteDeps): voi
     storagePathPrefix: deps.storagePathPrefix ?? "",
   });
   service.registerLeaveIntegrations();
+  registerLeaveExitRoutes(app, deps.protect);
   for (const [definition, handler] of ROUTES) {
     app.openapi({ ...definition, middleware: deps.protect }, (async (c: Context) =>
       c.json(ok(await handler(c)), 200)) as never);

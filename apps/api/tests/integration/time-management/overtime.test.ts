@@ -3,6 +3,12 @@ import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { readTimeSettings, syncOvertimeForDay } from "../../../src/modules/attendance/index.ts";
+import {
+  breakLocationsViewSchema,
+  gradeWageViewSchema,
+  overtimeSummarySchema,
+  overtimeViewSchema,
+} from "../../../src/modules/attendance/overtime.schema.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -502,5 +508,52 @@ describe("template roster JT (TM-D8)", () => {
     ]);
     expect(week.pattern.steps).toEqual(["K52", "K52", "K52", "K52", "K52", "OFF", "OFF"]);
     expect(week.crews[0]?.cycleStartDate).toBe("2026-11-02");
+  });
+});
+
+describe("kontrak OpenAPI bertipe (MOB-D10)", () => {
+  test("respons lembur, upah grade, & lokasi istirahat lolos skema", async () => {
+    const parse = async (
+      schema: { safeParse: (v: unknown) => { success: boolean; error?: unknown } },
+      res: Response,
+    ) => {
+      expect(res.status).toBe(200);
+      const result = schema.safeParse(await data(res));
+      expect(result.error).toBeUndefined();
+    };
+    await parse(
+      overtimeViewSchema.array(),
+      await call("GET", `/overtime?scope=all&from=${DAY1}&to=${DAY1}`, h.hrCost),
+    );
+    await parse(overtimeSummarySchema, await call("GET", "/overtime/summary?month=2026-10", h.sa));
+    await parse(gradeWageViewSchema.array(), await call("GET", "/grade-wages", h.hrCost));
+    await parse(breakLocationsViewSchema, await call("GET", "/break-locations", h.hr));
+  });
+
+  test("spec OpenAPI: rute baru tidak memakai skema kosong", async () => {
+    const doc = (await (await app.request("/api/v1/openapi.json")).json()) as {
+      paths: Record<
+        string,
+        Record<string, { requestBody?: unknown; responses: Record<string, unknown> }>
+      >;
+    };
+    const paths = [
+      ["/api/v1/overtime", "get"],
+      ["/api/v1/overtime/summary", "get"],
+      ["/api/v1/grade-wages", "get"],
+      ["/api/v1/grade-wages/{gradeId}", "put"],
+      ["/api/v1/break-locations", "put"],
+      ["/api/v1/roster/templates", "post"],
+      ["/api/v1/dashboard/analytics", "get"],
+      ["/api/v1/leave-exit-settlements", "get"],
+      ["/api/v1/leave-exit-settlements/{id}/paid", "post"],
+    ] as const;
+    for (const [path, method] of paths) {
+      const op = doc.paths[path]?.[method];
+      expect(op).toBeDefined();
+      const text = JSON.stringify({ body: op?.requestBody, ok: op?.responses["200"] });
+      expect(text).not.toContain('"data":{}');
+      expect(text).not.toContain('"additionalProperties":{}');
+    }
   });
 });

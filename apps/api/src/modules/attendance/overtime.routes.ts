@@ -9,6 +9,13 @@ import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import { ctxOf } from "./calendar.routes.ts";
+import {
+  breakLocationsViewSchema,
+  gradeWageViewSchema,
+  overtimeSummarySchema,
+  overtimeViewSchema,
+  rosterTemplateResultSchema,
+} from "./overtime.schema.ts";
 import * as service from "./overtime.service.ts";
 import { strict } from "./roster.routes.ts";
 import { applyRosterTemplate } from "./roster-template.service.ts";
@@ -20,18 +27,16 @@ const security = [{ [BEARER_SCHEME]: [] }];
 const TAGS = ["Time Management"];
 const errors = (...codes: (keyof typeof ERROR_RESPONSES)[]) =>
   Object.fromEntries(codes.map((code) => [code, ERROR_RESPONSES[code]]));
-const anyBody = {
-  body: {
-    content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
-    required: true,
-  },
-};
+const jsonBody = <T extends z.ZodType>(schema: T) => ({
+  body: { content: { "application/json": { schema } }, required: true },
+});
 const isoDate = z.iso.date();
 
 const route = (
   method: "get" | "put" | "post",
   path: string,
   summary: string,
+  response: z.ZodType,
   request: Record<string, unknown> = {},
 ) =>
   createRoute({
@@ -44,7 +49,7 @@ const route = (
     responses: {
       200: {
         description: summary,
-        content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+        content: { "application/json": { schema: dataEnvelope(response) } },
       },
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
@@ -62,18 +67,26 @@ const listQuery = z.object({
 
 const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
-    route("get", "/overtime", "Usulan lembur: inbox / cakupan / milik saya (TM-D6)", {
-      query: listQuery,
-    }),
+    route(
+      "get",
+      "/overtime",
+      "Usulan lembur: inbox / cakupan / milik saya (TM-D6)",
+      z.array(overtimeViewSchema),
+      { query: listQuery },
+    ),
     (c) => {
       const q = strict(listQuery, c.req.query());
       return service.listOvertime(ctxOf(c), q);
     },
   ],
   [
-    route("get", "/overtime/summary", "Rekap lembur bulanan per karyawan (TM-D6)", {
-      query: z.object({ month: rosterMonthSchema, companyId: z.uuid().optional() }),
-    }),
+    route(
+      "get",
+      "/overtime/summary",
+      "Rekap lembur bulanan per karyawan (TM-D6)",
+      overtimeSummarySchema,
+      { query: z.object({ month: rosterMonthSchema, companyId: z.uuid().optional() }) },
+    ),
     (c) =>
       service.overtimeSummary(
         ctxOf(c),
@@ -82,13 +95,18 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route("get", "/grade-wages", "Upah per grade (SA, HR ber-grant labor.cost.read)"),
+    route(
+      "get",
+      "/grade-wages",
+      "Upah per grade (SA, HR ber-grant labor.cost.read)",
+      z.array(gradeWageViewSchema),
+    ),
     (c) => service.listGradeWages(ctxOf(c)),
   ],
   [
-    route("put", "/grade-wages/{gradeId}", "Atur upah grade (SA)", {
+    route("put", "/grade-wages/{gradeId}", "Atur upah grade (SA)", gradeWageViewSchema, {
       params: z.object({ gradeId: z.uuid() }),
-      ...anyBody,
+      ...jsonBody(gradeWageInputSchema),
     }),
     async (c) =>
       service.setGradeWage(
@@ -98,16 +116,33 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route("get", "/break-locations", "Lokasi kerja wajib absen istirahat (SA, HR)"),
+    route(
+      "get",
+      "/break-locations",
+      "Lokasi kerja wajib absen istirahat (SA, HR)",
+      breakLocationsViewSchema,
+    ),
     (c) => service.getBreakLocations(ctxOf(c)),
   ],
   [
-    route("put", "/break-locations", "Atur lokasi wajib absen istirahat (SA, HR)", anyBody),
+    route(
+      "put",
+      "/break-locations",
+      "Atur lokasi wajib absen istirahat (SA, HR)",
+      breakLocationsViewSchema,
+      jsonBody(breakLocationsInputSchema),
+    ),
     async (c) =>
       service.setBreakLocations(ctxOf(c), strict(breakLocationsInputSchema, await body(c))),
   ],
   [
-    route("post", "/roster/templates", "Pasang template roster (JT) (SA, HR PT)", anyBody),
+    route(
+      "post",
+      "/roster/templates",
+      "Pasang template roster JT / 13+1 / 5+2 (SA, HR PT)",
+      rosterTemplateResultSchema,
+      jsonBody(rosterTemplateInputSchema),
+    ),
     async (c) => applyRosterTemplate(ctxOf(c), strict(rosterTemplateInputSchema, await body(c))),
   ],
 ];

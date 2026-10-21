@@ -89,3 +89,9 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **QA:** `docs/qa/cases/time-management.md` (TC-TM-001…027) + rencana `docs/qa/plans/2026-10-21-tm-paket-lokal.md`.
 - **Berikutnya:** eksekusi rencana uji manual; izin push `HRIS/Mat/Mac`; cron `leave-daily`/`attendance-daily` ke `vercel.json`.
 
+## 2026-10-21 (lanjutan) — merge develop, lapisan repository, OpenAPI bertipe
+- **Merge:** `HRIS/Oatse/Linux-Windows` (`a3135d7`, fast-forward, tanpa konflik) → `HRIS/Mat/Mac`; migrasi `push_devices_and_notification_target` diterapkan ke DB lokal saja.
+- **Temuan develop #3 (PROMPT §4):** `leave-exit.service.ts`, `leave-analytics.ts`, `overtime.service.ts`, `analytics-facts.ts` tidak lagi memanggil `getPrisma()` — query lewat `leave.repository.ts` / `overtime.repository.ts` baru. Masih memanggil langsung (bukan dari paket Mat, dicatat): `alpha.service`, `period.service`, `leave-bridge`, `time-notify.service`, `asset/report-data.service`.
+- **MOB-D10:** rute baru Mat bertipe di OpenAPI — lembur, upah grade, lokasi istirahat, template roster, `GET /dashboard/analytics`, `/leave-exit-settlements*` (file sendiri `leave-exit.routes.ts`). Skema dicek sama dengan DTO service saat typecheck; test integrasi mem-parse respons sungguhan dan memastikan spec tanpa skema kosong.
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (514 modul) · test shared 335 · api 882 · web 310 ✔ · smoke API lokal (hr.biaya) 5 endpoint ✔.
+

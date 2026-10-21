@@ -15,7 +15,6 @@ import {
 } from "@hris/shared";
 import { z } from "zod";
 import { writeAudit } from "../../core/audit.ts";
-import { getPrisma } from "../../core/db.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 import {
@@ -30,14 +29,14 @@ import {
 import * as policy from "./attendance.policy.ts";
 import { type RequestContext, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
+import * as repository from "./overtime.repository.ts";
 import { isoAddDays } from "./roster-engine.ts";
 import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
 // TM-D6 lembur (usulan otomatis dari absen vs jadwal → Atasan + HR), upah grade & rupiah; TM-D7 lokasi
 // wajib absen istirahat. Perhitungan murni ada di @hris/shared `computeOvertimeDay`.
 
-type Tx = Prisma.TransactionClient;
-const db = (tx?: Tx) => tx ?? getPrisma();
+type Tx = repository.Tx;
 const BREAK_KEY = "breakLocations";
 /** Label hari dari lembur rutin & istirahat (dihitung ulang setiap sinkron). */
 const DERIVED_LABELS = ["BREAK_OVER", "NO_BREAK_PUNCH", "REGULAR_OT_SHORT"];
@@ -65,7 +64,7 @@ async function audit(
 // ── TM-D7: lokasi wajib absen istirahat ────────────────────────────────────────
 
 export async function readBreakLocationIds(tx?: Tx): Promise<string[]> {
-  const row = await db(tx).timeSetting.findUnique({ where: { key: BREAK_KEY } });
+  const row = await repository.findSetting(BREAK_KEY, tx);
   const parsed = z
     .object({ workLocationIds: z.array(z.string()) })
     .safeParse(row?.value ?? { workLocationIds: [] });
@@ -105,15 +104,7 @@ export async function setBreakLocations(
   if (found.size !== ids.length)
     throw new BusinessRuleError("Ada lokasi kerja yang tidak ditemukan.");
   const before = await readBreakLocationIds();
-  await getPrisma().timeSetting.upsert({
-    where: { key: BREAK_KEY },
-    create: {
-      key: BREAK_KEY,
-      value: { workLocationIds: ids },
-      updatedByAccountId: ctx.actor.accountId,
-    },
-    update: { value: { workLocationIds: ids }, updatedByAccountId: ctx.actor.accountId },
-  });
+  await repository.upsertSetting(BREAK_KEY, { workLocationIds: ids }, ctx.actor.accountId);
   await audit(
     ctx,
     "attendance.break_locations.set",
@@ -141,7 +132,7 @@ export async function listGradeWages(ctx: RequestContext): Promise<GradeWageView
   if (!policy.canSeeLaborCost(ctx.actor)) throw new ForbiddenError();
   const [grades, wages] = await Promise.all([
     directory.activeGrades(),
-    getPrisma().gradeWage.findMany(),
+    repository.listGradeWageRows(),
   ]);
   const byGrade = new Map(wages.map((w) => [w.gradeId, w]));
   return grades.map((g) => {
@@ -167,12 +158,8 @@ export async function setGradeWage(
   if (!policy.canManageGradeWages(ctx.actor)) throw new ForbiddenError();
   const grade = (await directory.activeGrades()).find((g) => g.id === gradeId);
   if (!grade) throw new NotFoundError("Grade tidak ditemukan.");
-  const before = await getPrisma().gradeWage.findUnique({ where: { gradeId } });
-  await getPrisma().gradeWage.upsert({
-    where: { gradeId },
-    create: { gradeId, ...input, updatedByAccountId: ctx.actor.accountId },
-    update: { ...input, updatedByAccountId: ctx.actor.accountId },
-  });
+  const before = await repository.findGradeWage(gradeId);
+  await repository.upsertGradeWage(gradeId, input, ctx.actor.accountId);
   await audit(
     ctx,
     "attendance.grade_wage.set",
@@ -189,7 +176,7 @@ export async function setGradeWage(
 export async function wagesOfGrades(gradeIds: (string | null)[]) {
   const ids = [...new Set(gradeIds.filter((id): id is string => id !== null))];
   if (ids.length === 0) return new Map<string, { basePay: number; fixedAllowance: number }>();
-  const rows = await getPrisma().gradeWage.findMany({ where: { gradeId: { in: ids } } });
+  const rows = await repository.gradeWagesByIds(ids);
   return new Map(
     rows.map((r) => [
       r.gradeId,
@@ -209,19 +196,10 @@ export async function exitWageBasis(
   date: string,
 ): Promise<{ formula: OvertimeFormula; monthlyWage: number | null }> {
   const [roster, wage] = await Promise.all([
-    getPrisma().rosterDay.findFirst({
-      where: { employeeId, workDate: { lte: toDate(date) }, crewId: { not: null } },
-      orderBy: { workDate: "desc" },
-      select: { crewId: true },
-    }),
-    gradeId ? getPrisma().gradeWage.findUnique({ where: { gradeId } }) : Promise.resolve(null),
+    repository.lastCrewDay(employeeId, toDate(date)),
+    gradeId ? repository.findGradeWage(gradeId) : Promise.resolve(null),
   ]);
-  const crew = roster?.crewId
-    ? await getPrisma().crew.findUnique({
-        where: { id: roster.crewId },
-        include: { pattern: { select: { steps: true } } },
-      })
-    : null;
+  const crew = roster?.crewId ? await repository.crewWithPattern(roster.crewId) : null;
   return {
     formula: crew ? formulaForPattern(crew.pattern.steps) : "FIVE_DAY",
     monthlyWage: wage ? Number(wage.basePay) + Number(wage.fixedAllowance) : null,
@@ -255,35 +233,23 @@ export async function loadCalcContext(
   const shiftIds = [...new Set(days.map((d) => d.shiftId).filter((x): x is string => !!x))];
   const dates = days.map((d) => toIso(d.workDate)).sort();
   const [shifts, holidays, rosterDays, breakIds] = await Promise.all([
-    shiftIds.length
-      ? db(tx).shift.findMany({ where: { id: { in: shiftIds } } })
-      : Promise.resolve([]),
+    shiftIds.length ? repository.shiftsByIds(shiftIds, tx) : Promise.resolve([]),
     dates.length
-      ? db(tx).holiday.findMany({
-          where: {
-            kind: "NATIONAL",
-            date: { gte: toDate(dates[0] as string), lte: toDate(dates.at(-1) as string) },
-          },
-        })
+      ? repository.nationalHolidays(
+          { gte: toDate(dates[0] as string), lte: toDate(dates.at(-1) as string) },
+          tx,
+        )
       : Promise.resolve([]),
     days.length
-      ? db(tx).rosterDay.findMany({
-          where: {
-            OR: days.map((d) => ({ employeeId: d.employeeId, workDate: d.workDate })),
-            crewId: { not: null },
-          },
-          select: { employeeId: true, workDate: true, crewId: true },
-        })
+      ? repository.crewDaysOf(
+          days.map((d) => ({ employeeId: d.employeeId, workDate: d.workDate })),
+          tx,
+        )
       : Promise.resolve([]),
     readBreakLocationIds(tx),
   ]);
   const crewIds = [...new Set(rosterDays.map((r) => r.crewId as string))];
-  const crews = crewIds.length
-    ? await db(tx).crew.findMany({
-        where: { id: { in: crewIds } },
-        include: { pattern: { select: { steps: true } } },
-      })
-    : [];
+  const crews = crewIds.length ? await repository.crewsWithPattern(crewIds, tx) : [];
   const crewFormula = new Map(crews.map((c) => [c.id, formulaForPattern(c.pattern.steps)]));
   return {
     shifts: new Map(shifts.map((s) => [s.id, s])),
@@ -352,19 +318,21 @@ function weekRange(date: string): [string, string] {
 /** Menit lembur (rutin + tambahan yang menunggu/disetujui) minggu itu di luar tanggal merah & hari ini. */
 async function weekMinutes(tx: Tx, day: DayWithPunches): Promise<number> {
   const [from, to] = weekRange(toIso(day.workDate));
-  const days = await tx.attendanceDay.findMany({
-    where: {
+  const days = await repository.daysWithPunches(
+    {
       employeeId: day.employeeId,
       workDate: { gte: toDate(from), lte: toDate(to) },
       id: { not: day.id },
     },
-    include: { punches: true },
-  });
+    tx,
+  );
   if (days.length === 0) return 0;
   const ctx = await loadCalcContext(tx, days);
-  const requests = await tx.overtimeRequest.findMany({
-    where: { dayId: { in: days.map((d) => d.id) }, status: { in: ["PENDING", "APPROVED"] } },
-  });
+  const requests = await repository.overtimeOfDays(
+    tx,
+    days.map((d) => d.id),
+    ["PENDING", "APPROVED"],
+  );
   const proposed = new Map(requests.map((r) => [r.dayId, r]));
   let total = 0;
   for (const d of days) {
@@ -381,11 +349,8 @@ async function weekMinutes(tx: Tx, day: DayWithPunches): Promise<number> {
  * nilainya berubah diganti (approval lama dibatalkan) supaya pemutus melihat angka terbaru.
  */
 export async function syncOvertime(tx: Tx, dayId: string): Promise<DayCalc | null> {
-  const day = await tx.attendanceDay.findUnique({
-    where: { id: dayId },
-    include: { punches: true },
-  });
-  const existing = await tx.overtimeRequest.findUnique({ where: { dayId } });
+  const day = await repository.findDayWithPunches(tx, dayId);
+  const existing = await repository.findOvertimeByDay(tx, dayId);
   if (!day) return null;
   const calc = calcDay(await loadCalcContext(tx, [day]), day);
 
@@ -393,7 +358,7 @@ export async function syncOvertime(tx: Tx, dayId: string): Promise<DayCalc | nul
     ...new Set([...day.labels.filter((l) => !DERIVED_LABELS.includes(l)), ...derivedLabels(calc)]),
   ];
   if (labels.join("|") !== day.labels.join("|")) {
-    await tx.attendanceDay.update({ where: { id: day.id }, data: { labels } });
+    await repository.setDayLabels(tx, day.id, labels);
   }
 
   if (existing && existing.status !== "PENDING") return calc;
@@ -401,7 +366,7 @@ export async function syncOvertime(tx: Tx, dayId: string): Promise<DayCalc | nul
   if (!proposal) {
     if (existing) {
       await cancelApprovalRequest(tx, "OVERTIME", existing.id);
-      await tx.overtimeRequest.delete({ where: { id: existing.id } });
+      await repository.deleteOvertime(tx, existing.id);
     }
     return calc;
   }
@@ -438,17 +403,15 @@ export async function syncOvertime(tx: Tx, dayId: string): Promise<DayCalc | nul
   }
   if (existing) {
     await cancelApprovalRequest(tx, "OVERTIME", existing.id);
-    await tx.overtimeRequest.delete({ where: { id: existing.id } });
+    await repository.deleteOvertime(tx, existing.id);
   }
-  const created = await tx.overtimeRequest.create({
-    data: {
-      ...data,
-      dayId: day.id,
-      employeeId: day.employeeId,
-      companyId: day.companyId,
-      managerEmployeeId: day.managerEmployeeId,
-      workDate: day.workDate,
-    },
+  const created = await repository.createOvertime(tx, {
+    ...data,
+    dayId: day.id,
+    employeeId: day.employeeId,
+    companyId: day.companyId,
+    managerEmployeeId: day.managerEmployeeId,
+    workDate: day.workDate,
   });
   await createApprovalRequest(tx, {
     subjectType: "OVERTIME",
@@ -462,14 +425,14 @@ export async function syncOvertime(tx: Tx, dayId: string): Promise<DayCalc | nul
 
 /** Sinkron satu hari di transaksinya sendiri (cron/test/perbaikan data). */
 export const syncOvertimeForDay = (dayId: string) =>
-  getPrisma().$transaction((tx) => syncOvertime(tx, dayId));
+  repository.withTransaction((tx) => syncOvertime(tx, dayId));
 
 // ── Approval ───────────────────────────────────────────────────────────────────
 
 export function registerOvertimeIntegrations() {
   registerApprovalGuard("OVERTIME", async (tx, input) => {
     if (input.decision !== "APPROVED" || input.note) return;
-    const row = await tx.overtimeRequest.findUnique({ where: { id: input.subjectId } });
+    const row = await repository.findOvertime(tx, input.subjectId);
     if (row && row.flags.length > 0) {
       throw new BusinessRuleError(
         "Lembur ini melewati batas PP 35/2021 (4 jam/hari atau 18 jam/minggu). Tulis alasan persetujuan.",
@@ -477,11 +440,11 @@ export function registerOvertimeIntegrations() {
     }
   });
   registerApprovalHandler("OVERTIME", async (tx, event) => {
-    const row = await tx.overtimeRequest.findUnique({ where: { id: event.subjectId } });
+    const row = await repository.findOvertime(tx, event.subjectId);
     if (row?.status !== "PENDING") return;
-    await tx.overtimeRequest.update({
-      where: { id: row.id },
-      data: { status: event.status, decidedAt: event.decidedAt },
+    await repository.decideOvertime(tx, row.id, {
+      status: event.status,
+      decidedAt: event.decidedAt,
     });
     if (event.status === "CANCELLED") return;
     const date = toIso(row.workDate);
@@ -565,11 +528,7 @@ export async function listOvertime(
   } else {
     where = { ...range, ...(await scopeWhere(ctx, query.companyId)), status: { not: "CANCELLED" } };
   }
-  const rows = await getPrisma().overtimeRequest.findMany({
-    where,
-    orderBy: [{ workDate: "desc" }, { createdAt: "asc" }],
-    take: 1000,
-  });
+  const rows = await repository.listOvertimeRows(where);
   return overtimeViews(ctx, rows);
 }
 
@@ -584,10 +543,7 @@ async function overtimeViews(
       "OVERTIME",
       rows.map((r) => r.id),
     ),
-    getPrisma().attendanceDay.findMany({
-      where: { id: { in: rows.map((r) => r.dayId) } },
-      include: { punches: { select: { kind: true, at: true } } },
-    }),
+    repository.daysWithPunchTimes(rows.map((r) => r.dayId)),
   ]);
   const dayById = new Map(days.map((d) => [d.id, d]));
   const showPay = policy.canSeeLaborCost(ctx.actor);
@@ -669,13 +625,8 @@ export async function overtimeSummary(
   const scope = await scopeWhere(ctx, companyId);
   const range = { gte: toDate(from), lte: toDate(lastDay) };
   const [days, requests] = await Promise.all([
-    getPrisma().attendanceDay.findMany({
-      where: { ...scope, workDate: range, status: "APPROVED" },
-      include: { punches: true },
-    }),
-    getPrisma().overtimeRequest.findMany({
-      where: { ...scope, workDate: range, status: { in: ["PENDING", "APPROVED"] } },
-    }),
+    repository.daysWithPunches({ ...scope, workDate: range, status: "APPROVED" }),
+    repository.overtimeRows({ ...scope, workDate: range, status: { in: ["PENDING", "APPROVED"] } }),
   ]);
   const calc = await loadCalcContext(undefined, days);
   const people = await directory.employeesByIds([

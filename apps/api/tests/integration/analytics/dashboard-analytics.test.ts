@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import { dashboardAnalyticsSchema } from "../../../src/modules/analytics/analytics.schema.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { createFakeStorage } from "../../helpers/storage.ts";
@@ -212,6 +213,7 @@ describe("dashboard analitik (DSB-D1)", () => {
   test("biaya hanya SA / HR ber-grant: labor cost & kewajiban PHK biasa", async () => {
     const a = await data<Analytics>(await call(query(), h.hrCost));
     expect(a.showCost).toBe(true);
+    expect(dashboardAnalyticsSchema.safeParse(a).error).toBeUndefined();
     const cost = Object.fromEntries((a.laborCost?.rows ?? []).map((r) => [r.category, r.wage]));
     expect(cost).toMatchObject({ PERMANENT: WAGE, PKWT: WAGE, OTHER: 0 });
     expect(a.laborCost?.wageMissing).toBe(1);

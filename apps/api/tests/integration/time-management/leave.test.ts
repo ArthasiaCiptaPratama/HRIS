@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import { exitSettlementSchema } from "../../../src/modules/leave/leave-exit.routes.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -795,6 +796,7 @@ describe("TM-D9 aturan cuti tahunan baru", () => {
     const list = async (who: Record<string, string>) =>
       data<Row[]>(await call("GET", `/leave-exit-settlements?companyId=${companyId}`, who));
     const withCost = await list(hrCost);
+    expect(exitSettlementSchema.array().safeParse(withCost).error).toBeUndefined();
     const r1 = withCost.find((r) => r.employee.id === ex1) as Row;
     // 8 hari × 7,2 jt ÷ 21.
     expect(r1).toMatchObject({ remainingDays: 8, debtDays: 0, divisor: 21, payAmount: 2_742_857 });

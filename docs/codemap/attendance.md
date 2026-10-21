@@ -28,3 +28,5 @@
 | `attendance_periods` | `period` (YYYY-MM), `status` (`OPEN`/`CLOSED`), `closed_by`, `closed_at` |
 
 **Merge Mat 2026-10-21:** `directory.ts` tetap fasad tanpa Prisma; fungsi baru `activeGrades`, `activeLocations`, `exitedEmployees`, `exitStatusOf`, `analyticsEmployees` mendelegasikan ke `employee/index.ts` & `organization/index.ts` (dipakai `overtime.service`, `leave-exit.service`, `analytics.service`).
+
+**2026-10-21 (rapi lapisan & kontrak, Mat):** query lembur/upah grade/lokasi istirahat/fakta dashboard pindah ke `overtime.repository.ts`; `overtime.service.ts` & `analytics-facts.ts` tanpa `getPrisma()` (PROMPT §4). `overtime.schema.ts` = skema respons OpenAPI bertipe (`OvertimeView`, `OvertimeSummary`, `GradeWageView`, `BreakLocationsView`, `RosterTemplateResult`, `ApprovalView`) dengan cek kesamaan tipe compile-time terhadap DTO service; body rute memakai skema `@hris/shared` (MOB-D10). Rute TM lama belum diketik (branch `HRIS/mobile-app`).

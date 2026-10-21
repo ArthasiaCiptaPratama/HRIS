@@ -1,9 +1,10 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
-import { dashboardAnalyticsQuerySchema } from "@hris/shared";
+import { dashboardAnalyticsQuerySchema, SEVERANCE_SCENARIOS } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import { ValidationError } from "../../core/errors.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import { dashboardAnalyticsSchema } from "./analytics.schema.ts";
 import * as service from "./analytics.service.ts";
 
 // DSB-D1: dashboard analitik SDM & biaya (SA, HR PT, MANAGER tim; rupiah ber-grant labor.cost.read).
@@ -16,15 +17,18 @@ const analyticsRoute = createRoute({
   security: [{ [BEARER_SCHEME]: [] }],
   request: {
     query: z.object({
-      month: z.string(),
+      month: z
+        .string()
+        .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+        .openapi({ example: "2026-10" }),
       companyId: z.uuid().optional(),
-      scenario: z.string().optional(),
+      scenario: z.enum(SEVERANCE_SCENARIOS).optional(),
     }),
   },
   responses: {
     200: {
       description: "Analitik dashboard",
-      content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+      content: { "application/json": { schema: dataEnvelope(dashboardAnalyticsSchema) } },
     },
     400: ERROR_RESPONSES[400],
     401: ERROR_RESPONSES[401],

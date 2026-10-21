@@ -1,6 +1,10 @@
-import { DAILY_WAGE_DIVISOR, type LeaveExitStatus, leaveCompensation } from "@hris/shared";
+import {
+  DAILY_WAGE_DIVISOR,
+  type LeaveExitStatus,
+  leaveCompensation,
+  type OvertimeFormula,
+} from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
-import { getPrisma } from "../../core/db.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import {
   canSeeLaborCost,
@@ -18,7 +22,6 @@ import { realBalance } from "./leave-engine.ts";
 // saat daftar dibuka), dibatalkan otomatis bila karyawan diaktifkan lagi. Rupiah hanya untuk SA / HR
 // ber-grant labor.cost.read; snapshot upah & pembagi disimpan saat dihitung.
 
-const db = () => getPrisma();
 const toIso = (d: Date) => d.toISOString().slice(0, 10);
 const toDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
@@ -85,13 +88,7 @@ export async function syncExitSettlements(
   companyIds?: string[],
 ): Promise<{ created: number; cancelled: number }> {
   const exited = await employeeDirectory.exitedEmployees(companyIds);
-  const existing = await db().leaveExitSettlement.findMany({
-    where: {
-      status: { not: "CANCELLED" },
-      ...(companyIds ? { companyId: { in: companyIds } } : {}),
-    },
-    select: { id: true, employeeId: true, exitDate: true, status: true, year: true },
-  });
+  const existing = await repository.activeExitSettlements(companyIds);
   const has = new Set(existing.map((s) => `${s.employeeId}|${toIso(s.exitDate)}`));
   // Sudah diproses payroll untuk tahun keluar yang sama → tanggal keluar dikoreksi tidak membuat bayar ganda.
   const paid = new Set(
@@ -103,13 +100,11 @@ export async function syncExitSettlements(
     if (has.has(`${employee.id}|${exitDate}`)) continue;
     if (paid.has(`${employee.id}|${exitDate.slice(0, 4)}`)) continue;
     const calc = await computeExit(employee, exitDate);
-    await db().leaveExitSettlement.create({
-      data: {
-        employeeId: employee.id,
-        companyId: employee.companyId,
-        exitDate: toDate(exitDate),
-        ...calc,
-      },
+    await repository.createExitSettlement({
+      employeeId: employee.id,
+      companyId: employee.companyId,
+      exitDate: toDate(exitDate),
+      ...calc,
     });
     created++;
   }
@@ -122,10 +117,10 @@ export async function syncExitSettlements(
     return !now || now.isActive || !now.endDate || toIso(now.endDate) !== toIso(s.exitDate);
   });
   if (stale.length > 0) {
-    await db().leaveExitSettlement.updateMany({
-      where: { id: { in: stale.map((s) => s.id) }, status: "OPEN" },
-      data: { status: "CANCELLED", note: "Karyawan aktif lagi / tanggal keluar berubah" },
-    });
+    await repository.cancelOpenExitSettlements(
+      stale.map((s) => s.id),
+      "Karyawan aktif lagi / tanggal keluar berubah",
+    );
   }
   return { created, cancelled: stale.length };
 }
@@ -140,7 +135,7 @@ export interface ExitSettlementView {
   remainingDays: number;
   debtDays: number;
   pendingDays: number;
-  formula: string;
+  formula: OvertimeFormula;
   divisor: number;
   status: LeaveExitStatus;
   note: string | null;
@@ -169,11 +164,7 @@ export async function listExitSettlements(
 ): Promise<ExitSettlementView[]> {
   const scope = scopeOf(ctx, companyId);
   await syncExitSettlements(scope);
-  const rows = await db().leaveExitSettlement.findMany({
-    where: scope ? { companyId: { in: scope } } : {},
-    orderBy: [{ exitDate: "desc" }, { createdAt: "desc" }],
-    take: 500,
-  });
+  const rows = await repository.listExitSettlementRows(scope);
   const [people, exited] = await Promise.all([
     employeeDirectory.employeesByIds(rows.map((r) => r.employeeId)),
     employeeDirectory.exitedEmployees(scope),
@@ -197,7 +188,7 @@ export async function listExitSettlements(
       remainingDays: r.remainingDays,
       debtDays: r.debtDays,
       pendingDays: r.pendingDays,
-      formula: r.formula,
+      formula: r.formula as OvertimeFormula,
       divisor: r.divisor,
       status: r.status,
       note: r.note,
@@ -210,8 +201,14 @@ export async function listExitSettlements(
   });
 }
 
+async function viewOf(ctx: RequestContext, companyId: string, id: string) {
+  const view = (await listExitSettlements(ctx, companyId)).find((r) => r.id === id);
+  if (!view) throw new NotFoundError();
+  return view;
+}
+
 async function findForManage(ctx: RequestContext, id: string) {
-  const row = await db().leaveExitSettlement.findUnique({ where: { id } });
+  const row = await repository.findExitSettlement(id);
   if (!row || !policy.canManageBalances(ctx.actor, row.companyId)) throw new NotFoundError();
   return row;
 }
@@ -226,7 +223,7 @@ export async function recalculateExitSettlement(ctx: RequestContext, id: string)
     { id: row.employeeId, gradeId: people.get(row.employeeId)?.gradeId ?? null },
     toIso(row.exitDate),
   );
-  await db().leaveExitSettlement.update({ where: { id }, data: calc });
+  await repository.updateExitSettlement(id, calc);
   await writeAudit({
     actorAccountId: ctx.actor.accountId,
     action: "leave.exit.recalculate",
@@ -237,7 +234,7 @@ export async function recalculateExitSettlement(ctx: RequestContext, id: string)
     requestId: ctx.requestId ?? null,
     ip: ctx.ip ?? null,
   });
-  return (await listExitSettlements(ctx, row.companyId)).find((r) => r.id === id);
+  return viewOf(ctx, row.companyId, id);
 }
 
 /** Tandai sudah diproses di payroll akhir (dibayar / dipotong). */
@@ -245,14 +242,11 @@ export async function markExitSettlementPaid(ctx: RequestContext, id: string, no
   const row = await findForManage(ctx, id);
   if (row.status !== "OPEN")
     throw new BusinessRuleError("Settlement ini sudah diproses atau dibatalkan.");
-  await db().leaveExitSettlement.update({
-    where: { id },
-    data: {
-      status: "PAID",
-      note: note?.trim() || null,
-      decidedByAccountId: ctx.actor.accountId,
-      decidedAt: new Date(),
-    },
+  await repository.updateExitSettlement(id, {
+    status: "PAID",
+    note: note?.trim() || null,
+    decidedByAccountId: ctx.actor.accountId,
+    decidedAt: new Date(),
   });
   await writeAudit({
     actorAccountId: ctx.actor.accountId,
@@ -264,5 +258,5 @@ export async function markExitSettlementPaid(ctx: RequestContext, id: string, no
     requestId: ctx.requestId ?? null,
     ip: ctx.ip ?? null,
   });
-  return (await listExitSettlements(ctx, row.companyId)).find((r) => r.id === id);
+  return viewOf(ctx, row.companyId, id);
 }

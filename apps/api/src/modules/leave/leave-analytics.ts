@@ -1,4 +1,4 @@
-import { getPrisma } from "../../core/db.ts";
+import * as repository from "./leave.repository.ts";
 import { realBalance } from "./leave-engine.ts";
 
 // DSB-D1: fakta cuti agregat untuk dashboard (baca-saja).
@@ -20,20 +20,9 @@ export async function leaveFacts(
   }
   const day = new Date(`${today}T00:00:00Z`);
   const [ledger, onLeave, pending] = await Promise.all([
-    getPrisma().leaveLedger.findMany({
-      where: { employeeId: { in: employeeIds }, year },
-      select: { employeeId: true, kind: true, days: true },
-    }),
-    getPrisma().leaveRequest.count({
-      where: {
-        employeeId: { in: employeeIds },
-        status: "APPROVED",
-        workDates: { has: day },
-      },
-    }),
-    getPrisma().leaveRequest.count({
-      where: { employeeId: { in: employeeIds }, status: "PENDING" },
-    }),
+    repository.ledgerRowsOf(employeeIds, year),
+    repository.countOnLeave(employeeIds, day),
+    repository.countPending(employeeIds),
   ]);
   const byEmployee = new Map<string, typeof ledger>();
   for (const row of ledger) {
