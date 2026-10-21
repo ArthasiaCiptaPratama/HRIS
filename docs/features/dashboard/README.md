@@ -18,6 +18,9 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] **Dashboard analitik SDM & biaya (DSB-D1 / TM-D10)** (tambahan 2026-10-21: grill pemilik projek): modul API baru `analytics` (`GET /dashboard/analytics?month&companyId&scenario`, tanpa tabel; SA/HR PT/atasan tim; rupiah hanya ber-grant `labor.cost.read`; proyeksi pensiun hanya bila boleh data pribadi), rumus PP 35/2021 di `@hris/shared` `severance.ts`; widget baru: kartu Turnover, Sedang Cuti, Efisiensi, Kewajiban kompensasi (section Angka) + insight Pergerakan karyawan 12 bulan, Gender, Masa kerja vs cuti, Cuti, Efisiensi jam kerja, Proyeksi 12 bulan, Labor cost, Kewajiban kompensasi (pilih skenario) di section Grafik; "Periode analitik" di toolbar; widget biaya tersembunyi tanpa izin — branch `HRIS/Mat/Mac`, belum develop
   - Atasan (MANAGER) belum melihat papan dashboard (masih dashboard pribadi); API sudah mendukung cakupan tim (tambahan 2026-10-21)
 
+- [x] **Dashboard analitik SDM & biaya (DSB-D1 / TM-D10)** (tambahan 2026-10-21: grill pemilik projek): modul API baru `analytics` (`GET /dashboard/analytics?month&companyId&scenario`, tanpa tabel; SA/HR PT/atasan tim; rupiah hanya ber-grant `labor.cost.read`; proyeksi pensiun hanya bila boleh data pribadi), rumus PP 35/2021 di `@hris/shared` `severance.ts`; widget baru: kartu Turnover, Sedang Cuti, Efisiensi, Kewajiban kompensasi (section Angka) + insight Pergerakan karyawan 12 bulan, Gender, Masa kerja vs cuti, Cuti, Efisiensi jam kerja, Proyeksi 12 bulan, Labor cost, Kewajiban kompensasi (pilih skenario) di section Grafik; "Periode analitik" di toolbar; widget biaya tersembunyi tanpa izin — branch `HRIS/Mat/Mac`, belum develop
+  - Atasan (MANAGER) belum melihat papan dashboard (masih dashboard pribadi); API sudah mendukung cakupan tim (tambahan 2026-10-21)
+
 ## Keputusan
 
 Isi lengkap di [decisions.md](../../decisions.md).
