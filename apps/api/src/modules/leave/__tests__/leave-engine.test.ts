@@ -1,14 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import {
   allocateCharges,
+  chargeYearOf,
   countLeaveDates,
   datesBetween,
   prorataDays,
+  realBalance,
   settlementDays,
   summarize,
 } from "../leave-engine.ts";
 
-// D-072: jatah prorata, hitung hari roster, sisa tahun lalu dulu (s.d. 31 Maret), hutang & pelunasan.
+// D-072 + TM-D9: jatah prorata, hitung hari roster, pembebanan tahun mulai, hutang & pelunasan.
 
 describe("prorata jatah 1 Januari", () => {
   test("masa kerja penuh tahun sebelumnya → kuota penuh", () => {
@@ -54,26 +56,36 @@ describe("hari terhitung", () => {
   });
 });
 
-describe("pembebanan saldo", () => {
-  test("Jan–Mar memakai sisa tahun lalu dulu, lalu tahun berjalan", () => {
-    const result = allocateCharges(
-      ["2026-03-30", "2026-03-31", "2026-04-01", "2026-03-27"],
-      new Map([
-        [2025, 2],
-        [2026, 12],
-      ]),
-    );
-    expect(result.byYear).toEqual(
-      new Map([
-        [2025, 2],
-        [2026, 2],
-      ]),
-    );
-    expect(result.perDate.map((p) => p.year)).toEqual([2025, 2025, 2026, 2026]);
+describe("pembebanan saldo (TM-D9: tahun mulai, tanpa sisa tahun lalu)", () => {
+  test("cuti lintas tahun 29 Des – 3 Jan seluruhnya memakai saldo tahun mulai", () => {
+    const dates = ["2027-01-02", "2026-12-29", "2026-12-30", "2026-12-31", "2027-01-01"];
+    const year = chargeYearOf(dates);
+    expect(year).toBe(2026);
+    const result = allocateCharges(dates, year as number);
+    expect(result.byYear).toEqual(new Map([[2026, 5]]));
+    expect(result.perDate.every((p) => p.year === 2026)).toBe(true);
   });
-  test("saldo habis → boleh minus (hutang) di tahun berjalan", () => {
-    const result = allocateCharges(["2026-06-01", "2026-06-02"], new Map([[2026, 1]]));
-    expect(result.byYear.get(2026)).toBe(2);
+  test("Jan–Mar tidak lagi memakai sisa tahun lalu", () => {
+    const result = allocateCharges(
+      ["2027-03-30", "2027-01-05"],
+      chargeYearOf(["2027-03-30", "2027-01-05"]) as number,
+    );
+    expect(result.byYear).toEqual(new Map([[2027, 2]]));
+  });
+  test("tanpa hari terhitung → tanpa pembebanan", () => {
+    expect(chargeYearOf([])).toBeNull();
+    expect(allocateCharges([], 2026).byYear.size).toBe(0);
+  });
+  test("saldo nyata mengabaikan tahanan pengajuan yang masih menunggu", () => {
+    expect(
+      realBalance([
+        { kind: "GRANT", days: 12 },
+        { kind: "HOLD", days: -3 },
+        { kind: "HOLD", days: -2 },
+        { kind: "RELEASE", days: 2 },
+        { kind: "USE", days: -2 },
+      ]),
+    ).toBe(10);
   });
   test("pelunasan hutang dari jatah baru, sebanyak yang tersedia", () => {
     expect(settlementDays(-3, 12)).toBe(3);

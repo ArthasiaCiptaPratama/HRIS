@@ -1,6 +1,7 @@
 // Interface publik modul attendance (PLAN §3.2.5): hanya file ini yang boleh di-import dari luar modul.
 
 export { markNoAttendanceAlpha } from "./alpha.service.ts";
+export { canSeeLaborCost } from "./attendance.policy.ts";
 export { type AttendanceRouteDeps, registerAttendanceRoutes } from "./attendance.routes.ts";
 export { closeOverdueDays, purgeSelfies } from "./attendance.service.ts";
 export {
@@ -18,7 +19,7 @@ export {
   rosteredWithoutAttendance,
   rosterMarks,
 } from "./leave-bridge.ts";
-export { syncOvertimeForDay } from "./overtime.service.ts";
+export { exitWageBasis, syncOvertimeForDay } from "./overtime.service.ts";
 export { alphaDaysForEvidence, isDateClosed, type StatementRow } from "./period.service.ts";
 export { extendAllRosters } from "./roster.service.ts";
 export {

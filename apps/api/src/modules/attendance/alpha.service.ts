@@ -9,7 +9,13 @@ import { getPrisma } from "../../core/db.ts";
 import { ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
 import { localDate, shiftWindow } from "./attendance-engine.ts";
-import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
+import {
+  holidaysBetween,
+  type RequestContext,
+  readTimeSettings,
+  toDate,
+  toIso,
+} from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
@@ -40,8 +46,16 @@ export async function markNoAttendanceAlpha(
     }),
   ]);
   const has = new Set(existing.map((d) => `${d.employeeId}|${toIso(d.workDate)}`));
+  // Cuti bersama: hari kerja roster tanpa absen dipotong 1 hari cuti oleh cron leave-daily (D-072),
+  // bukan Alpha.
+  const collective = new Set(
+    [...(await holidaysBetween(ALPHA_RULE_START, today)).values()]
+      .filter((h) => h.kind === "COLLECTIVE_LEAVE")
+      .map((h) => h.date),
+  );
   const due = roster.filter((r) => {
     if (!r.shift || has.has(`${r.employeeId}|${toIso(r.workDate)}`)) return false;
+    if (collective.has(toIso(r.workDate))) return false;
     const window = shiftWindow(toIso(r.workDate), r.shift, timezone);
     return window.checkOutDeadline.getTime() < now.getTime();
   });
@@ -117,7 +131,8 @@ async function buildRecord(employee: directory.DirectoryEmployee): Promise<Atten
     db().attendanceDay.findMany({
       where: {
         employeeId: employee.id,
-        OR: [{ status: "ALPHA" }, { labels: { has: "NO_ATTENDANCE" } }],
+        // Hari Alpha yang akhirnya disetujui cuti (TM-D9) bukan lagi rekam jejak Alpha.
+        OR: [{ status: "ALPHA" }, { labels: { has: "NO_ATTENDANCE" }, status: { not: "LEAVE" } }],
       },
       select: { workDate: true, status: true, labels: true, shiftCode: true },
     }),

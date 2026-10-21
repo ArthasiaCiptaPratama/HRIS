@@ -317,7 +317,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       "attendance-reminders": () => runAttendanceReminders(),
       // Ringkasan antrean keputusan harian untuk SA/HR/atasan (rekomendasi OD-15).
       "approval-digest": () => runApprovalDigest(),
-      // D-072: jatah 1 Jan, pelunasan hutang akhir Jan, hangus 31 Mar, cuti bersama tanpa absen.
+      // D-072 + TM-D9: cuti bersama tanpa absen, jatah 1 Jan, sisa hangus 31 Des (lama: 31 Mar),
+      // pelunasan hutang akhir Jan, hak cuti karyawan keluar.
       "leave-daily": () => runLeaveDaily(),
       // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.
       "asset-daily": () => runAssetDaily(),

@@ -256,6 +256,25 @@ export const hourlyWage = (basePay: number, fixedAllowance: number) =>
 export const overtimePay = (equivalentHours: number, basePay: number, fixedAllowance: number) =>
   Math.round((equivalentHours * (basePay + fixedAllowance)) / HOURLY_WAGE_DIVISOR);
 
+/**
+ * TM-D9 uang penggantian hak cuti saat keluar: sisa hari × upah grade (pokok + tunjangan tetap) ÷ 25
+ * (pola 6 hari) / ÷ 21 (pola 5 hari; juga staf tanpa roster), dibulatkan ke rupiah.
+ */
+export const leaveCompensation = (
+  days: number,
+  basePay: number,
+  fixedAllowance: number,
+  formula: OvertimeFormula,
+) => Math.round((Math.max(0, days) * (basePay + fixedAllowance)) / DAILY_WAGE_DIVISOR[formula]);
+
+export const LEAVE_EXIT_STATUSES = ["OPEN", "PAID", "CANCELLED"] as const;
+export type LeaveExitStatus = (typeof LEAVE_EXIT_STATUSES)[number];
+export const LEAVE_EXIT_STATUS_LABELS: Record<LeaveExitStatus, string> = {
+  OPEN: "Belum diproses payroll",
+  PAID: "Sudah diproses",
+  CANCELLED: "Dibatalkan (aktif lagi)",
+};
+
 /** Format menit → "1 jam 30 menit". */
 export function formatMinutes(minutes: number): string {
   const m = Math.max(0, Math.round(minutes));

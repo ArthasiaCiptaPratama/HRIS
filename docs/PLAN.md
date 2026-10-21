@@ -328,7 +328,7 @@ Kasus khusus:
 ### 5.3 Cuti & Izin
 - **Cuti** = cuti tahunan saja. Jenis lain adalah **izin**, yang jenis dan kuotanya diatur SUPER_ADMIN (termasuk apakah wajib lampiran dokumen, mis. surat dokter).
 - Saldo cuti tahunan **di-hold** saat pengajuan dibuat, lalu dikembalikan jika ditolak atau dibatalkan, dan menjadi terpakai jika disetujui. ~~Saldo tidak boleh negatif.~~ **Hutang cuti diperbolehkan** dan dilunasi akhir Januari dari jatah baru (D-072).
-- Jatah diberikan **1 Januari** (karyawan baru: prorata 1 hari per bulan kerja penuh); sisa tahun lalu hangus **31 Maret** (D-072).
+- Jatah diberikan **1 Januari** (karyawan baru: prorata 1 hari per bulan kerja penuh); ~~sisa tahun lalu hangus **31 Maret** (D-072)~~ → mulai saldo 2026 sisa **hangus 31 Desember** tahunnya, cuti lintas tahun memakai saldo tahun mulai ([TM-D9](features/time-management/README.md#keputusan)).
 - Hari cuti dihitung dalam **hari kerja roster** (hari OFF roster, tanggal merah, dan cuti bersama tidak dihitung; cuti bersama yang jatuh pada hari kerja roster dan tidak masuk = 1 hari cuti) (D-072).
 
 ### 5.4 Absensi

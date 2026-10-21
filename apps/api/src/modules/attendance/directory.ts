@@ -180,3 +180,50 @@ export async function activeLocations(): Promise<DirectoryLocation[]> {
     longitude: row.longitude === null ? null : Number(row.longitude),
   }));
 }
+
+export interface ExitedEmployee {
+  id: string;
+  fullName: string;
+  employeeNumber: string | null;
+  companyId: string;
+  endDate: Date;
+  exitReason: string | null;
+  gradeId: string | null;
+  isActive: boolean;
+}
+
+/** TM-D9: karyawan nonaktif dengan tanggal keluar (hak cuti keluar). Baca-saja. */
+export async function exitedEmployees(companyIds?: string[]): Promise<ExitedEmployee[]> {
+  const rows = await getPrisma().employee.findMany({
+    where: {
+      ...APPROVED,
+      isActive: false,
+      endDate: { not: null },
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+    },
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      companyId: true,
+      endDate: true,
+      exitReason: true,
+      gradeId: true,
+      isActive: true,
+    },
+    orderBy: { endDate: "desc" },
+  });
+  return rows.map((r) => ({ ...r, endDate: r.endDate as Date, exitReason: r.exitReason ?? null }));
+}
+
+/** TM-D9: status aktif & tanggal keluar terkini per karyawan (pembatalan hak keluar bila aktif lagi). */
+export async function exitStatusOf(
+  ids: string[],
+): Promise<Map<string, { isActive: boolean; endDate: Date | null }>> {
+  if (ids.length === 0) return new Map();
+  const rows = await getPrisma().employee.findMany({
+    where: { id: { in: [...new Set(ids)] } },
+    select: { id: true, isActive: true, endDate: true },
+  });
+  return new Map(rows.map((r) => [r.id, { isActive: r.isActive, endDate: r.endDate }]));
+}

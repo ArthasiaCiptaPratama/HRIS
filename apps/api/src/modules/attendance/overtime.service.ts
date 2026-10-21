@@ -198,6 +198,36 @@ async function wagesOfGrades(gradeIds: (string | null)[]) {
   );
 }
 
+/**
+ * TM-D9 dasar uang penggantian hak cuti saat keluar (tanpa aktor; gerbang rupiah di pemanggil):
+ * upah grade (pokok + tunjangan tetap) & rumus pola — pola crew pada hari roster terakhir s.d. `date`;
+ * tanpa roster/crew → pola 5 hari (÷21), konsisten dengan hitungan hari cuti staf tanpa roster.
+ */
+export async function exitWageBasis(
+  employeeId: string,
+  gradeId: string | null,
+  date: string,
+): Promise<{ formula: OvertimeFormula; monthlyWage: number | null }> {
+  const [roster, wage] = await Promise.all([
+    getPrisma().rosterDay.findFirst({
+      where: { employeeId, workDate: { lte: toDate(date) }, crewId: { not: null } },
+      orderBy: { workDate: "desc" },
+      select: { crewId: true },
+    }),
+    gradeId ? getPrisma().gradeWage.findUnique({ where: { gradeId } }) : Promise.resolve(null),
+  ]);
+  const crew = roster?.crewId
+    ? await getPrisma().crew.findUnique({
+        where: { id: roster.crewId },
+        include: { pattern: { select: { steps: true } } },
+      })
+    : null;
+  return {
+    formula: crew ? formulaForPattern(crew.pattern.steps) : "FIVE_DAY",
+    monthlyWage: wage ? Number(wage.basePay) + Number(wage.fixedAllowance) : null,
+  };
+}
+
 // ── Perhitungan per hari (batch) ───────────────────────────────────────────────
 
 type DayWithPunches = Prisma.AttendanceDayGetPayload<{ include: { punches: true } }>;
