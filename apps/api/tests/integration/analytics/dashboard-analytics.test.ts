@@ -140,13 +140,14 @@ beforeAll(async () => {
     employmentStatusId: lain,
     managerId: emp.e1,
   });
-  const account = await prisma.account.findFirstOrThrow();
+  // Akun pengubah dibuat test sendiri: DB kosong di CI belum punya akun apa pun.
+  const sa = await auth.loginAs("SUPER_ADMIN");
   await prisma.gradeWage.create({
     data: {
       gradeId: ids.grade,
       basePay: 5_700_000,
       fixedAllowance: 1_500_000,
-      updatedByAccountId: account.id,
+      updatedByAccountId: sa.account.id,
     },
   });
   await prisma.leaveLedger.createMany({
@@ -156,7 +157,7 @@ beforeAll(async () => {
     ],
   });
   h = {
-    sa: (await auth.loginAs("SUPER_ADMIN")).headers,
+    sa: sa.headers,
     hr: (await auth.loginAs("HR_ADMIN", { companies: [ids.company] })).headers,
     hrCost: (
       await auth.loginAs("HR_ADMIN", {
