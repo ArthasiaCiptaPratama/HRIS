@@ -257,6 +257,26 @@ export function fitWidgetToSize<T extends DashboardWidget>(widget: T): T {
   return widget;
 }
 
+/**
+ * Dashboard dibagi 3 section tetap (pemilik projek 2026-10-21): atas angka (stat), tengah Menu Cepat,
+ * bawah grafik. Widget hanya bisa dipindah di dalam section-nya sendiri.
+ */
+export const DASHBOARD_SECTIONS = ["stats", "shortcuts", "charts"] as const;
+export type DashboardSection = (typeof DASHBOARD_SECTIONS)[number];
+export const DASHBOARD_SECTION_LABELS: Record<DashboardSection, string> = {
+  stats: "Angka ringkas",
+  shortcuts: "Menu Cepat",
+  charts: "Grafik",
+};
+export const widgetSection = (widget: DashboardWidget): DashboardSection =>
+  widget.kind === "stat" ? "stats" : widget.kind === "shortcuts" ? "shortcuts" : "charts";
+/** Urutkan per section (stabil: urutan di dalam section dipertahankan). */
+export function orderBySection<T extends DashboardWidget>(widgets: readonly T[]): T[] {
+  return DASHBOARD_SECTIONS.flatMap((section) =>
+    widgets.filter((w) => widgetSection(w) === section),
+  );
+}
+
 export const DASHBOARD_LAYOUT_VERSION = 1;
 export const MAX_DASHBOARD_WIDGETS = 40;
 

@@ -76,3 +76,20 @@ describe("widget kecil hanya donut / bar (2026-10-21)", () => {
     expect(fitWidgetToSize<typeof found>({ ...base, size: "md" }).chart).toBe("heatmap");
   });
 });
+
+describe("dashboard 3 section tetap (2026-10-21)", () => {
+  test("angka → Menu Cepat → grafik; urutan di dalam section dipertahankan", async () => {
+    const { orderBySection, widgetSection } = await import("../src/index.ts");
+    const widgets = [...DEFAULT_DASHBOARD_LAYOUT.widgets].reverse();
+    const ordered = orderBySection(widgets);
+    const sections = ordered.map(widgetSection);
+    expect(sections).toEqual(
+      [...sections].sort(
+        (a, b) =>
+          ["stats", "shortcuts", "charts"].indexOf(a) - ["stats", "shortcuts", "charts"].indexOf(b),
+      ),
+    );
+    const charts = widgets.filter((w) => w.kind === "pivot").map((w) => w.id);
+    expect(ordered.filter((w) => w.kind === "pivot").map((w) => w.id)).toEqual(charts);
+  });
+});

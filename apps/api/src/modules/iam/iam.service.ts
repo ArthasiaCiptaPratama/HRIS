@@ -3,6 +3,7 @@ import {
   dashboardLayoutSchema,
   fitWidgetToSize,
   isPermissionGrantableTo,
+  orderBySection,
   PERMISSION_LABELS,
   type Permission,
   ROLE,
@@ -295,7 +296,7 @@ export async function saveDashboardLayout(
   layout: DashboardLayout,
 ): Promise<DashboardLayoutState> {
   if (!policy.canManageOwnDashboardLayout(actor)) throw new ForbiddenError();
-  const fitted = { ...layout, widgets: layout.widgets.map(fitWidgetToSize) };
+  const fitted = { ...layout, widgets: orderBySection(layout.widgets.map(fitWidgetToSize)) };
   return toLayoutState(await repository.upsertDashboardLayout(actor.accountId, fitted));
 }
 
