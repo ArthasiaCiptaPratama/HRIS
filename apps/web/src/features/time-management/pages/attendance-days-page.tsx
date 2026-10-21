@@ -62,6 +62,7 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
+import { PunchChannelNote } from "../components/punch-channel-note";
 import { SelfieThumb } from "../components/selfie-thumb";
 import type { Approval, AttendanceDay } from "../schemas";
 
@@ -769,6 +770,11 @@ function PunchPanel({
               ? ` · alt ${punch.altitudeM} m`
               : ""}
           </p>
+          <PunchChannelNote
+            source={punch.source}
+            channel={punch.channel}
+            appVersion={punch.appVersion}
+          />
           <a
             href={`https://www.openstreetmap.org/?mlat=${punch.latitude}&mlon=${punch.longitude}#map=17/${punch.latitude}/${punch.longitude}`}
             target="_blank"

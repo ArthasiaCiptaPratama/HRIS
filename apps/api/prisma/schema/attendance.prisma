@@ -271,6 +271,13 @@ enum PunchSource {
   @@schema("attendance")
 }
 
+enum PunchChannel {
+  APP
+  PWA
+
+  @@schema("attendance")
+}
+
 model AttendancePunch {
   id                String        @id @default(uuid()) @db.Uuid
   dayId             String        @map("day_id") @db.Uuid
@@ -292,6 +299,11 @@ model AttendancePunch {
   userAgent         String?       @map("user_agent") @db.VarChar(300)
   status            PunchStatus   @default(PENDING)
   source            PunchSource   @default(DEVICE)
+  /// MOB-D3: kanal absen (APP = app Android, PWA = web /absen) + versi app.
+  channel           PunchChannel  @default(PWA)
+  appVersion        String?       @map("app_version") @db.VarChar(40)
+  /// MOB-D7: kunci idempotensi dari klien; retry dengan kunci sama mengembalikan punch yang sudah ada.
+  idempotencyKey    String?       @unique @map("idempotency_key") @db.VarChar(64)
   manualByAccountId String?       @map("manual_by_account_id") @db.Uuid
   decidedAt         DateTime?     @map("decided_at") @db.Timestamptz(6)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

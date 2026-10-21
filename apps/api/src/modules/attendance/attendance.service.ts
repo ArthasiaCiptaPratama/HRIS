@@ -3,9 +3,11 @@ import {
   type AttendanceLocationSource,
   canStillCorrect,
   correctionDeadline,
+  LABELS_WITHOUT_REASON,
   type ManualPunchInput,
   PUNCH_CANCEL_WINDOW_MIN,
   PUNCH_KIND_LABELS,
+  type PunchChannel,
   type PunchInput,
   type PunchKind,
   type PunchPrecheckInput,
@@ -52,7 +54,7 @@ import { closedMonths, correctionInstant, isDateClosed } from "./period.service.
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
-import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
+import { dateLabel, type EmployeeNotice, notifyEmployees } from "./time-notify.service.ts";
 
 // Tahap C/D — absen PWA (D-067, D-070) & approval hari absen (D-068).
 
@@ -319,6 +321,9 @@ export interface PunchView {
   /** D-073: persetujuan per absen. */
   status: "PENDING" | "APPROVED" | "REJECTED";
   source: "DEVICE" | "MANUAL";
+  /** MOB-D3: kanal absen + versi app (approver tahu punch PWA tidak dicek lokasi palsu). */
+  channel: PunchChannel;
+  appVersion: string | null;
   approval: ApprovalView | null;
   /** Pemilik boleh membatalkan (salah pencet) selama <= 15 menit & belum diputuskan. */
   canCancel: boolean;
@@ -424,6 +429,8 @@ async function toDayViews(
         reason: p.reason,
         selfieUrl: p.selfiePath ? (urls.get(p.selfiePath) ?? null) : null,
         selfiePurged: p.selfiePurgedAt !== null,
+        channel: p.channel,
+        appVersion: p.appVersion,
         status: p.status,
         source: p.source,
         approval: punchApprovals.get(p.id) ?? null,
@@ -567,6 +574,19 @@ async function checkedInAlready(employeeId: string, workDate: string, now: Date)
   return false;
 }
 
+/** MOB-D3: lokasi palsu dari app → label penanda (tidak memblokir, tidak wajib alasan). */
+function withMockLabel<T extends { labels: AttendanceLabel[] }>(
+  e: T,
+  input: PunchPrecheckInput,
+): T {
+  return input.isMock && !e.labels.includes("MOCK_LOCATION")
+    ? { ...e, labels: [...e.labels, "MOCK_LOCATION"] }
+    : e;
+}
+
+const needsReason = (labels: AttendanceLabel[]) =>
+  labels.some((label) => !LABELS_WITHOUT_REASON.includes(label));
+
 export async function precheck(
   ctx: RequestContext,
   input: PunchPrecheckInput,
@@ -574,7 +594,7 @@ export async function precheck(
 ): Promise<PrecheckResult> {
   const employee = await directory.employeeById(selfEmployee(ctx));
   if (!employee) throw new NotFoundError();
-  const e = await evaluate(employee, input, now);
+  const e = withMockLabel(await evaluate(employee, input, now), input);
   const existing =
     e.kind === "IN" ? await repository.findDay(employee.id, toDate(e.workDate)) : null;
   const done = e.kind === "IN" && (await checkedInAlready(employee.id, e.workDate, now));
@@ -586,7 +606,7 @@ export async function precheck(
     distanceM: e.geofence.distanceM,
     insideGeofence: e.geofence.inside,
     location: e.location ? { id: e.location.id, name: e.location.name } : null,
-    reasonRequired: e.labels.length > 0,
+    reasonRequired: needsReason(e.labels),
     alreadyCheckedIn: existing !== null || done,
     suspicion: e.suspicion,
     scheduledStart: e.window?.start.toISOString() ?? null,
@@ -620,12 +640,58 @@ const SUSPICION_TEXT: Record<PunchSuspicion, string> = {
   IN_AFTER_END: "Sudah mendekati/lewat jam pulang. Pastikan Anda memang ingin Clock In.",
 };
 
+export interface PunchClient {
+  userAgent?: string | undefined;
+  /** MOB-D3: diisi dari header `X-App-Version` (app Android); kosong = PWA. */
+  appVersion?: string | undefined;
+  /** MOB-D7: header `Idempotency-Key`. */
+  idempotencyKey?: string | undefined;
+}
+
+/** MOB-D7: retry dengan kunci yang sama → hari dari punch yang sudah tercatat (bukan 409). */
+async function replayPunch(ctx: RequestContext, employeeId: string, key: string) {
+  const existing = await repository.findPunchByIdempotencyKey(key);
+  if (!existing) return null;
+  if (existing.day.employeeId !== employeeId) {
+    throw new ConflictError("Kunci permintaan sudah dipakai. Ulangi absen.");
+  }
+  const day = (await repository.findDayById(existing.day.id)) as repository.DayRow;
+  return (await toDayViews(ctx, [day], true))[0] as DayView;
+}
+
+function isIdempotencyConflict(error: unknown) {
+  const e = error as { code?: string; meta?: { target?: unknown } };
+  return e?.code === "P2002" && JSON.stringify(e.meta?.target ?? "").includes("idempotency");
+}
+
 export async function punch(
-  ctx: RequestContext & { userAgent?: string | undefined },
+  ctx: RequestContext & PunchClient,
   input: PunchInput,
   now = new Date(),
 ): Promise<DayView> {
   const employeeId = selfEmployee(ctx);
+  if (ctx.idempotencyKey) {
+    const replay = await replayPunch(ctx, employeeId, ctx.idempotencyKey);
+    if (replay) return replay;
+  }
+  try {
+    return await recordPunch(ctx, employeeId, input, now);
+  } catch (error) {
+    // Dua permintaan dengan kunci sama bersamaan: yang kalah mengembalikan hasil yang menang.
+    if (ctx.idempotencyKey && isIdempotencyConflict(error)) {
+      const replay = await replayPunch(ctx, employeeId, ctx.idempotencyKey);
+      if (replay) return replay;
+    }
+    throw error;
+  }
+}
+
+async function recordPunch(
+  ctx: RequestContext & PunchClient,
+  employeeId: string,
+  input: PunchInput,
+  now: Date,
+): Promise<DayView> {
   const employee = await directory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
   // Selfie wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah.
@@ -644,7 +710,7 @@ export async function punch(
     );
   }
 
-  const e = await evaluate(employee, input, now);
+  const e = withMockLabel(await evaluate(employee, input, now), input);
   // Absen masuk ganda pada tanggal kerja yang sama → bentrok (bukan sekadar peringatan).
   if (e.kind === "IN" && (await repository.findDay(employeeId, toDate(e.workDate)))) {
     throw new ConflictError("Sudah absen masuk untuk tanggal kerja ini.");
@@ -655,10 +721,12 @@ export async function punch(
   if (e.suspicion && !input.confirmed) {
     throw new BusinessRuleError(SUSPICION_TEXT[e.suspicion], [{ suspicion: e.suspicion }]);
   }
-  if (e.labels.length > 0 && !input.reason) {
+  if (needsReason(e.labels) && !input.reason) {
     throw new BusinessRuleError(
       "Alasan wajib diisi karena absen ini di luar ketentuan.",
-      e.labels.map((label) => ({ label })),
+      e.labels
+        .filter((label) => !LABELS_WITHOUT_REASON.includes(label))
+        .map((label) => ({ label })),
     );
   }
   const isBreak = e.kind === "BREAK_START" || e.kind === "BREAK_END";
@@ -680,6 +748,9 @@ export async function punch(
     reason: input.reason?.trim() ? input.reason.trim() : null,
     selfiePath: input.selfiePath,
     userAgent: ctx.userAgent?.slice(0, 300) ?? null,
+    channel: ctx.appVersion ? ("APP" as const) : ("PWA" as const),
+    appVersion: ctx.appVersion?.slice(0, 40) ?? null,
+    idempotencyKey: ctx.idempotencyKey ?? null,
     // TM-D7: absen istirahat hanya bukti (tanpa approval sendiri); dinilai lewat label & lembur.
     ...(isBreak ? { status: "APPROVED" as const } : {}),
   };
@@ -780,7 +851,7 @@ export async function punch(
 /** TM-D7: peringatan ke karyawan bila istirahat lebih dari jatah / tidak absen istirahat. */
 async function warnBreak(day: repository.DayRow) {
   const date = toIso(day.workDate);
-  const notices = [];
+  const notices: EmployeeNotice[] = [];
   if (day.labels.includes("BREAK_OVER")) {
     notices.push({
       employeeId: day.employeeId,
@@ -789,6 +860,7 @@ async function warnBreak(day: repository.DayRow) {
       body: "Kelebihan waktu istirahat mengurangi lembur hari itu. Patuhi jatah istirahat shift.",
       link: "/absen/riwayat",
       dedupeKey: `tm-break-over:${day.id}`,
+      target: { type: "ATTENDANCE_DAY", id: day.id },
     });
   }
   if (day.labels.includes("NO_BREAK_PUNCH")) {
@@ -799,6 +871,7 @@ async function warnBreak(day: repository.DayRow) {
       body: "Lokasi Anda wajib absen istirahat. Istirahat dianggap sesuai jatah; lain kali lakukan Mulai & Selesai istirahat.",
       link: "/absen/riwayat",
       dedupeKey: `tm-break-none:${day.id}`,
+      target: { type: "ATTENDANCE_DAY", id: day.id },
     });
   }
   await notifyEmployees(notices);
@@ -970,6 +1043,7 @@ export function registerAttendanceIntegrations() {
             body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
             link: "/time/pernyataan",
             dedupeKey: `tm-punch-rejected:${punch.id}`,
+            target: { type: "ATTENDANCE_DAY", id: punch.dayId },
           },
         ]);
       }

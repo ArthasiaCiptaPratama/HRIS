@@ -6,8 +6,18 @@ import {
   selfieUploadInputSchema,
 } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
+import { APP_VERSION_HEADER } from "../../core/app-version.ts";
+import { assertExact } from "../../core/contract.ts";
+import { ValidationError } from "../../core/errors.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import {
+  dayViewSchema,
+  precheckResultSchema,
+  punchCancelSchema,
+  selfieUploadSchema,
+  todayViewSchema,
+} from "./attendance.contract.ts";
 import * as service from "./attendance.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import { strict } from "./roster.routes.ts";
@@ -18,18 +28,19 @@ const security = [{ [BEARER_SCHEME]: [] }];
 const TAGS = ["Time Management"];
 const errors = (...codes: (keyof typeof ERROR_RESPONSES)[]) =>
   Object.fromEntries(codes.map((code) => [code, ERROR_RESPONSES[code]]));
-const anyBody = {
-  body: {
-    content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
-    required: true,
-  },
-};
 const idParam = z.object({ id: z.uuid() });
+
+/** MOB-D7 #1: body & respons bertipe di OpenAPI (codegen app mobile). Validasi body tetap `strict`. */
 const route = (
   method: "get" | "post",
   path: string,
   summary: string,
-  request: Record<string, unknown> = {},
+  spec: {
+    response: z.ZodType;
+    body?: z.ZodType;
+    params?: z.ZodObject;
+    query?: z.ZodObject;
+  },
 ) =>
   createRoute({
     method,
@@ -37,23 +48,52 @@ const route = (
     tags: TAGS,
     summary,
     security,
-    request,
+    request: {
+      ...(spec.params ? { params: spec.params } : {}),
+      ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.body
+        ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
+        : {}),
+    },
     responses: {
       200: {
         description: summary,
-        content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+        content: { "application/json": { schema: dataEnvelope(spec.response) } },
       },
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
   });
 
+assertExact<
+  z.infer<typeof selfieUploadSchema>,
+  Awaited<ReturnType<typeof service.createSelfieUpload>>
+>(true);
+assertExact<z.infer<typeof punchCancelSchema>, Awaited<ReturnType<typeof service.cancelOwnPunch>>>(
+  true,
+);
+
 type Handler = (c: Context) => Promise<unknown>;
+
+// MOB-D7: kunci idempotensi punch dari klien (UUID / string aman, 8–64 karakter).
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,64}$/;
+function idempotencyKeyOf(c: Context): string | undefined {
+  const key = c.req.header("Idempotency-Key");
+  if (key === undefined) return undefined;
+  if (!IDEMPOTENCY_KEY.test(key)) {
+    throw new ValidationError([
+      { path: "Idempotency-Key", code: "invalid_format", message: "Expected 8-64 [A-Za-z0-9_-]" },
+    ]);
+  }
+  return key;
+}
 const body = (c: Context) => c.req.json().catch(() => ({}));
 const range = z.object({ from: z.iso.date(), to: z.iso.date() });
 
 const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
-    route("get", "/attendance/me/today", "Status absen hari ini, roster 7 hari, lokasi acuan"),
+    route("get", "/attendance/me/today", "Status absen hari ini, roster 7 hari, lokasi acuan", {
+      response: todayViewSchema,
+    }),
     (c) => service.getToday(ctxOf(c)),
   ],
   [
@@ -61,17 +101,15 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/precheck",
       "Pra-cek absen: tanggal kerja, label, jarak (alasan wajib bila ada label)",
-      anyBody,
+      { body: punchPrecheckSchema, response: precheckResultSchema },
     ),
     async (c) => service.precheck(ctxOf(c), strict(punchPrecheckSchema, await body(c))),
   ],
   [
-    route(
-      "post",
-      "/attendance/selfie-upload",
-      "URL unggah selfie (bucket private, ± 200 KB)",
-      anyBody,
-    ),
+    route("post", "/attendance/selfie-upload", "URL unggah selfie (bucket private, ± 200 KB)", {
+      body: selfieUploadInputSchema,
+      response: selfieUploadSchema,
+    }),
     async (c) =>
       service.createSelfieUpload(
         ctxOf(c),
@@ -79,10 +117,20 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route("post", "/attendance/punch", "Absen masuk/pulang (waktu server, selfie + GPS)", anyBody),
+    route(
+      "post",
+      "/attendance/punch",
+      "Absen masuk/pulang/istirahat (waktu server, selfie + GPS). Header opsional: Idempotency-Key, X-App-Version",
+      { body: punchInputSchema, response: dayViewSchema },
+    ),
     async (c) =>
       service.punch(
-        { ...ctxOf(c), userAgent: c.req.header("user-agent") },
+        {
+          ...ctxOf(c),
+          userAgent: c.req.header("user-agent"),
+          appVersion: c.req.header(APP_VERSION_HEADER),
+          idempotencyKey: idempotencyKeyOf(c),
+        },
         strict(punchInputSchema, await body(c)),
       ),
   ],
@@ -91,7 +139,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/punches/{id}/cancel",
       "Batalkan absen sendiri (salah pencet, <= 15 menit, belum diputuskan)",
-      { params: idParam },
+      { params: idParam, response: punchCancelSchema },
     ),
     (c) => service.cancelOwnPunch(ctxOf(c), c.req.param("id") as string),
   ],
@@ -100,16 +148,20 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/manual",
       "Autentikasi manual HR/SA: masukkan/ganti jam absen masuk atau pulang (alasan wajib)",
-      anyBody,
+      { body: manualPunchInputSchema, response: dayViewSchema },
     ),
     async (c) => service.manualPunch(ctxOf(c), strict(manualPunchInputSchema, await body(c))),
   ],
   [
-    route("get", "/attendance/me/history", "Riwayat absen sendiri", { query: range }),
+    route("get", "/attendance/me/history", "Riwayat absen sendiri", {
+      query: range,
+      response: z.array(dayViewSchema),
+    }),
     (c) => service.myHistory(ctxOf(c), c.req.query("from") as string, c.req.query("to") as string),
   ],
   [
     route("get", "/attendance/days", "Data Absen Harian (inbox keputusan / semua dalam cakupan)", {
+      response: z.array(dayViewSchema),
       query: range.extend({
         scope: z.enum(["inbox", "all"]).optional(),
         companyId: z.uuid().optional(),
@@ -132,6 +184,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
     route("get", "/attendance/days/{id}", "Detail hari absen (foto, peta, label, approval)", {
       params: idParam,
+      response: dayViewSchema,
     }),
     (c) => service.getDay(ctxOf(c), c.req.param("id") as string),
   ],

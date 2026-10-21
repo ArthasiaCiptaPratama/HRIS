@@ -28,3 +28,5 @@
 | `attendance_periods` | `period` (YYYY-MM), `status` (`OPEN`/`CLOSED`), `closed_by`, `closed_at` |
 
 **Merge Mat 2026-10-21:** `directory.ts` tetap fasad tanpa Prisma; fungsi baru `activeGrades`, `activeLocations`, `exitedEmployees`, `exitStatusOf`, `analyticsEmployees` mendelegasikan ke `employee/index.ts` & `organization/index.ts` (dipakai `overtime.service`, `leave-exit.service`, `analytics.service`).
+
+**Kontrak OpenAPI (MOB-D7 #1/MOB-D17, 2026-10-21, `HRIS/mobile-app`):** `attendance.contract.ts` (AttendanceToday/Day/Punch/Precheck/SelfieUpload/PunchCancel, Shift), `roster.contract.ts`, `period.contract.ts`, `overtime.contract.ts`, `location-setting.contract.ts` — skema respons per file rute, `assertExact` ke tipe service. Helper `route(method, path, summary, { response, body?, params?, query? })` di tiap `*.routes.ts`. Punch: `channel`/`appVersion`/`idempotencyKey` (`findPunchByIdempotencyKey`, `replayPunch`), `withMockLabel` + `LABELS_WITHOUT_REASON`; `notifyEmployees({ target })`.

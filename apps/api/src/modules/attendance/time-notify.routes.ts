@@ -1,8 +1,9 @@
-import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
+import { createRoute, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import { ctxOf } from "./calendar.routes.ts";
+import { timeQueueSchema } from "./location-setting.contract.ts";
 import { myQueue } from "./time-notify.service.ts";
 
 // Angka antrean keputusan Time Management untuk badge menu (sama dengan isi inbox masing-masing).
@@ -15,7 +16,7 @@ const queueRoute = createRoute({
   responses: {
     200: {
       description: "Antrean keputusan",
-      content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+      content: { "application/json": { schema: dataEnvelope(timeQueueSchema) } },
     },
     401: ERROR_RESPONSES[401],
     500: ERROR_RESPONSES[500],

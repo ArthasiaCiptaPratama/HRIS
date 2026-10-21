@@ -9,6 +9,14 @@ import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import { ctxOf } from "./calendar.routes.ts";
+import {
+  breakLocationsViewSchema,
+  gradeWageListSchema,
+  gradeWageViewSchema,
+  overtimeListSchema,
+  overtimeSummarySchema,
+  rosterTemplateResultSchema,
+} from "./overtime.contract.ts";
 import * as service from "./overtime.service.ts";
 import { strict } from "./roster.routes.ts";
 import { applyRosterTemplate } from "./roster-template.service.ts";
@@ -20,19 +28,19 @@ const security = [{ [BEARER_SCHEME]: [] }];
 const TAGS = ["Time Management"];
 const errors = (...codes: (keyof typeof ERROR_RESPONSES)[]) =>
   Object.fromEntries(codes.map((code) => [code, ERROR_RESPONSES[code]]));
-const anyBody = {
-  body: {
-    content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
-    required: true,
-  },
-};
 const isoDate = z.iso.date();
 
+/** MOB-D7 #1: body & respons bertipe di OpenAPI (codegen app mobile). Validasi body tetap `strict`. */
 const route = (
   method: "get" | "put" | "post",
   path: string,
   summary: string,
-  request: Record<string, unknown> = {},
+  spec: {
+    response: z.ZodType;
+    body?: z.ZodType;
+    params?: z.ZodObject;
+    query?: z.ZodObject;
+  },
 ) =>
   createRoute({
     method,
@@ -40,11 +48,17 @@ const route = (
     tags: TAGS,
     summary,
     security,
-    request,
+    request: {
+      ...(spec.params ? { params: spec.params } : {}),
+      ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.body
+        ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
+        : {}),
+    },
     responses: {
       200: {
         description: summary,
-        content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+        content: { "application/json": { schema: dataEnvelope(spec.response) } },
       },
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
@@ -64,6 +78,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
     route("get", "/overtime", "Usulan lembur: inbox / cakupan / milik saya (TM-D6)", {
       query: listQuery,
+      response: overtimeListSchema,
     }),
     (c) => {
       const q = strict(listQuery, c.req.query());
@@ -73,6 +88,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
     route("get", "/overtime/summary", "Rekap lembur bulanan per karyawan (TM-D6)", {
       query: z.object({ month: rosterMonthSchema, companyId: z.uuid().optional() }),
+      response: overtimeSummarySchema,
     }),
     (c) =>
       service.overtimeSummary(
@@ -82,13 +98,16 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route("get", "/grade-wages", "Upah per grade (SA, HR ber-grant labor.cost.read)"),
+    route("get", "/grade-wages", "Upah per grade (SA, HR ber-grant labor.cost.read)", {
+      response: gradeWageListSchema,
+    }),
     (c) => service.listGradeWages(ctxOf(c)),
   ],
   [
     route("put", "/grade-wages/{gradeId}", "Atur upah grade (SA)", {
       params: z.object({ gradeId: z.uuid() }),
-      ...anyBody,
+      body: gradeWageInputSchema,
+      response: gradeWageViewSchema,
     }),
     async (c) =>
       service.setGradeWage(
@@ -98,16 +117,24 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route("get", "/break-locations", "Lokasi kerja wajib absen istirahat (SA, HR)"),
+    route("get", "/break-locations", "Lokasi kerja wajib absen istirahat (SA, HR)", {
+      response: breakLocationsViewSchema,
+    }),
     (c) => service.getBreakLocations(ctxOf(c)),
   ],
   [
-    route("put", "/break-locations", "Atur lokasi wajib absen istirahat (SA, HR)", anyBody),
+    route("put", "/break-locations", "Atur lokasi wajib absen istirahat (SA, HR)", {
+      body: breakLocationsInputSchema,
+      response: breakLocationsViewSchema,
+    }),
     async (c) =>
       service.setBreakLocations(ctxOf(c), strict(breakLocationsInputSchema, await body(c))),
   ],
   [
-    route("post", "/roster/templates", "Pasang template roster (JT) (SA, HR PT)", anyBody),
+    route("post", "/roster/templates", "Pasang template roster (JT) (SA, HR PT)", {
+      body: rosterTemplateInputSchema,
+      response: rosterTemplateResultSchema,
+    }),
     async (c) => applyRosterTemplate(ctxOf(c), strict(rosterTemplateInputSchema, await body(c))),
   ],
 ];

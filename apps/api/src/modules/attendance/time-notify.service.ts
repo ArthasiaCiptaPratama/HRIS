@@ -1,3 +1,4 @@
+import type { TmNotificationTarget } from "@hris/shared";
 import { type ApprovalSubject, correctionDeadline } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
@@ -51,6 +52,8 @@ export interface EmployeeNotice {
   body?: string;
   link?: string;
   dedupeKey?: string;
+  /** MOB-D6: layar tujuan di app mobile. */
+  target?: { type: TmNotificationTarget; id: string };
 }
 
 /** Kirim notifikasi ke akun beberapa karyawan. Gagal kirim tidak pernah menggagalkan proses utama. */
@@ -70,6 +73,7 @@ export async function notifyEmployees(notices: EmployeeNotice[], now = new Date(
           ...(n.body ? { body: n.body } : {}),
           ...(n.link ? { link: n.link } : {}),
           ...(n.dedupeKey ? { dedupeKey: n.dedupeKey } : {}),
+          ...(n.target ? { target: n.target } : {}),
           email: false,
         },
         now,
@@ -159,6 +163,7 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         body: "Segera absen masuk. Bila tidak ada absen sama sekali, hari ini dihitung Alpha dan gaji hari itu tidak dihitung.",
         link: "/absen",
         dedupeKey: `tm-remind-in:${r.employeeId}:${date}`,
+        target: { type: "ATTENDANCE_TODAY", id: date },
       });
     } else if (hasIn && !hasOut && now.getTime() >= window.end.getTime()) {
       notices.push({
@@ -168,6 +173,7 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         body: "Jam pulang sudah lewat. Lakukan Clock Out sebelum batas absen pulang agar hari ini bisa disetujui.",
         link: "/absen",
         dedupeKey: `tm-remind-out:${r.employeeId}:${date}`,
+        target: { type: "ATTENDANCE_TODAY", id: date },
       });
     }
   }
@@ -205,6 +211,7 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         body: "Ajukan koreksi hari ini. Setelah hari ini, hari tersebut tetap Alpha dan gaji hari itu tidak dihitung.",
         link: "/time/pernyataan",
         dedupeKey: `tm-alpha-last:${a.employeeId}:${lastDay}`,
+        target: { type: "ATTENDANCE_DATE", id: lastDay },
       });
     }
   }
@@ -245,6 +252,7 @@ export async function runApprovalDigest(now = new Date()) {
                 ? "/time/lembur"
                 : "/time/pernyataan",
           dedupeKey: `tm-digest:${account.accountId}:${today}`,
+          target: { type: "APPROVAL_QUEUE", id: today },
           email: false,
         },
         now,

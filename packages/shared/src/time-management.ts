@@ -316,6 +316,8 @@ export const ATTENDANCE_LABELS = [
   "REGULAR_OT_SHORT",
   // TM-D9: cuti/izin disetujui setelah periode absensi hari itu ditutup (rekap periode berubah).
   "LEAVE_AFTER_CLOSE",
+  // MOB-D3: app Android melaporkan lokasi palsu (mock). Ditandai, tidak diblokir; tanpa wajib alasan.
+  "MOCK_LOCATION",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
@@ -334,7 +336,30 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   NO_BREAK_PUNCH: "Tanpa absen istirahat",
   REGULAR_OT_SHORT: "Lembur rutin kurang",
   LEAVE_AFTER_CLOSE: "Cuti disetujui setelah tutup periode",
+  MOCK_LOCATION: "Lokasi palsu terdeteksi",
 };
+
+/** Label yang tidak mewajibkan alasan dari karyawan (penanda untuk approver saja). */
+export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = ["MOCK_LOCATION"];
+
+/**
+ * MOB-D6: target notifikasi Time Management untuk app mobile (layar yang dibuka saat notifikasi diketuk).
+ * `id`: ATTENDANCE_TODAY/ATTENDANCE_DATE/APPROVAL_QUEUE = tanggal YYYY-MM-DD; lainnya = id entitas.
+ */
+export const TM_NOTIFICATION_TARGETS = [
+  "ATTENDANCE_TODAY",
+  "ATTENDANCE_DATE",
+  "ATTENDANCE_DAY",
+  "CORRECTION",
+  "LEAVE_REQUEST",
+  "OVERTIME",
+  "APPROVAL_QUEUE",
+] as const;
+export type TmNotificationTarget = (typeof TM_NOTIFICATION_TARGETS)[number];
+
+/** MOB-D3: kanal absen — APP (Android, kirim X-App-Version) atau PWA (web /absen). */
+export const PUNCH_CHANNELS = ["APP", "PWA"] as const;
+export type PunchChannel = (typeof PUNCH_CHANNELS)[number];
 
 export const ATTENDANCE_DAY_STATUSES = [
   "OPEN",
@@ -378,6 +403,8 @@ const coordinate = {
 export const punchLocationSchema = z.object({
   ...coordinate,
   accuracyM: z.number().min(0).max(100_000),
+  /** MOB-D3: app melaporkan lokasi palsu (Android `isMock`); PWA tidak bisa mendeteksi. */
+  isMock: z.boolean().optional(),
 });
 export const punchPrecheckSchema = punchLocationSchema.extend({ kind: z.enum(PUNCH_KINDS) });
 export type PunchPrecheckInput = z.infer<typeof punchPrecheckSchema>;
