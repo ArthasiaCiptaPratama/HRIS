@@ -251,3 +251,27 @@ describe("Dashboard — Analitik SDM & biaya (DSB-D1)", () => {
     expect(analyticsCalls(calls)).toHaveLength(0);
   });
 });
+
+describe("Dashboard atasan — Analitik tim (DSB-D1)", () => {
+  it("MANAGER melihat analitik tim hanya-baca tanpa rupiah; karyawan tidak", async () => {
+    const calls = mockBackend(me("MANAGER", false, "emp-mgr"), { withCost: false });
+    renderAt("/");
+    expect(await screen.findByText("Analitik tim", {}, { timeout: 15000 })).toBeInTheDocument();
+    expect(
+      await screen.findByText("Pergerakan Karyawan", {}, { timeout: 15000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Periode analitik tim")).toBeInTheDocument();
+    // Hanya-baca: tanpa menu atur widget & tanpa widget rupiah.
+    expect(
+      screen.queryByRole("button", { name: /Opsi widget|Menu widget/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Biaya Tenaga Kerja")).not.toBeInTheDocument();
+    await waitFor(() => expect(analyticsCalls(calls).length).toBeGreaterThan(0));
+    expect(calls.some((c) => c.path === "/dashboard")).toBe(false);
+
+    const empCalls = mockBackend(me("EMPLOYEE", false, "emp-1"), { withCost: false });
+    renderAt("/");
+    await waitFor(() => expect(empCalls.some((c) => c.path === "/me")).toBe(true));
+    expect(analyticsCalls(empCalls)).toHaveLength(0);
+  });
+});

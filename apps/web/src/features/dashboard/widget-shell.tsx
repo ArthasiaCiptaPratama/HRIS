@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 
 export interface BoardActions {
   editing: boolean;
+  /** Tampilan hanya-baca (mis. analitik tim atasan): tanpa menu ukuran/duplikat/hapus. */
+  readOnly?: boolean;
   update: (widget: DashboardWidget) => void;
   edit: (id: string) => void;
   duplicate: (id: string) => void;
@@ -86,7 +88,7 @@ export function WidgetShell({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {toolbar}
-          <WidgetMenu widget={widget} />
+          {board.readOnly ? null : <WidgetMenu widget={widget} />}
         </div>
       </div>
       <div className="min-w-0 flex-1 px-4 pb-4">{children}</div>

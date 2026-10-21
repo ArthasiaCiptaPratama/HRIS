@@ -298,12 +298,21 @@ export const breakLocationsInputSchema = z.object({
 export type BreakLocationsInput = z.infer<typeof breakLocationsInputSchema>;
 
 /** Template roster siap pakai (TM-D8). Hanya JT untuk saat ini. */
-export const ROSTER_TEMPLATES = ["JT"] as const;
+/**
+ * Template roster siap pakai (TM-D8): JT (Jetty & Loading, 3 shift rotasi 6+1), 13+1 (13 kerja + 1 OFF,
+ * 7 j normal + 1 j lembur rutin seperti JT), 5+2 (Senin–Jumat 08–17, istirahat 1 j tidak dibayar).
+ */
+export const ROSTER_TEMPLATES = ["JT", "ROT_13_1", "WEEK_5_2"] as const;
 export type RosterTemplate = (typeof ROSTER_TEMPLATES)[number];
+export const ROSTER_TEMPLATE_LABELS: Record<RosterTemplate, string> = {
+  JT: "JT — Jetty & Loading (3 shift, 6+1 rotasi)",
+  ROT_13_1: "13+1 — 13 hari kerja, 1 OFF",
+  WEEK_5_2: "5+2 — Senin–Jumat 08.00–17.00",
+};
 export const rosterTemplateInputSchema = z.object({
   template: z.enum(ROSTER_TEMPLATES),
   companyId: z.uuid(),
-  /** Bila diisi, dibuat 3 crew (siklus bergeser 7 hari) di lokasi ini. */
+  /** Bila diisi, dibuat crew di lokasi ini (JT: 3 crew bergeser 7 hari; lainnya: 1 crew). */
   workLocationId: z.uuid().nullish(),
   cycleStartDate: z.iso.date(),
 });

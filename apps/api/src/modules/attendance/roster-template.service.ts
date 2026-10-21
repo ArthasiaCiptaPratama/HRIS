@@ -13,7 +13,7 @@ import {
 } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
 
-// TM-D8 — template roster siap pakai. Saat ini hanya JT (Jetty & Loading team): 3 shift × 8 jam (7 jam normal + 1 jam
+// TM-D8 — template roster siap pakai: JT (Jetty & Loading team), 13+1, 5+2. JT: 3 shift × 8 jam (7 jam normal + 1 jam
 // lembur rutin, istirahat dibayar di dalam shift), pola 6 kerja + 1 OFF, rotasi maju tiap minggu
 // Pagi → Sore → Malam (siklus 21 hari). Hari ke-6 (5 jam) diatur pengguna sendiri di grid roster.
 
@@ -43,57 +43,122 @@ export interface RosterTemplateResult {
   crews: CrewDto[];
 }
 
+interface TemplateSpec {
+  shifts: (ShiftSpec & {
+    color: string;
+    breakMin: number;
+    breakPaid: boolean;
+    regularOvertimeMin: number;
+  })[];
+  patternName: string;
+  steps: string[];
+  crews: { name: string; offsetDays: number }[];
+  /** 5+2: siklus harus mulai Senin supaya OFF jatuh Sabtu–Minggu. */
+  startOnMonday?: boolean;
+}
+
+const OT_SHIFT = { breakMin: 60, breakPaid: true, regularOvertimeMin: 60 };
+const TEMPLATES: Record<RosterTemplateInput["template"], TemplateSpec> = {
+  JT: {
+    shifts: JT_SHIFTS.map((s, i) => ({ ...s, ...OT_SHIFT, color: JT_COLORS[i] ?? "#0f766e" })),
+    patternName: JT_PATTERN_NAME,
+    steps: jtPatternSteps(),
+    crews: JT_CREWS.map((name, i) => ({ name, offsetDays: 7 * i })),
+  },
+  // TM-D8 (grill 2026-10-21: "seperti JT"): 7 j normal + 1 j lembur rutin, istirahat dibayar.
+  // Catatan: 13 hari × 7 j normal per 14 hari ≈ 45,5 j/minggu (> 40 j) — ditampilkan sebagai peringatan.
+  ROT_13_1: {
+    shifts: [
+      {
+        code: "R13",
+        name: "13+1 Siang",
+        startMinute: 7 * 60,
+        endMinute: 15 * 60,
+        ...OT_SHIFT,
+        color: "#0ea5e9",
+      },
+    ],
+    patternName: "13+1 (13 kerja, 1 OFF)",
+    steps: [...Array<string>(13).fill("R13"), OFF_CODE],
+    crews: [{ name: "13+1 Crew A", offsetDays: 0 }],
+  },
+  WEEK_5_2: {
+    shifts: [
+      {
+        code: "K52",
+        name: "Kantor 08–17",
+        startMinute: 8 * 60,
+        endMinute: 17 * 60,
+        breakMin: 60,
+        breakPaid: false,
+        regularOvertimeMin: 0,
+        color: "#16a34a",
+      },
+    ],
+    patternName: "5+2 (Senin–Jumat)",
+    steps: [...Array<string>(5).fill("K52"), OFF_CODE, OFF_CODE],
+    crews: [{ name: "5+2 Kantor", offsetDays: 0 }],
+    startOnMonday: true,
+  },
+};
+
+/** Senin pada/sebelum tanggal (YYYY-MM-DD). */
+const mondayOf = (date: string) => {
+  const dow = (new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7;
+  return isoAddDays(date, -dow);
+};
+
 export async function applyRosterTemplate(
   ctx: RequestContext,
   input: RosterTemplateInput,
 ): Promise<RosterTemplateResult> {
   if (!policy.canManageRoster(ctx.actor, input.companyId)) throw new ForbiddenError();
+  const spec = TEMPLATES[input.template];
   // Cek bentrok lebih dulu supaya template tidak terpasang setengah.
   const existing = new Set((await repository.listShifts(input.companyId, true)).map((s) => s.code));
-  const taken = JT_SHIFTS.filter((s) => existing.has(s.code)).map((s) => s.code);
+  const taken = spec.shifts.filter((s) => existing.has(s.code)).map((s) => s.code);
   if (taken.length > 0) {
     throw new ConflictError(
-      `Kode shift ${taken.join(", ")} sudah ada di perusahaan ini; template JT sudah dipasang?`,
+      `Kode shift ${taken.join(", ")} sudah ada di perusahaan ini; template ini sudah dipasang?`,
     );
   }
   const patterns = await repository.listPatterns(input.companyId);
-  if (patterns.some((p) => p.name === JT_PATTERN_NAME)) {
-    throw new ConflictError(`Pola "${JT_PATTERN_NAME}" sudah ada.`);
+  if (patterns.some((p) => p.name === spec.patternName)) {
+    throw new ConflictError(`Pola "${spec.patternName}" sudah ada.`);
   }
 
   const shifts: ShiftDto[] = [];
-  for (const [i, spec] of JT_SHIFTS.entries()) {
+  for (const shift of spec.shifts) {
+    const { color, ...rest } = shift;
     shifts.push(
       await createShift(ctx, {
         companyId: input.companyId,
-        ...spec,
+        ...rest,
         checkInOpenMin: 60,
         lateToleranceMin: 15,
         earlyLeaveToleranceMin: 15,
         checkOutCloseMin: 240,
-        breakMin: 60,
-        breakPaid: true,
-        regularOvertimeMin: 60,
-        color: JT_COLORS[i] ?? null,
+        color,
       }),
     );
   }
   const pattern = await createPattern(ctx, {
     companyId: input.companyId,
-    name: JT_PATTERN_NAME,
-    steps: jtPatternSteps(),
+    name: spec.patternName,
+    steps: spec.steps,
   });
   const crews: CrewDto[] = [];
   if (input.workLocationId) {
-    // Crew B & C mulai 7 & 14 hari lebih awal di siklus → pada tanggal mulai: A Pagi, B Sore, C Malam.
-    for (const [i, name] of JT_CREWS.entries()) {
+    const start = spec.startOnMonday ? mondayOf(input.cycleStartDate) : input.cycleStartDate;
+    // JT: crew B & C mulai 7 & 14 hari lebih awal → pada tanggal mulai A Pagi, B Sore, C Malam.
+    for (const crew of spec.crews) {
       crews.push(
         await createCrew(ctx, {
           companyId: input.companyId,
           workLocationId: input.workLocationId,
-          name,
+          name: crew.name,
           patternId: pattern.id,
-          cycleStartDate: isoAddDays(input.cycleStartDate, -7 * i),
+          cycleStartDate: isoAddDays(start, -crew.offsetDays),
         }),
       );
     }
