@@ -1,4 +1,4 @@
-import { ATTENDANCE_LOCATION_SOURCES } from "@hris/shared";
+import { ATTENDANCE_LOCATION_SOURCES, PUNCH_KINDS } from "@hris/shared";
 import { z } from "zod";
 
 // Subset respons API Time Management (apps/api/src/modules/attendance & approval). Sumber kebenaran
@@ -44,6 +44,10 @@ export const shiftSchema = z.object({
   lateToleranceMin: z.number(),
   earlyLeaveToleranceMin: z.number(),
   checkOutCloseMin: z.number(),
+  /** TM-D6/TM-D7 (opsional: API lama tidak mengirim). */
+  breakMin: z.number().optional(),
+  breakPaid: z.boolean().optional(),
+  regularOvertimeMin: z.number().optional(),
   color: z.string().nullable(),
   archived: z.boolean(),
 });
@@ -51,7 +55,7 @@ export type Shift = z.infer<typeof shiftSchema>;
 
 export const punchSchema = z.object({
   id: z.string(),
-  kind: z.enum(["IN", "OUT"]),
+  kind: z.enum(PUNCH_KINDS),
   at: z.string(),
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
@@ -110,11 +114,13 @@ export const todaySchema = z.object({
   recent: z.array(daySchema),
   // DONE = hari ini sudah Clock In (absen masuk hanya sekali per hari).
   next: z.enum(["IN", "OUT", "DONE"]),
+  /** TM-D7: lokasi wajib absen istirahat (opsional: API lama tidak mengirim). */
+  breakState: z.enum(["NOT_REQUIRED", "NONE", "ON_BREAK", "DONE"]).optional(),
 });
 export type Today = z.infer<typeof todaySchema>;
 
 export const precheckSchema = z.object({
-  kind: z.enum(["IN", "OUT"]),
+  kind: z.enum(PUNCH_KINDS),
   workDate: z.string(),
   shiftCode: z.string().nullable(),
   labels: z.array(z.string()),

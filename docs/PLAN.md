@@ -328,7 +328,7 @@ Kasus khusus:
 ### 5.3 Cuti & Izin
 - **Cuti** = cuti tahunan saja. Jenis lain adalah **izin**, yang jenis dan kuotanya diatur SUPER_ADMIN (termasuk apakah wajib lampiran dokumen, mis. surat dokter).
 - Saldo cuti tahunan **di-hold** saat pengajuan dibuat, lalu dikembalikan jika ditolak atau dibatalkan, dan menjadi terpakai jika disetujui. ~~Saldo tidak boleh negatif.~~ **Hutang cuti diperbolehkan** dan dilunasi akhir Januari dari jatah baru (D-072).
-- Jatah diberikan **1 Januari** (karyawan baru: prorata 1 hari per bulan kerja penuh); sisa tahun lalu hangus **31 Maret** (D-072).
+- Jatah diberikan **1 Januari** (karyawan baru: prorata 1 hari per bulan kerja penuh); ~~sisa tahun lalu hangus **31 Maret** (D-072)~~ → mulai saldo 2026 sisa **hangus 31 Desember** tahunnya, cuti lintas tahun memakai saldo tahun mulai ([TM-D9](features/time-management/README.md#keputusan)).
 - Hari cuti dihitung dalam **hari kerja roster** (hari OFF roster, tanggal merah, dan cuti bersama tidak dihitung; cuti bersama yang jatuh pada hari kerja roster dan tidak masuk = 1 hari cuti) (D-072).
 
 ### 5.4 Absensi
@@ -521,6 +521,17 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ARS-D20](features/arsip/README.md#keputusan) | Draft SP massal (1–50 karyawan, satu transaksi, tingkat ikut saran per karyawan) | [ARS](features/arsip/README.md) |
 | [ARS-D21](features/arsip/README.md#keputusan) | Laporan batch 2: masa kerja + jubilee, demografi agregat, mutasi & promosi menurut level jabatan, ulang tahun tanggal-bulan, aset tanpa harga, pengajuan data (daftar ber-grant) | [ARS](features/arsip/README.md) |
 | [TM-D1](features/time-management/README.md#keputusan) | Lokasi absen per karyawan: bebas lokasi / 1 lokasi khusus ber-geofence / bawaan (crew → lokasi kerja); diatur SA + HR PT | [TM](features/time-management/README.md) |
+| [TM-D2](features/time-management/README.md#keputusan) | Notifikasi & pengingat TM: lonceng saja (tanpa email), sekali per kejadian, cron pengingat per shift | [TM](features/time-management/README.md) |
+| [TM-D3](features/time-management/README.md#keputusan) | Alpha harian (mulai 1 Okt 2026) & batas koreksi 3 hari setelah tanggal kerja | [TM](features/time-management/README.md) |
+| [TM-D4](features/time-management/README.md#keputusan) | Izin boleh melebihi jatah; kelebihannya memotong cuti tahunan | [TM](features/time-management/README.md) |
+| [TM-D5](features/time-management/README.md#keputusan) | Keterangan & label berkas per jenis cuti/izin/sakit diatur SA di Master Cuti | [TM](features/time-management/README.md) |
+| [TM-D6](features/time-management/README.md#keputusan) | Lembur: usulan otomatis dari absen vs jadwal shift, persetujuan, rekap; estimasi rupiah dari upah grade (menjawab OD-14) | [TM](features/time-management/README.md) |
+| [TM-D7](features/time-management/README.md#keputusan) | Absen istirahat wajib per lokasi kerja, jatah istirahat per shift, sekali per hari | [TM](features/time-management/README.md) |
+| [TM-D8](features/time-management/README.md#keputusan) | Template roster JT (Jetty & Loading): 3 shift, pola 6 kerja + libur | [TM](features/time-management/README.md) |
+| [TM-D9](features/time-management/README.md#keputusan) | Cuti tahunan baru: sisa hangus 31 Desember tanpa uang, ajukan ulang, hak cuti karyawan keluar (mengubah sebagian D-072) | [TM](features/time-management/README.md) |
+| [TM-D10](features/time-management/README.md#keputusan) | Kompensasi akhir (pesangon, UPMK, penggantian hak) & dashboard analitik | [TM](features/time-management/README.md) |
+| [DSB-D1](features/dashboard/README.md#keputusan) | Dashboard analitik SDM & biaya: aktif awal/akhir bulan, masuk/keluar per alasan, turnover 12 bulan, gender, masa kerja | [DSB](features/dashboard/README.md) |
+| MOB-D1–MOB-D16 | App mobile Flutter (Android, paritas PWA, push FCM, versi minimum, branch BE `HRIS/mobile-app`) — **isi di repo `Arthasia-Mobile/docs/decisions.md`** (MOB-D13) | [MOB](features/mobile/README.md) |
 | [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
 | [EMP-D1](features/karyawan/README.md#keputusan) | Formulir Aplikasi dari template Word bertanda (docxtemplater) + PDF lewat Gotenberg/LibreOffice (layanan terpisah); tahap 1 template tersemat, tahap 2 halaman pengelolaan template; fitur lokal dulu | [EMP](features/karyawan/README.md) |
 | [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |

@@ -76,6 +76,21 @@ export const leaveRequestSchema = z.object({
   decidedAt: z.string().nullable(),
   approval: approvalSchema.nullable(),
   canCancel: z.boolean(),
+  /** TM-D9 — catatan pemutus yang menolak (API lama → null). */
+  rejectionNote: z.string().nullable().default(null),
+  /** TM-D9 — pengajuan ini adalah pengajuan ulang dari pengajuan yang ditolak. */
+  resubmittedFrom: z
+    .object({
+      id: z.string(),
+      startDate: z.string(),
+      endDate: z.string(),
+      rejectionNote: z.string().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
+  /** TM-D9 — batas ajukan ulang (YYYY-MM-DD) & boleh diajukan ulang sekarang. */
+  resubmitUntil: z.string().nullable().default(null),
+  canResubmit: z.boolean().default(false),
 });
 export type LeaveRequest = z.infer<typeof leaveRequestSchema>;
 
@@ -93,7 +108,10 @@ export type LedgerEntry = z.infer<typeof ledgerEntrySchema>;
 const myLeaveSchema = z.object({
   year: z.number(),
   balances: z.array(summarySchema),
-  carryUntil: z.string(),
+  /** null mulai saldo 2026 (TM-D9): sisa tahun lalu tidak dibawa. */
+  carryUntil: z.string().nullable(),
+  /** TM-D9 — saldo tahun berjalan hangus pada tanggal ini (API lama → null). */
+  expiresOn: z.string().nullable().default(null),
   ledger: z.array(ledgerEntrySchema),
   requests: z.array(leaveRequestSchema),
 });
@@ -107,6 +125,8 @@ const previewSchema = z.object({
   balances: z.array(z.object({ year: z.number(), balance: z.number() })),
   documentRequired: z.boolean(),
   conflicts: z.array(z.string()),
+  /** TM-D9 — saldo cuti tahun ini sudah hangus; cuti tahunan ditolak server. API lama → null. */
+  expiredYear: z.number().nullable().default(null),
 });
 export type LeavePreview = z.infer<typeof previewSchema>;
 
@@ -130,6 +150,7 @@ export const leaveKeys = {
   balances: (companyId: string, year: number, q: string) =>
     ["leave", "balances", companyId, year, q] as const,
   ledger: (employeeId: string, year: number) => ["leave", "ledger", employeeId, year] as const,
+  exits: (companyId: string) => ["leave", "exits", companyId] as const,
 };
 
 function useRefresh() {
@@ -224,6 +245,7 @@ async function uploadAttachment(file: File) {
   return upload.path;
 }
 
+/** Pengajuan cuti; `resubmitOfId` (TM-D9) = pengajuan ulang dari pengajuan DITOLAK milik sendiri. */
 export function useLeaveActions() {
   const refresh = useRefresh();
   const create = useMutation({
@@ -340,4 +362,72 @@ export function useBalanceActions() {
     onSuccess: refresh,
   });
   return { adjust, previewImport, commitImport };
+}
+
+// ── TM-D9: hak cuti karyawan keluar ──────────────────────────────────────────
+
+export const exitSettlementSchema = z.object({
+  id: z.string(),
+  employee: z.object({
+    id: z.string(),
+    fullName: z.string(),
+    employeeNumber: z.string().nullable(),
+  }),
+  companyId: z.string(),
+  exitDate: z.string(),
+  exitReason: z.string().nullable(),
+  year: z.number(),
+  remainingDays: z.number(),
+  debtDays: z.number(),
+  pendingDays: z.number(),
+  formula: z.enum(["SIX_DAY", "FIVE_DAY"]),
+  divisor: z.number(),
+  status: z.enum(["OPEN", "PAID", "CANCELLED"]),
+  note: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+  /** Rupiah null bila penanya tidak punya grant labor.cost.read. */
+  dailyWage: z.number().nullable(),
+  payAmount: z.number().nullable(),
+  debtAmount: z.number().nullable(),
+  wageMissing: z.boolean(),
+});
+export type ExitSettlement = z.infer<typeof exitSettlementSchema>;
+
+export function useExitSettlements(companyId: string | undefined, enabled = true) {
+  const search = companyId ? `?${new URLSearchParams({ companyId })}` : "";
+  return useQuery({
+    queryKey: leaveKeys.exits(companyId ?? ""),
+    queryFn: ({ signal }) =>
+      api(`/leave-exit-settlements${search}`, {
+        schema: many(exitSettlementSchema),
+        signal,
+      }).then((r) => r.data),
+    enabled,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useRecalculateExit() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/leave-exit-settlements/${id}/recalculate`, {
+        method: "POST",
+        schema: one(exitSettlementSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+}
+
+export function useMarkExitPaid() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note?: string | undefined }) =>
+      api(`/leave-exit-settlements/${id}/paid`, {
+        method: "POST",
+        body: note ? { note } : {},
+        schema: one(exitSettlementSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
 }

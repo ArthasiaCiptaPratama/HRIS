@@ -2,7 +2,11 @@
 
 export {
   companyExists,
+  type GradeBrief,
+  getEmploymentStatusCategories,
   getWorkLocationBriefs,
+  listActiveGrades,
+  listActiveWorkLocations,
   listGeofencedWorkLocations,
   type WorkLocationBrief,
 } from "./directory.service.ts";

@@ -36,3 +36,5 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 | `holidays` | [planned] `date`, `name`, `is_collective_leave` |
 
 FK dari `employees` ke master data memakai `ON DELETE RESTRICT`: master yang dipakai tidak bisa dihapus (pakai `deleted_at`).
+
+**Direktori untuk Time Management/analitik (merge Mat 2026-10-21):** `directory.service.ts` — `listActiveWorkLocations` (TM-D7), `listActiveGrades` + `GradeBrief` (TM-D6), `getEmploymentStatusCategories` (DSB-D1); repository `findActiveWorkLocations`, `findActiveGrades`, `findEmploymentStatusCategories`.

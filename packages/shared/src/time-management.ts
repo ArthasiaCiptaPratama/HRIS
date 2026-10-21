@@ -131,6 +131,11 @@ export const shiftInputSchema = z.object({
   lateToleranceMin: minutes(240),
   earlyLeaveToleranceMin: minutes(240),
   checkOutCloseMin: minutes(720),
+  /** TM-D7: jatah istirahat (menit) & istirahat dibayar (termasuk jam kerja, mis. JT). */
+  breakMin: minutes(240).default(0),
+  breakPaid: z.boolean().default(false),
+  /** TM-D6: menit terakhir shift yang merupakan lembur rutin (JT: 60). */
+  regularOvertimeMin: minutes(600).default(0),
   color: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
@@ -304,6 +309,13 @@ export const ATTENDANCE_LABELS = [
   "MANUAL",
   // TM-D3: hari kerja roster tanpa absen sama sekali → Alpha (penanda tetap ada walau dikoreksi).
   "NO_ATTENDANCE",
+  // TM-D7: istirahat lebih dari jatah / tidak absen istirahat di lokasi wajib (peringatan, tidak memblokir).
+  "BREAK_OVER",
+  "NO_BREAK_PUNCH",
+  // TM-D6: lembur rutin shift dijalani kurang dari jadwal (dibayar riil).
+  "REGULAR_OT_SHORT",
+  // TM-D9: cuti/izin disetujui setelah periode absensi hari itu ditutup (rekap periode berubah).
+  "LEAVE_AFTER_CLOSE",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
@@ -318,6 +330,10 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   CORRECTED: "Dikoreksi",
   MANUAL: "Input manual HR",
   NO_ATTENDANCE: "Tidak absen",
+  BREAK_OVER: "Istirahat lebih",
+  NO_BREAK_PUNCH: "Tanpa absen istirahat",
+  REGULAR_OT_SHORT: "Lembur rutin kurang",
+  LEAVE_AFTER_CLOSE: "Cuti disetujui setelah tutup periode",
 };
 
 export const ATTENDANCE_DAY_STATUSES = [
@@ -338,8 +354,18 @@ export const ATTENDANCE_DAY_STATUS_LABELS: Record<AttendanceDayStatus, string> =
   LEAVE: "Cuti/izin/sakit",
 };
 
-export const PUNCH_KINDS = ["IN", "OUT"] as const;
+/** Absen masuk/pulang (+ TM-D7 mulai/selesai istirahat; sekali per hari, geofence + selfie). */
+export const PUNCH_KINDS = ["IN", "OUT", "BREAK_START", "BREAK_END"] as const;
 export type PunchKind = (typeof PUNCH_KINDS)[number];
+/** Absen yang menentukan hari & butuh approval (D-073); istirahat hanya bukti. */
+export const CLOCK_KINDS = ["IN", "OUT"] as const;
+export type ClockKind = (typeof CLOCK_KINDS)[number];
+export const PUNCH_KIND_LABELS: Record<PunchKind, string> = {
+  IN: "Clock In",
+  OUT: "Clock Out",
+  BREAK_START: "Mulai istirahat",
+  BREAK_END: "Selesai istirahat",
+};
 
 /** Selfie dikompres di browser (± 200 KB); batas server 1 MB. */
 export const SELFIE_MAX_BYTES = 1024 * 1024;
@@ -378,7 +404,7 @@ export const PUNCH_CANCEL_WINDOW_MIN = 15;
 export const manualPunchInputSchema = z.object({
   employeeId: z.uuid(),
   workDate: isoDate,
-  kind: z.enum(PUNCH_KINDS),
+  kind: z.enum(CLOCK_KINDS),
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format jam HH:mm"),
   reason: z.string().trim().min(5, "Tulis alasan minimal 5 karakter").max(500),
   /** Lokasi absen yang dipilih HR untuk input manual (opsional; tanpa ini absen manual tanpa lokasi). */
@@ -424,15 +450,39 @@ export const LEAVE_LEDGER_KIND_LABELS: Record<LeaveLedgerKind, string> = {
   RELEASE: "Tahanan dilepas",
   USE: "Terpakai",
   COLLECTIVE: "Cuti bersama (tidak masuk)",
-  EXPIRE: "Hangus 31 Maret",
+  EXPIRE: "Sisa hangus",
   SETTLE: "Pelunasan hutang",
   ADJUST: "Penyesuaian",
 };
 
 /** Kuota penuh bawaan Master Cuti (§7.2). */
 export const DEFAULT_ANNUAL_QUOTA = 12;
-/** Sisa jatah tahun lalu berlaku sampai tanggal ini (MM-DD) tahun berikutnya. */
+/** D-072 (lama): sisa jatah tahun lalu berlaku sampai tanggal ini (MM-DD) tahun berikutnya. */
 export const LEAVE_CARRY_UNTIL = "03-31";
+/**
+ * TM-D9: mulai saldo tahun ini, sisa cuti hangus 31 Desember tahun itu sendiri (tanpa uang, tanpa
+ * dibawa ke tahun berikutnya). Saldo sebelum tahun ini mengikuti aturan lama (hangus 31 Maret berikutnya).
+ */
+export const LEAVE_YEAR_END_EXPIRY_FROM = 2026;
+
+/** Tanggal terakhir saldo tahun jatah `year` masih bisa dipakai (YYYY-MM-DD). */
+export const leaveBalanceLastDay = (year: number) =>
+  year >= LEAVE_YEAR_END_EXPIRY_FROM ? `${year}-12-31` : `${year + 1}-${LEAVE_CARRY_UNTIL}`;
+/** Saldo tahun jatah `year` sudah hangus pada `today` (YYYY-MM-DD)? */
+export const isLeaveYearExpired = (year: number, today: string) =>
+  today > leaveBalanceLastDay(year);
+
+/** TM-D9: pengajuan yang ditolak boleh diajukan ulang dalam 6 bulan sejak penolakan pertama. */
+export const LEAVE_RESUBMIT_MONTHS = 6;
+/** Batas akhir pengajuan ulang: tanggal penolakan + 6 bulan kalender (akhir bulan dijepit). */
+export function leaveResubmitDeadline(rejectedOn: string): string {
+  const [y, m, d] = rejectedOn.split("-").map(Number) as [number, number, number];
+  const total = m - 1 + LEAVE_RESUBMIT_MONTHS;
+  const year = y + Math.floor(total / 12);
+  const month = (total % 12) + 1;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
 
 export const leaveTypeInputSchema = z.object({
   code: z
@@ -467,6 +517,8 @@ export const leaveRequestInputSchema = z
     endDate: isoDate,
     reason: z.string().trim().min(3).max(500),
     attachmentPath: z.string().min(10).max(300).optional(),
+    /** TM-D9: pengajuan ulang dari pengajuan yang ditolak (≤ 6 bulan, hanya tanggal ke depan). */
+    resubmitOfId: z.uuid().optional(),
   })
   .refine((v) => v.endDate >= v.startDate, {
     message: "Tanggal selesai tidak boleh sebelum tanggal mulai.",

@@ -5,7 +5,9 @@ import {
   correctionDeadline,
   type ManualPunchInput,
   PUNCH_CANCEL_WINDOW_MIN,
+  PUNCH_KIND_LABELS,
   type PunchInput,
+  type PunchKind,
   type PunchPrecheckInput,
   type PunchSuspicion,
   SELFIE_CONTENT_TYPES,
@@ -45,6 +47,7 @@ import {
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import { resolveAttendanceLocation } from "./location-setting.service.ts";
+import { isBreakRequired, syncOvertime } from "./overtime.service.ts";
 import { closedMonths, correctionInstant, isDateClosed } from "./period.service.ts";
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
@@ -126,7 +129,7 @@ async function expectedLocation(employee: directory.DirectoryEmployee, workDate:
 }
 
 interface Evaluation {
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   workDate: string;
   shift: Shift | null;
   window: ReturnType<typeof shiftWindow> | null;
@@ -180,9 +183,10 @@ async function evaluate(
   const [allSites] = await Promise.all([directory.geofencedLocations()]);
   const sites = allSites.map(toSite).filter((s): s is GeofenceSite => s !== null);
 
-  if (input.kind === "OUT") {
+  if (input.kind !== "IN") {
     const open = await repository.findOpenDay(employee.id);
     if (!open) throw new BusinessRuleError("Belum ada absen masuk yang menunggu absen pulang.");
+    assertBreakSequence(input.kind, open);
     const shift = open.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
     const window = shift
       ? shiftWindow(toIso(open.workDate), shiftTimes(shift), settings.timezone)
@@ -200,19 +204,27 @@ async function evaluate(
       settings.gpsAccuracyMaxM,
       resolved.anywhere,
     );
+    const isOut = input.kind === "OUT";
+    // TM-D6: jam lembur rutin di akhir shift bukan bagian "pulang cepat" (dijalani kurang = label sendiri).
+    const normalEnd =
+      window && shift?.regularOvertimeMin
+        ? { ...window, end: new Date(window.end.getTime() - shift.regularOvertimeMin * MINUTE) }
+        : window;
     return {
-      kind: "OUT",
+      kind: input.kind,
       workDate: toIso(open.workDate),
       shift,
       window,
       labels: [
-        ...checkOutLabels(now, shift ? shiftTimes(shift) : null, window),
+        ...(isOut ? checkOutLabels(now, shift ? shiftTimes(shift) : null, normalEnd) : []),
         ...geofence.labels,
       ],
       geofence,
       openDay: open,
       location: expected,
-      suspicion: suspicionFor("OUT", now, window, shift?.earlyLeaveToleranceMin ?? null, false),
+      suspicion: isOut
+        ? suspicionFor("OUT", now, window, shift?.earlyLeaveToleranceMin ?? null, false)
+        : null,
       stillOpen: null,
     };
   }
@@ -260,11 +272,37 @@ async function evaluate(
   };
 }
 
+/** TM-D7: istirahat sekali per hari — mulai sebelum selesai; Clock Out tidak boleh saat masih istirahat. */
+function assertBreakSequence(kind: Exclude<PunchKind, "IN">, open: repository.DayRow) {
+  const has = (k: PunchKind) => open.punches.some((p) => p.kind === k);
+  if (kind === "BREAK_START" && has("BREAK_START")) {
+    throw new ConflictError("Istirahat hari ini sudah dimulai (sekali per hari).");
+  }
+  if (kind === "BREAK_END") {
+    if (!has("BREAK_START")) throw new BusinessRuleError("Mulai istirahat terlebih dahulu.");
+    if (has("BREAK_END")) throw new ConflictError("Istirahat hari ini sudah selesai.");
+  }
+  if (kind === "OUT" && has("BREAK_START") && !has("BREAK_END")) {
+    throw new BusinessRuleError(
+      "Anda masih istirahat. Lakukan Selesai istirahat sebelum Clock Out.",
+    );
+  }
+}
+
+/** Status istirahat hari terbuka untuk tombol di HP. */
+export type BreakState = "NOT_REQUIRED" | "NONE" | "ON_BREAK" | "DONE";
+async function breakStateOf(open: repository.DayRow | null): Promise<BreakState> {
+  if (!open || !(await isBreakRequired(open.workLocationId))) return "NOT_REQUIRED";
+  const has = (k: PunchKind) => open.punches.some((p) => p.kind === k);
+  if (has("BREAK_END")) return "DONE";
+  return has("BREAK_START") ? "ON_BREAK" : "NONE";
+}
+
 // ── Karyawan (PWA) ─────────────────────────────────────────────────────────────
 
 export interface PunchView {
   id: string;
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   at: string;
   latitude: number | null;
   longitude: number | null;
@@ -416,6 +454,8 @@ export interface TodayView {
   recent: DayView[];
   /** DONE = hari ini sudah Clock In (dan tidak ada yang terbuka): tidak boleh absen masuk lagi. */
   next: "IN" | "OUT" | "DONE";
+  /** TM-D7: lokasi wajib absen istirahat → tombol Mulai/Selesai istirahat. */
+  breakState: BreakState;
 }
 
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
@@ -476,6 +516,7 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
       ? (recent.find((d) => d.id === open.id) ?? (await toDayViews(ctx, [open], false))[0] ?? null)
       : null,
     recent,
+    breakState: await breakStateOf(open),
     next: open
       ? "OUT"
       : recentRows.some(
@@ -487,7 +528,7 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
 }
 
 export interface PrecheckResult {
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   workDate: string;
   shiftCode: string | null;
   labels: AttendanceLabel[];
@@ -620,6 +661,7 @@ export async function punch(
       e.labels.map((label) => ({ label })),
     );
   }
+  const isBreak = e.kind === "BREAK_START" || e.kind === "BREAK_END";
   const punchData = {
     kind: e.kind,
     at: now,
@@ -638,7 +680,33 @@ export async function punch(
     reason: input.reason?.trim() ? input.reason.trim() : null,
     selfiePath: input.selfiePath,
     userAgent: ctx.userAgent?.slice(0, 300) ?? null,
+    // TM-D7: absen istirahat hanya bukti (tanpa approval sendiri); dinilai lewat label & lembur.
+    ...(isBreak ? { status: "APPROVED" as const } : {}),
   };
+
+  if (isBreak) {
+    const open = e.openDay as repository.DayRow;
+    await repository.withTransactionDay(async (tx) => {
+      await repository.addPunch(tx, { ...punchData, dayId: open.id });
+      if (e.labels.length > 0) {
+        await repository.updateDay(tx, open.id, {
+          labels: [...new Set([...open.labels, ...e.labels])],
+        });
+      }
+    });
+    await writeAudit({
+      actorAccountId: ctx.actor.accountId,
+      action: e.kind === "BREAK_START" ? "attendance.break_start" : "attendance.break_end",
+      entityType: "attendance.day",
+      entityId: open.id,
+      before: null,
+      after: { workDate: e.workDate, labels: e.labels, distanceM: e.geofence.distanceM },
+      requestId: ctx.requestId ?? null,
+      ip: ctx.ip ?? null,
+    });
+    const day = (await repository.findDayById(open.id)) as repository.DayRow;
+    return (await toDayViews(ctx, [day], true))[0] as DayView;
+  }
 
   const row = await repository.withTransactionDay(async (tx) => {
     let dayId: string;
@@ -677,6 +745,8 @@ export async function punch(
         status: "PENDING",
         labels: [...new Set([...open.labels, ...e.labels])],
       });
+      // TM-D6/TM-D7: usulan lembur & label istirahat/lembur rutin.
+      await syncOvertime(tx, open.id);
       dayId = open.id;
       punchId = added.id;
       companyId = open.companyId;
@@ -693,6 +763,7 @@ export async function punch(
     return (await repository.findDayById(dayId, tx)) as repository.DayRow;
   });
 
+  if (e.kind === "OUT") await warnBreak(row);
   await writeAudit({
     actorAccountId: ctx.actor.accountId,
     action: e.kind === "IN" ? "attendance.check_in" : "attendance.check_out",
@@ -704,6 +775,33 @@ export async function punch(
     ip: ctx.ip ?? null,
   });
   return (await toDayViews(ctx, [row], true))[0] as DayView;
+}
+
+/** TM-D7: peringatan ke karyawan bila istirahat lebih dari jatah / tidak absen istirahat. */
+async function warnBreak(day: repository.DayRow) {
+  const date = toIso(day.workDate);
+  const notices = [];
+  if (day.labels.includes("BREAK_OVER")) {
+    notices.push({
+      employeeId: day.employeeId,
+      type: "attendance.break_warning",
+      title: `Istirahat ${dateLabel(date)} melebihi jatah`,
+      body: "Kelebihan waktu istirahat mengurangi lembur hari itu. Patuhi jatah istirahat shift.",
+      link: "/absen/riwayat",
+      dedupeKey: `tm-break-over:${day.id}`,
+    });
+  }
+  if (day.labels.includes("NO_BREAK_PUNCH")) {
+    notices.push({
+      employeeId: day.employeeId,
+      type: "attendance.break_warning",
+      title: `Tidak absen istirahat ${dateLabel(date)}`,
+      body: "Lokasi Anda wajib absen istirahat. Istirahat dianggap sesuai jatah; lain kali lakukan Mulai & Selesai istirahat.",
+      link: "/absen/riwayat",
+      dedupeKey: `tm-break-none:${day.id}`,
+    });
+  }
+  await notifyEmployees(notices);
 }
 
 export async function myHistory(ctx: RequestContext, from: string, to: string): Promise<DayView[]> {
@@ -764,6 +862,9 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
   rows = rows.filter((r) => toIso(r.workDate) >= query.from && toIso(r.workDate) <= query.to);
   if (query.companyId) rows = rows.filter((r) => r.companyId === query.companyId);
   if (query.labeledOnly) rows = rows.filter((r) => r.labels.length > 0);
+  // Permintaan pemilik projek 2026-10-21: Data Absen Harian hanya hari yang punya absen (sudah absen, telat,
+  // diperbaiki). Alpha tanpa absen ada di Rekap › Alpha & pernyataan dan bukti SP, kecuali diminta per karyawan.
+  if (!query.employeeId) rows = rows.filter((r) => r.status !== "ALPHA" || r.punches.length > 0);
   return toDayViews(ctx, rows, true);
 }
 
@@ -841,6 +942,8 @@ export async function recomputeDay(tx: repository.AttendanceTx, dayId: string) {
     ]),
   ];
   await repository.updateDay(tx, dayId, { status, labels });
+  // TM-D6: usulan lembur mengikuti data absen terbaru (label istirahat/lembur rutin ikut dihitung ulang).
+  await syncOvertime(tx, dayId);
 }
 
 export function registerAttendanceIntegrations() {
@@ -863,7 +966,7 @@ export function registerAttendanceIntegrations() {
           {
             employeeId: day.employeeId,
             type: "attendance.punch_rejected",
-            title: `${punch.kind === "IN" ? "Clock In" : "Clock Out"} ${dateLabel(date)} ditolak`,
+            title: `${PUNCH_KIND_LABELS[punch.kind]} ${dateLabel(date)} ditolak`,
             body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
             link: "/time/pernyataan",
             dedupeKey: `tm-punch-rejected:${punch.id}`,

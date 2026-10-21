@@ -235,6 +235,31 @@ export function findGeofencedWorkLocations() {
   });
 }
 
+/** TM-D7: semua lokasi kerja aktif (tanpa syarat geofence). */
+export function findActiveWorkLocations() {
+  return getPrisma().workLocation.findMany({
+    where: { deletedAt: null },
+    select: LOCATION_BRIEF_SELECT,
+    orderBy: { name: "asc" },
+  });
+}
+
+/** TM-D6: semua grade aktif. */
+export function findActiveGrades() {
+  return getPrisma().grade.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export function findEmploymentStatusCategories(ids: string[]) {
+  return getPrisma().employmentStatus.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, category: true },
+  });
+}
+
 export function countCompaniesById(id: string) {
   return getPrisma().company.count({ where: { id } });
 }

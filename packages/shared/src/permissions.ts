@@ -21,6 +21,8 @@ export const PERMISSIONS = [
   // ARS-D10 (Arsip 2b): lihat / buat & terbitkan surat peringatan di PT yang ditugaskan.
   "employee.discipline.read",
   "employee.discipline.write",
+  // TM-D6: biaya tenaga kerja (upah per GRADE, bukan gaji per orang — gaji tetap tidak bisa di-grant).
+  "labor.cost.read",
 ] as const;
 
 export const permissionSchema = z.enum(PERMISSIONS);
@@ -43,6 +45,7 @@ export const PERMISSION_GRANTABLE_TO: Record<Permission, readonly Role[]> = {
   "asset.manage": HR_ONLY,
   "employee.discipline.read": HR_ONLY,
   "employee.discipline.write": HR_ONLY,
+  "labor.cost.read": HR_ONLY,
 };
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
@@ -63,6 +66,8 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
     "Kelola aset & pembagian APD (tambah/ubah aset, serah-terima, pengembalian, BAST, harga aset)",
   "employee.discipline.read": "Lihat surat peringatan karyawan",
   "employee.discipline.write": "Buat, terbitkan & cabut surat peringatan; kelola jenis pelanggaran",
+  "labor.cost.read":
+    "Lihat biaya tenaga kerja (tabel upah grade, rupiah lembur per orang, estimasi pesangon & labor cost)",
 };
 
 export function isPermissionGrantableTo(permission: Permission, role: Role): boolean {

@@ -104,6 +104,7 @@ apps/api/
 │   │   ├── notification/             → docs/codemap/notification.md
 │   │   ├── approval/                 → docs/codemap/approval.md (Time Management, 2026-10-13)
 │   │   ├── attendance/               → docs/codemap/attendance.md
+│   │   ├── analytics/                → docs/codemap/analytics.md (DSB-D1 dashboard analitik 2026-10-21; tanpa tabel)
 │   │   ├── leave/                    → docs/codemap/leave.md
 │   │   ├── asset/                    → docs/codemap/asset.md (Arsip 2a, 2026-10-13)
 │   │   ├── discipline/               → docs/codemap/discipline.md (Arsip 2b Surat Peringatan, 2026-10-15)
@@ -287,6 +288,7 @@ Rincian per modul (pohon file api & web, tabel, catatan) ada di **`docs/codemap/
 | `employee` | [codemap/employee.md](codemap/employee.md) | [karyawan](features/karyawan/README.md), [import-karyawan](features/import-karyawan/README.md), [onboarding](features/onboarding/README.md), [arsip](features/arsip/README.md), [dashboard](features/dashboard/README.md) |
 | `approval` | [codemap/approval.md](codemap/approval.md) | [time-management](features/time-management/README.md) |
 | `attendance` | [codemap/attendance.md](codemap/attendance.md) | [time-management](features/time-management/README.md) |
+| `analytics` | [codemap/analytics.md](codemap/analytics.md) | [dashboard](features/dashboard/README.md) |
 | `leave` | [codemap/leave.md](codemap/leave.md) | [time-management](features/time-management/README.md) |
 | `contract` | [codemap/contract.md](codemap/contract.md) | [kontrak](features/kontrak/README.md) |
 | `payroll` | [codemap/payroll.md](codemap/payroll.md) | [payroll](features/payroll/README.md) |

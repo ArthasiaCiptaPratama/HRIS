@@ -36,6 +36,7 @@ import {
 } from "./core/supabase-admin.ts";
 import { type Env, getEnv } from "./env.ts";
 import { registerCronRoutes } from "./jobs/cron.ts";
+import { registerAnalyticsRoutes } from "./modules/analytics/index.ts";
 import { registerApprovalRoutes } from "./modules/approval/index.ts";
 import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
 import {
@@ -294,6 +295,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
   registerDisciplineRoutes(app, { protect });
   // ARS-D16/D17 (Arsip 3): laporan batch 1.
   registerReportRoutes(app, { protect });
+  // DSB-D1: dashboard analitik SDM & biaya.
+  registerAnalyticsRoutes(app, { protect });
   // Time Management (D-067–D-072): mesin approval & modul attendance.
   registerApprovalRoutes(app, { protect });
   registerAttendanceRoutes(app, {
@@ -347,7 +350,8 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       "attendance-reminders": () => runAttendanceReminders(),
       // Ringkasan antrean keputusan harian untuk SA/HR/atasan (rekomendasi OD-15).
       "approval-digest": () => runApprovalDigest(),
-      // D-072: jatah 1 Jan, pelunasan hutang akhir Jan, hangus 31 Mar, cuti bersama tanpa absen.
+      // D-072 + TM-D9: cuti bersama tanpa absen, jatah 1 Jan, sisa hangus 31 Des (lama: 31 Mar),
+      // pelunasan hutang akhir Jan, hak cuti karyawan keluar.
       "leave-daily": () => runLeaveDaily(),
       // ARS-D5/D6: pinjaman terlambat, APD jatuh tempo ganti, aset karyawan keluar.
       "asset-daily": () => runAssetDaily(),

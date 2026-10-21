@@ -12,6 +12,7 @@ const BRIEF_SELECT = {
   isActive: true,
   positionId: true,
   workLocationId: true,
+  gradeId: true,
 } as const;
 
 export async function findBriefsByIds(ids: string[]) {
@@ -63,5 +64,69 @@ export async function findDocumentRef(id: string) {
   return getPrisma().employeeDocument.findFirst({
     where: { id, deletedAt: null },
     select: { id: true, employeeId: true, documentType: { select: { code: true } } },
+  });
+}
+
+/** TM-D9: karyawan nonaktif dengan tanggal keluar (hak cuti keluar). */
+export async function findExited(companyIds: string[] | null) {
+  return getPrisma().employee.findMany({
+    where: {
+      onboardingStatus: "APPROVED",
+      isActive: false,
+      endDate: { not: null },
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+    },
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      companyId: true,
+      endDate: true,
+      exitReason: true,
+      gradeId: true,
+      isActive: true,
+    },
+    orderBy: { endDate: "desc" },
+  });
+}
+
+export async function findExitStatus(ids: string[]) {
+  return getPrisma().employee.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, isActive: true, endDate: true },
+  });
+}
+
+/** DSB-D1: karyawan yang aktif pada sebagian rentang [from, to]. */
+export async function findForAnalytics(input: {
+  companyIds: string[] | null;
+  managerId: string | null;
+  from: Date;
+  to: Date;
+  withBirthDate: boolean;
+}) {
+  return getPrisma().employee.findMany({
+    where: {
+      onboardingStatus: "APPROVED",
+      joinDate: { lte: input.to },
+      OR: [{ endDate: null }, { endDate: { gte: input.from } }],
+      ...(input.companyIds ? { companyId: { in: input.companyIds } } : {}),
+      ...(input.managerId ? { managerId: input.managerId } : {}),
+    },
+    select: {
+      id: true,
+      fullName: true,
+      companyId: true,
+      managerId: true,
+      workLocationId: true,
+      gradeId: true,
+      gender: true,
+      joinDate: true,
+      endDate: true,
+      exitReason: true,
+      isActive: true,
+      employmentStatusId: true,
+      ...(input.withBirthDate ? { personal: { select: { birthDate: true } } } : {}),
+    },
   });
 }

@@ -48,7 +48,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Versi minimum: header `X-App-Version` → 426 `APP_UPDATE_REQUIRED` + URL unduh APK (MOB-D7 #4) — `core/app-version.ts`, env `MOBILE_MIN_VERSION`/`MOBILE_APK_URL`, test 8 kasus (2026-10-21)
   - [x] Push FCM sisi notifikasi: tabel token perangkat, `POST/DELETE /me/devices`, pengirim FCM HTTP v1 (no-op tanpa kredensial), kolom target terstruktur di notifikasi (MOB-D6) — migrasi `20261021045348_push_devices_and_notification_target`, `core/push.ts` + `core/google-auth.ts`, env `FCM_SERVICE_ACCOUNT_JSON`; uji kirim sungguhan menunggu project Firebase (2026-10-21)
 - [x] **Tahap 1 — Repo app** `Arthasia-Mobile` — scaffold, jalan di HP, dokumen & skill (2026-10-21); sisa (commit awal, repo GitHub, CI, SDK Windows) dilacak di `Arthasia-Mobile/docs/phases/m0-fondasi.md`
-- [ ] **Tahap 2 — Gabung branch Mat** (`HRIS/Mat/Mac`) setelah Mat push (MOB-D10)
+- [x] **Tahap 2 — Gabung branch Mat** (`HRIS/Mat/Mac`, 9 commit s.d. `0e12481`) ke develop (MOB-D10) — urutan migrasi diuji di salinan DB, `directory.ts` lewat interface publik, verifikasi penuh ✔ (2026-10-21)
 - [x] Branch `HRIS/mobile-app` + worktree `HRIS-mobile` + DB `hris_mobile` (MOB-D16): `db:deploy` 39 migrasi, verifikasi penuh ✔ (2026-10-21)
 - [ ] **Tahap 3 — BE TM** (setelah tahap 2; di `HRIS/mobile-app`, lalu digabung ke develop)
   - [ ] OpenAPI TM & Leave bertipe (MOB-D7 #1)

@@ -11,6 +11,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-21 — Tahap 2: gabung branch Mat ke develop (Oatse)
+- **Dikerjakan:** merge `origin/HRIS/Mat/Mac` (9 commit, migrasi `20261021015324_overtime_break_wage`, `20261021042556_leave_resubmit_exit`); konflik `attendance/directory.ts` diselesaikan dengan memindah query Prisma Mat ke interface publik employee/organization; log TM digabung; dokumen induk (PROGRESS, indeks PLAN §8 TM-D2–D10, DSB-D1, MOB-D*) & codemap.
+- **Verifikasi:** urutan migrasi diuji di salinan `hris_merge_test` (`migrate deploy` menerapkan 2 migrasi Mat yang bertanggal sebelum migrasi MOB tanpa galat; DB uji dihapus); develop: `db:deploy` 2 migrasi, `db:check` tanpa selisih; typecheck ✔; biome ✔ 627 file; boundaries ✔ 0 pelanggaran (509 modul); test shared 335 · api 879 · web 309 (`--maxWorkers=3`; run paralel penuh sempat gagal 3–28 test berbeda-beda karena load average 20 — tiap file lulus saat diulang).
+- **Masalah / catatan:** `leave-exit.service.ts` (Mat) memanggil `getPrisma()` langsung dari service (aturan layer PROMPT §4) — dilaporkan, tidak diubah. Saklar `FEATURES` Mat (sub-saklar TM, `reports: true`) ikut masuk.
+- **Berikutnya:** push develop (izin) → Mat merge develop; merge develop ke `HRIS/mobile-app` → tahap 3.
+
 ### 2026-10-21 — Branch BE `HRIS/mobile-app` + worktree `HRIS-mobile` (Oatse)
 - **Dikerjakan:** branch `HRIS/mobile-app` dari develop `f99f0c9`, worktree `/mnt/winD/WORK/Magang/HRIS-mobile`, DB lokal `hris_mobile` (`.env` worktree disalin dari HRIS, DB diarahkan ke `hris_mobile`); baris branch di PROMPT §8 & RELEASE §1.
 - **Keputusan:** MOB-D16 (isi di `Arthasia-Mobile/docs/decisions.md`).

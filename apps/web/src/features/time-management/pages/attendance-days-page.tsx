@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
 import { FormSelect } from "@/components/form-select";
@@ -220,6 +220,7 @@ export function AttendanceDaysPage() {
           <div className="min-w-36 space-y-1.5">
             <DayStatusBadge status={row.original.status} />
             <LabelChips labels={row.original.labels} />
+            <BreakLine day={row.original} tz={tz} />
           </div>
         ),
       }),
@@ -248,7 +249,19 @@ export function AttendanceDaysPage() {
     <div>
       <PageHeader
         title="Data Absen Harian"
-        description="Clock In dan Clock Out disetujui satu per satu oleh Atasan dan HR. Label tidak memblokir absen — periksa foto, lokasi, dan alasan sebelum memutuskan."
+        description={
+          <>
+            Hari yang sudah absen, telat, atau diperbaiki — Clock In dan Clock Out disetujui satu
+            per satu oleh Atasan dan HR. Hari Alpha (tidak absen) ada di{" "}
+            <Link
+              to="/time/rekap?tab=alpha"
+              className="text-brand underline-offset-2 hover:underline"
+            >
+              Rekap › Alpha & pernyataan
+            </Link>{" "}
+            untuk peringatan & SP.
+          </>
+        }
         actions={
           canManual ? (
             <Button variant="outline" onClick={() => setManualOpen(true)}>
@@ -300,7 +313,7 @@ export function AttendanceDaysPage() {
                 onChange={setStatus}
                 placeholder="Semua status"
                 noneLabel="Semua status"
-                options={ATTENDANCE_DAY_STATUSES.map((s) => ({
+                options={ATTENDANCE_DAY_STATUSES.filter((s) => s !== "ALPHA").map((s) => ({
                   value: s,
                   label: ATTENDANCE_DAY_STATUS_LABELS[s],
                 }))}
@@ -428,6 +441,18 @@ function StepPill({
 }
 
 /** Satu absen dalam satu sel: foto, jam, lokasi (tautan peta), persetujuan + setujui/tolak cepat. */
+/** TM-D7: jam istirahat (absen istirahat tanpa approval sendiri; dinilai lewat label & lembur). */
+function BreakLine({ day, tz }: { day: AttendanceDay; tz: string }) {
+  const start = day.punches.find((p) => p.kind === "BREAK_START");
+  const end = day.punches.find((p) => p.kind === "BREAK_END");
+  if (!start) return null;
+  return (
+    <p className="text-muted-foreground text-[11px] tabular-nums">
+      Istirahat {timeIn(start.at, tz)}–{end ? timeIn(end.at, tz) : "…"}
+    </p>
+  );
+}
+
 function PunchCell({
   day,
   kind,
@@ -835,6 +860,7 @@ function DayDialog({
             <div className="flex flex-wrap items-center gap-2">
               <DayStatusBadge status={d.status} />
               <LabelChips labels={d.labels} />
+              <BreakLine day={d} tz={tz} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {KINDS.map((kind) => (

@@ -1,11 +1,20 @@
 import {
+  type AnalyticsEmployeeBrief,
   type EmployeeBrief,
+  type ExitedEmployeeBrief,
   getEmployeeBriefs,
+  getEmployeeExitStatuses,
   listActiveEmployeeJoinDates,
+  listAnalyticsEmployees,
   listEmployeeBriefs,
+  listExitedEmployees,
 } from "../employee/index.ts";
 import {
+  type GradeBrief,
+  getEmploymentStatusCategories,
   getWorkLocationBriefs,
+  listActiveGrades,
+  listActiveWorkLocations,
   listGeofencedWorkLocations,
   companyExists as organizationCompanyExists,
   type WorkLocationBrief,
@@ -21,6 +30,8 @@ export interface DirectoryEmployee {
   companyId: string;
   managerId: string | null;
   workLocationId: string | null;
+  /** TM-D6: grade → upah grade untuk estimasi rupiah lembur. */
+  gradeId: string | null;
   isActive: boolean;
 }
 
@@ -35,6 +46,7 @@ function toDirectory(row: EmployeeBrief): DirectoryEmployee {
     companyId: row.companyId,
     managerId: row.managerId,
     workLocationId: row.workLocationId,
+    gradeId: row.gradeId,
     isActive: row.isActive,
   };
 }
@@ -105,4 +117,56 @@ export interface GrantCandidate {
 /** Karyawan aktif resmi beserta tanggal masuk (jatah cuti 1 Januari, modul leave). */
 export function activeEmployeesForGrant(): Promise<GrantCandidate[]> {
   return listActiveEmployeeJoinDates();
+}
+
+export type DirectoryGrade = GradeBrief;
+
+/** TM-D6: semua grade aktif (tabel upah grade). */
+export function activeGrades(): Promise<DirectoryGrade[]> {
+  return listActiveGrades();
+}
+
+/** TM-D7: semua lokasi kerja aktif (pengaturan lokasi wajib absen istirahat). */
+export function activeLocations(): Promise<DirectoryLocation[]> {
+  return listActiveWorkLocations();
+}
+
+export type ExitedEmployee = ExitedEmployeeBrief;
+
+/** TM-D9: karyawan nonaktif dengan tanggal keluar (hak cuti keluar). Baca-saja. */
+export function exitedEmployees(companyIds?: string[]): Promise<ExitedEmployee[]> {
+  return listExitedEmployees(companyIds ?? null);
+}
+
+/** TM-D9: status aktif & tanggal keluar terkini per karyawan (pembatalan hak keluar bila aktif lagi). */
+export function exitStatusOf(
+  ids: string[],
+): Promise<Map<string, { isActive: boolean; endDate: Date | null }>> {
+  return getEmployeeExitStatuses(ids);
+}
+
+export interface AnalyticsEmployee extends Omit<AnalyticsEmployeeBrief, "employmentStatusId"> {
+  /** Kategori status kerja (PERMANENT, PKWT, …) — null bila status tanpa kategori. */
+  category: string | null;
+}
+
+/**
+ * DSB-D1: karyawan yang aktif pada sebagian rentang [from, to] (masuk ≤ to, belum keluar sebelum from).
+ * Baca-saja. `withBirthDate` = pemanggil berhak atas data pribadi (proyeksi pensiun).
+ */
+export async function analyticsEmployees(input: {
+  companyIds?: string[] | undefined;
+  managerId?: string | undefined;
+  from: Date;
+  to: Date;
+  withBirthDate: boolean;
+}): Promise<AnalyticsEmployee[]> {
+  const rows = await listAnalyticsEmployees(input);
+  const categories = await getEmploymentStatusCategories(
+    rows.flatMap((row) => (row.employmentStatusId ? [row.employmentStatusId] : [])),
+  );
+  return rows.map(({ employmentStatusId, ...row }) => ({
+    ...row,
+    category: employmentStatusId ? (categories.get(employmentStatusId) ?? null) : null,
+  }));
 }

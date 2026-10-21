@@ -2,6 +2,7 @@ import { expandRosterShorthand, OFF_CODE } from "@hris/shared";
 import {
   Archive,
   CalendarCog,
+  LayoutTemplate,
   Pencil,
   Plus,
   Search,
@@ -33,6 +34,7 @@ import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { useCrews, usePatterns, useRosterMaster, useSetCrewMembers, useShifts } from "../api";
 import { hhmm, parseHhmm, todayIn, workDateLabel } from "../components/display";
+import { useApplyRosterTemplate } from "../overtime-api";
 import type { Crew, Pattern, Shift } from "../schemas";
 import { useRosterCompany } from "./roster-page";
 
@@ -107,10 +109,14 @@ function ShiftTab({ companyId }: { companyId: string }) {
   const shifts = useShifts(companyId);
   const { archive } = useRosterMaster("shifts");
   const [editing, setEditing] = useState<Shift | "new" | null>(null);
+  const [template, setTemplate] = useState(false);
   const list = (shifts.data ?? []).filter((s) => !s.archived);
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={() => setTemplate(true)}>
+          <LayoutTemplate /> Pakai template JT
+        </Button>
         <Button variant="brand" onClick={() => setEditing("new")}>
           <Plus /> Tambah shift
         </Button>
@@ -174,10 +180,23 @@ function ShiftTab({ companyId }: { companyId: string }) {
                 mnt · pulang cepat &gt; {s.earlyLeaveToleranceMin} mnt · absen pulang ditutup{" "}
                 {s.checkOutCloseMin} mnt setelah selesai
               </p>
+              {s.breakMin || s.regularOvertimeMin ? (
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {s.breakMin
+                    ? `Istirahat ${s.breakMin} mnt${s.breakPaid ? " (dibayar)" : ""}`
+                    : "Tanpa jatah istirahat"}
+                  {s.regularOvertimeMin
+                    ? ` · lembur rutin ${s.regularOvertimeMin} mnt di akhir shift`
+                    : ""}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
       )}
+      {template ? (
+        <TemplateDialog companyId={companyId} onClose={() => setTemplate(false)} />
+      ) : null}
       {editing ? (
         <ShiftDialog
           companyId={companyId}
@@ -186,6 +205,85 @@ function ShiftTab({ companyId }: { companyId: string }) {
         />
       ) : null}
     </div>
+  );
+}
+
+/** TM-D8: pasang template JT — 3 shift × 8 jam (7j + 1j lembur rutin), pola 6+1 rotasi mingguan. */
+function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: () => void }) {
+  const master = useMasterData();
+  const apply = useApplyRosterTemplate();
+  const [workLocationId, setWorkLocationId] = useState("");
+  const [start, setStart] = useState(todayIn("Asia/Jakarta"));
+  const submit = async () => {
+    try {
+      const out = await apply.mutateAsync({
+        template: "JT",
+        companyId,
+        workLocationId: workLocationId || null,
+        cycleStartDate: start,
+      });
+      toast.success(
+        `Template JT terpasang: shift ${out.shifts.map((s) => s.code).join(", ")}${
+          out.crews.length ? ` + ${out.crews.length} crew` : ""
+        }.`,
+      );
+      onClose();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Template JT (Jetty & Loading team)</DialogTitle>
+          <DialogDescription>
+            Membuat shift JTP 07–15, JTS 15–23, JTM 23–07 (7 jam normal + 1 jam lembur rutin,
+            istirahat 60 mnt dibayar), pola 6 kerja + 1 OFF dengan rotasi Pagi → Sore → Malam tiap
+            minggu (siklus 21 hari). Hari ke-6 (5 jam) diatur sendiri di Roster Bulanan.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <Field
+            label="Lokasi kerja crew (opsional)"
+            hint="Diisi = dibuat JT Crew A/B/C; pada tanggal mulai A Pagi, B Sore, C Malam."
+          >
+            <FormSelect
+              aria-label="Lokasi kerja"
+              value={workLocationId}
+              onChange={setWorkLocationId}
+              placeholder="Tanpa crew"
+              options={[
+                { value: "", label: "Tanpa crew (shift & pola saja)" },
+                ...(master.data?.workLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
+              ]}
+            />
+          </Field>
+          <Field label="Tanggal mulai siklus">
+            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          </Field>
+          {workLocationId ? (
+            <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+              Catatan: dengan 3 crew, hari OFF ketiganya jatuh di tanggal yang sama (tiap hari
+              ke-7), sehingga hari itu tidak ada yang berjaga. Atur crew pengganti atau ubah sel
+              roster hari OFF bila operasi harus 24 jam penuh.
+            </p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button
+            variant="brand"
+            disabled={apply.isPending || !start}
+            onClick={() => void submit()}
+          >
+            Pasang template
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -208,6 +306,9 @@ function ShiftDialog({
     lateToleranceMin: shift?.lateToleranceMin ?? 15,
     earlyLeaveToleranceMin: shift?.earlyLeaveToleranceMin ?? 15,
     checkOutCloseMin: shift?.checkOutCloseMin ?? 240,
+    breakMin: shift?.breakMin ?? 0,
+    breakPaid: shift?.breakPaid ?? false,
+    regularOvertimeMin: shift?.regularOvertimeMin ?? 0,
     color: shift?.color ?? "#0f766e",
   });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
@@ -232,6 +333,9 @@ function ShiftDialog({
           lateToleranceMin: Number(form.lateToleranceMin),
           earlyLeaveToleranceMin: Number(form.earlyLeaveToleranceMin),
           checkOutCloseMin: Number(form.checkOutCloseMin),
+          breakMin: Number(form.breakMin),
+          breakPaid: form.breakPaid,
+          regularOvertimeMin: Number(form.regularOvertimeMin),
           color: form.color || null,
         },
       });
@@ -242,7 +346,13 @@ function ShiftDialog({
     }
   };
   const num = (
-    k: "checkInOpenMin" | "lateToleranceMin" | "earlyLeaveToleranceMin" | "checkOutCloseMin",
+    k:
+      | "checkInOpenMin"
+      | "lateToleranceMin"
+      | "earlyLeaveToleranceMin"
+      | "checkOutCloseMin"
+      | "breakMin"
+      | "regularOvertimeMin",
   ) => (
     <Input type="number" min={0} value={form[k]} onChange={(e) => set(k, Number(e.target.value))} />
   );
@@ -276,6 +386,30 @@ function ShiftDialog({
           <Field label="Toleransi telat (mnt)">{num("lateToleranceMin")}</Field>
           <Field label="Toleransi pulang cepat (mnt)">{num("earlyLeaveToleranceMin")}</Field>
           <Field label="Absen pulang ditutup (mnt setelah)">{num("checkOutCloseMin")}</Field>
+          <Field
+            label="Jatah istirahat (mnt)"
+            hint="Istirahat lebih dari ini mengurangi lembur hari itu."
+          >
+            {num("breakMin")}
+          </Field>
+          <Field
+            label="Lembur rutin (mnt di akhir shift)"
+            hint="Mis. JT: 60 = jam terakhir shift adalah lembur rutin."
+          >
+            {num("regularOvertimeMin")}
+          </Field>
+          <label className="col-span-2 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4"
+              checked={form.breakPaid}
+              onChange={(e) => set("breakPaid", e.target.checked)}
+            />
+            <span>
+              Istirahat dibayar (termasuk jam kerja, mis. operasi nonstop JT). Tidak dicentang =
+              istirahat dipotong dari jam kerja.
+            </span>
+          </label>
           <Field label="Warna">
             <Input
               type="color"

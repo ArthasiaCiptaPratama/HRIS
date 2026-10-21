@@ -36,3 +36,27 @@ export async function listGeofencedWorkLocations(): Promise<WorkLocationBrief[]>
 export async function companyExists(companyId: string): Promise<boolean> {
   return (await repository.countCompaniesById(companyId)) > 0;
 }
+
+/** TM-D7: semua lokasi kerja aktif (pengaturan lokasi wajib absen istirahat). */
+export async function listActiveWorkLocations(): Promise<WorkLocationBrief[]> {
+  return (await repository.findActiveWorkLocations()).map(toBrief);
+}
+
+export interface GradeBrief {
+  id: string;
+  name: string;
+}
+
+/** TM-D6: semua grade aktif (tabel upah grade). */
+export function listActiveGrades(): Promise<GradeBrief[]> {
+  return repository.findActiveGrades();
+}
+
+/** Kategori status kerja per id (PERMANENT, PKWT, …); null = status tanpa kategori. */
+export async function getEmploymentStatusCategories(
+  ids: string[],
+): Promise<Map<string, string | null>> {
+  if (ids.length === 0) return new Map();
+  const rows = await repository.findEmploymentStatusCategories([...new Set(ids)]);
+  return new Map(rows.map((row) => [row.id, row.category ?? null]));
+}

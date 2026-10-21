@@ -16,15 +16,32 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  COST_INSIGHTS,
   DASHBOARD_LAYOUT_VERSION,
+  DASHBOARD_SECTION_LABELS,
+  DASHBOARD_SECTIONS,
+  type DashboardSection,
   type DashboardWidget,
   DEFAULT_DASHBOARD_LAYOUT,
+  fitWidgetToSize,
+  INSIGHT_LABELS,
+  orderBySection,
   type PivotWidget,
   type ShortcutsWidget,
   STAT_METRIC_LABELS,
   type WidgetSize,
+  widgetSection,
 } from "@hris/shared";
-import { Check, LayoutGrid, Loader2, Lock, Plus, RotateCcw, Sparkles } from "lucide-react";
+import {
+  ChartNoAxesCombined,
+  Check,
+  LayoutGrid,
+  Loader2,
+  Lock,
+  Plus,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,15 +52,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Me } from "@/features/auth/schemas";
+import { access } from "@/lib/access";
 import { cn } from "@/lib/utils";
+import { AnalyticsPeriodContext, currentMonth, usesAnalytics } from "./analytics";
 import { useDashboardLayout, useSaveDashboardLayout } from "./api";
+import { InsightWidgetCard } from "./insight-widgets";
 import { CHART_ICONS, describePivot, PivotWidgetCard } from "./pivot-widget";
 import { ShortcutsWidgetCard, StatWidgetCard } from "./simple-widgets";
 import {
+  ANALYTICS_STAT_TEMPLATES,
   BLANK_PIVOT,
+  INSIGHT_TEMPLATES,
   PIVOT_TEMPLATES,
   SHORTCUTS_TEMPLATE,
   STAT_TEMPLATES,
@@ -72,9 +95,18 @@ function WidgetView({
   me: Me;
   dragHandle?: DragHandleProps | undefined;
 }) {
-  if (widget.kind === "stat") return <StatWidgetCard widget={widget} dragHandle={dragHandle} />;
+  if (widget.kind === "stat")
+    return <StatWidgetCard widget={widget} me={me} dragHandle={dragHandle} />;
   if (widget.kind === "shortcuts")
     return <ShortcutsWidgetCard widget={widget} me={me} dragHandle={dragHandle} />;
+  if (widget.kind === "insight")
+    return (
+      <InsightWidgetCard
+        widget={widget}
+        canSeeCost={access.viewLaborCost(me)}
+        dragHandle={dragHandle}
+      />
+    );
   return <PivotWidgetCard widget={widget} dragHandle={dragHandle} />;
 }
 
@@ -94,7 +126,8 @@ function SortableWidget({
   return (
     <div
       ref={setNodeRef}
-      className={cn(SPAN[widget.size], "min-w-0", isDragging && "z-10 opacity-80")}
+      // empty:hidden — widget rupiah tanpa grant "Biaya" tidak dirender; selnya ikut hilang.
+      className={cn(SPAN[widget.size], "min-w-0 empty:hidden", isDragging && "z-10 opacity-80")}
       style={{ transform: CSS.Translate.toString(transform), transition }}
     >
       <WidgetView widget={widget} me={me} dragHandle={{ ...attributes, ...listeners }} />
@@ -114,6 +147,7 @@ function CatalogDialog({
   onClose: () => void;
 }) {
   const personal = canUsePersonalDimensions(me);
+  const canSeeCost = access.viewLaborCost(me);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -164,6 +198,47 @@ function CatalogDialog({
                     </span>
                     <span className="text-muted-foreground block truncate text-xs">
                       {locked ? "Butuh grant baca data pribadi" : describePivot(template)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            Analitik SDM & biaya
+          </h4>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[...ANALYTICS_STAT_TEMPLATES, ...INSIGHT_TEMPLATES].map((template) => {
+              const cost =
+                template.kind === "insight"
+                  ? COST_INSIGHTS.includes(template.insight)
+                  : template.metric === "liability";
+              const locked = cost && !canSeeCost;
+              return (
+                <button
+                  key={template.id}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => onPick(template)}
+                  className="hover:bg-accent flex items-start gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ChartNoAxesCombined className="text-brand mt-0.5 size-4 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      {template.kind === "insight"
+                        ? INSIGHT_LABELS[template.insight]
+                        : STAT_METRIC_LABELS[template.metric]}
+                      {locked && <Lock className="size-3" />}
+                    </span>
+                    <span className="text-muted-foreground block truncate text-xs">
+                      {locked
+                        ? "Butuh izin Biaya"
+                        : template.kind === "insight"
+                          ? "Grafik & tabel analitik per periode"
+                          : "Angka ringkas per periode"}
                     </span>
                   </span>
                 </button>
@@ -245,11 +320,14 @@ export function DashboardBoard({ me }: { me: Me }) {
     isNew: boolean;
   } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // DSB-D1: satu periode (bulan) untuk semua widget analitik; bawaan bulan berjalan (Asia/Jakarta).
+  const [month, setMonth] = useState(currentMonth);
+  const period = useMemo(() => ({ month }), [month]);
 
   // Susunan dari server dipakai sekali saat dimuat; setelahnya state lokal yang jadi sumber.
   useEffect(() => {
     if (widgets === null && layoutQuery.isSuccess) {
-      setWidgets((layoutQuery.data.layout ?? DEFAULT_DASHBOARD_LAYOUT).widgets);
+      setWidgets(orderBySection((layoutQuery.data.layout ?? DEFAULT_DASHBOARD_LAYOUT).widgets));
     }
     if (widgets === null && layoutQuery.isError) setWidgets(DEFAULT_DASHBOARD_LAYOUT.widgets);
   }, [widgets, layoutQuery.isSuccess, layoutQuery.isError, layoutQuery.data]);
@@ -275,7 +353,8 @@ export function DashboardBoard({ me }: { me: Me }) {
     const ids = list.map((w) => w.id);
     return {
       editing,
-      update: (widget) => persist(list.map((w) => (w.id === widget.id ? widget : w))),
+      update: (widget) =>
+        persist(list.map((w) => (w.id === widget.id ? fitWidgetToSize(widget) : w))),
       remove: (id) => {
         const removed = list.find((w) => w.id === id);
         persist(list.filter((w) => w.id !== id));
@@ -290,7 +369,7 @@ export function DashboardBoard({ me }: { me: Me }) {
         const source = list[index];
         if (!source) return;
         const copy = withNewId(
-          source.kind === "stat"
+          source.kind === "stat" || source.kind === "insight"
             ? source
             : { ...source, title: `${source.title} (salinan)`.slice(0, 80) },
           ids,
@@ -299,7 +378,8 @@ export function DashboardBoard({ me }: { me: Me }) {
       },
       edit: (id) => {
         const widget = list.find((w) => w.id === id);
-        if (widget && widget.kind !== "stat") setEditor({ widget, isNew: false });
+        if (widget && (widget.kind === "pivot" || widget.kind === "shortcuts"))
+          setEditor({ widget, isNew: false });
       },
     };
   }, [widgets, editing, persist]);
@@ -321,12 +401,20 @@ export function DashboardBoard({ me }: { me: Me }) {
     );
   }
 
-  const onDragEnd = (event: DragEndEvent) => {
+  // Pindah hanya di dalam section: tiap section punya DndContext sendiri, urutan section tetap.
+  const onDragEnd = (section: DashboardSection) => (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const from = widgets.findIndex((w) => w.id === active.id);
-    const to = widgets.findIndex((w) => w.id === over.id);
-    persist(arrayMove(widgets, from, to));
+    const items = widgets.filter((w) => widgetSection(w) === section);
+    const from = items.findIndex((w) => w.id === active.id);
+    const to = items.findIndex((w) => w.id === over.id);
+    if (from < 0 || to < 0) return;
+    const moved = arrayMove(items, from, to);
+    persist(
+      DASHBOARD_SECTIONS.flatMap((s) =>
+        s === section ? moved : widgets.filter((w) => widgetSection(w) === s),
+      ),
+    );
   };
 
   const add = (widget: DashboardWidget) => {
@@ -334,97 +422,145 @@ export function DashboardBoard({ me }: { me: Me }) {
       widget,
       widgets.map((w) => w.id),
     );
-    persist([...widgets, placed]);
-    toast.success("Widget ditambahkan di bagian bawah dashboard.");
+    persist(orderBySection([...widgets, placed]));
+    toast.success(
+      `Widget ditambahkan di section ${DASHBOARD_SECTION_LABELS[widgetSection(placed)]}.`,
+    );
   };
+
+  const showPeriod = widgets.some(usesAnalytics);
 
   return (
     <BoardContext value={actions}>
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-        <span
-          className="text-muted-foreground mr-auto flex items-center gap-1.5 text-xs"
-          aria-live="polite"
-        >
-          {save.isPending ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" /> Menyimpan susunan…
-            </>
-          ) : editing ? (
-            "Geser ⠿ untuk memindahkan, ⋯ untuk ukuran & hapus. Perubahan tersimpan otomatis."
-          ) : null}
-        </span>
-        {editing && (
-          <ResetButton
-            onReset={() => {
-              clearTimeout(timer.current);
-              setWidgets(DEFAULT_DASHBOARD_LAYOUT.widgets);
-              save.mutate(null, {
-                onSuccess: () => toast.success("Dashboard dikembalikan ke susunan bawaan."),
-                onError: () => toast.error("Gagal mereset dashboard."),
-              });
+      <AnalyticsPeriodContext value={period}>
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          <span
+            className="text-muted-foreground mr-auto flex items-center gap-1.5 text-xs"
+            aria-live="polite"
+          >
+            {save.isPending ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Menyimpan susunan…
+              </>
+            ) : editing ? (
+              "Geser ⠿ untuk memindahkan, ⋯ untuk ukuran & hapus. Perubahan tersimpan otomatis."
+            ) : null}
+          </span>
+          {editing && (
+            <ResetButton
+              onReset={() => {
+                clearTimeout(timer.current);
+                setWidgets(DEFAULT_DASHBOARD_LAYOUT.widgets);
+                save.mutate(null, {
+                  onSuccess: () => toast.success("Dashboard dikembalikan ke susunan bawaan."),
+                  onError: () => toast.error("Gagal mereset dashboard."),
+                });
+              }}
+            />
+          )}
+          {showPeriod && (
+            <div className="text-muted-foreground flex items-center gap-2 text-xs">
+              <label htmlFor="dashboard-period">Periode analitik</label>
+              <Input
+                id="dashboard-period"
+                type="month"
+                className="h-8 w-40 text-xs"
+                value={month}
+                max={currentMonth()}
+                onChange={(e) => e.target.value && setMonth(e.target.value)}
+              />
+            </div>
+          )}
+          <Button variant="outline" size="sm" onClick={() => setCatalog(true)}>
+            <Plus /> Tambah widget
+          </Button>
+          <Button
+            variant={editing ? "brand" : "outline"}
+            size="sm"
+            aria-pressed={editing}
+            onClick={() => setEditing((v) => !v)}
+          >
+            {editing ? <Check /> : <LayoutGrid />}
+            {editing ? "Selesai" : "Atur dashboard"}
+          </Button>
+        </div>
+
+        <div className="space-y-4">
+          {DASHBOARD_SECTIONS.map((section) => {
+            const items = widgets.filter((w) => widgetSection(w) === section);
+            if (items.length === 0 && !editing) return null;
+            return (
+              <section
+                key={section}
+                aria-label={DASHBOARD_SECTION_LABELS[section]}
+                className={cn(editing && "rounded-2xl border border-dashed p-3 pt-2")}
+              >
+                {editing ? (
+                  <p className="text-muted-foreground mb-2 text-xs font-medium">
+                    {DASHBOARD_SECTION_LABELS[section]}
+                    <span className="font-normal"> · hanya bisa digeser di section ini</span>
+                  </p>
+                ) : null}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={onDragEnd(section)}
+                >
+                  <SortableContext items={items.map((w) => w.id)} strategy={rectSortingStrategy}>
+                    <div className="grid grid-flow-row-dense grid-cols-2 gap-4 lg:grid-cols-4">
+                      {items.map((widget) => (
+                        <SortableWidget key={widget.id} widget={widget} me={me} editing={editing} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+                {editing && items.length === 0 ? (
+                  <p className="text-muted-foreground py-4 text-center text-xs">
+                    Belum ada widget di section ini.
+                  </p>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+
+        {widgets.length === 0 && (
+          <div className="text-muted-foreground rounded-2xl border border-dashed py-16 text-center text-sm">
+            Dashboard kosong. Klik <b>Tambah widget</b> untuk mulai.
+          </div>
+        )}
+
+        {catalog && (
+          <CatalogDialog
+            me={me}
+            onClose={() => setCatalog(false)}
+            onCreate={() => {
+              setCatalog(false);
+              setEditor({ widget: BLANK_PIVOT, isNew: true });
+            }}
+            onPick={(widget) => {
+              setCatalog(false);
+              // Menu Cepat dibuka di editor dulu (pilih menu); template grafik langsung ditambahkan.
+              if (widget.kind === "shortcuts") setEditor({ widget, isNew: true });
+              else add(widget);
             }}
           />
         )}
-        <Button variant="outline" size="sm" onClick={() => setCatalog(true)}>
-          <Plus /> Tambah widget
-        </Button>
-        <Button
-          variant={editing ? "brand" : "outline"}
-          size="sm"
-          aria-pressed={editing}
-          onClick={() => setEditing((v) => !v)}
-        >
-          {editing ? <Check /> : <LayoutGrid />}
-          {editing ? "Selesai" : "Atur dashboard"}
-        </Button>
-      </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-flow-row-dense grid-cols-2 gap-4 lg:grid-cols-4">
-            {widgets.map((widget) => (
-              <SortableWidget key={widget.id} widget={widget} me={me} editing={editing} />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-
-      {widgets.length === 0 && (
-        <div className="text-muted-foreground rounded-2xl border border-dashed py-16 text-center text-sm">
-          Dashboard kosong. Klik <b>Tambah widget</b> untuk mulai.
-        </div>
-      )}
-
-      {catalog && (
-        <CatalogDialog
-          me={me}
-          onClose={() => setCatalog(false)}
-          onCreate={() => {
-            setCatalog(false);
-            setEditor({ widget: BLANK_PIVOT, isNew: true });
-          }}
-          onPick={(widget) => {
-            setCatalog(false);
-            // Menu Cepat dibuka di editor dulu (pilih menu); template grafik langsung ditambahkan.
-            if (widget.kind === "shortcuts") setEditor({ widget, isNew: true });
-            else add(widget);
-          }}
-        />
-      )}
-
-      {editor && (
-        <WidgetEditorDialog
-          initial={editor.widget}
-          me={me}
-          isNew={editor.isNew}
-          onClose={() => setEditor(null)}
-          onSave={(widget) => {
-            if (editor.isNew) add(widget);
-            else actions.update(widget);
-            setEditor(null);
-          }}
-        />
-      )}
+        {editor && (
+          <WidgetEditorDialog
+            initial={editor.widget}
+            me={me}
+            isNew={editor.isNew}
+            onClose={() => setEditor(null)}
+            onSave={(widget) => {
+              if (editor.isNew) add(fitWidgetToSize(widget));
+              else actions.update(widget);
+              setEditor(null);
+            }}
+          />
+        )}
+      </AnalyticsPeriodContext>
     </BoardContext>
   );
 }

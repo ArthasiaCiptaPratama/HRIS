@@ -31,6 +31,19 @@ export type ApprovalHandler = (
 
 const handlers = new Map<ApprovalSubject, ApprovalHandler>();
 
+/**
+ * Pemeriksaan tambahan sebelum keputusan (mis. TM-D6: lembur melewati batas PP 35/2021 wajib alasan).
+ * Melempar error = keputusan dibatalkan. Satu guard per jenis subjek.
+ */
+export type ApprovalGuard = (
+  tx: ApprovalTx,
+  input: { subjectId: string; decision: "APPROVED" | "REJECTED"; note: string | null },
+) => Promise<void>;
+const guards = new Map<ApprovalSubject, ApprovalGuard>();
+export function registerApprovalGuard(subject: ApprovalSubject, guard: ApprovalGuard) {
+  guards.set(subject, guard);
+}
+
 /** Dipanggil modul pemilik subjek saat wiring (app.ts). Satu handler per jenis subjek. */
 export function registerApprovalHandler(subject: ApprovalSubject, handler: ApprovalHandler) {
   handlers.set(subject, handler);
@@ -169,6 +182,11 @@ async function decideInTx(
   // Tidak berhak sama sekali → sama dengan tidak ada (tidak membocorkan keberadaan).
   if (!anyRight && !policy.canViewApproval(ctx.actor, row)) throw new NotFoundError();
   if (row.status !== "PENDING") throw new ConflictError("Pengajuan ini sudah diputuskan.");
+  await guards.get(row.subjectType as ApprovalSubject)?.(tx, {
+    subjectId: row.subjectId,
+    decision: body.decision,
+    note: body.note ?? null,
+  });
 
   // Pemisahan tugas: akun yang sudah memutuskan satu langkah tidak memutuskan langkah lain.
   if (row.steps.some((step) => step.decidedByAccountId === ctx.actor.accountId)) {

@@ -16,12 +16,12 @@
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
 | [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ staging gel. 9 (QA LEGIT); Laporan batch 2 (ARS-D21) ✔ staging gel. 12 2026-10-20 (QA staging 17/17 LEGIT); sisa OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT), gel. 9 Laporan, gel. 12 Laporan batch 2 |
-| [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
-| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; Alpha harian, koreksi 3 hari, notifikasi TM, aturan izin, beranda HP ✔ develop 2026-10-20 (merge `69b20a5`); adapter `directory.ts` & cron `vercel.json` ✔ develop 2026-10-21; sisa: lembur OD-14, uji HP | terpasang tersembunyi (gel. 7, 8, 12; saklar `false`) |
+| [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065); analitik SDM & biaya DSB-D1 ✔ develop 2026-10-21 (merge Mat) | ✔ gel. 3 |
+| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; Alpha harian, koreksi 3 hari, notifikasi TM, aturan izin, beranda HP ✔ develop 2026-10-20 (merge `69b20a5`); adapter `directory.ts` & cron `vercel.json` ✔ develop 2026-10-21; lembur/istirahat/upah grade TM-D6–D8, cuti TM-D9/D10, saklar per fitur ✔ develop 2026-10-21 (merge Mat); sisa: lembur OD-14, uji HP | terpasang tersembunyi (gel. 7, 8, 12; saklar `false`) |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
-| [mobile](features/mobile/README.md) | – | Oatse | repo app terpisah; BE `HRIS/Oatse/Linux-Windows` | Belum mulai — analisis BE 2026-10-21 (siap dengan celah), menunggu grill | – |
+| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — grill MOB-D1–D16; BE tahap 1 (versi minimum, push FCM) ✔ develop `f99f0c9`; app M0 ✔ (scaffold jalan di HP, dokumen + skill, repo private, CI ✔); berikutnya tahap 3 (OpenAPI TM bertipe dll.) | – |
 
 Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan, import, onboarding, arsip, dashboard · 5–6 time-management · 7 kontrak · 8 payroll · 9 hardening · Rilis 1–3 → [RELEASE.md](RELEASE.md).
 
@@ -64,7 +64,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 | OD-11 | Masa simpan data karyawan keluar (UU PDP)    | Rilis Arsip gel. 1 | Menunggu keputusan (usulan: kepegawaian & pajak 10 thn, identitas/kesehatan 5 thn) |
 | OD-12 | Repo GitHub ternyata PUBLIC (2026-10-12; 2026-09-28 masih private) | Rilis 1 | Menunggu keputusan pemilik organisasi (usulan: kembalikan private) |
 | OD-13 | Format file Excel roster dari site (D-069) | Tahap B import roster | Menunggu keputusan (nomor awal OD-12 di branch Mat; import sementara mengenali dua bentuk umum) |
-| OD-14 | Lembur: otomatis dari absen vs shift, atau pengajuan | Tahap F | Menunggu keputusan (nomor awal OD-13; usulan: pengajuan + usulan jam otomatis) |
+| OD-14 | Lembur: otomatis dari absen vs shift, atau pengajuan | Tahap F | Terjawab → TM-D6 (2026-10-21: usulan otomatis + Atasan & HR) |
 | OD-15 | Batas waktu approval absen & pengingat (D-068) | Tahap D | Menunggu keputusan (nomor awal OD-14; sementara pengaturan 2 hari) |
 | EMP-OD1 | Tempat layanan konversi PDF (Gotenberg) staging/produksi untuk Formulir Aplikasi (EMP-D1) | Rilis Formulir Aplikasi | Gugur → EMP-D3 (2026-10-19) |
 | EMP-OD2 | Template dinamis (HR ganti desain formulir sendiri) vs posisi isian tetap di kode untuk Print data PDF & surat lain | Ganti desain formulir tanpa developer | Menunggu instruksi (sementara posisi tetap) |
@@ -94,7 +94,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 - Aktifkan *Leaked Password Protection* Supabase Auth bila tersedia di paket (advisor WARN, dari tugas deploy Vercel 2026-09-29)
 - **(2026-10-15, dari audit Surat Peringatan)** Helper `todayInJakarta` / `isUniqueViolation` (P2002) terduplikasi ±7 kali di modul `asset`, `discipline`, `employee`, `leave`, `attendance` → satukan di `core/` (mis. `core/dates.ts`, `core/prisma-errors.ts`); cron `discipline-daily` lalu tidak perlu mengimpor `discipline.service.ts`.
 - **(2026-10-16, dari Laporan batch 1, ARS-D18)** Penanda lokasi **site** (mis. kolom jenis lokasi kerja) agar dokumen wajib lingkup `SITE` bisa dihitung di laporan Kelengkapan; snapshot historis unit/status untuk headcount per periode; riwayat keluar yang tetap tercatat saat karyawan diaktifkan kembali.
-- Aplikasi mobile (projek terpisah, memakai API yang sama) → mulai dibahas 2026-10-21: [features/mobile](features/mobile/README.md)
+- ~~Aplikasi mobile~~ → berjalan sejak 2026-10-21: [features/mobile](features/mobile/README.md) (app: repo `Arthasia-Mobile`)
 - MFA untuk SUPER_ADMIN/HR_ADMIN
 - Notifikasi WhatsApp
 - Pencocokan wajah pada selfie absensi
@@ -110,6 +110,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-21** — Gabung `HRIS/Mat/Mac` (9 commit: lembur/istirahat/upah grade TM-D6–D8, cuti TM-D9/D10, dashboard analitik DSB-D1, saklar per fitur TM); fungsi baru Mat di `attendance/directory.ts` dipindah ke interface publik employee/organization; mobile: grill MOB-D1–D16, BE tahap 1, app M0 ✔, branch `HRIS/mobile-app`. (Oatse) → [time-management/log](features/time-management/log.md), [mobile/log](features/mobile/log.md)
 - **2026-10-21** — Analisis kesiapan BE untuk app Flutter (siap dengan celah: OpenAPI TM/Leave belum bertipe, push, cek versi, anti-kecurangan) + Android SDK Windows belum terpasang; folder fitur `mobile` (MOB). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-10-21** — TM: adapter `attendance/directory.ts` lewat interface publik employee/organization (tanpa Prisma) + 5 cron TM di `vercel.json`; shared 268 · api 840 · web 290. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-20** — Rilis gel. 12 ke staging: Laporan batch 2 + gabungan TM Mat tersembunyi (PR #59/#60, Deploy #39390300300, migrasi 38). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)

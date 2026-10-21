@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { FormSelect } from "@/components/form-select";
@@ -484,6 +485,8 @@ function downloadCsv(month: string, rows: RecapRow[]) {
 }
 
 export function RecapPage() {
+  // Tautan dari Data Absen Harian: ?tab=alpha langsung membuka daftar Alpha (peringatan & SP).
+  const tabParam = new URLSearchParams(useLocation().search).get("tab");
   const { companies, companyId, setCompanyId } = useRosterCompany();
   const [month, setMonth] = useState(previousMonth);
   const recap = useRecap(companyId || undefined, month);
@@ -540,7 +543,7 @@ export function RecapPage() {
           )
         ) : null}
       </div>
-      <Tabs defaultValue="recap">
+      <Tabs defaultValue={tabParam === "alpha" ? "alpha" : "recap"}>
         <TabsList>
           <TabsTrigger value="recap">Rekap</TabsTrigger>
           <TabsTrigger value="alpha">Alpha & pernyataan</TabsTrigger>

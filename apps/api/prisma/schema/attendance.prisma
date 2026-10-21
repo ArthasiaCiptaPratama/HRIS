@@ -54,6 +54,11 @@ model Shift {
   lateToleranceMin       Int       @default(15) @map("late_tolerance_min") @db.SmallInt
   earlyLeaveToleranceMin Int       @default(15) @map("early_leave_tolerance_min") @db.SmallInt
   checkOutCloseMin       Int       @default(240) @map("check_out_close_min") @db.SmallInt
+  /// TM-D7: jatah istirahat (menit) & apakah istirahat termasuk jam kerja dibayar (JT: ya).
+  breakMin               Int       @default(0) @map("break_min") @db.SmallInt
+  breakPaid              Boolean   @default(false) @map("break_paid")
+  /// TM-D6: menit terakhir shift yang merupakan lembur rutin (JT: 60) — disetujui lewat approval absen harian.
+  regularOvertimeMin     Int       @default(0) @map("regular_overtime_min") @db.SmallInt
   color                  String?   @db.VarChar(9)
   deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -241,6 +246,9 @@ model AttendanceDay {
 enum PunchKind {
   IN
   OUT
+  // TM-D7: absen istirahat (sekali per hari; tanpa approval sendiri, dilihat pemutus di hari absen).
+  BREAK_START
+  BREAK_END
 
   @@schema("attendance")
 }
@@ -366,5 +374,83 @@ model AttendanceCorrection {
   @@index([employeeId, workDate])
   @@index([companyId, status])
   @@map("attendance_corrections")
+  @@schema("attendance")
+}
+
+// ── TM-D6: lembur & upah grade ──────────────────────────────────────────────────
+
+/// Upah per grade (pokok + tunjangan tetap) untuk estimasi rupiah lembur, kompensasi & labor cost (bukan
+/// gaji per orang; payroll Fase 8 menggantinya). Ditulis SA; dibaca SA + HR ber-grant labor.cost.read.
+/// grade_id = organization.grades.id tanpa relasi Prisma (skema organization tidak disentuh).
+model GradeWage {
+  gradeId            String   @id @map("grade_id") @db.Uuid
+  basePay            Decimal  @map("base_pay") @db.Decimal(14, 2)
+  fixedAllowance     Decimal  @default(0) @map("fixed_allowance") @db.Decimal(14, 2)
+  updatedByAccountId String   @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("grade_wages")
+  @@schema("attendance")
+}
+
+enum OvertimeDayType {
+  WORKDAY // hari kerja roster
+  OFF_DAY // hari OFF rotasi / tanpa roster — tarif lembur biasa (TM-D6, risiko diterima)
+  HOLIDAY // tanggal merah nasional — seluruh jam tarif libur
+
+  @@schema("attendance")
+}
+
+enum OvertimeFormula {
+  SIX_DAY
+  FIVE_DAY
+
+  @@schema("attendance")
+}
+
+enum OvertimeStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+/// Usulan lembur otomatis per hari absen (TM-D6): kelebihan jam di luar jadwal (termasuk datang awal)
+/// setelah dikurangi utang menit; diputuskan Atasan + HR paralel. Lembur rutin shift tidak di sini (ikut
+/// approval absen harian) tetapi dicatat sebagai snapshot supaya urutan pengali benar.
+model OvertimeRequest {
+  id                String          @id @default(uuid()) @db.Uuid
+  dayId             String          @unique @map("day_id") @db.Uuid
+  employeeId        String          @map("employee_id") @db.Uuid
+  companyId         String          @map("company_id") @db.Uuid
+  managerEmployeeId String?         @map("manager_employee_id") @db.Uuid
+  workDate          DateTime        @map("work_date") @db.Date
+  dayType           OvertimeDayType @map("day_type")
+  formula           OvertimeFormula
+  /// Menit di luar jadwal sebelum pengurangan (datang awal + pulang lewat; hari OFF/libur = seluruh jam kerja).
+  rawMin            Int             @map("raw_min")
+  earlyMin          Int             @default(0) @map("early_min")
+  /// Utang menit hari itu (telat + istirahat lebih).
+  debtMin           Int             @map("debt_min")
+  /// Lembur rutin riil hari itu (sudah termasuk jadwal shift).
+  regularMin        Int             @map("regular_min")
+  /// Menit lembur tambahan yang diusulkan (setelah aturan ≥ 60 menit & pembulatan ke atas per 30 menit).
+  proposedMin       Int             @map("proposed_min")
+  /// Jam setara bagian tambahan (pengali dilanjutkan setelah lembur rutin).
+  equivalentHours   Decimal         @map("equivalent_hours") @db.Decimal(6, 2)
+  /// OVER_DAY_LIMIT / OVER_WEEK_LIMIT (PP 35/2021) → alasan wajib dari pemutus.
+  flags             String[]        @db.VarChar(20)
+  status            OvertimeStatus  @default(PENDING)
+  decidedAt         DateTime?       @map("decided_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, workDate])
+  @@index([companyId, workDate])
+  @@index([status])
+  @@map("overtime_requests")
   @@schema("attendance")
 }

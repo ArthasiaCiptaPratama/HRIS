@@ -130,7 +130,7 @@ Bukti visual saja (tanpa pencocokan wajah — tetap backlog). Bucket private `at
 - **Jatah diberikan 1 Januari** (cron `leave-annual-grant`):
   - Karyawan dengan masa kerja penuh tahun sebelumnya → kuota penuh.
   - Karyawan baru → **prorata 1 hari per bulan kerja penuh** sampai 31 Desember tahun sebelumnya: masuk tanggal **1–15** → bulan itu dihitung; masuk **> 15** → mulai bulan berikutnya. Contoh: masuk 10 November 2025 → November + Desember = **2 hari** untuk 2026. ⚠ Contoh pemilik projek saat grill menyebut 1 hari; rumus mengikuti pilihan "1 hari per bulan kerja penuh" — dikonfirmasi ulang sebelum Tahap E.
-- **Sisa tahun lalu berlaku sampai 31 Maret**, lalu hangus (cron `leave-carry-expiry` 1 April). Pemakaian mengambil sisa tahun lalu lebih dulu.
+- ~~**Sisa tahun lalu berlaku sampai 31 Maret**, lalu hangus (cron `leave-carry-expiry` 1 April). Pemakaian mengambil sisa tahun lalu lebih dulu.~~ **TM-D9 (2026-10-21):** mulai saldo 2026 sisa **hangus 31 Desember** tahunnya (cron `leave-daily` mulai 1 Januari); seluruh hari pengajuan dibebankan ke tahun hari terhitung pertama; tidak ada pemakaian sisa tahun lalu.
 - **Hutang cuti** diperbolehkan (saldo boleh minus) — mengubah PLAN §5.3 "saldo tidak boleh negatif". Hutang **dilunasi akhir Januari** dengan memotong jatah baru; bila jatah baru tidak cukup, sisa hutang tetap tercatat dan ditandai untuk HR (tindak lanjut di luar sistem, mis. potong gaji — keputusan payroll Fase 8).
 - **Hold** saat pengajuan, dikembalikan bila ditolak/dibatalkan, menjadi terpakai bila disetujui (tetap seperti PLAN). Setiap perubahan saldo = baris **buku besar** (grant, carry, expire, hold, release, use, debt, settle, adjust) supaya saldo selalu bisa ditelusuri.
 
