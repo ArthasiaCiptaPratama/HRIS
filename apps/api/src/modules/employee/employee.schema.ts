@@ -338,13 +338,22 @@ export const createEmployeeBodySchema = z
     // D-053: true = atasan diisi manual (managerId); false = otomatis dari pos. Tanpa nilai: managerId
     // yang dikirim berarti manual.
     managerOverride: z.boolean().optional(),
+    /**
+     * EMP-D2: data profil lengkap (urutan Google Form) — `{ personal?, family[], educations[],
+     * certifications[], bank? }`, divalidasi `employeeProfileInputSchema` (@hris/shared) di service.
+     */
+    profile: z.record(z.string(), z.unknown()).optional().openapi({
+      description:
+        "Data profil opsional (EMP-D2): personal, family, educations, certifications, bank",
+    }),
   })
   .openapi("CreateEmployee");
 export type CreateEmployeeInput = z.infer<typeof createEmployeeBodySchema>;
 
 // Status kepegawaian diubah lewat /status-change supaya selalu tercatat di riwayat.
+// `profile` hanya untuk tambah (EMP-D2); ubah data sensitif lewat PATCH /employees/{id}/profile (EMP-D4).
 export const updateEmployeeBodySchema = createEmployeeBodySchema
-  .omit({ employmentStatusId: true })
+  .omit({ employmentStatusId: true, profile: true })
   .partial()
   .refine((body) => Object.keys(body).length > 0, "Tidak ada perubahan yang dikirim.")
   .openapi("UpdateEmployee");

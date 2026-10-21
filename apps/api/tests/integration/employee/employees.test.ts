@@ -417,6 +417,260 @@ describe("POST /employees & PATCH /employees/:id", () => {
   });
 });
 
+describe("EMP-D2 tambah manual dengan profil lengkap", () => {
+  const nik = () =>
+    `32${String(Date.now()).slice(-10)}${String(Math.floor(Math.random() * 1e4)).padStart(4, "0")}`;
+  const base = (n: string) => ({
+    employeeNumber: NUM(n),
+    fullName: `Uji ${RUN} Profil ${n}`,
+    joinDate: "2026-09-01",
+    companyId: ids.acp,
+    employmentStatusId: ids.status,
+    positionId: ids.position,
+  });
+  const profile = (ktpNumber: string) => ({
+    personal: {
+      birthPlace: "Bandung",
+      birthDate: "1992-04-12",
+      religion: "ISLAM",
+      maritalStatus: "MARRIED",
+      nationality: "Indonesia",
+      bloodType: "o+",
+      personalEmail: `Profil-${RUN}@Contoh.Test`,
+      ktpNumber,
+      npwpNumber: "00.000.000.0-000.000",
+      domicileAddress: "Jl. Contoh 1",
+      domicileCity: "Kota Contoh",
+      ktpProvince: "Jawa Barat",
+      drivingLicenses: [
+        { type: "A", number: "SIM-A-1" },
+        { type: "C", number: "" },
+      ],
+      emergencyContact2Name: "Andi",
+      emergencyContact2Phone: "081300002222",
+    },
+    family: [
+      { relationship: "SPOUSE", name: "Siti", birthDate: "1994-08-01", occupation: "Guru" },
+      { relationship: "SIBLING", name: "Kakak", ageAtEntry: 38, relationDetail: "Kakak" },
+    ],
+    educations: [{ level: "S1", schoolName: "Univ Contoh", entryYear: 2010, graduationYear: 2014 }],
+    certifications: [{ name: "K3 Umum", number: "K3-001", year: 2022 }],
+    bank: { bankName: "Bank Contoh", accountNumber: "0000-1111-22", accountHolder: "Profil" },
+  });
+  let writer: Login;
+  beforeAll(async () => {
+    writer = await auth.loginAs("HR_ADMIN", {
+      grants: [{ permission: "EMPLOYEE_PERSONAL_WRITE" }, { permission: "EMPLOYEE_BANK_WRITE" }],
+    });
+  });
+
+  test("HR tanpa grant tulis: profil pribadi 403, rekening 403; tanpa profil tetap 201", async () => {
+    const personal = await call("POST", "/employees", hr.headers, {
+      ...base("P0"),
+      profile: { personal: { birthPlace: "Bandung" } },
+    });
+    expect(personal.status).toBe(403);
+    const bank = await call("POST", "/employees", hr.headers, {
+      ...base("P0"),
+      profile: { bank: { bankName: "BRI", accountNumber: "123456" } },
+    });
+    expect(bank.status).toBe(403);
+    // Pendidikan & sertifikasi tidak sensitif.
+    const plain = await call("POST", "/employees", hr.headers, {
+      ...base("P0"),
+      profile: { educations: [{ schoolName: "SMA Contoh" }] },
+    });
+    expect(plain.status).toBe(201);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("P0") } })).toBe(1);
+  });
+
+  test("NIK salah 400 tanpa membuat karyawan; profil lengkap 201 + tersimpan; NIK kembar 409 (rollback)", async () => {
+    const bad = await call("POST", "/employees", writer.headers, {
+      ...base("P1"),
+      profile: { personal: { ktpNumber: "123" } },
+    });
+    expect(bad.status).toBe(400);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("P1") } })).toBe(0);
+    const ktp = nik();
+    const res = await call("POST", "/employees", writer.headers, {
+      ...base("P1"),
+      profile: profile(ktp),
+    });
+    expect(res.status).toBe(201);
+    const id = (await body(res)).data.id as string;
+    const row = await prisma.employee.findUniqueOrThrow({
+      where: { id },
+      include: {
+        personal: true,
+        familyMembers: true,
+        educations: true,
+        trainings: true,
+        bankAccount: true,
+      },
+    });
+    expect(row.personalEmail).toBe(`profil-${RUN}@contoh.test`);
+    expect(row.personal).toMatchObject({
+      ktpNumber: ktp,
+      npwpNumber: "000000000000000",
+      bloodType: "O+",
+      drivingLicenseTypes: ["A", "C"],
+      drivingLicenseNumber: "SIM-A-1",
+      drivingLicenseNumbers: { A: "SIM-A-1" },
+      emergencyContact2Name: "Andi",
+    });
+    expect(row.familyMembers.map((m) => m.relationship).sort()).toEqual(["SIBLING", "SPOUSE"]);
+    expect(row.educations[0]).toMatchObject({ level: "S1", entryYear: 2010 });
+    expect(row.trainings[0]).toMatchObject({
+      trainingField: "K3 Umum",
+      certificateNumber: "K3-001",
+    });
+    expect(row.bankAccount?.accountNumber).toBe("0000111122");
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: id, action: "employee.employee.create" },
+    });
+    expect(JSON.stringify(audit.after)).not.toContain(ktp);
+    // Kunci sensitif (personal, bank) disamarkan audit; jumlah baris berulang tetap tercatat.
+    expect(audit.after).toMatchObject({ profile: { family: 2, educations: 1, certifications: 1 } });
+
+    const twin = await call("POST", "/employees", writer.headers, {
+      ...base("P2"),
+      profile: { personal: { ktpNumber: ktp } },
+    });
+    expect(twin.status).toBe(409);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("P2") } })).toBe(0);
+  });
+});
+
+describe("EMP-D4 PATCH /employees/:id/profile (HR ubah data sensitif langsung)", () => {
+  let writer: Login;
+  let bankOnly: Login;
+  const nik = () =>
+    `33${String(Date.now()).slice(-10)}${String(Math.floor(Math.random() * 1e4)).padStart(4, "0")}`;
+  beforeAll(async () => {
+    writer = await auth.loginAs("HR_ADMIN", {
+      grants: [
+        { permission: "EMPLOYEE_PERSONAL_READ" },
+        { permission: "EMPLOYEE_PERSONAL_WRITE" },
+        { permission: "EMPLOYEE_BANK_WRITE" },
+      ],
+    });
+    bankOnly = await auth.loginAs("HR_ADMIN", { grants: [{ permission: "EMPLOYEE_BANK_WRITE" }] });
+  });
+  const path = () => `/employees/${ids.teamEmp}/profile`;
+  const personal = (ktpNumber: string) => ({
+    birthPlace: "Bandung",
+    birthDate: "1990-01-02",
+    religion: "ISLAM",
+    ptkpStatus: "K1",
+    originCity: "Garut",
+    ktpNumber,
+    domicileCity: "Kota Contoh",
+    personalEmail: `Profil-Ubah-${RUN}@Contoh.Test`,
+    drivingLicenses: [{ type: "C", number: "SIM-C-9" }],
+  });
+
+  test("401; 403 tanpa grant tulis / bagian lain / PT lain; 400 kosong & NIK salah", async () => {
+    expect(
+      (await call("PATCH", path(), {}, { bank: { bankName: "BRI", accountNumber: "123456" } }))
+        .status,
+    ).toBe(401);
+    expect(
+      (await call("PATCH", path(), hrGranted.headers, { personal: personal(nik()) })).status,
+    ).toBe(403);
+    expect((await call("PATCH", path(), bankOnly.headers, { family: [] })).status).toBe(403);
+    expect((await call("PATCH", path(), hrOther.headers, { family: [] })).status).toBe(404);
+    expect((await call("PATCH", path(), mgr.headers, { family: [] })).status).toBe(403);
+    expect((await call("PATCH", path(), writer.headers, {})).status).toBe(400);
+    expect(
+      (await call("PATCH", path(), writer.headers, { personal: { ktpNumber: "12" } })).status,
+    ).toBe(400);
+  });
+
+  test("HR ber-grant: pribadi + keluarga (semua kolom) + rekening tersimpan; audit tanpa nilai; karyawan diberi tahu", async () => {
+    const ktp = nik();
+    const res = await call("PATCH", path(), writer.headers, {
+      personal: personal(ktp),
+      family: [
+        { relationship: "SPOUSE", name: "Siti", occupation: "Guru", phoneNumber: "081200002222" },
+        { relationship: "CHILD", name: "Anak", gender: "MALE", education: "SD" },
+      ],
+      bank: { bankName: "Bank Contoh", accountNumber: "1234-5678-90", accountHolder: "Uji" },
+    });
+    expect(res.status).toBe(200);
+    const detail = (await body(res)).data;
+    expect(detail.personal).toMatchObject({
+      ktpNumber: ktp,
+      ptkpStatus: "K1",
+      originCity: "Garut",
+    });
+    expect(detail.personal.personalEmail).toBe(`profil-ubah-${RUN}@contoh.test`);
+    const row = await prisma.employee.findUniqueOrThrow({
+      where: { id: ids.teamEmp },
+      include: { personal: true, familyMembers: true, bankAccount: true },
+    });
+    expect(row.personal?.drivingLicenseTypes).toEqual(["C"]);
+    expect(row.familyMembers.find((m) => m.relationship === "SPOUSE")).toMatchObject({
+      occupation: "Guru",
+      phoneNumber: "081200002222",
+    });
+    expect(row.bankAccount?.accountNumber).toBe("1234567890");
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: ids.teamEmp, action: "employee.sensitive.write" },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(JSON.stringify(audit.after)).not.toContain(ktp);
+    const note = await prisma.notification.findFirst({
+      where: { recipientAccountId: teamAccount.account.id, type: "employee.bank_changed" },
+    });
+    expect(note?.title).toContain("Rekening");
+
+    // Ganti keluarga utuh + SIM dikosongkan; rekening sama → tanpa notifikasi baru.
+    const before = await prisma.notification.count({
+      where: { recipientAccountId: teamAccount.account.id, type: "employee.bank_changed" },
+    });
+    const again = await call("PATCH", path(), writer.headers, {
+      personal: { ...personal(ktp), drivingLicenses: [], personalEmail: "" },
+      family: [{ relationship: "FATHER", name: "Ayah", isDeceased: true }],
+      bank: { bankName: "Bank Contoh", accountNumber: "1234567890", accountHolder: "Uji" },
+    });
+    expect(again.status).toBe(200);
+    const after = await prisma.employee.findUniqueOrThrow({
+      where: { id: ids.teamEmp },
+      include: { personal: true, familyMembers: true },
+    });
+    expect(after.personalEmail).toBeNull();
+    expect(after.personal?.drivingLicenseTypes).toEqual([]);
+    expect(after.personal?.drivingLicenseNumbers).toBeNull();
+    expect(after.familyMembers.map((m) => [m.relationship, m.isDeceased])).toEqual([
+      ["FATHER", true],
+    ]);
+    expect(
+      await prisma.notification.count({
+        where: { recipientAccountId: teamAccount.account.id, type: "employee.bank_changed" },
+      }),
+    ).toBe(before);
+  });
+
+  test("NIK dipakai karyawan lain → 409; PATCH /employees mengabaikan profile", async () => {
+    const used = nik();
+    await prisma.employeePersonal.upsert({
+      where: { employeeId: ids.otherEmp },
+      create: { employeeId: ids.otherEmp, ktpNumber: used },
+      update: { ktpNumber: used },
+    });
+    expect(
+      (await call("PATCH", path(), writer.headers, { personal: { ktpNumber: used } })).status,
+    ).toBe(409);
+    const res = await call("PATCH", `/employees/${ids.teamEmp}`, sa.headers, {
+      fullName: `Uji ${RUN} T1`,
+      profile: { personal: { birthPlace: "Tidak Disimpan" } },
+    });
+    expect(res.status).toBe(200);
+    const p = await prisma.employeePersonal.findUnique({ where: { employeeId: ids.teamEmp } });
+    expect(p?.birthPlace).not.toBe("Tidak Disimpan");
+  });
+});
+
 describe("D-063 NIP boleh kosong", () => {
   test("buat tanpa NIP → 201 (NIP null); filter 'NIP belum ada'; isi NIP lalu tidak bisa dikosongkan", async () => {
     const res = await call("POST", "/employees", hr.headers, {
@@ -696,6 +950,54 @@ describe("GET /employees/:id?view=print (formulir data pegawai .xlsx)", () => {
         },
       }),
     ).toBe(0);
+  });
+});
+
+// Print data (2026-10-19): Formulir Data Karyawan = template PDF HR + isian (menggantikan .xlsx & Formulir Aplikasi).
+describe("POST /employees/:id/print (Print data PDF)", () => {
+  const printed = (actorAccountId: string, entityId: string) =>
+    prisma.auditLog.findMany({ where: { action: "employee.printed", actorAccountId, entityId } });
+
+  test("HR dengan grant: PDF 3 halaman; audit employee.printed format pdf + bagian pribadi", async () => {
+    const res = await call("POST", `/employees/${ids.otherEmp}/print`, hrGranted.headers);
+    expect(res.status).toBe(200);
+    const { data } = await body(res);
+    expect(data.fileName).toMatch(/data-karyawan\.pdf$/);
+    expect(data.contentType).toBe("application/pdf");
+    expect(data.photo).toBe("none");
+    const bytes = Buffer.from(data.contentBase64, "base64");
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    const audits = await printed(hrGranted.account.id, ids.otherEmp);
+    expect(audits.map((a) => a.after)).toContainEqual({ format: "pdf", sections: ["personal"] });
+  });
+
+  test("foto dari browser hanya dipakai bila karyawan punya foto profil", async () => {
+    const res = await call("POST", `/employees/${ids.otherEmp}/print`, hr.headers, {
+      photoBase64: Buffer.from("bukan foto").toString("base64"),
+    });
+    expect(res.status).toBe(200);
+    expect((await body(res)).data.photo).toBe("none");
+  });
+
+  test("HR tanpa grant: tetap 200, audit tanpa bagian sensitif", async () => {
+    const res = await call("POST", `/employees/${ids.otherEmp}/print`, hr.headers);
+    expect(res.status).toBe(200);
+    const audits = await printed(hr.account.id, ids.otherEmp);
+    expect(audits.map((a) => a.after)).toContainEqual({ format: "pdf", sections: [] });
+  });
+
+  test("MANAGER & EMPLOYEE 403; tanpa token 401; id bukan uuid 400; rute lama 404", async () => {
+    expect(await code(await call("POST", `/employees/${ids.otherEmp}/print`, emp.headers))).toBe(
+      "FORBIDDEN",
+    );
+    expect(await code(await call("POST", `/employees/${ids.teamEmp}/print`, mgr.headers))).toBe(
+      "FORBIDDEN",
+    );
+    expect((await call("POST", `/employees/${ids.otherEmp}/print`, {})).status).toBe(401);
+    expect((await call("POST", "/employees/bukan-uuid/print", hr.headers)).status).toBe(400);
+    expect(
+      (await call("GET", `/employees/${ids.otherEmp}/application-form`, hr.headers)).status,
+    ).toBe(404);
   });
 });
 

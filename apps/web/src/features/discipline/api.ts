@@ -1,5 +1,5 @@
 import type { WarningLevel } from "@hris/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
 import { downloadBytes } from "@/lib/xlsx-write";
@@ -114,6 +114,29 @@ export function useLevelSuggestion(employeeId: string | null) {
   });
 }
 
+/** ARS-D20: saran tingkat untuk banyak karyawan (SP massal) → id → saran. */
+export function useLevelSuggestions(employeeIds: string[]) {
+  return useQueries({
+    queries: employeeIds.map((employeeId) => ({
+      queryKey: [...disciplineKeys.all, "suggestion", employeeId],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        api(`/warning-letters/suggestion/${employeeId}`, {
+          schema: one(suggestionSchema),
+          signal,
+        }).then((r) => r.data),
+    })),
+    combine: (results) => ({
+      pending: results.some((r) => r.isPending),
+      byId: new Map(
+        results.flatMap((r, i) => {
+          const id = employeeIds[i];
+          return r.data && id ? [[id, r.data] as const] : [];
+        }),
+      ),
+    }),
+  });
+}
+
 export function useAlphaCandidates(employeeId: string | null, enabled: boolean) {
   return useQuery({
     queryKey: [...disciplineKeys.all, "alpha", employeeId],
@@ -167,6 +190,16 @@ export function useDisciplineMutations() {
         api("/warning-letters", { method: "POST", body, schema: one(letterSchema) }).then(
           (r) => r.data,
         ),
+      onSuccess,
+    }),
+    /** ARS-D20: draft untuk banyak karyawan sekaligus (satu transaksi). */
+    createDrafts: useMutation({
+      mutationFn: (body: Body) =>
+        api("/warning-letters/bulk", {
+          method: "POST",
+          body,
+          schema: one(z.array(letterSchema)),
+        }).then((r) => r.data),
       onSuccess,
     }),
     updateDraft: useLetterAction("/warning-letters/:id", "PUT"),

@@ -5,7 +5,9 @@
 ## API (`apps/api/src/modules/asset/`)
 
 ```
-├── index.ts                 [done] registerAssetRoutes, runAssetDaily
+├── index.ts                 [done] registerAssetRoutes, runAssetDaily, listAssetsForReport, listUnreturnedPpeForReport
+├── report-data.service.ts   [done] (ARS-D21, 2026-10-20) data laporan Aset untuk modul report: aset + pemegang terbuka (tanpa harga),
+│                                   APD wajib kembali belum dikembalikan
 ├── asset.policy.ts          [done] canManageAssets (SA / HR ber-grant asset.manage di PT), canSeeAssetPrice, canManageAssetMasters,
 │                                   canViewEmployeeAssets (SA, HR PT, MANAGER tim, diri), canViewAsset, assetListScope, canAcknowledge
 ├── asset.repository.ts      [done] kategori, jenis APD, aset (filter cakupan/pemegang/terlambat), serah-terima, pembagian APD; update bersyarat atomik (`closeAssignmentIfOpen`, `setAssetStatusIf`, `returnPpeIfOpen`, `deletePpeIfUnconfirmed`, `acknowledge…IfPending`) agar aksi bersamaan tidak sama-sama lolos

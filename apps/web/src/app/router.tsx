@@ -119,6 +119,8 @@ export const routes: RouteObject[] = [
                   },
                   // D-042: import data karyawan dari .xlsx/.csv (dibuka dari Data Karyawan Aktif).
                   { path: "import", lazy: pages.importEmployees },
+                  // EMP-D2: tambah karyawan bertahap (urutan Google Form).
+                  { path: "tambah-karyawan", lazy: pages.createEmployee },
                   {
                     path: "pengaktifan",
                     lazy: FEATURES.activation ? pages.activation : pages.maintenance,

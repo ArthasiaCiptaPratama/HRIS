@@ -59,6 +59,11 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Perbaikan advisor staging: RLS `public._prisma_migrations` (ERROR → INFO disengaja) & index `departments.parent_id` (tambahan 2026-09-28)
 - [x] Uji SMTP langsung (Gmail) & undangan Supabase Auth; user uji dibersihkan dari Auth staging (tambahan 2026-09-28)
 
+- [x] **Perbaikan tampilan umum** (tambahan 2026-10-19: temuan pemilik projek poin 2 & 5) — ✔ staging rilis gel. 9
+  - [x] Sidebar Administrasi › Master Data jadi bab → sub (Organisasi · Kepegawaian · Arsip & Disiplin, bisa dibuka-tutup seperti Personal Management); sub "Segera" untuk fitur bersaklar mati
+  - [x] Header & sidebar tetap, hanya isi (`<main>`) yang di-scroll: tinggi layar dikunci (`h-dvh`), tidak lagi bergantung `position: sticky`; gulir ke atas saat pindah halaman memakai `<main>`
+  - [x] QA visual Playwright lokal (Q-01, Q-02 di `docs/qa/runs/2026-10-19-ui-ux-lokal.md`); akar masalah "hanya terjadi di lokal" belum dipastikan (tata letak baru tidak bergantung padanya)
+
 ## Keputusan
 
 Isi lengkap di [decisions.md](../../decisions.md).

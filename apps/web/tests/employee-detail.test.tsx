@@ -1,12 +1,10 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authState, me, renderAt, supabaseMock } from "./helpers";
 
-// Canvas tidak ada di jsdom: kompres foto diganti blob tetap (geometri diuji di employee-print.test).
+// Canvas tidak ada di jsdom: kompres foto diganti blob tetap.
 vi.mock("@/lib/image", async (original) => ({
   ...(await original<typeof import("@/lib/image")>()),
   prepareProfilePhoto: vi.fn(async () => ({
@@ -20,13 +18,10 @@ vi.mock("@/lib/supabase", async () => ({
 }));
 
 // Panel detail pegawai: layar penuh, avatar di tengah, riwayat "diubah oleh", tombol Print data.
-const TEMPLATE = readFileSync(
-  path.join(import.meta.dirname, "..", "public", "template", "Template-excel.xlsx"),
-);
 
 let photoUrl: string | null = null;
 let accountOverride: { role: string; isActive: boolean } | null = null;
-const detail = (access: Record<string, boolean>) => ({
+const detail = (access: Record<string, boolean>, full = false) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
   fullName: "Agus Pratama",
@@ -58,6 +53,39 @@ const detail = (access: Record<string, boolean>) => ({
     photo: false,
     ...access,
   },
+  // Seperti API: data sensitif hanya di view=full (panel memakai view=work).
+  ...(access.personal && full
+    ? {
+        personal: {
+          ktpNumber: "3200000000000001",
+          npwpNumber: null,
+          kkNumber: null,
+          birthPlace: "Bandung",
+          birthDate: "1990-01-02",
+          ktpAddress: null,
+          domicileAddress: "Jl. Lama 1",
+          maritalStatus: "MARRIED",
+          religion: "ISLAM",
+          bpjsEmploymentNumber: null,
+          bpjsHealthNumber: null,
+          ptkpStatus: "K1",
+          originCity: null,
+          drivingLicenseTypes: ["C"],
+          drivingLicenseNumbers: { C: "SIM-C-1" },
+        },
+        familyMembers: [
+          {
+            id: "f1",
+            name: "Siti",
+            relationship: "SPOUSE",
+            address: null,
+            birthDate: null,
+            phoneNumber: "081200009999",
+            education: "S1",
+          },
+        ],
+      }
+    : {}),
   educations: [],
   trainings: [],
   histories: [
@@ -97,18 +125,31 @@ const detail = (access: Record<string, boolean>) => ({
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** fetch palsu yang membedakan query (?view=...) dan melayani file template. */
-function mockBackend(role: Parameters<typeof me>[0], access: Record<string, boolean>) {
+/** fetch palsu yang membedakan query (?view=...). */
+const sentBodies: Record<string, unknown> = {};
+
+function mockBackend(
+  role: Parameters<typeof me>[0],
+  access: Record<string, boolean>,
+  grants: string[] = [],
+) {
   const calls: string[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = String(input);
     calls.push(`${init?.method ?? "GET"} ${raw}`);
-    if (raw.endsWith("/template/Template-excel.xlsx")) {
-      return new Response(TEMPLATE, { status: 200 });
-    }
     const url = new URL(raw);
     const key = url.pathname.replace("/api/v1", "");
-    if (key === "/me") return json(200, { data: me(role, false, "e-self") });
+    if (init?.body && typeof init.body === "string")
+      sentBodies[`${init.method} ${key}`] = JSON.parse(init.body);
+    if (key === "/me")
+      return json(200, {
+        data: {
+          ...me(role, false, "e-self"),
+          grants: grants.map((permission) => ({ permission, expiresAt: null })),
+        },
+      });
+    if (key === "/employees/e1/profile" && init?.method === "PATCH")
+      return json(200, { data: detail(access, true) });
     if (key === "/health")
       return json(200, { data: { status: "ok", checks: { database: "ok" }, time: "x" } });
     if (key === "/notifications")
@@ -145,7 +186,17 @@ function mockBackend(role: Parameters<typeof me>[0], access: Record<string, bool
       });
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
-    if (key === "/employees/e1") return json(200, { data: detail(access) });
+    if (key === "/employees/e1")
+      return json(200, { data: detail(access, url.searchParams.get("view") === "full") });
+    if (key === "/employees/e1/print")
+      return json(200, {
+        data: {
+          fileName: "ACP-2023-0007-Agus-Pratama-data-karyawan.pdf",
+          contentType: "application/pdf",
+          contentBase64: btoa("%PDF-1.7"),
+          photo: "none",
+        },
+      });
     if (key === "/employees/e1/photo/upload-url")
       return json(200, {
         data: {
@@ -225,9 +276,9 @@ describe("panel detail pegawai", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("HR: Print data → ambil ?view=print lalu unduh .xlsx bernama karyawan", async () => {
+  it("HR: Print data → unduh PDF Formulir Data Karyawan dari /employees/:id/print", async () => {
     const calls = mockBackend("HR_ADMIN", { manage: true, deactivate: true, print: true });
-    const createObjectURL = vi.fn((_blob: Blob) => "blob:xlsx");
+    const createObjectURL = vi.fn((_blob: Blob) => "blob:pdf");
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
     const success = vi.spyOn(toast, "success");
     const clicked: string[] = [];
@@ -241,19 +292,20 @@ describe("panel detail pegawai", () => {
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(await within(dialog).findByRole("button", { name: /Print data/ }));
 
-    await waitFor(() =>
-      expect(clicked).toEqual(["Data Karyawan - ACP-2023-0007 - Agus Pratama.xlsx"]),
-    );
-    expect(calls.some((c) => c.endsWith("/employees/e1?view=print"))).toBe(true);
-    const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
-    expect(blob.type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    expect(blob.size).toBeGreaterThan(10_000);
+    await waitFor(() => expect(clicked).toEqual(["ACP-2023-0007-Agus-Pratama-data-karyawan.pdf"]));
+    expect(calls.some((c) => c.endsWith("/employees/e1/print"))).toBe(true);
+    expect(calls.some((c) => c.includes("view=print"))).toBe(false);
+    expect(createObjectURL.mock.calls[0]?.[0]?.type).toBe("application/pdf");
     await waitFor(() =>
       expect(success).toHaveBeenCalledWith(
-        "Data Agus Pratama diunduh (.xlsx).",
+        "ACP-2023-0007-Agus-Pratama-data-karyawan.pdf diunduh.",
         expect.objectContaining({ description: expect.stringContaining("dikosongkan") }),
       ),
     );
+    // Formulir Aplikasi Word dihapus (2026-10-19): hanya satu tombol cetak.
+    expect(
+      within(dialog).queryByRole("button", { name: /Formulir Aplikasi/ }),
+    ).not.toBeInTheDocument();
     click.mockRestore();
   });
 
@@ -277,6 +329,51 @@ describe("form ubah karyawan & master data terarsip (D-049)", () => {
     // Radix Select merender nilai terpilih + <option> tersembunyi → bisa lebih dari satu.
     expect((await screen.findAllByText("GA Staff (diarsipkan)")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Human Resources & GA (diarsipkan)").length).toBeGreaterThan(0);
+  });
+});
+
+describe("Ubah data bertab: pribadi, keluarga, rekening (EMP-D4)", () => {
+  it("HR ber-grant: ubah tempat lahir → hanya PATCH /profile bagian pribadi; keluarga & SIM tetap utuh", async () => {
+    const calls = mockBackend("HR_ADMIN", { manage: true, personal: true }, [
+      "employee.personal.read",
+      "employee.personal.write",
+    ]);
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah data/ }));
+    const form = await screen.findByRole("dialog", { name: "Ubah data karyawan" });
+    await userEvent.click(within(form).getByRole("tab", { name: /Pribadi & alamat/ }));
+    const place = within(form).getByLabelText(/Tempat lahir/);
+    expect(place).toHaveValue("Bandung");
+    await userEvent.clear(place);
+    await userEvent.type(place, "Garut");
+    // Rekening terkunci (tanpa grant bank).
+    await userEvent.click(within(form).getByRole("tab", { name: /Rekening/ }));
+    expect(within(form).getByText(/employee\.bank\.read\/write/)).toBeInTheDocument();
+    await userEvent.click(within(form).getByRole("button", { name: "Simpan perubahan" }));
+    await waitFor(() =>
+      expect(calls).toContain("PATCH http://api.test/api/v1/employees/e1/profile"),
+    );
+    expect(calls).not.toContain("PATCH http://api.test/api/v1/employees/e1");
+    const body = sentBodies["PATCH /employees/e1/profile"] as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(["personal"]);
+    expect(body.personal).toMatchObject({
+      birthPlace: "Garut",
+      ktpNumber: "3200000000000001",
+      ptkpStatus: "K1",
+      drivingLicenses: [{ type: "C", number: "SIM-C-1" }],
+    });
+  });
+
+  it("HR tanpa grant: tab Pribadi & Keluarga terkunci, form tidak tampil", async () => {
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah data/ }));
+    const form = await screen.findByRole("dialog", { name: "Ubah data karyawan" });
+    await userEvent.click(within(form).getByRole("tab", { name: /Keluarga/ }));
+    expect(within(form).getByText(/employee\.personal\.read\/write/)).toBeInTheDocument();
+    expect(within(form).queryByLabelText(/Nama \/ Name/)).not.toBeInTheDocument();
   });
 });
 

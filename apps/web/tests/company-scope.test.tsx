@@ -158,12 +158,13 @@ describe("Pemilih perusahaan & kolom perusahaan", () => {
     renderAt("/personal/pegawai-aktif/semua");
     const user = userEvent.setup();
     await screen.findByRole("table", { name: "Daftar karyawan" });
+    // EMP-D2: tombol membuka halaman Tambah karyawan bertahap.
     await user.click(
-      (await screen.findAllByRole("button", { name: /Tambah karyawan/ }))[0] as HTMLElement,
+      (await screen.findAllByRole("link", { name: /Tambah karyawan/ }))[0] as HTMLElement,
     );
-    const dialog = await screen.findByRole("dialog");
+    const step = await screen.findByRole("region", { name: "Data kepegawaian" });
     await waitFor(() =>
-      expect(within(dialog).getByRole("combobox", { name: /Perusahaan/ })).toHaveTextContent("CD2"),
+      expect(within(step).getByRole("combobox", { name: /Perusahaan/ })).toHaveTextContent("CD2"),
     );
   });
 });

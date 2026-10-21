@@ -103,6 +103,149 @@ const warningLetters = (canList: boolean) => ({
       ]
     : [],
 });
+// --- Batch 2 (ARS-D21) ---
+const tenureRow = { label: "Drilling", "<1": 1, "1-3": 0, "3-5": 0, "5-10": 1, "10+": 0, total: 2 };
+const tenure = {
+  asOf: "2026-10-16",
+  year: 2026,
+  month: 10,
+  total: 2,
+  averageYears: 3.5,
+  buckets: [
+    { key: "<1", label: "< 1 tahun", count: 1 },
+    { key: "1-3", label: "1–3 tahun", count: 0 },
+    { key: "3-5", label: "3–5 tahun", count: 0 },
+    { key: "5-10", label: "5–10 tahun", count: 1 },
+    { key: "10+", label: "≥ 10 tahun", count: 0 },
+  ],
+  byCompany: [{ ...tenureRow, label: "ACP" }],
+  byUnit: [tenureRow],
+  jubilees: [{ ...person, fullName: "Eko Jubilee", joinDate: "2021-10-05", years: 5 }],
+};
+const demographics = {
+  asOf: "2026-10-16",
+  total: 2,
+  age: [
+    { key: "<25", label: "< 25 tahun", count: 1 },
+    { key: "-", label: "Belum diisi", count: 1 },
+  ],
+  gender: [
+    { key: "MALE", label: "Laki-laki", count: 1 },
+    { key: "FEMALE", label: "Perempuan", count: 1 },
+    { key: "-", label: "Belum diisi", count: 0 },
+  ],
+  education: [
+    { key: "S1", label: "S1", count: 2 },
+    { key: "-", label: "Belum diisi", count: 0 },
+  ],
+  originCity: [
+    { label: "Balikpapan", count: 2 },
+    { label: "Belum diisi", count: 0 },
+  ],
+  cityCount: 1,
+};
+const movementCounts = { PROMOTION: 1, DEMOTION: 0, TRANSFER: 1, UNRANKED: 0 };
+const movements = {
+  year: 2026,
+  asOf: "2026-10-16",
+  total: 2,
+  counts: movementCounts,
+  byMonth: Array.from({ length: 12 }, (_, i) => ({
+    month: i + 1,
+    PROMOTION: i === 3 ? 1 : 0,
+    DEMOTION: 0,
+    TRANSFER: i === 6 ? 1 : 0,
+    UNRANKED: 0,
+  })),
+  rows: [
+    {
+      ...person,
+      fullName: "Fajar Naik",
+      historyId: "h1",
+      effectiveDate: "2026-04-01",
+      kind: "PROMOTION",
+      fromPosition: "Helper",
+      toPosition: "Foreman",
+      fromLevel: "Helper / Non-staf",
+      toLevel: "Foreman",
+      fromUnit: "Drilling",
+      toUnit: "Drilling",
+      fromCompany: null,
+      toCompany: null,
+    },
+    {
+      ...person,
+      employeeId: "e3",
+      fullName: "Gita Pindah",
+      historyId: "h2",
+      effectiveDate: "2026-07-01",
+      kind: "TRANSFER",
+      fromPosition: "Helper",
+      toPosition: "Helper",
+      fromLevel: "Helper / Non-staf",
+      toLevel: "Helper / Non-staf",
+      fromUnit: "Drilling",
+      toUnit: "Blasting",
+      fromCompany: "CD2",
+      toCompany: "ACP",
+    },
+  ],
+};
+const birthdays = {
+  asOf: "2026-10-16",
+  year: 2026,
+  month: 10,
+  total: 1,
+  rows: [{ ...person, fullName: "Hana Ultah", day: 16 }],
+};
+const assetCounts = { AVAILABLE: 1, ASSIGNED: 1, MAINTENANCE: 0, LOST: 0, RETIRED: 0 };
+const assets = {
+  asOf: "2026-10-16",
+  total: 2,
+  counts: assetCounts,
+  overdueLoans: 0,
+  byCategory: [{ label: "Laptop", ...assetCounts, total: 2 }],
+  byLocation: [{ label: "Tanpa lokasi", ...assetCounts, total: 2 }],
+  byCompany: [{ label: "ACP", ...assetCounts, total: 2 }],
+  unreturned: [
+    {
+      ...person,
+      fullName: "Indra Keluar",
+      endDate: "2026-09-30",
+      kind: "Aset",
+      item: "Laptop Dell (ACP-LTP-0001)",
+      quantity: 1,
+      since: "2025-06-01",
+    },
+  ],
+};
+const changeCounts = { PENDING: 1, APPROVED: 1, REJECTED: 0, CANCELLED: 0 };
+const dataChanges = (canList: boolean) => ({
+  year: 2026,
+  asOf: "2026-10-16",
+  total: 2,
+  counts: changeCounts,
+  pendingNow: 1,
+  oldestPendingDays: 4,
+  averageDays: 1.5,
+  bySection: [{ key: "BANK", label: "Rekening bank", ...changeCounts, total: 2, averageDays: 1.5 }],
+  byMonth: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, submitted: 0, decided: 0 })),
+  canList,
+  rows: canList
+    ? [
+        {
+          ...person,
+          fullName: "Joko Ajukan",
+          requestId: "r1",
+          section: "Rekening bank",
+          status: "PENDING",
+          submittedAt: "2026-10-12T02:00:00.000Z",
+          reviewedAt: null,
+          days: null,
+        },
+      ]
+    : [],
+});
 type Call = { path: string; search: string };
 
 function mockFetch(
@@ -155,6 +298,13 @@ function mockFetch(
       if (path === "/reports/completeness") return json(200, { data: completeness });
       if (path === "/reports/warning-letters")
         return json(200, { data: warningLetters(opts.canList ?? true) });
+      if (path === "/reports/tenure") return json(200, { data: tenure });
+      if (path === "/reports/demographics") return json(200, { data: demographics });
+      if (path === "/reports/movements") return json(200, { data: movements });
+      if (path === "/reports/birthdays") return json(200, { data: birthdays });
+      if (path === "/reports/assets") return json(200, { data: assets });
+      if (path === "/reports/data-changes")
+        return json(200, { data: dataChanges(opts.canList ?? true) });
       if (path.endsWith("/export"))
         return json(200, { data: { fileName: "laporan.xlsx", rows: 3, contentBase64: "UEs=" } });
       return json(404, { error: { code: "NOT_FOUND", message: "Tidak ditemukan." } });
@@ -286,6 +436,97 @@ describe.skipIf(!FEATURES.reports)("Personal Management › Laporan (ARS-D16/D17
     mockFetch(me("EMPLOYEE", false, "e1"));
     renderAt("/personal/laporan");
     expect(await screen.findByRole("heading", { name: /Akses ditolak/ })).toBeInTheDocument();
+  });
+});
+
+describe.skipIf(!FEATURES.reports)("Laporan batch 2 (ARS-D21)", () => {
+  it("masa kerja: kelompok + jubilee; bulan & tahun dikirim", async () => {
+    const calls = mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/laporan?laporan=masa-kerja&bulan=10&tahun=2026");
+    const table = await screen.findByRole("table", { name: "Daftar jubilee" }, { timeout: 5000 });
+    expect(within(table).getByText("Eko Jubilee")).toBeInTheDocument();
+    expect(within(table).getByText("5 tahun")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Grafik sebaran masa kerja" })).toBeInTheDocument();
+    expect(
+      calls.some(
+        (c) =>
+          c.path === "/reports/tenure" &&
+          c.search.includes("month=10") &&
+          c.search.includes("year=2026"),
+      ),
+    ).toBe(true);
+  });
+
+  it("demografi: agregat saja (tanpa daftar orang)", async () => {
+    mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/laporan?laporan=demografi");
+    expect(
+      await screen.findByRole("list", { name: "Kota asal" }, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Balikpapan")).toBeInTheDocument();
+    expect(screen.queryByText("Agus Pratama")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("table")).toHaveLength(0);
+  });
+
+  it("mutasi & promosi: klik kartu Promosi menyaring daftar", async () => {
+    mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/laporan?laporan=mutasi");
+    const table = await screen.findByRole(
+      "table",
+      { name: "Daftar perpindahan" },
+      { timeout: 5000 },
+    );
+    expect(within(table).getByText("Gita Pindah")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Promosi/ }));
+    const filtered = screen.getByRole("table", { name: "Daftar perpindahan" });
+    expect(within(filtered).getByText("Fajar Naik")).toBeInTheDocument();
+    expect(within(filtered).queryByText("Gita Pindah")).not.toBeInTheDocument();
+  });
+
+  it("ulang tahun: tanggal-bulan saja; tanpa pilihan tahun", async () => {
+    mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/laporan?laporan=ulang-tahun&bulan=10");
+    const table = await screen.findByRole(
+      "table",
+      { name: "Daftar ulang tahun" },
+      { timeout: 5000 },
+    );
+    expect(within(table).getByText(/16 Oktober/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Bulan" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Tahun" })).not.toBeInTheDocument();
+  });
+
+  it("aset: daftar belum kembali dari karyawan keluar", async () => {
+    mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/laporan?laporan=aset");
+    const table = await screen.findByRole(
+      "table",
+      { name: "Aset belum kembali" },
+      { timeout: 5000 },
+    );
+    expect(within(table).getByText("Indra Keluar")).toBeInTheDocument();
+    expect(within(table).getByText(/Laptop Dell/)).toBeInTheDocument();
+  });
+
+  it("pengajuan data: tanpa grant hanya angka; dengan grant daftar", async () => {
+    mockFetch(me("HR_ADMIN"), { canList: false });
+    const view = renderAt("/personal/laporan?laporan=pengajuan-data");
+    expect(
+      await screen.findByText(/hanya untuk pemeriksa pengajuan data/, undefined, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("1,5 hari").length).toBeGreaterThan(0);
+    view.unmount();
+    mockFetch({
+      ...me("HR_ADMIN"),
+      grants: [{ permission: "employee.changes.review", expiresAt: null }],
+    });
+    renderAt("/personal/laporan?laporan=pengajuan-data");
+    const table = await screen.findByRole(
+      "table",
+      { name: "Daftar pengajuan perubahan data" },
+      { timeout: 5000 },
+    );
+    expect(within(table).getByText("Joko Ajukan")).toBeInTheDocument();
   });
 });
 

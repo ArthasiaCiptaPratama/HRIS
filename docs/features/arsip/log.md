@@ -13,6 +13,35 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-20 — Audit Laporan: bilah filter sticky, 10 tab, tanggal WIB pengajuan (Oatse)
+- **Dikerjakan:** audit ulang batch 2 atas temuan pemilik projek (bilah filter menutupi isi). (1) `reports-page.tsx` bilah filter `md:top-14` → `md:top-0` — sejak `bdf869e` (header tetap, 2026-10-19) yang digulir `<main>`, offset lama menyisakan celah 56px (bug sejak batch 1); halaman lain tidak memakai offset itu. (2) 10 tab tidak muat di 1440px (Ulang tahun terpotong, Aset & Pengajuan data tersembunyi) → `md:flex-wrap`, HP tetap geser + tab aktif digulir masuk layar. (3) Pengajuan data: tahun/bulan/umur antrean dari tanggal WIB (sebelumnya potongan tanggal UTC). (4) Mutasi: `historyId` sebagai kunci baris. (5) Catatan batasan mutasi (hanya karyawan yang saat ini di PT/unit terpilih) di halaman, Excel, codemap; CODEMAP.md & indeks qa/README.md diperbarui.
+- **Keputusan:** –
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ · build ✔ · shared 268 · api 826 (integration batch 2: kasus 31 Des 20.00 UTC = 1 Jan WIB) · web 281 (`--maxWorkers=2`). QA ulang: lihat `docs/qa/runs/2026-10-20-laporan-batch2-lokal.md` putaran audit.
+- **Masalah / catatan:** bug (1) & (2) sebenarnya terlihat di screenshot QA putaran 1 (Q-04, Q-05) tetapi terlewat saat ditinjau → script QA ditambah cek posisi sticky & visibilitas tab.
+- **Berikutnya:** commit (izin), rilis staging.
+
+### 2026-10-20 — Laporan batch 2: masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan data (Oatse)
+- **Dikerjakan:** checklist "Batch 2" gel. 3 Laporan. Shared `report.ts` (`fullYears`, `tenureBucket`/`ageBucket` memakai kelompok Dashboard, `jubileeYears`, `movementKind`, `averageDays`, `monthQuerySchema`, 6 jenis laporan baru); employee `report-data` (`listDemographicFacts` — tanggal lahir tidak keluar modul, hanya kelompok usia; `listBirthdaysInMonth` — `MM-DD` saja; `listMovements`; `listDataChangeFacts` tanpa nilai); asset `report-data.service.ts` baru (`listAssetsForReport` tanpa harga, `listUnreturnedPpeForReport`); report: `report-common.ts` (cakupan + pembantu ekspor dipindah dari `report.service.ts`), `report-batch2.service.ts` (6 laporan + sheet Excel), `canListDataChanges`, 12 route baru. Web: 6 tab di `features/reports/components/tabs/`, filter Bulan (`?bulan=`), pembantu dipisah ke `report-helpers.ts` & `components/report-state.tsx`.
+- **Keputusan:** ARS-D21 (definisi & akses batch 2, grill 2026-10-20 semua rekomendasi).
+- **Verifikasi:** typecheck ✔ · `bunx biome ci .` ✔ · boundaries ✔ (480 modul) · build ✔ · test shared **268** · api **826** · web **281** (`--maxWorkers=2`; suite penuh paralel sambil dev server jalan: 2–3 test lama timeout acak — arsip/company-scope/dashboard/import-attachments — lulus saat diulang) · QA lokal Playwright **12/12**, 0 error JS/5xx (`docs/qa/runs/2026-10-20-laporan-batch2-lokal.md`).
+- **Masalah / catatan:** konstanta `TENURE_BUCKETS`/`AGE_BUCKETS` sudah ada di `dashboard.ts` (rentang sama) → dipakai ulang, bukan dibuat baru. Tabel rincian 7 kolom terpotong di panel 7/12 → grafik 4/12 + tabel 8/12; KPI Aset 6 → 5 kartu. Data lokal tidak punya mutasi 2026 (keadaan kosong teruji, angka diuji di integration).
+- **Berikutnya:** commit ke `HRIS/Oatse/Linux-Windows` (izin), rilis staging + QA staging; Fase 5 Time Management.
+
+### 2026-10-19 — Perbaikan: setuju pengajuan Keluarga tidak lagi menghapus kolom lain (Oatse)
+- **Dikerjakan:** `onboarding-wizard.repository.ts` `replaceFamily` (dipakai pengajuan FAMILY & wizard onboarding): anggota dengan hubungan + nama sama diperbarui (kolom Import/HR seperti pendidikan, pekerjaan, almarhum tetap), yang hilang dihapus, yang baru dibuat.
+- **Keputusan:** –
+- **Verifikasi:** integration `data-changes.test.ts` 11 (+1).
+- **Masalah / catatan:** ditemukan saat memetakan form Ubah data (EMP-D4, karyawan/log).
+- **Berikutnya:** ikut rilis bersama EMP-D4.
+
+### 2026-10-19 — Perbaikan UI/UX Surat Peringatan + SP massal (Oatse)
+- **Dikerjakan:** detail Riwayat Peringatan dikelompokkan (kartu Karyawan · Pelanggaran · Proses & dokumen; label alasan eskalasi tanpa "(—)"); kolom Tingkat/Jenis/Tanggal rata, tanggal kejadian wajib; Buat SP untuk banyak karyawan (`POST /warning-letters/bulk`, chip terpilih, "Ikuti saran sistem"); dialog form SP header & tombol tetap, isi scroll (checklist "Perbaikan UI/UX Surat Peringatan").
+- **Keputusan:** ARS-D19 (tanggal kejadian wajib), ARS-D20 (draft SP massal satu transaksi).
+- **Verifikasi:** typecheck ✔ 3 workspace · `bunx biome ci .` ✔ (1 warning lama `employee-print.test.ts`) · boundaries ✔ (473 modul) · test shared **250** · api **813** · web **294** + 5 dilewati (`--maxWorkers=4`; suite 12 worker: 5 gagal acak karena batas waktu, termasuk Backlog flaky lama); integration SP 22, web SP 8.
+- **Masalah / catatan:** dialog tidak bisa di-scroll di staging karena `EmployeePicker` punya `min-h-[420px]` yang menimpa `h-56`; dialog aset (`asset-forms.tsx`) memakai pola sama (belum diubah, lihat Temuan laporan). QA visual Playwright lokal 11/11 (`docs/qa/runs/2026-10-19-ui-ux-lokal.md`).
+- **Berikutnya:** izin commit.
+
+
 ### 2026-10-16 — Arsip gel. 3 Laporan batch 1: API, web, QA lokal (Oatse)
 - **Dikerjakan (rencana disetujui pemilik projek):** checklist "Gel. 3 Laporan" batch 1. Shared `report.ts` (rumus turnover, kelompok kedaluwarsa, % lengkap); fungsi baca-saja `employee` (`report-data.*`) & `discipline` (`listWarningLettersForReport`) lewat `index.ts`; modul baru `report` (policy, 4 laporan + 4 ekspor xlsx, audit `report.export`); web `features/reports/` (menu Laporan tidak lagi Maintenance, 4 tab, filter unit/tahun, grafik ECharts palet Dashboard, tabel, ekspor), saklar `FEATURES.reports`, `access.viewReports`; 2 test web lama "Laporan = Maintenance" diubah jadi "mengikuti `FEATURES.reports`".
 - **Keputusan:** ARS-D18 (batasan: unit/status saat ini, reaktivasi, dokumen wajib SITE belum dihitung).
@@ -114,3 +143,4 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Berikutnya:** commit + push (izin); usulan laporan kehadiran (modul attendance) & performa (perlu keputusan: penilaian kinerja di luar cakupan v1, PLAN §1).
 - **Revisi kartu (permintaan pemilik projek, 2026-10-16):** sorotan hijau di kartu utama dihapus (semua kartu netral; kartu penyaring aktif cukup bergaris tepi tegas + latar abu tipis); ubin SP 1/2/3 berisi angka tingkat (bukan ikon perisai yang sama), warna mengikuti jumlah (SP1 kuning, SP2/SP3 merah bila ada). Test web laporan 8/8, tangkapan `/mnt/winD/WORK/Magang/QA/2026-10-16-laporan-ui/kartu/`.
 - **Saklar (2026-10-16):** atas permintaan pemilik projek `FEATURES.reports` = **false** di develop sebelum commit/push (menu Laporan kembali "Maintenance"; test `reports.test.tsx` dilewati saat saklar mati, test menu mengikuti saklar).
+- **Arahan pemilik projek (2026-10-16):** laporan **kehadiran** (batch 2, data modul attendance/leave sudah ada) dan **performa** (penilaian kinerja di luar cakupan v1, PLAN §1) **ditunda sampai ada instruksi mentor**. Push commit Laporan `78b1a90` sudah dilakukan (CI ✔); saklar `reports` mengikuti pengaturan pemilik projek.

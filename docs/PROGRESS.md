@@ -12,10 +12,10 @@
 | [fondasi](features/fondasi/README.md) | 0–1 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai (sisa: uji Windows, OD-9, OD-12) | ✔ |
 | [iam](features/iam/README.md) | 2 | Oatse | `HRIS/Oatse/Linux-Windows` | Review (sisa: captcha ditunda, OD-5) | ✔ |
 | [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan (sisa: profil perusahaan, pengaturan sistem) | ✔ |
-| [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan | ✔ |
+| [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1) ✔ lokal `a2ce380` (belum push, EMP-OD1); template Formulir Data Karyawan + Tambah karyawan bertahap (EMP-D2) ✔ staging gel. 9; Print data PDF dari template (EMP-D3) ✔ staging gel. 10; Ubah data lengkap (EMP-D4) ✔ staging gel. 11 (QA LEGIT) | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
-| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ lokal (QA 11/11 + UI/UX 19/19); sisa rilis batch 1, batch 2, OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT) |
+| [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ staging gel. 9 (QA LEGIT); Laporan batch 2 (ARS-D21) ✔ lokal 2026-10-20 (QA 12/12, belum staging); sisa OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT), gel. 9 Laporan |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
 | [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; sisa: lembur OD-14, uji HP, cron, adapter | terpasang tersembunyi (gel. 7 + lokasi absen gel. 8, saklar `false`) |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
@@ -32,6 +32,10 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 - **Arsip gel. 2a Aset & APD (ARS-D1–D6):** ✔ develop & ✔ staging (rilis gel. 7, QA LEGIT).
 - **Rilis gel. 8 ke staging (2026-10-15):** Surat Peringatan tampil (QA staging 15/15 **LEGIT**), header detail karyawan baru, lokasi absen TM-D1 terpasang tersembunyi; 37 migrasi — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging). Staging **pindah ke team Vercel Pro "Arthasia Akselerasi"** 2026-10-16 (FND-D1, [panduan & status](features/fondasi/pindah-akun-vercel.md)). **Arsip gel. 3 Laporan batch 1** ✔ lokal 2026-10-16 (ARS-D16–D18: headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; modul `report`; QA lokal 11/11; lalu perbaikan UI/UX interaktif + Excel bergaya, QA 19/19) — menunggu izin commit/push lalu rilis staging; batch 2 menyusul.
 - **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
+
+- **Perbaikan UI/UX temuan pemilik projek (2026-10-19):** detail & form SP (ARS-D19 tanggal kejadian wajib, ARS-D20 SP massal), dialog SP scroll, sidebar Master Data bab → sub, header tetap (hanya isi scroll), template Formulir Data Karyawan, Tambah karyawan bertahap (EMP-D2). QA lokal Playwright 11/11 (LEGIT). **✔ staging rilis gel. 9 (2026-10-19, Deploy #39199139468)** bersama Laporan batch 1; QA staging 15/15 **LEGIT**.
+- **Print data PDF dari template "Formulir Data Karyawan" (EMP-D3, 2026-10-19):** ✔ staging gel. 10 (Deploy #39213066393), QA staging LEGIT; Formulir Aplikasi Word & Gotenberg dihapus; rekening tetap tidak dicetak.
+- **Status 2026-10-16 (menunggu instruksi pemilik projek):** (1) **Laporan batch 1** ✔ develop `78b1a90` (pushed, CI ✔) — saklar `reports` di salinan kerja diatur pemilik projek, belum dirilis; laporan **kehadiran & performa ditunda** sampai instruksi mentor. (2) **Formulir Aplikasi Word/PDF** (EMP-D1) ✔ lokal `a2ce380` — **belum push**; layanan PDF staging/produksi = EMP-OD1. (3) Nilai saklar `FEATURES` di salinan kerja develop = pengaturan lokal pemilik projek → **jangan disentuh**. (4) Database staging akan di-reset pemilik projek.
 
 ## Blocker & wajib sebelum produksi
 
@@ -60,10 +64,19 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 | OD-13 | Format file Excel roster dari site (D-069) | Tahap B import roster | Menunggu keputusan (nomor awal OD-12 di branch Mat; import sementara mengenali dua bentuk umum) |
 | OD-14 | Lembur: otomatis dari absen vs shift, atau pengajuan | Tahap F | Terjawab → TM-D6 (2026-10-21: usulan otomatis + Atasan & HR) |
 | OD-15 | Batas waktu approval absen & pengingat (D-068) | Tahap D | Menunggu keputusan (nomor awal OD-14; sementara pengaturan 2 hari) |
+| EMP-OD1 | Tempat layanan konversi PDF (Gotenberg) staging/produksi untuk Formulir Aplikasi (EMP-D1) | Rilis Formulir Aplikasi | Gugur → EMP-D3 (2026-10-19) |
+| EMP-OD2 | Template dinamis (HR ganti desain formulir sendiri) vs posisi isian tetap di kode untuk Print data PDF & surat lain | Ganti desain formulir tanpa developer | Menunggu instruksi (sementara posisi tetap) |
 
 ## Backlog
 
+- **(2026-10-19, pertanyaan pemilik projek)** **Aturan waktu status kepegawaian & grade** belum ada (master hanya nama/kategori): masa percobaan ≤ 3 bulan + pengingat, tanggal akhir & total PKWT ≤ 5 tahun (Fase 7 Kontrak), syarat masa kerja/jenjang grade (Payroll Fase 8). Perlu keputusan HR: durasi standar kontrak per jabatan, kebijakan perpanjangan, penyetuju.
 Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerjakan**.
+
+- ~~**(2026-10-19, perbaikan berikutnya — arahan pemilik projek)** **Print data di detail profil karyawan → PDF dari template "Formulir Data Karyawan"** (menggantikan Excel `Template-excel.xlsx`): pakai `Formulir Data Karyawan.pdf` dari HR sebagai latar (pdf-lib, jalan di Vercel tanpa Gotenberg), data ditulis di kolomnya + pas foto, bagian pernyataan/daftar dokumen/tanda tangan Pelamar dihapus, hak akses & audit sama dengan Print data; Excel lama dihapus; **Formulir Aplikasi Word (EMP-D1, Gotenberg) dihapus** beserta saklar `applicationForm` & env `GOTENBERG_URL` (EMP-OD1 gugur). Batas: baris tabel tetap (anak 5, saudara 5, pendidikan 3, sertifikasi 11; lebih → "+n lainnya"). Rencana lengkap: [karyawan README](features/karyawan/README.md) (EMP-OD2). **Berkaitan dengan template dinamis** di bawah: posisi isian tetap di kode, ganti desain formulir = ubah kode, kecuali dibuat aplikasi template dinamis.~~ → dikerjakan lokal 2026-10-19 (EMP-D3)
+- **(2026-10-16, EMP-D1 tahap 2 → template dinamis)** Halaman / aplikasi **Template Dokumen** (Master Data): unggah template (Word atau PDF berlatar) + daftar penanda/posisi isian, cek penanda otomatis, pratinjau PDF data fiktif, aktifkan/kembali ke versi lama, audit; dipakai ulang untuk Print data karyawan, surat SP, keterangan kerja. Bila dikerjakan, Print data PDF di atas dipindah ke mekanisme ini. Menunggu instruksi.
+- ~~**(2026-10-16)** Template Formulir Aplikasi baru dari HR~~ → dipasang 2026-10-19 ("Formulir Data Karyawan"). Sisa: kolom "No. Sertifikasi" masih diisi penyelenggara (nomor sertifikat `certificateNumber` sudah tersimpan dari Import/Tambah karyawan, belum dikirim di detail cetak).
+- **(2026-10-19, dari perbaikan dialog SP)** Dialog form Aset (`features/assets/components/asset-forms.tsx`) memakai pola scroll yang sama dengan dialog SP lama (isi dibatasi `max-h-[80dvh]`, pemilih karyawan `min-h-[420px]`) → kemungkinan tombol terpotong di layar pendek; samakan dengan pola baru (header & tombol tetap).
+- **(2026-10-16, ditunda sampai instruksi mentor)** Laporan **kehadiran** (batch 2: hadir/terlambat/alpa, cuti) dan **performa** (penilaian kinerja di luar cakupan v1 — PLAN §1; alternatif sementara indikator kehadiran + SP).
 
 - ~~**(2026-10-14, QA staging Aset)** Form Tambah aset: PT bawaan kosong bila data master terlambat~~ → diperbaiki develop 2026-10-14
 - ~~**(2026-10-14)** Top bar melebar 34 px untuk SA di layar 1440 px (Personal Management)~~ → diperbaiki develop 2026-10-14 (kotak cari menyempit)
@@ -95,8 +108,16 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-20** — Laporan batch 2 (ARS-D21): masa kerja, demografi, mutasi & promosi, ulang tahun, aset, pengajuan data; api 826 · web 281 · QA lokal 12/12. (Oatse) → [arsip/log](features/arsip/log.md)
+- **2026-10-19** — Rilis gel. 11 ke staging: Ubah data lengkap (EMP-D4) + perbaikan pengajuan Keluarga (PR #57/#58, Deploy #39228019978, tanpa migrasi). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
+- **2026-10-19** — Ubah data lengkap dari detail (EMP-D4: pribadi, keluarga, rekening) + perbaikan pengajuan Keluarga yang menghapus kolom; api 816 · web 270. (Oatse) → [karyawan/log](features/karyawan/log.md)
+- **2026-10-19** — Rilis gel. 10 ke staging: Print data PDF dari template (PR #55/#56, Deploy #39213066393, tanpa migrasi). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
+- **2026-10-19** — Print data jadi PDF dari template Formulir Data Karyawan (EMP-D3), Formulir Aplikasi Word & Gotenberg dihapus; api 812 · web 268, QA browser lokal ✔. (Oatse) → [karyawan/log](features/karyawan/log.md)
+- **2026-10-19** — Rilis gel. 9 ke staging: Laporan batch 1 tampil + perbaikan UI/UX + SP massal + Tambah karyawan bertahap (PR #53/#54, Deploy #39199139468, tanpa migrasi); merge `HRIS/Mat/Mac` `1729e49`. (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
+- **2026-10-19** — Perbaikan UI/UX 8 temuan: detail & form SP + SP massal (ARS-D19/D20), dialog scroll, sidebar Master Data bab → sub, header tetap, template Formulir Data Karyawan, Tambah karyawan bertahap (EMP-D2); shared 250 · api 813 · web 294. (Oatse) → [arsip/log](features/arsip/log.md) · [karyawan/log](features/karyawan/log.md) · [fondasi/log](features/fondasi/log.md)
 - **2026-10-16** — Arsip gel. 3 Laporan batch 1: modul `report` + menu Laporan (4 laporan, ekspor Excel); api 792 · web 289, QA lokal 11/11. (Oatse) → [arsip/log](features/arsip/log.md)
 - **2026-10-16** — Laporan: perbaikan UI/UX (kartu, keterbacaan, klik → saring / panel profil, tabel sama dengan Data Karyawan Aktif) + Excel bergaya (penulis xlsx bersama: judul, format, autofilter, cetak); shared 246 · api 792 · web 291, QA 19/19. (Oatse) → [arsip/log](features/arsip/log.md)
+- **2026-10-16** — Formulir Aplikasi Word/PDF dari template kantor (EMP-D1, fitur lokal di balik saklar `applicationForm`): docxtemplater + Gotenberg (docker lokal); api 806 · web 287, QA 4/4. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-10-16** — Staging pindah ke team Vercel Pro "Arthasia Akselerasi" (transfer project, secret GitHub, Deploy #38841245033 ✔, smoke ✔); FND-D1, OD-4 sebagian. (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-15** — Panduan pindah deployment staging ke akun Vercel Pro (env, cron, secret, transfer vs buat baru). (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-10-15** — Rilis gel. 8: Surat Peringatan tampil di staging (PR #51/#52, Deploy #38718943479, 37 migrasi), header detail baru, TM tetap tersembunyi; QA staging 15/15 LEGIT + Drive. (Oatse) → [arsip/log](features/arsip/log.md)

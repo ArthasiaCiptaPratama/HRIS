@@ -107,6 +107,31 @@ export function canWriteSensitiveViaImport(actor: Actor, section: "personal" | "
   );
 }
 
+// EMP-D2: data profil saat menambah karyawan manual — bagian pribadi/keluarga & rekening butuh grant
+// `employee.personal.write` / `employee.bank.write` (SA selalu boleh), sama seperti lewat import.
+export function canWriteSensitiveOnCreate(actor: Actor, section: "personal" | "bank"): boolean {
+  if (!canManageEmployees(actor)) return false;
+  return hasPermission(
+    actor,
+    section === "personal" ? "employee.personal.write" : "employee.bank.write",
+  );
+}
+
+// EMP-D4: HR ubah langsung data sensitif karyawan lain dari detail — SA selalu; HR butuh grant tulis
+// bagian itu di PT yang ditugaskan. Data diri sendiri tetap lewat pengajuan (D-054).
+export function canWriteSensitive(
+  actor: Actor,
+  target: EmployeeTarget,
+  section: "personal" | "bank",
+): boolean {
+  // D-054: data diri sendiri (termasuk SUPER_ADMIN) tetap lewat pengajuan.
+  if (isSelf(actor, target)) return false;
+  if (actor.role === ROLE.SUPER_ADMIN) return true;
+  if (actor.role !== ROLE.HR_ADMIN) return false;
+  const permission = section === "personal" ? "employee.personal.write" : "employee.bank.write";
+  return hasPermission(actor, permission) && isInCompanyScope(actor, target);
+}
+
 // Dashboard agregat kepegawaian (ringkasan seluruh karyawan): SA & HR saja. MANAGER/EMPLOYEE melihat
 // dashboard sapaan (ringkasan seluruh karyawan bukan need-to-know mereka, PLAN §4).
 export function canViewDashboard(actor: Actor): boolean {

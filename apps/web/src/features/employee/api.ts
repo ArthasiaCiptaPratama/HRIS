@@ -1,4 +1,10 @@
-import type { EmploymentCategory, EmploymentCategoryGroup, ExitReason } from "@hris/shared";
+import type {
+  EmployeeProfileInput,
+  EmployeeProfileUpdateInput,
+  EmploymentCategory,
+  EmploymentCategoryGroup,
+  ExitReason,
+} from "@hris/shared";
 import {
   keepPreviousData,
   type QueryClient,
@@ -149,10 +155,25 @@ export function useEmployee(id: string | null, view: DetailView = "work", enable
  * Bahan formulir cetak (.xlsx): selalu diambil baru (tidak di-cache) karena setiap unduhan
  * tercatat di audit log (`employee.printed`). API menolak (403) selain SA/HR.
  */
-export function fetchEmployeeForPrint(id: string) {
-  return api(`/employees/${id}?view=print`, { schema: one(employeeDetailSchema) }).then(
-    (r) => r.data,
-  );
+const employeeFormFileSchema = one(
+  z.object({
+    fileName: z.string(),
+    contentType: z.string(),
+    contentBase64: z.string(),
+    photo: z.enum(["included", "none", "unsupported", "failed"]),
+  }),
+);
+
+/**
+ * Print data: Formulir Data Karyawan (PDF dari template HR, dibuat server, tercatat di audit).
+ * `photoBase64` = pas foto JPEG yang disiapkan browser (foto profil tersimpan WebP).
+ */
+export function fetchEmployeeForm(id: string, photoBase64: string | null) {
+  return api(`/employees/${id}/print`, {
+    method: "POST",
+    body: { photoBase64 },
+    schema: employeeFormFileSchema,
+  }).then((r) => r.data);
 }
 
 export function useMasterData(enabled = true) {
@@ -249,6 +270,8 @@ export interface EmployeeWriteBody {
   orgPostId?: string | null;
   /** D-053: true = atasan manual; false = otomatis dari pos. */
   managerOverride?: boolean;
+  /** EMP-D2: data profil lengkap saat tambah (hanya POST). */
+  profile?: EmployeeProfileInput;
 }
 
 export const useCreateEmployee = () =>
@@ -260,6 +283,24 @@ export const useUpdateEmployee = () =>
   useEmployeeMutation(({ id, body }: { id: string; body: Partial<EmployeeWriteBody> }) =>
     api(`/employees/${id}`, { method: "PATCH", body, schema: item }),
   );
+
+/** EMP-D4: ubah data pribadi / keluarga / rekening langsung (bagian yang dikirim diganti utuh). */
+export function useUpdateEmployeeProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: EmployeeProfileUpdateInput }) =>
+      api(`/employees/${id}/profile`, {
+        method: "PATCH",
+        body,
+        schema: one(employeeDetailSchema),
+      }).then((r) => r.data),
+    // Detail terbaru langsung dari respons: dialog yang segera dibuka lagi tidak memakai data lama.
+    onSuccess: (detail) => {
+      queryClient.setQueryData(employeeKeys.detail(detail.id, "full"), detail);
+      return queryClient.invalidateQueries({ queryKey: employeeKeys.all });
+    },
+  });
+}
 
 export const useChangeStatus = () =>
   useEmployeeMutation(

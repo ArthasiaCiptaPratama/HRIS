@@ -1,5 +1,5 @@
 import { getPrisma } from "../../core/db.ts";
-import type { Prisma } from "../../generated/prisma/client.ts";
+import { Prisma } from "../../generated/prisma/client.ts";
 
 // Satu-satunya tempat query Prisma ke tabel skema employee (PROMPT §4).
 // Tidak ada `include` ke tabel modul lain: nama jabatan/status dirakit service dari modul organization.
@@ -257,6 +257,30 @@ export async function findActorEmployee(id: string) {
       completionSubmittedAt: true,
     },
   });
+}
+
+/** EMP-D2/D4: email pribadi (unik) dari profil tambah/ubah; null = dikosongkan. */
+export async function setPersonalEmail(tx: EmployeeTx, id: string, personalEmail: string | null) {
+  await tx.employee.update({ where: { id }, data: { personalEmail } });
+}
+
+/** EMP-D4: nilai JSON kosong (kolom `driving_license_numbers` dikosongkan saat ubah). */
+export const JSON_NULL = Prisma.DbNull;
+
+/** EMP-D4: ganti seluruh anggota keluarga (HR ubah langsung) — semua kolom ikut. */
+export async function replaceFamilyMembers(
+  tx: EmployeeTx,
+  employeeId: string,
+  members: Omit<Prisma.FamilyMemberCreateManyInput, "employeeId">[],
+) {
+  await tx.familyMember.deleteMany({ where: { employeeId } });
+  if (members.length)
+    await tx.familyMember.createMany({ data: members.map((m) => ({ ...m, employeeId })) });
+}
+
+/** EMP-D4: rekening saat ini (untuk tahu ada/tidak & apakah berubah). */
+export function findBankAccount(tx: EmployeeTx, employeeId: string) {
+  return tx.employeeBankAccount.findUnique({ where: { employeeId } });
 }
 
 export async function createEmployee(tx: EmployeeTx, data: Prisma.EmployeeUncheckedCreateInput) {

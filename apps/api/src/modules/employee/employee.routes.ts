@@ -35,6 +35,7 @@ import {
   updateEmployeeBodySchema,
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
+import * as employeeForm from "./employee-form.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
 import { registerOnboardingRoutes } from "./onboarding.routes.ts";
 import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
@@ -203,6 +204,46 @@ const routes = {
       ...errors(400, 401, 403, 404, 500),
     },
   }),
+  printForm: createRoute({
+    method: "post",
+    path: `${P}/employees/{id}/print`,
+    tags: TAGS,
+    summary:
+      "Print data: Formulir Data Karyawan (PDF dari template HR) — SA/HR, data pribadi bila berhak, dicatat di audit",
+    security,
+    request: {
+      params: idParamSchema,
+      body: {
+        content: {
+          "application/json": {
+            schema: z
+              .object({
+                /** Pas foto JPEG/PNG (base64) dari browser — foto profil tersimpan WebP, pdf-lib tidak bisa. */
+                photoBase64: z.string().max(4_000_000).nullable().optional(),
+              })
+              .openapi("EmployeeFormInput"),
+          },
+        },
+        required: false,
+      },
+    },
+    responses: {
+      200: json(
+        "Berkas PDF (base64)",
+        dataEnvelope(
+          z
+            .object({
+              fileName: z.string(),
+              contentType: z.literal("application/pdf"),
+              contentBase64: z.string(),
+              photo: z.enum(["included", "none", "unsupported", "failed"]),
+            })
+            .openapi("EmployeeFormFile"),
+        ),
+      ),
+      ...errors(400, 401, 403, 404, 500),
+    },
+  }),
   create: createRoute({
     method: "post",
     path: `${P}/employees`,
@@ -213,6 +254,32 @@ const routes = {
     responses: {
       201: json("Karyawan dibuat", dataEnvelope(employeeListItemSchema)),
       ...errors(400, 401, 403, 409, 422, 500),
+    },
+  }),
+  updateProfile: createRoute({
+    method: "patch",
+    path: `${P}/employees/{id}/profile`,
+    tags: TAGS,
+    summary:
+      "Ubah data pribadi, keluarga, rekening karyawan langsung (EMP-D4) — SA / HR ber-grant employee.personal.write / employee.bank.write di PT-nya",
+    security,
+    request: {
+      params: idParamSchema,
+      body: {
+        content: {
+          "application/json": {
+            schema: z.record(z.string(), z.unknown()).openapi("UpdateEmployeeProfile", {
+              description:
+                "`{ personal?, family?, bank? }` — bagian yang dikirim diganti utuh (employeeProfileUpdateSchema)",
+            }),
+          },
+        },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Detail karyawan setelah diubah", dataEnvelope(employeeDetailSchema)),
+      ...errors(400, 401, 403, 404, 409, 500),
     },
   }),
   update: createRoute({
@@ -348,12 +415,30 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
       200,
     ),
   );
+  app.openapi(guard(routes.printForm), async (c) =>
+    c.json(
+      ok(
+        await employeeForm.exportEmployeeForm(
+          ctx(c),
+          c.req.valid("param").id,
+          c.req.valid("json")?.photoBase64 ?? null,
+        ),
+      ),
+      200,
+    ),
+  );
   app.openapi(guard(routes.create), async (c) =>
     c.json(ok(await service.createEmployee(ctx(c), c.req.valid("json"))), 201),
   );
   app.openapi(guard(routes.update), async (c) =>
     c.json(
       ok(await service.updateEmployee(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
+    ),
+  );
+  app.openapi(guard(routes.updateProfile), async (c) =>
+    c.json(
+      ok(await service.updateEmployeeProfile(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
       200,
     ),
   );
