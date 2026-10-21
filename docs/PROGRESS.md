@@ -17,7 +17,7 @@
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
 | [arsip](features/arsip/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — gel. 1a–1d ✔ staging; gel. 2a Aset & APD ✔ staging (QA LEGIT); gel. 2b SP ✔ staging (QA LEGIT); gel. 3 Laporan batch 1 ✔ staging gel. 9 (QA LEGIT); Laporan batch 2 (ARS-D21) ✔ staging gel. 12 2026-10-20 (QA staging 17/17 LEGIT); sisa OD-11 | ✔ gel. 6, gel. 7 Aset, gel. 8 SP (QA LEGIT), gel. 9 Laporan, gel. 12 Laporan batch 2 |
 | [dashboard](features/dashboard/README.md) | 4 | Mat | `HRIS/Mat/windows` | Selesai (D-065) | ✔ gel. 3 |
-| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; Alpha harian, koreksi 3 hari, notifikasi TM, aturan izin, beranda HP ✔ develop 2026-10-20 (merge `69b20a5`); sisa: lembur OD-14, uji HP, cron (+ `attendance-reminders`, `approval-digest`), adapter | terpasang tersembunyi (gel. 7, 8, 12; saklar `false`) |
+| [time-management](features/time-management/README.md) | 5–6 | Mat | `HRIS/Mat/Mac` (sebelumnya `HRIS/Mat/windows`) | Berjalan — ✔ develop 2026-10-13 (`e31e934`); lokasi absen per karyawan TM-D1 ✔ develop 2026-10-15; Alpha harian, koreksi 3 hari, notifikasi TM, aturan izin, beranda HP ✔ develop 2026-10-20 (merge `69b20a5`); adapter `directory.ts` & cron `vercel.json` ✔ develop 2026-10-21; sisa: lembur OD-14, uji HP | terpasang tersembunyi (gel. 7, 8, 12; saklar `false`) |
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
@@ -32,7 +32,7 @@ Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan,
 - **Arsip gel. 1 + Layanan Mandiri tampil di staging (rilis gel. 6, 2026-10-13)** — QA 14/14 LEGIT.
 - **Arsip gel. 2a Aset & APD (ARS-D1–D6):** ✔ develop & ✔ staging (rilis gel. 7, QA LEGIT).
 - **Rilis gel. 8 ke staging (2026-10-15):** Surat Peringatan tampil (QA staging 15/15 **LEGIT**), header detail karyawan baru, lokasi absen TM-D1 terpasang tersembunyi; 37 migrasi — [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging). Staging **pindah ke team Vercel Pro "Arthasia Akselerasi"** 2026-10-16 (FND-D1, [panduan & status](features/fondasi/pindah-akun-vercel.md)). **Arsip gel. 3 Laporan batch 1** ✔ lokal 2026-10-16 (ARS-D16–D18: headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; modul `report`; QA lokal 11/11; lalu perbaikan UI/UX interaktif + Excel bergaya, QA 19/19) — menunggu izin commit/push lalu rilis staging; batch 2 menyusul.
-- **Time Management sebelum rilis:** adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`, uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
+- **Time Management sebelum rilis:** ~~adapter `attendance/directory.ts` → `index.ts` (aturan emas #3), cron di `vercel.json`~~ ✔ 2026-10-21; uji HP kamera/GPS, OD-13–OD-15, konfirmasi contoh prorata (D-072) — [features/time-management](features/time-management/README.md).
 
 - **Perbaikan UI/UX temuan pemilik projek (2026-10-19):** detail & form SP (ARS-D19 tanggal kejadian wajib, ARS-D20 SP massal), dialog SP scroll, sidebar Master Data bab → sub, header tetap (hanya isi scroll), template Formulir Data Karyawan, Tambah karyawan bertahap (EMP-D2). QA lokal Playwright 11/11 (LEGIT). **✔ staging rilis gel. 9 (2026-10-19, Deploy #39199139468)** bersama Laporan batch 1; QA staging 15/15 **LEGIT**.
 - **Print data PDF dari template "Formulir Data Karyawan" (EMP-D3, 2026-10-19):** ✔ staging gel. 10 (Deploy #39213066393), QA staging LEGIT; Formulir Aplikasi Word & Gotenberg dihapus; rekening tetap tidak dicetak.
@@ -81,8 +81,8 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 - ~~**(2026-10-14, QA staging Aset)** Form Tambah aset: PT bawaan kosong bila data master terlambat~~ → diperbaiki develop 2026-10-14
 - ~~**(2026-10-14)** Top bar melebar 34 px untuk SA di layar 1440 px (Personal Management)~~ → diperbaiki develop 2026-10-14 (kotak cari menyempit)
-- **(2026-10-13, dari gabung Time Management)** Ganti adapter baca `apps/api/src/modules/attendance/directory.ts` (query langsung `employee`/`company`/`workLocation`, melanggar aturan emas #3) dengan fungsi publik di `modules/employee/index.ts` & `modules/organization/index.ts`.
-- **(2026-10-13)** Daftarkan cron `roster-extend`, `attendance-daily`, `leave-daily` di `vercel.json` (Vercel kini Pro — FND-D1 — cron boleh lebih rapat dari 1×/hari) sebelum rilis Time Management.
+- ~~**(2026-10-13, dari gabung Time Management)** Ganti adapter baca `apps/api/src/modules/attendance/directory.ts` (query langsung `employee`/`company`/`workLocation`, melanggar aturan emas #3) dengan fungsi publik di `modules/employee/index.ts` & `modules/organization/index.ts`.~~ → dikerjakan 2026-10-21
+- ~~**(2026-10-13)** Daftarkan cron `roster-extend`, `attendance-daily`, `leave-daily` di `vercel.json` (Vercel kini Pro — FND-D1 — cron boleh lebih rapat dari 1×/hari) sebelum rilis Time Management.~~ → dikerjakan 2026-10-21 (+ `attendance-reminders`, `approval-digest`)
 - ~~**(2026-10-13)** Badge "DB · Lokal" (tukar DB, dev saja) menumpuk teks di kaki sidebar~~ → bawaan kanan-bawah, develop 2026-10-14
 - ~~Atasan fungsional (garis putus-putus)~~ → dikerjakan D-051 (2026-10-05)
 - ~~Slot posisi / headcount~~ → dikerjakan D-051 (2026-10-05)
@@ -109,6 +109,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-21** — TM: adapter `attendance/directory.ts` lewat interface publik employee/organization (tanpa Prisma) + 5 cron TM di `vercel.json`; shared 268 · api 840 · web 290. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-20** — Rilis gel. 12 ke staging: Laporan batch 2 + gabungan TM Mat tersembunyi (PR #59/#60, Deploy #39390300300, migrasi 38). (Oatse) → [RELEASE §4](RELEASE.md#4-riwayat-rilis-staging)
 - **2026-10-20** — Gabung `HRIS/Mat/Mac` (`e9fb9e4`, `ca6faa5`: Alpha harian, koreksi 3 hari, notifikasi TM, aturan izin, beranda HP; 1 migrasi) ke develop `69b20a5`, tanpa konflik; api 840 · web 290. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-20** — Audit Laporan: bilah filter sticky tanpa celah, 10 tab turun baris, tanggal WIB pengajuan data. (Oatse) → [arsip/log](features/arsip/log.md)

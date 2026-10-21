@@ -1,9 +1,18 @@
-import { getPrisma } from "../../core/db.ts";
+import {
+  type EmployeeBrief,
+  getEmployeeBriefs,
+  listActiveEmployeeJoinDates,
+  listEmployeeBriefs,
+} from "../employee/index.ts";
+import {
+  getWorkLocationBriefs,
+  listGeofencedWorkLocations,
+  companyExists as organizationCompanyExists,
+  type WorkLocationBrief,
+} from "../organization/index.ts";
 
-// SEMENTARA — adapter BACA-SAJA ke data karyawan, PT, & lokasi kerja untuk Time Management.
-// Modul employee/organization masih dikembangkan tim dan tidak boleh disentuh (pemilik projek 2026-10-12),
-// sehingga interface publiknya belum menyediakan data ini. Hanya SELECT; tidak pernah menulis tabel modul lain.
-// Ganti dengan fungsi dari modules/employee/index.ts & modules/organization/index.ts setelah tersedia.
+// Data karyawan, PT, & lokasi kerja untuk Time Management (attendance & leave), dibaca lewat
+// interface publik modul employee & organization (aturan emas #3). Tidak ada query Prisma di sini.
 
 export interface DirectoryEmployee {
   id: string;
@@ -15,26 +24,26 @@ export interface DirectoryEmployee {
   isActive: boolean;
 }
 
-const select = {
-  id: true,
-  fullName: true,
-  employeeNumber: true,
-  companyId: true,
-  managerId: true,
-  workLocationId: true,
-  isActive: true,
-} as const;
+export type DirectoryLocation = WorkLocationBrief;
+
+/** Bentuk tetap (tanpa positionId dll.) agar DTO pemanggil tidak ikut berubah. */
+function toDirectory(row: EmployeeBrief): DirectoryEmployee {
+  return {
+    id: row.id,
+    fullName: row.fullName,
+    employeeNumber: row.employeeNumber,
+    companyId: row.companyId,
+    managerId: row.managerId,
+    workLocationId: row.workLocationId,
+    isActive: row.isActive,
+  };
+}
 
 /** Karyawan "resmi" saja (D-045: calon onboarding belum disetujui bukan karyawan). */
-const APPROVED = { onboardingStatus: "APPROVED" } as const;
-
 export async function employeesByIds(ids: string[]): Promise<Map<string, DirectoryEmployee>> {
   if (ids.length === 0) return new Map();
-  const rows = await getPrisma().employee.findMany({
-    where: { ...APPROVED, id: { in: [...new Set(ids)] } },
-    select,
-  });
-  return new Map(rows.map((row) => [row.id, row]));
+  const rows = await getEmployeeBriefs(ids);
+  return new Map([...rows].map(([id, row]) => [id, toDirectory(row)]));
 }
 
 export async function employeeById(id: string): Promise<DirectoryEmployee | null> {
@@ -46,24 +55,13 @@ export async function activeEmployeesInCompany(
   q?: string,
   take = 500,
 ): Promise<DirectoryEmployee[]> {
-  return getPrisma().employee.findMany({
-    where: {
-      ...APPROVED,
-      companyId,
-      isActive: true,
-      ...(q
-        ? {
-            OR: [
-              { fullName: { contains: q, mode: "insensitive" } },
-              { employeeNumber: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
-    select,
-    orderBy: { fullName: "asc" },
-    take,
+  const rows = await listEmployeeBriefs({
+    companyIds: [companyId],
+    isActive: true,
+    q,
+    limit: take,
   });
+  return rows.map(toDirectory);
 }
 
 export async function employeesByNumbers(
@@ -71,69 +69,31 @@ export async function employeesByNumbers(
   numbers: string[],
 ): Promise<Map<string, DirectoryEmployee>> {
   if (numbers.length === 0) return new Map();
-  const rows = await getPrisma().employee.findMany({
-    where: { ...APPROVED, companyId, employeeNumber: { in: [...new Set(numbers)] } },
-    select,
+  const rows = await listEmployeeBriefs({
+    companyIds: [companyId],
+    employeeNumbers: numbers,
+    limit: numbers.length,
   });
-  return new Map(rows.map((row) => [row.employeeNumber ?? row.id, row]));
+  return new Map(rows.map((row) => [row.employeeNumber ?? row.id, toDirectory(row)]));
 }
 
 /** Tim MANAGER = bawahan langsung (D-009). */
 export async function teamIds(managerEmployeeId: string): Promise<string[]> {
-  const rows = await getPrisma().employee.findMany({
-    where: { ...APPROVED, managerId: managerEmployeeId },
-    select: { id: true },
-  });
+  const rows = await listEmployeeBriefs({ managerId: managerEmployeeId });
   return rows.map((row) => row.id);
 }
 
-export interface DirectoryLocation {
-  id: string;
-  name: string;
-  city: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  radiusM: number | null;
+export function locationsByIds(ids: string[]): Promise<Map<string, DirectoryLocation>> {
+  return getWorkLocationBriefs(ids);
 }
 
-export async function locationsByIds(ids: string[]): Promise<Map<string, DirectoryLocation>> {
-  if (ids.length === 0) return new Map();
-  const rows = await getPrisma().workLocation.findMany({
-    where: { id: { in: [...new Set(ids)] } },
-    select: { id: true, name: true, city: true, latitude: true, longitude: true, radiusM: true },
-  });
-  return new Map(
-    rows.map((row) => [
-      row.id,
-      {
-        ...row,
-        latitude: row.latitude === null ? null : Number(row.latitude),
-        longitude: row.longitude === null ? null : Number(row.longitude),
-      },
-    ]),
-  );
-}
-
-export async function companyExists(companyId: string): Promise<boolean> {
-  return (await getPrisma().company.count({ where: { id: companyId } })) > 0;
+export function companyExists(companyId: string): Promise<boolean> {
+  return organizationCompanyExists(companyId);
 }
 
 /** Semua lokasi kerja aktif yang punya geofence lengkap (untuk label OTHER_LOCATION). */
-export async function geofencedLocations(): Promise<DirectoryLocation[]> {
-  const rows = await getPrisma().workLocation.findMany({
-    where: {
-      deletedAt: null,
-      latitude: { not: null },
-      longitude: { not: null },
-      radiusM: { not: null },
-    },
-    select: { id: true, name: true, city: true, latitude: true, longitude: true, radiusM: true },
-  });
-  return rows.map((row) => ({
-    ...row,
-    latitude: Number(row.latitude),
-    longitude: Number(row.longitude),
-  }));
+export function geofencedLocations(): Promise<DirectoryLocation[]> {
+  return listGeofencedWorkLocations();
 }
 
 export interface GrantCandidate {
@@ -143,9 +103,6 @@ export interface GrantCandidate {
 }
 
 /** Karyawan aktif resmi beserta tanggal masuk (jatah cuti 1 Januari, modul leave). */
-export async function activeEmployeesForGrant(): Promise<GrantCandidate[]> {
-  return getPrisma().employee.findMany({
-    where: { ...APPROVED, isActive: true },
-    select: { id: true, companyId: true, joinDate: true },
-  });
+export function activeEmployeesForGrant(): Promise<GrantCandidate[]> {
+  return listActiveEmployeeJoinDates();
 }

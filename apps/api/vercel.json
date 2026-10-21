@@ -30,6 +30,26 @@
     {
       "path": "/api/cron/discipline-daily",
       "schedule": "45 0 * * *"
+    },
+    {
+      "path": "/api/cron/roster-extend",
+      "schedule": "15 17 * * *"
+    },
+    {
+      "path": "/api/cron/attendance-daily",
+      "schedule": "30 17 * * *"
+    },
+    {
+      "path": "/api/cron/leave-daily",
+      "schedule": "45 17 * * *"
+    },
+    {
+      "path": "/api/cron/attendance-reminders",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/approval-digest",
+      "schedule": "0 0 * * *"
     }
   ]
 }

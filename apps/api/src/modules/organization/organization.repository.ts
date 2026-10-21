@@ -205,6 +205,40 @@ export const workLocationRepo = {
     tx.workLocation.update({ where: { id }, data, select: { id: true } }),
 };
 
+// ── Direktori baca-saja untuk modul lain (lewat index.ts): lokasi kerja & PT ──
+
+const LOCATION_BRIEF_SELECT = {
+  id: true,
+  name: true,
+  city: true,
+  latitude: true,
+  longitude: true,
+  radiusM: true,
+} as const;
+
+export function findWorkLocationsByIds(ids: string[]) {
+  return getPrisma().workLocation.findMany({
+    where: { id: { in: ids } },
+    select: LOCATION_BRIEF_SELECT,
+  });
+}
+
+export function findGeofencedWorkLocations() {
+  return getPrisma().workLocation.findMany({
+    where: {
+      deletedAt: null,
+      latitude: { not: null },
+      longitude: { not: null },
+      radiusM: { not: null },
+    },
+    select: LOCATION_BRIEF_SELECT,
+  });
+}
+
+export function countCompaniesById(id: string) {
+  return getPrisma().company.count({ where: { id } });
+}
+
 export type ArchivableEntity =
   | "company"
   | "department"

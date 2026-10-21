@@ -7,6 +7,7 @@
 ```
 │   │   ├── organization/             [done] D-049: `organization-admin.{schema,service,routes}.ts` — kelola 6 master data (daftar admin SA/HR + jumlah karyawan; tambah/ubah/arsip/pulihkan/hapus (FK → 409)/gabungkan; audit; `configureOrganization({ employeeSupport })` dari app.ts), `archivedMasterIndex()` untuk import. D-042: `masterIndex`/`missingMasterData`/`createMissingMasterData` (import; audit `organization.<entity>.create` {source: import}). D-035: `GET /master-data` (perusahaan sesuai cakupan PT — D-040, departemen, jabatan, status+kategori, grade, lokasi aktif; semua role); `getMasterLookup()` + helper `statusIdsForCategories()` (D-038) / departemen untuk modul lain. CRUD master data menyusul Fase 3
 │   │   │                             [done] D-051/D-052: `org-post.{schema,service,routes}.ts` (`/org-posts` CRUD + arsip + `sync-managers`; aturan PT/siklus/slot), `organization-support.ts` (hook ke employee: jumlah pemegang, PT pemegang, sinkron atasan — organization tidak membaca tabel employee), `listOrgPosts` di `index.ts`; unit `company_id` di CRUD departments
+│   │   │                             [done] 2026-10-21: `directory.service.ts` (baca-saja untuk modul lain lewat `index.ts`: `getWorkLocationBriefs` termasuk lokasi diarsip, `listGeofencedWorkLocations`, `companyExists`; query di `organization.repository.ts`) — pengganti query langsung di `attendance/directory.ts`
 ```
 
 ## Web (`apps/web/src/features/`)

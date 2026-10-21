@@ -26,6 +26,7 @@ export async function findBriefs(filter: {
   companyIds: string[] | null;
   managerId: string | null;
   isActive: boolean | null;
+  employeeNumbers: string[] | null;
   q: string | null;
   limit: number;
 }) {
@@ -35,6 +36,7 @@ export async function findBriefs(filter: {
       ...(filter.companyIds ? { companyId: { in: filter.companyIds } } : {}),
       ...(filter.managerId ? { managerId: filter.managerId } : {}),
       ...(filter.isActive === null ? {} : { isActive: filter.isActive }),
+      ...(filter.employeeNumbers ? { employeeNumber: { in: filter.employeeNumbers } } : {}),
       ...(filter.q
         ? {
             OR: [
@@ -47,6 +49,13 @@ export async function findBriefs(filter: {
     select: BRIEF_SELECT,
     orderBy: { fullName: "asc" },
     take: filter.limit,
+  });
+}
+
+export async function findActiveJoinDates() {
+  return getPrisma().employee.findMany({
+    where: { onboardingStatus: "APPROVED", isActive: true },
+    select: { id: true, companyId: true, joinDate: true },
   });
 }
 

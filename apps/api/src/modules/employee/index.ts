@@ -4,6 +4,7 @@ export {
   type EmployeeBrief,
   getEmployeeBriefs,
   getEmployeeDocumentRef,
+  listActiveEmployeeJoinDates,
   listEmployeeBriefs,
 } from "./directory.service.ts";
 export { remindExpiringDocuments } from "./document.service.ts";

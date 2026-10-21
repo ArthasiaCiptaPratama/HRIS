@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-21 — Adapter `directory.ts` lewat interface publik + cron TM di `vercel.json` (Oatse)
+- **Dikerjakan:** `attendance/directory.ts` jadi fasad tanpa Prisma (aturan emas #3): karyawan lewat `employee/index.ts` (`getEmployeeBriefs`, `listEmployeeBriefs` + filter baru `employeeNumbers`, fungsi baru `listActiveEmployeeJoinDates`), lokasi & PT lewat `organization/index.ts` (baru: `directory.service.ts` → `getWorkLocationBriefs`, `listGeofencedWorkLocations`, `companyExists`; query di `organization.repository.ts`). Bentuk `DirectoryEmployee`/`DirectoryLocation` tetap, ±50 pemanggil di attendance & leave tidak diubah. Cron `roster-extend` (00:15 WIB), `attendance-daily` (00:30), `leave-daily` (00:45), `attendance-reminders` (tiap 30 menit), `approval-digest` (07:00) di `apps/api/vercel.json` (Vercel Pro, FND-D1).
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔ · `biome ci` ✔ · boundaries ✔ (488 modul) · shared **268** · api **840** · web **290**, 0 gagal (DB lokal docker) · 11 cron di `vercel.json` = nama job di `app.ts`/`cron.ts`.
+- **Masalah / catatan:** begitu `vercel.json` ini dirilis, cron TM jalan di staging walau saklar web `timeManagement` `false` (bisa memunculkan Alpha & notifikasi untuk karyawan staging) — putuskan ditahan/ikut saat persiapan rilis. `employeesByNumbers` kini dibatasi 5000 nomor per panggilan (batas `listEmployeeBriefs`). Mat perlu pull develop sebelum lanjut di `attendance/*`.
+- **Berikutnya:** uji HP kamera/GPS; OD-13–OD-15; konfirmasi contoh prorata (D-072).
+
 ### 2026-10-20 — Paket UX: notifikasi, pengingat absen (TM-D2), antrean menu, beranda HP (Mat, `HRIS/Mat/Mac`)
 - **Dikerjakan:** uji coba (smoke API 4 role: semua 4–106 ms, tanpa 5xx; temuan utama: modul absensi/cuti/approval tanpa notifikasi) → `time-notify.service.ts` (penerima via `iam`, `queueFor`, `runAttendanceReminders`, `runApprovalDigest`), `time-notify.routes.ts` (`GET /time/queue`), pemicu di keputusan absen/koreksi/cuti, pengajuan baru, penandaan Alpha; `iam.listApproverAccounts`; cron `attendance-reminders` & `approval-digest` (app.ts). Web: `queue-api.ts` + `queueKey` di menu (Data Absen Harian, Koreksi, Perubahan Roster, Persetujuan Cuti), badge tile Approval HP, `home-insights.tsx` (banner belum Clock In/waktunya Clock Out, banner Alpha bisa dikoreksi, kartu saldo cuti & status kemarin).
 - **Keputusan:** TM-D2 (README).

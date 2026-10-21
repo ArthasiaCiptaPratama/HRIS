@@ -28,14 +28,14 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [~] Import roster: API pratinjau/simpan (baris NIP-tanggal-kode, semua-atau-tidak) ✔; browser membaca .xlsx/.csv bentuk panjang (NIP, Tanggal, Kode) & grid bulanan (NIP + kolom tanggal) ✔ + 5 web test; format final menunggu OD-13
 - [x] Pengajuan perubahan/tukar shift (persetujuan rekan → MANAGER + HR, diterapkan otomatis saat disetujui) — API + UI Time Management › Perubahan Roster (rekan dipilih dari anggota crew)
 - [x] Policy + integration test roster 8 (2026-10-12, Mat; develop 2026-10-13)
-  - Data karyawan/PT/lokasi dibaca lewat adapter baca-saja `attendance/directory.ts` (tambahan 2026-10-12: modul employee/organization tidak disentuh; ganti dengan interface publik mereka nanti)
-  - `vercel.json` belum ditambah cron `roster-extend` (Vercel Hobby: maks 1×/hari per cron; tambahkan saat rilis)
+  - Data karyawan/PT/lokasi dibaca lewat adapter baca-saja `attendance/directory.ts` (tambahan 2026-10-12: modul employee/organization tidak disentuh; ganti dengan interface publik mereka nanti) → ✔ 2026-10-21: `directory.ts` kini fasad tanpa Prisma, meneruskan ke `employee/index.ts` (`getEmployeeBriefs`, `listEmployeeBriefs` + filter `employeeNumbers`, `listActiveEmployeeJoinDates`) & `organization/index.ts` (`getWorkLocationBriefs`, `listGeofencedWorkLocations`, `companyExists`)
+  - `vercel.json` belum ditambah cron `roster-extend` (Vercel Hobby: maks 1×/hari per cron; tambahkan saat rilis) → ✔ 2026-10-21 terdaftar (lihat Tahap E)
 
 **Tahap C — Absen PWA (D-067, D-070)**
 - [x] `/absen` tata letak HP + manifest/service worker (Add to Home Screen, tanpa cache), wajib online (banner offline, tombol nonaktif)
 - [x] Absen masuk/pulang: selfie kamera depan langsung (cadangan `capture=user`), kompres ± 200 KB, signed upload (maks 1 MB, path wajib milik karyawan), GPS dipantau + akurasi, jam server — API + UI
 - [x] Penentuan tanggal kerja (shift malam milik tanggal mulai) & label (`OUTSIDE_ROSTER`, `NO_ROSTER`, `OUTSIDE_RADIUS`, `LOW_ACCURACY`, `OTHER_LOCATION`, `LATE`, `EARLY_LEAVE`), alasan wajib bila berlabel, pra-cek (`/attendance/precheck`); tolak absen ganda — API + 9 unit test engine
-- [x] Cron harian `attendance-daily` (lewat batas pulang → `NO_CHECKOUT` + ajukan approval; hapus selfie > retensi) via `extraJobs`; `vercel.json` menyusul saat rilis
+- [x] Cron harian `attendance-daily` (lewat batas pulang → `NO_CHECKOUT` + ajukan approval; hapus selfie > retensi) via `extraJobs`; `vercel.json` ✔ 2026-10-21
 - [x] Riwayat & status — API ✔ (`/attendance/me/today`, `/attendance/me/history`); UI HP: jam server, jadwal & lokasi acuan, roster 7 hari, riwayat 7 hari
 - [x] Policy + integration test absen 8 (2026-10-12, Mat; develop 2026-10-13)
 
@@ -72,7 +72,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Pengajuan + approval paralel + pembatalan (yang masih menunggu); sisa tahun lalu dipakai dulu s.d. 31 Maret; disetujui → hari absen ditandai LEAVE; tolak absen yang sudah ada / rentang bentrok / periode tertutup
 - [x] Policy + test: 9 unit (prorata, hitung hari, pembebanan, pelunasan, ringkasan) + 9 integration (tahan/terpakai/kembali, sakit + lampiran, cuti bersama, pelunasan, hangus, tabel saldo)
 - [x] Web/PWA: Cuti, Izin & Sakit (saldo, pratinjau hari, lampiran, riwayat saldo), Persetujuan Cuti, Saldo Cuti (rincian buku besar, penyesuaian, import), Master Cuti
-  - `vercel.json` belum ditambah cron `leave-daily`/`attendance-daily`/`roster-extend` (tambahkan saat rilis)
+  - `vercel.json` belum ditambah cron `leave-daily`/`attendance-daily`/`roster-extend` (tambahkan saat rilis) → ✔ 2026-10-21 `apps/api/vercel.json` (UTC): `roster-extend` 17:15, `attendance-daily` 17:30, `leave-daily` 17:45 (= 00:15/00:30/00:45 WIB), `attendance-reminders` tiap 30 menit, `approval-digest` 00:00 (07:00 WIB); Vercel Pro (FND-D1). ⚠ Cron ikut jalan di staging begitu `vercel.json` ini dirilis, walau saklar web `timeManagement` `false` — putuskan saat persiapan rilis
 
 ## Keputusan
 

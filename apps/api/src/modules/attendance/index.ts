@@ -9,8 +9,7 @@ export {
   type RequestContext,
   readTimeSettings,
 } from "./calendar.service.ts";
-// SEMENTARA: adapter baca-saja data karyawan (dipakai juga modul leave sampai modul employee
-// menyediakan interface publiknya).
+// Data karyawan & lokasi untuk modul leave (diteruskan dari interface publik employee/organization).
 export * as employeeDirectory from "./directory.ts";
 export {
   datesWithPunches,

@@ -20,11 +20,15 @@ export async function getEmployeeBriefs(ids: string[]): Promise<Map<string, Empl
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-/** Karyawan resmi dalam cakupan: `companyIds` null = semua PT; `managerId` = bawahan langsung (D-009). */
+/**
+ * Karyawan resmi dalam cakupan: `companyIds` null = semua PT; `managerId` = bawahan langsung (D-009);
+ * `employeeNumbers` = cocok persis nomor induk (import).
+ */
 export async function listEmployeeBriefs(filter: {
   companyIds?: string[] | null;
   managerId?: string | null;
   isActive?: boolean | null;
+  employeeNumbers?: string[] | null;
   q?: string | null;
   limit?: number;
 }): Promise<EmployeeBrief[]> {
@@ -32,9 +36,17 @@ export async function listEmployeeBriefs(filter: {
     companyIds: filter.companyIds ?? null,
     managerId: filter.managerId ?? null,
     isActive: filter.isActive ?? null,
+    employeeNumbers: filter.employeeNumbers ? [...new Set(filter.employeeNumbers)] : null,
     q: filter.q?.trim() || null,
     limit: Math.min(filter.limit ?? 5000, 5000),
   });
+}
+
+/** Karyawan aktif resmi beserta tanggal masuk (jatah cuti 1 Januari, modul leave). */
+export async function listActiveEmployeeJoinDates(): Promise<
+  { id: string; companyId: string; joinDate: Date }[]
+> {
+  return repository.findActiveJoinDates();
 }
 
 /** Rujukan dokumen karyawan (pemilik & kode jenis) untuk validasi lampiran di modul lain. */
