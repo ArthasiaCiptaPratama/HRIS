@@ -467,4 +467,40 @@ describe("template roster JT (TM-D8)", () => {
     expect(out.crews).toHaveLength(3);
     expect((await call("POST", "/roster/templates", h.hrCost, input)).status).toBe(409);
   });
+
+  test("template 13+1 (7j + 1j lembur rutin) & 5+2 (Senin–Jumat, crew mulai Senin)", async () => {
+    const base = { companyId: ids.company2, workLocationId: ids.location };
+    const rot = await data<{
+      shifts: { code: string; regularOvertimeMin: number; breakPaid: boolean }[];
+      pattern: { steps: string[]; workDays: number };
+      crews: { name: string }[];
+    }>(
+      await call("POST", "/roster/templates", h.hrCost, {
+        ...base,
+        template: "ROT_13_1",
+        cycleStartDate: "2026-11-04",
+      }),
+    );
+    expect(rot.shifts).toMatchObject([{ code: "R13", regularOvertimeMin: 60, breakPaid: true }]);
+    expect(rot.pattern).toMatchObject({ workDays: 13 });
+    expect(rot.pattern.steps).toHaveLength(14);
+    expect(rot.crews).toHaveLength(1);
+    const week = await data<{
+      shifts: { code: string; breakMin: number; breakPaid: boolean; regularOvertimeMin: number }[];
+      pattern: { steps: string[] };
+      crews: { id: string; cycleStartDate: string }[];
+    }>(
+      // Rabu 4 Nov 2026 → siklus dimulai Senin 2 Nov.
+      await call("POST", "/roster/templates", h.hrCost, {
+        ...base,
+        template: "WEEK_5_2",
+        cycleStartDate: "2026-11-04",
+      }),
+    );
+    expect(week.shifts).toMatchObject([
+      { code: "K52", breakMin: 60, breakPaid: false, regularOvertimeMin: 0 },
+    ]);
+    expect(week.pattern.steps).toEqual(["K52", "K52", "K52", "K52", "K52", "OFF", "OFF"]);
+    expect(week.crews[0]?.cycleStartDate).toBe("2026-11-02");
+  });
 });

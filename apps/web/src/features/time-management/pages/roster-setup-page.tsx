@@ -1,4 +1,10 @@
-import { expandRosterShorthand, OFF_CODE } from "@hris/shared";
+import {
+  expandRosterShorthand,
+  OFF_CODE,
+  ROSTER_TEMPLATE_LABELS,
+  ROSTER_TEMPLATES,
+  type RosterTemplate,
+} from "@hris/shared";
 import {
   Archive,
   CalendarCog,
@@ -115,7 +121,7 @@ function ShiftTab({ companyId }: { companyId: string }) {
     <div className="space-y-3">
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" onClick={() => setTemplate(true)}>
-          <LayoutTemplate /> Pakai template JT
+          <LayoutTemplate /> Pakai template
         </Button>
         <Button variant="brand" onClick={() => setEditing("new")}>
           <Plus /> Tambah shift
@@ -209,23 +215,51 @@ function ShiftTab({ companyId }: { companyId: string }) {
 }
 
 /** TM-D8: pasang template JT — 3 shift × 8 jam (7j + 1j lembur rutin), pola 6+1 rotasi mingguan. */
+const TEMPLATE_INFO: Record<
+  RosterTemplate,
+  { description: string; crewHint: string; warning?: string; crewWarning?: string }
+> = {
+  JT: {
+    description:
+      "Shift JTP 07–15, JTS 15–23, JTM 23–07 (7 jam normal + 1 jam lembur rutin, istirahat 60 mnt dibayar), pola 6 kerja + 1 OFF dengan rotasi Pagi → Sore → Malam tiap minggu (siklus 21 hari). Hari ke-6 (5 jam) diatur sendiri di Roster Bulanan.",
+    crewHint: "Diisi = dibuat JT Crew A/B/C; pada tanggal mulai A Pagi, B Sore, C Malam.",
+    crewWarning:
+      "Dengan 3 crew, hari OFF ketiganya jatuh di tanggal yang sama (tiap hari ke-7), sehingga hari itu tidak ada yang berjaga. Atur crew pengganti atau ubah sel roster hari OFF bila operasi harus 24 jam penuh.",
+  },
+  ROT_13_1: {
+    description:
+      "Shift R13 07–15 (7 jam normal + 1 jam lembur rutin, istirahat 60 mnt dibayar), pola 13 hari kerja + 1 OFF (siklus 14 hari).",
+    crewHint: "Diisi = dibuat 1 crew (13+1 Crew A) yang mulai siklus pada tanggal mulai.",
+    warning:
+      "13 hari × 7 jam normal per 14 hari ≈ 45,5 jam/minggu, di atas 40 jam/minggu. Pastikan sesuai perjanjian kerja (lembur/waktu kerja khusus sektor).",
+  },
+  WEEK_5_2: {
+    description:
+      "Shift K52 08–17 (8 jam kerja + 1 jam istirahat tidak dibayar, tanpa lembur rutin), pola Senin–Jumat kerja, Sabtu–Minggu OFF.",
+    crewHint: "Diisi = dibuat 1 crew (5+2 Kantor); siklus otomatis dimulai hari Senin.",
+  },
+};
+
+/** TM-D8: pasang template roster (JT, 13+1, 5+2) — shift, pola, dan crew opsional sekaligus. */
 function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: () => void }) {
   const master = useMasterData();
   const apply = useApplyRosterTemplate();
+  const [template, setTemplate] = useState<RosterTemplate>("JT");
   const [workLocationId, setWorkLocationId] = useState("");
   const [start, setStart] = useState(todayIn("Asia/Jakarta"));
+  const info = TEMPLATE_INFO[template];
   const submit = async () => {
     try {
       const out = await apply.mutateAsync({
-        template: "JT",
+        template,
         companyId,
         workLocationId: workLocationId || null,
         cycleStartDate: start,
       });
       toast.success(
-        `Template JT terpasang: shift ${out.shifts.map((s) => s.code).join(", ")}${
-          out.crews.length ? ` + ${out.crews.length} crew` : ""
-        }.`,
+        `Template ${template === "JT" ? "JT" : ROSTER_TEMPLATE_LABELS[template].split(" — ")[0]} terpasang: shift ${out.shifts
+          .map((s) => s.code)
+          .join(", ")}${out.crews.length ? ` + ${out.crews.length} crew` : ""}.`,
       );
       onClose();
     } catch (e) {
@@ -236,18 +270,23 @@ function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: ()
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Template JT (Jetty & Loading team)</DialogTitle>
-          <DialogDescription>
-            Membuat shift JTP 07–15, JTS 15–23, JTM 23–07 (7 jam normal + 1 jam lembur rutin,
-            istirahat 60 mnt dibayar), pola 6 kerja + 1 OFF dengan rotasi Pagi → Sore → Malam tiap
-            minggu (siklus 21 hari). Hari ke-6 (5 jam) diatur sendiri di Roster Bulanan.
-          </DialogDescription>
+          <DialogTitle>Pakai template roster</DialogTitle>
+          <DialogDescription>{info.description}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
-          <Field
-            label="Lokasi kerja crew (opsional)"
-            hint="Diisi = dibuat JT Crew A/B/C; pada tanggal mulai A Pagi, B Sore, C Malam."
-          >
+          <Field label="Template">
+            <FormSelect
+              aria-label="Template roster"
+              placeholder="Pilih template"
+              value={template}
+              onChange={(v) => setTemplate(v as RosterTemplate)}
+              options={ROSTER_TEMPLATES.map((t) => ({
+                value: t,
+                label: ROSTER_TEMPLATE_LABELS[t],
+              }))}
+            />
+          </Field>
+          <Field label="Lokasi kerja crew (opsional)" hint={info.crewHint}>
             <FormSelect
               aria-label="Lokasi kerja"
               value={workLocationId}
@@ -262,11 +301,14 @@ function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: ()
           <Field label="Tanggal mulai siklus">
             <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
           </Field>
-          {workLocationId ? (
+          {info.warning ? (
             <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-              Catatan: dengan 3 crew, hari OFF ketiganya jatuh di tanggal yang sama (tiap hari
-              ke-7), sehingga hari itu tidak ada yang berjaga. Atur crew pengganti atau ubah sel
-              roster hari OFF bila operasi harus 24 jam penuh.
+              {info.warning}
+            </p>
+          ) : null}
+          {workLocationId && info.crewWarning ? (
+            <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+              Catatan: {info.crewWarning}
             </p>
           ) : null}
         </div>
