@@ -56,6 +56,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Idempotency punch `Idempotency-Key` (MOB-D7 #5): kunci sama → hari yang sudah tercatat (200), kunci milik orang lain 409, format salah 400; balapan dua permintaan ditangani lewat indeks unik
   - [x] Notifikasi TM mengisi target terstruktur (MOB-D6): `TM_NOTIFICATION_TARGETS` di shared (ATTENDANCE_TODAY/DATE/DAY, CORRECTION, LEAVE_REQUEST, OVERTIME, APPROVAL_QUEUE)
   - [x] Spike codegen di app (MOB-D9): `swagger_parser` + `build_runner --force-jit` berhasil untuk 35 pola path app; ditemukan & diperbaiki bentuk nullable `allOf` yang membuat generator stack overflow (`AttendanceToday.openDay` sempat kehilangan `null`)
+- [x] **`operationId` untuk codegen app** (M1, 2026-10-21): otomatis untuk semua 255 operasi + 41 nama app (`APP_OPERATION_IDS`) di `core/openapi.ts`, tanpa mengubah file rute TM; test keunikan & keberadaan path
 - [ ] **Tahap 4 — App v1** → dilacak di repo app (`Arthasia-Mobile/docs/PROGRESS.md`, fase M1–M6); di sini hanya kebutuhan BE baru yang muncul
 - [ ] Penyesuaian induk saat digabung ke develop: D-067, PLAN §1/§10, indeks PLAN §8
 
