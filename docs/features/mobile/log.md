@@ -11,6 +11,11 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-21 — operationId OpenAPI untuk klien app (Oatse)
+- **Dikerjakan (`HRIS/mobile-app`):** `core/openapi.ts` — dokumen dibuat lewat `getOpenAPI31Document` lalu `withOperationIds`: nama app dari `APP_OPERATION_IDS` (41 endpoint: `getMe`, `getMyAttendanceToday`, `precheckPunch`, `createPunch`, `listLeaveTypes`, `getTimeQueue`, `listNotifications`, …), sisanya otomatis `operationIdFor` (`<method><Path>`, parameter → `By<Nama>`). File rute TM tidak diubah (menghindari bentrok dengan Mat). PROMPT §5 diberi aturannya.
+- **Verifikasi:** `core/__tests__/openapi.test.ts` (3: contoh nama, semua operasi punya id unik, setiap nama app menunjuk path yang ada); typecheck ✔; biome ✔ 640 file; boundaries ✔ 519 modul; shared 335; api 887 di DB kosong `hris_ci`; web 313. App: generate ulang → `getMe()`, `getMyAttendanceToday()`, `createPunch()`; `flutter analyze` 0 isu.
+- **Berikutnya:** merge ke develop + push → kabari Mat (satu kali merge develop: rute bertipe + operationId); app: sambungkan klien ke `core/api`.
+
 ### 2026-10-21 — Tahap 3 BE untuk app: kontrak bertipe, punch app, target notifikasi (Oatse)
 - **Dikerjakan (branch `HRIS/mobile-app`):** (3b) migrasi `20261021092441_punch_channel_version_idempotency` (`channel`, `app_version`, `idempotency_key` unik), `isMock` → label `MOCK_LOCATION` tanpa wajib alasan, kanal dari `X-App-Version`, replay `Idempotency-Key`; (3a) 87 operasi TM & Leave bertipe — pola di `attendance-day` lalu leave/roster/period/overtime-lokasi-notify dikerjakan 4 agent paralel (file kontrak terpisah), helper `core/contract.ts` (`assertExact`, `Jsonify`, `nullableRef`); (3c) `notifyEmployees` + 13 titik panggil membawa `target`; web `PunchChannelNote`; spike `swagger_parser` di repo app.
 - **Keputusan:** MOB-D17 (kontrak dikunci ke tipe service + `nullableRef`) — isi di repo app.
