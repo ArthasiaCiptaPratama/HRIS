@@ -61,3 +61,18 @@ describe("susunan dashboard", () => {
     expect(isSensitivePivotDimension("education")).toBe(false);
   });
 });
+
+describe("widget kecil hanya donut / bar (2026-10-21)", () => {
+  test("dikecilkan → grafik selain donut/bar menjadi donut; ukuran lain tidak berubah", async () => {
+    const { chartAllowedForSize, fitWidgetToSize } = await import("../src/index.ts");
+    const found = DEFAULT_DASHBOARD_LAYOUT.widgets.find((w) => w.kind === "pivot");
+    if (found?.kind !== "pivot") throw new Error("layout bawaan tanpa widget pivot");
+    const base: typeof found = { ...found, size: "sm", chart: "heatmap" };
+    expect(chartAllowedForSize("bar", "sm")).toBe(true);
+    expect(chartAllowedForSize("stacked", "sm")).toBe(false);
+    expect(chartAllowedForSize("heatmap", "md")).toBe(true);
+    expect(fitWidgetToSize(base).chart).toBe("donut");
+    expect(fitWidgetToSize<typeof found>({ ...base, chart: "bar" }).chart).toBe("bar");
+    expect(fitWidgetToSize<typeof found>({ ...base, size: "md" }).chart).toBe("heatmap");
+  });
+});

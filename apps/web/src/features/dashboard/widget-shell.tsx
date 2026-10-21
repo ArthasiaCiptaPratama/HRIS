@@ -1,5 +1,6 @@
 import {
   type DashboardWidget,
+  fitWidgetToSize,
   WIDGET_SIZE_LABELS,
   WIDGET_SIZES,
   type WidgetSize,
@@ -122,7 +123,9 @@ function WidgetMenu({ widget }: { widget: DashboardWidget }) {
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={widget.size}
-          onValueChange={(size) => board.update({ ...widget, size: size as WidgetSize })}
+          onValueChange={(size) =>
+            board.update(fitWidgetToSize({ ...widget, size: size as WidgetSize }))
+          }
         >
           {WIDGET_SIZES.map((size) => (
             <DropdownMenuRadioItem key={size} value={size}>

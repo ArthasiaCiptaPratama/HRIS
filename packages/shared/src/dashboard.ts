@@ -242,6 +242,21 @@ export type StatWidget = z.infer<typeof statWidgetSchema>;
 export type PivotWidget = z.infer<typeof pivotWidgetSchema>;
 export type ShortcutsWidget = z.infer<typeof shortcutsWidgetSchema>;
 
+/**
+ * Widget kecil (¼) hanya donut atau bar — grafik lain (bertumpuk, 100%, berdampingan, heatmap, tabel)
+ * berantakan di lebar sempit (pemilik projek 2026-10-21). Dikecilkan → otomatis donut.
+ */
+export const SMALL_WIDGET_CHARTS: readonly PivotChartType[] = ["donut", "bar"];
+export const chartAllowedForSize = (chart: PivotChartType, size: WidgetSize) =>
+  size !== "sm" || SMALL_WIDGET_CHARTS.includes(chart);
+/** Samakan jenis grafik dengan ukuran widget (dipakai saat ubah ukuran, tampil, & simpan). */
+export function fitWidgetToSize<T extends DashboardWidget>(widget: T): T {
+  if (widget.kind === "pivot" && !chartAllowedForSize(widget.chart, widget.size)) {
+    return { ...widget, chart: "donut" };
+  }
+  return widget;
+}
+
 export const DASHBOARD_LAYOUT_VERSION = 1;
 export const MAX_DASHBOARD_WIDGETS = 40;
 

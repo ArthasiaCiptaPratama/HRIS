@@ -862,6 +862,9 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
   rows = rows.filter((r) => toIso(r.workDate) >= query.from && toIso(r.workDate) <= query.to);
   if (query.companyId) rows = rows.filter((r) => r.companyId === query.companyId);
   if (query.labeledOnly) rows = rows.filter((r) => r.labels.length > 0);
+  // Permintaan pemilik projek 2026-10-21: Data Absen Harian hanya hari yang punya absen (sudah absen, telat,
+  // diperbaiki). Alpha tanpa absen ada di Rekap › Alpha & pernyataan dan bukti SP, kecuali diminta per karyawan.
+  if (!query.employeeId) rows = rows.filter((r) => r.status !== "ALPHA" || r.punches.length > 0);
   return toDayViews(ctx, rows, true);
 }
 

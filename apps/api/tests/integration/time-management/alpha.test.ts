@@ -149,6 +149,22 @@ describe("TM-D3: hari tanpa absen → Alpha", () => {
     expect((await markNoAttendanceAlpha(new Date(), [emp.a])).marked).toBe(0);
   });
 
+  test("Data Absen Harian tanpa Alpha tidak absen; rekap per karyawan tetap memuat Alpha (2026-10-21)", async () => {
+    const range = `from=${EXPIRED}&to=${today}`;
+    const all = (await (
+      await call("GET", `/attendance/days?scope=all&${range}`, h.mgr)
+    ).json()) as {
+      data: { employee: { id: string }; workDate: string; status: string }[];
+    };
+    const mine = all.data.filter((d) => d.employee.id === emp.a);
+    expect(mine.some((d) => d.workDate === PRESENT)).toBe(true);
+    expect(mine.some((d) => d.status === "ALPHA")).toBe(false);
+    const perEmployee = (await (
+      await call("GET", `/attendance/days?scope=all&${range}&employeeId=${emp.a}`, h.mgr)
+    ).json()) as { data: { status: string }[] };
+    expect(perEmployee.data.some((d) => d.status === "ALPHA")).toBe(true);
+  });
+
   test("koreksi: lewat H+3 ditolak; dalam batas boleh walau Alpha → disetujui, penanda tetap", async () => {
     const late = await call("POST", "/attendance/corrections", h.a, {
       workDate: EXPIRED,

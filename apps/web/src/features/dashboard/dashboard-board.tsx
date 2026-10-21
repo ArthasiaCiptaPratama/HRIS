@@ -19,6 +19,7 @@ import {
   DASHBOARD_LAYOUT_VERSION,
   type DashboardWidget,
   DEFAULT_DASHBOARD_LAYOUT,
+  fitWidgetToSize,
   type PivotWidget,
   type ShortcutsWidget,
   STAT_METRIC_LABELS,
@@ -275,7 +276,8 @@ export function DashboardBoard({ me }: { me: Me }) {
     const ids = list.map((w) => w.id);
     return {
       editing,
-      update: (widget) => persist(list.map((w) => (w.id === widget.id ? widget : w))),
+      update: (widget) =>
+        persist(list.map((w) => (w.id === widget.id ? fitWidgetToSize(widget) : w))),
       remove: (id) => {
         const removed = list.find((w) => w.id === id);
         persist(list.filter((w) => w.id !== id));
@@ -419,7 +421,7 @@ export function DashboardBoard({ me }: { me: Me }) {
           isNew={editor.isNew}
           onClose={() => setEditor(null)}
           onSave={(widget) => {
-            if (editor.isNew) add(widget);
+            if (editor.isNew) add(fitWidgetToSize(widget));
             else actions.update(widget);
             setEditor(null);
           }}

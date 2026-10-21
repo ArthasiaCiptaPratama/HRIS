@@ -1,6 +1,7 @@
 import {
   type DashboardLayout,
   dashboardLayoutSchema,
+  fitWidgetToSize,
   isPermissionGrantableTo,
   PERMISSION_LABELS,
   type Permission,
@@ -294,7 +295,8 @@ export async function saveDashboardLayout(
   layout: DashboardLayout,
 ): Promise<DashboardLayoutState> {
   if (!policy.canManageOwnDashboardLayout(actor)) throw new ForbiddenError();
-  return toLayoutState(await repository.upsertDashboardLayout(actor.accountId, layout));
+  const fitted = { ...layout, widgets: layout.widgets.map(fitWidgetToSize) };
+  return toLayoutState(await repository.upsertDashboardLayout(actor.accountId, fitted));
 }
 
 /** "Reset ke bawaan": baris dihapus, GET berikutnya mengembalikan `layout: null`. */

@@ -60,7 +60,11 @@ export interface PivotChartProps {
   colsDim: PivotDimension | null;
   horizontal: boolean;
   label: string;
+  /** Lebar area grafik (px) — widget kecil memakai label & sumbu yang lebih ringkas. */
+  width?: number;
 }
+
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 export function chartHeight(view: PivotView, chart: PivotChartProps["chart"], horizontal: boolean) {
   const rows = view.rows.length;
@@ -89,6 +93,9 @@ export function buildOption(
   hidden: readonly string[] = [],
 ): ChartOption {
   const { view, chart, horizontal } = props;
+  const width = props.width ?? 600;
+  // Widget sempit (mis. 1/3 atau 1/4 lebar): sumbu & label diringkas supaya tidak bertumpuk.
+  const compact = width < 420;
   const ink = CHROME[mode];
   const base = {
     animation: animate,
@@ -173,6 +180,11 @@ export function buildOption(
       });
     });
     // Terang: dekat nol = muda; gelap: dekat nol tenggelam ke permukaan (ramp dibalik).
+    // Lebar sel menentukan: angka di sel (disembunyikan bila tak muat; tetap ada di tooltip) & label kolom.
+    const yLabelWidth = Math.round(clamp(width * 0.3, 56, 140));
+    const cellWidth = (width - yLabelWidth - 24) / Math.max(cols.length, 1);
+    const cellLabel = cellWidth >= 22;
+    const colRotate = cellWidth < 70 ? 90 : cols.length > 4 ? 30 : 0;
     const ramp =
       mode === "light" ? HEATMAP_RAMP.slice(0, 11) : [...HEATMAP_RAMP].reverse().slice(1, 11);
     for (const item of data) {
@@ -199,12 +211,15 @@ export function buildOption(
         position: "top",
         // Banyak kolom → label dimiringkan supaya tidak bertabrakan (nama lengkap ada di tooltip).
         axisLabel: {
+          show: cellWidth >= 12,
           color: ink.muted,
-          fontSize: 11,
+          fontSize: compact ? 10 : 11,
           interval: 0,
-          rotate: cols.length > 4 ? 30 : 0,
-          width: cols.length > 4 ? 96 : 80,
+          rotate: colRotate,
+          width:
+            colRotate === 90 ? (compact ? 64 : 84) : colRotate ? 96 : Math.max(cellWidth - 4, 40),
           overflow: "truncate",
+          hideOverlap: true,
         },
         axisTick: { show: false },
         axisLine: { show: false },
@@ -214,7 +229,12 @@ export function buildOption(
         type: "category",
         data: rowLabels,
         inverse: true,
-        axisLabel: { color: ink.muted, fontSize: 11, width: 140, overflow: "truncate" },
+        axisLabel: {
+          color: ink.muted,
+          fontSize: compact ? 10 : 11,
+          width: yLabelWidth,
+          overflow: "truncate",
+        },
         axisTick: { show: false },
         axisLine: { show: false },
       },
@@ -224,7 +244,7 @@ export function buildOption(
         orient: "horizontal",
         left: "center",
         bottom: 0,
-        itemHeight: 120,
+        itemHeight: clamp(width * 0.4, 60, 120),
         itemWidth: 10,
         calculable: false,
         textStyle: { color: ink.muted, fontSize: 10 },
@@ -234,7 +254,7 @@ export function buildOption(
         {
           type: "heatmap",
           data,
-          label: { show: true, fontSize: 11 },
+          label: { show: cellLabel, fontSize: cellWidth < 30 ? 10 : 11 },
           itemStyle: { borderColor: ink.surface, borderWidth: 2, borderRadius: 4 },
           emphasis: { itemStyle: { borderColor: ink.ink, borderWidth: 1 } },
         },
@@ -254,11 +274,11 @@ export function buildOption(
     inverse: horizontal,
     axisLabel: {
       color: ink.muted,
-      fontSize: 11,
-      width: horizontal ? 150 : 80,
+      width: horizontal ? Math.round(clamp(width * 0.32, 56, 150)) : compact ? 56 : 80,
       overflow: "truncate" as const,
-      interval: 0,
-      rotate: !horizontal && rowLabels.length > 8 ? 35 : 0,
+      interval: horizontal ? 0 : ("auto" as const),
+      rotate: !horizontal && (rowLabels.length > 8 || (compact && rowLabels.length > 4)) ? 35 : 0,
+      fontSize: compact ? 10 : 11,
     },
     axisTick: { show: false },
     axisLine: { lineStyle: { color: ink.axis } },
@@ -266,10 +286,15 @@ export function buildOption(
   const valueAxis = {
     type: "value" as const,
     max: asPercent ? 100 : undefined,
+    // Sempit: lebih sedikit garis bantu supaya angka sumbu tidak bertumpuk.
+    ...(asPercent
+      ? { interval: compact ? 50 : width < 640 ? 25 : 20 }
+      : { splitNumber: compact ? 2 : width < 640 ? 3 : 5 }),
     axisLabel: {
       color: ink.muted,
-      fontSize: 11,
+      fontSize: compact ? 10 : 11,
       formatter: asPercent ? "{value}%" : undefined,
+      hideOverlap: true,
     },
     splitLine: { lineStyle: { color: ink.grid } },
   };
@@ -373,17 +398,19 @@ export function PivotChart(props: PivotChartProps) {
   const { view, chart, rowsDim, colsDim, horizontal, label } = props;
   // Donut: label legenda yang dimatikan (angka tengah & persen dihitung dari yang masih tampil).
   const [hidden, setHidden] = useState<string[]>([]);
+  // Lebar widget (dibulatkan per 20 px supaya tidak membangun ulang opsi di setiap piksel).
+  const [width, setWidth] = useState(0);
   // biome-ignore lint/correctness/useExhaustiveDependencies: data/bentuk baru → semua item tampil lagi
   useEffect(() => setHidden([]), [view, chart]);
   const option = useMemo(
     () =>
       buildOption(
-        { view, chart, rowsDim, colsDim, horizontal, label },
+        { view, chart, rowsDim, colsDim, horizontal, label, ...(width ? { width } : {}) },
         mode,
         animate,
         chart === "donut" ? hidden : [],
       ),
-    [view, chart, rowsDim, colsDim, horizontal, label, mode, animate, hidden],
+    [view, chart, rowsDim, colsDim, horizontal, label, mode, animate, hidden, width],
   );
   const height = chartHeight(props.view, props.chart, props.horizontal);
 
@@ -391,7 +418,11 @@ export function PivotChart(props: PivotChartProps) {
     if (!mount.current) return;
     const chart = echarts.init(mount.current, null, { renderer: "canvas" });
     instance.current = chart;
-    const observer = new ResizeObserver(() => chart.resize());
+    const observer = new ResizeObserver((entries) => {
+      chart.resize();
+      const w = entries[0]?.contentRect.width ?? 0;
+      if (w > 0) setWidth(Math.round(w / 20) * 20);
+    });
     observer.observe(mount.current);
     return () => {
       observer.disconnect();
