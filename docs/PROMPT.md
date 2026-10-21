@@ -167,6 +167,7 @@ HRIS/Oatse/Linux-Windows (develop) ──merge s.d. commit──▶ HRIS/Oatse/r
 | `HRIS/Oatse/Linux-Windows` | **Develop**: kerja harian, commit & push bebas | – (tidak di-PR langsung ke `HRIS/debug/*`) |
 | `HRIS/Oatse/rilis` *(sebelum 2026-10-05: `HRIS/Oatse/rilis-import`)* | **Rilis**: isi yang dipresentasikan & di-deploy; git worktree `/mnt/winD/WORK/Magang/HRIS-rilis` | Hanya menerima merge dari develop (atau perbaikan presentasi yang lalu dibawa balik ke develop) |
 | `HRIS/<nama>/…` (rekan tim, mis. `HRIS/Mat/…`) | Kerja harian rekan tim | – |
+| `HRIS/mobile-app` | **BE untuk app mobile** (fitur bersama, MOB-D16); git worktree `/mnt/winD/WORK/Magang/HRIS-mobile`, DB lokal `hris_mobile`. Menerima merge dari develop; digabung ke develop per tahap | Verifikasi penuh hijau di worktree |
 | `HRIS/debug/database` | Verifikasi migrasi di PostgreSQL **lokal** & CI | `db:reset` + `db:migrate` bersih di lokal, seed jalan, CI (migrasi dari DB kosong + test integration) hijau |
 | `HRIS/debug/fe-be` | Uji integrasi FE+BE di **staging** (Vercel project staging, D-036 + Supabase staging) | CI hijau, `db:deploy` ke staging sukses, uji manual alur yang berubah |
 | `main` | Stabil / produksi | CI hijau, review pembimbing/atasan |

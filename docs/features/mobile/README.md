@@ -1,11 +1,11 @@
 # Aplikasi mobile (Flutter)
 
-> **Kode prefix:** `MOB` · **Fase:** – (di luar PLAN §7; backlog "Aplikasi mobile") · **PIC:** Oatse · **Branch BE:** `HRIS/Oatse/Linux-Windows` · **Repo app:** `ArthasiaCiptaPratama/Arthasia-Mobile` (private, belum dibuat; MOB-D8) · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — grill MOB-D1–D12 ✔; tahap 1 BE (versi minimum, push FCM) ✔ lokal 2026-10-21; scaffold app menunggu Flutter/Android SDK
+> **Kode prefix:** `MOB` · **Fase:** – (di luar PLAN §7; backlog "Aplikasi mobile") · **PIC:** Oatse · **Branch BE:** `HRIS/mobile-app` (folder `/mnt/winD/WORK/Magang/HRIS-mobile`, DB `hris_mobile`, MOB-D16; tahap 1 terlanjur di develop) · **Repo app:** `/mnt/winD/WORK/Magang/Arthasia-Mobile` → `ArthasiaCiptaPratama/Arthasia-Mobile` (private, belum dibuat; MOB-D8) · **Saklar `FEATURES`:** –
+> **Status:** Berjalan — tahap 1 BE ✔ commit `f99f0c9` 2026-10-21 (belum push); app: scaffold ✔ jalan di HP, dokumen & skill repo app ✔ (status app: `Arthasia-Mobile/docs/PROGRESS.md`); berikutnya tahap 2 (gabung branch Mat)
 
-Aplikasi Flutter untuk **karyawan** (layanan mandiri: absen, roster, cuti/izin, koreksi, approval atasan, notifikasi, profil & pengajuan data, aset, SP, dokumen) di **repo & folder terpisah**, memakai API HRIS yang sama (`/api/v1`). Dokumen ini hanya mencatat sisi HRIS: kesiapan BE, perbaikan celah BE, dan keputusan; kode app tinggal di repo app.
+Aplikasi Flutter untuk **karyawan** (layanan mandiri: absen, roster, cuti/izin, koreksi, approval atasan, notifikasi, profil & pengajuan data, aset, SP, dokumen) di **repo & folder terpisah**, memakai API HRIS yang sama (`/api/v1`). **Dokumen ini hanya sisi BE** (kesiapan BE, checklist celah BE, status). **Keputusan `MOB-D*`, roadmap app (M0–M6), dan dokumen app ada di repo app** — `Arthasia-Mobile/docs/decisions.md` adalah sumber kebenaran keputusan (MOB-D13); tabel di bawah hanya indeks.
 
-Dokumen fitur ini: **README** (status, checklist, keputusan) · [log.md](log.md). Induk: [PROGRESS](../../PROGRESS.md). Terkait: [PLAN §1/§2](../../PLAN.md) (native = backlog, API sama), [D-017](../../decisions.md) (zod-openapi = kontrak API untuk mobile), [D-067](../../decisions.md) (absen lewat PWA; Flutter berarti meninjau ulang), [time-management](../time-management/README.md).
+Dokumen fitur ini: **README** (status BE, checklist, indeks keputusan) · [log.md](log.md). Induk: [PROGRESS](../../PROGRESS.md). Terkait: [PLAN §1/§2](../../PLAN.md) (native = backlog, API sama), [D-017](../../decisions.md) (zod-openapi = kontrak API untuk mobile), [D-067](../../decisions.md) (absen lewat PWA; Flutter berarti meninjau ulang), [time-management](../time-management/README.md).
 
 ## Analisis kesiapan BE (2026-10-21, read-only)
 
@@ -44,37 +44,37 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Analisis kesiapan BE + cek lingkungan build (2026-10-21)
 - [x] Sesi grill: cakupan v1 app, peran, nasib PWA `/absen` (D-067), celah wajib v1, repo, codegen, push, anti-fake-GPS, password → MOB-D1–D12 (2026-10-21)
 - [x] Rencana perbaikan celah BE disetujui (2026-10-21; urutan MOB-D10)
-- [x] **Tahap 1 — BE non-TM** (`HRIS/Oatse/Linux-Windows`) — lokal 2026-10-21, belum di-commit
+- [x] **Tahap 1 — BE non-TM** (`HRIS/Oatse/Linux-Windows`) — commit `f99f0c9` 2026-10-21, belum push
   - [x] Versi minimum: header `X-App-Version` → 426 `APP_UPDATE_REQUIRED` + URL unduh APK (MOB-D7 #4) — `core/app-version.ts`, env `MOBILE_MIN_VERSION`/`MOBILE_APK_URL`, test 8 kasus (2026-10-21)
   - [x] Push FCM sisi notifikasi: tabel token perangkat, `POST/DELETE /me/devices`, pengirim FCM HTTP v1 (no-op tanpa kredensial), kolom target terstruktur di notifikasi (MOB-D6) — migrasi `20261021045348_push_devices_and_notification_target`, `core/push.ts` + `core/google-auth.ts`, env `FCM_SERVICE_ACCOUNT_JSON`; uji kirim sungguhan menunggu project Firebase (2026-10-21)
-- [ ] **Tahap 1 — Repo app** `Arthasia-Mobile` (MOB-D8/D11/D12)
-  - [ ] Android SDK terpasang di Windows + `flutter doctor` bersih
-  - [ ] Scaffold: flavor dev/staging, struktur per fitur, login NIP → Supabase, layar "Perbarui aplikasi"
-  - [ ] Repo GitHub private dibuat + commit awal
+- [x] **Tahap 1 — Repo app** `Arthasia-Mobile` — scaffold, jalan di HP, dokumen & skill (2026-10-21); sisa (commit awal, repo GitHub, CI, SDK Windows) dilacak di `Arthasia-Mobile/docs/phases/m0-fondasi.md`
 - [ ] **Tahap 2 — Gabung branch Mat** (`HRIS/Mat/Mac`) setelah Mat push (MOB-D10)
-- [ ] **Tahap 3 — BE TM** (setelah tahap 2)
+- [x] Branch `HRIS/mobile-app` + worktree `HRIS-mobile` + DB `hris_mobile` (MOB-D16): `db:deploy` 39 migrasi, verifikasi penuh ✔ (2026-10-21)
+- [ ] **Tahap 3 — BE TM** (setelah tahap 2; di `HRIS/mobile-app`, lalu digabung ke develop)
   - [ ] OpenAPI TM & Leave bertipe (MOB-D7 #1)
   - [ ] Punch: kanal `APP`/`PWA`, versi app, label `MOCK_LOCATION` (MOB-D3)
   - [ ] Idempotency punch `Idempotency-Key` (MOB-D7 #5)
   - [ ] Notifikasi TM mengisi target terstruktur (MOB-D6)
-- [ ] **Tahap 4 — App v1** (layar paritas MOB-D1, codegen MOB-D9, push, cek versi)
+- [ ] **Tahap 4 — App v1** → dilacak di repo app (`Arthasia-Mobile/docs/PROGRESS.md`, fase M1–M6); di sini hanya kebutuhan BE baru yang muncul
 - [ ] Penyesuaian induk saat digabung ke develop: D-067, PLAN §1/§10, indeks PLAN §8
 
-## Keputusan
+## Keputusan (indeks — isi lengkap di repo app)
 
-**Keputusan baru** (prefix `MOB-D1`, `MOB-D2`, …; tulis lengkap di sini, lalu daftarkan di indeks [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas) saat digabung ke develop):
+Sumber kebenaran: **`Arthasia-Mobile/docs/decisions.md`** (MOB-D13). Keputusan baru ditulis di sana; bila mengubah BE, item kerjanya ditambahkan ke checklist di atas. Saat digabung ke develop, daftarkan di indeks [PLAN §8](../../PLAN.md#8-keputusan-adr-ringkas).
 
-| ID | Keputusan | Alasan / sumber |
+| ID | Ringkas | Dampak ke BE |
 |---|---|---|
-| MOB-D1 | **Cakupan v1 app Flutter = paritas fitur dengan PWA `/absen`:** absen (selfie + GPS), riwayat, roster, cuti & izin, koreksi & pernyataan, tukar shift, kalender libur, approval, notifikasi, profil. Pengguna = semua akun yang terhubung ke data karyawan (EMPLOYEE, MANAGER, HR_ADMIN; hak layanan diri PLAN §4.1); **approval untuk MANAGER/HR ikut v1**. SUPER_ADMIN tanpa data karyawan ditolak dengan pesan "gunakan web". Layanan diri Arsip (pengajuan data, aset, SP, dokumen) → v1.1. | Pemilik projek 2026-10-21 (grill; opsi: karyawan saja / paritas PWA / + Arsip). Approval harian MANAGER + HR (D-068) paling dibutuhkan atasan di lapangan; endpoint sudah ada. |
-| MOB-D2 | **Platform v1 = Android saja; PWA `/absen` tetap hidup berdampingan** (cadangan & untuk pengguna non-Android). iOS dikesampingkan sampai benar-benar dibutuhkan (butuh Mac + akun Apple Developer). Meninjau D-067: absen dari HP = PWA **dan** app Android, API sama. | Pemilik projek 2026-10-21 (grill; opsi: Android + PWA tetap / Android + iOS lalu PWA pensiun / Android + PWA mati). |
-| MOB-D3 | **Anti-fake-GPS v1 = tandai, tidak blokir:** app mengirim status lokasi palsu (`isMock` Android); server menambah label `MOCK_LOCATION` pada punch (tetap `PENDING`, dinilai approver seperti label lain D-068). Server mencatat **kanal** punch (`APP`/`PWA`) + versi app supaya approver tahu punch PWA tidak dicek fake GPS. PWA tidak diberi label tambahan. Play Integrity API (cek APK asli/perangkat tidak di-root) = kandidat v1.x. | Pemilik projek 2026-10-21 (grill; opsi: tandai / blokir / + Play Integrity). Konsisten dengan pola label + approval harian; hindari karyawan terkunci karena salah deteksi. |
-| MOB-D4 | **Distribusi v1 = APK langsung (sideload)**, dibagikan lewat tautan; tanpa Play Store. Konsekuensi: update tidak otomatis (app wajib cek versi sendiri & mengarahkan ke tautan unduh APK baru), karyawan harus mengizinkan "sumber tidak dikenal", Play Integrity (MOB-D3) tidak tersedia selama tanpa Play Store. | Pemilik projek 2026-10-21 (grill; opsi: Play Store internal/closed / APK langsung / APK lalu Play Store). Gratis, tanpa akun Play Console. |
-| MOB-D5 | **Set password (undangan) & lupa password tetap di browser:** tautan email tetap ke web `${APP_URL}/auth/callback`; tombol "Lupa password?" di app membuka halaman reset web di browser. Tanpa deep link/App Links, tanpa perubahan BE. **Ganti password saat sudah login ada di app** (layar Profil, `supabase.auth.updateUser`, paritas dengan profil web). | Pemilik projek 2026-10-21 (grill; opsi: browser / deep link). Aktivasi hanya sekali per karyawan; deep link butuh `assetlinks.json` + `redirectTo` per klien. Ganti password diputuskan agent (keputusan kecil, paritas web). |
-| MOB-D6 | **Push notification FCM ikut v1:** tabel token perangkat + endpoint daftar/hapus (login/logout); setiap notifikasi in-app juga dikirim lewat FCM, termasuk cron pengingat; notifikasi diberi **target terstruktur** (jenis + id) di samping `link` web agar app membuka layar yang tepat. Kunci service account Firebase = env rahasia di server. Pemilik project Firebase: **belum diputuskan** (ikut OD-4). | Pemilik projek 2026-10-21 (grill; opsi: FCM v1 / tarik saja, push v1.1). Pengingat absen & antrean approval = nilai utama app native; FCM jalan untuk APK sideload (butuh Google Play Services). |
-| MOB-D7 | **Celah BE wajib sebelum v1 (5):** (1) kontrak OpenAPI TM & Leave bertipe (skema `packages/shared/src/time-management.ts` disambungkan ke rute); (2) push FCM + target terstruktur (MOB-D6); (3) label `MOCK_LOCATION` + kanal + versi app di punch (MOB-D3); (4) versi minimum: header `X-App-Version` → galat `APP_UPDATE_REQUIRED` (426) + URL unduh APK, request tanpa header (web/PWA) tidak terpengaruh; (5) idempotency punch ringan: header `Idempotency-Key`, key sama → punch yang sudah ada dikembalikan 200 (bukan 409). **v1.x:** rate limit, paginasi TM seragam. **Backlog:** kill switch modul di server. Celah set/reset password selesai lewat MOB-D5. | Pemilik projek 2026-10-21 (grill). Retry punch setelah sinyal putus kini 409 walau tersimpan (`attendance.service.ts` ConflictError); paginasi seragam berisiko merusak web; versi minimum lebih penting karena sideload (MOB-D4). |
-| MOB-D8 | **Identitas app:** folder `D:\WORK\Magang\Arthasia-Mobile` (`/mnt/winD/WORK/Magang/Arthasia-Mobile/`), repo GitHub `ArthasiaCiptaPratama/Arthasia-Mobile` **private**; package ID Android `com.arthasia.akselerasi` (permanen); nama tampil di HP **"Arthasia Akselerasi"**. | Pemilik projek 2026-10-21 (grill). Di drive D: karena build Android hanya di Windows; private karena OD-12. Pembuatan repo = aksi keluar, ditanyakan saat waktunya. |
-| MOB-D9 | **Codegen klien API:** spec OpenAPI 3.1 di-*snapshot* & di-commit di repo app (`openapi/hris.json`, skrip `fetch-spec` dari API lokal/staging); generator **`swagger_parser`** (Dart murni → `retrofit` + `dio` + `freezed`/`json_serializable`); kode hasil generate di-commit (`lib/api/generated/`). Dukungan 3.1 diverifikasi lewat spike setelah OpenAPI TM/Leave bertipe; fallback `openapi-generator` `dart-dio`. | Pemilik projek 2026-10-21 (grill). Perubahan kontrak terlihat sebagai diff di PR app; build tidak bergantung server hidup; tanpa Java. |
-| MOB-D10 | **Urutan kerja BE & koordinasi dengan TM (Mat):** (1) bagian yang tidak menyentuh attendance/leave dikerjakan dulu di `HRIS/Oatse/Linux-Windows`: versi minimum (middleware inti), push FCM (modul `notification` + tabel token), scaffold repo app; (2) gabungkan branch Mat (`HRIS/Mat/Mac`, mis. `a3db100` lembur/istirahat/upah grade) ke branch kita **setelah pemilik projek mengabarkan Mat sudah push**, dengan izin per aksi; (3) baru bagian TM: OpenAPI bertipe, kolom kanal/versi/`MOCK_LOCATION`, idempotency punch — migrasi MOB menyusul migrasi Mat; (4) Mat pull branch kita; sejak itu rute TM baru wajib memakai skema bertipe (bukan `z.record`). **Absen istirahat ikut v1 app** (paritas MOB-D1) bila sudah ada di develop saat app dibangun. | Pemilik projek 2026-10-21 (grill). `a3db100` mengubah `attendance.prisma` + migrasi + rute TM; dry-run merge 2026-10-21 konflik di `attendance/directory.ts` & `time-management/log.md`. Mat sedang mengerjakan logika cuti. |
-| MOB-D11 | **Flavor build per lingkungan:** `dev` (`com.arthasia.akselerasi.dev`, "Arthasia Akselerasi (Dev)", API lokal) dan `staging` (`com.arthasia.akselerasi.stg`, "Arthasia Akselerasi (Staging)", API Vercel staging + Supabase staging) bisa terpasang berdampingan; `prod` memakai ID bersih `com.arthasia.akselerasi` + "Arthasia Akselerasi" dan ditambahkan setelah OD-4 (akun produksi) terjawab. URL API, URL & anon key Supabase lewat `--dart-define-from-file` per flavor; berkas nilai tidak di-commit (hanya `*.example`). Keystore rilis APK disimpan di luar repo. | Agent 2026-10-21 atas permintaan pemilik projek ("pilih berdasarkan praktik profesional"). |
-| MOB-D12 | **Stack app (praktik umum Flutter):** Flutter stable (3.38) · state `flutter_riverpod` · routing `go_router` · HTTP `dio` + `retrofit` + `freezed` (MOB-D9) · auth `supabase_flutter` (sesi di penyimpanan aman) · lokasi `geolocator` (`isMock`) · kamera `camera` (selfie langsung, tanpa galeri, paritas D-067) · push `firebase_messaging` · versi `package_info_plus` · lint `very_good_analysis` · struktur per fitur (`lib/features/<fitur>/`). **Wajib online** (D-067 tetap), tanpa antrean offline. Teks UI bahasa Indonesia. | Agent 2026-10-21 (keputusan kecil, sesuai arahan "praktik profesional"); bisa diganti sebelum scaffold. |
+| MOB-D1 | v1 = paritas PWA `/absen` + approval MANAGER/HR; Arsip v1.1 | Endpoint yang ada |
+| MOB-D2 | Android saja; PWA `/absen` tetap hidup (meninjau D-067) | Penyesuaian D-067/PLAN saat merge |
+| MOB-D3 | Lokasi palsu → label `MOCK_LOCATION`, tidak blokir; kanal + versi dicatat | Tahap 3 |
+| MOB-D4 | Distribusi APK sideload | Versi minimum (tahap 1 ✔) |
+| MOB-D5 | Set/lupa password di browser | Tidak ada |
+| MOB-D6 | Push FCM v1 + target terstruktur | Tahap 1 ✔ + target TM (tahap 3) |
+| MOB-D7 | 5 celah BE wajib v1 | Tahap 1 & 3 |
+| MOB-D8 | Identitas app & repo | — |
+| MOB-D9 | Snapshot OpenAPI + `swagger_parser` | OpenAPI bertipe (tahap 3) |
+| MOB-D10 | Urutan kerja BE & koordinasi branch Mat | Tahap 2–3 |
+| MOB-D11–D12 | Flavor & stack app | — |
+| MOB-D13 | Dokumen app dipisah; keputusan di repo app | Dokumen ini |
+| MOB-D14–D15 | Skill & branch app; roadmap M0–M6 + CI ringan | — |
+| MOB-D16 | Branch BE `HRIS/mobile-app` + worktree `HRIS-mobile` + DB `hris_mobile` | Tempat kerja tahap 3 |
