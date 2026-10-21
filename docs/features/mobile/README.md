@@ -1,7 +1,7 @@
 # Aplikasi mobile (Flutter)
 
 > **Kode prefix:** `MOB` · **Fase:** – (di luar PLAN §7; backlog "Aplikasi mobile") · **PIC:** Oatse · **Branch BE:** `HRIS/mobile-app` (folder `/mnt/winD/WORK/Magang/HRIS-mobile`, DB `hris_mobile`, MOB-D16; tahap 1 terlanjur di develop) · **Repo app:** `/mnt/winD/WORK/Magang/Arthasia-Mobile` → `ArthasiaCiptaPratama/Arthasia-Mobile` (private, belum dibuat; MOB-D8) · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — tahap 1 BE ✔ commit `f99f0c9` 2026-10-21 (belum push); app: scaffold ✔ jalan di HP, dokumen & skill repo app ✔ (status app: `Arthasia-Mobile/docs/PROGRESS.md`); berikutnya tahap 2 (gabung branch Mat)
+> **Status:** Berjalan — tahap 1 BE ✔ develop; tahap 2 (merge Mat) ✔ develop; tahap 3 ✔ di `HRIS/mobile-app` 2026-10-21 (belum digabung ke develop); app: scaffold ✔ jalan di HP, dokumen & skill repo app ✔ (status app: `Arthasia-Mobile/docs/PROGRESS.md`); berikutnya tahap 2 (gabung branch Mat)
 
 Aplikasi Flutter untuk **karyawan** (layanan mandiri: absen, roster, cuti/izin, koreksi, approval atasan, notifikasi, profil & pengajuan data, aset, SP, dokumen) di **repo & folder terpisah**, memakai API HRIS yang sama (`/api/v1`). **Dokumen ini hanya sisi BE** (kesiapan BE, checklist celah BE, status). **Keputusan `MOB-D*`, roadmap app (M0–M6), dan dokumen app ada di repo app** — `Arthasia-Mobile/docs/decisions.md` adalah sumber kebenaran keputusan (MOB-D13); tabel di bawah hanya indeks.
 
@@ -50,11 +50,12 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] **Tahap 1 — Repo app** `Arthasia-Mobile` — scaffold, jalan di HP, dokumen & skill (2026-10-21); sisa (commit awal, repo GitHub, CI, SDK Windows) dilacak di `Arthasia-Mobile/docs/phases/m0-fondasi.md`
 - [x] **Tahap 2 — Gabung branch Mat** (`HRIS/Mat/Mac`, 11 commit s.d. `d7a09a0`, dua merge) ke develop (MOB-D10) — urutan migrasi diuji di salinan DB, `directory.ts` lewat interface publik, verifikasi penuh ✔ (2026-10-21)
 - [x] Branch `HRIS/mobile-app` + worktree `HRIS-mobile` + DB `hris_mobile` (MOB-D16): `db:deploy` 39 migrasi, verifikasi penuh ✔ (2026-10-21)
-- [ ] **Tahap 3 — BE TM** (setelah tahap 2; di `HRIS/mobile-app`, lalu digabung ke develop)
-  - [ ] OpenAPI TM & Leave bertipe (MOB-D7 #1)
-  - [ ] Punch: kanal `APP`/`PWA`, versi app, label `MOCK_LOCATION` (MOB-D3)
-  - [ ] Idempotency punch `Idempotency-Key` (MOB-D7 #5)
-  - [ ] Notifikasi TM mengisi target terstruktur (MOB-D6)
+- [x] **Tahap 3 — BE TM** (di `HRIS/mobile-app`, 2026-10-21; belum digabung ke develop)
+  - [x] OpenAPI TM & Leave bertipe (MOB-D7 #1): **semua 87 operasi** (attendance-day 9, leave 21, roster 22, period 12, overtime/lokasi/notify 10, kalender & approval sudah bertipe). Skema respons di `*.contract.ts` per file rute, dikunci ke tipe service dengan `assertExact` (`core/contract.ts`) → typecheck gagal bila kontrak tertinggal; nullable ke skema bernama lewat `nullableRef` (MOB-D17)
+  - [x] Punch: kanal `APP`/`PWA` (dari header `X-App-Version`), versi app, label `MOCK_LOCATION` dari `isMock` tanpa wajib alasan (MOB-D3) — migrasi `20261021092441_punch_channel_version_idempotency`; web menampilkan kanal/versi di Data Absen Harian (`PunchChannelNote`)
+  - [x] Idempotency punch `Idempotency-Key` (MOB-D7 #5): kunci sama → hari yang sudah tercatat (200), kunci milik orang lain 409, format salah 400; balapan dua permintaan ditangani lewat indeks unik
+  - [x] Notifikasi TM mengisi target terstruktur (MOB-D6): `TM_NOTIFICATION_TARGETS` di shared (ATTENDANCE_TODAY/DATE/DAY, CORRECTION, LEAVE_REQUEST, OVERTIME, APPROVAL_QUEUE)
+  - [x] Spike codegen di app (MOB-D9): `swagger_parser` + `build_runner --force-jit` berhasil untuk 35 pola path app; ditemukan & diperbaiki bentuk nullable `allOf` yang membuat generator stack overflow (`AttendanceToday.openDay` sempat kehilangan `null`)
 - [ ] **Tahap 4 — App v1** → dilacak di repo app (`Arthasia-Mobile/docs/PROGRESS.md`, fase M1–M6); di sini hanya kebutuhan BE baru yang muncul
 - [ ] Penyesuaian induk saat digabung ke develop: D-067, PLAN §1/§10, indeks PLAN §8
 
@@ -78,3 +79,4 @@ Sumber kebenaran: **`Arthasia-Mobile/docs/decisions.md`** (MOB-D13). Keputusan b
 | MOB-D13 | Dokumen app dipisah; keputusan di repo app | Dokumen ini |
 | MOB-D14–D15 | Skill & branch app; roadmap M0–M6 + CI ringan | — |
 | MOB-D16 | Branch BE `HRIS/mobile-app` + worktree `HRIS-mobile` + DB `hris_mobile` | Tempat kerja tahap 3 |
+| MOB-D17 | Kontrak respons OpenAPI dikunci ke tipe service (`assertExact`), nullable ref lewat `nullableRef`, rute TM baru wajib ikut pola ini | Semua rute TM/Leave |

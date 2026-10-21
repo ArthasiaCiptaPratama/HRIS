@@ -116,6 +116,7 @@ Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 
 - **Paginasi:** `?page=1&pageSize=20` (maks 100). **Filter:** query param bernama jelas (`?departmentId=&status=`). **Urutan:** `?sort=joinDate:desc`. **Pencarian:** `?q=`.
 - **OpenAPI:** setiap route didefinisikan dengan `@hono/zod-openapi` (termasuk respons error), supaya dokumen di `/api/v1/openapi.json` selalu lengkap untuk tim mobile.
+- **Kontrak bertipe untuk app mobile (MOB-D7/MOB-D17):** body & respons 200 setiap rute memakai skema Zod nyata, **bukan** `z.record(z.string(), z.unknown())` / `dataEnvelope(z.unknown())`. Skema respons diberi nama (`.openapi("Nama")`) di `<file>.contract.ts` dan dikunci ke tipe service: `assertExact<z.infer<typeof skema>, TipeService>(true)` (`core/contract.ts`; `Jsonify<T>` bila ada Date/Decimal). Field nullable yang merujuk skema bernama memakai `nullableRef(skema)`, bukan `.nullable()`. Header `X-App-Version` (426) & `Idempotency-Key` (punch) lihat `features/mobile`.
 - **Respons disaring sesuai akses:** field sensitif dihilangkan dari respons (bukan hanya disembunyikan di UI) bila aktor tidak berhak.
 - **Header:** `Authorization: Bearer <jwt Supabase>`, `X-Request-Id` (dibuat server bila tidak dikirim, dikembalikan di respons).
 

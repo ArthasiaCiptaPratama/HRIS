@@ -742,6 +742,7 @@ export async function createLeaveRequest(
         }).`,
         link: "/time/persetujuan-cuti",
         dedupeKey: `tm-leave-new:${row.id}`,
+        target: { type: "LEAVE_REQUEST", id: row.id },
       },
     ]);
   }
@@ -852,6 +853,7 @@ export function registerLeaveIntegrations() {
               : "Tahanan saldo dikembalikan. Lihat catatan penolakan di halaman Cuti.",
           link: "/absen/cuti",
           dedupeKey: `tm-leave-decided:${row.id}`,
+          target: { type: "LEAVE_REQUEST", id: row.id },
         },
       ]);
     }
@@ -1252,12 +1254,20 @@ export async function chargeCollectiveLeave(date: string): Promise<{ charged: nu
  * bersama akhir Desember dibebankan sebelum sisa hangus), jatah (≥ 1 Jan), hangus sisa tahun lalu
  * (TM-D9: ≥ 1 Jan; saldo lama D-072: ≥ 1 Apr), pelunasan hutang (≥ 31 Jan), hak cuti karyawan keluar.
  */
-export async function runLeaveDaily(now = new Date()) {
+export interface LeaveDailyResult {
+  collective: { charged: number };
+  grant?: { granted: number };
+  expire?: { expired: number };
+  settle?: { settled: number; remainingDebt: number };
+  exits: { created: number; cancelled: number };
+}
+
+export async function runLeaveDaily(now = new Date()): Promise<LeaveDailyResult> {
   const today = todayJakarta(now);
   const year = Number(today.slice(0, 4));
   const monthDay = today.slice(5);
   const master = await ensureYear(year);
-  const result: Record<string, unknown> = {};
+  const result: Partial<LeaveDailyResult> = {};
   let charged = 0;
   // Cuti bersama 62 hari terakhir (idempoten): menangkap juga hari yang tadinya tertutup pengajuan cuti
   // yang lama menunggu lalu ditolak/dibatalkan.
@@ -1276,7 +1286,7 @@ export async function runLeaveDaily(now = new Date()) {
   if (monthDay >= expireFrom && !master.expiredAt) result.expire = await expireCarry(year);
   if (monthDay >= "01-31" && !master.settledAt) result.settle = await settleDebts(year);
   result.exits = await syncExitSettlements();
-  return result;
+  return result as LeaveDailyResult;
 }
 
 export async function runLeaveJob(

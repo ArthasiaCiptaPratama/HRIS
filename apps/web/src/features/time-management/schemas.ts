@@ -72,6 +72,9 @@ export const punchSchema = z.object({
   // D-073: persetujuan per absen.
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
   source: z.enum(["DEVICE", "MANUAL"]),
+  // MOB-D3: kanal absen (app Android / PWA) + versi app; opsional untuk respons lama.
+  channel: z.enum(["APP", "PWA"]).optional(),
+  appVersion: z.string().nullable().optional(),
   approval: approvalSchema.nullable(),
   canCancel: z.boolean(),
 });

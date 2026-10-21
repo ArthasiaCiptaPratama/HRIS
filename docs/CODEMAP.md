@@ -86,6 +86,7 @@ apps/api/
 │   │   ├── access/                   [done] `Actor` (+ `companyIds`: null = semua PT, D-040), `isInCompanyScope`, `hasRole`, `hasPermission` (grant hanya untuk role penerima sah), `isGrantActive`, `isSelf`, `isInTeam` (tim = manager_id target = employee aktor, murni tanpa query), middleware `loadActor(loader)` (tanpa akun aktif → 401), `requireRole`, `requirePermission` (→ 403)
 │   │   ├── errors.ts                 [done] AppError + ValidationError/UnauthenticatedError/ForbiddenError/NotFoundError/ConflictError/BusinessRuleError
 │   │   ├── response.ts               [done] `ok()`, `paginated()`, `dataEnvelope()`, `paginatedEnvelope()`, `ERROR_RESPONSES` (OpenAPI)
+│   │   ├── contract.ts               [done] MOB-D17: `assertExact<A, B>` (kontrak respons = tipe service saat typecheck), `Jsonify<T>`, `nullableRef(skema)` (nullable ke skema bernama → `anyOf`)
 │   │   ├── app-version.ts            [done] MOB-D7: `appVersionGate` (header `X-App-Version` < env `MOBILE_MIN_VERSION` → 426 `APP_UPDATE_REQUIRED` + `MOBILE_APK_URL`; tanpa header lolos; format salah → 400)
 │   │   ├── google-auth.ts            [done] Token OAuth service account Google (jose; `parseServiceAccountKey`, `serviceAccountTokenSource`) — dipakai `google-drive.ts` & `push.ts`
 │   │   ├── push.ts                   [done] MOB-D6: `PushSender` + `createFcmSender` (FCM HTTP v1, env `FCM_SERVICE_ACCOUNT_JSON`) + `UNCONFIGURED_PUSH`; test tidak pernah mengirim push sungguhan

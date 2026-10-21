@@ -12,25 +12,36 @@ import type { Context, MiddlewareHandler } from "hono";
 import { ValidationError } from "../../core/errors.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import { shiftSchema } from "./attendance.contract.ts";
 import { ctxOf } from "./calendar.routes.ts";
+import {
+  crewListSchema,
+  crewSchema,
+  employeeRosterSchema,
+  rosterArchivedSchema,
+  rosterCellsResultSchema,
+  rosterChangeListSchema,
+  rosterChangeSchema,
+  rosterGridSchema,
+  rosterImportCommitSchema,
+  rosterImportPreviewSchema,
+  rosterPatternListSchema,
+  rosterPatternSchema,
+  shiftListSchema,
+} from "./roster.contract.ts";
 import * as service from "./roster.service.ts";
 import * as change from "./roster-change.service.ts";
 
-// Tahap B — roster tambang (D-069). Body divalidasi skema @hris/shared di handler (aturan lintas field →
-// 400 VALIDATION_ERROR); dokumen OpenAPI cukup mencatat path, query, & kode error.
+// Tahap B — roster tambang (D-069). Body divalidasi skema @hris/shared di handler lewat `strict` (aturan
+// lintas field → 400 VALIDATION_ERROR); skema yang sama dicatat di OpenAPI (MOB-D7 #1).
 const P = API_BASE_PATH;
 const security = [{ [BEARER_SCHEME]: [] }];
 const TAGS = ["Time Management"];
 const errors = (...codes: (keyof typeof ERROR_RESPONSES)[]) =>
   Object.fromEntries(codes.map((code) => [code, ERROR_RESPONSES[code]]));
-const anyBody = {
-  body: {
-    content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
-    required: true,
-  },
-};
 const idParam = z.object({ id: z.uuid() });
 const companyQuery = z.object({ companyId: z.uuid() });
+const peerResponseSchema = z.object({ accept: z.boolean() });
 
 export function strict<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value);
@@ -42,11 +53,17 @@ export function strict<T>(schema: z.ZodType<T>, value: unknown): T {
   return parsed.data;
 }
 
+/** MOB-D7 #1: body & respons bertipe di OpenAPI (codegen app mobile). Validasi body tetap `strict`. */
 const route = (
   method: "get" | "post" | "put" | "delete",
   path: string,
   summary: string,
-  request: Record<string, unknown> = {},
+  spec: {
+    response: z.ZodType;
+    body?: z.ZodType;
+    params?: z.ZodObject;
+    query?: z.ZodObject;
+  },
 ) =>
   createRoute({
     method,
@@ -54,11 +71,17 @@ const route = (
     tags: TAGS,
     summary,
     security,
-    request,
+    request: {
+      ...(spec.params ? { params: spec.params } : {}),
+      ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.body
+        ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
+        : {}),
+    },
     responses: {
       200: {
         description: summary,
-        content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+        content: { "application/json": { schema: dataEnvelope(spec.response) } },
       },
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
@@ -71,63 +94,92 @@ const query = (c: Context, key: string) => c.req.query(key) as string;
 
 const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
-    route("get", "/shifts", "Daftar shift PT", { query: companyQuery }),
+    route("get", "/shifts", "Daftar shift PT", { query: companyQuery, response: shiftListSchema }),
     (c) => service.listShifts(ctxOf(c), query(c, "companyId")),
   ],
   [
-    route("post", "/shifts", "Tambah shift (SA, HR PT)", anyBody),
+    route("post", "/shifts", "Tambah shift (SA, HR PT)", {
+      body: shiftInputSchema,
+      response: shiftSchema,
+    }),
     async (c) => service.createShift(ctxOf(c), strict(shiftInputSchema, await body(c))),
   ],
   [
-    route("put", "/shifts/{id}", "Ubah shift", { params: idParam, ...anyBody }),
+    route("put", "/shifts/{id}", "Ubah shift", {
+      params: idParam,
+      body: shiftInputSchema,
+      response: shiftSchema,
+    }),
     async (c) => service.updateShift(ctxOf(c), param(c), strict(shiftInputSchema, await body(c))),
   ],
   [
     route("delete", "/shifts/{id}", "Arsipkan shift (ditolak bila masih dipakai)", {
       params: idParam,
+      response: shiftSchema,
     }),
     (c) => service.archiveShift(ctxOf(c), param(c)),
   ],
   [
-    route("get", "/roster-patterns", "Daftar pola roster PT", { query: companyQuery }),
+    route("get", "/roster-patterns", "Daftar pola roster PT", {
+      query: companyQuery,
+      response: rosterPatternListSchema,
+    }),
     (c) => service.listPatterns(ctxOf(c), query(c, "companyId")),
   ],
   [
-    route("post", "/roster-patterns", "Tambah pola roster", anyBody),
+    route("post", "/roster-patterns", "Tambah pola roster", {
+      body: rosterPatternInputSchema,
+      response: rosterPatternSchema,
+    }),
     async (c) => service.createPattern(ctxOf(c), strict(rosterPatternInputSchema, await body(c))),
   ],
   [
     route("put", "/roster-patterns/{id}", "Ubah pola (crew dibangkitkan ulang)", {
       params: idParam,
-      ...anyBody,
+      body: rosterPatternInputSchema,
+      response: rosterPatternSchema,
     }),
     async (c) =>
       service.updatePattern(ctxOf(c), param(c), strict(rosterPatternInputSchema, await body(c))),
   ],
   [
-    route("delete", "/roster-patterns/{id}", "Arsipkan pola", { params: idParam }),
+    route("delete", "/roster-patterns/{id}", "Arsipkan pola", {
+      params: idParam,
+      response: rosterArchivedSchema,
+    }),
     (c) => service.archivePattern(ctxOf(c), param(c)),
   ],
   [
-    route("get", "/crews", "Daftar crew PT + anggota aktif", { query: companyQuery }),
+    route("get", "/crews", "Daftar crew PT + anggota aktif", {
+      query: companyQuery,
+      response: crewListSchema,
+    }),
     (c) => service.listCrews(ctxOf(c), query(c, "companyId")),
   ],
   [
-    route("post", "/crews", "Tambah crew", anyBody),
+    route("post", "/crews", "Tambah crew", { body: crewInputSchema, response: crewSchema }),
     async (c) => service.createCrew(ctxOf(c), strict(crewInputSchema, await body(c))),
   ],
   [
-    route("put", "/crews/{id}", "Ubah crew (dibangkitkan ulang)", { params: idParam, ...anyBody }),
+    route("put", "/crews/{id}", "Ubah crew (dibangkitkan ulang)", {
+      params: idParam,
+      body: crewInputSchema,
+      response: crewSchema,
+    }),
     async (c) => service.updateCrew(ctxOf(c), param(c), strict(crewInputSchema, await body(c))),
   ],
   [
-    route("delete", "/crews/{id}", "Arsipkan crew", { params: idParam }),
+    route("delete", "/crews/{id}", "Arsipkan crew", {
+      params: idParam,
+      response: rosterArchivedSchema,
+    }),
     (c) => service.archiveCrew(ctxOf(c), param(c)),
   ],
   [
     route("put", "/crews/{id}/members", "Atur anggota crew mulai tanggal efektif", {
       params: idParam,
-      ...anyBody,
+      body: crewMembersInputSchema,
+      response: crewSchema,
     }),
     async (c) =>
       service.setCrewMembers(ctxOf(c), param(c), strict(crewMembersInputSchema, await body(c))),
@@ -139,6 +191,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
         month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
         crewId: z.uuid().optional(),
       }),
+      response: rosterGridSchema,
     }),
     (c) =>
       service.getRosterGrid(
@@ -152,54 +205,61 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     route("get", "/roster/employees/{id}", "Roster seorang karyawan pada rentang", {
       params: idParam,
       query: z.object({ from: z.iso.date(), to: z.iso.date() }),
+      response: employeeRosterSchema,
     }),
     (c) => service.getEmployeeRoster(ctxOf(c), param(c), query(c, "from"), query(c, "to")),
   ],
   [
-    route("put", "/roster/cells", "Ubah sel grid roster (manual)", anyBody),
+    route("put", "/roster/cells", "Ubah sel grid roster (manual)", {
+      body: rosterCellsInputSchema,
+      response: rosterCellsResultSchema,
+    }),
     async (c) => service.setRosterCells(ctxOf(c), strict(rosterCellsInputSchema, await body(c))),
   ],
   [
-    route("post", "/roster/import/preview", "Pratinjau import roster", anyBody),
+    route("post", "/roster/import/preview", "Pratinjau import roster", {
+      body: rosterImportInputSchema,
+      response: rosterImportPreviewSchema,
+    }),
     async (c) =>
       service.previewRosterImport(ctxOf(c), strict(rosterImportInputSchema, await body(c))),
   ],
   [
-    route(
-      "post",
-      "/roster/import/commit",
-      "Simpan import roster (semua atau tidak sama sekali)",
-      anyBody,
-    ),
+    route("post", "/roster/import/commit", "Simpan import roster (semua atau tidak sama sekali)", {
+      body: rosterImportInputSchema,
+      response: rosterImportCommitSchema,
+    }),
     async (c) =>
       service.commitRosterImport(ctxOf(c), strict(rosterImportInputSchema, await body(c))),
   ],
   [
     route("get", "/roster-changes", "Pengajuan perubahan roster: milik saya / inbox keputusan", {
       query: z.object({ scope: z.enum(["mine", "inbox"]).optional() }),
+      response: rosterChangeListSchema,
     }),
     (c) => change.listRosterChanges(ctxOf(c), c.req.query("scope") === "inbox" ? "inbox" : "mine"),
   ],
   [
-    route("post", "/roster-changes", "Ajukan perubahan / tukar shift", anyBody),
+    route("post", "/roster-changes", "Ajukan perubahan / tukar shift", {
+      body: rosterChangeInputSchema,
+      response: rosterChangeSchema,
+    }),
     async (c) =>
       change.createRosterChange(ctxOf(c), strict(rosterChangeInputSchema, await body(c))),
   ],
   [
     route("post", "/roster-changes/{id}/peer-response", "Jawaban rekan atas tukar shift", {
       params: idParam,
-      ...anyBody,
+      body: peerResponseSchema,
+      response: rosterChangeSchema,
     }),
     async (c) =>
-      change.respondToSwap(
-        ctxOf(c),
-        param(c),
-        strict(z.object({ accept: z.boolean() }), await body(c)).accept,
-      ),
+      change.respondToSwap(ctxOf(c), param(c), strict(peerResponseSchema, await body(c)).accept),
   ],
   [
     route("post", "/roster-changes/{id}/cancel", "Batalkan pengajuan perubahan roster", {
       params: idParam,
+      response: rosterChangeSchema,
     }),
     (c) => change.cancelRosterChange(ctxOf(c), param(c)),
   ],

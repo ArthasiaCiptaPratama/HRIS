@@ -147,6 +147,9 @@ describe("notifikasi Time Management", () => {
     expect(notes).toHaveLength(1);
     expect(notes[0]?.title).toContain("Belum Clock In");
     expect(notes[0]?.link).toBe("/absen");
+    // MOB-D6: target terstruktur untuk app mobile (layar absen hari ini).
+    expect(notes[0]?.targetType).toBe("ATTENDANCE_TODAY");
+    expect(notes[0]?.targetId).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   test("hari tanpa absen → Alpha + notifikasi dengan batas koreksi", async () => {
@@ -154,6 +157,7 @@ describe("notifikasi Time Management", () => {
     const notes = await notesOf(accounts.a, "attendance.alpha");
     expect(notes).toHaveLength(1);
     expect(notes[0]?.body).toContain("paling lambat");
+    expect(notes[0]?.targetType).toBe("ATTENDANCE_DATE");
   });
 
   test("koreksi: atasan diberi tahu & antrean bertambah; keputusan diberitahukan ke karyawan", async () => {
@@ -164,8 +168,10 @@ describe("notifikasi Time Management", () => {
       reason: "Lupa absen, HP tertinggal",
     });
     expect(res.status).toBe(200);
-    const created = await data<{ approval: { id: string } }>(res);
-    expect(await notesOf(accounts.mgr, "attendance.correction_new")).toHaveLength(1);
+    const created = await data<{ id: string; approval: { id: string } }>(res);
+    const newNotes = await notesOf(accounts.mgr, "attendance.correction_new");
+    expect(newNotes).toHaveLength(1);
+    expect(newNotes[0]).toMatchObject({ targetType: "CORRECTION", targetId: created.id });
 
     const queue = await data<{ corrections: number; total: number }>(
       await call("GET", "/time/queue", h.mgr),
@@ -180,6 +186,7 @@ describe("notifikasi Time Management", () => {
     const digest = await notesOf(accounts.mgr, "attendance.approval_digest");
     expect(digest).toHaveLength(1);
     expect(digest[0]?.title).toContain("menunggu keputusan");
+    expect(digest[0]?.targetType).toBe("APPROVAL_QUEUE");
 
     for (const who of [h.mgr, h.hr]) {
       await call("POST", `/approvals/${created.approval.id}/decision`, who, {
@@ -189,5 +196,6 @@ describe("notifikasi Time Management", () => {
     const decided = await notesOf(accounts.a, "attendance.correction_decided");
     expect(decided).toHaveLength(1);
     expect(decided[0]?.title).toContain("disetujui");
+    expect(decided[0]).toMatchObject({ targetType: "CORRECTION", targetId: created.id });
   });
 });
