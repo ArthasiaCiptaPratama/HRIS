@@ -39,6 +39,12 @@ const settingsSchema = z
     selfieRetentionMonths: z.number().int().min(1).max(36),
     approvalDueDays: z.number().int().min(1).max(14),
     rosterHorizonDays: z.number().int().min(14).max(370),
+    checkOutEarlyMin: z
+      .number()
+      .int()
+      .min(0)
+      .max(240)
+      .openapi({ description: "TM-D12: Clock Out normal dibuka sekian menit sebelum jam pulang" }),
   })
   .openapi("TimeSettings");
 const idParam = z.object({ id: z.uuid() });

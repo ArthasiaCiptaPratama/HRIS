@@ -39,6 +39,7 @@ import {
   useLocationSettings,
   useSetLocationSettings,
 } from "../location-api";
+import { BreakLocationsCard } from "./overtime-pages";
 import { useRosterCompany } from "./roster-page";
 
 // TM-D1 — lokasi absen per karyawan (SA, HR PT). Prioritas site absen: bebas lokasi → lokasi khusus →
@@ -96,6 +97,7 @@ export function LocationSettingsPage() {
           ) : null
         }
       />
+      <BreakLocationsCard />
       {!companyId ? (
         <EmptyState icon={MapPinned} title="Belum ada perusahaan dalam cakupan akun ini" />
       ) : (

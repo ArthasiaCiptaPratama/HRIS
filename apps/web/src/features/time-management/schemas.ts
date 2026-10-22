@@ -1,4 +1,4 @@
-import { ATTENDANCE_LOCATION_SOURCES } from "@hris/shared";
+import { ATTENDANCE_LOCATION_SOURCES, PUNCH_KINDS } from "@hris/shared";
 import { z } from "zod";
 
 // Subset respons API Time Management (apps/api/src/modules/attendance & approval). Sumber kebenaran
@@ -44,6 +44,13 @@ export const shiftSchema = z.object({
   lateToleranceMin: z.number(),
   earlyLeaveToleranceMin: z.number(),
   checkOutCloseMin: z.number(),
+  /** TM-D6/TM-D7 (opsional: API lama tidak mengirim). */
+  breakMin: z.number().optional(),
+  breakPaid: z.boolean().optional(),
+  /** TM-D12: jendela Mulai istirahat (menit dari 00:00); null = bebas. */
+  breakStartMinute: z.number().nullable().optional(),
+  breakEndMinute: z.number().nullable().optional(),
+  regularOvertimeMin: z.number().optional(),
   color: z.string().nullable(),
   archived: z.boolean(),
 });
@@ -51,7 +58,7 @@ export type Shift = z.infer<typeof shiftSchema>;
 
 export const punchSchema = z.object({
   id: z.string(),
-  kind: z.enum(["IN", "OUT"]),
+  kind: z.enum(PUNCH_KINDS),
   at: z.string(),
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
@@ -68,6 +75,9 @@ export const punchSchema = z.object({
   // D-073: persetujuan per absen.
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
   source: z.enum(["DEVICE", "MANUAL"]),
+  // MOB-D3: kanal absen (app Android / PWA) + versi app; opsional untuk respons lama.
+  channel: z.enum(["APP", "PWA"]).optional(),
+  appVersion: z.string().nullable().optional(),
   approval: approvalSchema.nullable(),
   canCancel: z.boolean(),
 });
@@ -110,11 +120,18 @@ export const todaySchema = z.object({
   recent: z.array(daySchema),
   // DONE = hari ini sudah Clock In (absen masuk hanya sekali per hari).
   next: z.enum(["IN", "OUT", "DONE"]),
+  /** TM-D7: lokasi wajib absen istirahat (opsional: API lama tidak mengirim). */
+  breakState: z.enum(["NOT_REQUIRED", "NONE", "ON_BREAK", "DONE"]).optional(),
+  /** TM-D12: hari OFF → "Lembur hari libur"; batas Clock Out & jendela Mulai istirahat. */
+  offDay: z.boolean().optional(),
+  checkOutOpensAt: z.string().nullable().optional(),
+  breakOpensAt: z.string().nullable().optional(),
+  breakClosesAt: z.string().nullable().optional(),
 });
 export type Today = z.infer<typeof todaySchema>;
 
 export const precheckSchema = z.object({
-  kind: z.enum(["IN", "OUT"]),
+  kind: z.enum(PUNCH_KINDS),
   workDate: z.string(),
   shiftCode: z.string().nullable(),
   labels: z.array(z.string()),
@@ -128,6 +145,8 @@ export const precheckSchema = z.object({
   scheduledEnd: z.string().nullable(),
   minutesFromEnd: z.number().nullable(),
   openDay: z.object({ workDate: z.string(), checkInAt: z.string().nullable() }).nullable(),
+  offDay: z.boolean().optional(),
+  checkOutOpensAt: z.string().nullable().optional(),
 });
 export type Precheck = z.infer<typeof precheckSchema>;
 

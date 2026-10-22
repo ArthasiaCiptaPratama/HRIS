@@ -18,7 +18,7 @@ import { ErrorPage } from "@/features/system/pages/error-page";
 import { NotFoundPage } from "@/features/system/pages/not-found-page";
 import { tmAccess } from "@/features/time-management/access";
 import { access } from "@/lib/access";
-import { FEATURES } from "./feature-flags";
+import { FEATURES, tmOn } from "./feature-flags";
 import { AppLayout } from "./layout/app-layout";
 import { pages } from "./route-preload";
 
@@ -40,7 +40,7 @@ export const routes: RouteObject[] = [
       {
         path: "/absen",
         element: <RequireAccessRoute check={tmAccess.punch} />,
-        children: FEATURES.timeManagement
+        children: tmOn("tmAbsen")
           ? [
               {
                 lazy: pages.mobileShell,
@@ -235,7 +235,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "absen-harian",
-                    lazy: FEATURES.timeManagement ? pages.attendanceDays : pages.maintenance,
+                    lazy: tmOn("tmAttendanceDays") ? pages.attendanceDays : pages.maintenance,
                   },
                 ],
               },
@@ -244,7 +244,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "roster",
-                    lazy: FEATURES.timeManagement ? pages.roster : pages.maintenance,
+                    lazy: tmOn("tmRoster") ? pages.roster : pages.maintenance,
                   },
                 ],
               },
@@ -253,7 +253,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "roster/pengaturan",
-                    lazy: FEATURES.timeManagement ? pages.rosterSetup : pages.maintenance,
+                    lazy: tmOn("tmRosterSetup") ? pages.rosterSetup : pages.maintenance,
                   },
                 ],
               },
@@ -263,7 +263,28 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "lokasi-absen",
-                    lazy: FEATURES.timeManagement ? pages.locationSettings : pages.maintenance,
+                    lazy: tmOn("tmAttendanceLocations")
+                      ? pages.locationSettings
+                      : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                // TM-D6: lembur & upah grade.
+                element: <RequireAccessRoute check={tmAccess.overtime} />,
+                children: [
+                  {
+                    path: "lembur",
+                    lazy: tmOn("tmOvertime") ? pages.overtime : pages.maintenance,
+                  },
+                ],
+              },
+              {
+                element: <RequireAccessRoute check={tmAccess.viewGradeWages} />,
+                children: [
+                  {
+                    path: "upah-grade",
+                    lazy: tmOn("tmGradeWages") ? pages.gradeWages : pages.maintenance,
                   },
                 ],
               },
@@ -272,14 +293,14 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "perubahan-roster",
-                    lazy: FEATURES.timeManagement ? pages.rosterChanges : pages.maintenance,
+                    lazy: tmOn("tmRosterChanges") ? pages.rosterChanges : pages.maintenance,
                   },
                 ],
               },
               {
                 element: <RequireAccessRoute check={tmAccess.requestLeave} />,
                 children: [
-                  { path: "cuti", lazy: FEATURES.timeManagement ? pages.leave : pages.maintenance },
+                  { path: "cuti", lazy: tmOn("tmLeave") ? pages.leave : pages.maintenance },
                 ],
               },
               {
@@ -287,7 +308,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "persetujuan-cuti",
-                    lazy: FEATURES.timeManagement ? pages.leaveApprovals : pages.maintenance,
+                    lazy: tmOn("tmLeaveApprovals") ? pages.leaveApprovals : pages.maintenance,
                   },
                 ],
               },
@@ -296,7 +317,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "saldo-cuti",
-                    lazy: FEATURES.timeManagement ? pages.leaveBalances : pages.maintenance,
+                    lazy: tmOn("tmLeaveBalances") ? pages.leaveBalances : pages.maintenance,
                   },
                 ],
               },
@@ -305,7 +326,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "pernyataan",
-                    lazy: FEATURES.timeManagement ? pages.correctionsStatements : pages.maintenance,
+                    lazy: tmOn("tmCorrections") ? pages.correctionsStatements : pages.maintenance,
                   },
                 ],
               },
@@ -314,7 +335,7 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "rekap",
-                    lazy: FEATURES.timeManagement ? pages.recap : pages.maintenance,
+                    lazy: tmOn("tmRecap") ? pages.recap : pages.maintenance,
                   },
                 ],
               },
@@ -324,20 +345,20 @@ export const routes: RouteObject[] = [
                 children: [
                   {
                     path: "master-cuti",
-                    lazy: FEATURES.timeManagement ? pages.leaveMaster : pages.maintenance,
+                    lazy: tmOn("tmLeaveMaster") ? pages.leaveMaster : pages.maintenance,
                   },
                 ],
               },
               {
                 path: "kalender",
-                lazy: FEATURES.timeManagement ? pages.holidays : pages.maintenance,
+                lazy: tmOn("tmHolidays") ? pages.holidays : pages.maintenance,
               },
               {
                 element: <RequireAccessRoute check={tmAccess.viewSettings} />,
                 children: [
                   {
                     path: "pengaturan",
-                    lazy: FEATURES.timeManagement ? pages.timeSettings : pages.maintenance,
+                    lazy: tmOn("tmSettings") ? pages.timeSettings : pages.maintenance,
                   },
                 ],
               },

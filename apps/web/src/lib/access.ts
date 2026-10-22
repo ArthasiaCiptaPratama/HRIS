@@ -91,6 +91,11 @@ export const access = {
           g.permission === "employee.discipline.read" ||
           g.permission === "employee.discipline.write",
       )),
+  // TM-D6 (apps/api/src/modules/attendance/overtime.policy.ts): rupiah per orang & tabel upah grade.
+  /** Lihat biaya tenaga kerja: SA atau HR ber-grant `labor.cost.read`. */
+  viewLaborCost: (me: Me) =>
+    isSuperAdmin(me) ||
+    (isHrAdmin(me) && me.grants.some((g) => g.permission === "labor.cost.read")),
   // ARS-D16 (apps/api/src/modules/report/report.policy.ts): menu Laporan untuk SA & HR (PT di API).
   viewReports: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
 };

@@ -6,6 +6,7 @@ import {
   type PivotFilters,
   type PivotStatus,
   pivotResultSchema,
+  type SeveranceScenario,
 } from "@hris/shared";
 import {
   keepPreviousData,
@@ -20,6 +21,12 @@ import { api } from "@/lib/api";
 // D-065: pivot agregat & susunan widget Dashboard. Kunci pivot di bawah "employees" supaya ikut segar
 // setelah mutasi/import karyawan (invalidasi employeeKeys.all).
 
+export interface AnalyticsParams {
+  month: string;
+  companyId: string | undefined;
+  scenario: SeveranceScenario;
+}
+
 export interface PivotParams {
   rows: PivotDimension;
   cols: PivotDimension | null;
@@ -30,6 +37,7 @@ export interface PivotParams {
 export const dashboardKeys = {
   pivot: (params: PivotParams) => ["employees", "dashboard-pivot", params] as const,
   layout: ["dashboard-layout"] as const,
+  analytics: (params: AnalyticsParams) => ["employees", "dashboard-analytics", params] as const,
 };
 
 export function pivotSearch(params: PivotParams): string {
@@ -91,5 +99,133 @@ export function useSaveDashboardLayout() {
         ? api("/me/dashboard-layout", { method: "PUT", body: { layout }, schema: layoutEnvelope })
         : api("/me/dashboard-layout", { method: "DELETE", schema: layoutEnvelope }),
     onSuccess: (result) => queryClient.setQueryData(dashboardKeys.layout, result.data),
+  });
+}
+
+// DSB-D1: analitik SDM & biaya per bulan (GET /dashboard/analytics). Skema sengaja longgar (kunci tak
+// dikenal diabaikan); rupiah null tanpa grant labor.cost.read, pensiun null tanpa grant data pribadi.
+const num = z.number();
+const headcountMonthSchema = z.object({
+  month: z.string(),
+  start: num,
+  joined: num,
+  left: num,
+  leftByReason: z.record(z.string(), num),
+  end: num,
+  turnoverPct: num,
+});
+const efficiencyFields = {
+  scheduledHours: num,
+  effectiveHours: num,
+  efficiencyPct: num,
+  overtimeHours: num,
+  overtimePct: num,
+  latePct: num,
+  alphaPct: num,
+};
+
+export const dashboardAnalyticsSchema = z.object({
+  month: z.string(),
+  scope: z.string(),
+  showCost: z.boolean(),
+  headcount: headcountMonthSchema.extend({
+    prevEnd: num,
+    endChangePct: num.nullable(),
+    history: z.array(headcountMonthSchema),
+  }),
+  gender: z.array(z.object({ gender: z.string(), count: num, pct: num })),
+  tenure: z.object({
+    avgYears: num,
+    buckets: z.array(
+      z.object({
+        bucket: z.string(),
+        count: num,
+        pct: num,
+        avgYears: num,
+        avgGranted: num,
+        avgUsed: num,
+        avgRemaining: num,
+      }),
+    ),
+  }),
+  leave: z.object({
+    year: num,
+    onLeaveToday: num,
+    pendingRequests: num,
+    usedDays: num,
+    remainingDays: num,
+    debtDays: num,
+  }),
+  efficiency: z.object({
+    ...efficiencyFields,
+    prevEfficiencyPct: num,
+    byLocation: z.array(z.object({ location: z.string(), headcount: num, ...efficiencyFields })),
+  }),
+  projection: z.array(
+    z.object({
+      month: z.string(),
+      contractEnds: num,
+      tierChanges: num,
+      retirements: num.nullable(),
+      costDelta: num.nullable(),
+    }),
+  ),
+  laborCost: z
+    .object({
+      rows: z.array(
+        z.object({
+          category: z.string(),
+          headcount: num,
+          wage: num,
+          overtime: num,
+          total: num,
+          pct: num,
+        }),
+      ),
+      total: num,
+      wageMissing: num,
+    })
+    .nullable(),
+  liability: z
+    .object({
+      scenario: z.string(),
+      severance: num,
+      upmk: num,
+      pkwt: num,
+      leaveComp: num,
+      total: num,
+      employees: num,
+      wageMissing: num,
+    })
+    .nullable(),
+});
+export type DashboardAnalytics = z.infer<typeof dashboardAnalyticsSchema>;
+
+const analyticsEnvelope = z.object({ data: dashboardAnalyticsSchema });
+
+export function analyticsSearch(params: AnalyticsParams): string {
+  const search = new URLSearchParams({ month: params.month, scenario: params.scenario });
+  if (params.companyId) search.set("companyId", params.companyId);
+  return search.toString();
+}
+
+type AnalyticsKey = ReturnType<typeof dashboardKeys.analytics>;
+
+export function useDashboardAnalytics(
+  month: string,
+  companyId: string | undefined,
+  scenario: SeveranceScenario = "PHK_NORMAL",
+) {
+  const params: AnalyticsParams = { month, companyId, scenario };
+  return useQuery<DashboardAnalytics, Error, DashboardAnalytics, AnalyticsKey>({
+    queryKey: dashboardKeys.analytics(params),
+    queryFn: ({ signal }) =>
+      api(`/dashboard/analytics?${analyticsSearch(params)}`, {
+        schema: analyticsEnvelope,
+        signal,
+      }).then((r) => r.data),
+    staleTime: 60_000,
+    // Ganti bulan/skenario/perusahaan: angka lama tetap tampil (redup) sampai yang baru datang.
+    placeholderData: keepPreviousData,
   });
 }

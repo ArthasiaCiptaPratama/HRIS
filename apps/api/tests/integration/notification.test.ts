@@ -3,6 +3,7 @@ import type { ErrorBody } from "@hris/shared";
 import { createApp } from "../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../src/core/db.ts";
 import { createLogger } from "../../src/core/logger.ts";
+import type { PushMessage, PushOutcome, PushSender } from "../../src/core/push.ts";
 import {
   configureNotification,
   MAX_EMAIL_ATTEMPTS,
@@ -28,6 +29,21 @@ const app = createApp({
   cronSecret: CRON_SECRET,
 });
 const outboxTo = (s: string) => `outbox-${RUN}-${s}@example.test`;
+const pushToken = (s: string) => `fcm-${RUN}-token-${s}`;
+
+/** MOB-D6: pengirim push palsu; token berakhiran `-gone` dianggap sudah tidak terdaftar di FCM. */
+function createFakePush() {
+  const sent: { token: string; message: PushMessage }[] = [];
+  const sender: PushSender = {
+    configured: true,
+    send: async (token, message): Promise<PushOutcome> => {
+      if (token.endsWith("-gone")) return "unregistered";
+      sent.push({ token, message });
+      return "sent";
+    },
+  };
+  return { sender, sent };
+}
 
 type Headers = Record<string, string>;
 const call = (method: string, path: string, headers: Headers, body?: unknown) =>
@@ -51,6 +67,7 @@ beforeEach(() => {
 });
 afterAll(async () => {
   await prisma.emailOutbox.deleteMany({ where: { toEmail: { startsWith: `outbox-${RUN}-` } } });
+  await prisma.pushDevice.deleteMany({ where: { token: { startsWith: pushToken("") } } });
   await auth.cleanup();
   await disconnectPrisma();
 });
@@ -262,5 +279,85 @@ describe("cron /api/cron/* (CRON_SECRET)", () => {
         })
       ).status,
     ).toBe(401);
+  });
+});
+
+describe("perangkat push app mobile (MOB-D6)", () => {
+  test("POST/DELETE /me/devices: 401 tanpa login, 400 body salah", async () => {
+    const body = { token: pushToken("x"), platform: "ANDROID" };
+    expect((await call("POST", "/me/devices", {}, body)).status).toBe(401);
+    expect((await call("DELETE", `/me/devices/${pushToken("x")}`, {})).status).toBe(401);
+    expect((await call("POST", "/me/devices", a.headers, { token: "pendek" })).status).toBe(400);
+    expect(
+      (await call("POST", "/me/devices", a.headers, { ...body, platform: "IOS" })).status,
+    ).toBe(400);
+  });
+
+  test("token pindah ke akun terakhir yang login; hapus hanya milik sendiri (idempoten)", async () => {
+    const token = pushToken("shared");
+    const body = { token, platform: "ANDROID", appVersion: "1.0.0+1" };
+    expect((await call("POST", "/me/devices", a.headers, body)).status).toBe(200);
+    expect((await call("POST", "/me/devices", a.headers, body)).status).toBe(200);
+    expect((await call("POST", "/me/devices", b.headers, body)).status).toBe(200);
+    const rows = await prisma.pushDevice.findMany({ where: { token } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.accountId).toBe(b.account.id);
+
+    const byA = await call("DELETE", `/me/devices/${token}`, a.headers);
+    expect(((await byA.json()) as { data: { removed: boolean } }).data.removed).toBe(false);
+    const byB = await call("DELETE", `/me/devices/${token}`, b.headers);
+    expect(((await byB.json()) as { data: { removed: boolean } }).data.removed).toBe(true);
+    expect(await prisma.pushDevice.count({ where: { token } })).toBe(0);
+  });
+
+  test("notify() mengirim push + target terstruktur; token kedaluwarsa dihapus", async () => {
+    const push = createFakePush();
+    configureNotification({
+      sender: email.sender,
+      appUrl: "http://localhost:5173",
+      logger,
+      push: push.sender,
+    });
+    for (const suffix of ["live", "gone"]) {
+      await call("POST", "/me/devices", a.headers, {
+        token: pushToken(`target-${suffix}`),
+        platform: "ANDROID",
+      });
+    }
+    const result = await notify({
+      recipients: [{ accountId: a.account.id, email: a.account.email }],
+      type: "test.push",
+      title: "Pengajuan cuti disetujui",
+      link: "/absen/cuti",
+      target: { type: "LEAVE_REQUEST", id: `leave-${RUN}` },
+      email: false,
+    });
+    expect(result).toMatchObject({ created: 1, pushed: 1, failed: 0 });
+    expect(push.sent).toHaveLength(1);
+    expect(push.sent[0]?.token).toBe(pushToken("target-live"));
+    expect(push.sent[0]?.message.data).toMatchObject({
+      type: "test.push",
+      link: "/absen/cuti",
+      targetType: "LEAVE_REQUEST",
+      targetId: `leave-${RUN}`,
+    });
+    expect(await prisma.pushDevice.count({ where: { token: pushToken("target-gone") } })).toBe(0);
+
+    const list = (await (await call("GET", "/notifications", a.headers)).json()) as {
+      data: { id: string; type: string; target: { type: string; id: string } | null }[];
+    };
+    const row = list.data.find((n) => n.type === "test.push");
+    expect(row?.target).toEqual({ type: "LEAVE_REQUEST", id: `leave-${RUN}` });
+    expect(push.sent[0]?.message.data.notificationId).toBe(row?.id ?? "");
+  });
+
+  test("tanpa kredensial FCM: notifikasi tetap dibuat, push tidak dikirim", async () => {
+    const result = await notify({
+      recipients: [{ accountId: a.account.id, email: a.account.email }],
+      type: "test.nopush",
+      title: "Tanpa push",
+      email: false,
+    });
+    expect(result).toMatchObject({ created: 1, pushed: 0 });
   });
 });

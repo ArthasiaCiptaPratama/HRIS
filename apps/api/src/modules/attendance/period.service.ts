@@ -677,6 +677,7 @@ export async function createCorrection(ctx: RequestContext, input: CorrectionInp
         body: `Tanggal kerja ${dateLabel(input.workDate)}: “${input.reason}”`,
         link: "/time/pernyataan",
         dedupeKey: `tm-correction-new:${row.id}`,
+        target: { type: "CORRECTION", id: row.id },
       },
     ]);
   }
@@ -740,6 +741,7 @@ export function registerPeriodIntegrations() {
             : {}),
           link: "/time/pernyataan",
           dedupeKey: `tm-correction-decided:${row.id}`,
+          target: { type: "CORRECTION", id: row.id },
         },
       ]);
     }

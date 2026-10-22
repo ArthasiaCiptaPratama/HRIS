@@ -1,5 +1,5 @@
 import { ROLE } from "@hris/shared";
-import type { Actor } from "../../core/access/index.ts";
+import { type Actor, hasPermission } from "../../core/access/index.ts";
 
 // Time Management (PLAN §4.3, desain time-management.md §9). Keputusan murni; data target dari pemanggil.
 
@@ -56,3 +56,15 @@ export function canRequestRosterChange(actor: Actor, target: RosterTarget): bool
   if (actor.employeeId === target.employeeId) return true;
   return actor.role === ROLE.MANAGER && target.managerId === actor.employeeId;
 }
+
+// ── TM-D6 lembur & biaya / TM-D7 istirahat ─────────────────────────────────────
+/** Rupiah per orang & tabel upah grade: SA; HR ber-grant `labor.cost.read` (PT dicek pemanggil). */
+export const canSeeLaborCost = (actor: Actor) =>
+  isSa(actor) || (isHr(actor) && hasPermission(actor, "labor.cost.read"));
+/** Ubah upah grade: SA saja. */
+export const canManageGradeWages = (actor: Actor) => isSa(actor);
+/** Lokasi wajib absen istirahat: SA + HR (sama dengan pengaturan lokasi absen). */
+export const canManageBreakLocations = (actor: Actor) => isSa(actor) || isHr(actor);
+/** Atasan melihat TOTAL rupiah lembur timnya per bulan (bukan per orang). */
+export const canSeeTeamCostTotal = (actor: Actor) =>
+  actor.role === ROLE.MANAGER && actor.employeeId !== null;

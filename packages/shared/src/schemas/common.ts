@@ -8,6 +8,8 @@ export const ERROR_CODES = [
   "NOT_FOUND",
   "CONFLICT",
   "BUSINESS_RULE_VIOLATION",
+  // MOB-D7: app mobile lebih lama dari versi minimum (426) → app menampilkan layar perbarui.
+  "APP_UPDATE_REQUIRED",
   "INTERNAL_ERROR",
 ] as const;
 

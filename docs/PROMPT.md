@@ -116,6 +116,7 @@ Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 
 - **Paginasi:** `?page=1&pageSize=20` (maks 100). **Filter:** query param bernama jelas (`?departmentId=&status=`). **Urutan:** `?sort=joinDate:desc`. **Pencarian:** `?q=`.
 - **OpenAPI:** setiap route didefinisikan dengan `@hono/zod-openapi` (termasuk respons error), supaya dokumen di `/api/v1/openapi.json` selalu lengkap untuk tim mobile.
+- **Kontrak bertipe untuk app mobile (MOB-D7/MOB-D17):** body & respons 200 setiap rute memakai skema Zod nyata, **bukan** `z.record(z.string(), z.unknown())` / `dataEnvelope(z.unknown())`. Skema respons diberi nama (`.openapi("Nama")`) di `<file>.contract.ts` dan dikunci ke tipe service: `assertExact<z.infer<typeof skema>, TipeService>(true)` (`core/contract.ts`; `Jsonify<T>` bila ada Date/Decimal). Field nullable yang merujuk skema bernama memakai `nullableRef(skema)`, bukan `.nullable()`. Header `X-App-Version` (426) & `Idempotency-Key` (punch) lihat `features/mobile`. **`operationId`** (= nama method klien Dart) dibuat otomatis di `core/openapi.ts` (`getAttendanceDaysById`); endpoint yang dipakai app diberi nama di `APP_OPERATION_IDS` — **mengganti path/method endpoint app berarti memperbarui peta itu** (test `core/__tests__/openapi.test.ts` gagal bila tertinggal).
 - **Respons disaring sesuai akses:** field sensitif dihilangkan dari respons (bukan hanya disembunyikan di UI) bila aktor tidak berhak.
 - **Header:** `Authorization: Bearer <jwt Supabase>`, `X-Request-Id` (dibuat server bila tidak dikirim, dikembalikan di respons).
 
@@ -167,6 +168,7 @@ HRIS/Oatse/Linux-Windows (develop) ──merge s.d. commit──▶ HRIS/Oatse/r
 | `HRIS/Oatse/Linux-Windows` | **Develop**: kerja harian, commit & push bebas | – (tidak di-PR langsung ke `HRIS/debug/*`) |
 | `HRIS/Oatse/rilis` *(sebelum 2026-10-05: `HRIS/Oatse/rilis-import`)* | **Rilis**: isi yang dipresentasikan & di-deploy; git worktree `/mnt/winD/WORK/Magang/HRIS-rilis` | Hanya menerima merge dari develop (atau perbaikan presentasi yang lalu dibawa balik ke develop) |
 | `HRIS/<nama>/…` (rekan tim, mis. `HRIS/Mat/…`) | Kerja harian rekan tim | – |
+| `HRIS/mobile-app` | **BE untuk app mobile** (fitur bersama, MOB-D16); git worktree `/mnt/winD/WORK/Magang/HRIS-mobile`, DB lokal `hris_mobile`. Menerima merge dari develop; digabung ke develop per tahap | Verifikasi penuh hijau di worktree |
 | `HRIS/debug/database` | Verifikasi migrasi di PostgreSQL **lokal** & CI | `db:reset` + `db:migrate` bersih di lokal, seed jalan, CI (migrasi dari DB kosong + test integration) hijau |
 | `HRIS/debug/fe-be` | Uji integrasi FE+BE di **staging** (Vercel project staging, D-036 + Supabase staging) | CI hijau, `db:deploy` ke staging sukses, uji manual alur yang berubah |
 | `main` | Stabil / produksi | CI hijau, review pembimbing/atasan |

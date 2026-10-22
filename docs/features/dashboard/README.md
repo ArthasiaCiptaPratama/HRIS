@@ -15,6 +15,10 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Dashboard SA/HR: `GET /dashboard` (agregat, tanpa data per orang) + grafik ECharts (kontribusi rekan tim `5211a25`, dilengkapi di jalur rilis); MANAGER/EMPLOYEE tetap sapaan; sejak 2026-10-01 angka mengikuti cakupan PT aktor (D-040) (tambahan 2026-09-30, permintaan pemilik projek)
   - [x] Dashboard bisa diatur (D-065): pivot `GET /dashboard/pivot` (baris × kolom + filter; dimensi pribadi ber-grant), susunan widget per akun `iam.dashboard_layouts` + `GET/PUT/DELETE /me/dashboard-layout`, board drag & drop (`@dnd-kit`), pembuat grafik dengan pratinjau, Menu Cepat pilihan sendiri, widget bawaan Pendidikan/Lokasi/Unit per kategori — test api 575 lulus, shared 184, web 216/218 (2 flaky timeout lama di import/arsip, lulus saat dijalankan sendiri) (tambahan 2026-10-09: permintaan pemilik projek)
 
+- [x] **Dashboard analitik SDM & biaya (DSB-D1 / TM-D10)** (tambahan 2026-10-21: grill pemilik projek): modul API baru `analytics` (`GET /dashboard/analytics?month&companyId&scenario`, tanpa tabel; SA/HR PT/atasan tim; rupiah hanya ber-grant `labor.cost.read`; proyeksi pensiun hanya bila boleh data pribadi), rumus PP 35/2021 di `@hris/shared` `severance.ts`; widget baru: kartu Turnover, Sedang Cuti, Efisiensi, Kewajiban kompensasi (section Angka) + insight Pergerakan karyawan 12 bulan, Gender, Masa kerja vs cuti, Cuti, Efisiensi jam kerja, Proyeksi 12 bulan, Labor cost, Kewajiban kompensasi (pilih skenario) di section Grafik; "Periode analitik" di toolbar; widget biaya tersembunyi tanpa izin — branch `HRIS/Mat/Mac`, belum develop
+  - [x] Atasan (MANAGER) melihat panel **Analitik tim** (hanya baca, tanpa rupiah, pilih bulan) di dashboard pribadinya — `team-analytics.tsx`, `c664054` (tambahan 2026-10-21)
+
+
 ## Keputusan
 
 Isi lengkap di [decisions.md](../../decisions.md).
@@ -25,7 +29,8 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| DSB-D1 | **Dashboard analitik SDM & biaya** (rencana, menunggu Paket 3). Kartu: aktif awal bulan, + masuk, − keluar per alasan, = aktif akhir bulan + turnover (grafik 12 bulan); gender; masa kerja vs pemakaian cuti; cuti hari ini (sedang cuti, menunggu, terpakai, sisa); efisiensi = jam efektif ÷ jam terjadwal + % lembur/telat/Alpha per unit/lokasi; proyeksi 12 bulan (PKWT habis, ambang masa kerja pesangon/UPMK, pensiun); labor cost kontrak vs tetap; kewajiban pesangon/UPMK/UPH cuti dengan skenario PHK yang dipilih (TM-D10). **Tata letak:** kartu angka 1/4 lebar, grafik 1/3 lebar; persentase = porsi dari total + perubahan vs bulan lalu. **Akses:** SA & HR (PT cakupan) bagian non-rupiah; Atasan hanya timnya; kartu rupiah hanya SA + HR ber-grant "Biaya" (Atasan: total lembur Rp tim). | Pemilik projek 2026-10-21 (grill) |
+| DSB-D2 | **Tata letak dashboard yang bisa diatur.** (1) Dashboard dibagi **3 section tetap**: atas *Angka ringkas* (widget stat), tengah *Menu Cepat*, bawah *Grafik*; widget hanya bisa digeser di dalam section-nya (`DASHBOARD_SECTIONS`, `orderBySection`, juga dinormalisasi saat disimpan API). (2) **Widget kecil (¼) hanya donut atau bar**; dikecilkan → otomatis donut, jenis lain nonaktif di menu (`fitWidgetToSize`, juga saat tampil & disimpan). (3) Grafik membaca lebar widget: sumbu & label diringkas, angka sel heatmap disembunyikan bila tak muat. (4) Angka tengah donut & persen tooltip mengikuti legenda yang dimatikan. | Pemilik projek 2026-10-21 |
 
 ## Keputusan terbuka
 

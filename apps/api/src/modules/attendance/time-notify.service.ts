@@ -1,3 +1,4 @@
+import type { TmNotificationTarget } from "@hris/shared";
 import { type ApprovalSubject, correctionDeadline } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
@@ -51,6 +52,8 @@ export interface EmployeeNotice {
   body?: string;
   link?: string;
   dedupeKey?: string;
+  /** MOB-D6: layar tujuan di app mobile. */
+  target?: { type: TmNotificationTarget; id: string };
 }
 
 /** Kirim notifikasi ke akun beberapa karyawan. Gagal kirim tidak pernah menggagalkan proses utama. */
@@ -70,6 +73,7 @@ export async function notifyEmployees(notices: EmployeeNotice[], now = new Date(
           ...(n.body ? { body: n.body } : {}),
           ...(n.link ? { link: n.link } : {}),
           ...(n.dedupeKey ? { dedupeKey: n.dedupeKey } : {}),
+          ...(n.target ? { target: n.target } : {}),
           email: false,
         },
         now,
@@ -89,6 +93,7 @@ export interface TimeQueue {
   leave: number;
   corrections: number;
   rosterChanges: number;
+  overtime: number;
   total: number;
 }
 
@@ -97,11 +102,12 @@ const QUEUE_SUBJECTS: Record<Exclude<keyof TimeQueue, "total">, ApprovalSubject[
   leave: ["LEAVE", "PERMIT"],
   corrections: ["ATTENDANCE_CORRECTION"],
   rosterChanges: ["ROSTER_CHANGE"],
+  overtime: ["OVERTIME"],
 };
 
 /** Jumlah pengajuan yang menunggu keputusan aktor ini (sama dengan inbox masing-masing). */
 export async function queueFor(actor: Actor): Promise<TimeQueue> {
-  const counts = { attendance: 0, leave: 0, corrections: 0, rosterChanges: 0 };
+  const counts = { attendance: 0, leave: 0, corrections: 0, rosterChanges: 0, overtime: 0 };
   for (const [key, subjects] of Object.entries(QUEUE_SUBJECTS) as [
     keyof typeof counts,
     ApprovalSubject[],
@@ -157,6 +163,7 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         body: "Segera absen masuk. Bila tidak ada absen sama sekali, hari ini dihitung Alpha dan gaji hari itu tidak dihitung.",
         link: "/absen",
         dedupeKey: `tm-remind-in:${r.employeeId}:${date}`,
+        target: { type: "ATTENDANCE_TODAY", id: date },
       });
     } else if (hasIn && !hasOut && now.getTime() >= window.end.getTime()) {
       notices.push({
@@ -166,6 +173,7 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         body: "Jam pulang sudah lewat. Lakukan Clock Out sebelum batas absen pulang agar hari ini bisa disetujui.",
         link: "/absen",
         dedupeKey: `tm-remind-out:${r.employeeId}:${date}`,
+        target: { type: "ATTENDANCE_TODAY", id: date },
       });
     }
   }
@@ -203,6 +211,7 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         body: "Ajukan koreksi hari ini. Setelah hari ini, hari tersebut tetap Alpha dan gaji hari itu tidak dihitung.",
         link: "/time/pernyataan",
         dedupeKey: `tm-alpha-last:${a.employeeId}:${lastDay}`,
+        target: { type: "ATTENDANCE_DATE", id: lastDay },
       });
     }
   }
@@ -226,6 +235,7 @@ export async function runApprovalDigest(now = new Date()) {
       queue.leave ? `${queue.leave} cuti/izin` : null,
       queue.corrections ? `${queue.corrections} koreksi` : null,
       queue.rosterChanges ? `${queue.rosterChanges} perubahan roster` : null,
+      queue.overtime ? `${queue.overtime} lembur` : null,
     ].filter(Boolean);
     try {
       const r = await notify(
@@ -238,8 +248,11 @@ export async function runApprovalDigest(now = new Date()) {
             ? "/time/absen-harian"
             : queue.leave
               ? "/time/persetujuan-cuti"
-              : "/time/pernyataan",
+              : queue.overtime && !queue.corrections
+                ? "/time/lembur"
+                : "/time/pernyataan",
           dedupeKey: `tm-digest:${account.accountId}:${today}`,
+          target: { type: "APPROVAL_QUEUE", id: today },
           email: false,
         },
         now,

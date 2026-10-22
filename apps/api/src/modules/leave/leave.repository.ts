@@ -56,11 +56,19 @@ export const sumsByKind = (employeeIds: string[], year: number) =>
     _sum: { days: true },
   });
 
-/** Karyawan yang punya baris buku besar pada tahun (untuk pelunasan/hangus). */
-export const employeesWithLedger = (year: number) =>
+/**
+ * Karyawan yang punya baris buku besar pada tahun (untuk pelunasan/hangus). `excludeHolds` = saldo nyata
+ * (TM-D9): HOLD/RELEASE diabaikan sehingga tahanan pengajuan yang masih menunggu tidak dihitung hutang.
+ */
+export const employeesWithLedger = (year: number, options: { excludeHolds?: boolean } = {}) =>
   getPrisma().leaveLedger.groupBy({
     by: ["employeeId", "companyId"],
-    where: { year },
+    where: {
+      year,
+      ...(options.excludeHolds
+        ? { kind: { notIn: ["HOLD", "RELEASE"] satisfies LeaveLedgerKind[] } }
+        : {}),
+    },
     _sum: { days: true },
   });
 
@@ -132,6 +140,114 @@ export const overlapping = (employeeId: string, from: Date, to: Date) =>
     },
     select: { id: true, startDate: true, endDate: true },
   });
+
+/** TM-D9: pengajuan ulang yang masih berlaku (menunggu/disetujui) per pengajuan asal. */
+export async function activeResubmissions(
+  originalIds: string[],
+  tx?: LeaveTx,
+): Promise<Map<string, number>> {
+  if (originalIds.length === 0) return new Map();
+  const rows = await db(tx).leaveRequest.groupBy({
+    by: ["resubmittedFromId"],
+    where: { resubmittedFromId: { in: originalIds }, status: { in: ["PENDING", "APPROVED"] } },
+    _count: { _all: true },
+  });
+  return new Map(
+    rows
+      .filter((r): r is typeof r & { resubmittedFromId: string } => r.resubmittedFromId !== null)
+      .map((r) => [r.resubmittedFromId, r._count._all]),
+  );
+}
+
+/**
+ * TM-D9 hak keluar: hari yang sudah dibebankan ke saldo `year` tetapi jatuh SETELAH tanggal keluar
+ * (cuti/izin disetujui — bagian yang memotong cuti — dan cuti bersama), untuk dikembalikan ke sisa.
+ */
+export async function chargesAfter(employeeId: string, year: number, exitDate: Date) {
+  const [approved, collective] = await Promise.all([
+    getPrisma().leaveRequest.findMany({
+      where: { employeeId, status: "APPROVED", endDate: { gt: exitDate } },
+      select: { id: true, workDates: true },
+    }),
+    getPrisma().leaveLedger.aggregate({
+      where: { employeeId, year, kind: "COLLECTIVE", workDate: { gt: exitDate } },
+      _sum: { days: true },
+    }),
+  ]);
+  const charged = await getPrisma().leaveLedger.groupBy({
+    by: ["requestId"],
+    where: { requestId: { in: approved.map((r) => r.id) }, year, kind: "USE" },
+    _sum: { days: true },
+  });
+  const usedBy = new Map(charged.map((c) => [c.requestId, -(c._sum.days ?? 0)]));
+  let refund = -(collective._sum.days ?? 0);
+  for (const r of approved) {
+    const after = r.workDates.filter((d) => d > exitDate).length;
+    // Izin: hanya hari terakhir yang memotong cuti → kembalikan sebatas yang dibebankan.
+    refund += Math.min(usedBy.get(r.id) ?? 0, after);
+  }
+  return refund;
+}
+
+/** Hari sisa yang dihanguskan (EXPIRE umum, bersih dari pengembalian) untuk satu tahun jatah. */
+export async function expiredDays(tx: LeaveTx, employeeId: string, year: number) {
+  const sum = await tx.leaveLedger.aggregate({
+    where: { employeeId, year, kind: "EXPIRE", requestId: null },
+    _sum: { days: true },
+  });
+  return -(sum._sum.days ?? 0);
+}
+
+/** Kunci per (karyawan, tahun jatah) di dalam transaksi — hangus vs pelepasan tahanan tidak bertabrakan. */
+export const lockEmployeeYear = (tx: LeaveTx, employeeId: string, year: number) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`leave:${employeeId}:${year}`}))`;
+
+/** Kunci baris pengajuan asal (pengajuan ulang serentak dari penolakan yang sama diproses berurutan). */
+export const lockRequest = (tx: LeaveTx, id: string) =>
+  tx.$executeRaw`SELECT id FROM leave.leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
+
+// ── Fakta dashboard (DSB-D1, baca-saja) ───────────────────────────────────────
+export const ledgerRowsOf = (employeeIds: string[], year: number) =>
+  getPrisma().leaveLedger.findMany({
+    where: { employeeId: { in: employeeIds }, year },
+    select: { employeeId: true, kind: true, days: true },
+  });
+export const countOnLeave = (employeeIds: string[], day: Date) =>
+  getPrisma().leaveRequest.count({
+    where: { employeeId: { in: employeeIds }, status: "APPROVED", workDates: { has: day } },
+  });
+export const countPending = (employeeIds: string[]) =>
+  getPrisma().leaveRequest.count({ where: { employeeId: { in: employeeIds }, status: "PENDING" } });
+
+// ── Hak cuti karyawan keluar (TM-D9) ──────────────────────────────────────────
+export const activeExitSettlements = (companyIds?: string[]) =>
+  getPrisma().leaveExitSettlement.findMany({
+    where: {
+      status: { not: "CANCELLED" },
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+    },
+    select: { id: true, employeeId: true, exitDate: true, status: true, year: true },
+  });
+export const createExitSettlement = (data: Prisma.LeaveExitSettlementUncheckedCreateInput) =>
+  getPrisma().leaveExitSettlement.create({ data });
+/** Batalkan settlement yang masih OPEN (yang sudah diproses tidak ikut). */
+export const cancelOpenExitSettlements = (ids: string[], note: string) =>
+  getPrisma().leaveExitSettlement.updateMany({
+    where: { id: { in: ids }, status: "OPEN" },
+    data: { status: "CANCELLED", note },
+  });
+export const listExitSettlementRows = (companyIds?: string[]) =>
+  getPrisma().leaveExitSettlement.findMany({
+    where: companyIds ? { companyId: { in: companyIds } } : {},
+    orderBy: [{ exitDate: "desc" }, { createdAt: "desc" }],
+    take: 500,
+  });
+export const findExitSettlement = (id: string) =>
+  getPrisma().leaveExitSettlement.findUnique({ where: { id } });
+export const updateExitSettlement = (
+  id: string,
+  data: Prisma.LeaveExitSettlementUncheckedUpdateInput,
+) => getPrisma().leaveExitSettlement.update({ where: { id }, data });
 
 export async function withTransaction<T>(run: (tx: LeaveTx) => Promise<T>): Promise<T> {
   return getPrisma().$transaction(run);

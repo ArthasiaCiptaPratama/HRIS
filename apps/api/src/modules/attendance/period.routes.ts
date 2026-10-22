@@ -10,6 +10,15 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import * as alpha from "./alpha.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
+import {
+  attendanceRecordSchema,
+  correctionSchema,
+  monthlyRecapSchema,
+  periodCloseResultSchema,
+  periodPreviewSchema,
+  statementRowSchema,
+  statementUploadResultSchema,
+} from "./period.contract.ts";
 import * as service from "./period.service.ts";
 import { strict } from "./roster.routes.ts";
 
@@ -19,22 +28,22 @@ const security = [{ [BEARER_SCHEME]: [] }];
 const TAGS = ["Time Management"];
 const errors = (...codes: (keyof typeof ERROR_RESPONSES)[]) =>
   Object.fromEntries(codes.map((code) => [code, ERROR_RESPONSES[code]]));
-const anyBody = {
-  body: {
-    content: { "application/json": { schema: z.record(z.string(), z.unknown()) } },
-    required: true,
-  },
-};
 const idParam = z.object({ id: z.uuid() });
 const monthQuery = z.object({
   companyId: z.uuid(),
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
 });
+/** MOB-D7 #1: body & respons bertipe di OpenAPI (codegen app mobile). Validasi body tetap `strict`. */
 const route = (
   method: "get" | "post",
   path: string,
   summary: string,
-  request: Record<string, unknown> = {},
+  spec: {
+    response: z.ZodType;
+    body?: z.ZodType;
+    params?: z.ZodObject;
+    query?: z.ZodObject;
+  },
 ) =>
   createRoute({
     method,
@@ -42,11 +51,17 @@ const route = (
     tags: TAGS,
     summary,
     security,
-    request,
+    request: {
+      ...(spec.params ? { params: spec.params } : {}),
+      ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.body
+        ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
+        : {}),
+    },
     responses: {
       200: {
         description: summary,
-        content: { "application/json": { schema: dataEnvelope(z.unknown()) } },
+        content: { "application/json": { schema: dataEnvelope(spec.response) } },
       },
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
@@ -62,9 +77,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "get",
       "/attendance/recap",
       "Rekap absensi bulanan per karyawan (SA/HR PT, MANAGER tim)",
-      {
-        query: monthQuery,
-      },
+      { query: monthQuery, response: monthlyRecapSchema },
     ),
     (c) => service.monthlyRecap(ctxOf(c), q(c, "companyId"), q(c, "month")),
   ],
@@ -73,7 +86,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/periods/preview",
       "Pratinjau tutup periode (hari yang menjadi ALPHA)",
-      anyBody,
+      { body: periodCloseInputSchema, response: periodPreviewSchema },
     ),
     async (c) => service.previewClose(ctxOf(c), strict(periodCloseInputSchema, await body(c))),
   ],
@@ -82,12 +95,14 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/periods/close",
       "Tutup periode: hari belum disetujui/tanpa absen → ALPHA",
-      anyBody,
+      { body: periodCloseInputSchema, response: periodCloseResultSchema },
     ),
     async (c) => service.closePeriod(ctxOf(c), strict(periodCloseInputSchema, await body(c))),
   ],
   [
-    route("get", "/attendance/record/me", "Rekam jejak Alpha & koreksi saya (TM-D3)"),
+    route("get", "/attendance/record/me", "Rekam jejak Alpha & koreksi saya (TM-D3)", {
+      response: attendanceRecordSchema,
+    }),
     (c) => alpha.myAttendanceRecord(ctxOf(c)),
   ],
   [
@@ -95,24 +110,28 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "get",
       "/attendance/record/employees/{id}",
       "Rekam jejak Alpha & koreksi karyawan (TM-D3)",
-      {
-        params: z.object({ id: z.uuid() }),
-      },
+      { params: idParam, response: attendanceRecordSchema },
     ),
     (c) => alpha.employeeAttendanceRecord(ctxOf(c), c.req.param("id") as string),
   ],
   [
-    route("get", "/attendance/statements/me", "Hari ALPHA saya & surat pernyataannya"),
+    route("get", "/attendance/statements/me", "Hari ALPHA saya & surat pernyataannya", {
+      response: z.array(statementRowSchema),
+    }),
     (c) => service.myStatements(ctxOf(c)),
   ],
   [
     route("get", "/attendance/statements", "Daftar ALPHA & surat pernyataan per PT/bulan", {
       query: monthQuery,
+      response: z.array(statementRowSchema),
     }),
     (c) => service.listStatements(ctxOf(c), q(c, "companyId"), q(c, "month")),
   ],
   [
-    route("post", "/attendance/statements/upload", "URL unggah lampiran surat pernyataan", anyBody),
+    route("post", "/attendance/statements/upload", "URL unggah lampiran surat pernyataan", {
+      body: statementUploadSchema,
+      response: statementUploadResultSchema,
+    }),
     async (c) =>
       service.createStatementUpload(
         ctxOf(c),
@@ -120,32 +139,30 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route(
-      "post",
-      "/attendance/statements",
-      "Buat surat pernyataan absensi untuk hari ALPHA",
-      anyBody,
-    ),
+    route("post", "/attendance/statements", "Buat surat pernyataan absensi untuk hari ALPHA", {
+      body: statementInputSchema,
+      response: statementRowSchema,
+    }),
     async (c) => service.createStatement(ctxOf(c), strict(statementInputSchema, await body(c))),
   ],
   [
     route("get", "/attendance/corrections", "Koreksi absensi: milik saya / inbox keputusan", {
       query: z.object({ scope: z.enum(["mine", "inbox"]).optional() }),
+      response: z.array(correctionSchema),
     }),
     (c) => service.listCorrections(ctxOf(c), c.req.query("scope") === "inbox" ? "inbox" : "mine"),
   ],
   [
-    route(
-      "post",
-      "/attendance/corrections",
-      "Ajukan koreksi absensi (paralel Atasan + HR)",
-      anyBody,
-    ),
+    route("post", "/attendance/corrections", "Ajukan koreksi absensi (paralel Atasan + HR)", {
+      body: correctionInputSchema,
+      response: correctionSchema,
+    }),
     async (c) => service.createCorrection(ctxOf(c), strict(correctionInputSchema, await body(c))),
   ],
   [
     route("post", "/attendance/corrections/{id}/cancel", "Batalkan koreksi yang menunggu", {
       params: idParam,
+      response: correctionSchema,
     }),
     (c) => service.cancelCorrection(ctxOf(c), c.req.param("id") as string),
   ],

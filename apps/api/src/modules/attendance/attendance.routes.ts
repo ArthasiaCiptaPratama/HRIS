@@ -5,6 +5,7 @@ import { configureAttendance, registerAttendanceIntegrations } from "./attendanc
 import { registerAttendanceDayRoutes } from "./attendance-day.routes.ts";
 import { registerCalendarRoutes } from "./calendar.routes.ts";
 import { registerLocationSettingRoutes } from "./location-setting.routes.ts";
+import { registerOvertimeRoutes } from "./overtime.routes.ts";
 import { registerPeriodRoutes } from "./period.routes.ts";
 import { configurePeriod, registerPeriodIntegrations } from "./period.service.ts";
 import { registerRosterRoutes } from "./roster.routes.ts";
@@ -36,4 +37,6 @@ export function registerAttendanceRoutes(app: OpenAPIHono, deps: AttendanceRoute
   registerLocationSettingRoutes(app, deps.protect);
   // Paket UX 2026-10-20: angka antrean keputusan untuk badge menu.
   registerTimeNotifyRoutes(app, deps.protect);
+  // TM-D6–TM-D8: lembur & upah grade, lokasi wajib istirahat, template roster.
+  registerOvertimeRoutes(app, deps.protect);
 }
