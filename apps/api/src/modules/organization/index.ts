@@ -1,5 +1,15 @@
 // Interface publik modul organization (PLAN §3.2.5): hanya file ini yang boleh di-import dari luar modul.
 
+export {
+  companyExists,
+  type GradeBrief,
+  getEmploymentStatusCategories,
+  getWorkLocationBriefs,
+  listActiveGrades,
+  listActiveWorkLocations,
+  listGeofencedWorkLocations,
+  type WorkLocationBrief,
+} from "./directory.service.ts";
 export { listOrgPosts, type OrgPostNode } from "./org-post.service.ts";
 export { type OrganizationRouteDeps, registerOrganizationRoutes } from "./organization.routes.ts";
 export type {

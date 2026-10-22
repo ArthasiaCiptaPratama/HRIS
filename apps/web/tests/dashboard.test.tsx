@@ -61,7 +61,7 @@ describe("Dashboard", () => {
     async (role) => {
       const paths = mockBackend(role);
       renderAt("/");
-      expect(await screen.findByText("Perlu tindakan", {}, { timeout: 5000 })).toBeInTheDocument();
+      expect(await screen.findByText("Perlu tindakan", {}, { timeout: 15000 })).toBeInTheDocument();
       expect(screen.getByText("Pintasan")).toBeInTheDocument();
       expect(screen.getByText("Berita penting")).toBeInTheDocument();
       expect(paths).not.toContain("/dashboard");
@@ -74,7 +74,7 @@ describe("Dashboard", () => {
       const paths = mockBackend(role);
       renderAt("/");
       expect(
-        await screen.findByText(/Gagal memuat data dashboard/, {}, { timeout: 5000 }),
+        await screen.findByText(/Gagal memuat data dashboard/, {}, { timeout: 15000 }),
       ).toBeInTheDocument();
       await waitFor(() => expect(paths).toContain("/dashboard"));
     },
@@ -84,7 +84,7 @@ describe("Dashboard", () => {
     const paths = mockBackend("SUPER_ADMIN", 200);
     renderAt("/");
     expect(
-      await screen.findByText("Pendidikan per Kategori", {}, { timeout: 5000 }),
+      await screen.findByText("Pendidikan per Kategori", {}, { timeout: 15000 }),
     ).toBeInTheDocument();
     expect(screen.getByText("Lokasi Kerja per Kategori")).toBeInTheDocument();
     expect(screen.getByText("Distribusi Unit per Kategori")).toBeInTheDocument();

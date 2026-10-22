@@ -5,7 +5,7 @@
 ## API (`apps/api/src/modules/`)
 
 ```
-│   │   ├── notification/             [done] `notify()` (in-app + email, tidak pernah melempar, gagal → outbox), `retryEmailOutbox()`, `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`; `configureNotification()` dipanggil app
+│   │   ├── notification/             [done] `notify()` (in-app + email, tidak pernah melempar, gagal → outbox), `retryEmailOutbox()`, `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`; `configureNotification()` dipanggil app (+ `push: PushSender`, MOB-D6); `notify({ target? })` juga mengirim push FCM ke perangkat penerima (`pushToAccount`, token 404 dihapus, tidak pernah melempar); `POST /me/devices` (daftar/perbarui token, token pindah ke akun terakhir) & `DELETE /me/devices/{token}` (idempoten, hanya milik sendiri) — MOB 2026-10-21
 ```
 
 ## Web (`apps/web/src/features/`)
@@ -19,7 +19,8 @@
 ### `notification`
 | Tabel | Isi penting |
 |---|---|
-| `notifications` | `recipient_account_id` (tanpa FK), `type`, `title`, `body?`, `link?`, `dedupe_key?` (unik per penerima), `read_at?` |
+| `notifications` | `recipient_account_id` (tanpa FK), `type`, `title`, `body?`, `link?`, `dedupe_key?` (unik per penerima), `target_type?` + `target_id?` (MOB-D6: layar tujuan app mobile), `read_at?` |
+| `push_devices` | MOB-D6: token FCM app mobile — `account_id` (tanpa FK), `token` (unik), `platform` (enum `PushPlatform`: ANDROID), `app_version?`, `last_seen_at`; dihapus saat logout, saat FCM menjawab 404, dan oleh `forgetRecipient` |
 | `email_outbox` | Email gagal kirim: `to_email`, `subject`, `text_body`, `status` (PENDING/SENT/FAILED), `attempts` (maks 5), `last_error`, `next_attempt_at` (30 menit, lalu +1 jam × percobaan) |
 
 Pemicu (PLAN §5.6), dari modul `iam` setelah transaksi commit: grant diberikan/dicabut (ke penerima), grant akan kedaluwarsa ≤ 3 hari (cron, `dedupe_key`), perubahan SUPER_ADMIN/Utama (undangan SA, ubah role SA, nonaktif/aktif SA, serah-terima & pemulihan Utama → semua SUPER_ADMIN aktif). Email lokal hanya log (D-025).

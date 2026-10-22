@@ -1,9 +1,8 @@
 // D-060: baca file Google Drive lewat service account (hanya `drive.readonly`; yang terlihat hanya
-// folder/file yang dibagikan ke email service account). Tanpa library Google: token OAuth didapat dari
-// JWT yang ditandatangani kunci service account (jose), lalu Drive API v3 lewat fetch.
-import { importPKCS8, SignJWT } from "jose";
-import { z } from "zod";
+// folder/file yang dibagikan ke email service account). Tanpa library Google: token OAuth lewat
+// core/google-auth.ts, lalu Drive API v3 lewat fetch.
 import { BusinessRuleError } from "./errors.ts";
+import { parseServiceAccountKey, serviceAccountTokenSource } from "./google-auth.ts";
 
 export interface DriveFileMeta {
   id: string;
@@ -21,13 +20,6 @@ export interface GoogleDriveReader {
   download(fileId: string): Promise<Uint8Array>;
 }
 
-const keySchema = z.object({
-  type: z.literal("service_account"),
-  client_email: z.email(),
-  private_key: z.string().startsWith("-----BEGIN PRIVATE KEY-----"),
-  token_uri: z.url().default("https://oauth2.googleapis.com/token"),
-});
-
 const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const API = "https://www.googleapis.com/drive/v3/files";
 
@@ -36,40 +28,11 @@ export function createServiceAccountDrive(
   json: string,
   fetcher: typeof fetch = fetch,
 ): GoogleDriveReader {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON");
-  }
-  const key = keySchema.safeParse(parsed);
-  if (!key.success) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON is not a service account key");
-  const { client_email: email, private_key: pem, token_uri: tokenUri } = key.data;
-  let token: { value: string; expiresAt: number } | null = null;
-
-  async function accessToken(): Promise<string> {
-    const now = Math.floor(Date.now() / 1000);
-    if (token && token.expiresAt - 60 > now) return token.value;
-    const assertion = await new SignJWT({ scope: SCOPE })
-      .setProtectedHeader({ alg: "RS256" })
-      .setIssuer(email)
-      .setAudience(tokenUri)
-      .setIssuedAt(now)
-      .setExpirationTime(now + 3600)
-      .sign(await importPKCS8(pem, "RS256"));
-    const response = await fetcher(tokenUri, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion,
-      }),
-    });
-    if (!response.ok) throw new Error(`Google token request failed (${response.status})`);
-    const body = (await response.json()) as { access_token: string; expires_in: number };
-    token = { value: body.access_token, expiresAt: now + body.expires_in };
-    return token.value;
-  }
+  const accessToken = serviceAccountTokenSource(
+    parseServiceAccountKey(json, "GOOGLE_SERVICE_ACCOUNT_JSON"),
+    SCOPE,
+    fetcher,
+  );
 
   const get = async (url: string) =>
     fetcher(url, { headers: { authorization: `Bearer ${await accessToken()}` } });

@@ -1,4 +1,4 @@
-import { LEAVE_CARRY_UNTIL, type LeaveLedgerKind } from "@hris/shared";
+import type { LeaveLedgerKind } from "@hris/shared";
 
 // Aturan murni cuti tahunan (docs/features/time-management/design.md §7, D-072). Tanpa I/O supaya mudah diuji.
 
@@ -43,24 +43,33 @@ export function countLeaveDates(
   });
 }
 
-/** Tahun jatah yang menanggung tiap tanggal: sisa tahun lalu dulu (s.d. 31 Maret), lalu tahun berjalan. */
+/**
+ * TM-D9: tahun jatah yang menanggung pengajuan = tahun hari terhitung PERTAMA pengajuan (cuti lintas
+ * tahun 29 Des–3 Jan seluruhnya memakai saldo tahun mulai). Tidak ada lagi pemakaian sisa tahun lalu
+ * (D-072 lama: s.d. 31 Maret) — sisa tahun lalu sudah hangus 31 Desember. Saldo boleh minus (hutang).
+ */
+export const chargeYearOf = (countedDates: string[]): number | null => {
+  const first = [...countedDates].sort()[0];
+  return first ? Number(first.slice(0, 4)) : null;
+};
+
 export function allocateCharges(
   dates: string[],
-  balances: Map<number, number>,
+  chargeYear: number,
 ): { byYear: Map<number, number>; perDate: { date: string; year: number }[] } {
-  const remaining = new Map(balances);
-  const byYear = new Map<number, number>();
-  const perDate: { date: string; year: number }[] = [];
-  for (const date of [...dates].sort()) {
-    const year = Number(date.slice(0, 4));
-    const carryOpen = date.slice(5) <= LEAVE_CARRY_UNTIL && (remaining.get(year - 1) ?? 0) > 0;
-    const charged = carryOpen ? year - 1 : year;
-    remaining.set(charged, (remaining.get(charged) ?? 0) - 1);
-    byYear.set(charged, (byYear.get(charged) ?? 0) + 1);
-    perDate.push({ date, year: charged });
-  }
-  return { byYear, perDate };
+  const sorted = [...dates].sort();
+  return {
+    byYear: sorted.length > 0 ? new Map([[chargeYear, sorted.length]]) : new Map(),
+    perDate: sorted.map((date) => ({ date, year: chargeYear })),
+  };
 }
+
+/**
+ * Saldo "nyata" untuk pelunasan hutang & hak keluar: tahanan pengajuan yang masih menunggu (HOLD tanpa
+ * RELEASE) tidak dihitung sebagai pemakaian — HOLD/RELEASE pengajuan yang sudah final saling meniadakan.
+ */
+export const realBalance = (rows: { kind: LeaveLedgerKind; days: number }[]) =>
+  rows.filter((r) => r.kind !== "HOLD" && r.kind !== "RELEASE").reduce((t, r) => t + r.days, 0);
 
 /** Pelunasan hutang akhir Januari (§7.2): ambil dari jatah baru sebanyak yang tersedia. */
 export function settlementDays(previousBalance: number, newYearBalance: number): number {

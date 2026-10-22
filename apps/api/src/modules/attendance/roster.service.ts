@@ -74,6 +74,11 @@ export interface ShiftDto {
   lateToleranceMin: number;
   earlyLeaveToleranceMin: number;
   checkOutCloseMin: number;
+  breakMin: number;
+  breakPaid: boolean;
+  breakStartMinute: number | null;
+  breakEndMinute: number | null;
+  regularOvertimeMin: number;
   color: string | null;
   archived: boolean;
 }
@@ -89,6 +94,11 @@ export const shiftDto = (row: {
   lateToleranceMin: number;
   earlyLeaveToleranceMin: number;
   checkOutCloseMin: number;
+  breakMin: number;
+  breakPaid: boolean;
+  breakStartMinute: number | null;
+  breakEndMinute: number | null;
+  regularOvertimeMin: number;
   color: string | null;
   deletedAt: Date | null;
 }): ShiftDto => ({
@@ -103,6 +113,11 @@ export const shiftDto = (row: {
   lateToleranceMin: row.lateToleranceMin,
   earlyLeaveToleranceMin: row.earlyLeaveToleranceMin,
   checkOutCloseMin: row.checkOutCloseMin,
+  breakMin: row.breakMin,
+  breakPaid: row.breakPaid,
+  breakStartMinute: row.breakStartMinute,
+  breakEndMinute: row.breakEndMinute,
+  regularOvertimeMin: row.regularOvertimeMin,
   color: row.color,
   archived: row.deletedAt !== null,
 });
@@ -115,6 +130,23 @@ export async function listShifts(ctx: RequestContext, companyId: string): Promis
 function validateShift(input: ShiftInput) {
   if (input.startMinute === input.endMinute) {
     throw new BusinessRuleError("Jam mulai dan selesai shift tidak boleh sama.");
+  }
+  const length = (input.endMinute - input.startMinute + 1440) % 1440;
+  if (input.regularOvertimeMin >= length) {
+    throw new BusinessRuleError("Lembur rutin harus lebih pendek dari panjang shift.");
+  }
+  // TM-D12: jendela Mulai istirahat harus utuh di dalam shift.
+  const { breakStartMinute: bs, breakEndMinute: be } = input;
+  if ((bs === null) !== (be === null)) {
+    throw new BusinessRuleError(
+      "Isi jam mulai dan jam selesai istirahat, atau kosongkan keduanya.",
+    );
+  }
+  if (bs !== null && be !== null) {
+    const fromStart = (m: number) => (m - input.startMinute + 1440) % 1440;
+    if (bs === be || fromStart(be) <= fromStart(bs) || fromStart(be) > length) {
+      throw new BusinessRuleError("Jam istirahat harus berada di dalam jam shift.");
+    }
   }
 }
 

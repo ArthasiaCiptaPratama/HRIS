@@ -38,12 +38,14 @@ import {
   Settings2,
   Sheet,
   Smartphone,
+  Timer,
   TriangleAlert,
   UserPlus,
   UserRound,
   UserRoundCheck,
   Users,
   UserX,
+  Wallet,
   Workflow,
 } from "lucide-react";
 import type { Me } from "@/features/auth/schemas";
@@ -58,7 +60,7 @@ import { MASTER_DATA_BASE, MASTER_DATA_PAGES } from "@/features/organization/con
 import { tmAccess } from "@/features/time-management/access";
 import type { TimeQueueKey } from "@/features/time-management/queue-api";
 import { access } from "@/lib/access";
-import { FEATURES } from "./feature-flags";
+import { FEATURES, tmOn } from "./feature-flags";
 
 // D-035: kelompok besar (top nav) → kelompok kecil (judul seksi sidebar) → isi (item sidebar).
 // Satu sumber untuk top nav, sidebar, breadcrumb, pencarian cepat (Ctrl+K), dan guard route.
@@ -343,7 +345,7 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           {
             id: "absen",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmAbsen"),
             label: "Absen (HP)",
             to: "/absen",
             icon: Smartphone,
@@ -352,7 +354,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "attendance-days",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmAttendanceDays"),
             label: "Data Absen Harian",
             to: "/time/absen-harian",
             queueKey: "attendance",
@@ -362,7 +364,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "corrections-statements",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmCorrections"),
             label: "Koreksi & Pernyataan",
             to: "/time/pernyataan",
             queueKey: "corrections",
@@ -372,12 +374,23 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "recap",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmRecap"),
             label: "Rekap & Tutup Periode",
             to: "/time/rekap",
             icon: Sheet,
             visible: tmAccess.viewRecap,
             keywords: "rekap bulanan tutup periode alpha payroll csv",
+          },
+          {
+            // TM-D6: usulan lembur otomatis + persetujuan Atasan & HR + rekap.
+            id: "overtime",
+            maintenance: !tmOn("tmOvertime"),
+            label: "Lembur",
+            to: "/time/lembur",
+            queueKey: "overtime",
+            icon: Timer,
+            visible: tmAccess.overtime,
+            keywords: "lembur overtime jam setara upah rekap persetujuan regular",
           },
         ],
       },
@@ -387,7 +400,7 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           {
             id: "roster-grid",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmRoster"),
             label: "Roster Bulanan",
             to: "/time/roster",
             icon: CalendarRange,
@@ -395,7 +408,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "roster-changes",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmRosterChanges"),
             label: "Perubahan Roster",
             to: "/time/perubahan-roster",
             queueKey: "rosterChanges",
@@ -405,7 +418,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "roster-setup",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmRosterSetup"),
             label: "Shift, Pola & Crew",
             to: "/time/roster/pengaturan",
             icon: CalendarCog,
@@ -414,7 +427,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "attendance-locations",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmAttendanceLocations"),
             label: "Lokasi Absen",
             to: "/time/lokasi-absen",
             icon: MapPinned,
@@ -430,7 +443,7 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           {
             id: "leave-mine",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmLeave"),
             label: "Cuti, Izin & Sakit",
             to: "/time/cuti",
             icon: Plane,
@@ -439,7 +452,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "leave-approvals",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmLeaveApprovals"),
             label: "Persetujuan Cuti",
             to: "/time/persetujuan-cuti",
             queueKey: "leave",
@@ -449,7 +462,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "leave-balances",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmLeaveBalances"),
             label: "Saldo Cuti",
             to: "/time/saldo-cuti",
             icon: Scale,
@@ -458,7 +471,7 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "leave-master",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmLeaveMaster"),
             label: "Master Cuti",
             to: "/time/master-cuti",
             icon: BookOpen,
@@ -473,7 +486,7 @@ export const NAV_GROUPS: NavGroup[] = [
         items: [
           {
             id: "holidays",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmHolidays"),
             label: "Kalender Libur",
             to: "/time/kalender",
             icon: CalendarDays,
@@ -481,12 +494,22 @@ export const NAV_GROUPS: NavGroup[] = [
           },
           {
             id: "time-config",
-            maintenance: !FEATURES.timeManagement,
+            maintenance: !tmOn("tmSettings"),
             label: "Pengaturan",
             to: "/time/pengaturan",
             icon: Settings2,
             visible: tmAccess.viewSettings,
             keywords: "gps akurasi selfie retensi zona waktu",
+          },
+          {
+            // TM-D6: upah per grade (SA ubah; HR ber-grant Biaya lihat).
+            id: "grade-wages",
+            maintenance: !tmOn("tmGradeWages"),
+            label: "Upah Grade",
+            to: "/time/upah-grade",
+            icon: Wallet,
+            visible: tmAccess.viewGradeWages,
+            keywords: "upah grade gaji pokok tunjangan tetap lembur per jam biaya",
           },
         ],
       },

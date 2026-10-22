@@ -6,8 +6,9 @@ import {
   type LeaveCategory,
   type LeaveLedgerKind,
   type LeaveRequestStatus,
+  leaveBalanceLastDay,
 } from "@hris/shared";
-import { CalendarPlus, FileText, Inbox, Paperclip } from "lucide-react";
+import { CalendarPlus, FileText, Inbox, Paperclip, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -28,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ApprovalSteps, addDays, todayIn, workDateLabel } from "../components/display";
 import {
@@ -40,8 +41,9 @@ import {
   useMyLeave,
 } from "../leave-api";
 
-// D-072: cuti tahunan (memotong saldo; hutang boleh), izin & sakit (tidak memotong). Saldo per tahun
-// jatah: sisa tahun lalu berlaku s.d. 31 Maret. Approval paralel Atasan + HR.
+// D-072: cuti tahunan (memotong saldo; hutang boleh), izin & sakit (tidak memotong). Approval paralel
+// Atasan + HR. TM-D9: mulai saldo 2026 sisa cuti hangus 31 Desember tahun itu (tidak dibawa ke tahun
+// berikutnya); pengajuan yang ditolak boleh diajukan ulang ≤ 6 bulan, hanya untuk tanggal ke depan.
 
 const STATUS_VARIANT: Record<LeaveRequestStatus, "warning" | "success" | "destructive" | "muted"> =
   {
@@ -111,11 +113,14 @@ function BalanceCard({
 export function LeavePage() {
   const mine = useMyLeave();
   const { cancel } = useLeaveActions();
-  const [open, setOpen] = useState(false);
+  // null = tertutup; { resubmit } = form pengajuan ulang dari pengajuan yang ditolak.
+  const [dialog, setDialog] = useState<{ resubmit?: LeaveRequest } | null>(null);
   const data = mine.data;
   const carry = data?.balances.find((b) => b.year === data.year - 1);
   const current = data?.balances.find((b) => b.year === data.year);
-  const carryOpen = data ? todayIn() <= data.carryUntil : false;
+  // TM-D9: sisa tahun lalu hanya tampil selama masih berlaku (aturan lama, saldo sebelum 2026).
+  const carryUntil = data?.carryUntil ?? null;
+  const carryOpen = carryUntil !== null && todayIn() <= carryUntil;
 
   return (
     <div>
@@ -123,7 +128,7 @@ export function LeavePage() {
         title="Cuti, Izin & Sakit"
         description="Hanya hari kerja roster yang dihitung. Cuti tahunan memotong saldo; izin dan sakit tidak. Persetujuan oleh Atasan dan HR."
         actions={
-          <Button variant="brand" onClick={() => setOpen(true)} disabled={!data}>
+          <Button variant="brand" onClick={() => setDialog({})} disabled={!data}>
             <CalendarPlus /> Ajukan
           </Button>
         }
@@ -135,16 +140,29 @@ export function LeavePage() {
       ) : (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2">
-            {current ? <BalanceCard summary={current} title={`Saldo cuti ${data.year}`} /> : null}
-            {carry && (carry.balance !== 0 || carryOpen) ? (
+            {current ? (
+              <BalanceCard
+                summary={current}
+                title={`Saldo cuti ${data.year}`}
+                hint={
+                  data.expiresOn
+                    ? `Hangus ${formatDate(data.expiresOn)} — sisa tidak dibawa ke tahun berikutnya.`
+                    : undefined
+                }
+              />
+            ) : null}
+            {carry && carryOpen ? (
               <BalanceCard
                 summary={carry}
                 title={`Sisa ${data.year - 1}`}
-                hint={
-                  carryOpen
-                    ? `Berlaku s.d. ${workDateLabel(data.carryUntil)} dan dipakai lebih dulu.`
-                    : undefined
-                }
+                hint={`Berlaku s.d. ${formatDate(carryUntil)} dan dipakai lebih dulu.`}
+              />
+            ) : carry && carry.balance < 0 ? (
+              // Hutang cuti tahun lalu tetap terlihat sampai dilunasi akhir Januari (D-072).
+              <BalanceCard
+                summary={carry}
+                title={`Hutang cuti ${data.year - 1}`}
+                hint="Dilunasi akhir Januari dari jatah tahun ini; sisa hutang dicatat HR."
               />
             ) : null}
           </div>
@@ -168,6 +186,7 @@ export function LeavePage() {
                             })
                         : undefined
                     }
+                    onResubmit={r.canResubmit ? () => setDialog({ resubmit: r }) : undefined}
                   />
                 ))}
               </ul>
@@ -202,7 +221,7 @@ export function LeavePage() {
           ) : null}
         </div>
       )}
-      {open ? <RequestDialog onClose={() => setOpen(false)} /> : null}
+      {dialog ? <RequestDialog resubmit={dialog.resubmit} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }
@@ -210,10 +229,13 @@ export function LeavePage() {
 export function RequestCard({
   request,
   onCancel,
+  onResubmit,
   children,
 }: {
   request: LeaveRequest;
   onCancel?: (() => void) | undefined;
+  /** TM-D9: tampilkan tombol "Ajukan ulang" (pengajuan ditolak, masih dalam batas). */
+  onResubmit?: (() => void) | undefined;
   children?: React.ReactNode;
 }) {
   return (
@@ -231,8 +253,17 @@ export function RequestCard({
             Diajukan {formatDateTime(request.createdAt)} · “{request.reason}”
           </p>
         </div>
-        <LeaveStatusBadge status={request.status} />
+        <div className="flex flex-wrap items-center gap-1">
+          {request.resubmittedFrom ? <Badge variant="brand">Pengajuan ulang</Badge> : null}
+          <LeaveStatusBadge status={request.status} />
+        </div>
       </div>
+      {request.resubmittedFrom ? <ResubmittedFromNote request={request} /> : null}
+      {request.status === "REJECTED" && request.rejectionNote ? (
+        <p className="bg-destructive/10 text-destructive rounded-md px-2.5 py-1.5 text-xs">
+          Alasan penolakan: {request.rejectionNote}
+        </p>
+      ) : null}
       <ApprovalSteps approval={request.approval} />
       {children}
       {onCancel ? (
@@ -240,19 +271,54 @@ export function RequestCard({
           Batalkan pengajuan
         </Button>
       ) : null}
+      {onResubmit ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={onResubmit}>
+            <RotateCcw /> Ajukan ulang
+          </Button>
+          {request.resubmitUntil ? (
+            <span className="text-muted-foreground text-xs">
+              s.d. {formatDate(request.resubmitUntil)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   );
 }
 
-function RequestDialog({ onClose }: { onClose: () => void }) {
+/** TM-D9: rujukan pengajuan lama yang ditolak (badge di kartu & tabel persetujuan). */
+export function ResubmittedFromNote({ request }: { request: LeaveRequest }) {
+  const from = request.resubmittedFrom;
+  if (!from) return null;
+  return (
+    <p className="text-muted-foreground text-xs">
+      Pengajuan ulang dari {dateRange(from.startDate, from.endDate)}.{" "}
+      {from.rejectionNote ? (
+        <span className="text-foreground">Sebelumnya ditolak: {from.rejectionNote}</span>
+      ) : (
+        "Sebelumnya ditolak."
+      )}
+    </p>
+  );
+}
+
+function RequestDialog({
+  onClose,
+  resubmit,
+}: {
+  onClose: () => void;
+  /** TM-D9: pengajuan ditolak yang diajukan ulang — jenis & alasan terisi, mulai minimal besok. */
+  resubmit?: LeaveRequest | undefined;
+}) {
   const types = useLeaveTypes();
   const preview = useLeavePreview();
   const { create } = useLeaveActions();
   const tomorrow = addDays(todayIn(), 1);
-  const [typeId, setTypeId] = useState("");
+  const [typeId, setTypeId] = useState(resubmit?.type.id ?? "");
   const [startDate, setStartDate] = useState(tomorrow);
   const [endDate, setEndDate] = useState(tomorrow);
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(resubmit?.reason ?? "");
   const [file, setFile] = useState<File | null>(null);
   const active = (types.data ?? []).filter((t) => t.isActive);
   const type = active.find((t) => t.id === typeId);
@@ -266,8 +332,17 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
 
   const submit = async () => {
     try {
-      await create.mutateAsync({ leaveTypeId: typeId, startDate, endDate, reason, file });
-      toast.success("Pengajuan dikirim ke Atasan & HR.");
+      await create.mutateAsync({
+        leaveTypeId: typeId,
+        startDate,
+        endDate,
+        reason,
+        file,
+        ...(resubmit ? { resubmitOfId: resubmit.id } : {}),
+      });
+      toast.success(
+        resubmit ? "Pengajuan ulang dikirim ke Atasan & HR." : "Pengajuan dikirim ke Atasan & HR.",
+      );
       onClose();
     } catch (e) {
       toast.error(errorMessage(e));
@@ -277,8 +352,13 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
   const tooMany = Boolean(
     type?.category === "SICK" && type.maxDaysPerRequest && p && p.days > type.maxDaysPerRequest,
   );
+  // TM-D9: pengajuan ulang hanya untuk tanggal ke depan (besok atau setelahnya).
+  const startTooEarly = Boolean(resubmit) && startDate < tomorrow;
+  const expired = p?.expiredYear ?? null;
   const valid =
     Boolean(type && p && p.days > 0 && p.conflicts.length === 0 && !tooMany) &&
+    expired === null &&
+    !startTooEarly &&
     reason.trim().length >= 3 &&
     (!p?.documentRequired || file !== null);
 
@@ -286,8 +366,14 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
     <Dialog open onOpenChange={(value) => !value && onClose()}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Ajukan cuti, izin, atau sakit</DialogTitle>
-          <DialogDescription>Hari OFF roster dan tanggal merah tidak dihitung.</DialogDescription>
+          <DialogTitle>
+            {resubmit ? "Ajukan ulang pengajuan yang ditolak" : "Ajukan cuti, izin, atau sakit"}
+          </DialogTitle>
+          <DialogDescription>
+            {resubmit
+              ? `Pengajuan ${dateRange(resubmit.startDate, resubmit.endDate)} ditolak. Pilih tanggal baru mulai besok; pengajuan ulang diputuskan lagi oleh Atasan & HR.`
+              : "Hari OFF roster dan tanggal merah tidak dihitung."}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -326,6 +412,7 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
               <Input
                 id="lv-start"
                 type="date"
+                min={resubmit ? tomorrow : undefined}
                 value={startDate}
                 onChange={(e) => {
                   setStartDate(e.target.value);
@@ -344,6 +431,12 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
               />
             </div>
           </div>
+          {startTooEarly ? (
+            <p className="text-destructive text-xs">
+              Pengajuan ulang hanya untuk tanggal ke depan — mulai paling cepat{" "}
+              {formatDate(tomorrow)}.
+            </p>
+          ) : null}
           {preview.isPending ? <Skeleton className="h-14" /> : null}
           {preview.isError ? (
             <p className="text-destructive text-sm">{errorMessage(preview.error)}</p>
@@ -370,6 +463,13 @@ function RequestDialog({ onClose }: { onClose: () => void }) {
               ) : (
                 <p className="text-muted-foreground text-xs">Tidak memotong saldo cuti tahunan.</p>
               )}
+              {expired !== null ? (
+                <p className="text-destructive text-xs" role="alert">
+                  Saldo cuti {expired} sudah hangus (berlaku s.d.{" "}
+                  {formatDate(leaveBalanceLastDay(expired))}). Cuti tahunan untuk tanggal ini tidak
+                  dapat diajukan.
+                </p>
+              ) : null}
               {p.days === 0 ? (
                 <p className="text-destructive text-xs">
                   Tidak ada hari kerja roster di rentang ini.

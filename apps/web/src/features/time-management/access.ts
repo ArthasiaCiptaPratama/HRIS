@@ -42,4 +42,11 @@ export const tmAccess = {
   correctionsStatements: (me: Me) => me.employeeId !== null || isSa(me) || isHr(me),
   /** Rekap bulanan & daftar Alpha: SA, HR (PT), MANAGER (tim). Tutup periode dicek API (grant). */
   viewRecap: (me: Me) => isSa(me) || isHr(me) || isManager(me),
+  /** TM-D6 lembur: karyawan melihat miliknya; SA/HR/MANAGER memutuskan & merekap. */
+  overtime: (me: Me) => me.employeeId !== null || isSa(me) || isHr(me),
+  decideOvertime: (me: Me) => isSa(me) || isHr(me) || isManager(me),
+  /** Upah grade: SA ubah; HR ber-grant `labor.cost.read` lihat (cermin canSeeLaborCost). */
+  viewGradeWages: (me: Me) =>
+    isSa(me) || (isHr(me) && me.grants.some((g) => g.permission === "labor.cost.read")),
+  manageGradeWages: (me: Me) => isSa(me),
 };

@@ -1,10 +1,14 @@
 import {
+  EXIT_REASON_LABELS,
+  type ExitReason,
   LEAVE_CATEGORIES,
   LEAVE_CATEGORY_LABELS,
+  LEAVE_EXIT_STATUS_LABELS,
   LEAVE_LEDGER_KIND_LABELS,
   LEAVE_REQUEST_STATUS_LABELS,
   LEAVE_REQUEST_STATUSES,
   type LeaveCategory,
+  type LeaveExitStatus,
   type LeaveLedgerKind,
 } from "@hris/shared";
 import {
@@ -16,7 +20,9 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  RotateCcw,
   Scale,
+  UserMinus,
   X,
 } from "lucide-react";
 import { useDeferredValue, useState } from "react";
@@ -43,26 +49,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
 import { errorMessage } from "@/lib/errors";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useDecideApproval } from "../api";
 import { StepBadge, workDateLabel } from "../components/display";
 import {
   type BalanceRow,
+  type ExitSettlement,
   type LeaveRequest,
   type LeaveType,
   useBalanceActions,
   useEmployeeLedger,
+  useExitSettlements,
   useLeaveBalances,
   useLeaveMaster,
   useLeaveRequest,
   useLeaveRequests,
   useLeaveTypes,
   useLeaveYears,
+  useMarkExitPaid,
+  useRecalculateExit,
 } from "../leave-api";
 import { RosterFileError, readRosterFile } from "../roster-file";
-import { RequestCard } from "./leave-page";
+import { dateRange, RequestCard } from "./leave-page";
 import { useRosterCompany } from "./roster-page";
 
 // D-072: persetujuan cuti/izin/sakit (Atasan tim + HR PT, paralel), saldo per PT (penyesuaian & import
@@ -186,10 +196,22 @@ function DecisionRow({ request, onOpen }: { request: LeaveRequest; onOpen: () =>
         </p>
       </td>
       <td className="px-3 py-2">
-        <p className="whitespace-nowrap">{request.type.name}</p>
+        <p className="flex flex-wrap items-center gap-1 whitespace-nowrap">
+          {request.type.name}
+          {request.resubmittedFrom ? <Badge variant="brand">Pengajuan ulang</Badge> : null}
+        </p>
         <p className="text-muted-foreground line-clamp-1 max-w-48 text-xs" title={request.reason}>
           {request.reason}
         </p>
+        {request.resubmittedFrom ? (
+          <p
+            className="text-muted-foreground line-clamp-2 max-w-56 text-[11px]"
+            title={request.resubmittedFrom.rejectionNote ?? undefined}
+          >
+            {dateRange(request.resubmittedFrom.startDate, request.resubmittedFrom.endDate)} —
+            Sebelumnya ditolak: {request.resubmittedFrom.rejectionNote ?? "tanpa catatan"}
+          </p>
+        ) : null}
       </td>
       <td className="px-3 py-2 whitespace-nowrap">{workDateLabel(request.startDate)}</td>
       <td className="px-3 py-2 whitespace-nowrap">{workDateLabel(request.endDate)}</td>
@@ -370,103 +392,138 @@ export function LeaveBalancesPage() {
   const balances = useLeaveBalances(companyId || undefined, year, q);
   const [ledgerFor, setLedgerFor] = useState<BalanceRow | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [tab, setTab] = useState<"balances" | "exits">("balances");
   const rows = balances.data ?? [];
   return (
     <div>
       <PageHeader
         title="Saldo Cuti"
-        description="Saldo per tahun jatah. Sisa tahun lalu berlaku s.d. 31 Maret; saldo minus = hutang yang dilunasi akhir Januari."
+        description="Saldo per tahun jatah; sisa hangus 31 Desember dan tidak dibawa ke tahun berikutnya. Saldo minus = hutang yang dilunasi akhir Januari."
         actions={
-          <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!companyId}>
-            <FileUp /> Import saldo awal
-          </Button>
+          tab === "balances" ? (
+            <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!companyId}>
+              <FileUp /> Import saldo awal
+            </Button>
+          ) : null
         }
       />
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-        {companies.length > 1 ? (
-          <FormSelect
-            aria-label="Perusahaan"
-            className="h-9 sm:w-56"
-            value={companyId}
-            onChange={setCompanyId}
-            placeholder="Perusahaan"
-            options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
-          />
-        ) : null}
-        <Input
-          type="number"
-          aria-label="Tahun"
-          className="h-9 sm:w-28"
-          value={year}
-          onChange={(e) => setYear(Number(e.target.value) || year)}
-        />
-        <SearchField
-          value={search}
-          onChange={setSearch}
-          placeholder="Cari nama atau NIP…"
-          aria-label="Cari karyawan"
-        />
-      </div>
-      {balances.isPending ? (
-        <Skeleton className="h-80" />
-      ) : balances.isError ? (
-        <EmptyState icon={Scale} title="Gagal memuat" description={errorMessage(balances.error)} />
-      ) : rows.length === 0 ? (
-        <EmptyState icon={Scale} title="Tidak ada karyawan" />
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "balances" | "exits")} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="balances">Saldo</TabsTrigger>
+          <TabsTrigger value="exits">Karyawan keluar</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {tab === "exits" ? (
+        <>
+          {companies.length > 1 ? (
+            <div className="mb-4">
+              <FormSelect
+                aria-label="Perusahaan"
+                className="h-9 sm:w-56"
+                value={companyId}
+                onChange={setCompanyId}
+                placeholder="Perusahaan"
+                options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+              />
+            </div>
+          ) : null}
+          <ExitSettlementsTab companyId={companyId || undefined} />
+        </>
       ) : (
-        <div className="bg-card overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="text-muted-foreground border-b text-xs">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Karyawan</th>
-                <th className="px-3 py-2 text-right font-medium">Sisa {year - 1}</th>
-                <th className="px-3 py-2 text-right font-medium">Jatah</th>
-                <th className="px-3 py-2 text-right font-medium">Terpakai</th>
-                <th className="px-3 py-2 text-right font-medium">Ditahan</th>
-                <th className="px-3 py-2 text-right font-medium">Cuti bersama</th>
-                <th className="px-3 py-2 text-right font-medium">Saldo {year}</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rows.map((r) => (
-                <tr key={r.employee.id}>
-                  <td className="px-3 py-2">
-                    <p className="font-medium">{r.employee.fullName}</p>
-                    <p className="text-muted-foreground font-mono text-xs">
-                      {r.employee.employeeNumber ?? "—"}
-                    </p>
-                  </td>
-                  <td
-                    className={cn(
-                      "px-3 py-2 text-right tabular-nums",
-                      r.carryBalance < 0 && "text-destructive",
-                    )}
-                  >
-                    {r.carryBalance}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.granted + r.adjusted}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.used}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.held}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{r.collective}</td>
-                  <td
-                    className={cn(
-                      "px-3 py-2 text-right font-semibold tabular-nums",
-                      r.balance < 0 && "text-destructive",
-                    )}
-                  >
-                    {r.balance}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <Button size="xs" variant="outline" onClick={() => setLedgerFor(r)}>
-                      Rincian
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            {companies.length > 1 ? (
+              <FormSelect
+                aria-label="Perusahaan"
+                className="h-9 sm:w-56"
+                value={companyId}
+                onChange={setCompanyId}
+                placeholder="Perusahaan"
+                options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+              />
+            ) : null}
+            <Input
+              type="number"
+              aria-label="Tahun"
+              className="h-9 sm:w-28"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value) || year)}
+            />
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              placeholder="Cari nama atau NIP…"
+              aria-label="Cari karyawan"
+            />
+          </div>
+          {balances.isPending ? (
+            <Skeleton className="h-80" />
+          ) : balances.isError ? (
+            <EmptyState
+              icon={Scale}
+              title="Gagal memuat"
+              description={errorMessage(balances.error)}
+            />
+          ) : rows.length === 0 ? (
+            <EmptyState icon={Scale} title="Tidak ada karyawan" />
+          ) : (
+            <div className="bg-card overflow-x-auto rounded-xl border">
+              <table className="w-full text-sm">
+                <thead className="text-muted-foreground border-b text-xs">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Karyawan</th>
+                    <th className="px-3 py-2 text-right font-medium">Sisa {year - 1}</th>
+                    <th className="px-3 py-2 text-right font-medium">Jatah</th>
+                    <th className="px-3 py-2 text-right font-medium">Terpakai</th>
+                    <th className="px-3 py-2 text-right font-medium">Ditahan</th>
+                    <th className="px-3 py-2 text-right font-medium">Cuti bersama</th>
+                    <th className="px-3 py-2 text-right font-medium">Saldo {year}</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {rows.map((r) => (
+                    <tr key={r.employee.id}>
+                      <td className="px-3 py-2">
+                        <p className="font-medium">{r.employee.fullName}</p>
+                        <p className="text-muted-foreground font-mono text-xs">
+                          {r.employee.employeeNumber ?? "—"}
+                        </p>
+                      </td>
+                      <td
+                        className={cn(
+                          "px-3 py-2 text-right tabular-nums",
+                          r.carryBalance < 0 && "text-destructive",
+                        )}
+                      >
+                        {r.carryBalance}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {r.granted + r.adjusted}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.used}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.held}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.collective}</td>
+                      <td
+                        className={cn(
+                          "px-3 py-2 text-right font-semibold tabular-nums",
+                          r.balance < 0 && "text-destructive",
+                        )}
+                      >
+                        {r.balance}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <Button size="xs" variant="outline" onClick={() => setLedgerFor(r)}>
+                          Rincian
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
       {ledgerFor ? (
         <LedgerDialog row={ledgerFor} year={year} onClose={() => setLedgerFor(null)} />
@@ -479,6 +536,222 @@ export function LeaveBalancesPage() {
         />
       ) : null}
     </div>
+  );
+}
+
+// ── TM-D9: hak cuti karyawan keluar ────────────────────────────────────────────
+
+const EXIT_STATUS_VARIANT: Record<LeaveExitStatus, "warning" | "success" | "muted"> = {
+  OPEN: "warning",
+  PAID: "success",
+  CANCELLED: "muted",
+};
+
+const DIVISOR_LABEL: Record<ExitSettlement["formula"], string> = {
+  SIX_DAY: "pola 6 hari",
+  FIVE_DAY: "pola 5 hari",
+};
+
+/** Sisa saldo dibayar, hutang dipotong saat payroll akhir; rupiah hanya bila penanya ber-grant Biaya. */
+function ExitSettlementsTab({ companyId }: { companyId: string | undefined }) {
+  const list = useExitSettlements(companyId);
+  const recalc = useRecalculateExit();
+  const [paying, setPaying] = useState<ExitSettlement | null>(null);
+  const rows = list.data ?? [];
+  // Rupiah hanya untuk SA / HR ber-grant labor.cost.read (API juga mengosongkannya tanpa grant).
+  const showPay = tmAccess.viewGradeWages(useMe().data as Me);
+  if (list.isPending) return <Skeleton className="h-60" />;
+  if (list.isError)
+    return (
+      <EmptyState icon={UserMinus} title="Gagal memuat" description={errorMessage(list.error)} />
+    );
+  if (rows.length === 0)
+    return (
+      <EmptyState
+        icon={UserMinus}
+        title="Belum ada karyawan keluar"
+        description="Hak cuti dihitung otomatis saat karyawan dinonaktifkan: sisa saldo dibayar, hutang dipotong di payroll akhir."
+      />
+    );
+  return (
+    <>
+      <div className="bg-card overflow-x-auto rounded-xl border">
+        <table className="w-full text-sm">
+          <thead className="text-muted-foreground border-b text-xs">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Karyawan</th>
+              <th className="px-3 py-2 text-left font-medium">Keluar</th>
+              <th className="px-3 py-2 text-right font-medium">Tahun</th>
+              <th className="px-3 py-2 text-right font-medium">Sisa (dibayar)</th>
+              <th className="px-3 py-2 text-right font-medium">Hutang (dipotong)</th>
+              <th className="px-3 py-2 text-left font-medium">Pembagi</th>
+              {showPay ? (
+                <>
+                  <th className="px-3 py-2 text-right font-medium">Upah harian</th>
+                  <th className="px-3 py-2 text-right font-medium">Rupiah</th>
+                </>
+              ) : null}
+              <th className="px-3 py-2 text-left font-medium">Status</th>
+              <th className="px-3 py-2 text-right font-medium">Kontrol</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td className="px-3 py-2">
+                  <p className="font-medium whitespace-nowrap">{r.employee.fullName}</p>
+                  <p className="text-muted-foreground font-mono text-xs">
+                    {r.employee.employeeNumber ?? "—"}
+                  </p>
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <p>{formatDate(r.exitDate)}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {r.exitReason
+                      ? (EXIT_REASON_LABELS[r.exitReason as ExitReason] ?? r.exitReason)
+                      : "—"}
+                  </p>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.year}</td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  {r.remainingDays}
+                  {r.pendingDays > 0 ? (
+                    <span
+                      className="block text-[11px] text-amber-700 dark:text-amber-300"
+                      title="Pengajuan cuti yang masih menunggu keputusan"
+                    >
+                      {r.pendingDays} menunggu
+                    </span>
+                  ) : null}
+                </td>
+                <td
+                  className={cn(
+                    "px-3 py-2 text-right tabular-nums",
+                    r.debtDays > 0 && "text-destructive",
+                  )}
+                >
+                  {r.debtDays}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  ÷{r.divisor}{" "}
+                  <span className="text-muted-foreground text-xs">{DIVISOR_LABEL[r.formula]}</span>
+                </td>
+                {showPay ? (
+                  <>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {formatRupiah(r.dailyWage)}
+                    </td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                      {r.wageMissing ? (
+                        <span className="text-xs text-amber-700 dark:text-amber-300">
+                          upah grade belum diisi
+                        </span>
+                      ) : (
+                        <>
+                          {r.payAmount ? (
+                            <p className="text-success">+{formatRupiah(r.payAmount)}</p>
+                          ) : null}
+                          {r.debtAmount ? (
+                            <p className="text-destructive">−{formatRupiah(r.debtAmount)}</p>
+                          ) : null}
+                          {r.payAmount === null && r.debtAmount === null
+                            ? "—"
+                            : !r.payAmount && !r.debtAmount
+                              ? formatRupiah(0)
+                              : null}
+                        </>
+                      )}
+                    </td>
+                  </>
+                ) : null}
+                <td className="px-3 py-2">
+                  <Badge variant={EXIT_STATUS_VARIANT[r.status]}>
+                    {LEAVE_EXIT_STATUS_LABELS[r.status]}
+                  </Badge>
+                  {r.status === "PAID" && (r.decidedAt || r.note) ? (
+                    <p className="text-muted-foreground mt-0.5 max-w-48 text-[11px]">
+                      {r.decidedAt ? formatDate(r.decidedAt) : ""}
+                      {r.note ? ` · ${r.note}` : ""}
+                    </p>
+                  ) : null}
+                </td>
+                <td className="px-3 py-2">
+                  {r.status === "OPEN" ? (
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        disabled={recalc.isPending}
+                        onClick={() =>
+                          recalc.mutate(r.id, {
+                            onSuccess: () =>
+                              toast.success(`${r.employee.fullName}: dihitung ulang.`),
+                            onError: (e) => toast.error(errorMessage(e)),
+                          })
+                        }
+                      >
+                        <RotateCcw /> Hitung ulang
+                      </Button>
+                      <Button size="xs" variant="brand" onClick={() => setPaying(r)}>
+                        <Check /> Tandai diproses
+                      </Button>
+                    </div>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {paying ? <MarkExitPaidDialog row={paying} onClose={() => setPaying(null)} /> : null}
+    </>
+  );
+}
+
+function MarkExitPaidDialog({ row, onClose }: { row: ExitSettlement; onClose: () => void }) {
+  const paid = useMarkExitPaid();
+  const [note, setNote] = useState("");
+  const submit = () =>
+    paid.mutate(
+      { id: row.id, note: note.trim() || undefined },
+      {
+        onSuccess: () => {
+          toast.success(`${row.employee.fullName}: ditandai sudah diproses.`);
+          onClose();
+        },
+        onError: (e) => toast.error(errorMessage(e)),
+      },
+    );
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Tandai diproses · {row.employee.fullName}</DialogTitle>
+          <DialogDescription>
+            Sisa {row.remainingDays} hari dibayar dan hutang {row.debtDays} hari dipotong di payroll
+            akhir. Setelah ditandai, angka tidak bisa dihitung ulang.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="exit-note">Catatan (opsional)</Label>
+          <Textarea
+            id="exit-note"
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Mis. dibayar di payroll Oktober"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button variant="brand" disabled={paid.isPending} onClick={submit}>
+            {paid.isPending ? "Menyimpan…" : "Tandai diproses"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -772,7 +1045,7 @@ function YearsTab({ manage }: { manage: boolean }) {
               <span className="text-muted-foreground ml-auto text-xs">
                 {y.grantedAt ? `Dibagikan ${formatDate(y.grantedAt)}` : "Belum dibagikan"}
                 {y.settledAt ? ` · hutang dilunasi ${formatDate(y.settledAt)}` : ""}
-                {y.expiredAt ? ` · sisa lalu hangus ${formatDate(y.expiredAt)}` : ""}
+                {y.expiredAt ? ` · sisa hangus ${formatDate(y.expiredAt)}` : ""}
               </span>
             </li>
           ))}

@@ -8,6 +8,8 @@ export const notificationSchema = z
     title: z.string(),
     body: z.string().nullable(),
     link: z.string().nullable(),
+    /** MOB-D6: layar tujuan di app mobile (jenis + id); null = cukup buka daftar notifikasi. */
+    target: z.object({ type: z.string(), id: z.string() }).nullable(),
     readAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
   })
@@ -35,3 +37,22 @@ export const listNotificationsResponseSchema = z.object({
 });
 
 export const idParamSchema = z.object({ id: z.uuid() });
+
+// MOB-D6: token FCM perangkat app mobile.
+const pushTokenSchema = z
+  .string()
+  .trim()
+  .min(16)
+  .max(512)
+  .regex(/^[A-Za-z0-9_:.-]+$/);
+
+export const registerDeviceBodySchema = z
+  .object({
+    token: pushTokenSchema,
+    platform: z.enum(["ANDROID"]),
+    appVersion: z.string().trim().max(40).optional(),
+  })
+  .openapi("RegisterPushDevice");
+export type RegisterDeviceBody = z.infer<typeof registerDeviceBodySchema>;
+
+export const deviceTokenParamSchema = z.object({ token: pushTokenSchema });

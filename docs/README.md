@@ -46,6 +46,7 @@ Dokumen disusun **induk → anak**: induk memberi gambaran besar dan tautan, ana
 | [kontrak](features/kontrak/README.md) | KTR | – |
 | [payroll](features/payroll/README.md) | PAY | – |
 | [hardening](features/hardening/README.md) | HRD | – |
+| [mobile](features/mobile/README.md) (sisi BE; app & keputusan: repo `Arthasia-Mobile`) | MOB | Oatse |
 
 Keputusan baru: `<KODE>-D1`, `<KODE>-D2`, …; keputusan terbuka: `<KODE>-OD1`; lintas fitur: `X-D1`. Nomor lama `D-001`–`D-073` dan `OD-1`–`OD-15` tetap berlaku dan tidak dipakai ulang ([PROMPT §12](PROMPT.md#12-mencatat-keputusan)).
 

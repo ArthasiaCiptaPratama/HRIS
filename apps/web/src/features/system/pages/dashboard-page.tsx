@@ -1,3 +1,4 @@
+import { ROLE } from "@hris/shared";
 import { lazy, Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -16,6 +17,11 @@ const PersonalDashboard = lazy(() =>
   import("@/features/time-management/components/personal-dashboard").then((m) => ({
     default: m.PersonalDashboard,
   })),
+);
+
+// DSB-D1: analitik tim untuk atasan (lazy; ECharts tidak diunduh role lain).
+const TeamAnalytics = lazy(() =>
+  import("@/features/dashboard/team-analytics").then((m) => ({ default: m.TeamAnalytics })),
 );
 
 // Kunci statis untuk kerangka loading (bukan indeks array).
@@ -131,6 +137,11 @@ function GreetingDashboard({ me }: { me: Me }) {
       <Suspense fallback={<Skeleton className="h-96 rounded-2xl" />}>
         <PersonalDashboard me={me} />
       </Suspense>
+      {me.role === ROLE.MANAGER && me.employeeId ? (
+        <Suspense fallback={<Skeleton className="mt-6 h-72 rounded-2xl" />}>
+          <TeamAnalytics />
+        </Suspense>
+      ) : null}
     </>
   );
 }

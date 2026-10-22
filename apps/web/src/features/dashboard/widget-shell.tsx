@@ -1,5 +1,7 @@
 import {
   type DashboardWidget,
+  fitWidgetToSize,
+  INSIGHT_LABELS,
   WIDGET_SIZE_LABELS,
   WIDGET_SIZES,
   type WidgetSize,
@@ -24,6 +26,8 @@ import { cn } from "@/lib/utils";
 
 export interface BoardActions {
   editing: boolean;
+  /** Tampilan hanya-baca (mis. analitik tim atasan): tanpa menu ukuran/duplikat/hapus. */
+  readOnly?: boolean;
   update: (widget: DashboardWidget) => void;
   edit: (id: string) => void;
   duplicate: (id: string) => void;
@@ -84,7 +88,7 @@ export function WidgetShell({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {toolbar}
-          <WidgetMenu widget={widget} />
+          {board.readOnly ? null : <WidgetMenu widget={widget} />}
         </div>
       </div>
       <div className="min-w-0 flex-1 px-4 pb-4">{children}</div>
@@ -94,7 +98,14 @@ export function WidgetShell({
 
 function WidgetMenu({ widget }: { widget: DashboardWidget }) {
   const board = useBoard();
-  const label = widget.kind === "stat" ? "statistik" : widget.title;
+  const label =
+    widget.kind === "stat"
+      ? "statistik"
+      : widget.kind === "insight"
+        ? INSIGHT_LABELS[widget.insight]
+        : widget.title;
+  // Widget statistik & analitik berisi tetap (tanpa pembuat widget).
+  const editable = widget.kind === "pivot" || widget.kind === "shortcuts";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -108,7 +119,7 @@ function WidgetMenu({ widget }: { widget: DashboardWidget }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        {widget.kind !== "stat" && (
+        {editable && (
           <DropdownMenuItem onSelect={() => board.edit(widget.id)}>
             <Pencil /> Ubah widget
           </DropdownMenuItem>
@@ -122,7 +133,9 @@ function WidgetMenu({ widget }: { widget: DashboardWidget }) {
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={widget.size}
-          onValueChange={(size) => board.update({ ...widget, size: size as WidgetSize })}
+          onValueChange={(size) =>
+            board.update(fitWidgetToSize({ ...widget, size: size as WidgetSize }))
+          }
         >
           {WIDGET_SIZES.map((size) => (
             <DropdownMenuRadioItem key={size} value={size}>

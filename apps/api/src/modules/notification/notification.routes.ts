@@ -5,9 +5,11 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import { canUseOwnNotifications } from "./notification.policy.ts";
 import {
+  deviceTokenParamSchema,
   idParamSchema,
   listNotificationsQuerySchema,
   listNotificationsResponseSchema,
+  registerDeviceBodySchema,
 } from "./notification.schema.ts";
 import * as service from "./notification.service.ts";
 
@@ -59,6 +61,39 @@ const routes = {
       500: ERROR_RESPONSES[500],
     },
   }),
+  registerDevice: createRoute({
+    method: "post",
+    path: `${API_BASE_PATH}/me/devices`,
+    tags: ["Notification"],
+    summary: "Daftarkan token push (FCM) perangkat app mobile milik akun yang login (MOB-D6)",
+    security,
+    request: {
+      body: {
+        content: { "application/json": { schema: registerDeviceBodySchema } },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Terdaftar (token yang sama diperbarui)", dataEnvelope(z.object({ id: z.uuid() }))),
+      400: ERROR_RESPONSES[400],
+      401: ERROR_RESPONSES[401],
+      500: ERROR_RESPONSES[500],
+    },
+  }),
+  unregisterDevice: createRoute({
+    method: "delete",
+    path: `${API_BASE_PATH}/me/devices/{token}`,
+    tags: ["Notification"],
+    summary: "Hapus token push perangkat milik sendiri (saat logout); idempoten",
+    security,
+    request: { params: deviceTokenParamSchema },
+    responses: {
+      200: json("Dihapus bila ada", dataEnvelope(z.object({ removed: z.boolean() }))),
+      400: ERROR_RESPONSES[400],
+      401: ERROR_RESPONSES[401],
+      500: ERROR_RESPONSES[500],
+    },
+  }),
 };
 
 export function registerNotificationRoutes(
@@ -82,4 +117,11 @@ export function registerNotificationRoutes(
   app.openapi(guard(routes.markAllRead), async (c) =>
     c.json(ok(await service.markAllMineRead(actorOf(c.get("actor")))), 200),
   );
+  app.openapi(guard(routes.registerDevice), async (c) =>
+    c.json(ok(await service.registerMyDevice(actorOf(c.get("actor")), c.req.valid("json"))), 200),
+  );
+  app.openapi(guard(routes.unregisterDevice), async (c) => {
+    const { token } = c.req.valid("param");
+    return c.json(ok(await service.unregisterMyDevice(actorOf(c.get("actor")), token)), 200);
+  });
 }

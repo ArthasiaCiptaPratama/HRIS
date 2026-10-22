@@ -8,6 +8,8 @@ export async function createNotification(data: {
   title: string;
   body: string | null;
   link: string | null;
+  targetType: string | null;
+  targetId: string | null;
   dedupeKey: string | null;
 }) {
   return getPrisma().notification.create({ data });
@@ -92,5 +94,44 @@ export async function deleteForRecipient(accountId: string, emails: string[]) {
   await prisma.$transaction([
     prisma.notification.deleteMany({ where: { recipientAccountId: accountId } }),
     prisma.emailOutbox.deleteMany({ where: { toEmail: { in: emails } } }),
+    prisma.pushDevice.deleteMany({ where: { accountId } }),
   ]);
+}
+
+// MOB-D6: token perangkat push. Token unik global: login akun lain di perangkat yang sama memindahkannya.
+export async function upsertPushDevice(data: {
+  accountId: string;
+  token: string;
+  platform: "ANDROID";
+  appVersion: string | null;
+  at: Date;
+}) {
+  const fields = {
+    accountId: data.accountId,
+    platform: data.platform,
+    appVersion: data.appVersion,
+    lastSeenAt: data.at,
+  };
+  return getPrisma().pushDevice.upsert({
+    where: { token: data.token },
+    create: { token: data.token, ...fields },
+    update: fields,
+  });
+}
+
+export async function deletePushDevice(accountId: string, token: string) {
+  const { count } = await getPrisma().pushDevice.deleteMany({ where: { accountId, token } });
+  return count;
+}
+
+export async function findPushTokens(accountId: string) {
+  const rows = await getPrisma().pushDevice.findMany({
+    where: { accountId },
+    select: { token: true },
+  });
+  return rows.map((row) => row.token);
+}
+
+export async function deletePushTokens(tokens: string[]) {
+  await getPrisma().pushDevice.deleteMany({ where: { token: { in: tokens } } });
 }
