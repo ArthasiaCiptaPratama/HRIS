@@ -63,6 +63,7 @@ import {
   workDateLabel,
 } from "../components/display";
 import { PunchChannelNote } from "../components/punch-channel-note";
+import { RefreshButton } from "../components/refresh-button";
 import { SelfieThumb } from "../components/selfie-thumb";
 import type { Approval, AttendanceDay } from "../schemas";
 
@@ -264,11 +265,14 @@ export function AttendanceDaysPage() {
           </>
         }
         actions={
-          canManual ? (
-            <Button variant="outline" onClick={() => setManualOpen(true)}>
-              <PenLine /> Input manual
-            </Button>
-          ) : null
+          <div className="flex items-center gap-2">
+            <RefreshButton />
+            {canManual ? (
+              <Button variant="outline" onClick={() => setManualOpen(true)}>
+                <PenLine /> Input manual
+              </Button>
+            ) : null}
+          </div>
         }
       />
       <Tabs

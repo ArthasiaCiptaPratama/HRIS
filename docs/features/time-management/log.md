@@ -129,3 +129,12 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Staf 5,7+1,5 jt, Staf Senior 8+2 jt, Supervisor 14+4 jt, Manajer 30+8 jt, Direktur 100+25 jt.
   - Jabatan demo disesuaikan: Rina Administrasi, Joko Checker Jetty, Dimas Helper Bor, Sari GA Staff, Budi Operations Manager (Manajer).
   - Ikut `db:seed:acceptance`.
+
+## 2026-10-22 — Switcher akun uji per tab & tombol Muat ulang persetujuan — Mat
+
+- **Switcher akun uji (dev saja)** di panel "DB · Lokal":
+  - Sekali klik masuk sebagai akun `@arthasia.test` tanpa password, satu akun per tab.
+  - Pengaman: hanya `NODE_ENV=development`, DB & Auth lokal, akun uji aktif.
+  - Rincian: skill `hris-db-switch`.
+  - Panel DB tidak lagi terpotong di tepi kanan.
+- **Tombol Muat ulang** di halaman persetujuan: Lembur, Data Absen Harian, Persetujuan Cuti, dan Approval HP. Mengambil ulang antrean tanpa memuat ulang halaman (`components/refresh-button.tsx`).
