@@ -138,6 +138,8 @@ export async function applyRosterTemplate(
         lateToleranceMin: 15,
         earlyLeaveToleranceMin: 15,
         checkOutCloseMin: 240,
+        breakStartMinute: null,
+        breakEndMinute: null,
         color,
       }),
     );

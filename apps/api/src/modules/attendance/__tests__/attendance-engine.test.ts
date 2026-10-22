@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  breakWindow,
   checkGeofence,
   checkOutLabels,
+  checkOutOpensAt,
   distanceM,
   localDate,
   planCheckIn,
@@ -73,13 +75,61 @@ describe("planCheckIn", () => {
       "OUTSIDE_ROSTER",
     ]);
   });
+
+  test("TM-D12: offDay hanya untuk hari OFF roster (bukan tanpa roster / di luar jendela)", () => {
+    expect(planCheckIn(at("2026-10-12T07:00:00+08:00"), WITA, roster(null)).offDay).toBe(true);
+    expect(planCheckIn(at("2026-10-12T07:00:00+08:00"), WITA, roster(undefined)).offDay).toBe(
+      false,
+    );
+    expect(planCheckIn(at("2026-10-12T04:00:00+08:00"), WITA, roster(day)).offDay).toBe(false);
+    // Shift malam kemarin masih berjalan walau hari ini OFF → bukan hari libur.
+    expect(planCheckIn(at("2026-10-12T02:00:00+08:00"), WITA, roster(null, night)).offDay).toBe(
+      false,
+    );
+  });
 });
 
-test("checkOutLabels: pulang cepat & lewat batas", () => {
+test("checkOutLabels TM-D12: dibuka 30 menit sebelum jam pulang; lebih awal = pulang cepat", () => {
   const w = shiftWindow("2026-10-12", day, WITA);
-  expect(checkOutLabels(at("2026-10-12T18:00:00+08:00"), day, w)).toEqual(["EARLY_LEAVE"]);
-  expect(checkOutLabels(at("2026-10-12T19:05:00+08:00"), day, w)).toEqual([]);
-  expect(checkOutLabels(at("2026-10-12T23:30:00+08:00"), day, w)).toEqual(["OUTSIDE_ROSTER"]);
+  expect(checkOutOpensAt(w.end, 30).toISOString()).toBe("2026-10-12T10:30:00.000Z");
+  expect(checkOutLabels(at("2026-10-12T18:29:00+08:00"), w, 30)).toEqual(["EARLY_LEAVE"]);
+  expect(checkOutLabels(at("2026-10-12T18:30:00+08:00"), w, 30)).toEqual([]);
+  expect(checkOutLabels(at("2026-10-12T19:05:00+08:00"), w, 30)).toEqual([]);
+  expect(checkOutLabels(at("2026-10-12T23:30:00+08:00"), w, 30)).toEqual(["OUTSIDE_ROSTER"]);
+});
+
+describe("breakWindow TM-D12", () => {
+  test("shift siang 12:00–13:00 WITA", () => {
+    const w = breakWindow(
+      "2026-10-12",
+      { ...day, breakStartMinute: 12 * 60, breakEndMinute: 13 * 60 },
+      WITA,
+    );
+    expect(w?.opens.toISOString()).toBe("2026-10-12T04:00:00.000Z");
+    expect(w?.closes.toISOString()).toBe("2026-10-12T05:00:00.000Z");
+  });
+
+  test("shift malam: istirahat 00:00–01:00 jatuh keesokan hari; 23:30–00:30 melintasi tengah malam", () => {
+    const after = breakWindow(
+      "2026-10-12",
+      { ...night, breakStartMinute: 0, breakEndMinute: 60 },
+      WITA,
+    );
+    expect(after?.opens.toISOString()).toBe("2026-10-12T16:00:00.000Z");
+    const across = breakWindow(
+      "2026-10-12",
+      { ...night, breakStartMinute: 23 * 60 + 30, breakEndMinute: 30 },
+      WITA,
+    );
+    expect(across?.opens.toISOString()).toBe("2026-10-12T15:30:00.000Z");
+    expect(across?.closes.toISOString()).toBe("2026-10-12T16:30:00.000Z");
+  });
+
+  test("tanpa jam istirahat → null (bebas)", () => {
+    expect(
+      breakWindow("2026-10-12", { ...day, breakStartMinute: null, breakEndMinute: null }, WITA),
+    ).toBeNull();
+  });
 });
 
 describe("geofence", () => {

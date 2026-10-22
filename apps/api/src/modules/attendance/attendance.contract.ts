@@ -31,6 +31,12 @@ export const shiftSchema = z
     checkOutCloseMin: z.number().int(),
     breakMin: z.number().int(),
     breakPaid: z.boolean(),
+    breakStartMinute: z
+      .number()
+      .int()
+      .nullable()
+      .openapi({ description: "TM-D12: Mulai istirahat dibuka (menit dari 00:00); null = bebas" }),
+    breakEndMinute: z.number().int().nullable(),
     regularOvertimeMin: z.number().int(),
     color: z.string().nullable(),
     archived: z.boolean(),
@@ -111,6 +117,14 @@ export const todayViewSchema = z
     recent: z.array(dayViewSchema),
     next: z.enum(["IN", "OUT", "DONE"]),
     breakState: z.enum(["NOT_REQUIRED", "NONE", "ON_BREAK", "DONE"]),
+    offDay: z
+      .boolean()
+      .openapi({ description: "TM-D12: hari OFF → tampilkan Lembur hari libur, bukan Clock In" }),
+    checkOutOpensAt: z.iso.datetime().nullable().openapi({
+      description: "TM-D12: Clock Out normal dibuka; lebih awal = pulang cepat + alasan",
+    }),
+    breakOpensAt: z.iso.datetime().nullable(),
+    breakClosesAt: z.iso.datetime().nullable(),
   })
   .openapi("AttendanceToday");
 assertExact<z.infer<typeof todayViewSchema>, TodayView>(true);
@@ -133,6 +147,10 @@ export const precheckResultSchema = z
     openDay: z
       .object({ workDate: z.iso.date(), checkInAt: z.iso.datetime().nullable() })
       .nullable(),
+    offDay: z.boolean(),
+    checkOutOpensAt: z.iso.datetime().nullable(),
+    breakOpensAt: z.iso.datetime().nullable(),
+    breakClosesAt: z.iso.datetime().nullable(),
   })
   .openapi("AttendancePrecheck");
 assertExact<z.infer<typeof precheckResultSchema>, PrecheckResult>(true);

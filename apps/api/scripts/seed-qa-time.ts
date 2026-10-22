@@ -93,7 +93,9 @@ async function main() {
         managerId: budi.id,
       },
     }));
-  // Shift uji kantor 08.00–17.00, istirahat 60 menit tidak dibayar (alur absen istirahat & lembur TM-D6/D7).
+  // Shift uji kantor 08.00–17.00, istirahat 60 menit tidak dibayar (alur absen istirahat & lembur TM-D6/D7);
+  // Mulai istirahat hanya 12.00–13.00 (TM-D12).
+  const breakWindow = { breakStartMinute: 720, breakEndMinute: 780 };
   const shift = await prisma.shift.upsert({
     where: { companyId_code: { companyId: rina.companyId, code: "QA" } },
     create: {
@@ -104,9 +106,10 @@ async function main() {
       endMinute: 1020,
       breakMin: 60,
       breakPaid: false,
+      ...breakWindow,
       color: "#0ea5e9",
     },
-    update: {},
+    update: breakWindow,
   });
   for (let i = 0; i < 14; i++) {
     const workDate = D(addDays(today, i));

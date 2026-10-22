@@ -477,6 +477,11 @@ const FIELDS: { key: Exclude<keyof TimeSettings, "timezone">; label: string; hin
     label: "Roster dibangkitkan ke depan (hari)",
     hint: "Hari roster dari pola dibuat sejauh ini.",
   },
+  {
+    key: "checkOutEarlyMin",
+    label: "Clock Out dibuka (mnt sebelum jam pulang)",
+    hint: "Lebih awal dari ini = pulang darurat: wajib alasan & berlabel Pulang cepat.",
+  },
 ];
 
 export function TimeSettingsPage() {
