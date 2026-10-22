@@ -58,6 +58,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Spike codegen di app (MOB-D9): `swagger_parser` + `build_runner --force-jit` berhasil untuk 35 pola path app; ditemukan & diperbaiki bentuk nullable `allOf` yang membuat generator stack overflow (`AttendanceToday.openDay` sempat kehilangan `null`)
 - [x] **`operationId` untuk codegen app** (M1, 2026-10-21): otomatis untuk semua 255 operasi + 41 nama app (`APP_OPERATION_IDS`) di `core/openapi.ts`, tanpa mengubah file rute TM; test keunikan & keberadaan path
 - [ ] **Tahap 4 — App v1** → dilacak di repo app (`Arthasia-Mobile/docs/PROGRESS.md`, fase M1–M6); di sini hanya kebutuhan BE baru yang muncul
+  - [x] Kontrak OpenAPI untuk M2 Absen (tambahan 2026-10-22: serah-terima sesi app `2026-10-22-1110`) — header `Idempotency-Key` dideklarasikan di `createPunch` (opsi `headers` di helper `route` `attendance-day.routes.ts`, validasi tetap `idempotencyKeyOf`); tanggal input (query/body/komponen khusus input) = `string` + pola `YYYY-MM-DD` tanpa `format: date` lewat `withInputDates` di `core/openapi.ts` (MOB-D18), respons tetap `format: date`; test kontrak di `core/__tests__/openapi.test.ts`
 - [ ] Penyesuaian induk saat digabung ke develop: D-067, PLAN §1/§10, indeks PLAN §8
 
 ## Keputusan (indeks — isi lengkap di repo app)
@@ -81,3 +82,4 @@ Sumber kebenaran: **`Arthasia-Mobile/docs/decisions.md`** (MOB-D13). Keputusan b
 | MOB-D14–D15 | Skill & branch app; roadmap M0–M6 + CI ringan | — |
 | MOB-D16 | Branch BE `HRIS/mobile-app` + worktree `HRIS-mobile` + DB `hris_mobile` | Tempat kerja tahap 3 |
 | MOB-D17 | Kontrak respons OpenAPI dikunci ke tipe service (`assertExact`), nullable ref lewat `nullableRef`, rute TM baru wajib ikut pola ini | Semua rute TM/Leave |
+| MOB-D18 | Tanggal murni pada input di OpenAPI = `string` + pola (tanpa `format: date`) supaya klien Dart mengirim `YYYY-MM-DD`; respons tetap `format: date` | `withInputDates` (`core/openapi.ts`), berlaku otomatis untuk semua rute |

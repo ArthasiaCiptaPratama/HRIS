@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createApp } from "../../app.ts";
 import { createLogger } from "../logger.ts";
-import { APP_OPERATION_IDS, operationIdFor } from "../openapi.ts";
+import { APP_OPERATION_IDS, INPUT_DATE_PATTERN, operationIdFor } from "../openapi.ts";
 
 // MOB-D9: operationId = nama method di klien Dart hasil generate; wajib ada & unik.
 type Spec = { paths: Record<string, Record<string, { operationId?: string }>> };
@@ -45,5 +45,59 @@ describe("operationId OpenAPI", () => {
         id: name,
       });
     }
+  });
+});
+
+// MOB-D7 #5 / MOB-D18: kontrak yang dibutuhkan klien Dart hasil generate.
+type Doc = {
+  paths: Record<string, Record<string, Record<string, unknown>>>;
+  components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+};
+
+const formatsDate = (node: unknown): boolean =>
+  JSON.stringify(node ?? null).includes('"format":"date"');
+
+describe("kontrak OpenAPI untuk app mobile", () => {
+  test("punch mendeklarasikan header Idempotency-Key opsional", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const parameters = doc.paths["/api/v1/attendance/punch"]?.post?.parameters as {
+      name: string;
+      in: string;
+      required?: boolean;
+      schema: { pattern?: string };
+    }[];
+    expect(parameters).toContainEqual(
+      expect.objectContaining({ name: "Idempotency-Key", in: "header", required: false }),
+    );
+  });
+
+  test("tanggal input = string + pola tanpa format date; respons tetap format date", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const dated: string[] = [];
+    const inputRefs = new Set<string>();
+    for (const [path, operations] of Object.entries(doc.paths)) {
+      for (const [method, operation] of Object.entries(operations)) {
+        const input = { parameters: operation.parameters, requestBody: operation.requestBody };
+        if (formatsDate(input)) dated.push(`${method} ${path}`);
+        for (const [, name] of JSON.stringify(input).matchAll(/#\/components\/schemas\/(\w+)/g)) {
+          inputRefs.add(name as string);
+        }
+      }
+    }
+    expect(dated).toEqual([]);
+    // Komponen input langsung; bila suatu saat dipakai respons juga, withInputDates melewatinya → gagal di sini.
+    expect([...inputRefs].filter((name) => formatsDate(doc.components.schemas[name]))).toEqual([]);
+
+    const history = doc.paths["/api/v1/attendance/me/history"]?.get?.parameters as {
+      name: string;
+      schema: unknown;
+    }[];
+    expect(history.find((p) => p.name === "from")?.schema).toEqual({
+      type: "string",
+      pattern: INPUT_DATE_PATTERN,
+    });
+    expect(doc.components.schemas.AttendanceDay?.properties?.workDate).toMatchObject({
+      format: "date",
+    });
   });
 });

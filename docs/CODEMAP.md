@@ -96,7 +96,7 @@ apps/api/
 │   │   ├── brand-logo.ts             [done] Logo Arthasia PNG base64 (sama dengan email) untuk kop PDF server: BAST aset & surat peringatan (dipindah dari `asset/bast-logo.ts`, 2026-10-15)
 │   │   ├── storage.ts                [done] D-037: antarmuka `StorageAdmin` (signed upload URL, signed URL baca, info objek, hapus, `ensurePrivateBucket`) + `createSupabaseStorage()` (service role) + `UNCONFIGURED_STORAGE`; konstanta bucket `employee-photos` (2 MB, jpeg/png/webp). Test memakai `tests/helpers/storage.ts` (palsu); `NODE_ENV=test` tidak pernah memakai Storage sungguhan
 │   │   ├── supabase-admin.ts         [done] antarmuka `AuthAdmin` (`findUserByEmail`, `inviteUser`, `createConfirmedUser`, `setBanned`) + `createSupabaseAdmin()` (service role; server/script saja) + `UNCONFIGURED_AUTH_ADMIN` (kunci kosong → 422 jelas)
-│   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1, `getOpenAPI31Document` + `withOperationIds`: `APP_OPERATION_IDS` untuk endpoint app, sisanya `operationIdFor`), `/api/v1/docs` (Swagger UI)
+│   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1, `getOpenAPI31Document` + `withInputDates` (MOB-D18: tanggal input = string + pola, respons tetap `format: date`) + `withOperationIds`: `APP_OPERATION_IDS` untuk endpoint app, sisanya `operationIdFor`), `/api/v1/docs` (Swagger UI)
 │   │   └── __tests__/                [done] Unit test app core, env, logger, versi app, push FCM
 │   ├── modules/
 │   │   ├── iam/                      → docs/codemap/iam.md

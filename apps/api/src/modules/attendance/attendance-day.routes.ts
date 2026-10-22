@@ -40,6 +40,7 @@ const route = (
     body?: z.ZodType;
     params?: z.ZodObject;
     query?: z.ZodObject;
+    headers?: z.ZodObject;
   },
 ) =>
   createRoute({
@@ -51,6 +52,7 @@ const route = (
     request: {
       ...(spec.params ? { params: spec.params } : {}),
       ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.headers ? { headers: spec.headers } : {}),
       ...(spec.body
         ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
         : {}),
@@ -76,6 +78,18 @@ type Handler = (c: Context) => Promise<unknown>;
 
 // MOB-D7: kunci idempotensi punch dari klien (UUID / string aman, 8–64 karakter).
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,64}$/;
+// Dideklarasikan di OpenAPI supaya klien generate punya parameternya; validasi tetap `idempotencyKeyOf`.
+const punchHeaders = z.object({
+  "Idempotency-Key": z
+    .string()
+    .regex(IDEMPOTENCY_KEY)
+    .optional()
+    .openapi({
+      description:
+        "Opsional, satu kunci per tindakan absen (MOB-D7 #5). Kunci sama → hari yang sudah tercatat (200); " +
+        "kunci milik orang lain → 409.",
+    }),
+});
 function idempotencyKeyOf(c: Context): string | undefined {
   const key = c.req.header("Idempotency-Key");
   if (key === undefined) return undefined;
@@ -121,7 +135,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/punch",
       "Absen masuk/pulang/istirahat (waktu server, selfie + GPS). Header opsional: Idempotency-Key, X-App-Version",
-      { body: punchInputSchema, response: dayViewSchema },
+      { body: punchInputSchema, headers: punchHeaders, response: dayViewSchema },
     ),
     async (c) =>
       service.punch(

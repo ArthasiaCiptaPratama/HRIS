@@ -91,6 +91,65 @@ export function withOperationIds<T extends { paths?: unknown }>(doc: T): T {
   return doc;
 }
 
+export const INPUT_DATE_PATTERN = "^\\d{4}-\\d{2}-\\d{2}$";
+const SCHEMA_REF = /^#\/components\/schemas\/(.+)$/;
+
+type Json = unknown;
+type Doc = { paths?: unknown; components?: { schemas?: Record<string, Json> } };
+
+function walk(node: Json, visit: (obj: Record<string, unknown>) => void): void {
+  if (Array.isArray(node)) {
+    for (const item of node) walk(item, visit);
+  } else if (node && typeof node === "object") {
+    visit(node as Record<string, unknown>);
+    for (const value of Object.values(node)) walk(value, visit);
+  }
+}
+
+/** Komponen yang dirujuk `node`, termasuk rujukan bertingkat antar komponen. */
+function referencedSchemas(node: Json, schemas: Record<string, Json>): Set<string> {
+  const found = new Set<string>();
+  const queue = [node];
+  while (queue.length > 0) {
+    walk(queue.pop(), (obj) => {
+      const name = typeof obj.$ref === "string" ? SCHEMA_REF.exec(obj.$ref)?.[1] : undefined;
+      if (name && !found.has(name)) {
+        found.add(name);
+        queue.push(schemas[name]);
+      }
+    });
+  }
+  return found;
+}
+
+/**
+ * MOB-D18: tanggal murni pada INPUT (query/path/header & request body) = `string` + pola `YYYY-MM-DD`
+ * tanpa `format: date`. Generator Dart memetakan `format: date` ke `DateTime` lalu mengirim
+ * `2026-10-01T00:00:00.000`, yang ditolak `z.iso.date()`. Respons tetap `format: date` (diparse benar).
+ * Komponen yang dipakai input sekaligus respons tidak diubah (test kontrak memastikan tidak ada).
+ */
+export function withInputDates<T extends Doc>(doc: T): T {
+  const schemas = doc.components?.schemas ?? {};
+  const inputs: Json[] = [];
+  const outputs: Json[] = [];
+  for (const operations of Object.values((doc.paths ?? {}) as Record<string, Json>)) {
+    for (const operation of Object.values(operations as Record<string, Record<string, Json>>)) {
+      inputs.push(operation.parameters, operation.requestBody);
+      outputs.push(operation.responses);
+    }
+  }
+  const outputSchemas = referencedSchemas(outputs, schemas);
+  const inputOnly = [...referencedSchemas(inputs, schemas)].filter((n) => !outputSchemas.has(n));
+  const toPlainString = (obj: Record<string, unknown>) => {
+    if (obj.format !== "date") return;
+    delete obj.format;
+    obj.pattern ??= INPUT_DATE_PATTERN;
+  };
+  walk(inputs, toPlainString);
+  for (const name of inputOnly) walk(schemas[name], toPlainString);
+  return doc;
+}
+
 // PROMPT §5: dokumen di /api/v1/openapi.json selalu lengkap untuk tim mobile.
 export function registerOpenApi(app: OpenAPIHono): void {
   app.openAPIRegistry.registerComponent("securitySchemes", BEARER_SCHEME, {
@@ -103,19 +162,21 @@ export function registerOpenApi(app: OpenAPIHono): void {
   app.get(`${API_BASE_PATH}/openapi.json`, (c) =>
     c.json(
       withOperationIds(
-        app.getOpenAPI31Document({
-          openapi: "3.1.0",
-          info: {
-            title: "Akselerasi Arthasia API",
-            version: "1.0.0",
-            description:
-              "REST API Akselerasi Arthasia (HRIS PT Arthasia Cipta Pratama). App mobile mengirim header " +
-              "`X-App-Version: MAJOR.MINOR.PATCH`; versi di bawah minimum dibalas 426 APP_UPDATE_REQUIRED " +
-              "dengan `details[0] = { minVersion, downloadUrl }`. Punch absen menerima header " +
-              "`Idempotency-Key` (retry aman).",
-          },
-          servers: [{ url: "/" }],
-        }),
+        withInputDates(
+          app.getOpenAPI31Document({
+            openapi: "3.1.0",
+            info: {
+              title: "Akselerasi Arthasia API",
+              version: "1.0.0",
+              description:
+                "REST API Akselerasi Arthasia (HRIS PT Arthasia Cipta Pratama). App mobile mengirim header " +
+                "`X-App-Version: MAJOR.MINOR.PATCH`; versi di bawah minimum dibalas 426 APP_UPDATE_REQUIRED " +
+                "dengan `details[0] = { minVersion, downloadUrl }`. Punch absen menerima header " +
+                "`Idempotency-Key` (retry aman).",
+            },
+            servers: [{ url: "/" }],
+          }),
+        ),
       ),
     ),
   );
