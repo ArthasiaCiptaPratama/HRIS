@@ -95,3 +95,10 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **MOB-D10:** rute baru Mat bertipe di OpenAPI — lembur, upah grade, lokasi istirahat, template roster, `GET /dashboard/analytics`, `/leave-exit-settlements*` (file sendiri `leave-exit.routes.ts`). Skema dicek sama dengan DTO service saat typecheck; test integrasi mem-parse respons sungguhan dan memastikan spec tanpa skema kosong.
 - **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (514 modul) · test shared 335 · api 882 · web 310 ✔ · smoke API lokal (hr.biaya) 5 endpoint ✔.
 
+
+## 2026-10-22 — merge develop (kontrak OpenAPI TM, operationId app) — Mat
+
+- Merge `HRIS/Oatse/Linux-Windows` (790557a) ke `HRIS/Mat/Mac`. Konflik: `overtime.routes.ts`, `leave.routes.ts`, `codemap/attendance.md`.
+- Ikut konvensi develop (MOB-D7 #1/MOB-D17): `overtime.schema.ts` dihapus → `overtime.contract.ts` milik develop; `leave-exit.routes.ts` dihapus → rute `/leave-exit-settlements*` kembali ke `leave.routes.ts` (skema `leave.contract.ts`); `analytics.schema.ts` → `analytics.contract.ts` dengan `assertExact`.
+- Temuan develop #5: `leave-exit.service.ts` sudah lewat `leave.repository.ts` (12722b1); recalculate/paid melempar 404, jadi `leaveExitSettlementResultSchema` (`.optional()`) dihapus — respons selalu `LeaveExitSettlement`. `formula` di kontrak jadi enum `OVERTIME_FORMULAS`.
+- Path/method endpoint tidak berubah (APP_OPERATION_IDS aman).

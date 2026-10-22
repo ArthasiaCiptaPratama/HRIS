@@ -17,6 +17,13 @@ export const findDay = (employeeId: string, workDate: Date, tx?: AttendanceTx) =
 export const findDayById = (id: string, tx?: AttendanceTx) =>
   db(tx).attendanceDay.findUnique({ where: { id }, include: withPunches });
 
+/** MOB-D7: punch dengan kunci idempotensi dari klien (retry setelah respons hilang). */
+export const findPunchByIdempotencyKey = (key: string) =>
+  getPrisma().attendancePunch.findUnique({
+    where: { idempotencyKey: key },
+    select: { id: true, day: { select: { id: true, employeeId: true } } },
+  });
+
 /** Hari OPEN (sudah masuk, belum pulang) terbaru milik karyawan. */
 export const findOpenDay = (employeeId: string) =>
   getPrisma().attendanceDay.findFirst({

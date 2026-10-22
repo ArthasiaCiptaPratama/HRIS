@@ -4,7 +4,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { ValidationError } from "../../core/errors.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
-import { dashboardAnalyticsSchema } from "./analytics.schema.ts";
+import { dashboardAnalyticsSchema } from "./analytics.contract.ts";
 import * as service from "./analytics.service.ts";
 
 // DSB-D1: dashboard analitik SDM & biaya (SA, HR PT, MANAGER tim; rupiah ber-grant labor.cost.read).

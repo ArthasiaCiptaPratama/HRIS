@@ -11,6 +11,23 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-21 — Penutup hari: semua BE app di develop, app M1 selesai (Oatse)
+- **Dikerjakan:** develop berisi tahap 1 (`f99f0c9`), merge Mat (`247c0fa`, `bc50142`), tahap 3 (`cf9de90`), `operationId` (`c34eb22`) — semua di-push, CI ✔ (terakhir #39582217626). App: klien generate dipakai `core/api`, `Me` generate, config `API_ORIGIN` (M1 selesai).
+- **Verifikasi:** CI develop ✔; app `flutter analyze` 0 isu, 12 test, terpasang di POCO X6 Pro tanpa galat log.
+- **Berikutnya:** app M2 Absen (2026-10-22) — titik mulai `Arthasia-Mobile/docs/phases/m2-absen.md`; Mat merge develop setelah dikabari.
+
+### 2026-10-21 — operationId OpenAPI untuk klien app (Oatse)
+- **Dikerjakan (`HRIS/mobile-app`):** `core/openapi.ts` — dokumen dibuat lewat `getOpenAPI31Document` lalu `withOperationIds`: nama app dari `APP_OPERATION_IDS` (41 endpoint: `getMe`, `getMyAttendanceToday`, `precheckPunch`, `createPunch`, `listLeaveTypes`, `getTimeQueue`, `listNotifications`, …), sisanya otomatis `operationIdFor` (`<method><Path>`, parameter → `By<Nama>`). File rute TM tidak diubah (menghindari bentrok dengan Mat). PROMPT §5 diberi aturannya.
+- **Verifikasi:** `core/__tests__/openapi.test.ts` (3: contoh nama, semua operasi punya id unik, setiap nama app menunjuk path yang ada); typecheck ✔; biome ✔ 640 file; boundaries ✔ 519 modul; shared 335; api 887 di DB kosong `hris_ci`; web 313. App: generate ulang → `getMe()`, `getMyAttendanceToday()`, `createPunch()`; `flutter analyze` 0 isu.
+- **Berikutnya:** merge ke develop + push → kabari Mat (satu kali merge develop: rute bertipe + operationId); app: sambungkan klien ke `core/api`.
+
+### 2026-10-21 — Tahap 3 BE untuk app: kontrak bertipe, punch app, target notifikasi (Oatse)
+- **Dikerjakan (branch `HRIS/mobile-app`):** (3b) migrasi `20261021092441_punch_channel_version_idempotency` (`channel`, `app_version`, `idempotency_key` unik), `isMock` → label `MOCK_LOCATION` tanpa wajib alasan, kanal dari `X-App-Version`, replay `Idempotency-Key`; (3a) 87 operasi TM & Leave bertipe — pola di `attendance-day` lalu leave/roster/period/overtime-lokasi-notify dikerjakan 4 agent paralel (file kontrak terpisah), helper `core/contract.ts` (`assertExact`, `Jsonify`, `nullableRef`); (3c) `notifyEmployees` + 13 titik panggil membawa `target`; web `PunchChannelNote`; spike `swagger_parser` di repo app.
+- **Keputusan:** MOB-D17 (kontrak dikunci ke tipe service + `nullableRef`) — isi di repo app.
+- **Verifikasi (worktree, DB `hris_mobile`):** typecheck ✔; biome ✔ 639 file; boundaries ✔ 518 modul; `db:check` ✔; test shared 335; api di DB kosong `hris_ci` (simulasi CI) **884 lulus, 0 gagal**; web 313 (`--maxWorkers=3`); OpenAPI: 87 operasi TM/Leave, 0 respons `unknown`. Test baru: `mobile-punch.test.ts` (4), target di `time-notify.test.ts` (+5 cek), `punch-channel-note.test.tsx` (3).
+- **Masalah / catatan:** `zod-openapi` mengubah `skemaBernama.nullable()` jadi `allOf:[$ref,{type:[object,null]}]` → `swagger_parser` stack overflow, dan satu field kehilangan `null` → `nullableRef`. Leave: `recalculate`/`paid` kompensasi keluar bisa mengembalikan `data` kosong (service mencari ulang di daftar maks. 500) — temuan, tidak diubah. `RosterGrid.days[].source` & `RosterChange.status` masih `string` (tipe service).
+- **Berikutnya:** commit + merge `HRIS/mobile-app` ke develop (izin) → app M1 (pakai klien generate).
+
 ### 2026-10-21 — Tahap 2: gabung branch Mat ke develop (Oatse)
 - **Dikerjakan:** merge `origin/HRIS/Mat/Mac` (9 commit s.d. `0e12481` → merge `247c0fa`; lalu 2 commit baru `c664054` analitik tim atasan + template roster 13+1 & 5+2, `d7a09a0` seed QA TM — merge kedua tanpa konflik, tanpa migrasi; migrasi `20261021015324_overtime_break_wage`, `20261021042556_leave_resubmit_exit`); konflik `attendance/directory.ts` diselesaikan dengan memindah query Prisma Mat ke interface publik employee/organization; log TM digabung; dokumen induk (PROGRESS, indeks PLAN §8 TM-D2–D10, DSB-D1, MOB-D*) & codemap.
 - **Verifikasi:** urutan migrasi diuji di salinan `hris_merge_test` (`migrate deploy` menerapkan 2 migrasi Mat yang bertanggal sebelum migrasi MOB tanpa galat; DB uji dihapus); develop: `db:deploy` 2 migrasi, `db:check` tanpa selisih; typecheck ✔; biome ✔ 627 file; boundaries ✔ 0 pelanggaran (509 modul); test shared 335 · api 879 · web 309 (`--maxWorkers=3`; setelah merge kedua: biome 629 file, boundaries 510 modul, api 880, web 310; run paralel penuh sempat gagal 3–28 test berbeda-beda karena load average 20 — tiap file lulus saat diulang).

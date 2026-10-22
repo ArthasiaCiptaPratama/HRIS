@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
-import { dashboardAnalyticsSchema } from "../../../src/modules/analytics/analytics.schema.ts";
+import { dashboardAnalyticsSchema } from "../../../src/modules/analytics/analytics.contract.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { createFakeStorage } from "../../helpers/storage.ts";

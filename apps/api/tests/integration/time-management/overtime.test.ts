@@ -8,7 +8,7 @@ import {
   gradeWageViewSchema,
   overtimeSummarySchema,
   overtimeViewSchema,
-} from "../../../src/modules/attendance/overtime.schema.ts";
+} from "../../../src/modules/attendance/overtime.contract.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";

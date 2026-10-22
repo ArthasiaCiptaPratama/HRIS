@@ -456,6 +456,7 @@ export function registerOvertimeIntegrations() {
         body: `${formatMinutes(row.proposedMin)} (setara ${Number(row.equivalentHours)} jam).`,
         link: "/time/lembur",
         dedupeKey: `tm-overtime-decided:${row.id}`,
+        target: { type: "OVERTIME", id: row.id },
       },
     ]);
   });

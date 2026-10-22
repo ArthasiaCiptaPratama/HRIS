@@ -98,6 +98,7 @@ export async function markNoAttendanceAlpha(
             : "Batas koreksi sudah lewat; hari itu tetap Alpha dan wajib dibuatkan surat pernyataan.",
           link: "/time/pernyataan",
           dedupeKey: `tm-alpha:${r.employeeId}:${date}`,
+          target: { type: "ATTENDANCE_DATE", id: date },
         };
       }),
       now,

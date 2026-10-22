@@ -21,7 +21,7 @@
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
-| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — grill MOB-D1–D16; BE tahap 1 (versi minimum, push FCM) ✔ develop `f99f0c9`; app M0 ✔ (scaffold jalan di HP, dokumen + skill, repo private, CI ✔); berikutnya tahap 3 (OpenAPI TM bertipe dll.) | – |
+| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — MOB-D1–D17; BE tahap 1–3 (versi minimum, push FCM, 87 operasi TM/Cuti bertipe, punch app, target notifikasi) + `operationId` ✔ develop 2026-10-21; app M0–M1 ✔; berikutnya app M2 Absen (2026-10-22) | – |
 
 Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan, import, onboarding, arsip, dashboard · 5–6 time-management · 7 kontrak · 8 payroll · 9 hardening · Rilis 1–3 → [RELEASE.md](RELEASE.md).
 

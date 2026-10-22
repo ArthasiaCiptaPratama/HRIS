@@ -1,9 +1,9 @@
 import { z } from "@hono/zod-openapi";
 import { SEVERANCE_SCENARIOS } from "@hris/shared";
+import { assertExact } from "../../core/contract.ts";
 import type { DashboardAnalytics } from "./analytics.service.ts";
 
-// Kontrak OpenAPI respons GET /dashboard/analytics (MOB-D10: bertipe untuk codegen app mobile).
-// Dicek sama persis dengan tipe service di bawah (gagal typecheck bila salah satu berubah).
+// MOB-D7 #1: skema respons GET /dashboard/analytics (DSB-D1), dikunci ke tipe service dengan assertExact.
 
 const headcountMonthSchema = z.object({
   month: z.string(),
@@ -110,6 +110,4 @@ export const dashboardAnalyticsSchema = z
   })
   .openapi("DashboardAnalytics");
 
-type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-const contract: Same<z.infer<typeof dashboardAnalyticsSchema>, DashboardAnalytics> = true;
-void contract;
+assertExact<z.infer<typeof dashboardAnalyticsSchema>, DashboardAnalytics>(true);
