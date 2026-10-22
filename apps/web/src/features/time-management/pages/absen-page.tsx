@@ -140,6 +140,8 @@ interface MobileContextValue {
   online: boolean;
   tz: string;
   startPunch: (kind: PunchKind) => void;
+  /** TM-D12: Clock In di hari OFF roster (lembur hari libur). */
+  startOffDayOvertime: () => void;
 }
 const MobileContext = createContext<MobileContextValue | null>(null);
 
@@ -177,6 +179,7 @@ export function MobileShell() {
   const clock = useServerClock(todayQuery.data?.serverTime, todayQuery.dataUpdatedAt);
   const [flow, setFlow] = useState<PunchKind | null>(null);
   const [noOpenWarning, setNoOpenWarning] = useState(false);
+  const [offDayOvertime, setOffDayOvertime] = useState(false);
   const data = todayQuery.data;
   const fallbackTz = useTimezone();
   const tz = data?.timezone ?? fallbackTz;
@@ -184,16 +187,23 @@ export function MobileShell() {
   const startPunch = (kind: PunchKind) => {
     if (kind === "BREAK_START" || kind === "BREAK_END") setFlow(kind);
     else if (data?.next === "DONE") toast.info(DONE_TEXT);
+    else if (kind === "IN" && data?.offDay) toast.info(OFF_DAY_TEXT);
     // TM-D7: Clock Out baru bisa setelah Selesai istirahat (server juga menolak).
     else if (kind === "OUT" && data?.breakState === "ON_BREAK") toast.warning(ON_BREAK_TEXT);
     else if (kind === "OUT" && data?.next === "IN") setNoOpenWarning(true);
     else setFlow(kind);
   };
+  const startOffDayOvertime = () => {
+    setOffDayOvertime(true);
+    setFlow("IN");
+  };
   const isHome = pathname === "/absen" || pathname === "/absen/";
   const title = MOBILE_TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "Absensi";
 
   return (
-    <MobileContext.Provider value={{ me, data, todayQuery, clock, online, tz, startPunch }}>
+    <MobileContext.Provider
+      value={{ me, data, todayQuery, clock, online, tz, startPunch, startOffDayOvertime }}
+    >
       <div className="bg-muted/50 min-h-dvh">
         <div className="mx-auto flex min-h-dvh max-w-md flex-col">
           <header className="bg-card sticky top-0 z-30 flex items-center gap-3 border-b px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
@@ -280,7 +290,16 @@ export function MobileShell() {
           </div>
         ) : null}
         {flow && data ? (
-          <PunchFlow kind={flow} data={data} clock={clock} onClose={() => setFlow(null)} />
+          <PunchFlow
+            kind={flow}
+            data={data}
+            clock={clock}
+            offDayOvertime={flow === "IN" && offDayOvertime}
+            onClose={() => {
+              setFlow(null);
+              setOffDayOvertime(false);
+            }}
+          />
         ) : null}
       </div>
     </MobileContext.Provider>
@@ -289,7 +308,8 @@ export function MobileShell() {
 
 /** Beranda aplikasi HP: kartu hari ini (Datang/Pulang), menu, roster 7 hari, riwayat singkat. */
 export function AbsenHome() {
-  const { me, data, todayQuery, clock, online, tz, startPunch } = useMobileApp();
+  const { me, data, todayQuery, clock, online, tz, startPunch, startOffDayOvertime } =
+    useMobileApp();
   if (todayQuery.isPending) return <Skeleton className="h-56 rounded-2xl" />;
   if (todayQuery.isError || !data) {
     return (
@@ -308,7 +328,13 @@ export function AbsenHome() {
     <>
       <PunchReminder data={data} clock={clock} />
       <AlphaBanner />
-      <TodayCard data={data} clock={clock} online={online} onPunch={startPunch} />
+      <TodayCard
+        data={data}
+        clock={clock}
+        online={online}
+        onPunch={startPunch}
+        onOffDayOvertime={startOffDayOvertime}
+      />
       <HomeSummary data={data} />
       <MenuGrid me={me} />
       <RosterStrip data={data} today={todayIn(tz)} />
@@ -321,6 +347,10 @@ export function AbsenHome() {
 export const AbsenPage = AbsenHome;
 
 const ON_BREAK_TEXT = "Anda masih istirahat. Lakukan Selesai istirahat sebelum Clock Out.";
+
+/** TM-D12: hari OFF roster — Clock In biasa ditolak; lembur lewat tombol sendiri. */
+const OFF_DAY_TEXT =
+  "Hari ini jadwal Anda libur (OFF). Silakan beristirahat. Bila memang lembur, pilih Lembur hari libur.";
 
 /** Absen masuk hanya sekali per hari (permintaan pemilik projek 2026-10-19). */
 const DONE_TEXT = "Absen hari ini sudah tercatat — absen berikutnya besok sesuai jadwal.";
@@ -337,14 +367,20 @@ function TodayCard({
   clock,
   online,
   onPunch,
+  onOffDayOvertime,
 }: {
   data: Today;
   clock: Date | null;
   online: boolean;
   onPunch: (kind: PunchKind) => void;
+  onOffDayOvertime: () => void;
 }) {
   const tz = data.timezone;
   const now = clock ?? new Date();
+  const offDay = Boolean(data.offDay) && data.next === "IN";
+  // TM-D12: sebelum Clock Out dibuka → pulang darurat (wajib alasan, berlabel Pulang cepat).
+  const outOpensAt = data.next === "OUT" ? (data.checkOutOpensAt ?? null) : null;
+  const emergencyOut = outOpensAt !== null && now.getTime() < Date.parse(outOpensAt);
   const date = todayIn(tz, now);
   const roster = data.roster.find((r) => r.date === date);
   // Hari kerja yang sedang berjalan: yang masih terbuka, atau absen tanggal hari ini.
@@ -395,25 +431,44 @@ function TodayCard({
         </div>
       </div>
 
+      {offDay ? (
+        <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-center text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+          Hari ini jadwal Anda <b>libur (OFF)</b>. Silakan beristirahat.
+        </p>
+      ) : null}
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          disabled={!online || data.next === "DONE"}
-          title={data.next === "DONE" ? DONE_TEXT : undefined}
-          onClick={() => onPunch("IN")}
-          className={cn(
-            "flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl bg-emerald-600 text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
-            data.next !== "IN" && "opacity-70",
-          )}
-        >
-          <span className="flex items-center gap-2 text-base font-semibold">
-            <LogIn className="size-5" /> Datang
-          </span>
-          <span className="font-mono text-sm tabular-nums">
-            {inAt ? `${otherDate ? `${shortDate(inAt, tz)} ` : ""}${timeIn(inAt, tz)}` : "--:--"}
-          </span>
-          <span className="text-[10px] opacity-80">Clock In</span>
-        </button>
+        {offDay ? (
+          <button
+            type="button"
+            disabled={!online}
+            onClick={onOffDayOvertime}
+            className="flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 shadow-sm transition active:scale-[0.98] disabled:opacity-40 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          >
+            <span className="flex items-center gap-2 text-base font-semibold">
+              <LogIn className="size-5" /> Lembur hari libur
+            </span>
+            <span className="text-[10px] opacity-80">Clock In lembur · wajib alasan</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!online || data.next === "DONE"}
+            title={data.next === "DONE" ? DONE_TEXT : undefined}
+            onClick={() => onPunch("IN")}
+            className={cn(
+              "flex h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl bg-emerald-600 text-white shadow-sm transition active:scale-[0.98] disabled:opacity-40",
+              data.next !== "IN" && "opacity-70",
+            )}
+          >
+            <span className="flex items-center gap-2 text-base font-semibold">
+              <LogIn className="size-5" /> Datang
+            </span>
+            <span className="font-mono text-sm tabular-nums">
+              {inAt ? `${otherDate ? `${shortDate(inAt, tz)} ` : ""}${timeIn(inAt, tz)}` : "--:--"}
+            </span>
+            <span className="text-[10px] opacity-80">Clock In</span>
+          </button>
+        )}
         <button
           type="button"
           disabled={!online || data.next === "DONE"}
@@ -425,15 +480,19 @@ function TodayCard({
           )}
         >
           <span className="flex items-center gap-2 text-base font-semibold">
-            <LogOut className="size-5" /> Pulang
+            <LogOut className="size-5" /> {emergencyOut ? "Pulang darurat" : "Pulang"}
           </span>
           <span className="font-mono text-sm tabular-nums">
             {outAt ? timeIn(outAt, tz) : "--:--"}
           </span>
-          <span className="text-[10px] opacity-80">Clock Out</span>
+          <span className="text-[10px] opacity-80">
+            {emergencyOut && outOpensAt
+              ? `Clock Out dibuka ${timeIn(outOpensAt, tz)}`
+              : "Clock Out"}
+          </span>
         </button>
       </div>
-      <BreakButton data={data} online={online} onPunch={onPunch} />
+      <BreakButton data={data} now={now} online={online} onPunch={onPunch} />
       <p className="text-muted-foreground mt-2 text-center text-[11px]">
         {data.next === "DONE"
           ? DONE_TEXT
@@ -448,10 +507,12 @@ function TodayCard({
 /** TM-D7: lokasi wajib absen istirahat — Mulai/Selesai istirahat sekali per hari (selfie + GPS). */
 function BreakButton({
   data,
+  now,
   online,
   onPunch,
 }: {
   data: Today;
+  now: Date;
   online: boolean;
   onPunch: (kind: PunchKind) => void;
 }) {
@@ -470,6 +531,25 @@ function BreakButton({
     );
   }
   const kind: PunchKind = state === "ON_BREAK" ? "BREAK_END" : "BREAK_START";
+  // TM-D12: Mulai istirahat hanya di jendela istirahat shift; Selesai istirahat bebas.
+  const opens = data.breakOpensAt ?? null;
+  const closes = data.breakClosesAt ?? null;
+  const t = now.getTime();
+  const locked =
+    state === "NONE" && opens && closes
+      ? t < Date.parse(opens)
+        ? `Istirahat dibuka ${timeIn(opens, tz)}`
+        : t > Date.parse(closes)
+          ? `Jam istirahat ${timeIn(opens, tz)}–${timeIn(closes, tz)} sudah lewat`
+          : null
+      : null;
+  if (locked) {
+    return (
+      <p className="text-muted-foreground mt-3 flex h-12 items-center justify-center gap-1.5 rounded-xl border border-dashed text-xs">
+        <Coffee className="size-3.5" /> {locked}
+      </p>
+    );
+  }
   return (
     <button
       type="button"
@@ -773,11 +853,14 @@ function PunchFlow({
   kind: initialKind,
   data,
   clock,
+  offDayOvertime,
   onClose,
 }: {
   kind: PunchKind;
   data: Today;
   clock: Date | null;
+  /** TM-D12: Clock In lewat tombol "Lembur hari libur". */
+  offDayOvertime: boolean;
   onClose: () => void;
 }) {
   const accuracyMax = data.gpsAccuracyMaxM;
@@ -870,10 +953,16 @@ function PunchFlow({
     if (key === lastChecked.current) return;
     lastChecked.current = key;
     precheck.mutate(
-      { kind, latitude: gps.latitude, longitude: gps.longitude, accuracyM: gps.accuracyM },
+      {
+        kind,
+        latitude: gps.latitude,
+        longitude: gps.longitude,
+        accuracyM: gps.accuracyM,
+        ...(offDayOvertime ? { offDayOvertime: true } : {}),
+      },
       { onSuccess: setCheck, onError: (error) => toast.error(errorMessage(error)) },
     );
-  }, [gps, kind, precheck.mutate]);
+  }, [gps, kind, offDayOvertime, precheck.mutate]);
 
   // Cap foto: waktu, lat/long/alt, & lokasi geofence (diperbarui bila posisi/pra-cek berubah).
   useEffect(() => {
@@ -964,6 +1053,7 @@ function PunchFlow({
         altitudeM: gps.altitudeM,
         reason: reason.trim() || undefined,
         confirmed: check.suspicion ? confirmed : undefined,
+        ...(offDayOvertime && kind === "IN" ? { offDayOvertime: true } : {}),
         selfie: stamped.blob,
         contentType: "image/jpeg",
       });

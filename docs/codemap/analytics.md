@@ -11,7 +11,8 @@
 │                                  cuti hari ini, efisiensi (jam efektif ÷ terjadwal, % lembur/telat/Alpha, per lokasi, vs bulan lalu), proyeksi
 │                                  12 bulan (PKWT habis, naik tingkat pesangon/UPMK, pensiun 58 th bila boleh data pribadi, tambahan biaya),
 │                                  labor cost per kategori (upah grade + lembur), kewajiban kompensasi per skenario PHK
-└── analytics.routes.ts     [done] GET /dashboard/analytics?month=YYYY-MM&companyId&scenario
+├── analytics.routes.ts     [done] GET /dashboard/analytics?month=YYYY-MM&companyId&scenario
+└── analytics.contract.ts   [done] skema respons OpenAPI `DashboardAnalytics` (`assertExact` ke tipe service)
 ```
 
 Rupiah (`laborCost`, `liability`, `projection.costDelta`) hanya untuk SA / HR ber-grant `labor.cost.read`; MANAGER tanpa rupiah. Rumus murni di `@hris/shared` `severance.ts` (pesangon & UPMK PP 35/2021 Pasal 40, kompensasi PKWT Pasal 16, skenario, `tenureYears` kalender, `anniversary` 29 Feb). Fakta pendukung: `attendance/analytics-facts.ts`, `leave/leave-analytics.ts`, `attendance/directory.ts analyticsEmployees`.

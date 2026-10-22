@@ -47,6 +47,9 @@ export const shiftSchema = z.object({
   /** TM-D6/TM-D7 (opsional: API lama tidak mengirim). */
   breakMin: z.number().optional(),
   breakPaid: z.boolean().optional(),
+  /** TM-D12: jendela Mulai istirahat (menit dari 00:00); null = bebas. */
+  breakStartMinute: z.number().nullable().optional(),
+  breakEndMinute: z.number().nullable().optional(),
   regularOvertimeMin: z.number().optional(),
   color: z.string().nullable(),
   archived: z.boolean(),
@@ -119,6 +122,11 @@ export const todaySchema = z.object({
   next: z.enum(["IN", "OUT", "DONE"]),
   /** TM-D7: lokasi wajib absen istirahat (opsional: API lama tidak mengirim). */
   breakState: z.enum(["NOT_REQUIRED", "NONE", "ON_BREAK", "DONE"]).optional(),
+  /** TM-D12: hari OFF → "Lembur hari libur"; batas Clock Out & jendela Mulai istirahat. */
+  offDay: z.boolean().optional(),
+  checkOutOpensAt: z.string().nullable().optional(),
+  breakOpensAt: z.string().nullable().optional(),
+  breakClosesAt: z.string().nullable().optional(),
 });
 export type Today = z.infer<typeof todaySchema>;
 
@@ -137,6 +145,8 @@ export const precheckSchema = z.object({
   scheduledEnd: z.string().nullable(),
   minutesFromEnd: z.number().nullable(),
   openDay: z.object({ workDate: z.string(), checkInAt: z.string().nullable() }).nullable(),
+  offDay: z.boolean().optional(),
+  checkOutOpensAt: z.string().nullable().optional(),
 });
 export type Precheck = z.infer<typeof precheckSchema>;
 

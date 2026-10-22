@@ -1,5 +1,5 @@
 import { z } from "@hono/zod-openapi";
-import { LEAVE_EXIT_STATUSES, LEAVE_LEDGER_KINDS } from "@hris/shared";
+import { LEAVE_EXIT_STATUSES, LEAVE_LEDGER_KINDS, OVERTIME_FORMULAS } from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import { approvalViewSchema } from "../approval/index.ts";
 import type * as service from "./leave.service.ts";
@@ -203,8 +203,11 @@ export const leaveExitSettlementSchema = z
     remainingDays: z.number(),
     debtDays: z.number(),
     pendingDays: z.number(),
-    formula: z.string(),
-    divisor: z.number(),
+    formula: z.enum(OVERTIME_FORMULAS),
+    divisor: z
+      .number()
+      .int()
+      .openapi({ description: "Pembagi upah harian: 25 (pola 6 hari) / 21" }),
     status: z.enum(LEAVE_EXIT_STATUSES),
     note: z.string().nullable(),
     decidedAt: z.iso.datetime().nullable(),
@@ -216,14 +219,13 @@ export const leaveExitSettlementSchema = z
   .openapi("LeaveExitSettlement");
 assertExact<z.infer<typeof leaveExitSettlementSchema>, ExitSettlementView>(true);
 
-/** Recalculate/paid: settlement terbaru; `data` kosong bila tidak lagi masuk daftar (batas 500 baris). */
-export const leaveExitSettlementResultSchema = leaveExitSettlementSchema.optional();
+// Recalculate/paid mengembalikan settlement terbaru; 404 bila baris tidak ada.
 assertExact<
-  z.infer<typeof leaveExitSettlementResultSchema>,
+  z.infer<typeof leaveExitSettlementSchema>,
   Awaited<ReturnType<typeof exits.recalculateExitSettlement>>
 >(true);
 assertExact<
-  z.infer<typeof leaveExitSettlementResultSchema>,
+  z.infer<typeof leaveExitSettlementSchema>,
   Awaited<ReturnType<typeof exits.markExitSettlementPaid>>
 >(true);
 

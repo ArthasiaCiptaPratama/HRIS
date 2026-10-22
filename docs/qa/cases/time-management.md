@@ -1,6 +1,6 @@
 # Kasus Uji — Time Management & Dashboard Analitik
 
-Aturan: keputusan fitur TM-D6–TM-D11 (`docs/features/time-management/`) dan DSB-D1 (`docs/features/dashboard/`).
+Aturan: keputusan fitur TM-D6–TM-D12 (`docs/features/time-management/`) dan DSB-D1 (`docs/features/dashboard/`).
 Data uji: `bun run db:seed:time -- --demo --accounts`, lalu `DEV_ACCOUNT_PASSWORD=… bun run db:seed:qa` (khusus lokal).
 Kolom **Otomasi** = test yang sudah menutup aturan itu; "manual" = hanya lewat browser.
 
@@ -28,6 +28,15 @@ Kolom **Otomasi** = test yang sudah menutup aturan itu; "manual" = hanya lewat b
 | TC-TM-025 | P1 | TM-D9 tandai dibayar sekali | hr.biaya | TC-TM-024 | Tandai sudah diproses, lalu coba Hitung ulang | Status "Sudah diproses"; hitung ulang tidak mengubah nominal | apps/api/tests/integration/time-management/leave.test.ts |
 | TC-TM-026 | P1 | Rupiah kompensasi hanya dengan grant | hr.lokal | TC-TM-024 | Buka tab Karyawan keluar | Hari tampil, kolom rupiah tidak tampil | apps/web/tests/leave.test.tsx |
 | TC-TM-027 | P2 | TM-D9 cuti bersama bukan Alpha | HR_ADMIN | Kalender: cuti bersama di hari kerja roster | Rekap › Alpha periode itu | Tanggal cuti bersama tidak dihitung Alpha | apps/api/tests/integration/time-management/alpha.test.ts |
+| TC-TM-028 | P2 | TM-D12 Clock In bebas, telat ditandai | EMPLOYEE (lapangan.lokal) | Shift QA 08–17 | Clock In 09.00 | Diterima, label Telat + alasan wajib | apps/api/src/modules/attendance/__tests__/attendance-engine.test.ts |
+| TC-TM-029 | P1 | TM-D12 Clock Out dibuka 30 menit sebelum pulang | EMPLOYEE | Sudah Clock In, shift QA | Lihat tombol Pulang pukul 16.20, lalu 16.35 | 16.20: "Pulang darurat · Clock Out dibuka 16.30"; 16.35: Pulang biasa, tanpa label/alasan | apps/api/tests/integration/time-management/punch-window.test.ts, apps/web/tests/punch-window.test.tsx |
+| TC-TM-030 | P1 | TM-D12 pulang darurat | EMPLOYEE → MANAGER | TC-TM-029 sebelum 16.30 | Pulang darurat tanpa alasan, lalu dengan alasan | Tanpa alasan ditolak; dengan alasan diterima, label Pulang cepat, masuk antrean atasan | apps/api/tests/integration/time-management/punch-window.test.ts |
+| TC-TM-031 | P2 | TM-D12 jendela Mulai istirahat | EMPLOYEE | Shift QA (istirahat 12.00–13.00), lokasi wajib istirahat | Lihat tombol istirahat 11.30, 12.10, 13.10 | 11.30: "Istirahat dibuka 12.00" (terkunci); 12.10: Mulai istirahat aktif; 13.10 tanpa mulai: "sudah lewat" | apps/api/tests/integration/time-management/punch-window.test.ts, apps/web/tests/punch-window.test.tsx |
+| TC-TM-032 | P2 | TM-D12 Selesai istirahat bebas | EMPLOYEE | Mulai istirahat 12.10 | Selesai istirahat 13.30 | Diterima; label Istirahat lebih + utang menit lembur (TM-D7) | manual (label & utang: apps/api/tests/integration/time-management/overtime.test.ts) |
+| TC-TM-033 | P1 | TM-D12 hari OFF | EMPLOYEE | HR set roster hari ini = OFF (Roster › sel) | Buka Absen di HP | Pesan "Silakan beristirahat"; tombol Datang diganti Lembur hari libur; API menolak Clock In biasa | apps/api/tests/integration/time-management/punch-window.test.ts, apps/web/tests/punch-window.test.tsx |
+| TC-TM-034 | P1 | TM-D12 lembur hari libur | EMPLOYEE → MANAGER/HR | TC-TM-033 | Lembur hari libur → isi alasan → Clock In, lalu Clock Out | Diterima berlabel Di luar jadwal roster; usulan lembur tipe Hari OFF | apps/api/tests/integration/time-management/punch-window.test.ts (Clock In); usulan Hari OFF manual |
+| TC-TM-035 | P2 | TM-D12 master shift jam istirahat | SA / HR PT | — | Tambah shift: istirahat 18.00–19.00 untuk shift 08–17; lalu hanya isi jam mulai; lalu 12.00–13.00 | Dua yang pertama ditolak; terakhir tersimpan, jatah istirahat otomatis 60 mnt | apps/api/tests/integration/time-management/punch-window.test.ts |
+| TC-TM-036 | P3 | TM-D12 pengaturan Clock Out dibuka | SA | — | Time › Pengaturan: ubah "Clock Out dibuka" ke 15 | Tersimpan; tombol Pulang biasa muncul 15 menit sebelum jam pulang | manual (simpan: apps/api/tests/integration/time-management/foundation.test.ts) |
 | TC-DSB-001 | P1 | DSB-D1 akses analitik | EMPLOYEE | — | Buka Dashboard | Widget analitik tidak ada; API /dashboard/analytics 403 | apps/api/tests/integration/analytics/dashboard-analytics.test.ts |
 | TC-DSB-002 | P1 | DSB-D1 biaya & liabilitas hanya dengan grant | hr.lokal vs hr.biaya | — | Dashboard → widget Biaya tenaga kerja & Liabilitas pesangon | hr.biaya: angka rupiah + pilihan skenario. hr.lokal: widget biaya tidak tersedia | apps/api/tests/integration/analytics/dashboard-analytics.test.ts |
 | TC-DSB-003 | P1 | DSB-D1 proyeksi pensiun butuh data pribadi | hr.lokal vs hr.biaya | — | Widget Proyeksi | hr.biaya/SA: hitungan pensiun terisi; hr.lokal: pensiun tidak dihitung | apps/api/tests/integration/analytics/dashboard-analytics.test.ts |

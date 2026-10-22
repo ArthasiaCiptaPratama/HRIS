@@ -206,6 +206,49 @@ export const lockEmployeeYear = (tx: LeaveTx, employeeId: string, year: number) 
 export const lockRequest = (tx: LeaveTx, id: string) =>
   tx.$executeRaw`SELECT id FROM leave.leave_requests WHERE id = ${id}::uuid FOR UPDATE`;
 
+// ── Fakta dashboard (DSB-D1, baca-saja) ───────────────────────────────────────
+export const ledgerRowsOf = (employeeIds: string[], year: number) =>
+  getPrisma().leaveLedger.findMany({
+    where: { employeeId: { in: employeeIds }, year },
+    select: { employeeId: true, kind: true, days: true },
+  });
+export const countOnLeave = (employeeIds: string[], day: Date) =>
+  getPrisma().leaveRequest.count({
+    where: { employeeId: { in: employeeIds }, status: "APPROVED", workDates: { has: day } },
+  });
+export const countPending = (employeeIds: string[]) =>
+  getPrisma().leaveRequest.count({ where: { employeeId: { in: employeeIds }, status: "PENDING" } });
+
+// ── Hak cuti karyawan keluar (TM-D9) ──────────────────────────────────────────
+export const activeExitSettlements = (companyIds?: string[]) =>
+  getPrisma().leaveExitSettlement.findMany({
+    where: {
+      status: { not: "CANCELLED" },
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+    },
+    select: { id: true, employeeId: true, exitDate: true, status: true, year: true },
+  });
+export const createExitSettlement = (data: Prisma.LeaveExitSettlementUncheckedCreateInput) =>
+  getPrisma().leaveExitSettlement.create({ data });
+/** Batalkan settlement yang masih OPEN (yang sudah diproses tidak ikut). */
+export const cancelOpenExitSettlements = (ids: string[], note: string) =>
+  getPrisma().leaveExitSettlement.updateMany({
+    where: { id: { in: ids }, status: "OPEN" },
+    data: { status: "CANCELLED", note },
+  });
+export const listExitSettlementRows = (companyIds?: string[]) =>
+  getPrisma().leaveExitSettlement.findMany({
+    where: companyIds ? { companyId: { in: companyIds } } : {},
+    orderBy: [{ exitDate: "desc" }, { createdAt: "desc" }],
+    take: 500,
+  });
+export const findExitSettlement = (id: string) =>
+  getPrisma().leaveExitSettlement.findUnique({ where: { id } });
+export const updateExitSettlement = (
+  id: string,
+  data: Prisma.LeaveExitSettlementUncheckedUpdateInput,
+) => getPrisma().leaveExitSettlement.update({ where: { id }, data });
+
 export async function withTransaction<T>(run: (tx: LeaveTx) => Promise<T>): Promise<T> {
   return getPrisma().$transaction(run);
 }

@@ -22,6 +22,7 @@
     "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts",
     "db:seed:time": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-time-management-local.ts",
     "db:seed:qa": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-qa-time.ts",
+    "db:seed:acceptance": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-qa-acceptance.ts",
     "demo:dashboard": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-dashboard-demo.ts",
     "storage:setup": "bun --env-file=../../.env scripts/setup-storage.ts",
     "auth:migrate-login-nik": "bun --env-file=../../.env scripts/migrate-login-nik.ts",

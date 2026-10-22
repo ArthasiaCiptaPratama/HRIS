@@ -57,6 +57,9 @@ model Shift {
   /// TM-D7: jatah istirahat (menit) & apakah istirahat termasuk jam kerja dibayar (JT: ya).
   breakMin               Int       @default(0) @map("break_min") @db.SmallInt
   breakPaid              Boolean   @default(false) @map("break_paid")
+  /// TM-D12: jendela Mulai istirahat (menit dari 00:00 zona shift); null = bebas kapan saja.
+  breakStartMinute       Int?      @map("break_start_minute") @db.SmallInt
+  breakEndMinute         Int?      @map("break_end_minute") @db.SmallInt
   /// TM-D6: menit terakhir shift yang merupakan lembur rutin (JT: 60) — disetujui lewat approval absen harian.
   regularOvertimeMin     Int       @default(0) @map("regular_overtime_min") @db.SmallInt
   color                  String?   @db.VarChar(9)

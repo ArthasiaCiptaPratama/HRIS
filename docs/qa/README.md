@@ -37,6 +37,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Rencana | [plans/2026-10-20-laporan-batch2-lokal.md](plans/2026-10-20-laporan-batch2-lokal.md) | Laporan batch 2 lokal (TC-EMP-250…257) |
 | Rencana | [plans/2026-10-21-tm-paket-lokal.md](plans/2026-10-21-tm-paket-lokal.md) | Time Management Paket 1–3 + dashboard analitik lokal, akun uji `db:seed:qa` (TC-TM-001…027, TC-DSB-001…009) |
 | Rencana | [plans/2026-10-15-staging-sp.md](plans/2026-10-15-staging-sp.md) | Surat Peringatan + header detail di staging, rilis gel. 8 (TC-STG-088…102) |
+| Rencana | [plans/2026-10-22-acceptance-rina.md](plans/2026-10-22-acceptance-rina.md) | UAT absen, lembur (hari kerja/OFF/tanggal merah/JT), cuti: sekuens Rina, Joko, Atasan, HR + `db:seed:acceptance` |
 | Kasus | [cases/staging.md](cases/staging.md) | TC-STG-001 s.d. TC-STG-102 |
 | Kasus | [cases/employee.md](cases/employee.md) | TC-EMP-001 s.d. TC-EMP-257 |
 | Kasus | [cases/time-management.md](cases/time-management.md) | TC-TM-001 s.d. TC-TM-027, TC-DSB-001 s.d. TC-DSB-009 |
@@ -76,6 +77,7 @@ Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format
 | Hasil | [runs/2026-10-20-staging-gel12.md](runs/2026-10-20-staging-gel12.md) | Staging rilis gel. 12: Laporan batch 2 17/17 (akun SA) — **LEGIT** |
 | Hasil | [runs/2026-10-20-laporan-batch2-lokal.md](runs/2026-10-20-laporan-batch2-lokal.md) | Lokal: shared 268 · api 826 · web 281, Playwright 12/12; putaran audit + gabungan Mat api 840 · web 290, 17/17 — LULUS lokal |
 | Hasil | [runs/2026-10-15-staging-sp.md](runs/2026-10-15-staging-sp.md) | Staging rilis gel. 8: SP 11/11 + header & TM tersembunyi — Surat Peringatan **LEGIT** |
+| Hasil | [runs/2026-10-22-acceptance-rina.md](runs/2026-10-22-acceptance-rina.md) | UAT lokal 22 Okt: 28/28 lulus (Playwright, bukti di luar repo) |
 | Bukti visual | `/mnt/winD/WORK/Magang/QA/<tanggal>-<target>/` | Di luar repo (skill hris-qa-docs) |
 | Bug | [bugs/BUG-004-sapaan-dashboard-pakai-email.md](bugs/BUG-004-sapaan-dashboard-pakai-email.md) | P3 DITUTUP 2026-10-12 (staging gel. 5): sapaan Dashboard memakai email akun, bukan nama karyawan |
 | Bug | [bugs/BUG-003-lampiran-macet-koneksi-menggantung.md](bugs/BUG-003-lampiran-macet-koneksi-menggantung.md) | P2 DITUTUP 2026-10-12 (staging 4.1): panel lampiran macet saat koneksi menggantung |

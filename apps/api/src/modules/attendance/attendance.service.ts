@@ -37,11 +37,14 @@ import { markNoAttendanceAlpha } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
 import * as repository from "./attendance.repository.ts";
 import {
+  breakWindow,
   candidateDates,
   checkGeofence,
   checkOutLabels,
+  checkOutOpensAt,
   type GeofenceSite,
   localDate,
+  offsetMinutes,
   planCheckIn,
   type ShiftTimes,
   shiftWindow,
@@ -143,6 +146,35 @@ interface Evaluation {
   suspicion: PunchSuspicion | null;
   /** Hari yang masih terbuka (belum Clock Out) saat memilih Clock In. */
   stillOpen: repository.DayRow | null;
+  /** TM-D12: tanggal kerja Clock In = OFF di roster. */
+  offDay: boolean;
+  /** TM-D12: Clock Out normal dibuka / jendela Mulai istirahat (hari terbuka). */
+  checkOutOpensAt: Date | null;
+  breakWindow: { opens: Date; closes: Date } | null;
+}
+
+/** Jam lokal HH:MM untuk pesan ke karyawan. */
+const clockOf = (at: Date, timezone: string) =>
+  new Date(at.getTime() + offsetMinutes(timezone) * MINUTE).toISOString().slice(11, 16);
+
+/** TM-D12: batas waktu Clock Out & istirahat dari shift hari terbuka. */
+export function openDayTimes(
+  workDate: string,
+  shift: Shift | null,
+  settings: { timezone: string; checkOutEarlyMin: number },
+) {
+  if (!shift) return { window: null, normalEnd: null, checkOutOpensAt: null, breakWindow: null };
+  const window = shiftWindow(workDate, shiftTimes(shift), settings.timezone);
+  // TM-D6: jam lembur rutin di akhir shift bukan bagian "pulang cepat" (dijalani kurang = label sendiri).
+  const normalEnd = shift.regularOvertimeMin
+    ? { ...window, end: new Date(window.end.getTime() - shift.regularOvertimeMin * MINUTE) }
+    : window;
+  return {
+    window,
+    normalEnd,
+    checkOutOpensAt: checkOutOpensAt(normalEnd.end, settings.checkOutEarlyMin),
+    breakWindow: breakWindow(workDate, shift, settings.timezone),
+  };
 }
 
 const MINUTE = 60_000;
@@ -190,9 +222,22 @@ async function evaluate(
     if (!open) throw new BusinessRuleError("Belum ada absen masuk yang menunggu absen pulang.");
     assertBreakSequence(input.kind, open);
     const shift = open.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
-    const window = shift
-      ? shiftWindow(toIso(open.workDate), shiftTimes(shift), settings.timezone)
-      : null;
+    const times = openDayTimes(toIso(open.workDate), shift, settings);
+    const window = times.window;
+    // TM-D12: Mulai istirahat hanya di jendela istirahat shift (Selesai istirahat bebas).
+    if (input.kind === "BREAK_START" && times.breakWindow) {
+      const t = now.getTime();
+      if (t < times.breakWindow.opens.getTime() || t > times.breakWindow.closes.getTime()) {
+        const opens = clockOf(times.breakWindow.opens, settings.timezone);
+        const closes = clockOf(times.breakWindow.closes, settings.timezone);
+        throw new BusinessRuleError(`Mulai istirahat hanya bisa pukul ${opens}–${closes}.`, [
+          {
+            breakOpensAt: times.breakWindow.opens.toISOString(),
+            breakClosesAt: times.breakWindow.closes.toISOString(),
+          },
+        ]);
+      }
+    }
     // Pulang mengikuti lokasi tercatat saat masuk; bebas lokasi (TM-D1) tetap tidak dicek geofence.
     const resolved = await expectedLocation(employee, toIso(open.workDate));
     const expected =
@@ -207,27 +252,26 @@ async function evaluate(
       resolved.anywhere,
     );
     const isOut = input.kind === "OUT";
-    // TM-D6: jam lembur rutin di akhir shift bukan bagian "pulang cepat" (dijalani kurang = label sendiri).
-    const normalEnd =
-      window && shift?.regularOvertimeMin
-        ? { ...window, end: new Date(window.end.getTime() - shift.regularOvertimeMin * MINUTE) }
-        : window;
+    const normalEnd = times.normalEnd;
     return {
       kind: input.kind,
       workDate: toIso(open.workDate),
       shift,
       window,
       labels: [
-        ...(isOut ? checkOutLabels(now, shift ? shiftTimes(shift) : null, normalEnd) : []),
+        ...(isOut ? checkOutLabels(now, normalEnd, settings.checkOutEarlyMin) : []),
         ...geofence.labels,
       ],
       geofence,
       openDay: open,
       location: expected,
       suspicion: isOut
-        ? suspicionFor("OUT", now, window, shift?.earlyLeaveToleranceMin ?? null, false)
+        ? suspicionFor("OUT", now, normalEnd, settings.checkOutEarlyMin, false)
         : null,
       stillOpen: null,
+      offDay: false,
+      checkOutOpensAt: times.checkOutOpensAt,
+      breakWindow: times.breakWindow,
     };
   }
 
@@ -271,6 +315,9 @@ async function evaluate(
     location: expected,
     suspicion: suspicionFor("IN", now, plan.window, null, stillOpen !== null),
     stillOpen,
+    offDay: plan.offDay,
+    checkOutOpensAt: null,
+    breakWindow: null,
   };
 }
 
@@ -463,6 +510,12 @@ export interface TodayView {
   next: "IN" | "OUT" | "DONE";
   /** TM-D7: lokasi wajib absen istirahat → tombol Mulai/Selesai istirahat. */
   breakState: BreakState;
+  /** TM-D12: hari ini OFF di roster → tombol "Lembur hari libur" menggantikan Clock In. */
+  offDay: boolean;
+  /** TM-D12: hari terbuka — Clock Out normal dibuka; jendela Mulai istirahat (null = bebas). */
+  checkOutOpensAt: string | null;
+  breakOpensAt: string | null;
+  breakClosesAt: string | null;
 }
 
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
@@ -492,6 +545,22 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
   const resolved = await expectedLocation(employee, dates[1] as string);
   const location = resolved.location;
   const recent = await toDayViews(ctx, recentRows, false);
+  const byDate = new Map(rosterDays.map((d) => [toIso(d.workDate), d]));
+  const plan = planCheckIn(
+    now,
+    settings.timezone,
+    dates.map((date) => {
+      const d = byDate.get(date);
+      return {
+        workDate: date,
+        shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
+      };
+    }),
+  );
+  const openShift = open?.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
+  const times = open
+    ? openDayTimes(toIso(open.workDate), openShift, settings)
+    : { checkOutOpensAt: null, breakWindow: null };
   return {
     serverTime: now.toISOString(),
     timezone: settings.timezone,
@@ -524,6 +593,10 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
       : null,
     recent,
     breakState: await breakStateOf(open),
+    offDay: !open && plan.offDay,
+    checkOutOpensAt: times.checkOutOpensAt?.toISOString() ?? null,
+    breakOpensAt: times.breakWindow?.opens.toISOString() ?? null,
+    breakClosesAt: times.breakWindow?.closes.toISOString() ?? null,
     next: open
       ? "OUT"
       : recentRows.some(
@@ -551,6 +624,11 @@ export interface PrecheckResult {
   /** Menit sekarang terhadap jadwal pulang (negatif = sebelum jam pulang). */
   minutesFromEnd: number | null;
   openDay: { workDate: string; checkInAt: string | null } | null;
+  /** TM-D12: Clock In di hari OFF → hanya lewat "Lembur hari libur" (`offDayOvertime`). */
+  offDay: boolean;
+  checkOutOpensAt: string | null;
+  breakOpensAt: string | null;
+  breakClosesAt: string | null;
 }
 
 const openDayInfo = (open: repository.DayRow | null) =>
@@ -613,6 +691,10 @@ export async function precheck(
     scheduledEnd: e.window?.end.toISOString() ?? null,
     minutesFromEnd: e.window ? Math.round((now.getTime() - e.window.end.getTime()) / MINUTE) : null,
     openDay: openDayInfo(e.stillOpen ?? e.openDay),
+    offDay: e.offDay,
+    checkOutOpensAt: e.checkOutOpensAt?.toISOString() ?? null,
+    breakOpensAt: e.breakWindow?.opens.toISOString() ?? null,
+    breakClosesAt: e.breakWindow?.closes.toISOString() ?? null,
   };
 }
 
@@ -717,6 +799,12 @@ async function recordPunch(
   }
   if (e.kind === "IN" && (await checkedInAlready(employeeId, e.workDate, now))) {
     throw new ConflictError("Anda sudah Clock In hari ini; absen berikutnya besok sesuai jadwal.");
+  }
+  if (e.kind === "IN" && e.offDay && !input.offDayOvertime) {
+    throw new BusinessRuleError(
+      "Hari ini jadwal Anda libur (OFF). Silakan beristirahat. Bila memang lembur, pilih Lembur hari libur.",
+      [{ offDay: true }],
+    );
   }
   if (e.suspicion && !input.confirmed) {
     throw new BusinessRuleError(SUSPICION_TEXT[e.suspicion], [{ suspicion: e.suspicion }]);

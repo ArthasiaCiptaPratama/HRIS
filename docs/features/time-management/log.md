@@ -89,3 +89,43 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **QA:** `docs/qa/cases/time-management.md` (TC-TM-001…027) + rencana `docs/qa/plans/2026-10-21-tm-paket-lokal.md`.
 - **Berikutnya:** eksekusi rencana uji manual; izin push `HRIS/Mat/Mac`; cron `leave-daily`/`attendance-daily` ke `vercel.json`.
 
+## 2026-10-21 (lanjutan) — merge develop, lapisan repository, OpenAPI bertipe
+- **Merge:** `HRIS/Oatse/Linux-Windows` (`a3135d7`, fast-forward, tanpa konflik) → `HRIS/Mat/Mac`; migrasi `push_devices_and_notification_target` diterapkan ke DB lokal saja.
+- **Temuan develop #3 (PROMPT §4):** `leave-exit.service.ts`, `leave-analytics.ts`, `overtime.service.ts`, `analytics-facts.ts` tidak lagi memanggil `getPrisma()` — query lewat `leave.repository.ts` / `overtime.repository.ts` baru. Masih memanggil langsung (bukan dari paket Mat, dicatat): `alpha.service`, `period.service`, `leave-bridge`, `time-notify.service`, `asset/report-data.service`.
+- **MOB-D10:** rute baru Mat bertipe di OpenAPI — lembur, upah grade, lokasi istirahat, template roster, `GET /dashboard/analytics`, `/leave-exit-settlements*` (file sendiri `leave-exit.routes.ts`). Skema dicek sama dengan DTO service saat typecheck; test integrasi mem-parse respons sungguhan dan memastikan spec tanpa skema kosong.
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (514 modul) · test shared 335 · api 882 · web 310 ✔ · smoke API lokal (hr.biaya) 5 endpoint ✔.
+
+
+## 2026-10-22 — merge develop (kontrak OpenAPI TM, operationId app) — Mat
+
+- Merge `HRIS/Oatse/Linux-Windows` (790557a) ke `HRIS/Mat/Mac`. Konflik: `overtime.routes.ts`, `leave.routes.ts`, `codemap/attendance.md`.
+- Ikut konvensi develop (MOB-D7 #1/MOB-D17): `overtime.schema.ts` dihapus → `overtime.contract.ts` milik develop; `leave-exit.routes.ts` dihapus → rute `/leave-exit-settlements*` kembali ke `leave.routes.ts` (skema `leave.contract.ts`); `analytics.schema.ts` → `analytics.contract.ts` dengan `assertExact`.
+- Temuan develop #5: `leave-exit.service.ts` sudah lewat `leave.repository.ts` (12722b1); recalculate/paid melempar 404, jadi `leaveExitSettlementResultSchema` (`.optional()`) dihapus — respons selalu `LeaveExitSettlement`. `formula` di kontrak jadi enum `OVERTIME_FORMULAS`.
+- Path/method endpoint tidak berubah (APP_OPERATION_IDS aman).
+
+## 2026-10-22 — TM-D12 batas waktu Clock Out, istirahat, & hari OFF — Mat
+
+- Permintaan pemilik projek: absen pulang & istirahat mengikuti waktunya; absen datang bebas (telat tetap ditandai); hari OFF tidak boleh absen kecuali lembur hari libur.
+- Jawaban grill: toleransi Clock Out 30 menit; jam mulai & selesai istirahat di shift, selesai istirahat bebas (aturan lembur/utang istirahat tetap); pulang darurat boleh dengan alasan.
+- API: `breakWindow`, `checkOutOpensAt`, `CheckInPlan.offDay` (`attendance-engine.ts`); `openDayTimes` + penolakan Mulai istirahat di luar jendela & Clock In OFF tanpa `offDayOvertime` (`attendance.service.ts`); validasi jam istirahat di `validateShift`; pengaturan `checkOutEarlyMin`. Kontrak `AttendanceToday`/`AttendancePrecheck`/`Shift`/`TimeSettings` bertambah field (path/method/operationId tetap) — **kabari tim mobile**.
+- Migrasi `20261022030522_shift_break_window` (dua kolom nullable, lokal saja). Seed QA: shift QA Mulai istirahat 12.00–13.00.
+- Web: tombol Lembur hari libur, Pulang darurat + jam buka, tombol istirahat terkunci di luar jendela; form shift jam istirahat (jatah otomatis dari selisih); pengaturan TM "Clock Out dibuka".
+- Test: `punch-window.test.ts` (API, 9), `punch-window.test.tsx` (web, 6), unit mesin absen.
+
+## 2026-10-22 — UAT Rina, Joko (jetty), Atasan, HR — Mat
+
+- Script `apps/api/scripts/seed-qa-acceptance.ts` (`bun run db:seed:acceptance`, lokal saja, dijaga guard + cek URL lokal):
+  - Reset data Rina, Budi, Joko serta notifikasi & dashboard 5 akun.
+  - Isi tanggal merah uji, shift UQA/UJT, dan riwayat absen lewat service asli (approval & lembur terbentuk), plus cuti menunggu.
+  - Akun baru `jetty.lokal` (Joko Jetty, TMDEMO-JT, aturan JT) dengan password sama dengan akun uji lain (hash disalin di Auth lokal).
+  - Membersihkan usulan lembur & approval yatim sisa test.
+- Foto contoh `scripts/assets/qa-selfie.jpg` (siluet buatan sendiri).
+- Hasil: [docs/qa/runs/2026-10-22-acceptance-rina.md](../../qa/runs/2026-10-22-acceptance-rina.md), 28/28 lulus. Sekuens manual HR & atasan: [plans/2026-10-22-acceptance-rina.md](../../qa/plans/2026-10-22-acceptance-rina.md).
+- Temuan:
+  - Cleanup `attendance.test.ts`/`mobile-punch.test.ts` meninggalkan lembur & approval yatim.
+  - Pembulatan JT (+30 mnt dari kelebihan beberapa menit) perlu keputusan.
+  - Label "Tanpa absen istirahat" di hari OFF.
+- Upah grade lokal mengikuti kisaran umum industri tambang (di atas UMSP batubara Kalsel 2026 Rp3,77 jt):
+  - Staf 5,7+1,5 jt, Staf Senior 8+2 jt, Supervisor 14+4 jt, Manajer 30+8 jt, Direktur 100+25 jt.
+  - Jabatan demo disesuaikan: Rina Administrasi, Joko Checker Jetty, Dimas Helper Bor, Sari GA Staff, Budi Operations Manager (Manajer).
+  - Ikut `db:seed:acceptance`.

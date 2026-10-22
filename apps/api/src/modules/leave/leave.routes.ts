@@ -18,7 +18,6 @@ import {
   leaveAttachmentUploadResultSchema,
   leaveBalanceImportResultSchema,
   leaveBalanceSchema,
-  leaveExitSettlementResultSchema,
   leaveExitSettlementSchema,
   leaveJobResultSchema,
   leaveLedgerSchema,
@@ -251,7 +250,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
     route("post", "/leave-exit-settlements/{id}/recalculate", "Hitung ulang hak cuti keluar", {
       params: idParam,
-      response: leaveExitSettlementResultSchema,
+      response: leaveExitSettlementSchema,
     }),
     (c) => exits.recalculateExitSettlement(ctxOf(c), param(c)),
   ],
@@ -259,7 +258,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     route("post", "/leave-exit-settlements/{id}/paid", "Tandai hak cuti keluar sudah diproses", {
       params: idParam,
       body: exitPaidInput,
-      response: leaveExitSettlementResultSchema,
+      response: leaveExitSettlementSchema,
     }),
     async (c) => {
       const input = strict(exitPaidInput, await body(c));

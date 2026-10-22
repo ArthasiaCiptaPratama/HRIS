@@ -183,14 +183,16 @@ function ShiftTab({ companyId }: { companyId: string }) {
               </p>
               <p className="text-muted-foreground mt-1 text-xs">
                 Absen masuk dibuka {s.checkInOpenMin} mnt sebelum · telat &gt; {s.lateToleranceMin}{" "}
-                mnt · pulang cepat &gt; {s.earlyLeaveToleranceMin} mnt · absen pulang ditutup{" "}
-                {s.checkOutCloseMin} mnt setelah selesai
+                mnt · absen pulang ditutup {s.checkOutCloseMin} mnt setelah selesai
               </p>
               {s.breakMin || s.regularOvertimeMin ? (
                 <p className="text-muted-foreground mt-1 text-xs">
                   {s.breakMin
                     ? `Istirahat ${s.breakMin} mnt${s.breakPaid ? " (dibayar)" : ""}`
                     : "Tanpa jatah istirahat"}
+                  {s.breakStartMinute != null && s.breakEndMinute != null
+                    ? ` · mulai istirahat ${hhmm(s.breakStartMinute)}–${hhmm(s.breakEndMinute)}`
+                    : ""}
                   {s.regularOvertimeMin
                     ? ` · lembur rutin ${s.regularOvertimeMin} mnt di akhir shift`
                     : ""}
@@ -350,9 +352,19 @@ function ShiftDialog({
     checkOutCloseMin: shift?.checkOutCloseMin ?? 240,
     breakMin: shift?.breakMin ?? 0,
     breakPaid: shift?.breakPaid ?? false,
+    breakStart: shift?.breakStartMinute != null ? hhmm(shift.breakStartMinute) : "",
+    breakEnd: shift?.breakEndMinute != null ? hhmm(shift.breakEndMinute) : "",
     regularOvertimeMin: shift?.regularOvertimeMin ?? 0,
     color: shift?.color ?? "#0f766e",
   });
+  // TM-D12: jatah istirahat otomatis dari jam istirahat (masih bisa diubah).
+  const setBreakTime = (k: "breakStart" | "breakEnd", v: string) =>
+    setForm((f) => {
+      const next = { ...f, [k]: v };
+      const a = parseHhmm(next.breakStart);
+      const b = parseHhmm(next.breakEnd);
+      return a !== null && b !== null ? { ...next, breakMin: (b - a + 1440) % 1440 } : next;
+    });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
   const submit = async () => {
@@ -360,6 +372,12 @@ function ShiftDialog({
     const endMinute = parseHhmm(form.end);
     if (startMinute === null || endMinute === null) {
       toast.error("Jam mulai/selesai tidak valid.");
+      return;
+    }
+    const breakStartMinute = form.breakStart ? parseHhmm(form.breakStart) : null;
+    const breakEndMinute = form.breakEnd ? parseHhmm(form.breakEnd) : null;
+    if ((breakStartMinute === null) !== (breakEndMinute === null)) {
+      toast.error("Isi jam mulai dan jam selesai istirahat, atau kosongkan keduanya.");
       return;
     }
     try {
@@ -377,6 +395,8 @@ function ShiftDialog({
           checkOutCloseMin: Number(form.checkOutCloseMin),
           breakMin: Number(form.breakMin),
           breakPaid: form.breakPaid,
+          breakStartMinute,
+          breakEndMinute,
           regularOvertimeMin: Number(form.regularOvertimeMin),
           color: form.color || null,
         },
@@ -426,7 +446,26 @@ function ShiftDialog({
           </Field>
           <Field label="Absen masuk dibuka (mnt sebelum)">{num("checkInOpenMin")}</Field>
           <Field label="Toleransi telat (mnt)">{num("lateToleranceMin")}</Field>
-          <Field label="Toleransi pulang cepat (mnt)">{num("earlyLeaveToleranceMin")}</Field>
+          <Field
+            label="Toleransi pulang cepat (mnt)"
+            hint="Tidak dipakai untuk Clock Out; batasnya di Pengaturan TM (TM-D12)."
+          >
+            {num("earlyLeaveToleranceMin")}
+          </Field>
+          <Field label="Mulai istirahat dari" hint="Kosong = istirahat bebas kapan saja.">
+            <Input
+              type="time"
+              value={form.breakStart}
+              onChange={(e) => setBreakTime("breakStart", e.target.value)}
+            />
+          </Field>
+          <Field label="Mulai istirahat sampai" hint="Selesai istirahat tetap bebas.">
+            <Input
+              type="time"
+              value={form.breakEnd}
+              onChange={(e) => setBreakTime("breakEnd", e.target.value)}
+            />
+          </Field>
           <Field label="Absen pulang ditutup (mnt setelah)">{num("checkOutCloseMin")}</Field>
           <Field
             label="Jatah istirahat (mnt)"

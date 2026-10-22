@@ -131,7 +131,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       service.setBreakLocations(ctxOf(c), strict(breakLocationsInputSchema, await body(c))),
   ],
   [
-    route("post", "/roster/templates", "Pasang template roster (JT) (SA, HR PT)", {
+    route("post", "/roster/templates", "Pasang template roster JT / 13+1 / 5+2 (SA, HR PT)", {
       body: rosterTemplateInputSchema,
       response: rosterTemplateResultSchema,
     }),

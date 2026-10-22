@@ -100,6 +100,8 @@ export const timeSettingsSchema = z.object({
   approvalDueDays: z.number().int().min(1).max(14),
   /** Lama roster dibangkitkan ke depan dari pola (hari). */
   rosterHorizonDays: z.number().int().min(14).max(370),
+  /** TM-D12: Clock Out normal dibuka sekian menit sebelum jam pulang; lebih awal = pulang cepat (wajib alasan). */
+  checkOutEarlyMin: z.number().int().min(0).max(240),
 });
 export type TimeSettings = z.infer<typeof timeSettingsSchema>;
 export const DEFAULT_TIME_SETTINGS: TimeSettings = {
@@ -108,6 +110,7 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = {
   selfieRetentionMonths: 12,
   approvalDueDays: 2,
   rosterHorizonDays: 92,
+  checkOutEarlyMin: 30,
 };
 
 // ── Roster tambang (D-069) ───────────────────────────────────────────────────────
@@ -134,6 +137,9 @@ export const shiftInputSchema = z.object({
   /** TM-D7: jatah istirahat (menit) & istirahat dibayar (termasuk jam kerja, mis. JT). */
   breakMin: minutes(240).default(0),
   breakPaid: z.boolean().default(false),
+  /** TM-D12: Mulai istirahat hanya di jendela ini (keduanya diisi atau keduanya kosong). */
+  breakStartMinute: minuteOfDay.nullable().default(null),
+  breakEndMinute: minuteOfDay.nullable().default(null),
   /** TM-D6: menit terakhir shift yang merupakan lembur rutin (JT: 60). */
   regularOvertimeMin: minutes(600).default(0),
   color: z
@@ -406,7 +412,11 @@ export const punchLocationSchema = z.object({
   /** MOB-D3: app melaporkan lokasi palsu (Android `isMock`); PWA tidak bisa mendeteksi. */
   isMock: z.boolean().optional(),
 });
-export const punchPrecheckSchema = punchLocationSchema.extend({ kind: z.enum(PUNCH_KINDS) });
+export const punchPrecheckSchema = punchLocationSchema.extend({
+  kind: z.enum(PUNCH_KINDS),
+  /** TM-D12: Clock In di hari OFF roster hanya lewat tombol "Lembur hari libur". */
+  offDayOvertime: z.boolean().optional(),
+});
 export type PunchPrecheckInput = z.infer<typeof punchPrecheckSchema>;
 export const selfieUploadInputSchema = z.object({ contentType: z.enum(SELFIE_CONTENT_TYPES) });
 export const punchInputSchema = punchPrecheckSchema.extend({

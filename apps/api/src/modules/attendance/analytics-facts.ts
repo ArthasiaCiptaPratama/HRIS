@@ -1,5 +1,5 @@
 import { formulaForPattern, type OvertimeFormula } from "@hris/shared";
-import { getPrisma } from "../../core/db.ts";
+import * as repository from "./overtime.repository.ts";
 import { calcDay, loadCalcContext, wagesOfGrades } from "./overtime.service.ts";
 
 // DSB-D1: fakta absensi & lembur agregat per karyawan untuk dashboard (baca-saja, tanpa aktor —
@@ -29,18 +29,9 @@ export async function attendanceFacts(
   if (employeeIds.length === 0) return out;
   const range = { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) };
   const [roster, days, overtime] = await Promise.all([
-    getPrisma().rosterDay.findMany({
-      where: { employeeId: { in: employeeIds }, workDate: range, shiftId: { not: null } },
-      include: { shift: true },
-    }),
-    getPrisma().attendanceDay.findMany({
-      where: { employeeId: { in: employeeIds }, workDate: range },
-      include: { punches: true },
-    }),
-    getPrisma().overtimeRequest.findMany({
-      where: { employeeId: { in: employeeIds }, workDate: range, status: "APPROVED" },
-      select: { employeeId: true, proposedMin: true, equivalentHours: true },
-    }),
+    repository.scheduledRosterDays(employeeIds, range),
+    repository.daysWithPunches({ employeeId: { in: employeeIds }, workDate: range }),
+    repository.approvedOvertimeTotals(employeeIds, range),
   ]);
   const row = (id: string) => {
     let r = out.get(id);
@@ -131,21 +122,10 @@ export async function formulasOfEmployees(
   if (employeeIds.length === 0) return out;
   const end = new Date(`${date}T00:00:00Z`);
   const start = new Date(end.getTime() - 90 * 86_400_000);
-  const rows = await getPrisma().rosterDay.findMany({
-    where: {
-      employeeId: { in: employeeIds },
-      workDate: { gte: start, lte: end },
-      crewId: { not: null },
-    },
-    orderBy: { workDate: "desc" },
-    select: { employeeId: true, crewId: true },
-  });
+  const rows = await repository.crewRosterDays(employeeIds, { gte: start, lte: end });
   const latest = new Map<string, string>();
   for (const r of rows) if (!latest.has(r.employeeId)) latest.set(r.employeeId, r.crewId as string);
-  const crews = await getPrisma().crew.findMany({
-    where: { id: { in: [...new Set(latest.values())] } },
-    include: { pattern: { select: { steps: true } } },
-  });
+  const crews = await repository.crewsWithPattern([...new Set(latest.values())]);
   const formula = new Map(crews.map((c) => [c.id, formulaForPattern(c.pattern.steps)]));
   for (const [id, crewId] of latest) out.set(id, formula.get(crewId) ?? "FIVE_DAY");
   return out;
