@@ -215,6 +215,15 @@ export async function listActiveSuperAdmins() {
   });
 }
 
+/** DEV: akun aktif dengan domain email uji (switcher akun uji). */
+export async function listActiveAccountsByEmailSuffix(suffix: string) {
+  return getPrisma().account.findMany({
+    where: { isActive: true, email: { endsWith: suffix } },
+    orderBy: [{ role: "asc" }, { email: "asc" }],
+    select: { email: true, role: true, employeeId: true },
+  });
+}
+
 /** Akun aktif yang bisa memutuskan approval Time Management (ringkasan antrean harian). */
 export async function listApproverAccounts() {
   return getPrisma().account.findMany({

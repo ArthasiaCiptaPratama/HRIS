@@ -1164,6 +1164,13 @@ export async function listDataChangeReviewers(
 }
 
 /** Ringkasan antrean Time Management: akun aktif SA, HR, MANAGER (authUserId untuk memuat aktor). */
+/** DEV-ONLY: akun uji aktif (email berakhiran `suffix`) untuk switcher akun di web lokal. */
+export async function listTestAccounts(
+  suffix: string,
+): Promise<{ email: string; role: string; employeeId: string | null }[]> {
+  return repository.listActiveAccountsByEmailSuffix(suffix);
+}
+
 export async function listApproverAccounts(): Promise<
   { accountId: string; email: string; authUserId: string }[]
 > {
