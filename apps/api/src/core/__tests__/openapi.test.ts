@@ -48,7 +48,7 @@ describe("operationId OpenAPI", () => {
   });
 });
 
-// MOB-D7 #5 / MOB-D18: kontrak yang dibutuhkan klien Dart hasil generate.
+// MOB-D7 #5 / MOB-D19: kontrak yang dibutuhkan klien Dart hasil generate.
 type Doc = {
   paths: Record<string, Record<string, Record<string, unknown>>>;
   components: { schemas: Record<string, { properties?: Record<string, unknown> }> };

@@ -13,7 +13,7 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 ### 2026-10-22 — Celah kontrak OpenAPI dari M2 Absen (Oatse)
 - **Dikerjakan (`HRIS/mobile-app`, serah-terima sesi app `.handoff/2026-10-22-1110-…-idempotency-key-spec.md`):** helper `route` di `attendance-day.routes.ts` menerima `headers`; `POST /attendance/punch` mendeklarasikan header opsional `Idempotency-Key` (pola `^[A-Za-z0-9_-]{8,64}$`), perilaku runtime tetap (`idempotencyKeyOf`). `core/openapi.ts` → `withInputDates`: `format: date` pada parameter & request body (inline + komponen yang hanya dipakai input, termasuk rujukan bertingkat) diganti `string` + pola `^\d{4}-\d{2}-\d{2}$`; komponen yang juga dipakai respons tidak diubah. Sebelumnya 22 tanggal input inline + 8 komponen input (`CreateEmployee`, `HolidayInput`, …) ber-`format: date`; sesudahnya 0.
-- **Keputusan:** MOB-D18 (tanggal input = string + pola) — isi lengkap dicatat sesi app di `Arthasia-Mobile/docs/decisions.md`.
+- **Keputusan:** MOB-D19 (tanggal input = string + pola) — isi lengkap dicatat sesi app di `Arthasia-Mobile/docs/decisions.md`.
 - **Verifikasi:** `core/__tests__/openapi.test.ts` 5 lulus (+2: header punch, tidak ada `format: date` di input & komponen input, `history.from` = string+pola, `AttendanceDay.workDate` tetap `format: date`); `mobile-punch.test.ts` 4 lulus (200/409/400 tetap); typecheck ✔; biome ✔ 640 file; boundaries ✔ 519 modul; shared 335; api 889 lulus 0 gagal; web 313 (`--maxWorkers=3`; run paralel bawaan 16 timeout, load average 20, kode web tidak berubah).
 - **Berikutnya:** commit `cecd660` + merge ke develop ✔ 2026-10-22 (push menunggu izin); app: `openapi/fetch-spec.sh` + generate ulang klien.
 

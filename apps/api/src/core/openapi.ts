@@ -123,7 +123,7 @@ function referencedSchemas(node: Json, schemas: Record<string, Json>): Set<strin
 }
 
 /**
- * MOB-D18: tanggal murni pada INPUT (query/path/header & request body) = `string` + pola `YYYY-MM-DD`
+ * MOB-D19: tanggal murni pada INPUT (query/path/header & request body) = `string` + pola `YYYY-MM-DD`
  * tanpa `format: date`. Generator Dart memetakan `format: date` ke `DateTime` lalu mengirim
  * `2026-10-01T00:00:00.000`, yang ditolak `z.iso.date()`. Respons tetap `format: date` (diparse benar).
  * Komponen yang dipakai input sekaligus respons tidak diubah (test kontrak memastikan tidak ada).
