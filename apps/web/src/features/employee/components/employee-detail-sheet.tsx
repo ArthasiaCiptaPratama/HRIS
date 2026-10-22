@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { FEATURES } from "@/app/feature-flags";
+import { FEATURES, tmOn } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -522,7 +522,7 @@ function DetailBody({
                 <ShieldAlert /> SP
               </TabsTrigger>
             ) : null}
-            {FEATURES.timeManagement ? (
+            {tmOn("tmAttendanceDays") ? (
               <TabsTrigger value="attendance">
                 <CalendarX2 /> Absensi
               </TabsTrigger>
@@ -567,7 +567,7 @@ function DetailBody({
               <EmployeeWarningLettersTab employeeId={employee.id} />
             </TabsContent>
           ) : null}
-          {FEATURES.timeManagement ? (
+          {tmOn("tmAttendanceDays") ? (
             <TabsContent value="attendance">
               {/* TM-D3: rekam jejak Alpha & koreksi (SA, HR PT, atasan tim, karyawan sendiri; dicek API). */}
               {tab === "attendance" ? <EmployeeAttendanceRecord employeeId={employee.id} /> : null}

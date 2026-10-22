@@ -3,9 +3,13 @@ import {
   type AttendanceLocationSource,
   canStillCorrect,
   correctionDeadline,
+  LABELS_WITHOUT_REASON,
   type ManualPunchInput,
   PUNCH_CANCEL_WINDOW_MIN,
+  PUNCH_KIND_LABELS,
+  type PunchChannel,
   type PunchInput,
+  type PunchKind,
   type PunchPrecheckInput,
   type PunchSuspicion,
   SELFIE_CONTENT_TYPES,
@@ -33,11 +37,14 @@ import { markNoAttendanceAlpha } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
 import * as repository from "./attendance.repository.ts";
 import {
+  breakWindow,
   candidateDates,
   checkGeofence,
   checkOutLabels,
+  checkOutOpensAt,
   type GeofenceSite,
   localDate,
+  offsetMinutes,
   planCheckIn,
   type ShiftTimes,
   shiftWindow,
@@ -45,11 +52,12 @@ import {
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import { resolveAttendanceLocation } from "./location-setting.service.ts";
+import { isBreakRequired, syncOvertime } from "./overtime.service.ts";
 import { closedMonths, correctionInstant, isDateClosed } from "./period.service.ts";
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
-import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
+import { dateLabel, type EmployeeNotice, notifyEmployees } from "./time-notify.service.ts";
 
 // Tahap C/D — absen PWA (D-067, D-070) & approval hari absen (D-068).
 
@@ -126,7 +134,7 @@ async function expectedLocation(employee: directory.DirectoryEmployee, workDate:
 }
 
 interface Evaluation {
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   workDate: string;
   shift: Shift | null;
   window: ReturnType<typeof shiftWindow> | null;
@@ -138,6 +146,35 @@ interface Evaluation {
   suspicion: PunchSuspicion | null;
   /** Hari yang masih terbuka (belum Clock Out) saat memilih Clock In. */
   stillOpen: repository.DayRow | null;
+  /** TM-D12: tanggal kerja Clock In = OFF di roster. */
+  offDay: boolean;
+  /** TM-D12: Clock Out normal dibuka / jendela Mulai istirahat (hari terbuka). */
+  checkOutOpensAt: Date | null;
+  breakWindow: { opens: Date; closes: Date } | null;
+}
+
+/** Jam lokal HH:MM untuk pesan ke karyawan. */
+const clockOf = (at: Date, timezone: string) =>
+  new Date(at.getTime() + offsetMinutes(timezone) * MINUTE).toISOString().slice(11, 16);
+
+/** TM-D12: batas waktu Clock Out & istirahat dari shift hari terbuka. */
+export function openDayTimes(
+  workDate: string,
+  shift: Shift | null,
+  settings: { timezone: string; checkOutEarlyMin: number },
+) {
+  if (!shift) return { window: null, normalEnd: null, checkOutOpensAt: null, breakWindow: null };
+  const window = shiftWindow(workDate, shiftTimes(shift), settings.timezone);
+  // TM-D6: jam lembur rutin di akhir shift bukan bagian "pulang cepat" (dijalani kurang = label sendiri).
+  const normalEnd = shift.regularOvertimeMin
+    ? { ...window, end: new Date(window.end.getTime() - shift.regularOvertimeMin * MINUTE) }
+    : window;
+  return {
+    window,
+    normalEnd,
+    checkOutOpensAt: checkOutOpensAt(normalEnd.end, settings.checkOutEarlyMin),
+    breakWindow: breakWindow(workDate, shift, settings.timezone),
+  };
 }
 
 const MINUTE = 60_000;
@@ -180,13 +217,27 @@ async function evaluate(
   const [allSites] = await Promise.all([directory.geofencedLocations()]);
   const sites = allSites.map(toSite).filter((s): s is GeofenceSite => s !== null);
 
-  if (input.kind === "OUT") {
+  if (input.kind !== "IN") {
     const open = await repository.findOpenDay(employee.id);
     if (!open) throw new BusinessRuleError("Belum ada absen masuk yang menunggu absen pulang.");
+    assertBreakSequence(input.kind, open);
     const shift = open.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
-    const window = shift
-      ? shiftWindow(toIso(open.workDate), shiftTimes(shift), settings.timezone)
-      : null;
+    const times = openDayTimes(toIso(open.workDate), shift, settings);
+    const window = times.window;
+    // TM-D12: Mulai istirahat hanya di jendela istirahat shift (Selesai istirahat bebas).
+    if (input.kind === "BREAK_START" && times.breakWindow) {
+      const t = now.getTime();
+      if (t < times.breakWindow.opens.getTime() || t > times.breakWindow.closes.getTime()) {
+        const opens = clockOf(times.breakWindow.opens, settings.timezone);
+        const closes = clockOf(times.breakWindow.closes, settings.timezone);
+        throw new BusinessRuleError(`Mulai istirahat hanya bisa pukul ${opens}–${closes}.`, [
+          {
+            breakOpensAt: times.breakWindow.opens.toISOString(),
+            breakClosesAt: times.breakWindow.closes.toISOString(),
+          },
+        ]);
+      }
+    }
     // Pulang mengikuti lokasi tercatat saat masuk; bebas lokasi (TM-D1) tetap tidak dicek geofence.
     const resolved = await expectedLocation(employee, toIso(open.workDate));
     const expected =
@@ -200,20 +251,27 @@ async function evaluate(
       settings.gpsAccuracyMaxM,
       resolved.anywhere,
     );
+    const isOut = input.kind === "OUT";
+    const normalEnd = times.normalEnd;
     return {
-      kind: "OUT",
+      kind: input.kind,
       workDate: toIso(open.workDate),
       shift,
       window,
       labels: [
-        ...checkOutLabels(now, shift ? shiftTimes(shift) : null, window),
+        ...(isOut ? checkOutLabels(now, normalEnd, settings.checkOutEarlyMin) : []),
         ...geofence.labels,
       ],
       geofence,
       openDay: open,
       location: expected,
-      suspicion: suspicionFor("OUT", now, window, shift?.earlyLeaveToleranceMin ?? null, false),
+      suspicion: isOut
+        ? suspicionFor("OUT", now, normalEnd, settings.checkOutEarlyMin, false)
+        : null,
       stillOpen: null,
+      offDay: false,
+      checkOutOpensAt: times.checkOutOpensAt,
+      breakWindow: times.breakWindow,
     };
   }
 
@@ -257,14 +315,43 @@ async function evaluate(
     location: expected,
     suspicion: suspicionFor("IN", now, plan.window, null, stillOpen !== null),
     stillOpen,
+    offDay: plan.offDay,
+    checkOutOpensAt: null,
+    breakWindow: null,
   };
+}
+
+/** TM-D7: istirahat sekali per hari — mulai sebelum selesai; Clock Out tidak boleh saat masih istirahat. */
+function assertBreakSequence(kind: Exclude<PunchKind, "IN">, open: repository.DayRow) {
+  const has = (k: PunchKind) => open.punches.some((p) => p.kind === k);
+  if (kind === "BREAK_START" && has("BREAK_START")) {
+    throw new ConflictError("Istirahat hari ini sudah dimulai (sekali per hari).");
+  }
+  if (kind === "BREAK_END") {
+    if (!has("BREAK_START")) throw new BusinessRuleError("Mulai istirahat terlebih dahulu.");
+    if (has("BREAK_END")) throw new ConflictError("Istirahat hari ini sudah selesai.");
+  }
+  if (kind === "OUT" && has("BREAK_START") && !has("BREAK_END")) {
+    throw new BusinessRuleError(
+      "Anda masih istirahat. Lakukan Selesai istirahat sebelum Clock Out.",
+    );
+  }
+}
+
+/** Status istirahat hari terbuka untuk tombol di HP. */
+export type BreakState = "NOT_REQUIRED" | "NONE" | "ON_BREAK" | "DONE";
+async function breakStateOf(open: repository.DayRow | null): Promise<BreakState> {
+  if (!open || !(await isBreakRequired(open.workLocationId))) return "NOT_REQUIRED";
+  const has = (k: PunchKind) => open.punches.some((p) => p.kind === k);
+  if (has("BREAK_END")) return "DONE";
+  return has("BREAK_START") ? "ON_BREAK" : "NONE";
 }
 
 // ── Karyawan (PWA) ─────────────────────────────────────────────────────────────
 
 export interface PunchView {
   id: string;
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   at: string;
   latitude: number | null;
   longitude: number | null;
@@ -281,6 +368,9 @@ export interface PunchView {
   /** D-073: persetujuan per absen. */
   status: "PENDING" | "APPROVED" | "REJECTED";
   source: "DEVICE" | "MANUAL";
+  /** MOB-D3: kanal absen + versi app (approver tahu punch PWA tidak dicek lokasi palsu). */
+  channel: PunchChannel;
+  appVersion: string | null;
   approval: ApprovalView | null;
   /** Pemilik boleh membatalkan (salah pencet) selama <= 15 menit & belum diputuskan. */
   canCancel: boolean;
@@ -386,6 +476,8 @@ async function toDayViews(
         reason: p.reason,
         selfieUrl: p.selfiePath ? (urls.get(p.selfiePath) ?? null) : null,
         selfiePurged: p.selfiePurgedAt !== null,
+        channel: p.channel,
+        appVersion: p.appVersion,
         status: p.status,
         source: p.source,
         approval: punchApprovals.get(p.id) ?? null,
@@ -416,6 +508,14 @@ export interface TodayView {
   recent: DayView[];
   /** DONE = hari ini sudah Clock In (dan tidak ada yang terbuka): tidak boleh absen masuk lagi. */
   next: "IN" | "OUT" | "DONE";
+  /** TM-D7: lokasi wajib absen istirahat → tombol Mulai/Selesai istirahat. */
+  breakState: BreakState;
+  /** TM-D12: hari ini OFF di roster → tombol "Lembur hari libur" menggantikan Clock In. */
+  offDay: boolean;
+  /** TM-D12: hari terbuka — Clock Out normal dibuka; jendela Mulai istirahat (null = bebas). */
+  checkOutOpensAt: string | null;
+  breakOpensAt: string | null;
+  breakClosesAt: string | null;
 }
 
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
@@ -445,6 +545,22 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
   const resolved = await expectedLocation(employee, dates[1] as string);
   const location = resolved.location;
   const recent = await toDayViews(ctx, recentRows, false);
+  const byDate = new Map(rosterDays.map((d) => [toIso(d.workDate), d]));
+  const plan = planCheckIn(
+    now,
+    settings.timezone,
+    dates.map((date) => {
+      const d = byDate.get(date);
+      return {
+        workDate: date,
+        shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
+      };
+    }),
+  );
+  const openShift = open?.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
+  const times = open
+    ? openDayTimes(toIso(open.workDate), openShift, settings)
+    : { checkOutOpensAt: null, breakWindow: null };
   return {
     serverTime: now.toISOString(),
     timezone: settings.timezone,
@@ -476,6 +592,11 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
       ? (recent.find((d) => d.id === open.id) ?? (await toDayViews(ctx, [open], false))[0] ?? null)
       : null,
     recent,
+    breakState: await breakStateOf(open),
+    offDay: !open && plan.offDay,
+    checkOutOpensAt: times.checkOutOpensAt?.toISOString() ?? null,
+    breakOpensAt: times.breakWindow?.opens.toISOString() ?? null,
+    breakClosesAt: times.breakWindow?.closes.toISOString() ?? null,
     next: open
       ? "OUT"
       : recentRows.some(
@@ -487,7 +608,7 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
 }
 
 export interface PrecheckResult {
-  kind: "IN" | "OUT";
+  kind: PunchKind;
   workDate: string;
   shiftCode: string | null;
   labels: AttendanceLabel[];
@@ -503,6 +624,11 @@ export interface PrecheckResult {
   /** Menit sekarang terhadap jadwal pulang (negatif = sebelum jam pulang). */
   minutesFromEnd: number | null;
   openDay: { workDate: string; checkInAt: string | null } | null;
+  /** TM-D12: Clock In di hari OFF → hanya lewat "Lembur hari libur" (`offDayOvertime`). */
+  offDay: boolean;
+  checkOutOpensAt: string | null;
+  breakOpensAt: string | null;
+  breakClosesAt: string | null;
 }
 
 const openDayInfo = (open: repository.DayRow | null) =>
@@ -526,6 +652,19 @@ async function checkedInAlready(employeeId: string, workDate: string, now: Date)
   return false;
 }
 
+/** MOB-D3: lokasi palsu dari app → label penanda (tidak memblokir, tidak wajib alasan). */
+function withMockLabel<T extends { labels: AttendanceLabel[] }>(
+  e: T,
+  input: PunchPrecheckInput,
+): T {
+  return input.isMock && !e.labels.includes("MOCK_LOCATION")
+    ? { ...e, labels: [...e.labels, "MOCK_LOCATION"] }
+    : e;
+}
+
+const needsReason = (labels: AttendanceLabel[]) =>
+  labels.some((label) => !LABELS_WITHOUT_REASON.includes(label));
+
 export async function precheck(
   ctx: RequestContext,
   input: PunchPrecheckInput,
@@ -533,7 +672,7 @@ export async function precheck(
 ): Promise<PrecheckResult> {
   const employee = await directory.employeeById(selfEmployee(ctx));
   if (!employee) throw new NotFoundError();
-  const e = await evaluate(employee, input, now);
+  const e = withMockLabel(await evaluate(employee, input, now), input);
   const existing =
     e.kind === "IN" ? await repository.findDay(employee.id, toDate(e.workDate)) : null;
   const done = e.kind === "IN" && (await checkedInAlready(employee.id, e.workDate, now));
@@ -545,13 +684,17 @@ export async function precheck(
     distanceM: e.geofence.distanceM,
     insideGeofence: e.geofence.inside,
     location: e.location ? { id: e.location.id, name: e.location.name } : null,
-    reasonRequired: e.labels.length > 0,
+    reasonRequired: needsReason(e.labels),
     alreadyCheckedIn: existing !== null || done,
     suspicion: e.suspicion,
     scheduledStart: e.window?.start.toISOString() ?? null,
     scheduledEnd: e.window?.end.toISOString() ?? null,
     minutesFromEnd: e.window ? Math.round((now.getTime() - e.window.end.getTime()) / MINUTE) : null,
     openDay: openDayInfo(e.stillOpen ?? e.openDay),
+    offDay: e.offDay,
+    checkOutOpensAt: e.checkOutOpensAt?.toISOString() ?? null,
+    breakOpensAt: e.breakWindow?.opens.toISOString() ?? null,
+    breakClosesAt: e.breakWindow?.closes.toISOString() ?? null,
   };
 }
 
@@ -579,12 +722,58 @@ const SUSPICION_TEXT: Record<PunchSuspicion, string> = {
   IN_AFTER_END: "Sudah mendekati/lewat jam pulang. Pastikan Anda memang ingin Clock In.",
 };
 
+export interface PunchClient {
+  userAgent?: string | undefined;
+  /** MOB-D3: diisi dari header `X-App-Version` (app Android); kosong = PWA. */
+  appVersion?: string | undefined;
+  /** MOB-D7: header `Idempotency-Key`. */
+  idempotencyKey?: string | undefined;
+}
+
+/** MOB-D7: retry dengan kunci yang sama → hari dari punch yang sudah tercatat (bukan 409). */
+async function replayPunch(ctx: RequestContext, employeeId: string, key: string) {
+  const existing = await repository.findPunchByIdempotencyKey(key);
+  if (!existing) return null;
+  if (existing.day.employeeId !== employeeId) {
+    throw new ConflictError("Kunci permintaan sudah dipakai. Ulangi absen.");
+  }
+  const day = (await repository.findDayById(existing.day.id)) as repository.DayRow;
+  return (await toDayViews(ctx, [day], true))[0] as DayView;
+}
+
+function isIdempotencyConflict(error: unknown) {
+  const e = error as { code?: string; meta?: { target?: unknown } };
+  return e?.code === "P2002" && JSON.stringify(e.meta?.target ?? "").includes("idempotency");
+}
+
 export async function punch(
-  ctx: RequestContext & { userAgent?: string | undefined },
+  ctx: RequestContext & PunchClient,
   input: PunchInput,
   now = new Date(),
 ): Promise<DayView> {
   const employeeId = selfEmployee(ctx);
+  if (ctx.idempotencyKey) {
+    const replay = await replayPunch(ctx, employeeId, ctx.idempotencyKey);
+    if (replay) return replay;
+  }
+  try {
+    return await recordPunch(ctx, employeeId, input, now);
+  } catch (error) {
+    // Dua permintaan dengan kunci sama bersamaan: yang kalah mengembalikan hasil yang menang.
+    if (ctx.idempotencyKey && isIdempotencyConflict(error)) {
+      const replay = await replayPunch(ctx, employeeId, ctx.idempotencyKey);
+      if (replay) return replay;
+    }
+    throw error;
+  }
+}
+
+async function recordPunch(
+  ctx: RequestContext & PunchClient,
+  employeeId: string,
+  input: PunchInput,
+  now: Date,
+): Promise<DayView> {
   const employee = await directory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
   // Selfie wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah.
@@ -603,7 +792,7 @@ export async function punch(
     );
   }
 
-  const e = await evaluate(employee, input, now);
+  const e = withMockLabel(await evaluate(employee, input, now), input);
   // Absen masuk ganda pada tanggal kerja yang sama → bentrok (bukan sekadar peringatan).
   if (e.kind === "IN" && (await repository.findDay(employeeId, toDate(e.workDate)))) {
     throw new ConflictError("Sudah absen masuk untuk tanggal kerja ini.");
@@ -611,15 +800,24 @@ export async function punch(
   if (e.kind === "IN" && (await checkedInAlready(employeeId, e.workDate, now))) {
     throw new ConflictError("Anda sudah Clock In hari ini; absen berikutnya besok sesuai jadwal.");
   }
+  if (e.kind === "IN" && e.offDay && !input.offDayOvertime) {
+    throw new BusinessRuleError(
+      "Hari ini jadwal Anda libur (OFF). Silakan beristirahat. Bila memang lembur, pilih Lembur hari libur.",
+      [{ offDay: true }],
+    );
+  }
   if (e.suspicion && !input.confirmed) {
     throw new BusinessRuleError(SUSPICION_TEXT[e.suspicion], [{ suspicion: e.suspicion }]);
   }
-  if (e.labels.length > 0 && !input.reason) {
+  if (needsReason(e.labels) && !input.reason) {
     throw new BusinessRuleError(
       "Alasan wajib diisi karena absen ini di luar ketentuan.",
-      e.labels.map((label) => ({ label })),
+      e.labels
+        .filter((label) => !LABELS_WITHOUT_REASON.includes(label))
+        .map((label) => ({ label })),
     );
   }
+  const isBreak = e.kind === "BREAK_START" || e.kind === "BREAK_END";
   const punchData = {
     kind: e.kind,
     at: now,
@@ -638,7 +836,36 @@ export async function punch(
     reason: input.reason?.trim() ? input.reason.trim() : null,
     selfiePath: input.selfiePath,
     userAgent: ctx.userAgent?.slice(0, 300) ?? null,
+    channel: ctx.appVersion ? ("APP" as const) : ("PWA" as const),
+    appVersion: ctx.appVersion?.slice(0, 40) ?? null,
+    idempotencyKey: ctx.idempotencyKey ?? null,
+    // TM-D7: absen istirahat hanya bukti (tanpa approval sendiri); dinilai lewat label & lembur.
+    ...(isBreak ? { status: "APPROVED" as const } : {}),
   };
+
+  if (isBreak) {
+    const open = e.openDay as repository.DayRow;
+    await repository.withTransactionDay(async (tx) => {
+      await repository.addPunch(tx, { ...punchData, dayId: open.id });
+      if (e.labels.length > 0) {
+        await repository.updateDay(tx, open.id, {
+          labels: [...new Set([...open.labels, ...e.labels])],
+        });
+      }
+    });
+    await writeAudit({
+      actorAccountId: ctx.actor.accountId,
+      action: e.kind === "BREAK_START" ? "attendance.break_start" : "attendance.break_end",
+      entityType: "attendance.day",
+      entityId: open.id,
+      before: null,
+      after: { workDate: e.workDate, labels: e.labels, distanceM: e.geofence.distanceM },
+      requestId: ctx.requestId ?? null,
+      ip: ctx.ip ?? null,
+    });
+    const day = (await repository.findDayById(open.id)) as repository.DayRow;
+    return (await toDayViews(ctx, [day], true))[0] as DayView;
+  }
 
   const row = await repository.withTransactionDay(async (tx) => {
     let dayId: string;
@@ -677,6 +904,8 @@ export async function punch(
         status: "PENDING",
         labels: [...new Set([...open.labels, ...e.labels])],
       });
+      // TM-D6/TM-D7: usulan lembur & label istirahat/lembur rutin.
+      await syncOvertime(tx, open.id);
       dayId = open.id;
       punchId = added.id;
       companyId = open.companyId;
@@ -693,6 +922,7 @@ export async function punch(
     return (await repository.findDayById(dayId, tx)) as repository.DayRow;
   });
 
+  if (e.kind === "OUT") await warnBreak(row);
   await writeAudit({
     actorAccountId: ctx.actor.accountId,
     action: e.kind === "IN" ? "attendance.check_in" : "attendance.check_out",
@@ -704,6 +934,35 @@ export async function punch(
     ip: ctx.ip ?? null,
   });
   return (await toDayViews(ctx, [row], true))[0] as DayView;
+}
+
+/** TM-D7: peringatan ke karyawan bila istirahat lebih dari jatah / tidak absen istirahat. */
+async function warnBreak(day: repository.DayRow) {
+  const date = toIso(day.workDate);
+  const notices: EmployeeNotice[] = [];
+  if (day.labels.includes("BREAK_OVER")) {
+    notices.push({
+      employeeId: day.employeeId,
+      type: "attendance.break_warning",
+      title: `Istirahat ${dateLabel(date)} melebihi jatah`,
+      body: "Kelebihan waktu istirahat mengurangi lembur hari itu. Patuhi jatah istirahat shift.",
+      link: "/absen/riwayat",
+      dedupeKey: `tm-break-over:${day.id}`,
+      target: { type: "ATTENDANCE_DAY", id: day.id },
+    });
+  }
+  if (day.labels.includes("NO_BREAK_PUNCH")) {
+    notices.push({
+      employeeId: day.employeeId,
+      type: "attendance.break_warning",
+      title: `Tidak absen istirahat ${dateLabel(date)}`,
+      body: "Lokasi Anda wajib absen istirahat. Istirahat dianggap sesuai jatah; lain kali lakukan Mulai & Selesai istirahat.",
+      link: "/absen/riwayat",
+      dedupeKey: `tm-break-none:${day.id}`,
+      target: { type: "ATTENDANCE_DAY", id: day.id },
+    });
+  }
+  await notifyEmployees(notices);
 }
 
 export async function myHistory(ctx: RequestContext, from: string, to: string): Promise<DayView[]> {
@@ -764,6 +1023,9 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
   rows = rows.filter((r) => toIso(r.workDate) >= query.from && toIso(r.workDate) <= query.to);
   if (query.companyId) rows = rows.filter((r) => r.companyId === query.companyId);
   if (query.labeledOnly) rows = rows.filter((r) => r.labels.length > 0);
+  // Permintaan pemilik projek 2026-10-21: Data Absen Harian hanya hari yang punya absen (sudah absen, telat,
+  // diperbaiki). Alpha tanpa absen ada di Rekap › Alpha & pernyataan dan bukti SP, kecuali diminta per karyawan.
+  if (!query.employeeId) rows = rows.filter((r) => r.status !== "ALPHA" || r.punches.length > 0);
   return toDayViews(ctx, rows, true);
 }
 
@@ -841,6 +1103,8 @@ export async function recomputeDay(tx: repository.AttendanceTx, dayId: string) {
     ]),
   ];
   await repository.updateDay(tx, dayId, { status, labels });
+  // TM-D6: usulan lembur mengikuti data absen terbaru (label istirahat/lembur rutin ikut dihitung ulang).
+  await syncOvertime(tx, dayId);
 }
 
 export function registerAttendanceIntegrations() {
@@ -863,10 +1127,11 @@ export function registerAttendanceIntegrations() {
           {
             employeeId: day.employeeId,
             type: "attendance.punch_rejected",
-            title: `${punch.kind === "IN" ? "Clock In" : "Clock Out"} ${dateLabel(date)} ditolak`,
+            title: `${PUNCH_KIND_LABELS[punch.kind]} ${dateLabel(date)} ditolak`,
             body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
             link: "/time/pernyataan",
             dedupeKey: `tm-punch-rejected:${punch.id}`,
+            target: { type: "ATTENDANCE_DAY", id: punch.dayId },
           },
         ]);
       }

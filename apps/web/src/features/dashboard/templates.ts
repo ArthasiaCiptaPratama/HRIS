@@ -1,6 +1,9 @@
 import {
+  ANALYTICS_STAT_METRICS,
   type DashboardWidget,
   DEFAULT_DASHBOARD_LAYOUT,
+  INSIGHT_KINDS,
+  type InsightWidget,
   isSensitivePivotDimension,
   type PivotWidget,
   type ShortcutsWidget,
@@ -77,11 +80,32 @@ export const usesPersonalData = (widget: PivotWidget) =>
     isSensitivePivotDimension(d as PivotWidget["rows"]),
   );
 
-export const STAT_TEMPLATES: StatWidget[] = STAT_METRICS.map((metric) => ({
+const statTemplate = (metric: StatWidget["metric"]): StatWidget => ({
   id: `stat-${metric.toLowerCase()}`,
   kind: "stat",
   size: "sm",
   metric,
+});
+
+/** Statistik karyawan (GET /dashboard). */
+export const STAT_TEMPLATES: StatWidget[] = STAT_METRICS.filter(
+  (metric) => !ANALYTICS_STAT_METRICS.includes(metric),
+).map(statTemplate);
+
+// DSB-D1: katalog "Analitik SDM & biaya" — statistik analitik + widget insight (ukuran bawaan sama
+// dengan susunan bawaan; "Ringkasan cuti" kecil).
+export const ANALYTICS_STAT_TEMPLATES: StatWidget[] = ANALYTICS_STAT_METRICS.map(statTemplate);
+
+const DEFAULT_INSIGHT_SIZES = new Map(
+  DEFAULT_DASHBOARD_LAYOUT.widgets.flatMap((w) =>
+    w.kind === "insight" ? [[w.insight, w.size]] : [],
+  ),
+);
+export const INSIGHT_TEMPLATES: InsightWidget[] = INSIGHT_KINDS.map((insight) => ({
+  id: `insight-${insight.toLowerCase()}`,
+  kind: "insight",
+  size: DEFAULT_INSIGHT_SIZES.get(insight) ?? "sm",
+  insight,
 }));
 
 export const SHORTCUTS_TEMPLATE: ShortcutsWidget = {

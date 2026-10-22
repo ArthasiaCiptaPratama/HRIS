@@ -1,7 +1,9 @@
 import {
   DEFAULT_ANNUAL_QUOTA,
+  isLeaveYearExpired,
   LEAVE_ATTACHMENT_MAX_BYTES,
   LEAVE_ATTACHMENT_TYPES,
+  LEAVE_YEAR_END_EXPIRY_FROM,
   type LeaveAdjustInput,
   type LeaveBalanceImportInput,
   type LeaveLedgerKind,
@@ -9,6 +11,8 @@ import {
   type LeaveRequestInput,
   type LeaveTypeInput,
   type LeaveYearInput,
+  leaveBalanceLastDay,
+  leaveResubmitDeadline,
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import {
@@ -43,12 +47,14 @@ import * as repository from "./leave.repository.ts";
 import {
   allocateCharges,
   type BalanceSummary,
+  chargeYearOf,
   countLeaveDates,
   datesBetween,
   prorataDays,
   settlementDays,
   summarize,
 } from "./leave-engine.ts";
+import { syncExitSettlements } from "./leave-exit.service.ts";
 
 // Tahap E — cuti tahunan, izin, sakit (docs/features/time-management/design.md §7, D-072).
 
@@ -347,16 +353,6 @@ async function countedDates(employeeId: string, startDate: string, endDate: stri
   return countLeaveDates(all, roster, holidayKinds);
 }
 
-const yearsAround = (dates: string[]) => {
-  const years = new Set<number>();
-  for (const date of dates) {
-    const year = Number(date.slice(0, 4));
-    years.add(year);
-    years.add(year - 1);
-  }
-  return [...years];
-};
-
 async function balanceMap(employeeId: string, years: number[], tx?: repository.LeaveTx) {
   const sums = await repository.balances([employeeId], years, tx);
   return new Map(years.map((year) => [year, sums.get(`${employeeId}|${year}`) ?? 0]));
@@ -380,6 +376,8 @@ export function annualChargedDates(
 }
 
 export interface LeavePreview {
+  /** TM-D9: saldo tahun beban sudah hangus → cuti tahunan untuk tanggal ini tidak bisa diajukan. */
+  expiredYear: number | null;
   dates: string[];
   days: number;
   /** Hari yang memotong saldo cuti tahunan (izin: hanya kelebihan dari batas jenisnya). */
@@ -399,11 +397,19 @@ export async function previewLeave(
   const type = await repository.findType(input.leaveTypeId);
   if (!type?.isActive) throw new BusinessRuleError("Jenis cuti/izin tidak tersedia.");
   const dates = await countedDates(employeeId, input.startDate, input.endDate);
-  const years = yearsAround(dates);
   const charged = annualChargedDates(type, dates);
-  const balances = charged.length > 0 ? await balanceMap(employeeId, years) : new Map();
-  const charges = charged.length > 0 ? allocateCharges(charged, balances).byYear : new Map();
+  // TM-D9: seluruh pembebanan ke tahun hari terhitung pertama (tahun mulai).
+  const chargeYear = chargeYearOf(dates);
+  const charging = charged.length > 0 && chargeYear !== null;
+  const balances = charging
+    ? await balanceMap(employeeId, [chargeYear as number])
+    : new Map<number, number>();
+  const charges = charging ? allocateCharges(charged, chargeYear as number).byYear : new Map();
   return {
+    expiredYear:
+      charging && isLeaveYearExpired(chargeYear as number, todayJakarta())
+        ? (chargeYear as number)
+        : null,
     dates,
     days: dates.length,
     annualDays: charged.length,
@@ -459,10 +465,39 @@ export interface LeaveRequestDto {
   decidedAt: string | null;
   approval: ApprovalView | null;
   canCancel: boolean;
+  /** TM-D9: catatan pemutus yang menolak (bila ditolak). */
+  rejectionNote: string | null;
+  /** TM-D9: pengajuan ini adalah pengajuan ulang dari pengajuan yang ditolak. */
+  resubmittedFrom: {
+    id: string;
+    startDate: string;
+    endDate: string;
+    rejectionNote: string | null;
+  } | null;
+  /** TM-D9: pemilik boleh mengajukan ulang (ditolak, ≤ 6 bulan, belum diajukan ulang) s.d. tanggal ini. */
+  resubmitUntil: string | null;
+  canResubmit: boolean;
 }
 
 const subjectOf = (category: string): "LEAVE" | "PERMIT" =>
   category === "ANNUAL" ? "LEAVE" : "PERMIT";
+
+/** Catatan langkah yang menolak (atasan/HR) dari tampilan approval. */
+const rejectionNoteOf = (view: ApprovalView | undefined) =>
+  view?.steps.find((step) => step.decision === "REJECTED")?.note ?? null;
+
+/** Tanggal (Jakarta) penolakan PERTAMA dalam rantai pengajuan ulang — patokan batas 6 bulan. */
+async function rootRejectedOn(row: repository.RequestRow): Promise<string | null> {
+  let current: repository.RequestRow | null = row;
+  for (let i = 0; i < 20 && current?.resubmittedFromId; i++) {
+    const parent: repository.RequestRow | null = await repository.findRequest(
+      current.resubmittedFromId,
+    );
+    if (!parent) break;
+    current = parent;
+  }
+  return current?.decidedAt ? todayJakarta(current.decidedAt) : null;
+}
 
 async function toDtos(
   ctx: RequestContext,
@@ -471,11 +506,27 @@ async function toDtos(
 ): Promise<LeaveRequestDto[]> {
   const people = await employeeDirectory.employeesByIds(rows.map((r) => r.employeeId));
   const charged = await repository.chargedDaysByRequest(rows.map((r) => r.id));
+  const parents = await repository.requestsByIds(
+    rows.map((r) => r.resubmittedFromId).filter((id): id is string => id !== null),
+  );
+  const parentById = new Map(parents.map((p) => [p.id, p]));
   const approvals = new Map<string, ApprovalView>();
   for (const subject of ["LEAVE", "PERMIT"] as const) {
-    const ids = rows.filter((r) => subjectOf(r.category) === subject).map((r) => r.id);
+    const ids = [...rows, ...parents]
+      .filter((r) => subjectOf(r.category) === subject)
+      .map((r) => r.id);
     for (const [id, view] of await getApprovalViews(ctx.actor, subject, ids))
       approvals.set(id, view);
+  }
+  const today = todayJakarta();
+  const rejectedOwn = rows.filter(
+    (r) => r.status === "REJECTED" && r.employeeId === ctx.actor.employeeId,
+  );
+  const resubmitted = await repository.activeResubmissions(rejectedOwn.map((r) => r.id));
+  const deadlines = new Map<string, string | null>();
+  for (const r of rejectedOwn) {
+    const root = await rootRejectedOn(r);
+    deadlines.set(r.id, root ? leaveResubmitDeadline(root) : null);
   }
   const paths = withAttachment
     ? rows.map((r) => r.attachmentPath).filter((p): p is string => p !== null)
@@ -513,6 +564,23 @@ async function toDtos(
       decidedAt: row.decidedAt?.toISOString() ?? null,
       approval: approvals.get(row.id) ?? null,
       canCancel: row.status === "PENDING" && row.employeeId === ctx.actor.employeeId,
+      rejectionNote: row.status === "REJECTED" ? rejectionNoteOf(approvals.get(row.id)) : null,
+      resubmittedFrom: (() => {
+        const parent = row.resubmittedFromId ? parentById.get(row.resubmittedFromId) : undefined;
+        return parent
+          ? {
+              id: parent.id,
+              startDate: toIso(parent.startDate),
+              endDate: toIso(parent.endDate),
+              rejectionNote: rejectionNoteOf(approvals.get(parent.id)),
+            }
+          : null;
+      })(),
+      resubmitUntil: deadlines.get(row.id) ?? null,
+      canResubmit: (() => {
+        const until = deadlines.get(row.id);
+        return Boolean(until && today <= until && !resubmitted.has(row.id));
+      })(),
     };
   });
 }
@@ -544,6 +612,40 @@ export async function createLeaveRequest(
     );
   }
   const charged = annualChargedDates(type, dates);
+  const today = todayJakarta();
+  // TM-D9: pembebanan ke tahun mulai; saldo tahun yang sudah hangus tidak bisa dipakai lagi.
+  const chargeYear = chargeYearOf(dates) as number;
+  if (charged.length > 0 && isLeaveYearExpired(chargeYear, today)) {
+    throw new BusinessRuleError(
+      `Saldo cuti ${chargeYear} sudah hangus (${dateLabel(leaveBalanceLastDay(chargeYear))}); cuti tahunan untuk tanggal tersebut tidak bisa diajukan lagi.`,
+    );
+  }
+  // TM-D9: pengajuan ulang dari pengajuan yang ditolak (≤ 6 bulan sejak penolakan pertama, tanggal ke depan).
+  let resubmitOf: repository.RequestRow | null = null;
+  if (input.resubmitOfId) {
+    resubmitOf = await repository.findRequest(input.resubmitOfId);
+    if (!resubmitOf || resubmitOf.employeeId !== employeeId) {
+      throw new NotFoundError("Pengajuan asal tidak ditemukan.");
+    }
+    if (resubmitOf.status !== "REJECTED") {
+      throw new BusinessRuleError("Hanya pengajuan yang ditolak yang bisa diajukan ulang.");
+    }
+    const root = await rootRejectedOn(resubmitOf);
+    const until = root ? leaveResubmitDeadline(root) : null;
+    if (!until || today > until) {
+      throw new BusinessRuleError(
+        `Batas pengajuan ulang sudah lewat${until ? ` (paling lambat ${dateLabel(until)})` : ""}.`,
+      );
+    }
+    if (input.startDate <= today) {
+      throw new BusinessRuleError(
+        "Pengajuan ulang hanya untuk tanggal ke depan (mulai besok atau setelahnya).",
+      );
+    }
+    if ((await repository.activeResubmissions([resubmitOf.id])).size > 0) {
+      throw new ConflictError("Pengajuan ini sudah diajukan ulang.");
+    }
+  }
   const needsDocument =
     type.documentRequiredAfterDays !== null && dates.length > type.documentRequiredAfterDays;
   if (needsDocument && !input.attachmentPath) {
@@ -593,13 +695,18 @@ export async function createLeaveRequest(
       reason: input.reason,
       attachmentPath: input.attachmentPath ?? null,
       createdByEmployeeId: employeeId,
+      resubmittedFromId: resubmitOf?.id ?? null,
     });
+    if (resubmitOf) await repository.lockRequest(tx, resubmitOf.id);
+    if (
+      resubmitOf &&
+      ((await repository.activeResubmissions([resubmitOf.id], tx)).get(resubmitOf.id) ?? 0) > 1
+    ) {
+      throw new ConflictError("Pengajuan ini sudah diajukan ulang.");
+    }
     if (charged.length > 0) {
       // Hutang diperbolehkan (D-072): tahanan tetap dicatat walau saldo menjadi minus.
-      const { byYear } = allocateCharges(
-        charged,
-        await balanceMap(employeeId, yearsAround(charged), tx),
-      );
+      const { byYear } = allocateCharges(charged, chargeYear);
       await repository.addEntries(
         tx,
         [...byYear.entries()].map(([year, days]) => ({
@@ -627,7 +734,7 @@ export async function createLeaveRequest(
       {
         employeeId: employee.managerId,
         type: "leave.request_new",
-        title: `Pengajuan ${type.name} dari ${employee.fullName}`,
+        title: `${resubmitOf ? "Pengajuan ulang" : "Pengajuan"} ${type.name} dari ${employee.fullName}`,
         body: `${dateLabel(input.startDate)} – ${dateLabel(input.endDate)} (${dates.length} hari${
           charged.length > 0 && type.category !== "ANNUAL"
             ? `, ${charged.length} hari memotong cuti tahunan`
@@ -635,6 +742,7 @@ export async function createLeaveRequest(
         }).`,
         link: "/time/persetujuan-cuti",
         dedupeKey: `tm-leave-new:${row.id}`,
+        target: { type: "LEAVE_REQUEST", id: row.id },
       },
     ]);
   }
@@ -644,6 +752,7 @@ export async function createLeaveRequest(
     endDate: input.endDate,
     days: dates.length,
     annualDays: charged.length,
+    ...(resubmitOf ? { resubmitOfId: resubmitOf.id } : {}),
   });
   return (await toDtos(ctx, [row]))[0] as LeaveRequestDto;
 }
@@ -667,7 +776,26 @@ async function settleHolds(
       createdByAccount: accountId,
     };
     entries.push({ ...base, kind: "RELEASE", days });
-    if (convertToUse) entries.push({ ...base, kind: "USE", days: -days });
+    if (convertToUse) {
+      entries.push({ ...base, kind: "USE", days: -days });
+    } else if (days > 0 && isLeaveYearExpired(year, todayJakarta())) {
+      // TM-D9: tahanan yang dilepas setelah saldo tahun itu hangus tidak menghidupkan saldo lagi —
+      // hanya bagian yang membuat saldo positif yang ikut hangus (hutang nyata tetap hutang).
+      await repository.lockEmployeeYear(tx, row.employeeId, year);
+      const after =
+        ((await repository.balances([row.employeeId], [year], tx)).get(
+          `${row.employeeId}|${year}`,
+        ) ?? 0) + days;
+      const expire = Math.min(days, Math.max(0, after));
+      if (expire > 0) {
+        entries.push({
+          ...base,
+          kind: "EXPIRE",
+          days: -expire,
+          note: `Tahanan dilepas setelah sisa ${year} hangus`,
+        });
+      }
+    }
   }
   await repository.addEntries(tx, entries);
 }
@@ -725,6 +853,7 @@ export function registerLeaveIntegrations() {
               : "Tahanan saldo dikembalikan. Lihat catatan penolakan di halaman Cuti.",
           link: "/absen/cuti",
           dedupeKey: `tm-leave-decided:${row.id}`,
+          target: { type: "LEAVE_REQUEST", id: row.id },
         },
       ]);
     }
@@ -746,7 +875,9 @@ export async function myLeave(ctx: RequestContext, now = new Date()) {
         ledger.filter((r) => r.year === y),
       ),
     ),
-    carryUntil: `${year}-03-31`,
+    // TM-D9: sisa tahun lalu tidak dibawa lagi mulai saldo 2026 (hangus 31 Desember tahunnya).
+    carryUntil: year - 1 < LEAVE_YEAR_END_EXPIRY_FROM ? `${year}-03-31` : null,
+    expiresOn: leaveBalanceLastDay(year),
     ledger: ledger.slice(0, 50).map((r) => ({
       id: r.id,
       year: r.year,
@@ -995,7 +1126,8 @@ export async function settleDebts(
   year: number,
 ): Promise<{ settled: number; remainingDebt: number }> {
   await ensureYear(year);
-  const previous = await repository.employeesWithLedger(year - 1);
+  // TM-D9: hanya hutang NYATA — tahanan pengajuan yang masih menunggu bukan hutang (bisa ditolak).
+  const previous = await repository.employeesWithLedger(year - 1, { excludeHolds: true });
   let settled = 0;
   let remainingDebt = 0;
   for (const row of previous) {
@@ -1020,29 +1152,42 @@ export async function settleDebts(
   return { settled, remainingDebt };
 }
 
-/** 1 April: sisa jatah tahun lalu yang masih positif hangus. */
+/**
+ * Sisa jatah tahun lalu (`year − 1`) yang masih positif hangus. TM-D9: untuk saldo ≥ 2026 dijalankan
+ * mulai 1 Januari `year` (hangus 31 Desember); saldo lama (D-072) mulai 1 April. Tahanan pengajuan yang
+ * masih menunggu terlindungi (sudah mengurangi saldo); bila kemudian dilepas, dihanguskan di settleHolds.
+ */
 export async function expireCarry(year: number): Promise<{ expired: number }> {
   await ensureYear(year);
   const previous = await repository.employeesWithLedger(year - 1);
   let expired = 0;
   for (const row of previous) {
-    const balance = row._sum.days ?? 0;
-    if (balance <= 0) continue;
-    if (await repository.hasEntry({ employeeId: row.employeeId, year: year - 1, kind: "EXPIRE" }))
-      continue;
-    await repository.withTransaction((tx) =>
-      repository.addEntries(tx, [
+    if ((row._sum.days ?? 0) <= 0) continue;
+    // Dikunci per (karyawan, tahun) & saldo dibaca ulang di transaksi: pelepasan tahanan yang terjadi
+    // bersamaan tidak membuat sisa dihanguskan dua kali (hutang palsu).
+    const done = await repository.withTransaction(async (tx) => {
+      await repository.lockEmployeeYear(tx, row.employeeId, year - 1);
+      const where = { employeeId: row.employeeId, year: year - 1, kind: "EXPIRE" as const };
+      if (await repository.hasEntry({ ...where, requestId: null }, tx)) return false;
+      const balance =
+        (await repository.balances([row.employeeId], [year - 1], tx)).get(
+          `${row.employeeId}|${year - 1}`,
+        ) ?? 0;
+      if (balance <= 0) return false;
+      await repository.addEntries(tx, [
         {
-          employeeId: row.employeeId,
+          ...where,
           companyId: row.companyId,
-          year: year - 1,
-          kind: "EXPIRE",
           days: -balance,
-          note: `Sisa ${year - 1} hangus 31 Maret ${year}`,
+          note:
+            year - 1 >= LEAVE_YEAR_END_EXPIRY_FROM
+              ? `Sisa ${year - 1} hangus 31 Desember ${year - 1}`
+              : `Sisa ${year - 1} hangus 31 Maret ${year}`,
         },
-      ]),
-    );
-    expired++;
+      ]);
+      return true;
+    });
+    if (done) expired++;
   }
   await repository.markYear(year, { expiredAt: new Date() });
   return { expired };
@@ -1062,11 +1207,24 @@ export async function chargeCollectiveLeave(date: string): Promise<{ charged: nu
       continue;
     if ((await repository.overlapping(employeeId, toDate(date), toDate(date))).length > 0) continue;
     await repository.withTransaction(async (tx) => {
-      const { byYear } = allocateCharges(
-        [date],
-        await balanceMap(employeeId, yearsAround([date]), tx),
-      );
-      const [year] = [...byYear.keys()] as [number];
+      const year = Number(date.slice(0, 4));
+      await repository.lockEmployeeYear(tx, employeeId, year);
+      // TM-D9: cuti bersama yang baru dibebankan setelah sisa tahun itu dihanguskan diambil dari sisa yang
+      // hangus (bukan menjadi hutang yang memotong jatah tahun baru).
+      const expiredSum = await repository.expiredDays(tx, employeeId, year);
+      if (expiredSum > 0) {
+        await repository.addEntries(tx, [
+          {
+            employeeId,
+            companyId: employee.companyId,
+            year,
+            kind: "EXPIRE",
+            days: 1,
+            workDate: toDate(date),
+            note: `Cuti bersama ${date} dibebankan setelah hangus — diambil dari sisa yang hangus`,
+          },
+        ]);
+      }
       await repository.addEntries(tx, [
         {
           employeeId,
@@ -1092,26 +1250,43 @@ export async function chargeCollectiveLeave(date: string): Promise<{ charged: nu
 
 /**
  * Cron harian `leave-daily` (Vercel Hobby: satu kali sehari). Setiap langkah idempoten dan mengejar
- * ketertinggalan bila cron sempat tidak jalan: jatah (≥ 1 Jan), pelunasan (≥ 31 Jan), hangus
- * (≥ 1 Apr), dan cuti bersama 7 hari terakhir.
+ * ketertinggalan bila cron sempat tidak jalan: cuti bersama 7 hari terakhir (lebih dulu, supaya cuti
+ * bersama akhir Desember dibebankan sebelum sisa hangus), jatah (≥ 1 Jan), hangus sisa tahun lalu
+ * (TM-D9: ≥ 1 Jan; saldo lama D-072: ≥ 1 Apr), pelunasan hutang (≥ 31 Jan), hak cuti karyawan keluar.
  */
-export async function runLeaveDaily(now = new Date()) {
+export interface LeaveDailyResult {
+  collective: { charged: number };
+  grant?: { granted: number };
+  expire?: { expired: number };
+  settle?: { settled: number; remainingDebt: number };
+  exits: { created: number; cancelled: number };
+}
+
+export async function runLeaveDaily(now = new Date()): Promise<LeaveDailyResult> {
   const today = todayJakarta(now);
   const year = Number(today.slice(0, 4));
   const monthDay = today.slice(5);
   const master = await ensureYear(year);
-  const result: Record<string, unknown> = {};
-  if (!master.grantedAt) result.grant = await grantAnnual(year);
-  if (monthDay >= "01-31" && !master.settledAt) result.settle = await settleDebts(year);
-  if (monthDay >= "04-01" && !master.expiredAt) result.expire = await expireCarry(year);
+  const result: Partial<LeaveDailyResult> = {};
   let charged = 0;
-  for (let back = 1; back <= 7; back++) {
-    const d = toDate(today);
-    d.setUTCDate(d.getUTCDate() - back);
-    charged += (await chargeCollectiveLeave(toIso(d))).charged;
+  // Cuti bersama 62 hari terakhir (idempoten): menangkap juga hari yang tadinya tertutup pengajuan cuti
+  // yang lama menunggu lalu ditolak/dibatalkan.
+  const from = toDate(today);
+  from.setUTCDate(from.getUTCDate() - 62);
+  const yesterday = toDate(today);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  for (const holiday of (await holidaysBetween(toIso(from), toIso(yesterday))).values()) {
+    if (holiday.kind === "COLLECTIVE_LEAVE") {
+      charged += (await chargeCollectiveLeave(holiday.date)).charged;
+    }
   }
   result.collective = { charged };
-  return result;
+  if (!master.grantedAt) result.grant = await grantAnnual(year);
+  const expireFrom = year - 1 >= LEAVE_YEAR_END_EXPIRY_FROM ? "01-01" : "04-01";
+  if (monthDay >= expireFrom && !master.expiredAt) result.expire = await expireCarry(year);
+  if (monthDay >= "01-31" && !master.settledAt) result.settle = await settleDebts(year);
+  result.exits = await syncExitSettlements();
+  return result as LeaveDailyResult;
 }
 
 export async function runLeaveJob(

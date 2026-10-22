@@ -47,6 +47,29 @@ export function shiftWindow(workDate: string, shift: ShiftTimes, timezone: strin
   };
 }
 
+/**
+ * TM-D12: jendela Mulai istirahat pada tanggal kerja. Jam istirahat sebelum jam mulai shift berarti
+ * keesokan harinya (shift malam). null = shift tanpa jam istirahat (bebas).
+ */
+export function breakWindow(
+  workDate: string,
+  shift: { startMinute: number; breakStartMinute: number | null; breakEndMinute: number | null },
+  timezone: string,
+): { opens: Date; closes: Date } | null {
+  if (shift.breakStartMinute === null || shift.breakEndMinute === null) return null;
+  const midnightUtc = Date.parse(`${workDate}T00:00:00.000Z`) - offsetMinutes(timezone) * MINUTE;
+  const at = (minute: number) =>
+    new Date(midnightUtc + (minute < shift.startMinute ? minute + 1440 : minute) * MINUTE);
+  const opens = at(shift.breakStartMinute);
+  let closes = at(shift.breakEndMinute);
+  if (closes.getTime() <= opens.getTime()) closes = new Date(closes.getTime() + 1440 * MINUTE);
+  return { opens, closes };
+}
+
+/** TM-D12: Clock Out normal dibuka `earlyMin` menit sebelum jam pulang (tanpa lembur rutin). */
+export const checkOutOpensAt = (normalEnd: Date, earlyMin: number) =>
+  new Date(normalEnd.getTime() - earlyMin * MINUTE);
+
 export interface RosterCandidate {
   workDate: string;
   /** null = OFF; undefined = tidak ada hari roster. */
@@ -58,6 +81,8 @@ export interface CheckInPlan {
   shift: ShiftTimes | null;
   window: ShiftWindow | null;
   labels: AttendanceLabel[];
+  /** TM-D12: tanggal kerja = OFF di roster (Clock In hanya lewat "Lembur hari libur"). */
+  offDay: boolean;
 }
 
 /**
@@ -76,7 +101,7 @@ export function planCheckIn(
     if (t >= w.checkInOpen.getTime() && t <= w.end.getTime()) {
       const labels: AttendanceLabel[] = [];
       if (t > w.start.getTime() + c.shift.lateToleranceMin * MINUTE) labels.push("LATE");
-      return { workDate: c.workDate, shift: c.shift, window: w, labels };
+      return { workDate: c.workDate, shift: c.shift, window: w, labels, offDay: false };
     }
   }
   const today = localDate(now, timezone);
@@ -88,6 +113,7 @@ export function planCheckIn(
     labels: [
       todayRoster === undefined || todayRoster.shift === undefined ? "NO_ROSTER" : "OUTSIDE_ROSTER",
     ],
+    offDay: todayRoster?.shift === null,
   };
 }
 
@@ -97,15 +123,15 @@ export const candidateDates = (now: Date, timezone: string) => {
   return [isoAddDays(today, -1), today, isoAddDays(today, 1)];
 };
 
-/** Label absen pulang terhadap jadwal hari itu. */
+/** Label absen pulang terhadap jadwal hari itu (`window.end` = jam pulang normal tanpa lembur rutin). */
 export function checkOutLabels(
   now: Date,
-  shift: ShiftTimes | null,
   window: ShiftWindow | null,
+  earlyMin: number,
 ): AttendanceLabel[] {
-  if (!shift || !window) return [];
+  if (!window) return [];
   const t = now.getTime();
-  if (t < window.end.getTime() - shift.earlyLeaveToleranceMin * MINUTE) return ["EARLY_LEAVE"];
+  if (t < checkOutOpensAt(window.end, earlyMin).getTime()) return ["EARLY_LEAVE"];
   if (t > window.checkOutDeadline.getTime()) return ["OUTSIDE_ROSTER"];
   return [];
 }

@@ -205,6 +205,65 @@ export const workLocationRepo = {
     tx.workLocation.update({ where: { id }, data, select: { id: true } }),
 };
 
+// ── Direktori baca-saja untuk modul lain (lewat index.ts): lokasi kerja & PT ──
+
+const LOCATION_BRIEF_SELECT = {
+  id: true,
+  name: true,
+  city: true,
+  latitude: true,
+  longitude: true,
+  radiusM: true,
+} as const;
+
+export function findWorkLocationsByIds(ids: string[]) {
+  return getPrisma().workLocation.findMany({
+    where: { id: { in: ids } },
+    select: LOCATION_BRIEF_SELECT,
+  });
+}
+
+export function findGeofencedWorkLocations() {
+  return getPrisma().workLocation.findMany({
+    where: {
+      deletedAt: null,
+      latitude: { not: null },
+      longitude: { not: null },
+      radiusM: { not: null },
+    },
+    select: LOCATION_BRIEF_SELECT,
+  });
+}
+
+/** TM-D7: semua lokasi kerja aktif (tanpa syarat geofence). */
+export function findActiveWorkLocations() {
+  return getPrisma().workLocation.findMany({
+    where: { deletedAt: null },
+    select: LOCATION_BRIEF_SELECT,
+    orderBy: { name: "asc" },
+  });
+}
+
+/** TM-D6: semua grade aktif. */
+export function findActiveGrades() {
+  return getPrisma().grade.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export function findEmploymentStatusCategories(ids: string[]) {
+  return getPrisma().employmentStatus.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, category: true },
+  });
+}
+
+export function countCompaniesById(id: string) {
+  return getPrisma().company.count({ where: { id } });
+}
+
 export type ArchivableEntity =
   | "company"
   | "department"

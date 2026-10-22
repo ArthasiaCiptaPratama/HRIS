@@ -1,4 +1,5 @@
 import {
+  chartAllowedForSize,
   type DashboardWidget,
   isSensitivePivotDimension,
   PIVOT_CHART_TYPE_LABELS,
@@ -374,7 +375,9 @@ function PivotForm({
         <div className="grid grid-cols-4 gap-1.5">
           {PIVOT_CHART_TYPES.map((type) => {
             const Icon = CHART_ICONS[type];
-            const disabled = !draft.cols && NEEDS_COLUMNS.includes(type);
+            const disabled =
+              (!draft.cols && NEEDS_COLUMNS.includes(type)) ||
+              !chartAllowedForSize(type, draft.size);
             return (
               <button
                 key={type}

@@ -20,6 +20,9 @@ const CATEGORICAL: Record<Mode, readonly string[]> = {
   dark: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9"],
 };
 export const MAX_SERIES = CATEGORICAL.light.length;
+/** Slot palet kategorikal (urutan tetap) — dipakai widget analitik dengan seri tetap. */
+export const categorical = (mode: Mode, slot: number) =>
+  CATEGORICAL[mode][slot % CATEGORICAL[mode].length] as string;
 
 /** Ramp satu hue (biru) untuk dimensi berurutan & heatmap: terang → gelap. */
 const SEQUENTIAL = [

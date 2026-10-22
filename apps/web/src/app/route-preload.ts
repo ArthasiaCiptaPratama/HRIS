@@ -1,4 +1,4 @@
-import { FEATURES } from "./feature-flags";
+import { FEATURES, tmOn } from "./feature-flags";
 
 // Code splitting per halaman (React Router `lazy`) + preload saat kursor di atas menu, supaya
 // bundle awal kecil tetapi perpindahan halaman tetap terasa instan.
@@ -129,6 +129,14 @@ export const pages = {
     import("@/features/time-management/pages/roster-setup-page").then((m) => ({
       Component: m.RosterSetupPage,
     })),
+  overtime: () =>
+    import("@/features/time-management/pages/overtime-pages").then((m) => ({
+      Component: m.OvertimePage,
+    })),
+  gradeWages: () =>
+    import("@/features/time-management/pages/overtime-pages").then((m) => ({
+      Component: m.GradeWagesPage,
+    })),
   locationSettings: () =>
     import("@/features/time-management/pages/location-settings-page").then((m) => ({
       Component: m.LocationSettingsPage,
@@ -197,20 +205,23 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/penerimaan", FEATURES.onboarding ? pages.onboarding : pages.maintenance],
   ["/ess", FEATURES.selfService ? pages.ess : pages.maintenance],
   ["/pengajuan-data", FEATURES.selfService ? pages.dataChanges : pages.maintenance],
-  ["/time/absen-harian", FEATURES.timeManagement ? pages.attendanceDays : pages.maintenance],
-  ["/time/roster/pengaturan", FEATURES.timeManagement ? pages.rosterSetup : pages.maintenance],
-  ["/time/lokasi-absen", FEATURES.timeManagement ? pages.locationSettings : pages.maintenance],
-  ["/time/roster", FEATURES.timeManagement ? pages.roster : pages.maintenance],
-  ["/time/perubahan-roster", FEATURES.timeManagement ? pages.rosterChanges : pages.maintenance],
-  ["/time/kalender", FEATURES.timeManagement ? pages.holidays : pages.maintenance],
-  ["/time/pengaturan", FEATURES.timeManagement ? pages.timeSettings : pages.maintenance],
-  ["/time/cuti", FEATURES.timeManagement ? pages.leave : pages.maintenance],
-  ["/time/persetujuan-cuti", FEATURES.timeManagement ? pages.leaveApprovals : pages.maintenance],
-  ["/time/saldo-cuti", FEATURES.timeManagement ? pages.leaveBalances : pages.maintenance],
-  ["/time/master-cuti", FEATURES.timeManagement ? pages.leaveMaster : pages.maintenance],
-  ["/time/pernyataan", FEATURES.timeManagement ? pages.correctionsStatements : pages.maintenance],
-  ["/time/rekap", FEATURES.timeManagement ? pages.recap : pages.maintenance],
-  ["/absen", FEATURES.timeManagement ? pages.absen : pages.maintenance],
+  ["/time/absen-harian", tmOn("tmAttendanceDays") ? pages.attendanceDays : pages.maintenance],
+  ["/time/roster/pengaturan", tmOn("tmRosterSetup") ? pages.rosterSetup : pages.maintenance],
+  [
+    "/time/lokasi-absen",
+    tmOn("tmAttendanceLocations") ? pages.locationSettings : pages.maintenance,
+  ],
+  ["/time/roster", tmOn("tmRoster") ? pages.roster : pages.maintenance],
+  ["/time/perubahan-roster", tmOn("tmRosterChanges") ? pages.rosterChanges : pages.maintenance],
+  ["/time/kalender", tmOn("tmHolidays") ? pages.holidays : pages.maintenance],
+  ["/time/pengaturan", tmOn("tmSettings") ? pages.timeSettings : pages.maintenance],
+  ["/time/cuti", tmOn("tmLeave") ? pages.leave : pages.maintenance],
+  ["/time/persetujuan-cuti", tmOn("tmLeaveApprovals") ? pages.leaveApprovals : pages.maintenance],
+  ["/time/saldo-cuti", tmOn("tmLeaveBalances") ? pages.leaveBalances : pages.maintenance],
+  ["/time/master-cuti", tmOn("tmLeaveMaster") ? pages.leaveMaster : pages.maintenance],
+  ["/time/pernyataan", tmOn("tmCorrections") ? pages.correctionsStatements : pages.maintenance],
+  ["/time/rekap", tmOn("tmRecap") ? pages.recap : pages.maintenance],
+  ["/absen", tmOn("tmAbsen") ? pages.absen : pages.maintenance],
 ];
 
 export function preloadRoute(path: string): void {

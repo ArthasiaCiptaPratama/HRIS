@@ -9,6 +9,7 @@ export const timeQueueSchema = z.object({
   leave: z.number(),
   corrections: z.number(),
   rosterChanges: z.number(),
+  overtime: z.number().default(0),
   total: z.number(),
 });
 export type TimeQueue = z.infer<typeof timeQueueSchema>;

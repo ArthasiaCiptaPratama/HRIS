@@ -221,6 +221,7 @@ describe("kalender libur & pengaturan", () => {
       selfieRetentionMonths: 12,
       approvalDueDays: 2,
       rosterHorizonDays: 92,
+      checkOutEarlyMin: 30,
     };
     expect((await call("PUT", "/time-settings", h.hr, next)).status).toBe(403);
     expect(

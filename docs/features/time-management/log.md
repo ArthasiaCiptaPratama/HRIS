@@ -13,6 +13,35 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-21 — Gabung `HRIS/Mat/Mac` ke develop (Oatse)
+- **Dikerjakan:** merge 9 commit Mat (lembur/istirahat/upah grade TM-D6–D8, aturan cuti TM-D9, dashboard DSB-D1, saklar per fitur TM). Konflik `attendance/directory.ts`: fungsi baru Mat (`activeGrades`, `activeLocations`, `exitedEmployees`, `exitStatusOf`, `analyticsEmployees`) dipindah dari query Prisma langsung ke interface publik — employee `listExitedEmployees`, `getEmployeeExitStatuses`, `listAnalyticsEmployees`, `EmployeeBrief.gradeId`; organization `listActiveGrades`, `listActiveWorkLocations`, `getEmploymentStatusCategories` (aturan emas #3). Bentuk fungsi `directory.ts` tetap, pemanggil tidak berubah.
+- **Catatan untuk Mat:** merge develop ke branch sendiri sebelum lanjut; data karyawan/PT/lokasi untuk TM hanya lewat `employee/index.ts` & `organization/index.ts` (tambah fungsi di sana bila perlu); rute TM baru wajib skema bertipe untuk app mobile (MOB-D10, `features/mobile`).
+
+### 2026-10-21 — Paket 2: aturan cuti TM-D9 (Mat, `HRIS/Mat/Mac`)
+- **Dikerjakan ("lanjut", mode ultracode):** workflow pemetaan (4 pembaca + kritikus kelengkapan: 5 klaim keliru dikoreksi, 10 area terlewat) → 4 keputusan pemilik projek (tolak pengajuan ke tahun hangus; tanpa roster ÷21; tanpa prorata; disetujui setelah tutup periode → CUTI berlabel) → implementasi API (engine tahun mulai, tolak tahun hangus, ajukan ulang, pelepasan setelah hangus, pelunasan hutang nyata, urutan cron, hak cuti keluar `leave-exit.service.ts`, Alpha tidak lagi untuk cuti bersama, label `LEAVE_AFTER_CLOSE`) → agen web (form ajukan ulang, kartu saldo hangus 31 Des, tab Saldo Cuti › Karyawan keluar, badge pengajuan ulang) + reviewer → review adversarial 4 dimensi (20 temuan, **12 terkonfirmasi** setelah skeptis, semua diperbaiki: hak keluar tidak terhapus hangus 1 Jan & mengembalikan cuti setelah tanggal keluar, tidak bayar ganda setelah PAID, pembatalan berdasarkan status karyawan (bukan daftar terpotong), kunci advisory hangus vs pelepasan, cuti bersama setelah hangus diambil dari sisa hangus, kunci baris pengajuan ulang serentak, koreksi APPROVED tidak ditimpa cuti, rekam jejak Alpha tanpa hari yang jadi cuti, jendela cuti bersama 62 hari, snapshot grade).
+- **Verifikasi (DB lokal):** migrasi `leave_resubmit_exit` hanya lokal · typecheck ✔ · lint ✔ · boundaries ✔ · shared **309** · api **859** (leave 20: 8 baru TM-D9) · web **305** (6 baru `leave.test.tsx`).
+- **Masalah / catatan:** payroll belum ada → hak keluar = catatan HR (OPEN/PAID). Hutang yang muncul setelah pelunasan 31 Jan (mis. penyesuaian HR ke tahun lama) tetap manual. `vercel.json` belum memuat cron `leave-daily`/`attendance-daily` (antrean rilis).
+- **Berikutnya:** uji di HP; Paket 3 dashboard (DSB-D1).
+
+### 2026-10-21 — Gabung HRIS/Oatse/Linux-Windows, saklar per fitur, uji E2E lembur & istirahat (Mat, `HRIS/Mat/Mac`)
+- **Dikerjakan:** merge `origin/HRIS/Oatse/Linux-Windows` (`8cda6b8`, 25 commit, tanpa konflik & tanpa migrasi baru); sub-saklar `tm*` per fitur Time Management + `tmOn()` di `feature-flags.ts` (induk `timeManagement` tetap); donut dashboard: angka tengah & persen mengikuti legenda yang dimatikan; HP: tombol Pulang saat masih istirahat langsung memberi pesan (tanpa membuka kamera); JT = **Jetty & Loading team** (bukan pelabuhan).
+- **Uji E2E Playwright (lokal, akun demo, kamera & GPS palsu) 29/29 PASS:** SA upah grade (Rp41.618/jam), lokasi wajib istirahat, template JT; Rina Clock In → Mulai istirahat → Clock Out ditolak saat istirahat → Selesai → Clock Out; lembur hari OFF 9 j 30 m (18,5 jam setara, lewat 4 jam) → Budi setuju tanpa alasan ditolak, dengan alasan diterima → HR setuju → SA Rp769.942 per orang & di rekap; HR tanpa grant & atasan tanpa kolom rupiah, menu Upah Grade tersembunyi; donut 200 → 139 setelah satu legenda dimatikan. Bukti: screenshot di scratchpad sesi (folder QA `/mnt/winD/...` tidak ada di Mac).
+- **Bug ditemukan & diperbaiki:** Clock In jauh sebelum shift lalu Clock Out sebelum shift mulai diusulkan "datang awal 8 j 41 m" → datang awal kini dibatasi jam pulang (dan pulang lewat dibatasi jam masuk); 2 unit test + langkah E2E B9.
+- **Verifikasi:** typecheck ✔ · lint ✔ · boundaries ✔ (493 modul) · shared 300 · api 849 · web 299 (dengan batas tunggu longgar; laptop lambat).
+
+### 2026-10-21 — Lembur, absen istirahat, upah grade & template JT, TM-D6–TM-D8 (Mat, `HRIS/Mat/Mac`)
+- **Dikerjakan (grill pemilik projek 2026-10-20/21, "yessur run it"):** keputusan TM-D6–TM-D10 + DSB-D1 ditulis; OD-14 terjawab. Paket 1: mesin lembur murni (`packages/shared/src/overtime.ts`), `overtime.service.ts` (sinkron usulan saat Clock Out / keputusan absen / input manual / batal, label `BREAK_OVER`/`NO_BREAK_PUNCH`/`REGULAR_OT_SHORT`, handler & guard approval `OVERTIME`, daftar + rekap dengan rupiah sesuai hak), `roster-template.service.ts` (JT), route `overtime.routes.ts`; approval `registerApprovalGuard`; antrean menu `overtime`; web: halaman Lembur & Upah Grade, kartu lokasi wajib istirahat, field shift + dialog template, tombol istirahat HP, jam istirahat di Data Absen Harian.
+- **Keputusan:** TM-D6 (lembur), TM-D7 (istirahat), TM-D8 (template JT), TM-D9 (cuti — rencana Paket 2), TM-D10 + DSB-D1 (kompensasi & dashboard — rencana Paket 3); OD-14 → TM-D6.
+- **Verifikasi (Mac, DB lokal):** migrasi `overtime_break_wage` hanya ke Postgres lokal · typecheck ✔ · lint ✔ (1 warning lama) · boundaries ✔ (473 modul) · shared **276** (baru 30 di `overtime.test.ts`) · api **815** (baru 9 di `overtime.test.ts`) · web **301** lulus + 8 skipped (baru 6 di `overtime.test.tsx`; 8 test lama sempat timeout 5 dtk saat semua file paralel, lulus 65/65 saat diulang `--maxWorkers=2`) · build ✔.
+- **Masalah / catatan:** migrasi belum diterapkan ke Supabase (jangan disentuh; ikut alur rilis). Rupiah memakai upah grade saat dibaca (bukan snapshot). Batas mingguan menghitung lembur rutin + tambahan (menunggu/disetujui) di luar tanggal merah. Karyawan tanpa crew memakai rumus pola 6 hari.
+- **Berikutnya:** uji di HP (tombol istirahat); Paket 2 aturan cuti (TM-D9); Paket 3 dashboard (DSB-D1); izin commit + push.
+### 2026-10-21 — Adapter `directory.ts` lewat interface publik + cron TM di `vercel.json` (Oatse)
+- **Dikerjakan:** `attendance/directory.ts` jadi fasad tanpa Prisma (aturan emas #3): karyawan lewat `employee/index.ts` (`getEmployeeBriefs`, `listEmployeeBriefs` + filter baru `employeeNumbers`, fungsi baru `listActiveEmployeeJoinDates`), lokasi & PT lewat `organization/index.ts` (baru: `directory.service.ts` → `getWorkLocationBriefs`, `listGeofencedWorkLocations`, `companyExists`; query di `organization.repository.ts`). Bentuk `DirectoryEmployee`/`DirectoryLocation` tetap, ±50 pemanggil di attendance & leave tidak diubah. Cron `roster-extend` (00:15 WIB), `attendance-daily` (00:30), `leave-daily` (00:45), `attendance-reminders` (tiap 30 menit), `approval-digest` (07:00) di `apps/api/vercel.json` (Vercel Pro, FND-D1).
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔ · `biome ci` ✔ · boundaries ✔ (488 modul) · shared **268** · api **840** · web **290**, 0 gagal (DB lokal docker) · 11 cron di `vercel.json` = nama job di `app.ts`/`cron.ts`.
+- **Masalah / catatan:** begitu `vercel.json` ini dirilis, cron TM jalan di staging walau saklar web `timeManagement` `false` (bisa memunculkan Alpha & notifikasi untuk karyawan staging) — putuskan ditahan/ikut saat persiapan rilis. `employeesByNumbers` kini dibatasi 5000 nomor per panggilan (batas `listEmployeeBriefs`). Mat perlu pull develop sebelum lanjut di `attendance/*`.
+- **Berikutnya:** uji HP kamera/GPS; OD-13–OD-15; konfirmasi contoh prorata (D-072).
+
 ### 2026-10-20 — Paket UX: notifikasi, pengingat absen (TM-D2), antrean menu, beranda HP (Mat, `HRIS/Mat/Mac`)
 - **Dikerjakan:** uji coba (smoke API 4 role: semua 4–106 ms, tanpa 5xx; temuan utama: modul absensi/cuti/approval tanpa notifikasi) → `time-notify.service.ts` (penerima via `iam`, `queueFor`, `runAttendanceReminders`, `runApprovalDigest`), `time-notify.routes.ts` (`GET /time/queue`), pemicu di keputusan absen/koreksi/cuti, pengajuan baru, penandaan Alpha; `iam.listApproverAccounts`; cron `attendance-reminders` & `approval-digest` (app.ts). Web: `queue-api.ts` + `queueKey` di menu (Data Absen Harian, Koreksi, Perubahan Roster, Persetujuan Cuti), badge tile Approval HP, `home-insights.tsx` (banner belum Clock In/waktunya Clock Out, banner Alpha bisa dikoreksi, kartu saldo cuti & status kemarin).
 - **Keputusan:** TM-D2 (README).
@@ -54,3 +83,49 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Tinjauan aturan emas:** absen tanpa jam dari perangkat (waktu server, #9) ✔ · `selfiePath` wajib berawalan `attendance/<employeeId>/` ✔ · migrasi tanpa objek Supabase/`CREATE EXTENSION` ✔ · tidak ada log data sensitif di modul baru ✔ · **⚠ #3 batas modul:** `attendance/directory.ts` membaca tabel `employee`/`organization` langsung (adapter sementara, ditandai Mat) → Backlog.
 - **Berikutnya:** izin commit merge + push develop; lalu tindak lanjut Backlog (adapter → `index.ts`, cron `vercel.json`), uji HP, dan jawaban OD-13–OD-15 sebelum rilis Time Management.
 
+## 2026-10-21 (lanjutan) — template 13+1 & 5+2, akun & rencana uji
+- **Dikerjakan:** `ROSTER_TEMPLATES` = JT, ROT_13_1, WEEK_5_2 (`roster-template.service.ts`, dialog "Pakai template" dengan pilihan template) — `c664054`.
+- **Data & akun uji (lokal saja):** script `apps/api/scripts/seed-qa-time.ts` (`bun run db:seed:qa`, dijaga `guard-local-db`, idempoten): upah grade Staf, lokasi demo wajib istirahat, shift uji `QA` 08–17, karyawan Dimas (TMDEMO-LAP, tim Budi, roster 14 hari), karyawan keluar Sari (TMDEMO-EXIT, sisa cuti 9 hari), akun `hr.biaya@arthasia.test` & `lapangan.lokal@arthasia.test`. Dicek: dijalankan 2× (kedua kali "unchanged"), login kedua akun, `/dashboard/analytics` 200 (hr.biaya, ada laborCost & liability) · 403 (lapangan) · hr.lokal tanpa rupiah.
+- **QA:** `docs/qa/cases/time-management.md` (TC-TM-001…027) + rencana `docs/qa/plans/2026-10-21-tm-paket-lokal.md`.
+- **Berikutnya:** eksekusi rencana uji manual; izin push `HRIS/Mat/Mac`; cron `leave-daily`/`attendance-daily` ke `vercel.json`.
+
+## 2026-10-21 (lanjutan) — merge develop, lapisan repository, OpenAPI bertipe
+- **Merge:** `HRIS/Oatse/Linux-Windows` (`a3135d7`, fast-forward, tanpa konflik) → `HRIS/Mat/Mac`; migrasi `push_devices_and_notification_target` diterapkan ke DB lokal saja.
+- **Temuan develop #3 (PROMPT §4):** `leave-exit.service.ts`, `leave-analytics.ts`, `overtime.service.ts`, `analytics-facts.ts` tidak lagi memanggil `getPrisma()` — query lewat `leave.repository.ts` / `overtime.repository.ts` baru. Masih memanggil langsung (bukan dari paket Mat, dicatat): `alpha.service`, `period.service`, `leave-bridge`, `time-notify.service`, `asset/report-data.service`.
+- **MOB-D10:** rute baru Mat bertipe di OpenAPI — lembur, upah grade, lokasi istirahat, template roster, `GET /dashboard/analytics`, `/leave-exit-settlements*` (file sendiri `leave-exit.routes.ts`). Skema dicek sama dengan DTO service saat typecheck; test integrasi mem-parse respons sungguhan dan memastikan spec tanpa skema kosong.
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ (514 modul) · test shared 335 · api 882 · web 310 ✔ · smoke API lokal (hr.biaya) 5 endpoint ✔.
+
+
+## 2026-10-22 — merge develop (kontrak OpenAPI TM, operationId app) — Mat
+
+- Merge `HRIS/Oatse/Linux-Windows` (790557a) ke `HRIS/Mat/Mac`. Konflik: `overtime.routes.ts`, `leave.routes.ts`, `codemap/attendance.md`.
+- Ikut konvensi develop (MOB-D7 #1/MOB-D17): `overtime.schema.ts` dihapus → `overtime.contract.ts` milik develop; `leave-exit.routes.ts` dihapus → rute `/leave-exit-settlements*` kembali ke `leave.routes.ts` (skema `leave.contract.ts`); `analytics.schema.ts` → `analytics.contract.ts` dengan `assertExact`.
+- Temuan develop #5: `leave-exit.service.ts` sudah lewat `leave.repository.ts` (12722b1); recalculate/paid melempar 404, jadi `leaveExitSettlementResultSchema` (`.optional()`) dihapus — respons selalu `LeaveExitSettlement`. `formula` di kontrak jadi enum `OVERTIME_FORMULAS`.
+- Path/method endpoint tidak berubah (APP_OPERATION_IDS aman).
+
+## 2026-10-22 — TM-D12 batas waktu Clock Out, istirahat, & hari OFF — Mat
+
+- Permintaan pemilik projek: absen pulang & istirahat mengikuti waktunya; absen datang bebas (telat tetap ditandai); hari OFF tidak boleh absen kecuali lembur hari libur.
+- Jawaban grill: toleransi Clock Out 30 menit; jam mulai & selesai istirahat di shift, selesai istirahat bebas (aturan lembur/utang istirahat tetap); pulang darurat boleh dengan alasan.
+- API: `breakWindow`, `checkOutOpensAt`, `CheckInPlan.offDay` (`attendance-engine.ts`); `openDayTimes` + penolakan Mulai istirahat di luar jendela & Clock In OFF tanpa `offDayOvertime` (`attendance.service.ts`); validasi jam istirahat di `validateShift`; pengaturan `checkOutEarlyMin`. Kontrak `AttendanceToday`/`AttendancePrecheck`/`Shift`/`TimeSettings` bertambah field (path/method/operationId tetap) — **kabari tim mobile**.
+- Migrasi `20261022030522_shift_break_window` (dua kolom nullable, lokal saja). Seed QA: shift QA Mulai istirahat 12.00–13.00.
+- Web: tombol Lembur hari libur, Pulang darurat + jam buka, tombol istirahat terkunci di luar jendela; form shift jam istirahat (jatah otomatis dari selisih); pengaturan TM "Clock Out dibuka".
+- Test: `punch-window.test.ts` (API, 9), `punch-window.test.tsx` (web, 6), unit mesin absen.
+
+## 2026-10-22 — UAT Rina, Joko (jetty), Atasan, HR — Mat
+
+- Script `apps/api/scripts/seed-qa-acceptance.ts` (`bun run db:seed:acceptance`, lokal saja, dijaga guard + cek URL lokal):
+  - Reset data Rina, Budi, Joko serta notifikasi & dashboard 5 akun.
+  - Isi tanggal merah uji, shift UQA/UJT, dan riwayat absen lewat service asli (approval & lembur terbentuk), plus cuti menunggu.
+  - Akun baru `jetty.lokal` (Joko Jetty, TMDEMO-JT, aturan JT) dengan password sama dengan akun uji lain (hash disalin di Auth lokal).
+  - Membersihkan usulan lembur & approval yatim sisa test.
+- Foto contoh `scripts/assets/qa-selfie.jpg` (siluet buatan sendiri).
+- Hasil: [docs/qa/runs/2026-10-22-acceptance-rina.md](../../qa/runs/2026-10-22-acceptance-rina.md), 28/28 lulus. Sekuens manual HR & atasan: [plans/2026-10-22-acceptance-rina.md](../../qa/plans/2026-10-22-acceptance-rina.md).
+- Temuan:
+  - Cleanup `attendance.test.ts`/`mobile-punch.test.ts` meninggalkan lembur & approval yatim.
+  - Pembulatan JT (+30 mnt dari kelebihan beberapa menit) perlu keputusan.
+  - Label "Tanpa absen istirahat" di hari OFF.
+- Upah grade lokal mengikuti kisaran umum industri tambang (di atas UMSP batubara Kalsel 2026 Rp3,77 jt):
+  - Staf 5,7+1,5 jt, Staf Senior 8+2 jt, Supervisor 14+4 jt, Manajer 30+8 jt, Direktur 100+25 jt.
+  - Jabatan demo disesuaikan: Rina Administrasi, Joko Checker Jetty, Dimas Helper Bor, Sari GA Staff, Budi Operations Manager (Manajer).
+  - Ikut `db:seed:acceptance`.

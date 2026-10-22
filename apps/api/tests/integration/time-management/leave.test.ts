@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import { leaveExitSettlementSchema as exitSettlementSchema } from "../../../src/modules/leave/leave.contract.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -29,7 +30,7 @@ const call = (method: string, path: string, headers: Record<string, string>, bod
 const data = async <T>(res: Response) => ((await res.json()) as { data: T }).data;
 const D = (iso: string) => new Date(`${iso}T00:00:00Z`);
 
-const ids = { status: "", department: "", position: "", employees: [] as string[] };
+const ids = { status: "", department: "", position: "", grade: "", employees: [] as string[] };
 let companyId = "";
 let shiftId = "";
 const emp = { mgr: "", a: "", b: "" };
@@ -37,6 +38,7 @@ let h: Record<"sa" | "hr" | "mgr" | "a" | "b", Record<string, string>>;
 const types: Record<string, string> = {};
 const holidayIds: string[] = [];
 let approvedId = "";
+let rejectedId = "";
 
 async function balance(employeeId: string, year: number) {
   const sum = await prisma.leaveLedger.aggregate({
@@ -135,7 +137,12 @@ afterAll(async () => {
   });
   await prisma.leaveRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.leaveLedger.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.leaveYear.deleteMany({ where: { year: { in: [2097, 2098] } } });
+  await prisma.leaveYear.deleteMany({ where: { year: { in: [2095, 2096, 2097, 2098] } } });
+  await prisma.leaveExitSettlement.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await prisma.attendancePeriod.deleteMany({ where: { companyId, month: "2098-08" } });
+  if (ids.grade) {
+    await prisma.gradeWage.deleteMany({ where: { gradeId: ids.grade } });
+  }
   await prisma.leaveType.deleteMany({ where: { code: `UJI_${RUN}` } });
   await prisma.holiday.deleteMany({ where: { id: { in: holidayIds } } });
   await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
@@ -146,6 +153,7 @@ afterAll(async () => {
   await prisma.position.delete({ where: { id: ids.position } });
   await prisma.department.delete({ where: { id: ids.department } });
   await prisma.employmentStatus.delete({ where: { id: ids.status } });
+  if (ids.grade) await prisma.grade.delete({ where: { id: ids.grade } });
   await disconnectPrisma();
 });
 
@@ -206,7 +214,7 @@ describe("master jenis & saldo", () => {
 });
 
 describe("pengajuan cuti tahunan", () => {
-  test("pratinjau: hanya hari kerja roster (OFF & tanggal merah tidak); sisa tahun lalu dulu s.d. 31 Maret", async () => {
+  test("pratinjau: hanya hari kerja roster (OFF & tanggal merah tidak); TM-D9: seluruhnya saldo tahun mulai", async () => {
     const preview = await data<{ dates: string[]; charges: { year: number; days: number }[] }>(
       await call("POST", "/leave/preview", h.a, {
         leaveTypeId: types.CUTI_TAHUNAN,
@@ -215,10 +223,8 @@ describe("pengajuan cuti tahunan", () => {
       }),
     );
     expect(preview.dates).toEqual(["2098-03-30", "2098-04-02"]);
-    expect(preview.charges.sort((x, y) => x.year - y.year)).toEqual([
-      { year: 2097, days: 1 },
-      { year: 2098, days: 1 },
-    ]);
+    // Sisa 2097 tidak lagi dipakai lebih dulu (D-072 lama) — hangus 31 Des 2097 (TM-D9).
+    expect(preview.charges).toEqual([{ year: 2098, days: 2 }]);
   });
 
   test("ajukan → saldo ditahan; bentrok rentang 409; Atasan + HR setuju → terpakai & hari LEAVE", async () => {
@@ -232,8 +238,8 @@ describe("pengajuan cuti tahunan", () => {
     const created = await data<{ id: string; days: number; status: string }>(res);
     approvedId = created.id;
     expect(created).toMatchObject({ days: 2, status: "PENDING" });
-    expect(await balance(emp.a, 2097)).toBe(1);
-    expect(await balance(emp.a, 2098)).toBe(11);
+    expect(await balance(emp.a, 2097)).toBe(2);
+    expect(await balance(emp.a, 2098)).toBe(10);
     expect(
       (
         await call("POST", "/leave-requests", h.a, {
@@ -252,8 +258,8 @@ describe("pengajuan cuti tahunan", () => {
       await call("GET", `/leave-requests/${created.id}`, h.a),
     );
     expect(done.status).toBe("APPROVED");
-    expect(await balance(emp.a, 2097)).toBe(1);
-    expect(await balance(emp.a, 2098)).toBe(11);
+    expect(await balance(emp.a, 2097)).toBe(2);
+    expect(await balance(emp.a, 2098)).toBe(10);
     const used = await prisma.leaveLedger.aggregate({
       where: { requestId: created.id, kind: "USE" },
       _sum: { days: true },
@@ -279,7 +285,8 @@ describe("pengajuan cuti tahunan", () => {
         reason: "Urusan keluarga",
       }),
     );
-    expect(await balance(emp.a, 2098)).toBe(10);
+    rejectedId = created.id;
+    expect(await balance(emp.a, 2098)).toBe(9);
     const req = await data<{ approval: { id: string } }>(
       await call("GET", `/leave-requests/${created.id}`, h.mgr),
     );
@@ -289,7 +296,7 @@ describe("pengajuan cuti tahunan", () => {
     expect((await decide({ decision: "REJECTED", note: "Jadwal produksi padat" })).status).toBe(
       200,
     );
-    expect(await balance(emp.a, 2098)).toBe(11);
+    expect(await balance(emp.a, 2098)).toBe(10);
   });
 });
 
@@ -325,7 +332,7 @@ describe("sakit & pembatalan", () => {
     expect(res.status).toBe(200);
     const created = await data<{ id: string }>(res);
     // Sakit tidak memotong saldo cuti.
-    expect(await balance(emp.a, 2098)).toBe(11);
+    expect(await balance(emp.a, 2098)).toBe(10);
     expect((await call("POST", `/leave-requests/${created.id}/cancel`, h.b)).status).toBe(404);
     const cancelled = await data<{ status: string }>(
       await call("POST", `/leave-requests/${created.id}/cancel`, h.a),
@@ -352,15 +359,19 @@ describe("pekerjaan cuti", () => {
     expect(entries[0]?.year).toBe(2098);
   });
 
-  test("pelunasan hutang akhir Januari dari jatah baru; sisa tahun lalu hangus 1 April", async () => {
+  test("pelunasan hutang akhir Januari dari jatah baru; sisa tahun lalu hangus (TM-D9: 31 Desember)", async () => {
     // emp.b: 2097 = −3; 2098 = 2 − 1 (cuti bersama) = 1 → lunas 1, sisa hutang 2.
     await call("POST", "/leave-jobs", h.sa, { job: "settle", value: "2098" });
     expect(await balance(emp.b, 2098)).toBe(0);
     expect(await balance(emp.b, 2097)).toBe(-2);
-    // emp.a: sisa 2097 = 1 → hangus.
+    // emp.a: sisa 2097 = 2 → hangus 31 Desember 2097.
     await call("POST", "/leave-jobs", h.sa, { job: "expire", value: "2098" });
     expect(await balance(emp.a, 2097)).toBe(0);
     expect(await balance(emp.b, 2097)).toBe(-2);
+    const expire = await prisma.leaveLedger.findFirst({
+      where: { employeeId: emp.a, year: 2097, kind: "EXPIRE" },
+    });
+    expect(expire?.note).toBe("Sisa 2097 hangus 31 Desember 2097");
   });
 
   test("tabel saldo per PT (HR) & saldo saya", async () => {
@@ -368,7 +379,7 @@ describe("pekerjaan cuti", () => {
       await call("GET", `/leave-balances?companyId=${companyId}&year=2098&q=Cuti ${RUN}`, h.hr),
     );
     const rowA = table.find((r) => r.employee.id === emp.a);
-    expect(rowA).toMatchObject({ balance: 11, used: 1 });
+    expect(rowA).toMatchObject({ balance: 10, used: 2 });
     expect(
       (await call("GET", `/leave-balances?companyId=${companyId}&year=2098`, h.a)).status,
     ).toBe(403);
@@ -495,5 +506,339 @@ describe("keterangan & berkas per jenis izin", () => {
       }),
     );
     expect(preview.documentRequired).toBe(false);
+  });
+});
+
+// TM-D9 (grill pemilik projek 2026-10-21): hangus 31 Des, saldo tahun mulai, pengajuan ulang ≤ 6 bulan,
+// tahanan dilepas setelah hangus, pelunasan tanpa tahanan, cuti disetujui setelah tutup periode, hak keluar.
+describe("TM-D9 aturan cuti tahunan baru", () => {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+  const lastYear = Number(today.slice(0, 4)) - 1;
+
+  test("cuti lintas tahun 30 Des – 4 Jan seluruhnya memakai saldo tahun mulai", async () => {
+    await prisma.rosterDay.createMany({
+      data: ["2098-12-30", "2098-12-31", "2099-01-04"].map((date) => ({
+        employeeId: emp.a,
+        workDate: D(date),
+        shiftId,
+        source: "MANUAL" as const,
+      })),
+    });
+    const preview = await data<{ charges: { year: number; days: number }[] }>(
+      await call("POST", "/leave/preview", h.a, {
+        leaveTypeId: types.CUTI_TAHUNAN,
+        startDate: "2098-12-30",
+        endDate: "2099-01-04",
+      }),
+    );
+    // 30–31 Des (roster) + 1–2 Jan (tanpa roster → hari kerja Senin–Jumat) + 4 Jan (roster) = 5 hari.
+    expect(preview.charges).toEqual([{ year: 2098, days: 5 }]);
+  });
+
+  test("tanggal di tahun yang saldonya sudah hangus → pengajuan cuti tahunan ditolak", async () => {
+    const date = `${lastYear}-12-15`;
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.a, workDate: D(date), shiftId, source: "MANUAL" },
+    });
+    const preview = await data<{ expiredYear: number | null }>(
+      await call("POST", "/leave/preview", h.a, {
+        leaveTypeId: types.CUTI_TAHUNAN,
+        startDate: date,
+        endDate: date,
+      }),
+    );
+    expect(preview.expiredYear).toBe(lastYear);
+    const res = await call("POST", "/leave-requests", h.a, {
+      leaveTypeId: types.CUTI_TAHUNAN,
+      startDate: date,
+      endDate: date,
+      reason: "Mundur ke tahun hangus",
+    });
+    expect(res.status).toBe(422);
+    expect(JSON.stringify(await res.json())).toContain("sudah hangus");
+  });
+
+  test("pengajuan ulang dari yang ditolak: ≤ 6 bulan, tanggal ke depan, sekali saja; pemutus melihat alasan tolak", async () => {
+    const mineBefore = await data<{
+      requests: { id: string; canResubmit: boolean; rejectionNote: string | null }[];
+    }>(await call("GET", "/leave/me", h.a));
+    const original = mineBefore.requests.find((r) => r.id === rejectedId);
+    expect(original).toMatchObject({ canResubmit: true, rejectionNote: "Jadwal produksi padat" });
+    expect(mineBefore.requests.find((r) => r.id === approvedId)?.canResubmit).toBe(false);
+
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.a, workDate: D("2098-04-13"), shiftId, source: "MANUAL" },
+    });
+    const body = (extra: Record<string, unknown>) => ({
+      leaveTypeId: types.CUTI_TAHUNAN,
+      startDate: "2098-04-13",
+      endDate: "2098-04-13",
+      reason: "Ajukan ulang urusan keluarga",
+      ...extra,
+    });
+    // Bukan pengajuan yang ditolak / milik orang lain / tanggal tidak ke depan.
+    expect(
+      (await call("POST", "/leave-requests", h.a, body({ resubmitOfId: approvedId }))).status,
+    ).toBe(422);
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.b, workDate: D("2098-04-13"), shiftId, source: "MANUAL" },
+    });
+    expect(
+      (await call("POST", "/leave-requests", h.b, body({ resubmitOfId: rejectedId }))).status,
+    ).toBe(404);
+    expect(
+      (
+        await call("POST", "/leave-requests", h.a, {
+          ...body({ resubmitOfId: rejectedId }),
+          startDate: today,
+          endDate: today,
+          leaveTypeId: types.SAKIT,
+        })
+      ).status,
+    ).toBe(422);
+    // Lewat 6 bulan sejak ditolak → ditolak.
+    const decidedAt = (await prisma.leaveRequest.findUnique({ where: { id: rejectedId } }))
+      ?.decidedAt;
+    await prisma.leaveRequest.update({
+      where: { id: rejectedId },
+      data: { decidedAt: new Date(Date.now() - 200 * 86_400_000) },
+    });
+    const late = await call("POST", "/leave-requests", h.a, body({ resubmitOfId: rejectedId }));
+    expect(late.status).toBe(422);
+    expect(JSON.stringify(await late.json())).toContain("Batas pengajuan ulang");
+    await prisma.leaveRequest.update({ where: { id: rejectedId }, data: { decidedAt } });
+
+    const res = await call("POST", "/leave-requests", h.a, body({ resubmitOfId: rejectedId }));
+    expect(res.status).toBe(200);
+    const created = await data<{
+      id: string;
+      resubmittedFrom: { id: string; rejectionNote: string | null } | null;
+    }>(res);
+    expect(created.resubmittedFrom).toMatchObject({
+      id: rejectedId,
+      rejectionNote: "Jadwal produksi padat",
+    });
+    // Pemutus (atasan) melihat riwayat penolakan; approval penuh lagi.
+    const asMgr = await data<{
+      resubmittedFrom: { rejectionNote: string | null } | null;
+      approval: { steps: { kind: string; decision: string }[] };
+    }>(await call("GET", `/leave-requests/${created.id}`, h.mgr));
+    expect(asMgr.resubmittedFrom?.rejectionNote).toBe("Jadwal produksi padat");
+    expect(asMgr.approval.steps.map((st) => st.decision)).toEqual(["PENDING", "PENDING"]);
+    // Sekali saja per penolakan.
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.a, workDate: D("2098-04-14"), shiftId, source: "MANUAL" },
+    });
+    expect(
+      (
+        await call("POST", "/leave-requests", h.a, {
+          ...body({ resubmitOfId: rejectedId }),
+          startDate: "2098-04-14",
+          endDate: "2098-04-14",
+        })
+      ).status,
+    ).toBe(409);
+    const mineAfter = await data<{ requests: { id: string; canResubmit: boolean }[] }>(
+      await call("GET", "/leave/me", h.a),
+    );
+    expect(mineAfter.requests.find((r) => r.id === rejectedId)?.canResubmit).toBe(false);
+  });
+
+  /** Pengajuan PENDING buatan langsung (untuk tahun lampau) + tahanannya. */
+  async function pendingWithHold(employeeId: string, year: number, days: number) {
+    const req = await prisma.leaveRequest.create({
+      data: {
+        employeeId,
+        companyId,
+        leaveTypeId: types.CUTI_TAHUNAN as string,
+        category: "ANNUAL",
+        startDate: D(`${year}-11-02`),
+        endDate: D(`${year}-11-03`),
+        workDates: [D(`${year}-11-02`), D(`${year}-11-03`)],
+        days,
+        reason: "Uji tahanan tahun hangus",
+        createdByEmployeeId: employeeId,
+      },
+    });
+    await prisma.leaveLedger.create({
+      data: { employeeId, companyId, year, kind: "HOLD", days: -days, requestId: req.id },
+    });
+    return req.id;
+  }
+
+  test("tahanan dilepas setelah saldo hangus tidak menghidupkan saldo; hutang nyata tetap hutang", async () => {
+    const y = lastYear - 1;
+    // emp.b tahun y: hanya tahanan 2 hari (saldo 0 setelah hangus) → batal → tetap 0.
+    await prisma.leaveLedger.create({
+      data: { employeeId: emp.b, companyId, year: y, kind: "GRANT", days: 2 },
+    });
+    const first = await pendingWithHold(emp.b, y, 2);
+    expect((await call("POST", `/leave-requests/${first}/cancel`, h.b)).status).toBe(200);
+    expect(await balance(emp.b, y)).toBe(0);
+    const expired = await prisma.leaveLedger.findFirst({
+      where: { requestId: first, kind: "EXPIRE" },
+    });
+    expect(expired?.days).toBe(-2);
+    // emp.mgr tahun y: hutang nyata −1 + tahanan 2 → batal → saldo −1 (tidak dihanguskan).
+    await prisma.leaveLedger.create({
+      data: { employeeId: emp.mgr, companyId, year: y, kind: "ADJUST", days: -1, note: "uji" },
+    });
+    const second = await pendingWithHold(emp.mgr, y, 2);
+    const mgrHeaders = h.mgr;
+    expect((await call("POST", `/leave-requests/${second}/cancel`, mgrHeaders)).status).toBe(200);
+    expect(await balance(emp.mgr, y)).toBe(-1);
+  });
+
+  test("pelunasan hutang Januari tidak menghitung tahanan pengajuan yang masih menunggu", async () => {
+    // emp.mgr 2095: hanya tahanan 3 hari (menunggu) → bukan hutang; 2096 jatah 5.
+    await pendingWithHold(emp.mgr, 2095, 3);
+    await prisma.leaveLedger.create({
+      data: { employeeId: emp.mgr, companyId, year: 2096, kind: "GRANT", days: 5 },
+    });
+    await call("POST", "/leave-jobs", h.sa, { job: "settle", value: "2096" });
+    expect(await balance(emp.mgr, 2096)).toBe(5);
+    expect(
+      await prisma.leaveLedger.count({
+        where: { employeeId: emp.mgr, kind: "SETTLE", year: 2096 },
+      }),
+    ).toBe(0);
+  });
+
+  test("cuti disetujui setelah periode ditutup: Alpha → CUTI berlabel LEAVE_AFTER_CLOSE", async () => {
+    const date = "2098-08-03";
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.b, workDate: D(date), shiftId, source: "MANUAL" },
+    });
+    await prisma.attendanceDay.create({
+      data: {
+        employeeId: emp.b,
+        companyId,
+        managerEmployeeId: emp.mgr,
+        workDate: D(date),
+        status: "ALPHA",
+        labels: ["NO_ATTENDANCE"],
+      },
+    });
+    const created = await data<{ id: string }>(
+      await call("POST", "/leave-requests", h.b, {
+        leaveTypeId: types.CUTI_TAHUNAN,
+        startDate: date,
+        endDate: date,
+        reason: "Cuti yang telat diputus",
+      }),
+    );
+    await prisma.attendancePeriod.create({
+      data: { companyId, month: "2098-08", status: "CLOSED", closedAt: new Date() },
+    });
+    await approveBoth(created.id);
+    const day = await prisma.attendanceDay.findUnique({
+      where: { employeeId_workDate: { employeeId: emp.b, workDate: D(date) } },
+    });
+    expect(day?.status).toBe("LEAVE");
+    expect(day?.labels).toContain("LEAVE_AFTER_CLOSE");
+  });
+
+  test("karyawan keluar: sisa cuti dibayar (÷21 tanpa roster), hutang dicatat; rupiah hanya ber-grant; aktif lagi → batal", async () => {
+    ids.grade = (await prisma.grade.create({ data: { name: `LV-G ${RUN}` } })).id;
+    await prisma.gradeWage.create({
+      data: {
+        gradeId: ids.grade,
+        basePay: 5_700_000,
+        fixedAllowance: 1_500_000,
+        updatedByAccountId: (await prisma.account.findFirstOrThrow()).id,
+      },
+    });
+    const mkExit = async (n: string) => {
+      const id = (
+        await prisma.employee.create({
+          data: {
+            employeeNumber: `LV-${RUN}-${n}`,
+            fullName: `Cuti ${RUN} ${n}`,
+            joinDate: new Date("2020-01-01T00:00:00Z"),
+            companyId,
+            employmentStatusId: ids.status,
+            positionId: ids.position,
+            gradeId: ids.grade,
+            isActive: false,
+            endDate: D("2098-09-30"),
+            exitReason: "RESIGNATION",
+          },
+        })
+      ).id;
+      ids.employees.push(id);
+      return id;
+    };
+    const ex1 = await mkExit("EX1");
+    const ex2 = await mkExit("EX2");
+    await prisma.leaveLedger.createMany({
+      data: [
+        { employeeId: ex1, companyId, year: 2098, kind: "GRANT", days: 12 },
+        { employeeId: ex1, companyId, year: 2098, kind: "USE", days: -4 },
+        { employeeId: ex2, companyId, year: 2098, kind: "ADJUST", days: -2, note: "uji" },
+      ],
+    });
+    const hrCost = (
+      await auth.loginAs("HR_ADMIN", {
+        companies: [companyId],
+        grants: [{ permission: "LABOR_COST_READ" }],
+      })
+    ).headers;
+    type Row = {
+      id: string;
+      employee: { id: string };
+      remainingDays: number;
+      debtDays: number;
+      divisor: number;
+      payAmount: number | null;
+      debtAmount: number | null;
+      status: string;
+    };
+    const list = async (who: Record<string, string>) =>
+      data<Row[]>(await call("GET", `/leave-exit-settlements?companyId=${companyId}`, who));
+    const withCost = await list(hrCost);
+    expect(exitSettlementSchema.array().safeParse(withCost).error).toBeUndefined();
+    const r1 = withCost.find((r) => r.employee.id === ex1) as Row;
+    // 8 hari × 7,2 jt ÷ 21.
+    expect(r1).toMatchObject({ remainingDays: 8, debtDays: 0, divisor: 21, payAmount: 2_742_857 });
+    const r2 = withCost.find((r) => r.employee.id === ex2) as Row;
+    expect(r2).toMatchObject({ remainingDays: 0, debtDays: 2, debtAmount: 685_714 });
+    // HR tanpa grant: hari terlihat, rupiah tidak.
+    const plain = (await list(h.hr)).find((r) => r.employee.id === ex1) as Row;
+    expect(plain).toMatchObject({ remainingDays: 8, payAmount: null });
+    expect((await call("GET", `/leave-exit-settlements?companyId=${companyId}`, h.a)).status).toBe(
+      403,
+    );
+    // Review TM-D9: sisa tahun keluar tidak hilang oleh hangus 31 Des (hitung ulang setelah hangus).
+    await prisma.leaveLedger.create({
+      data: {
+        employeeId: ex1,
+        companyId,
+        year: 2098,
+        kind: "EXPIRE",
+        days: -8,
+        note: "uji hangus",
+      },
+    });
+    const recalced = await data<Row>(
+      await call("POST", `/leave-exit-settlements/${r1.id}/recalculate`, hrCost),
+    );
+    expect(recalced).toMatchObject({ remainingDays: 8, payAmount: 2_742_857 });
+    // Idempoten: daftar dibuka lagi tidak membuat baris ganda.
+    expect((await list(hrCost)).filter((r) => r.employee.id === ex1)).toHaveLength(1);
+    // Tandai diproses; karyawan EX2 aktif lagi → settlement OPEN dibatalkan.
+    expect(
+      (await call("POST", `/leave-exit-settlements/${r1.id}/paid`, h.hr, { note: "Payroll Sep" }))
+        .status,
+    ).toBe(200);
+    await prisma.employee.update({
+      where: { id: ex2 },
+      data: { isActive: true, endDate: null, exitReason: null },
+    });
+    const after = await list(hrCost);
+    expect(after.find((r) => r.id === r1.id)?.status).toBe("PAID");
+    expect(after.find((r) => r.id === r2.id)?.status).toBe("CANCELLED");
+    // Tanggal keluar dikoreksi setelah PAID (tahun sama) → tidak dibuat settlement kedua (bayar ganda).
+    await prisma.employee.update({ where: { id: ex1 }, data: { endDate: D("2098-10-15") } });
+    expect((await list(hrCost)).filter((r) => r.employee.id === ex1)).toHaveLength(1);
   });
 });

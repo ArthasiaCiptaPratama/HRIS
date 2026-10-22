@@ -1,4 +1,6 @@
 import {
+  chartAllowedForSize,
+  fitWidgetToSize,
   ORDINAL_PIVOT_DIMENSIONS,
   PIVOT_CHART_TYPE_LABELS,
   PIVOT_CHART_TYPES,
@@ -226,7 +228,9 @@ function ChartTypeSwitch({ widget }: { widget: PivotWidget }) {
         >
           {PIVOT_CHART_TYPES.map((type) => {
             const TypeIcon = CHART_ICONS[type];
-            const disabled = !widget.cols && NEEDS_COLUMNS.includes(type);
+            const disabled =
+              (!widget.cols && NEEDS_COLUMNS.includes(type)) ||
+              !chartAllowedForSize(type, widget.size);
             return (
               <DropdownMenuRadioItem key={type} value={type} disabled={disabled}>
                 <TypeIcon className="text-muted-foreground" />
@@ -241,12 +245,14 @@ function ChartTypeSwitch({ widget }: { widget: PivotWidget }) {
 }
 
 export function PivotWidgetCard({
-  widget,
+  widget: stored,
   dragHandle,
 }: {
   widget: PivotWidget;
   dragHandle?: DragHandleProps | undefined;
 }) {
+  // Susunan lama: widget kecil dengan grafik lain tampil sebagai donut.
+  const widget = fitWidgetToSize(stored);
   const [table, setTable] = useState(false);
   const [total, setTotal] = useState<number>();
   return (

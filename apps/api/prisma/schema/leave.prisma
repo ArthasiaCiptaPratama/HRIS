@@ -112,13 +112,57 @@ model LeaveRequest {
   status              LeaveRequestStatus @default(PENDING)
   createdByEmployeeId String             @map("created_by_employee_id") @db.Uuid
   decidedAt           DateTime?          @map("decided_at") @db.Timestamptz(6)
+  /// TM-D9: pengajuan ulang dari pengajuan yang ditolak (≤ 6 bulan sejak penolakan pertama).
+  resubmittedFromId   String?            @map("resubmitted_from_id") @db.Uuid
   createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   type LeaveType @relation(fields: [leaveTypeId], references: [id])
 
   @@index([employeeId, startDate])
+  @@index([resubmittedFromId])
   @@index([companyId, status])
   @@map("leave_requests")
+  @@schema("leave")
+}
+
+enum LeaveExitStatus {
+  OPEN // menunggu diproses di payroll akhir
+  PAID // sudah diproses
+  CANCELLED // karyawan diaktifkan lagi
+
+  @@schema("leave")
+}
+
+/// TM-D9: hak cuti saat karyawan keluar (alasan apa pun) — sisa cuti dibayar uang penggantian hak, hutang
+/// cuti dicatat untuk dipotong payroll akhir. Snapshot upah grade & pembagi saat dihitung (payroll Fase 8
+/// belum ada; ini catatan untuk HR). Dibuat otomatis cron leave-daily / tombol HR.
+model LeaveExitSettlement {
+  id                 String          @id @default(uuid()) @db.Uuid
+  employeeId         String          @map("employee_id") @db.Uuid
+  companyId          String          @map("company_id") @db.Uuid
+  exitDate           DateTime        @map("exit_date") @db.Date
+  year               Int             @db.SmallInt
+  /// Sisa cuti tahun keluar (≥ 0) & hutang (≥ 0, tahun keluar + sisa hutang tahun sebelumnya).
+  remainingDays      Int             @map("remaining_days") @db.SmallInt
+  debtDays           Int             @map("debt_days") @db.SmallInt
+  /// Pengajuan cuti yang masih menunggu saat dihitung (tidak dihitung sebagai pemakaian).
+  pendingDays        Int             @default(0) @map("pending_days") @db.SmallInt
+  formula            String          @db.VarChar(10)
+  divisor            Int             @db.SmallInt
+  gradeId            String?         @map("grade_id") @db.Uuid
+  monthlyWage        Decimal?        @map("monthly_wage") @db.Decimal(14, 2)
+  payAmount          Decimal?        @map("pay_amount") @db.Decimal(14, 2)
+  debtAmount         Decimal?        @map("debt_amount") @db.Decimal(14, 2)
+  status             LeaveExitStatus @default(OPEN)
+  note               String?         @db.VarChar(300)
+  decidedByAccountId String?         @map("decided_by_account_id") @db.Uuid
+  decidedAt          DateTime?       @map("decided_at") @db.Timestamptz(6)
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId])
+  @@index([companyId, status])
+  @@map("leave_exit_settlements")
   @@schema("leave")
 }
