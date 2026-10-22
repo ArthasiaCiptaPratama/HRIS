@@ -21,7 +21,7 @@
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
-| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — MOB-D1–D17; BE tahap 1–3 (versi minimum, push FCM, 87 operasi TM/Cuti bertipe, punch app, target notifikasi) + `operationId` ✔ develop 2026-10-21; app M0–M1 ✔; berikutnya app M2 Absen (2026-10-22) | – |
+| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — MOB-D1–D18; BE tahap 1–3 (versi minimum, push FCM, 87 operasi TM/Cuti bertipe, punch app, target notifikasi) + `operationId` ✔ develop 2026-10-21; kontrak M2 (`Idempotency-Key` di spec punch, tanggal input string+pola MOB-D18) ✔ develop 2026-10-22; app M0–M1 ✔, M2 Absen berjalan | – |
 
 Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan, import, onboarding, arsip, dashboard · 5–6 time-management · 7 kontrak · 8 payroll · 9 hardening · Rilis 1–3 → [RELEASE.md](RELEASE.md).
 
@@ -110,6 +110,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-22** — Mobile: kontrak OpenAPI untuk M2 Absen dari serah-terima app — header `Idempotency-Key` di spec punch, tanggal input = string + pola (MOB-D18); merge `HRIS/mobile-app` → develop `b74131a`. (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-10-21** — Gabung `HRIS/Mat/Mac` (11 commit s.d. `d7a09a0`: lembur/istirahat/upah grade TM-D6–D8, cuti TM-D9/D10, dashboard analitik DSB-D1 + analitik tim atasan, template roster 13+1 & 5+2, saklar per fitur TM, seed QA TM); fungsi baru Mat di `attendance/directory.ts` dipindah ke interface publik employee/organization; mobile: grill MOB-D1–D16, BE tahap 1, app M0 ✔, branch `HRIS/mobile-app`. (Oatse) → [time-management/log](features/time-management/log.md), [mobile/log](features/mobile/log.md)
 - **2026-10-21** — Analisis kesiapan BE untuk app Flutter (siap dengan celah: OpenAPI TM/Leave belum bertipe, push, cek versi, anti-kecurangan) + Android SDK Windows belum terpasang; folder fitur `mobile` (MOB). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-10-21** — TM: adapter `attendance/directory.ts` lewat interface publik employee/organization (tanpa Prisma) + 5 cron TM di `vercel.json`; shared 268 · api 840 · web 290. (Oatse) → [time-management/log](features/time-management/log.md)
