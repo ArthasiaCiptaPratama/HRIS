@@ -323,6 +323,16 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
     );
     expect(a[0]?.code).toBe("OFF");
     expect(b[0]?.code).toBe(`D${RUN.slice(0, 4)}`);
+    // TM-D13 Fase C: pengaju & rekan diberi tahu jadwal barunya.
+    for (const employeeId of [emp.a, emp.b]) {
+      const account = await prisma.account.findFirstOrThrow({ where: { employeeId } });
+      const notice = await prisma.notification.findFirst({
+        where: { recipientAccountId: account.id, type: "attendance.roster_changed" },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(notice?.title).toBe("Tukar shift disetujui — jadwal Anda berubah");
+      expect(notice).toMatchObject({ targetType: "ROSTER", targetId: date });
+    }
   });
 
   test("tanggal lampau ditolak; batal oleh pengaju", async () => {

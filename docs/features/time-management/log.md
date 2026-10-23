@@ -157,3 +157,16 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - `__tests__/shift-instance.test.ts` (engine, kasus 27→28, shift 3 dua malam, jendela tumpang tindih, jeda).
   - `tests/integration/time-management/shift-instance.test.ts` (service asli dengan jam terkontrol: tap-in 23:50, tap-out 08:05, tap-in 15:45 + SHORT_REST, tanpa Alpha, jadwal terkunci walau master diubah).
 - Kontrak API berubah: `Shift.startsNextDay`, `TimeSettings.minRestHours`, label `SHORT_REST`. Path & operationId tetap. **Kabari tim mobile.**
+
+## 2026-10-23 — TM-D13 Fase C: notifikasi perubahan jadwal — Mat
+
+- Poin 12 "memperjelas mekanisme pertukaran shift agar karyawan mengetahui perubahan jadwalnya".
+- `roster-notify.service.ts`:
+  - Jadwal lama vs baru dibandingkan di `applyCells` (edit grid & import), `regenerateCrew` (pola/crew/anggota berubah) dan handler approval `ROSTER_CHANGE`.
+  - Satu notifikasi per karyawan, hanya tanggal hari ini ke depan, isi "tanggal: lama → baru".
+  - Tukar shift ditolak/dibatalkan → pengaju diberi tahu.
+  - Cron `roster-extend` tidak mengirim notifikasi (`regenerateCrew(…, notify=false)`).
+- Target notifikasi baru `ROSTER` (id = tanggal) dan `TodayView.roster[].changed` → titik "Jadwal berubah" di roster 7 hari. **Kabari tim mobile.**
+- Test:
+  - `roster-notify.test.ts`: edit HR → notifikasi; tanpa perubahan / tanggal lewat → tidak ada; cron perpanjangan → tidak ada.
+  - `roster.test.ts`: tukar shift disetujui → pengaju & rekan diberi tahu.

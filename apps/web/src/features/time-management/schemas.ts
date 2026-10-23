@@ -105,7 +105,15 @@ export const todaySchema = z.object({
   timezone: z.string(),
   gpsAccuracyMaxM: z.number(),
   employee: person,
-  roster: z.array(z.object({ date: z.string(), code: z.string(), shift: shiftSchema.nullable() })),
+  roster: z.array(
+    z.object({
+      date: z.string(),
+      code: z.string(),
+      shift: shiftSchema.nullable(),
+      /** TM-D13: jadwal berubah baru-baru ini (opsional: API lama tidak mengirim). */
+      changed: z.boolean().optional(),
+    }),
+  ),
   location: z
     .object({
       id: z.string(),

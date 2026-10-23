@@ -368,6 +368,8 @@ export const TM_NOTIFICATION_TARGETS = [
   "LEAVE_REQUEST",
   "OVERTIME",
   "APPROVAL_QUEUE",
+  // TM-D13 Fase C: jadwal berubah → layar Roster Saya (id = tanggal YYYY-MM-DD pertama yang berubah).
+  "ROSTER",
 ] as const;
 export type TmNotificationTarget = (typeof TM_NOTIFICATION_TARGETS)[number];
 

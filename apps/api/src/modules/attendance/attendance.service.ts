@@ -156,6 +156,12 @@ interface Evaluation {
   breakWindow: { opens: Date; closes: Date } | null;
 }
 
+/** TM-D13 Fase C: hari roster yang diubah (bukan hasil pola) dalam 7 hari terakhir → penanda di HP. */
+const recentlyChanged = (d: { source: string; createdAt: Date; updatedAt: Date }, now: Date) =>
+  d.source !== "PATTERN" &&
+  now.getTime() - d.updatedAt.getTime() <= 7 * 24 * 60 * MINUTE &&
+  (d.source === "CHANGE" || d.updatedAt.getTime() - d.createdAt.getTime() > 1000);
+
 /** TM-D13: tanggal roster yang sudah punya hari absen (sekali Clock In per shift, bukan per tanggal kalender). */
 const takenDates = (days: { workDate: Date }[]) => new Set(days.map((d) => toIso(d.workDate)));
 
@@ -525,7 +531,13 @@ export interface TodayView {
   timezone: string;
   gpsAccuracyMaxM: number;
   employee: { id: string; fullName: string; employeeNumber: string | null };
-  roster: { date: string; code: string; shift: ReturnType<typeof shiftDto> | null }[];
+  /** TM-D13 Fase C: `changed` = diubah (tukar shift / edit HR / import) dalam 7 hari terakhir. */
+  roster: {
+    date: string;
+    code: string;
+    shift: ReturnType<typeof shiftDto> | null;
+    changed: boolean;
+  }[];
   location: {
     id: string;
     name: string;
@@ -608,6 +620,7 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
         date: toIso(d.workDate),
         code: d.shift?.code ?? "OFF",
         shift: d.shift ? shiftDto(d.shift) : null,
+        changed: recentlyChanged(d, now),
       }))
       .sort((a, b) => a.date.localeCompare(b.date)),
     location: location

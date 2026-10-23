@@ -26,6 +26,7 @@ import {
 import * as directory from "./directory.ts";
 import * as repository from "./roster.repository.ts";
 import { eachDate, generateCrewDays, isoAddDays } from "./roster-engine.ts";
+import { notifyRosterChanges, type RosterChange, rosterCodes } from "./roster-notify.service.ts";
 
 // Tahap B — roster tambang (D-069): shift, pola, crew, pembangkit hari roster, grid bulanan, import.
 
@@ -533,12 +534,29 @@ export async function setCrewMembers(
 // ── Pembangkit hari roster ─────────────────────────────────────────────────────
 
 /** Bangkitkan ulang hari pola crew dari `from` (bawaan hari ini) sampai horizon pengaturan. */
-export async function regenerateCrew(crewId: string, from = todayIso()): Promise<number> {
+/**
+ * Bangkitkan ulang hari pola crew. `notify` (TM-D13 Fase C): beri tahu anggota yang jadwalnya berubah —
+ * dimatikan untuk cron perpanjangan horizon (hari baru di ujung bukan perubahan).
+ */
+export async function regenerateCrew(
+  crewId: string,
+  from = todayIso(),
+  notify = true,
+): Promise<number> {
   const crew = await repository.findCrew(crewId);
   if (!crew) return 0;
   const settings = await readTimeSettings();
   const start = from < todayIso() ? todayIso() : from;
   const end = isoAddDays(todayIso(), settings.rosterHorizonDays);
+  const memberIds = [...new Set(crew.members.map((m) => m.employeeId))];
+  const snapshot = async () =>
+    new Map(
+      (await repository.rosterDaysBetween(memberIds, toDate(start), toDate(end))).map((r) => [
+        `${r.employeeId}|${toIso(r.workDate)}`,
+        r.shift?.code ?? null,
+      ]),
+    );
+  const before = notify && memberIds.length > 0 ? await snapshot() : null;
   const codes = await shiftCodeMap(crew.companyId);
   const generated = crew.deletedAt
     ? []
@@ -553,7 +571,7 @@ export async function regenerateCrew(crewId: string, from = todayIso()): Promise
         start,
         end,
       );
-  return repository.withTransaction(async (tx) => {
+  const count = await repository.withTransaction(async (tx) => {
     await repository.deletePatternDays(tx, crewId, toDate(start), toDate(end));
     const result = await repository.insertDays(
       tx,
@@ -567,13 +585,23 @@ export async function regenerateCrew(crewId: string, from = todayIso()): Promise
     );
     return result.count;
   });
+  if (before) {
+    const after = await snapshot();
+    const changes: RosterChange[] = [];
+    for (const key of new Set([...before.keys(), ...after.keys()])) {
+      const [employeeId, date] = key.split("|") as [string, string];
+      changes.push({ employeeId, date, from: before.get(key), to: after.get(key) });
+    }
+    await notifyRosterChanges(changes, "pattern");
+  }
+  return count;
 }
 
 /** Cron `roster-extend`: perpanjang roster semua crew sampai horizon. */
 export async function extendAllRosters(): Promise<{ crews: number; days: number }> {
   let days = 0;
   const crews = await repository.allActiveCrews();
-  for (const crew of crews) days += await regenerateCrew(crew.id);
+  for (const crew of crews) days += await regenerateCrew(crew.id, todayIso(), false);
   return { crews: crews.length, days };
 }
 
@@ -768,6 +796,7 @@ async function applyCells(
   source: "MANUAL" | "IMPORT",
   codes: Awaited<ReturnType<typeof shiftCodeMap>>,
 ) {
+  const before = await rosterCodes(cells.map((c) => ({ employeeId: c.employeeId, date: c.date })));
   await repository.withTransaction(async (tx) => {
     for (const cell of cells) {
       const date = toDate(cell.date);
@@ -790,6 +819,19 @@ async function applyCells(
       companyId,
       cells: cells.length,
     },
+  );
+  // TM-D13 Fase C: karyawan diberi tahu perubahan jadwalnya (hari ini ke depan).
+  await notifyRosterChanges(
+    cells.map((c) => {
+      const key = `${c.employeeId}|${c.date}`;
+      return {
+        employeeId: c.employeeId,
+        date: c.date,
+        from: before.has(key) ? before.get(key) : undefined,
+        to: c.code === null ? undefined : c.code === OFF_CODE ? null : c.code,
+      };
+    }),
+    source === "MANUAL" ? "edit" : "import",
   );
 }
 

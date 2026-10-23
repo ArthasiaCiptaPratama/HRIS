@@ -103,7 +103,14 @@ export const todayViewSchema = z
     gpsAccuracyMaxM: z.number(),
     employee: employeeRef,
     roster: z.array(
-      z.object({ date: z.iso.date(), code: z.string(), shift: nullableRef(shiftSchema) }),
+      z.object({
+        date: z.iso.date(),
+        code: z.string(),
+        shift: nullableRef(shiftSchema),
+        changed: z.boolean().openapi({
+          description: "TM-D13: diubah (tukar shift / edit HR / import) ≤ 7 hari terakhir",
+        }),
+      }),
     ),
     location: z
       .object({
