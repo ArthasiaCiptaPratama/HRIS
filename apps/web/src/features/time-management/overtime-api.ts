@@ -188,6 +188,8 @@ export function useApplyRosterTemplate() {
           z.object({
             shifts: z.array(z.object({ code: z.string() })),
             crews: z.array(z.object({ name: z.string() })),
+            /** TM-D13: jeda antarshift di pola < pengaturan (opsional: API lama tidak mengirim). */
+            restWarnings: z.array(z.string()).optional(),
           }),
         ),
       }).then((r) => r.data),

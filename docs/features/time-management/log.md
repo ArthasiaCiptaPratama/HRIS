@@ -170,3 +170,13 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - Test:
   - `roster-notify.test.ts`: edit HR → notifikasi; tanpa perubahan / tanggal lewat → tidak ada; cron perpanjangan → tidak ada.
   - `roster.test.ts`: tukar shift disetujui → pengaju & rekan diberi tahu.
+
+## 2026-10-23 — TM-D13 Fase D: template 3 shift & jeda pola — Mat
+
+- Poin 15 "meninjau pengaturan shift agar jadwal kerja dan absensi sesuai ketentuan operasional".
+- Template baru `SHIFT_3X8`:
+  - S1 08–16, S2 16–24, S3 24–08 (malam setelah tanggal roster); istirahat 60 mnt dibayar; tanpa lembur rutin.
+  - Pola S1 S1 S2 S2 S3 S3 OFF OFF; 4 crew bergeser 2 hari → tiap shift selalu dijaga satu crew.
+  - Jam shift diasumsikan (pertanyaan ke pemilik projek belum dijawab).
+- `patternRestWarnings` di `@hris/shared`: jeda antarlangkah pola melingkar < `minRestHours` → peringatan langsung di form Pola dan `restWarnings` di hasil `POST /roster/templates` (kontrak bertambah; **kabari tim mobile**). Tidak menolak.
+- Test: shared `overtime.test.ts` (2-2-2 aman, S2→S1 8 jam, malam→pagi 0 jam); API `overtime.test.ts` (template 3 shift).
