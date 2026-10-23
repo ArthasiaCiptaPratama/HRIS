@@ -12,6 +12,8 @@ const isManager = (me: Me) => me.role === ROLE.MANAGER && me.employeeId !== null
 export const tmAccess = {
   /** Absen PWA: akun yang terhubung ke data karyawan (D-067). */
   punch: (me: Me) => me.employeeId !== null,
+  /** TM-D13 Fase B: verifikasi Alpha tim (atasan), SA, HR PT. */
+  verifyAlpha: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Data Absen Harian & inbox keputusan (D-068): SA, HR (PT ditugaskan), MANAGER (tim). */
   reviewDays: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Grid roster: semua yang punya data karyawan + SA/HR. */

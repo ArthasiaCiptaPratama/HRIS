@@ -180,3 +180,21 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Jam shift diasumsikan (pertanyaan ke pemilik projek belum dijawab).
 - `patternRestWarnings` di `@hris/shared`: jeda antarlangkah pola melingkar < `minRestHours` → peringatan langsung di form Pola dan `restWarnings` di hasil `POST /roster/templates` (kontrak bertambah; **kabari tim mobile**). Tidak menolak.
 - Test: shared `overtime.test.ts` (2-2-2 aman, S2→S1 8 jam, malam→pagi 0 jam); API `overtime.test.ts` (template 3 shift).
+
+## 2026-10-23 — TM-D13 Fase B: verifikasi Alpha oleh atasan — Mat
+
+- Poin 16 "notifikasi dan verifikasi atasan apabila karyawan tidak masuk atau tidak melakukan absensi".
+- Pilihan pemilik projek: notifikasi ke atasan + atasan memverifikasi; tutup periode ditolak bila belum (rekomendasi, "gas").
+- Kode:
+  - Migrasi `alpha_verification` (kolom `alpha_verification`, `alpha_verified_by`, `alpha_verified_at`, `alpha_verification_note` + enum).
+  - `markNoAttendanceAlpha` menandai PENDING + notifikasi `attendance.alpha_verify` ke atasan.
+  - `alpha.service`: `listAlphaVerifications`, `verifyAlpha` (audit `attendance.alpha.verify`, notifikasi karyawan), `pendingAlphaVerifications`.
+  - `period.service`: pratinjau `unverifiedAlpha`, tutup periode 422.
+  - Policy `canVerifyAlpha`/`canViewAlphaVerifications`.
+  - Web: tab Alpha di Approval HP (`alpha-verification-list.tsx`) & peringatan di pratinjau tutup periode.
+- **Beda dari usulan awal:** Izin/Sakit/Tugas luar tidak membuat pengajuan otomatis. Karyawan diminta mengajukan izin/sakit/koreksi (alur resmi diputus HR), karena modul cuti & koreksi belum punya pengajuan atas nama karyawan dan surat dokter/saldo harus tetap lewat alur cuti.
+- Test:
+  - API `alpha-verification.test.ts`: Alpha → PENDING + notif atasan; antrean atasan; karyawan 403; tutup periode 422; verifikasi Sakit + notif karyawan.
+  - Web `alpha-verification.test.tsx`.
+  - Browser lokal: Budi memverifikasi Alpha Dimas → tersimpan "Izin".
+- Kontrak API baru: `GET/POST /attendance/alpha-verifications`, `AttendancePeriodPreview.unverifiedAlpha`. **Kabari tim mobile.**

@@ -1,8 +1,12 @@
 import { z } from "@hono/zod-openapi";
-import { ATTENDANCE_RECORD_OUTCOMES } from "@hris/shared";
+import { ALPHA_VERIFICATION_STATES, ATTENDANCE_RECORD_OUTCOMES } from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import { approvalViewSchema } from "../approval/index.ts";
-import type { AttendanceRecord, AttendanceRecordItem } from "./alpha.service.ts";
+import type {
+  AlphaVerificationItem,
+  AttendanceRecord,
+  AttendanceRecordItem,
+} from "./alpha.service.ts";
 import type * as service from "./period.service.ts";
 import type { CorrectionDto, RecapRow, StatementRow } from "./period.service.ts";
 
@@ -54,6 +58,9 @@ export const periodPreviewSchema = z
   .object({
     status: periodStatus,
     alpha: z.number().int(),
+    unverifiedAlpha: z.number().int().openapi({
+      description: "TM-D13: Alpha belum diverifikasi atasan (periode belum bisa ditutup)",
+    }),
     noAttendance: z.number().int(),
     pending: z.number().int(),
     rejected: z.number().int(),
@@ -147,3 +154,20 @@ export const attendanceRecordSchema = z
   })
   .openapi("AttendanceRecord");
 assertExact<z.infer<typeof attendanceRecordSchema>, AttendanceRecord>(true);
+
+// TM-D13 Fase B: verifikasi atasan atas Alpha.
+export const alphaVerificationSchema = z
+  .object({
+    dayId: z.uuid(),
+    employee: employeeRef,
+    workDate: z.iso.date(),
+    shiftCode: z.string().nullable(),
+    scheduledStart: z.iso.datetime().nullable(),
+    verification: z.enum(ALPHA_VERIFICATION_STATES),
+    note: z.string().nullable(),
+    verifiedAt: z.iso.datetime().nullable(),
+    deadline: z.iso.date(),
+    canVerify: z.boolean(),
+  })
+  .openapi("AlphaVerification");
+assertExact<z.infer<typeof alphaVerificationSchema>, AlphaVerificationItem>(true);

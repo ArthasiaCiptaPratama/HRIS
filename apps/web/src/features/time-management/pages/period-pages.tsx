@@ -708,6 +708,12 @@ function CloseDialog({
               <b>{p.alpha}</b> hari akan menjadi <b>Alpha</b>: {p.noAttendance} tanpa absen,{" "}
               {p.pending} belum disetujui, {p.rejected} ditolak.
             </p>
+            {p.unverifiedAlpha ? (
+              <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                {p.unverifiedAlpha} hari Alpha belum diverifikasi atasan — periode belum bisa
+                ditutup. Atasan memverifikasi di Approval › Alpha.
+              </p>
+            ) : null}
             {p.sample.length ? (
               <ul className="max-h-48 divide-y overflow-y-auto rounded-md border text-xs">
                 {p.sample.map((s) => (
