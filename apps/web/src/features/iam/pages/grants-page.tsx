@@ -4,6 +4,7 @@ import {
   PERMISSION_LABELS,
   PERMISSIONS,
   type Permission,
+  type Role,
 } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { KeyRound, SearchX } from "lucide-react";
@@ -191,7 +192,7 @@ function CreateGrantDialog({
   recipients: {
     id: string;
     email: string;
-    role: "SUPER_ADMIN" | "HR_ADMIN" | "MANAGER" | "EMPLOYEE";
+    role: Role;
   }[];
 }) {
   const create = useCreateGrant();

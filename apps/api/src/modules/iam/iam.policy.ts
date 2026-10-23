@@ -1,4 +1,10 @@
-import { isPermissionGrantableTo, type Permission, ROLE, type Role } from "@hris/shared";
+import {
+  isPermissionGrantableTo,
+  type Permission,
+  ROLE,
+  type Role,
+  usesAssignedCompanies,
+} from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 
 // PROMPT §3.5: keputusan akses murni; default tolak. Data target diberikan pemanggil.
@@ -75,9 +81,10 @@ export function canSetActive(actor: Actor, target: AccountTarget): boolean {
   );
 }
 
-// D-040: penugasan PT = bagian kelola akses (§4.3 "Beri/cabut role & grant": SA); hanya untuk HR_ADMIN.
+// D-040: penugasan PT = bagian kelola akses (§4.3 "Beri/cabut role & grant": SA); untuk role HR
+// (HR_ADMIN, HR_PERSONNEL — IAM-D1).
 export function canAssignCompanies(actor: Actor, target: AccountTarget): boolean {
-  return isSuperAdmin(actor) && target.role === ROLE.HR_ADMIN;
+  return isSuperAdmin(actor) && usesAssignedCompanies(target.role);
 }
 
 // §4.4: hanya Utama, ke SUPER_ADMIN lain yang aktif. Konfirmasi password dicek terpisah (login ulang, D-033).

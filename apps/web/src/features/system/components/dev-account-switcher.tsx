@@ -12,6 +12,7 @@ type TestAccount = { email: string; role: string; employeeId: string | null };
 const ROLE_TEXT: Record<string, string> = {
   SUPER_ADMIN: "SA",
   HR_ADMIN: "HR",
+  HR_PERSONNEL: "HR Kepeg.",
   MANAGER: "Atasan",
   EMPLOYEE: "Karyawan",
 };

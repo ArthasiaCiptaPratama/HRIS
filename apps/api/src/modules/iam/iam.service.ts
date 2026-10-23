@@ -9,6 +9,7 @@ import {
   ROLE,
   ROLE_LABELS,
   type Role,
+  usesAssignedCompanies,
 } from "@hris/shared";
 import { type Actor, isGrantActive } from "../../core/access/index.ts";
 import { listAuditLogs as listAuditLogRows, writeAudit } from "../../core/audit.ts";
@@ -267,7 +268,7 @@ export async function loadActor(authUserId: string, now: Date = new Date()): Pro
     companyIds:
       account.role === "SUPER_ADMIN"
         ? null
-        : account.role === "HR_ADMIN"
+        : usesAssignedCompanies(account.role)
           ? new Set(account.companies.map((c) => c.companyId))
           : new Set<string>(),
   };
@@ -426,11 +427,10 @@ export async function changeRole(ctx: RequestContext, id: string, newRole: Role,
       ctx.actor.accountId,
       now,
     );
-    // D-040: penugasan PT hanya berarti untuk HR_ADMIN → dicabut bila role berubah dari HR_ADMIN.
-    const removedCompanies =
-      newRole === ROLE.HR_ADMIN
-        ? []
-        : (await repository.findCompanyAssignments([target.id], tx)).map((a) => a.companyId);
+    // D-040 + IAM-D1: penugasan PT hanya berarti untuk role HR → dicabut bila role baru bukan HR.
+    const removedCompanies = usesAssignedCompanies(newRole)
+      ? []
+      : (await repository.findCompanyAssignments([target.id], tx)).map((a) => a.companyId);
     if (removedCompanies.length > 0) {
       await repository.replaceCompanyAssignments(tx, target.id, [], ctx.actor.accountId);
     }

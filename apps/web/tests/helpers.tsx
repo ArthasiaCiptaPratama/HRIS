@@ -10,7 +10,7 @@ import { AuthProvider } from "@/features/auth/auth-provider";
 export { authState, supabaseMock } from "./supabase-mock";
 
 export function me(
-  role: "SUPER_ADMIN" | "HR_ADMIN" | "MANAGER" | "EMPLOYEE",
+  role: "SUPER_ADMIN" | "HR_ADMIN" | "HR_PERSONNEL" | "MANAGER" | "EMPLOYEE",
   primary = false,
   employeeId: string | null = null,
 ) {

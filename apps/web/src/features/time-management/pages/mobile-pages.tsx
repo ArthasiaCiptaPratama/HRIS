@@ -546,6 +546,7 @@ export function MobileProfilePage() {
   const roleText: Record<string, string> = {
     SUPER_ADMIN: "Super Admin",
     HR_ADMIN: "HR Admin",
+    HR_PERSONNEL: "HR Kepegawaian",
     MANAGER: "Manager",
     EMPLOYEE: "Karyawan",
   };
