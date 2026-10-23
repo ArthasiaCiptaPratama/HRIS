@@ -70,6 +70,7 @@ export interface ShiftDto {
   startMinute: number;
   endMinute: number;
   crossesMidnight: boolean;
+  startsNextDay: boolean;
   checkInOpenMin: number;
   lateToleranceMin: number;
   earlyLeaveToleranceMin: number;
@@ -90,6 +91,7 @@ export const shiftDto = (row: {
   name: string;
   startMinute: number;
   endMinute: number;
+  startsNextDay: boolean;
   checkInOpenMin: number;
   lateToleranceMin: number;
   earlyLeaveToleranceMin: number;
@@ -109,6 +111,7 @@ export const shiftDto = (row: {
   startMinute: row.startMinute,
   endMinute: row.endMinute,
   crossesMidnight: row.endMinute <= row.startMinute,
+  startsNextDay: row.startsNextDay,
   checkInOpenMin: row.checkInOpenMin,
   lateToleranceMin: row.lateToleranceMin,
   earlyLeaveToleranceMin: row.earlyLeaveToleranceMin,

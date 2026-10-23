@@ -482,6 +482,11 @@ const FIELDS: { key: Exclude<keyof TimeSettings, "timezone">; label: string; hin
     label: "Clock Out dibuka (mnt sebelum jam pulang)",
     hint: "Lebih awal dari ini = pulang darurat: wajib alasan & berlabel Pulang cepat.",
   },
+  {
+    key: "minRestHours",
+    label: "Jeda minimal antarshift (jam)",
+    hint: "Clock In kurang dari ini sejak Clock Out sebelumnya ditandai Jeda antarshift kurang (alasan wajib).",
+  },
 ];
 
 export function TimeSettingsPage() {

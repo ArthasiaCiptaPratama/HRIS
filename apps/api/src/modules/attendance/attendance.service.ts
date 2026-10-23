@@ -46,6 +46,7 @@ import {
   localDate,
   offsetMinutes,
   planCheckIn,
+  restShortfall,
   type ShiftTimes,
   shiftWindow,
 } from "./attendance-engine.ts";
@@ -100,6 +101,7 @@ const shiftTimes = (shift: {
   lateToleranceMin: number;
   earlyLeaveToleranceMin: number;
   checkOutCloseMin: number;
+  startsNextDay: boolean;
 }): ShiftTimes => ({
   startMinute: shift.startMinute,
   endMinute: shift.endMinute,
@@ -107,6 +109,7 @@ const shiftTimes = (shift: {
   lateToleranceMin: shift.lateToleranceMin,
   earlyLeaveToleranceMin: shift.earlyLeaveToleranceMin,
   checkOutCloseMin: shift.checkOutCloseMin,
+  startsNextDay: shift.startsNextDay,
 });
 
 function selfEmployee(ctx: RequestContext) {
@@ -153,18 +156,38 @@ interface Evaluation {
   breakWindow: { opens: Date; closes: Date } | null;
 }
 
+/** TM-D13: tanggal roster yang sudah punya hari absen (sekali Clock In per shift, bukan per tanggal kalender). */
+const takenDates = (days: { workDate: Date }[]) => new Set(days.map((d) => toIso(d.workDate)));
+
 /** Jam lokal HH:MM untuk pesan ke karyawan. */
 const clockOf = (at: Date, timezone: string) =>
   new Date(at.getTime() + offsetMinutes(timezone) * MINUTE).toISOString().slice(11, 16);
 
-/** TM-D12: batas waktu Clock Out & istirahat dari shift hari terbuka. */
+/**
+ * TM-D12: batas waktu Clock Out & istirahat dari shift hari terbuka. TM-D13: jadwal DIKUNCI saat tap-in
+ * (`scheduledStart/End/checkOutDeadline` di hari absen) — tidak dihitung ulang dari tanggal / master shift.
+ */
 export function openDayTimes(
   workDate: string,
   shift: Shift | null,
   settings: { timezone: string; checkOutEarlyMin: number },
+  locked?: {
+    scheduledStart: Date | null;
+    scheduledEnd: Date | null;
+    checkOutDeadline: Date | null;
+  } | null,
 ) {
   if (!shift) return { window: null, normalEnd: null, checkOutOpensAt: null, breakWindow: null };
-  const window = shiftWindow(workDate, shiftTimes(shift), settings.timezone);
+  const planned = shiftWindow(workDate, shiftTimes(shift), settings.timezone);
+  const window =
+    locked?.scheduledStart && locked.scheduledEnd
+      ? {
+          start: locked.scheduledStart,
+          end: locked.scheduledEnd,
+          checkInOpen: planned.checkInOpen,
+          checkOutDeadline: locked.checkOutDeadline ?? planned.checkOutDeadline,
+        }
+      : planned;
   // TM-D6: jam lembur rutin di akhir shift bukan bagian "pulang cepat" (dijalani kurang = label sendiri).
   const normalEnd = shift.regularOvertimeMin
     ? { ...window, end: new Date(window.end.getTime() - shift.regularOvertimeMin * MINUTE) }
@@ -222,7 +245,7 @@ async function evaluate(
     if (!open) throw new BusinessRuleError("Belum ada absen masuk yang menunggu absen pulang.");
     assertBreakSequence(input.kind, open);
     const shift = open.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
-    const times = openDayTimes(toIso(open.workDate), shift, settings);
+    const times = openDayTimes(toIso(open.workDate), shift, settings, open);
     const window = times.window;
     // TM-D12: Mulai istirahat hanya di jendela istirahat shift (Selesai istirahat bebas).
     if (input.kind === "BREAK_START" && times.breakWindow) {
@@ -276,11 +299,18 @@ async function evaluate(
   }
 
   const dates = candidateDates(now, settings.timezone);
-  const rosterDays = await rosterRepo.rosterDaysBetween(
-    [employee.id],
-    toDate(dates[0] as string),
-    toDate(dates[2] as string),
-  );
+  const [rosterDays, nearby] = await Promise.all([
+    rosterRepo.rosterDaysBetween(
+      [employee.id],
+      toDate(dates[0] as string),
+      toDate(dates[2] as string),
+    ),
+    repository.daysOfEmployee(
+      employee.id,
+      toDate(isoAddDays(dates[0] as string, -1)),
+      toDate(dates[2] as string),
+    ),
+  ]);
   const byDate = new Map(rosterDays.map((d) => [toIso(d.workDate), d]));
   const plan = planCheckIn(
     now,
@@ -292,7 +322,9 @@ async function evaluate(
         shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
       };
     }),
+    takenDates(nearby),
   );
+  const shortRest = restShortfall(nearby, now, settings.minRestHours);
   const rosterDay = byDate.get(plan.workDate);
   const resolved = await expectedLocation(employee, plan.workDate);
   const expected = resolved.location;
@@ -309,7 +341,7 @@ async function evaluate(
     workDate: plan.workDate,
     shift: rosterDay?.shift ?? null,
     window: plan.window,
-    labels: [...plan.labels, ...geofence.labels],
+    labels: [...plan.labels, ...(shortRest ? (["SHORT_REST"] as const) : []), ...geofence.labels],
     geofence,
     openDay: null,
     location: expected,
@@ -556,10 +588,11 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
         shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
       };
     }),
+    takenDates(recentRows),
   );
   const openShift = open?.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
   const times = open
-    ? openDayTimes(toIso(open.workDate), openShift, settings)
+    ? openDayTimes(toIso(open.workDate), openShift, settings, open)
     : { checkOutOpensAt: null, breakWindow: null };
   return {
     serverTime: now.toISOString(),
@@ -597,13 +630,16 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
     checkOutOpensAt: times.checkOutOpensAt?.toISOString() ?? null,
     breakOpensAt: times.breakWindow?.opens.toISOString() ?? null,
     breakClosesAt: times.breakWindow?.closes.toISOString() ?? null,
+    // TM-D13: ada shift terbuka yang belum di-Clock In → IN; tidak ada & tanggal hari ini sudah absen → DONE.
     next: open
       ? "OUT"
-      : recentRows.some(
-            (d) => toIso(d.workDate) === dates[1] && d.punches.some((p) => p.kind === "IN"),
-          )
-        ? "DONE"
-        : "IN",
+      : plan.window && !plan.labels.includes("OUTSIDE_ROSTER") && !plan.labels.includes("NO_ROSTER")
+        ? "IN"
+        : recentRows.some(
+              (d) => toIso(d.workDate) === plan.workDate && d.punches.some((p) => p.kind === "IN"),
+            )
+          ? "DONE"
+          : "IN",
   };
 }
 
@@ -640,16 +676,12 @@ const openDayInfo = (open: repository.DayRow | null) =>
     : null;
 
 /**
- * Satu absen masuk per hari: sudah Clock In pada tanggal kerja yang direncanakan ATAU pada tanggal
- * hari ini (zona waktu jam shift) → absen masuk baru ditolak (permintaan pemilik projek 2026-10-19).
+ * TM-D13: satu absen masuk per SHIFT (tanggal roster), bukan per tanggal kalender — karyawan shift bisa
+ * pulang shift 3 pukul 08.00 lalu masuk shift 2 pukul 16.00 di tanggal kalender yang sama.
  */
-async function checkedInAlready(employeeId: string, workDate: string, now: Date) {
-  const today = localDate(now, (await readTimeSettings()).timezone);
-  for (const date of new Set([workDate, today])) {
-    const day = await repository.findDay(employeeId, toDate(date));
-    if (day?.punches.some((p) => p.kind === "IN")) return true;
-  }
-  return false;
+async function checkedInAlready(employeeId: string, workDate: string) {
+  const day = await repository.findDay(employeeId, toDate(workDate));
+  return day?.punches.some((p) => p.kind === "IN") ?? false;
 }
 
 /** MOB-D3: lokasi palsu dari app → label penanda (tidak memblokir, tidak wajib alasan). */
@@ -675,7 +707,7 @@ export async function precheck(
   const e = withMockLabel(await evaluate(employee, input, now), input);
   const existing =
     e.kind === "IN" ? await repository.findDay(employee.id, toDate(e.workDate)) : null;
-  const done = e.kind === "IN" && (await checkedInAlready(employee.id, e.workDate, now));
+  const done = e.kind === "IN" && (await checkedInAlready(employee.id, e.workDate));
   return {
     kind: e.kind,
     workDate: e.workDate,
@@ -797,8 +829,8 @@ async function recordPunch(
   if (e.kind === "IN" && (await repository.findDay(employeeId, toDate(e.workDate)))) {
     throw new ConflictError("Sudah absen masuk untuk tanggal kerja ini.");
   }
-  if (e.kind === "IN" && (await checkedInAlready(employeeId, e.workDate, now))) {
-    throw new ConflictError("Anda sudah Clock In hari ini; absen berikutnya besok sesuai jadwal.");
+  if (e.kind === "IN" && (await checkedInAlready(employeeId, e.workDate))) {
+    throw new ConflictError("Shift ini sudah di-Clock In; absen berikutnya sesuai jadwal shift.");
   }
   if (e.kind === "IN" && e.offDay && !input.offDayOvertime) {
     throw new BusinessRuleError(

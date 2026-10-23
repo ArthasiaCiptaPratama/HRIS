@@ -25,6 +25,9 @@ export const shiftSchema = z
     startMinute: z.number().int(),
     endMinute: z.number().int(),
     crossesMidnight: z.boolean(),
+    startsNextDay: z
+      .boolean()
+      .openapi({ description: "TM-D13: mulai setelah tengah malam tanggal roster (shift 3)" }),
     checkInOpenMin: z.number().int(),
     lateToleranceMin: z.number().int(),
     earlyLeaveToleranceMin: z.number().int(),

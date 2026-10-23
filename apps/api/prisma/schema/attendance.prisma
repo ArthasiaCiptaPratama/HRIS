@@ -50,6 +50,8 @@ model Shift {
   name                   String    @db.VarChar(80)
   startMinute            Int       @map("start_minute") @db.SmallInt
   endMinute              Int       @map("end_minute") @db.SmallInt
+  /// TM-D13: shift mulai setelah tengah malam tanggal roster (shift 3 roster 27 = 28 00:00–08:00).
+  startsNextDay          Boolean   @default(false) @map("starts_next_day")
   checkInOpenMin         Int       @default(60) @map("check_in_open_min") @db.SmallInt
   lateToleranceMin       Int       @default(15) @map("late_tolerance_min") @db.SmallInt
   earlyLeaveToleranceMin Int       @default(15) @map("early_leave_tolerance_min") @db.SmallInt
