@@ -15,18 +15,25 @@ const isAdmin = (actor: Actor) => actor.role === ROLE.SUPER_ADMIN || actor.role 
 
 export type EmployeeListScope = "all" | "companies" | "team";
 
+/**
+ * IAM-D1: HR Kepegawaian — hanya MELIHAT data kerja (kepegawaian) karyawan di PT yang ditugaskan; tanpa
+ * data pribadi/rekening/dokumen (izin sensitif tidak bisa di-grant ke role ini), tanpa Arsip, tanpa aksi.
+ */
+export const isEmploymentOnly = (actor: Actor) => actor.role === ROLE.HR_PERSONNEL;
+
 // Data kerja: SA semua; HR PT yang ditugaskan (D-040); MANAGER tim (butuh keterhubungan ke data
 // karyawan); EMPLOYEE lewat detail sendiri.
 export function employeeListScope(actor: Actor): EmployeeListScope | null {
   if (actor.role === ROLE.SUPER_ADMIN) return "all";
-  if (actor.role === ROLE.HR_ADMIN) return "companies";
+  if (actor.role === ROLE.HR_ADMIN || isEmploymentOnly(actor)) return "companies";
   if (actor.role === ROLE.MANAGER && actor.employeeId !== null) return "team";
   return null;
 }
 
 export function canViewEmployee(actor: Actor, target: EmployeeTarget): boolean {
   if (actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
-  if (actor.role === ROLE.HR_ADMIN) return isInCompanyScope(actor, target);
+  if (actor.role === ROLE.HR_ADMIN || isEmploymentOnly(actor))
+    return isInCompanyScope(actor, target);
   // D-040: tim MANAGER berlaku lintas PT (bawahan langsung, D-009).
   return actor.role === ROLE.MANAGER && isInTeam(actor, target);
 }
@@ -170,7 +177,7 @@ export function canReviewOnboarding(actor: Actor, companyId: string): boolean {
 // (SA semua, HR PT ditugaskan, MANAGER tim — kolom kerja saja); EMPLOYEE tidak (data sendiri lewat
 // detail/ESS). Kelola item per karyawan: SA/HR atas karyawan yang boleh mereka lihat.
 export function canReadArchive(actor: Actor): boolean {
-  return employeeListScope(actor) !== null;
+  return employeeListScope(actor) !== null && !isEmploymentOnly(actor);
 }
 
 /** D-058: ekspor Excel tabel Arsip — SA & HR (isi tetap sebatas yang boleh dilihat); MANAGER tidak. */
@@ -200,7 +207,10 @@ export function canReadDocuments(
   code?: string,
 ): boolean {
   if (!canViewEmployee(actor, target)) return false;
-  if (!sensitive || actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
+  if (isSelf(actor, target)) return true;
+  // IAM-D1: HR Kepegawaian tidak melihat dokumen karyawan lain (bukan data kerja).
+  if (isEmploymentOnly(actor)) return false;
+  if (!sensitive || actor.role === ROLE.SUPER_ADMIN) return true;
   if (code === "BANK_BOOK" && canReadBank(actor, target)) return true;
   if (
     code === "WARNING_LETTER" &&

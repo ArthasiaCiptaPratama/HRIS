@@ -62,13 +62,17 @@ afterAll(async () => {
 });
 
 describe("GET /me — nama karyawan (BUG-004)", () => {
-  test("akun tertaut karyawan → employeeName = nama lengkap karyawan", async () => {
+  test("akun tertaut karyawan → employeeName & employeeCompanyId dari karyawan", async () => {
     const emp = await auth.loginAs("EMPLOYEE", { employeeId });
-    expect((await me(emp.headers)).employeeName).toBe(`Karyawan Me ${RUN}`);
+    const body = await me(emp.headers);
+    expect(body.employeeName).toBe(`Karyawan Me ${RUN}`);
+    expect(body.employeeCompanyId).toBe(await acpCompanyId());
   });
 
-  test("akun tanpa karyawan → employeeName null", async () => {
+  test("akun tanpa karyawan → employeeName & employeeCompanyId null", async () => {
     const sa = await auth.loginAs("SUPER_ADMIN");
-    expect((await me(sa.headers)).employeeName).toBeNull();
+    const body = await me(sa.headers);
+    expect(body.employeeName).toBeNull();
+    expect(body.employeeCompanyId).toBeNull();
   });
 });

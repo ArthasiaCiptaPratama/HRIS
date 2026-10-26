@@ -104,11 +104,23 @@ export const routes: RouteObject[] = [
               },
               {
                 path: "arsip/:section",
-                lazy: FEATURES.archive ? pages.archive : pages.maintenance,
+                element: <RequireAccessRoute check={access.readArchive} />,
+                children: [
+                  { index: true, lazy: FEATURES.archive ? pages.archive : pages.maintenance },
+                ],
               },
               {
                 path: "struktur-organisasi",
                 lazy: FEATURES.orgStructure ? pages.orgStructure : pages.maintenance,
+              },
+              {
+                element: <RequireAccessRoute check={access.viewInactiveEmployees} />,
+                children: [
+                  {
+                    path: "pegawai-tidak-aktif",
+                    lazy: FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
+                  },
+                ],
               },
               {
                 element: <RequireAccessRoute check={access.manageEmployees} />,
@@ -124,10 +136,6 @@ export const routes: RouteObject[] = [
                   {
                     path: "pengaktifan",
                     lazy: FEATURES.activation ? pages.activation : pages.maintenance,
-                  },
-                  {
-                    path: "pegawai-tidak-aktif",
-                    lazy: FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
                   },
                   // ARS-D16: Laporan batch 1 (SA & HR; cakupan PT & grant dicek API).
                   {

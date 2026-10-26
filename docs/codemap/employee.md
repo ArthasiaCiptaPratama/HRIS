@@ -84,3 +84,5 @@ Enum (skema `employee`): `Gender`, `MaritalStatus`, `Religion` (6 agama resmi + 
 
 
 **Direktori untuk Time Management/analitik (merge Mat 2026-10-21):** `directory.service.ts` + `directory.repository.ts` — `EmployeeBrief.gradeId`, `listExitedEmployees` (TM-D9), `getEmployeeExitStatuses` (TM-D9), `listAnalyticsEmployees` (DSB-D1, `employmentStatusId` + `birthDate` opsional); diekspor lewat `index.ts`, dipakai `attendance/directory.ts`.
+
+**Kontrak app (2026-10-26, `HRIS/mobile-app`):** `employee-import.schema.ts` objek `masterData` pratinjau impor = skema bernama `EmployeeImportMasterData` (sebelumnya inline, dinamai `MasterData` oleh codegen app dan menimpa skema `GET /master-data`).

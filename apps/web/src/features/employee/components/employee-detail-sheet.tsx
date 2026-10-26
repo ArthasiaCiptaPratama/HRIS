@@ -424,6 +424,8 @@ function DetailBody({
   const me = useMe().data;
   // ARS-D13: tab SP untuk SA, HR ber-grant SP, MANAGER (API membatasi ke tim).
   const canSeeWarningLetters = me ? appAccess.viewWarningLetters(me) : false;
+  // IAM-D1: HR Kepegawaian hanya tab Kepegawaian & Riwayat (data dirinya sendiri tetap lengkap).
+  const workOnly = me ? appAccess.employmentOnly(me) && me.employeeId !== employee.id : false;
   // D-054: menu Arsip membuka detail langsung di tab terkait (?tab=education|history).
   const [params] = useSearchParams();
   const [tab, setTab] = useState(() => params.get("tab") ?? "work");
@@ -500,36 +502,40 @@ function DetailBody({
             <TabsTrigger value="work">
               <BriefcaseBusiness /> Kepegawaian
             </TabsTrigger>
-            <TabsTrigger value="personal">
-              <CircleUser /> Pribadi
-            </TabsTrigger>
-            <TabsTrigger value="family">
-              <HeartHandshake /> Keluarga
-            </TabsTrigger>
-            <TabsTrigger value="education">
-              <GraduationCap /> Pendidikan
-            </TabsTrigger>
-            <TabsTrigger value="documents">
-              <FolderArchive /> Dokumen
-            </TabsTrigger>
-            {FEATURES.assets ? (
-              <TabsTrigger value="assets">
-                <Package /> Aset
-              </TabsTrigger>
-            ) : null}
-            {FEATURES.discipline && canSeeWarningLetters ? (
-              <TabsTrigger value="warnings">
-                <ShieldAlert /> SP
-              </TabsTrigger>
-            ) : null}
-            {tmOn("tmAttendanceDays") ? (
-              <TabsTrigger value="attendance">
-                <CalendarX2 /> Absensi
-              </TabsTrigger>
-            ) : null}
-            <TabsTrigger value="bank">
-              <Landmark /> Rekening
-            </TabsTrigger>
+            {workOnly ? null : (
+              <>
+                <TabsTrigger value="personal">
+                  <CircleUser /> Pribadi
+                </TabsTrigger>
+                <TabsTrigger value="family">
+                  <HeartHandshake /> Keluarga
+                </TabsTrigger>
+                <TabsTrigger value="education">
+                  <GraduationCap /> Pendidikan
+                </TabsTrigger>
+                <TabsTrigger value="documents">
+                  <FolderArchive /> Dokumen
+                </TabsTrigger>
+                {FEATURES.assets ? (
+                  <TabsTrigger value="assets">
+                    <Package /> Aset
+                  </TabsTrigger>
+                ) : null}
+                {FEATURES.discipline && canSeeWarningLetters ? (
+                  <TabsTrigger value="warnings">
+                    <ShieldAlert /> SP
+                  </TabsTrigger>
+                ) : null}
+                {tmOn("tmAttendanceDays") ? (
+                  <TabsTrigger value="attendance">
+                    <CalendarX2 /> Absensi
+                  </TabsTrigger>
+                ) : null}
+                <TabsTrigger value="bank">
+                  <Landmark /> Rekening
+                </TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="history">
               <History /> Riwayat
             </TabsTrigger>
@@ -539,45 +545,51 @@ function DetailBody({
           <TabsContent value="work">
             <WorkTab employee={employee} />
           </TabsContent>
-          <TabsContent value="personal">
-            <SensitiveGate allowed={access.personal} what="Data pribadi" query={full}>
-              {sensitive ? <PersonalTab employee={sensitive} /> : null}
-            </SensitiveGate>
-          </TabsContent>
-          <TabsContent value="family">
-            <SensitiveGate allowed={access.personal} what="Data keluarga" query={full}>
-              {sensitive ? <FamilyTab employee={sensitive} /> : null}
-            </SensitiveGate>
-          </TabsContent>
-          <TabsContent value="education">
-            <EducationTab employee={employee} />
-          </TabsContent>
-          <TabsContent value="documents">
-            <DocumentsTab employeeId={employee.id} />
-          </TabsContent>
-          {FEATURES.assets ? (
-            <TabsContent value="assets">
-              {/* ARS-D3: aset & APD yang dipegang (cakupan dicek API; tanpa harga). */}
-              <EmployeeAssetsTab employeeId={employee.id} />
-            </TabsContent>
-          ) : null}
-          {FEATURES.discipline && canSeeWarningLetters ? (
-            <TabsContent value="warnings">
-              {/* ARS-D13: SP karyawan (SA, HR ber-grant SP, MANAGER tim; cakupan dicek API). */}
-              <EmployeeWarningLettersTab employeeId={employee.id} />
-            </TabsContent>
-          ) : null}
-          {tmOn("tmAttendanceDays") ? (
-            <TabsContent value="attendance">
-              {/* TM-D3: rekam jejak Alpha & koreksi (SA, HR PT, atasan tim, karyawan sendiri; dicek API). */}
-              {tab === "attendance" ? <EmployeeAttendanceRecord employeeId={employee.id} /> : null}
-            </TabsContent>
-          ) : null}
-          <TabsContent value="bank">
-            <SensitiveGate allowed={access.bank} what="Rekening bank" query={full}>
-              {sensitive ? <BankTab employee={sensitive} /> : null}
-            </SensitiveGate>
-          </TabsContent>
+          {workOnly ? null : (
+            <>
+              <TabsContent value="personal">
+                <SensitiveGate allowed={access.personal} what="Data pribadi" query={full}>
+                  {sensitive ? <PersonalTab employee={sensitive} /> : null}
+                </SensitiveGate>
+              </TabsContent>
+              <TabsContent value="family">
+                <SensitiveGate allowed={access.personal} what="Data keluarga" query={full}>
+                  {sensitive ? <FamilyTab employee={sensitive} /> : null}
+                </SensitiveGate>
+              </TabsContent>
+              <TabsContent value="education">
+                <EducationTab employee={employee} />
+              </TabsContent>
+              <TabsContent value="documents">
+                <DocumentsTab employeeId={employee.id} />
+              </TabsContent>
+              {FEATURES.assets ? (
+                <TabsContent value="assets">
+                  {/* ARS-D3: aset & APD yang dipegang (cakupan dicek API; tanpa harga). */}
+                  <EmployeeAssetsTab employeeId={employee.id} />
+                </TabsContent>
+              ) : null}
+              {FEATURES.discipline && canSeeWarningLetters ? (
+                <TabsContent value="warnings">
+                  {/* ARS-D13: SP karyawan (SA, HR ber-grant SP, MANAGER tim; cakupan dicek API). */}
+                  <EmployeeWarningLettersTab employeeId={employee.id} />
+                </TabsContent>
+              ) : null}
+              {tmOn("tmAttendanceDays") ? (
+                <TabsContent value="attendance">
+                  {/* TM-D3: rekam jejak Alpha & koreksi (SA, HR PT, atasan tim, karyawan sendiri; dicek API). */}
+                  {tab === "attendance" ? (
+                    <EmployeeAttendanceRecord employeeId={employee.id} />
+                  ) : null}
+                </TabsContent>
+              ) : null}
+              <TabsContent value="bank">
+                <SensitiveGate allowed={access.bank} what="Rekening bank" query={full}>
+                  {sensitive ? <BankTab employee={sensitive} /> : null}
+                </SensitiveGate>
+              </TabsContent>
+            </>
+          )}
           <TabsContent value="history">
             <HistoryTab employee={employee} />
           </TabsContent>

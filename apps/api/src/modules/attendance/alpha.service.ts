@@ -1,12 +1,16 @@
 import {
   ALPHA_RULE_START,
+  ALPHA_VERIFICATION_LABELS,
+  type AlphaVerificationInput,
+  type AlphaVerificationState,
   ATTENDANCE_RECORD_OUTCOMES,
   type AttendanceRecordOutcome,
   canStillCorrect,
   correctionDeadline,
 } from "@hris/shared";
+import { writeAudit } from "../../core/audit.ts";
 import { getPrisma } from "../../core/db.ts";
-import { ForbiddenError, NotFoundError } from "../../core/errors.ts";
+import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
 import { localDate, shiftWindow } from "./attendance-engine.ts";
 import {
@@ -17,6 +21,7 @@ import {
   toIso,
 } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
+import { isoAddDays } from "./roster-engine.ts";
 import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 
 // TM-D3 — hari kerja roster tanpa absen sama sekali langsung Alpha setelah batas absen pulang shift-nya
@@ -78,6 +83,8 @@ export async function markNoAttendanceAlpha(
         checkOutDeadline: window.checkOutDeadline,
         status: "ALPHA" as const,
         labels: ["NO_ATTENDANCE"],
+        // TM-D13 Fase B: atasan memverifikasi (Alpha / izin / sakit / tugas luar).
+        alphaVerification: "PENDING" as const,
       },
     ];
   });
@@ -103,8 +110,191 @@ export async function markNoAttendanceAlpha(
       }),
       now,
     );
+    // TM-D13 Fase B: atasan diberi tahu & diminta verifikasi (karyawan tanpa atasan → HR di antrean).
+    await notifyEmployees(
+      rows
+        .filter((r) => r.managerEmployeeId)
+        .map((r) => {
+          const date = toIso(r.workDate);
+          const name = people.get(r.employeeId)?.fullName ?? "Karyawan";
+          return {
+            employeeId: r.managerEmployeeId as string,
+            type: "attendance.alpha_verify",
+            title: `${name} tidak absen ${dateLabel(date)} (shift ${r.shiftCode}) — perlu verifikasi`,
+            body: "Pilih: Alpha, izin, sakit, atau tugas luar. Periode absensi tidak bisa ditutup sebelum diverifikasi.",
+            link: "/absen/approval",
+            dedupeKey: `tm-alpha-verify:${r.employeeId}:${date}`,
+            target: { type: "APPROVAL_QUEUE", id: date },
+          };
+        }),
+      now,
+    );
   }
   return { marked: result.count };
+}
+
+// ── TM-D13 Fase B: verifikasi atasan atas Alpha ────────────────────────────────────
+
+export interface AlphaVerificationItem {
+  dayId: string;
+  employee: { id: string; fullName: string; employeeNumber: string | null };
+  workDate: string;
+  shiftCode: string | null;
+  scheduledStart: string | null;
+  verification: AlphaVerificationState;
+  note: string | null;
+  verifiedAt: string | null;
+  /** Batas koreksi / pengajuan izin karyawan (YYYY-MM-DD). */
+  deadline: string;
+  canVerify: boolean;
+}
+
+type AlphaRow = {
+  id: string;
+  employeeId: string;
+  companyId: string;
+  managerEmployeeId: string | null;
+  workDate: Date;
+  shiftCode: string | null;
+  scheduledStart: Date | null;
+  alphaVerification: AlphaVerificationState | null;
+  alphaVerificationNote: string | null;
+  alphaVerifiedAt: Date | null;
+};
+
+async function toVerificationItems(ctx: RequestContext, rows: AlphaRow[]) {
+  const people = await directory.employeesByIds(rows.map((r) => r.employeeId));
+  return rows.map((r): AlphaVerificationItem => {
+    const p = people.get(r.employeeId);
+    const date = toIso(r.workDate);
+    return {
+      dayId: r.id,
+      employee: {
+        id: r.employeeId,
+        fullName: p?.fullName ?? "—",
+        employeeNumber: p?.employeeNumber ?? null,
+      },
+      workDate: date,
+      shiftCode: r.shiftCode,
+      scheduledStart: r.scheduledStart?.toISOString() ?? null,
+      verification: r.alphaVerification ?? "PENDING",
+      note: r.alphaVerificationNote,
+      verifiedAt: r.alphaVerifiedAt?.toISOString() ?? null,
+      deadline: correctionDeadline(date),
+      canVerify: policy.canVerifyAlpha(ctx.actor, r),
+    };
+  });
+}
+
+/** Antrean verifikasi Alpha: `inbox` = menunggu & boleh diputus aktor; `all` = semua dalam cakupan (≤ 60 hari). */
+export async function listAlphaVerifications(
+  ctx: RequestContext,
+  scope: "inbox" | "all",
+  now = new Date(),
+): Promise<AlphaVerificationItem[]> {
+  if (!policy.canViewAlphaVerifications(ctx.actor)) throw new ForbiddenError();
+  const { timezone } = await readTimeSettings();
+  const from = toDate(isoAddDays(localDate(now, timezone), -60));
+  const actor = ctx.actor;
+  const where =
+    actor.role === "SUPER_ADMIN"
+      ? {}
+      : actor.role === "HR_ADMIN"
+        ? { companyId: { in: [...(actor.companyIds ?? [])] } }
+        : { managerEmployeeId: actor.employeeId as string };
+  const rows = await db().attendanceDay.findMany({
+    where: {
+      ...where,
+      status: "ALPHA",
+      alphaVerification: scope === "inbox" ? "PENDING" : { not: null },
+      workDate: { gte: from },
+    },
+    orderBy: [{ workDate: "desc" }],
+    take: 500,
+  });
+  const items = await toVerificationItems(ctx, rows);
+  return scope === "inbox" ? items.filter((i) => i.canVerify) : items;
+}
+
+const OUTCOME_NOTICE: Record<AlphaVerificationInput["outcome"], (deadline: string) => string> = {
+  CONFIRMED: () =>
+    "Atasan mengonfirmasi hari itu Alpha. Buat surat pernyataan di menu Koreksi & Pernyataan.",
+  PERMIT: (d) =>
+    `Atasan mencatat izin. Ajukan Izin untuk tanggal itu di menu Cuti & Izin paling lambat ${dateLabel(d)}.`,
+  SICK: (d) =>
+    `Atasan mencatat sakit. Ajukan Sakit (lampirkan surat dokter bila ada) paling lambat ${dateLabel(d)}.`,
+  DUTY: (d) =>
+    `Atasan mencatat tugas luar. Ajukan koreksi absen untuk tanggal itu paling lambat ${dateLabel(d)}.`,
+};
+
+/** Atasan memverifikasi satu hari Alpha (boleh diubah selama periode belum ditutup). */
+export async function verifyAlpha(
+  ctx: RequestContext,
+  dayId: string,
+  input: AlphaVerificationInput,
+  now = new Date(),
+): Promise<AlphaVerificationItem> {
+  const row = await db().attendanceDay.findUnique({ where: { id: dayId } });
+  if (row?.status !== "ALPHA" || row.alphaVerification === null) throw new NotFoundError();
+  if (!policy.canVerifyAlpha(ctx.actor, row)) throw new ForbiddenError();
+  if (await isClosedMonth(row.companyId, toIso(row.workDate))) {
+    throw new BusinessRuleError("Periode absensi bulan ini sudah ditutup.");
+  }
+  const updated = await db().attendanceDay.update({
+    where: { id: row.id },
+    data: {
+      alphaVerification: input.outcome,
+      alphaVerificationNote: input.note,
+      alphaVerifiedBy: ctx.actor.accountId,
+      alphaVerifiedAt: now,
+    },
+  });
+  await writeAudit({
+    actorAccountId: ctx.actor.accountId,
+    action: "attendance.alpha.verify",
+    entityType: "attendance.day",
+    entityId: row.id,
+    before: { verification: row.alphaVerification },
+    after: { verification: input.outcome, note: input.note },
+    requestId: ctx.requestId ?? null,
+    ip: ctx.ip ?? null,
+  });
+  const date = toIso(row.workDate);
+  await notifyEmployees(
+    [
+      {
+        employeeId: row.employeeId,
+        type: "attendance.alpha_verified",
+        title: `Verifikasi ${dateLabel(date)}: ${ALPHA_VERIFICATION_LABELS[input.outcome]}`,
+        body: OUTCOME_NOTICE[input.outcome](correctionDeadline(date)),
+        link:
+          input.outcome === "PERMIT" || input.outcome === "SICK" ? "/absen/cuti" : "/absen/koreksi",
+        dedupeKey: `tm-alpha-verified:${row.id}:${now.getTime()}`,
+        target: { type: "ATTENDANCE_DATE", id: date },
+      },
+    ],
+    now,
+  );
+  return (await toVerificationItems(ctx, [updated]))[0] as AlphaVerificationItem;
+}
+
+const isClosedMonth = async (companyId: string, date: string) =>
+  (await db().attendancePeriod.count({
+    where: { companyId, month: date.slice(0, 7), status: "CLOSED" },
+  })) > 0;
+
+/** Alpha yang masih menunggu verifikasi atasan pada bulan & PT (tutup periode ditolak bila > 0). */
+export async function pendingAlphaVerifications(companyId: string, month: string) {
+  const from = toDate(`${month}-01`);
+  const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0));
+  return db().attendanceDay.count({
+    where: {
+      companyId,
+      status: "ALPHA",
+      alphaVerification: "PENDING",
+      workDate: { gte: from, lte: last },
+    },
+  });
 }
 
 export interface AttendanceRecordItem {

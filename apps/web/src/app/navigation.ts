@@ -119,6 +119,8 @@ const GROUP_ICONS: Record<string, LucideIcon> = {
 };
 
 const manage = access.manageEmployees;
+// IAM-D1: HR Kepegawaian tidak membuka Arsip (bukan data kerja).
+const archiveReader = access.readArchive;
 
 // D-054 (Arsip 1a): menu yang sudah aktif terbuka juga untuk MANAGER (tim, kolom kerja); sisanya
 // Maintenance & hanya SA/HR sampai gelombangnya dikerjakan.
@@ -184,7 +186,7 @@ const archive = (id: string, label: string, icon: LucideIcon, keywords = ""): Na
           label,
           to: `/personal/arsip/${id}`,
           icon,
-          visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? access.personalMenu),
+          visible: !ARCHIVE_READY.has(id) ? manage : (ARCHIVE_GRANTED[id] ?? archiveReader),
           maintenance: !FEATURES.archive || !ARCHIVE_READY.has(id),
           keywords,
         };
@@ -269,7 +271,7 @@ export const NAV_GROUPS: NavGroup[] = [
             label: "Data Karyawan Tidak Aktif",
             to: "/personal/pegawai-tidak-aktif",
             icon: UserX,
-            visible: manage,
+            visible: access.viewInactiveEmployees,
             summaryKey: "INACTIVE",
             keywords: "arsip resign keluar",
           },

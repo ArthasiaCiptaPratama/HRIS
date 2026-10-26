@@ -79,6 +79,22 @@ bun run dev
 - Bolak-balik berkali-kali didukung (diuji: token Auth lokal → 401 di mode Supabase, 200 kembali di Lokal, tanpa restart API).
 - Catatan: `STORAGE_PATH_PREFIX` untuk modul yang sudah terdaftar tetap nilai saat start sampai API restart (unggahan dev tetap di bawah prefix lama — lebih aman).
 
+### Switcher akun uji per tab (2026-10-22)
+
+- **Letak:** bagian "Akun uji (tab ini)" di panel "DB (dev)".
+  - Tampil hanya bila DB **dan** Auth lokal.
+  - Sekali klik masuk sebagai akun aktif `@arthasia.test` tanpa password.
+- **Satu akun per tab:** tab baru = akun lain, jadi beberapa role bisa diuji berdampingan.
+- **API** (`src/core/dev-accounts.ts`):
+  - `GET /api/v1/dev/test-accounts` dan `POST /api/v1/dev/test-session`, didaftarkan hanya saat `NODE_ENV=development`.
+  - Setiap permintaan ditolak 403 bila host DB atau `SUPABASE_URL` bukan lokal, atau email bukan akun uji aktif.
+  - Sesi dibuat lewat magic link Supabase Auth lokal; service role key tidak pernah dikirim ke browser.
+- **Web:**
+  - `lib/supabase.ts`: bila `sessionStorage["hris.dev.tabAuth"]` terisi (hanya DEV), client memakai `storageKey` sendiri di `sessionStorage`. Akibatnya sesi dan kanal broadcast tab itu terpisah dari tab lain.
+  - "Kembali ke login biasa" menghapus kunci itu, dan tab kembali ke sesi bersama (`localStorage`).
+  - Widget: `features/system/components/dev-account-switcher.tsx`.
+- **Test:** `src/core/__tests__/dev-accounts.test.ts`.
+
 ## Konfigurasi `.env` (per-developer, gitignored)
 
 Kunci **aktif** (ditulis `db:use`): `DATABASE_URL`, `DIRECT_URL`, `STORAGE_PATH_PREFIX`.

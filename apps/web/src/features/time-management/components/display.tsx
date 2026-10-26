@@ -149,6 +149,22 @@ export function todayIn(timeZone = "Asia/Jakarta", base = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone }).format(base);
 }
 
+/**
+ * TM-D14: jadwal terkunci beserta tanggal nyata — "00.00–08.00" bila mulai di tanggal kerja, atau
+ * "00.00–08.00 (mulai Rab, 28 Okt)" bila dijalani setelah tanggal roster (pilihan "malam setelah tanggal roster").
+ */
+export function scheduleLabel(
+  workDate: string,
+  start: string | null | undefined,
+  end: string | null | undefined,
+  timeZone: string,
+): string {
+  if (!start || !end) return "";
+  const startDate = todayIn(timeZone, new Date(start));
+  const suffix = startDate !== workDate ? ` (mulai ${workDateLabel(startDate)})` : "";
+  return `${timeIn(start, timeZone)}–${timeIn(end, timeZone)}${suffix}`;
+}
+
 export function addDays(date: string, days: number): string {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);

@@ -5,7 +5,7 @@
 ## API (`apps/api/src/modules/`)
 
 ```
-│   │   ├── iam/                      [done] 13 endpoint (`/me` + `employeeName` nama karyawan tertaut, BUG-004 2026-10-12; + `PUT /accounts/:id/companies` D-040: penugasan PT HR, SA saja, audit + notifikasi; HR hanya akun karyawan PT-nya + akun belum tertaut; ganti role dari HR mencabut penugasan; `configureIam`) + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log + `actorEmail`/`entityLabel` lewat `employeeScope.employeeLabels`, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`, `provisionAccount` (akun uji); notifikasi & web selesai (Fase 2 Review)
+│   │   ├── iam/                      [done] 13 endpoint (`/me` + `employeeName` nama karyawan tertaut, BUG-004 2026-10-12; + `employeeCompanyId` untuk app mobile M3 2026-10-26; + `PUT /accounts/:id/companies` D-040: penugasan PT HR, SA saja, audit + notifikasi; HR hanya akun karyawan PT-nya + akun belum tertaut; ganti role dari HR mencabut penugasan; `configureIam`) + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log + `actorEmail`/`entityLabel` lewat `employeeScope.employeeLabels`, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`, `provisionAccount` (akun uji); notifikasi & web selesai (Fase 2 Review)
 ```
 
 ## Web (`apps/web/src/features/`)
@@ -22,7 +22,7 @@
 |---|---|
 | `accounts` | ERD `user_account`: `auth_user_id` (UUID Supabase, unik), `employee_id` (nullable, unik), `email`, `role` (enum `Role`, **satu per akun**, D-028), `is_active`, `last_login_at`, `is_primary_super_admin`. **Tanpa** `password_hash` (password di Supabase Auth, D-005) |
 | `permission_grants` | `account_id`, `permission`, `expires_at?`, `reason?`, `granted_by`, `revoked_at?`, `revoked_by?` |
-| `account_companies` | [done] D-040: `account_id`, `company_id` (FK ke `organization.companies`, modul inti — PLAN §3.2) — cakupan PT akun HR_ADMIN |
+| `account_companies` | [done] D-040: `account_id`, `company_id` (FK ke `organization.companies`, modul inti — PLAN §3.2) — cakupan PT akun HR_ADMIN & HR_PERSONNEL (IAM-D1; `usesAssignedCompanies`) |
 | `dashboard_layouts` | [done] D-065: `account_id` (unik, FK cascade), `layout` (jsonb, divalidasi `dashboardLayoutSchema` @hris/shared) — susunan widget Dashboard per akun SA/HR |
 
 Endpoint: `GET /me` · `GET /accounts` (SA, HR; filter role/isActive/q) · `GET /accounts/:id` (SA, HR, sendiri) · `POST /accounts/invite` (SA; HR hanya EMPLOYEE; SUPER_ADMIN hanya Utama) · `PATCH /accounts/:id/role` (SA; SUPER_ADMIN hanya Utama) · `POST /accounts/:id/deactivate|reactivate` (SA; HR hanya EMPLOYEE/MANAGER; ban Supabase) · `POST /accounts/primary-super-admin/transfer` (Utama, login ulang ≤ 5 menit, D-033) · `GET|POST /grants`, `POST /grants/:id/revoke` (SA) · `GET /audit-logs` (SA). Aturan lengkap: D-034.

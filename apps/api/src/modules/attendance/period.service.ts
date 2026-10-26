@@ -27,7 +27,7 @@ import {
   listActionable,
   registerApprovalHandler,
 } from "../approval/index.ts";
-import { markNoAttendanceAlpha } from "./alpha.service.ts";
+import { markNoAttendanceAlpha, pendingAlphaVerifications } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
 import { localDate, offsetMinutes } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
@@ -299,6 +299,8 @@ export async function previewClose(ctx: RequestContext, input: PeriodCloseInput)
   return {
     status: period?.status ?? "OPEN",
     alpha: candidates.length,
+    // TM-D13 Fase B: Alpha harian yang belum diverifikasi atasan → periode belum bisa ditutup.
+    unverifiedAlpha: await pendingAlphaVerifications(input.companyId, input.month),
     noAttendance: by((c) => c.status === null),
     pending: by((c) => c.status === "OPEN" || c.status === "PENDING"),
     rejected: by((c) => c.status === "REJECTED"),
@@ -320,6 +322,12 @@ export async function closePeriod(ctx: RequestContext, input: PeriodCloseInput, 
     where: { companyId_month: { companyId: input.companyId, month: input.month } },
   });
   if (existing?.status === "CLOSED") throw new ConflictError("Periode ini sudah ditutup.");
+  const unverified = await pendingAlphaVerifications(input.companyId, input.month);
+  if (unverified > 0) {
+    throw new BusinessRuleError(
+      `Masih ada ${unverified} hari Alpha yang belum diverifikasi atasan. Selesaikan verifikasi dulu.`,
+    );
+  }
   const candidates = await alphaCandidates(input.companyId, input.month);
   await db().$transaction(
     async (tx) => {

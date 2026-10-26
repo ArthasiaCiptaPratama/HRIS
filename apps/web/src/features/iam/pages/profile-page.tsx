@@ -122,7 +122,7 @@ function OwnPhotoCard({ employeeId }: { employeeId: string }) {
 function CompanyScope({ me }: { me: Me }) {
   const { companies } = useCompanyScope();
   const label =
-    me.role === "HR_ADMIN"
+    me.role === "HR_ADMIN" || me.role === "HR_PERSONNEL"
       ? "Perusahaan yang dikelola"
       : me.role === "SUPER_ADMIN"
         ? "Perusahaan"
@@ -135,7 +135,7 @@ function CompanyScope({ me }: { me: Me }) {
       </div>
     );
   }
-  if (me.role !== "HR_ADMIN") return null;
+  if (me.role !== "HR_ADMIN" && me.role !== "HR_PERSONNEL") return null;
   return (
     <div>
       <p className="font-medium">{label}</p>

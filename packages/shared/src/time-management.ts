@@ -102,6 +102,8 @@ export const timeSettingsSchema = z.object({
   rosterHorizonDays: z.number().int().min(14).max(370),
   /** TM-D12: Clock Out normal dibuka sekian menit sebelum jam pulang; lebih awal = pulang cepat (wajib alasan). */
   checkOutEarlyMin: z.number().int().min(0).max(240),
+  /** TM-D13: jeda minimal dari Clock Out ke Clock In berikutnya (jam); kurang → label SHORT_REST + alasan. */
+  minRestHours: z.number().int().min(0).max(24),
 });
 export type TimeSettings = z.infer<typeof timeSettingsSchema>;
 export const DEFAULT_TIME_SETTINGS: TimeSettings = {
@@ -111,6 +113,7 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = {
   approvalDueDays: 2,
   rosterHorizonDays: 92,
   checkOutEarlyMin: 30,
+  minRestHours: 8,
 };
 
 // ── Roster tambang (D-069) ───────────────────────────────────────────────────────
@@ -130,6 +133,8 @@ export const shiftInputSchema = z.object({
   name: z.string().trim().min(1).max(80),
   startMinute: minuteOfDay,
   endMinute: minuteOfDay,
+  /** TM-D13: mulai setelah tengah malam tanggal roster (shift 3). */
+  startsNextDay: z.boolean().default(false),
   checkInOpenMin: minutes(720),
   lateToleranceMin: minutes(240),
   earlyLeaveToleranceMin: minutes(240),
@@ -324,6 +329,8 @@ export const ATTENDANCE_LABELS = [
   "LEAVE_AFTER_CLOSE",
   // MOB-D3: app Android melaporkan lokasi palsu (mock). Ditandai, tidak diblokir; tanpa wajib alasan.
   "MOCK_LOCATION",
+  // TM-D13: jeda dari Clock Out shift sebelumnya kurang dari pengaturan (bawaan 8 jam). Ditandai, alasan wajib.
+  "SHORT_REST",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
@@ -343,6 +350,7 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   REGULAR_OT_SHORT: "Lembur rutin kurang",
   LEAVE_AFTER_CLOSE: "Cuti disetujui setelah tutup periode",
   MOCK_LOCATION: "Lokasi palsu terdeteksi",
+  SHORT_REST: "Jeda antarshift kurang",
 };
 
 /** Label yang tidak mewajibkan alasan dari karyawan (penanda untuk approver saja). */
@@ -360,6 +368,8 @@ export const TM_NOTIFICATION_TARGETS = [
   "LEAVE_REQUEST",
   "OVERTIME",
   "APPROVAL_QUEUE",
+  // TM-D13 Fase C: jadwal berubah → layar Roster Saya (id = tanggal YYYY-MM-DD pertama yang berubah).
+  "ROSTER",
 ] as const;
 export type TmNotificationTarget = (typeof TM_NOTIFICATION_TARGETS)[number];
 
@@ -694,3 +704,22 @@ export const CORRECTION_STATUS_LABELS = {
   REJECTED: "Ditolak",
   CANCELLED: "Dibatalkan",
 } as const;
+
+// ── TM-D13 Fase B: verifikasi atasan atas Alpha (tidak absen) ────────────────────
+/** Pilihan atasan. Izin/Sakit/Tugas luar → karyawan mengajukan izin/sakit/koreksi (diputus HR). */
+export const ALPHA_VERIFICATION_OUTCOMES = ["CONFIRMED", "PERMIT", "SICK", "DUTY"] as const;
+export type AlphaVerificationOutcome = (typeof ALPHA_VERIFICATION_OUTCOMES)[number];
+export const ALPHA_VERIFICATION_STATES = ["PENDING", ...ALPHA_VERIFICATION_OUTCOMES] as const;
+export type AlphaVerificationState = (typeof ALPHA_VERIFICATION_STATES)[number];
+export const ALPHA_VERIFICATION_LABELS: Record<AlphaVerificationState, string> = {
+  PENDING: "Menunggu verifikasi atasan",
+  CONFIRMED: "Alpha dikonfirmasi",
+  PERMIT: "Izin",
+  SICK: "Sakit",
+  DUTY: "Tugas luar / dinas",
+};
+export const alphaVerificationInputSchema = z.object({
+  outcome: z.enum(ALPHA_VERIFICATION_OUTCOMES),
+  note: z.string().trim().min(3, "Catatan minimal 3 karakter").max(300),
+});
+export type AlphaVerificationInput = z.infer<typeof alphaVerificationInputSchema>;

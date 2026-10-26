@@ -9,6 +9,7 @@ import {
   overtimeSummarySchema,
   overtimeViewSchema,
 } from "../../../src/modules/attendance/overtime.contract.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -72,8 +73,22 @@ let breakBefore: unknown = null;
 async function seedDay(
   date: string,
   times: { in: string; out: string; breakStart?: string; breakEnd?: string },
+  /** TM-D17: perintah lembur (jam selesai lebih lambat), dibuat langsung di DB untuk tanggal lampau. */
+  orderEnd?: string,
 ) {
   const shiftId = ids.shifts[0] as string;
+  if (orderEnd) {
+    await prisma.overtimeOrder.create({
+      data: {
+        employeeId: emp.a,
+        companyId,
+        workDate: D(date),
+        endsAt: at(date, orderEnd),
+        reason: "Uji lembur",
+        createdByAccountId: crypto.randomUUID(),
+      },
+    });
+  }
   const day = await prisma.attendanceDay.create({
     data: {
       employeeId: emp.a,
@@ -205,8 +220,7 @@ afterAll(async () => {
       ],
     },
   });
-  await prisma.overtimeRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crew.deleteMany({ where: { companyId: ids.company2 } });
   await prisma.rosterPattern.deleteMany({ where: { companyId: ids.company2 } });
@@ -275,12 +289,16 @@ describe("usulan lembur otomatis (TM-D6)", () => {
   let requestId = "";
 
   test("pulang 18.50 → usulan 2 jam (3,5 jam setara) ke Atasan + HR; rupiah hanya untuk yang berhak", async () => {
-    const dayId = await seedDay(DAY1, {
-      in: "08:00",
-      breakStart: "12:00",
-      breakEnd: "13:00",
-      out: "18:50",
-    });
+    const dayId = await seedDay(
+      DAY1,
+      {
+        in: "08:00",
+        breakStart: "12:00",
+        breakEnd: "13:00",
+        out: "18:50",
+      },
+      "19:00",
+    );
     const row = await prisma.overtimeRequest.findUnique({ where: { dayId } });
     expect(row?.proposedMin).toBe(120);
     expect(Number(row?.equivalentHours)).toBe(3.5);
@@ -334,12 +352,16 @@ describe("usulan lembur otomatis (TM-D6)", () => {
   });
 
   test("lewat 4 jam sehari → OVER_DAY_LIMIT; setuju tanpa alasan ditolak", async () => {
-    const dayId = await seedDay(DAY2, {
-      in: "08:00",
-      breakStart: "12:00",
-      breakEnd: "13:00",
-      out: "21:30",
-    });
+    const dayId = await seedDay(
+      DAY2,
+      {
+        in: "08:00",
+        breakStart: "12:00",
+        breakEnd: "13:00",
+        out: "21:30",
+      },
+      "22:00",
+    );
     const row = await prisma.overtimeRequest.findUnique({ where: { dayId } });
     expect(row?.proposedMin).toBe(270);
     expect(row?.flags).toContain("OVER_DAY_LIMIT");
@@ -367,6 +389,26 @@ describe("usulan lembur otomatis (TM-D6)", () => {
     expect(await prisma.overtimeRequest.findUnique({ where: { dayId } })).toBeNull();
     const day = await prisma.attendanceDay.findUnique({ where: { id: dayId } });
     expect(day?.labels).toContain("BREAK_OVER");
+  });
+
+  test("TM-D17: tanpa perintah lembur, pulang 18.50 tidak menjadi usulan lembur", async () => {
+    const dayId = await seedDay("2026-10-08", {
+      in: "07:00",
+      breakStart: "12:00",
+      breakEnd: "13:00",
+      out: "18:50",
+    });
+    expect(await prisma.overtimeRequest.findUnique({ where: { dayId } })).toBeNull();
+  });
+
+  test("TM-D17: SPL sampai 18.00, pulang 18.50 → lembur diakui sampai 18.00 saja (1 jam)", async () => {
+    const dayId = await seedDay(
+      "2026-10-09",
+      { in: "08:00", breakStart: "12:00", breakEnd: "13:00", out: "18:50" },
+      "18:00",
+    );
+    const row = await prisma.overtimeRequest.findUnique({ where: { dayId } });
+    expect(row?.proposedMin).toBe(60);
   });
 
   test("rekap bulanan: SA/HR ber-grant melihat rupiah per orang; atasan hanya total tim", async () => {
@@ -508,6 +550,30 @@ describe("template roster JT (TM-D8)", () => {
     ]);
     expect(week.pattern.steps).toEqual(["K52", "K52", "K52", "K52", "K52", "OFF", "OFF"]);
     expect(week.crews[0]?.cycleStartDate).toBe("2026-11-02");
+  });
+
+  test("template 3 shift × 8 jam (TM-D13): S3 malam setelah tanggal roster, 4 crew, jeda aman", async () => {
+    const out = await data<{
+      shifts: { code: string; startsNextDay: boolean; startMinute: number; endMinute: number }[];
+      pattern: { steps: string[] };
+      crews: { name: string }[];
+      restWarnings: string[];
+    }>(
+      await call("POST", "/roster/templates", h.hrCost, {
+        companyId: ids.company2,
+        workLocationId: ids.location,
+        template: "SHIFT_3X8",
+        cycleStartDate: "2026-11-04",
+      }),
+    );
+    expect(out.shifts).toMatchObject([
+      { code: "S1", startsNextDay: false, startMinute: 480, endMinute: 960 },
+      { code: "S2", startsNextDay: false, startMinute: 960, endMinute: 0 },
+      { code: "S3", startsNextDay: true, startMinute: 0, endMinute: 480 },
+    ]);
+    expect(out.pattern.steps).toEqual(["S1", "S1", "S2", "S2", "S3", "S3", "OFF", "OFF"]);
+    expect(out.crews).toHaveLength(4);
+    expect(out.restWarnings).toEqual([]);
   });
 });
 

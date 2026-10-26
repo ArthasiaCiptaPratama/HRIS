@@ -1,7 +1,7 @@
-import { OFF_CODE, type RosterTemplateInput } from "@hris/shared";
+import { OFF_CODE, patternRestWarnings, type RosterTemplateInput } from "@hris/shared";
 import { ConflictError, ForbiddenError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
-import type { RequestContext } from "./calendar.service.ts";
+import { type RequestContext, readTimeSettings } from "./calendar.service.ts";
 import * as repository from "./roster.repository.ts";
 import {
   type CrewDto,
@@ -22,6 +22,8 @@ interface ShiftSpec {
   name: string;
   startMinute: number;
   endMinute: number;
+  /** TM-D13: shift 3 = malam setelah tanggal roster. */
+  startsNextDay?: boolean;
 }
 
 const JT_SHIFTS: ShiftSpec[] = [
@@ -41,6 +43,8 @@ export interface RosterTemplateResult {
   shifts: ShiftDto[];
   pattern: PatternDto;
   crews: CrewDto[];
+  /** TM-D13 Fase D: jeda antarshift di pola yang kurang dari pengaturan (hanya peringatan). */
+  restWarnings: string[];
 }
 
 interface TemplateSpec {
@@ -81,6 +85,31 @@ const TEMPLATES: Record<RosterTemplateInput["template"], TemplateSpec> = {
     patternName: "13+1 (13 kerja, 1 OFF)",
     steps: [...Array<string>(13).fill("R13"), OFF_CODE],
     crews: [{ name: "13+1 Crew A", offsetDays: 0 }],
+  },
+  // TM-D13 Fase D: 3 shift × 8 jam nonstop; S3 = malam setelah tanggal roster. Rotasi 2-2-2 + 2 OFF,
+  // 4 crew bergeser 2 hari → setiap shift selalu terisi satu crew.
+  SHIFT_3X8: {
+    shifts: [
+      {
+        code: "S1",
+        name: "Shift 1 (Pagi)",
+        startMinute: 8 * 60,
+        endMinute: 16 * 60,
+        color: "#0ea5e9",
+      },
+      { code: "S2", name: "Shift 2 (Sore)", startMinute: 16 * 60, endMinute: 0, color: "#f59e0b" },
+      {
+        code: "S3",
+        name: "Shift 3 (Malam)",
+        startMinute: 0,
+        endMinute: 8 * 60,
+        startsNextDay: true,
+        color: "#6366f1",
+      },
+    ].map((s) => ({ ...s, breakMin: 60, breakPaid: true, regularOvertimeMin: 0 })),
+    patternName: "3 shift × 8 jam (2-2-2 + 2 OFF)",
+    steps: ["S1", "S1", "S2", "S2", "S3", "S3", OFF_CODE, OFF_CODE],
+    crews: ["A", "B", "C", "D"].map((c, i) => ({ name: `3 Shift Crew ${c}`, offsetDays: 2 * i })),
   },
   WEEK_5_2: {
     shifts: [
@@ -137,9 +166,10 @@ export async function applyRosterTemplate(
         checkInOpenMin: 60,
         lateToleranceMin: 15,
         earlyLeaveToleranceMin: 15,
-        checkOutCloseMin: 240,
+        checkOutCloseMin: 30,
         breakStartMinute: null,
         breakEndMinute: null,
+        startsNextDay: rest.startsNextDay ?? false,
         color,
       }),
     );
@@ -165,5 +195,14 @@ export async function applyRosterTemplate(
       );
     }
   }
-  return { shifts, pattern, crews };
+  // TM-D13 Fase D: pergantian shift berurutan dengan jeda < pengaturan → peringatan (tidak menolak).
+  const restWarnings = patternRestWarnings(
+    spec.steps,
+    shifts,
+    (await readTimeSettings()).minRestHours,
+  ).map(
+    (w) =>
+      `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} hanya ${w.restHours} jam istirahat.`,
+  );
+  return { shifts, pattern, crews, restWarnings };
 }
