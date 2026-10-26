@@ -135,6 +135,18 @@ export const todayViewSchema = z
     }),
     breakOpensAt: z.iso.datetime().nullable(),
     breakClosesAt: z.iso.datetime().nullable(),
+    overtimeOrder: z
+      .object({
+        workDate: z.iso.date(),
+        startsAt: z.iso.datetime().nullable(),
+        endsAt: z.iso.datetime().nullable(),
+        reason: z.string(),
+      })
+      .nullable()
+      .openapi({
+        description:
+          "TM-D17: perintah lembur hari terbuka / shift berikutnya; endsAt = jam pulang untuk alarm (TM-D16)",
+      }),
   })
   .openapi("AttendanceToday");
 assertExact<z.infer<typeof todayViewSchema>, TodayView>(true);

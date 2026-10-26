@@ -299,6 +299,27 @@ export const breakLocationsInputSchema = z.object({
 });
 export type BreakLocationsInput = z.infer<typeof breakLocationsInputSchema>;
 
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Format jam HH:mm");
+
+/**
+ * TM-D17: perintah lembur (SPL) dari Atasan / HR sebelum dijalani. Jam lokal (zona pengaturan TM).
+ * Hari kerja: `startTime` = mulai lebih awal (sebelum jam masuk), `endTime` = selesai lebih lambat (sesudah
+ * jam pulang); salah satu boleh kosong. Hari OFF: keduanya wajib (jam selesai < jam mulai = lewat tengah malam).
+ */
+export const overtimeOrderInputSchema = z
+  .object({
+    employeeId: z.uuid(),
+    workDate: z.iso.date(),
+    startTime: clockTime.nullable(),
+    endTime: clockTime.nullable(),
+    reason: z.string().trim().min(3).max(300),
+  })
+  .refine((v) => v.startTime !== null || v.endTime !== null, {
+    message: "Isi jam mulai lebih awal dan/atau jam selesai lebih lambat.",
+    path: ["endTime"],
+  });
+export type OvertimeOrderInput = z.infer<typeof overtimeOrderInputSchema>;
+
 /** Template roster siap pakai (TM-D8). Hanya JT untuk saat ini. */
 /**
  * Template roster siap pakai (TM-D8): JT (Jetty & Loading, 3 shift rotasi 6+1), 13+1 (13 kerja + 1 OFF,

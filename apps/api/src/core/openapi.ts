@@ -46,6 +46,10 @@ export const APP_OPERATION_IDS: Record<string, string> = {
   "GET /api/v1/leave-requests/{id}": "getLeaveRequest",
   "POST /api/v1/leave-requests/{id}/cancel": "cancelLeaveRequest",
   "GET /api/v1/overtime": "listOvertime",
+  // TM-D17: perintah lembur (SPL) — karyawan melihat miliknya; atasan membuat/membatalkan dari app.
+  "GET /api/v1/overtime-orders": "listOvertimeOrders",
+  "PUT /api/v1/overtime-orders": "setOvertimeOrder",
+  "POST /api/v1/overtime-orders/{id}/cancel": "cancelOvertimeOrder",
   "GET /api/v1/time/queue": "getTimeQueue",
   "GET /api/v1/approvals/{id}": "getApproval",
   "POST /api/v1/approvals/{id}/decision": "decideApproval",

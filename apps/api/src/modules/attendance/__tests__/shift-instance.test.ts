@@ -79,6 +79,30 @@ describe("planCheckIn: dicocokkan ke shift, bukan tanggal kalender", () => {
     );
     expect(plan.workDate).toBe("2026-10-28");
   });
+
+  // TM-D15: patokan Clock In = shift yang sedang berjalan.
+  test("shift 15–23 tgl 16 sedang berjalan + shift 00–08 tgl 17 sudah buka absen → pukul 22.30 masuk tgl 16 (Telat)", () => {
+    const sore = { ...base, startMinute: 15 * 60, endMinute: 23 * 60 };
+    const dini = { ...base, startMinute: 0, endMinute: 8 * 60, checkInOpenMin: 120 };
+    const days2 = roster({ "2026-10-16": sore, "2026-10-17": dini });
+    expect(planCheckIn(at("2026-10-16T22:30:00"), WIB, days2)).toMatchObject({
+      workDate: "2026-10-16",
+      labels: ["LATE"],
+    });
+    expect(
+      planCheckIn(at("2026-10-16T22:30:00"), WIB, days2, new Set(["2026-10-16"])),
+    ).toMatchObject({ workDate: "2026-10-17", labels: [] });
+  });
+
+  test("shift 00–08 tanpa centang di roster tgl 17 = tgl 17; Clock In 09.00 sesudah selesai → di luar roster", () => {
+    const dini = { ...base, startMinute: 0, endMinute: 8 * 60 };
+    const days2 = roster({ "2026-10-16": null, "2026-10-17": dini, "2026-10-18": null });
+    expect(planCheckIn(at("2026-10-17T00:10:00"), WIB, days2).workDate).toBe("2026-10-17");
+    expect(planCheckIn(at("2026-10-17T09:00:00"), WIB, days2)).toMatchObject({
+      workDate: "2026-10-17",
+      labels: ["OUTSIDE_ROSTER"],
+    });
+  });
 });
 
 describe("restShortfall: jeda antarshift < 8 jam ditandai", () => {

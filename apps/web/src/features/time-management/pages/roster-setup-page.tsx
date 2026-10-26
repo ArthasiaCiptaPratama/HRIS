@@ -230,6 +230,9 @@ function ShiftTab({ companyId }: { companyId: string }) {
 }
 
 /** TM-D8: pasang template JT — 3 shift × 8 jam (7j + 1j lembur rutin), pola 6+1 rotasi mingguan. */
+/** TM-D14: jam mulai sebelum 06.00 = shift dini hari (pertanyaan tanggal nyata ditampilkan). */
+const DAWN_END_MIN = 6 * 60;
+
 const TEMPLATE_INFO: Record<
   RosterTemplate,
   { description: string; crewHint: string; warning?: string; crewWarning?: string }
@@ -370,7 +373,7 @@ function ShiftDialog({
     checkInOpenMin: shift?.checkInOpenMin ?? 60,
     lateToleranceMin: shift?.lateToleranceMin ?? 15,
     earlyLeaveToleranceMin: shift?.earlyLeaveToleranceMin ?? 15,
-    checkOutCloseMin: shift?.checkOutCloseMin ?? 240,
+    checkOutCloseMin: shift?.checkOutCloseMin ?? 30,
     breakMin: shift?.breakMin ?? 0,
     breakPaid: shift?.breakPaid ?? false,
     startsNextDay: shift?.startsNextDay ?? false,
@@ -389,6 +392,9 @@ function ShiftDialog({
     });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+  // TM-D14: tanggal nyata shift dini hari ditanyakan dengan contoh; shift lain tidak perlu memilih.
+  const startParsed = parseHhmm(form.start);
+  const dawn = startParsed !== null && startParsed < DAWN_END_MIN;
   const submit = async () => {
     const startMinute = parseHhmm(form.start);
     const endMinute = parseHhmm(form.end);
@@ -417,7 +423,8 @@ function ShiftDialog({
           checkOutCloseMin: Number(form.checkOutCloseMin),
           breakMin: Number(form.breakMin),
           breakPaid: form.breakPaid,
-          startsNextDay: form.startsNextDay,
+          // TM-D14: pilihan tanggal hanya berlaku untuk shift dini hari (00.00–05.59).
+          startsNextDay: dawn && form.startsNextDay,
           breakStartMinute,
           breakEndMinute,
           regularOvertimeMin: Number(form.regularOvertimeMin),
@@ -502,18 +509,37 @@ function ShiftDialog({
           >
             {num("regularOvertimeMin")}
           </Field>
-          <label className="col-span-2 flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4"
-              checked={form.startsNextDay}
-              onChange={(e) => set("startsNextDay", e.target.checked)}
-            />
-            <span>
-              Mulai setelah tengah malam: shift ini dijalani malam setelah tanggal roster (mis.
-              shift 3 roster tgl 27 = 28 pukul 00.00–08.00), tetap tercatat di tanggal roster.
-            </span>
-          </label>
+          {dawn ? (
+            <fieldset className="bg-muted/40 col-span-2 space-y-2 rounded-lg border p-3 text-sm">
+              <legend className="px-1 font-medium">Shift ini dimulai dini hari</legend>
+              <p className="text-muted-foreground">Kalau di roster ditulis tanggal 17, artinya:</p>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="starts-next-day"
+                  className="size-4"
+                  checked={!form.startsNextDay}
+                  onChange={() => set("startsNextDay", false)}
+                />
+                <span>
+                  17, pukul {form.start} <span className="text-muted-foreground">(bawaan)</span>
+                </span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="starts-next-day"
+                  className="size-4"
+                  checked={form.startsNextDay}
+                  onChange={() => set("startsNextDay", true)}
+                />
+                <span>
+                  18, pukul {form.start}{" "}
+                  <span className="text-muted-foreground">(malam setelah tanggal roster)</span>
+                </span>
+              </label>
+            </fieldset>
+          ) : null}
           <label className="col-span-2 flex items-start gap-2 text-sm">
             <input
               type="checkbox"

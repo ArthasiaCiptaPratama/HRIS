@@ -166,7 +166,7 @@ export async function applyRosterTemplate(
         checkInOpenMin: 60,
         lateToleranceMin: 15,
         earlyLeaveToleranceMin: 15,
-        checkOutCloseMin: 240,
+        checkOutCloseMin: 30,
         breakStartMinute: null,
         breakEndMinute: null,
         startsNextDay: rest.startsNextDay ?? false,

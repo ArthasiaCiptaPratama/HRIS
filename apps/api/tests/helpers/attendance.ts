@@ -20,5 +20,6 @@ export async function deleteAttendanceData(employeeIds: string[]): Promise<void>
   ];
   await prisma.approvalRequest.deleteMany({ where: { subjectId: { in: subjects } } });
   await prisma.overtimeRequest.deleteMany({ where: scope });
+  await prisma.overtimeOrder.deleteMany({ where: scope });
   await prisma.attendanceDay.deleteMany({ where: scope });
 }

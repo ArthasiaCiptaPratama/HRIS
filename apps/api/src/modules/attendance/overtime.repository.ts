@@ -118,4 +118,32 @@ export const approvedOvertimeTotals = (employeeIds: string[], range: Range) =>
     select: { employeeId: true, proposedMin: true, equivalentHours: true },
   });
 
+// ── TM-D17 perintah lembur (SPL) ───────────────────────────────────────────────
+export const findOrder = (employeeId: string, workDate: Date, tx?: Tx) =>
+  db(tx).overtimeOrder.findUnique({ where: { employeeId_workDate: { employeeId, workDate } } });
+export const findOrderById = (id: string, tx?: Tx) =>
+  db(tx).overtimeOrder.findUnique({ where: { id } });
+export const ordersOf = (keys: { employeeId: string; workDate: Date }[], tx?: Tx) =>
+  keys.length
+    ? db(tx).overtimeOrder.findMany({
+        where: { OR: keys.map((k) => ({ employeeId: k.employeeId, workDate: k.workDate })) },
+      })
+    : Promise.resolve([]);
+export const listOrderRows = (where: Prisma.OvertimeOrderWhereInput) =>
+  getPrisma().overtimeOrder.findMany({
+    where,
+    orderBy: [{ workDate: "asc" }, { createdAt: "asc" }],
+    take: 1000,
+  });
+export const upsertOrder = (
+  tx: Tx,
+  data: Omit<Prisma.OvertimeOrderUncheckedCreateInput, "id" | "createdAt" | "updatedAt">,
+) =>
+  tx.overtimeOrder.upsert({
+    where: { employeeId_workDate: { employeeId: data.employeeId, workDate: data.workDate } },
+    create: data,
+    update: data,
+  });
+export const deleteOrder = (tx: Tx, id: string) => tx.overtimeOrder.delete({ where: { id } });
+
 export const withTransaction = <T>(run: (tx: Tx) => Promise<T>) => getPrisma().$transaction(run);

@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-26 — Grill shift + TM-D14–TM-D18: patokan Clock In, lupa Clock Out, perintah lembur (Oatse)
+- **Dikerjakan:** grill pemilik projek (serah-terima `HRIS-rilis` `2026-10-26-1000-…-grill-shift-lupa-clockout.md`); gabung `HRIS/Mat/Mac` `8d3fd76` (TM-D13 fase B–D, migrasi `alpha_verification`) → develop `9796376` (di-push); implementasi TM-D14 (form shift dini hari + `scheduleLabel`), TM-D15 (`planCheckIn` shift berjalan), TM-D16 (bawaan batas 30 menit, pengingat +15 menit, cron 5 menit), TM-D17 (perintah lembur/SPL: tabel, rute, policy, Clock In/Out, hari OFF, klem lembur, tab web), TM-D18 (dokumen). Migrasi `20261026041053_overtime_orders`.
+- **Keputusan:** TM-D14–TM-D18 (TM-D14 direvisi pengguna: centang tetap, ditanyakan hanya untuk shift dini hari).
+- **Verifikasi:** typecheck ✔ · biome ✔ (665 file) · boundaries ✔ (532 modul) · test shared 339 · api 981 (baru: `__tests__/overtime-order.test.ts` 6, `integration/time-management/overtime-order.test.ts` 6, kasus TM-D15 di `shift-instance.test.ts`, TM-D16 di `time-notify.test.ts`, klem SPL di `overtime.test.ts`, hari OFF ber-SPL di `punch-window.test.ts`) · web (lihat laporan).
+- **Masalah / catatan:** test lama disesuaikan dengan aturan baru (lembur tanpa SPL tidak dihitung; Lembur hari libur wajib SPL; `midnight.test.ts` memakai batas 240 menit eksplisit). Batasan: SPL tidak bisa dibuat susulan untuk tanggal lampau; pengingat FCM hari OFF ber-SPL belum ada. Alarm lokal = pekerjaan app.
+- **Berikutnya:** commit + push (izin), serah-terima app (alarm lokal TM-D16 + tampilan SPL TM-D17), kabari Mat setelah seluruh BE selesai (arahan pengguna), rilis gel. 14.
+
 ### 2026-10-26 — Gabung `HRIS/Mat/Mac` (TM-D13 fase A, IAM-D1) ke develop (Oatse)
 - **Dikerjakan:** merge `origin/HRIS/Mat/Mac` (`e76bd16` switcher akun uji dev, `92b8f5b` tombol muat ulang persetujuan, `1f66690` role HR Kepegawaian IAM-D1, `5df7538` absen per shift TM-D13 fase A) → develop `d3c1ebc`, tanpa konflik; induk: PLAN §4.1/§4.3 + indeks §8 (TM-D11–D13, IAM-D1), RELEASE antrean #62, PROGRESS.
 - **Keputusan:** — (TM-D13 & IAM-D1 sudah diputuskan pemilik projek 2026-10-23)

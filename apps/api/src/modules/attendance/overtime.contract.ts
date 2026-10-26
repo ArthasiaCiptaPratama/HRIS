@@ -14,6 +14,7 @@ import type {
   OvertimeSummary,
   OvertimeView,
 } from "./overtime.service.ts";
+import type { OvertimeOrderView } from "./overtime-order.service.ts";
 import type { RosterTemplateResult } from "./roster-template.service.ts";
 
 // MOB-D7 #1: skema respons OpenAPI lembur & upah grade (TM-D6), lokasi wajib istirahat (TM-D7),
@@ -147,3 +148,23 @@ export const rosterTemplateResultSchema = z
   })
   .openapi("OvertimeRosterTemplateResult");
 assertExact<z.infer<typeof rosterTemplateResultSchema>, RosterTemplateResult>(true);
+
+// TM-D17: perintah lembur (SPL).
+export const overtimeOrderViewSchema = z
+  .object({
+    id: z.uuid(),
+    employee: employeeRef,
+    companyId: z.uuid(),
+    workDate: z.iso.date(),
+    startsAt: z.iso.datetime().nullable(),
+    endsAt: z.iso.datetime().nullable(),
+    reason: z.string(),
+    createdAt: z.iso.datetime(),
+    canManage: z.boolean(),
+  })
+  .openapi("OvertimeOrder");
+assertExact<z.infer<typeof overtimeOrderViewSchema>, OvertimeOrderView>(true);
+export const overtimeOrderListSchema = z
+  .array(overtimeOrderViewSchema)
+  .openapi("OvertimeOrderList");
+export const overtimeOrderCancelSchema = z.object({ id: z.uuid() }).openapi("OvertimeOrderCancel");

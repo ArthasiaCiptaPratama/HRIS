@@ -153,6 +153,56 @@ describe("notifikasi Time Management", () => {
     expect(notes[0]?.targetId).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  test("TM-D16: pengingat belum Clock Out baru dikirim 15 menit setelah jam pulang terkunci", async () => {
+    const b = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `TN-${RUN}-B`,
+          fullName: `Notif ${RUN} B`,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId,
+          employmentStatusId: ids.status,
+          positionId: ids.position,
+        },
+      })
+    ).id;
+    ids.employees.push(b);
+    const bAccount = (await auth.loginAs("EMPLOYEE", { employeeId: b, companies: [companyId] }))
+      .account.id;
+    await prisma.rosterDay.create({
+      data: { employeeId: b, workDate: D(today), shiftId: shiftIds[0], source: "MANUAL" },
+    });
+    const now = Date.now();
+    const day = await prisma.attendanceDay.create({
+      data: {
+        employeeId: b,
+        companyId,
+        workDate: D(today),
+        shiftId: shiftIds[0],
+        scheduledStart: new Date(now - 8 * 3600_000),
+        scheduledEnd: new Date(now - 10 * 60_000),
+        checkOutDeadline: new Date(now + 20 * 60_000),
+        status: "PENDING",
+        labels: [],
+      },
+    });
+    await prisma.attendancePunch.create({
+      data: {
+        dayId: day.id,
+        kind: "IN",
+        at: new Date(now - 8 * 3600_000),
+        insideGeofence: true,
+        labels: [],
+      },
+    });
+    await runAttendanceReminders(new Date(now), [b]);
+    expect(await notesOf(bAccount, "attendance.reminder_out")).toHaveLength(0);
+    await runAttendanceReminders(new Date(now + 6 * 60_000), [b]);
+    const notes = await notesOf(bAccount, "attendance.reminder_out");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.title).toContain("Belum Clock Out");
+  });
+
   test("hari tanpa absen → Alpha + notifikasi dengan batas koreksi", async () => {
     await markNoAttendanceAlpha(new Date(), [emp.a]);
     const notes = await notesOf(accounts.a, "attendance.alpha");

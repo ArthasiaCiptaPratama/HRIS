@@ -19,6 +19,8 @@ import { isoAddDays } from "./roster-engine.ts";
 // Hanya notifikasi di aplikasi (lonceng); tanpa email & tanpa data sensitif. Anti-duplikat via dedupeKey.
 
 const db = () => getPrisma();
+/** TM-D16: pengingat FCM cadangan untuk lupa Clock Out, menit setelah jam pulang. */
+const OUT_REMINDER_AFTER_MIN = 15;
 
 const DATE_FORMAT = new Intl.DateTimeFormat("id-ID", {
   weekday: "short",
@@ -122,9 +124,10 @@ export const myQueue = (ctx: RequestContext) => queueFor(ctx.actor);
 // ── Pengingat absen per shift (TM-D2) & hari terakhir koreksi (TM-D3) ────────────
 
 /**
- * Cron `attendance-reminders` (disarankan tiap 30 menit). Hari kerja roster:
+ * Cron `attendance-reminders` (tiap 5 menit). Hari kerja roster:
  * - belum Clock In setelah jam masuk + toleransi telat (dan sebelum batas absen pulang) → pengingat masuk;
- * - sudah Clock In, belum Clock Out setelah jam pulang (dan sebelum batas absen pulang) → pengingat pulang;
+ * - sudah Clock In, belum Clock Out ≥ 15 menit setelah jam pulang terkunci (dan sebelum batas absen pulang)
+ *   → pengingat pulang. TM-D16: ini cadangan FCM; pengingat utama = alarm lokal app dari jadwal yang sama;
  * - Alpha karena tidak absen yang batas koreksinya hari ini & belum ada koreksi → pengingat terakhir.
  * Setiap pengingat sekali per karyawan per tanggal (dedupeKey).
  */
@@ -144,6 +147,15 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
     }),
   ]);
   const dayOf = new Map(days.map((d) => [`${d.employeeId}|${toIso(d.workDate)}`, d]));
+  // TM-D17: perintah lembur memundurkan jam pulang pengingat.
+  const orderOf = new Map(
+    (
+      await db().overtimeOrder.findMany({
+        where: { ...scope, workDate: { in: dates.map(toDate) }, endsAt: { not: null } },
+        select: { employeeId: true, workDate: true, endsAt: true },
+      })
+    ).map((o) => [`${o.employeeId}|${toIso(o.workDate)}`, o.endsAt as Date]),
+  );
   const notices: EmployeeNotice[] = [];
   for (const r of roster) {
     if (!r.shift) continue;
@@ -151,9 +163,14 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
     const day = dayOf.get(`${r.employeeId}|${date}`);
     if (day && (day.status === "LEAVE" || day.status === "ALPHA")) continue;
     const window = shiftWindow(date, r.shift, timezone);
-    if (now.getTime() >= window.checkOutDeadline.getTime()) continue;
     const hasIn = day?.punches.some((p) => p.kind === "IN") ?? false;
     const hasOut = day?.punches.some((p) => p.kind === "OUT") ?? false;
+    // TM-D13: setelah tap-in, jam pulang & batas memakai jadwal yang dikunci di hari absen.
+    const scheduledEnd = (hasIn && day?.scheduledEnd) || window.end;
+    const orderEnd = orderOf.get(`${r.employeeId}|${date}`);
+    const end = orderEnd && orderEnd > scheduledEnd ? orderEnd : scheduledEnd;
+    const deadline = (hasIn && day?.checkOutDeadline) || window.checkOutDeadline;
+    if (now.getTime() >= deadline.getTime()) continue;
     const lateAt = window.start.getTime() + r.shift.lateToleranceMin * 60_000;
     if (!hasIn && now.getTime() >= lateAt) {
       notices.push({
@@ -165,7 +182,11 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         dedupeKey: `tm-remind-in:${r.employeeId}:${date}`,
         target: { type: "ATTENDANCE_TODAY", id: date },
       });
-    } else if (hasIn && !hasOut && now.getTime() >= window.end.getTime()) {
+    } else if (
+      hasIn &&
+      !hasOut &&
+      now.getTime() >= end.getTime() + OUT_REMINDER_AFTER_MIN * 60_000
+    ) {
       notices.push({
         employeeId: r.employeeId,
         type: "attendance.reminder_out",

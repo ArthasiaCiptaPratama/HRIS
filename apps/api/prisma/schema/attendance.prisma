@@ -55,7 +55,7 @@ model Shift {
   checkInOpenMin         Int       @default(60) @map("check_in_open_min") @db.SmallInt
   lateToleranceMin       Int       @default(15) @map("late_tolerance_min") @db.SmallInt
   earlyLeaveToleranceMin Int       @default(15) @map("early_leave_tolerance_min") @db.SmallInt
-  checkOutCloseMin       Int       @default(240) @map("check_out_close_min") @db.SmallInt
+  checkOutCloseMin       Int       @default(30) @map("check_out_close_min") @db.SmallInt
   /// TM-D7: jatah istirahat (menit) & apakah istirahat termasuk jam kerja dibayar (JT: ya).
   breakMin               Int       @default(0) @map("break_min") @db.SmallInt
   breakPaid              Boolean   @default(false) @map("break_paid")
@@ -233,26 +233,26 @@ enum AttendanceDayStatus {
 // Satu hari absen per karyawan per tanggal kerja (shift malam → tanggal mulai). Snapshot shift & PT disimpan
 // supaya perubahan master tidak mengubah riwayat. Label penyimpangan (D-070) tidak memblokir.
 model AttendanceDay {
-  id                String              @id @default(uuid()) @db.Uuid
-  employeeId        String              @map("employee_id") @db.Uuid
-  companyId         String              @map("company_id") @db.Uuid
-  managerEmployeeId String?             @map("manager_employee_id") @db.Uuid
-  workDate          DateTime            @map("work_date") @db.Date
-  shiftId           String?             @map("shift_id") @db.Uuid
-  shiftCode         String?             @map("shift_code") @db.VarChar(10)
-  scheduledStart    DateTime?           @map("scheduled_start") @db.Timestamptz(6)
-  scheduledEnd      DateTime?           @map("scheduled_end") @db.Timestamptz(6)
-  checkOutDeadline  DateTime?           @map("check_out_deadline") @db.Timestamptz(6)
-  workLocationId    String?             @map("work_location_id") @db.Uuid
-  status            AttendanceDayStatus
-  labels            String[]            @db.VarChar(20)
+  id                    String              @id @default(uuid()) @db.Uuid
+  employeeId            String              @map("employee_id") @db.Uuid
+  companyId             String              @map("company_id") @db.Uuid
+  managerEmployeeId     String?             @map("manager_employee_id") @db.Uuid
+  workDate              DateTime            @map("work_date") @db.Date
+  shiftId               String?             @map("shift_id") @db.Uuid
+  shiftCode             String?             @map("shift_code") @db.VarChar(10)
+  scheduledStart        DateTime?           @map("scheduled_start") @db.Timestamptz(6)
+  scheduledEnd          DateTime?           @map("scheduled_end") @db.Timestamptz(6)
+  checkOutDeadline      DateTime?           @map("check_out_deadline") @db.Timestamptz(6)
+  workLocationId        String?             @map("work_location_id") @db.Uuid
+  status                AttendanceDayStatus
+  labels                String[]            @db.VarChar(20)
   /// TM-D13 Fase B: verifikasi atasan atas Alpha tanpa absen (null = bukan Alpha harian / sebelum aturan).
-  alphaVerification     AlphaVerification? @map("alpha_verification")
-  alphaVerifiedBy       String?            @map("alpha_verified_by") @db.Uuid
-  alphaVerifiedAt       DateTime?          @map("alpha_verified_at") @db.Timestamptz(6)
-  alphaVerificationNote String?            @map("alpha_verification_note") @db.VarChar(300)
-  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  alphaVerification     AlphaVerification?  @map("alpha_verification")
+  alphaVerifiedBy       String?             @map("alpha_verified_by") @db.Uuid
+  alphaVerifiedAt       DateTime?           @map("alpha_verified_at") @db.Timestamptz(6)
+  alphaVerificationNote String?             @map("alpha_verification_note") @db.VarChar(300)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   punches AttendancePunch[]
 
@@ -365,15 +365,15 @@ model AttendancePeriod {
 
 /// Surat Pernyataan Absensi untuk satu hari ALPHA (catatan kepatuhan; tidak mengubah status ALPHA).
 model AttendanceStatement {
-  id                String    @id @default(uuid()) @db.Uuid
-  dayId             String    @unique @map("day_id") @db.Uuid
-  employeeId        String    @map("employee_id") @db.Uuid
-  companyId         String    @map("company_id") @db.Uuid
-  managerEmployeeId String?   @map("manager_employee_id") @db.Uuid
-  workDate          DateTime  @map("work_date") @db.Date
-  reason            String    @db.VarChar(1000)
-  attachmentPath    String?   @map("attachment_path") @db.VarChar(300)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                String   @id @default(uuid()) @db.Uuid
+  dayId             String   @unique @map("day_id") @db.Uuid
+  employeeId        String   @map("employee_id") @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  managerEmployeeId String?  @map("manager_employee_id") @db.Uuid
+  workDate          DateTime @map("work_date") @db.Date
+  reason            String   @db.VarChar(1000)
+  attachmentPath    String?  @map("attachment_path") @db.VarChar(300)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([companyId, workDate])
   @@index([employeeId])
@@ -449,6 +449,28 @@ enum OvertimeStatus {
   REJECTED
   CANCELLED
 
+  @@schema("attendance")
+}
+
+/// TM-D17: perintah lembur (SPL) dari Atasan langsung / HR PT, dibuat sebelum dijalani dan langsung berlaku.
+/// Satu per karyawan per tanggal kerja. Hari kerja: `startsAt` = mulai lebih awal (≤ jam masuk), `endsAt` =
+/// selesai lebih lambat (≥ jam pulang), salah satu boleh null. Hari OFF: keduanya terisi. Lembur hanya diakui
+/// di dalam rentang ini; batas Clock Out ikut mundur. Dibatalkan = baris dihapus (jejak di audit).
+model OvertimeOrder {
+  id                 String    @id @default(uuid()) @db.Uuid
+  employeeId         String    @map("employee_id") @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  workDate           DateTime  @map("work_date") @db.Date
+  startsAt           DateTime? @map("starts_at") @db.Timestamptz(6)
+  endsAt             DateTime? @map("ends_at") @db.Timestamptz(6)
+  reason             String    @db.VarChar(300)
+  createdByAccountId String    @map("created_by_account_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([employeeId, workDate])
+  @@index([companyId, workDate])
+  @@map("overtime_orders")
   @@schema("attendance")
 }
 

@@ -175,18 +175,44 @@ describe("hari OFF (TM-D12)", () => {
     expect(body.error.details).toEqual([{ offDay: true }]);
   });
 
-  test("Lembur hari libur: Clock In diterima dengan label di luar roster + alasan", async () => {
+  test("Lembur hari libur tanpa SPL ditolak (TM-D17)", async () => {
+    const res = await punch(h.off, "IN", {
+      offDayOvertime: true,
+      reason: "Lembur bongkar muat",
+      confirmed: true,
+    });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as ErrorBody).error.message).toContain("perintah lembur");
+  });
+
+  test("Lembur hari libur dengan SPL: Clock In diterima tanpa label di luar roster; today memuat SPL", async () => {
+    const hhmm = (min: number) =>
+      `${String(Math.floor(min / 60) % 24).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+    const order = await call("PUT", "/overtime-orders", h.sa, {
+      employeeId: emp.off,
+      workDate: today,
+      startTime: hhmm(at(2)),
+      endTime: hhmm(at(180)),
+      reason: "Bongkar muat kapal",
+    });
+    expect(order.status).toBe(200);
+    const before = await data<{ overtimeOrder: { endsAt: string | null } | null }>(
+      await call("GET", "/attendance/me/today", h.off),
+    );
+    expect(before.overtimeOrder?.endsAt).not.toBeNull();
     const res = await punch(h.off, "IN", {
       offDayOvertime: true,
       reason: "Lembur bongkar muat",
       confirmed: true,
     });
     expect(res.status).toBe(200);
-    expect((await data<{ labels: string[] }>(res)).labels).toContain("OUTSIDE_ROSTER");
+    expect((await data<{ labels: string[] }>(res)).labels).not.toContain("OUTSIDE_ROSTER");
     const after = await data<{ offDay: boolean; next: string }>(
       await call("GET", "/attendance/me/today", h.off),
     );
     expect(after).toMatchObject({ offDay: false, next: "OUT" });
+    const day = await prisma.attendanceDay.findFirst({ where: { employeeId: emp.off } });
+    expect(day?.checkOutDeadline).not.toBeNull();
   });
 
   test("hari kerja tidak dianggap OFF", async () => {

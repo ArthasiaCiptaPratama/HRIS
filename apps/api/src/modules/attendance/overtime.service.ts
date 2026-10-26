@@ -223,6 +223,8 @@ export interface CalcContext {
   holidays: Set<string>;
   formulas: Map<string, OvertimeFormula>;
   breakLocations: Set<string>;
+  /** TM-D17: perintah lembur per `employeeId|YYYY-MM-DD`. */
+  orders: Map<string, { startsAt: Date | null; endsAt: Date | null }>;
 }
 
 /** Muat shift, tanggal merah, pola crew, & lokasi wajib istirahat untuk sekumpulan hari sekaligus. */
@@ -232,7 +234,7 @@ export async function loadCalcContext(
 ): Promise<CalcContext> {
   const shiftIds = [...new Set(days.map((d) => d.shiftId).filter((x): x is string => !!x))];
   const dates = days.map((d) => toIso(d.workDate)).sort();
-  const [shifts, holidays, rosterDays, breakIds] = await Promise.all([
+  const [shifts, holidays, rosterDays, breakIds, orders] = await Promise.all([
     shiftIds.length ? repository.shiftsByIds(shiftIds, tx) : Promise.resolve([]),
     dates.length
       ? repository.nationalHolidays(
@@ -247,6 +249,10 @@ export async function loadCalcContext(
         )
       : Promise.resolve([]),
     readBreakLocationIds(tx),
+    repository.ordersOf(
+      days.map((d) => ({ employeeId: d.employeeId, workDate: d.workDate })),
+      tx,
+    ),
   ]);
   const crewIds = [...new Set(rosterDays.map((r) => r.crewId as string))];
   const crews = crewIds.length ? await repository.crewsWithPattern(crewIds, tx) : [];
@@ -261,7 +267,33 @@ export async function loadCalcContext(
       ]),
     ),
     breakLocations: new Set(breakIds),
+    orders: new Map(orders.map((o) => [`${o.employeeId}|${toIso(o.workDate)}`, o])),
   };
+}
+
+/**
+ * TM-D17: lembur hanya diakui di dalam rentang perintah lembur. Hari terjadwal: datang awal dibatasi
+ * "mulai lebih awal" SPL (tanpa SPL = jam masuk), pulang lewat dibatasi "selesai lebih lambat" (tanpa SPL =
+ * jam pulang); telat & pulang cepat tetap riil. Tanpa jadwal (hari OFF): hanya di dalam rentang SPL;
+ * tanpa SPL tidak ada jam yang diakui.
+ */
+export function clampToOrder(
+  checkIn: number,
+  checkOut: number,
+  schedule: { start: number; end: number } | null,
+  order: { startsAt: Date | null; endsAt: Date | null } | null,
+): { checkIn: number; checkOut: number } {
+  if (schedule) {
+    const from = order?.startsAt?.getTime() ?? schedule.start;
+    const to = order?.endsAt?.getTime() ?? schedule.end;
+    const inAt = Math.max(checkIn, Math.min(from, schedule.start));
+    const outAt = Math.min(checkOut, Math.max(to, schedule.end));
+    return { checkIn: inAt, checkOut: Math.max(inAt, outAt) };
+  }
+  if (!order?.startsAt || !order.endsAt) return { checkIn, checkOut: checkIn };
+  const inAt = Math.max(checkIn, order.startsAt.getTime());
+  const outAt = Math.min(checkOut, order.endsAt.getTime());
+  return { checkIn: inAt, checkOut: Math.max(inAt, outAt) };
 }
 
 export interface DayCalc {
@@ -285,6 +317,17 @@ export function calcDay(ctx: CalcContext, day: DayWithPunches): DayCalc | null {
       ? "WORKDAY"
       : "OFF_DAY";
   const formula = ctx.formulas.get(`${day.employeeId}|${date}`) ?? "SIX_DAY";
+  const clamped = clampToOrder(
+    inP.at.getTime(),
+    outP.at.getTime(),
+    scheduled
+      ? {
+          start: (day.scheduledStart as Date).getTime(),
+          end: (day.scheduledEnd as Date).getTime(),
+        }
+      : null,
+    ctx.orders.get(`${day.employeeId}|${date}`) ?? null,
+  );
   const result = computeOvertimeDay({
     dayType,
     formula,
@@ -295,8 +338,8 @@ export function calcDay(ctx: CalcContext, day: DayWithPunches): DayCalc | null {
     breakMin: shift?.breakMin ?? 0,
     breakPaid: shift?.breakPaid ?? false,
     breakRequired: day.workLocationId !== null && ctx.breakLocations.has(day.workLocationId),
-    checkIn: inP.at.getTime(),
-    checkOut: outP.at.getTime(),
+    checkIn: clamped.checkIn,
+    checkOut: clamped.checkOut,
     breakStart: day.punches.find((p) => p.kind === "BREAK_START")?.at.getTime() ?? null,
     breakEnd: day.punches.find((p) => p.kind === "BREAK_END")?.at.getTime() ?? null,
   });

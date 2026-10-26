@@ -54,6 +54,12 @@ import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar
 import * as directory from "./directory.ts";
 import { resolveAttendanceLocation } from "./location-setting.service.ts";
 import { isBreakRequired, syncOvertime } from "./overtime.service.ts";
+import {
+  deadlineWithOrder,
+  OFF_DAY_CLOSE_MIN,
+  type OrderRow,
+  ordersOfEmployee,
+} from "./overtime-order.service.ts";
 import { closedMonths, correctionInstant, isDateClosed } from "./period.service.ts";
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
@@ -154,6 +160,58 @@ interface Evaluation {
   /** TM-D12: Clock Out normal dibuka / jendela Mulai istirahat (hari terbuka). */
   checkOutOpensAt: Date | null;
   breakWindow: { opens: Date; closes: Date } | null;
+  /** TM-D17: perintah lembur untuk tanggal kerja Clock In (null = tidak ada). */
+  overtimeOrder: OrderRow | null;
+}
+
+/** TM-D17: kandidat planCheckIn; SPL "mulai lebih awal" membuka absen masuk lebih awal. */
+const candidatesOf = (
+  dates: string[],
+  byDate: Map<string, { shift: Shift | null }>,
+  orders: Map<string, OrderRow>,
+) =>
+  dates.map((date) => {
+    const d = byDate.get(date);
+    return {
+      workDate: date,
+      shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
+      openFrom: orders.get(date)?.startsAt ?? null,
+    };
+  });
+
+/**
+ * TM-D17: jadwal Clock In dengan SPL. Hari kerja: batas absen pulang mundur ke akhir SPL + batas shift.
+ * Hari OFF ber-SPL: jadwal = rentang SPL (bukan "di luar roster"), batas = akhir SPL + bawaan.
+ */
+function applyOrder(
+  plan: ReturnType<typeof planCheckIn>,
+  order: OrderRow | null,
+): Pick<ReturnType<typeof planCheckIn>, "window" | "labels"> {
+  if (!order) return plan;
+  if (plan.window) {
+    const closeMin = plan.shift?.checkOutCloseMin ?? 0;
+    return {
+      labels: plan.labels,
+      window: {
+        ...plan.window,
+        checkOutDeadline:
+          deadlineWithOrder(plan.window.checkOutDeadline, order, closeMin) ??
+          plan.window.checkOutDeadline,
+      },
+    };
+  }
+  if (plan.offDay && order.startsAt && order.endsAt) {
+    return {
+      labels: plan.labels.filter((l) => l !== "OUTSIDE_ROSTER"),
+      window: {
+        start: order.startsAt,
+        end: order.endsAt,
+        checkInOpen: order.startsAt,
+        checkOutDeadline: new Date(order.endsAt.getTime() + OFF_DAY_CLOSE_MIN * MINUTE),
+      },
+    };
+  }
+  return plan;
 }
 
 /** TM-D13 Fase C: hari roster yang diubah (bukan hasil pola) dalam 7 hari terakhir → penanda di HP. */
@@ -301,6 +359,7 @@ async function evaluate(
       offDay: false,
       checkOutOpensAt: times.checkOutOpensAt,
       breakWindow: times.breakWindow,
+      overtimeOrder: null,
     };
   }
 
@@ -318,18 +377,15 @@ async function evaluate(
     ),
   ]);
   const byDate = new Map(rosterDays.map((d) => [toIso(d.workDate), d]));
+  const orders = await ordersOfEmployee(employee.id, dates);
   const plan = planCheckIn(
     now,
     settings.timezone,
-    dates.map((date) => {
-      const d = byDate.get(date);
-      return {
-        workDate: date,
-        shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
-      };
-    }),
+    candidatesOf(dates, byDate, orders),
     takenDates(nearby),
   );
+  const overtimeOrder = orders.get(plan.workDate) ?? null;
+  const scheduled = applyOrder(plan, overtimeOrder);
   const shortRest = restShortfall(nearby, now, settings.minRestHours);
   const rosterDay = byDate.get(plan.workDate);
   const resolved = await expectedLocation(employee, plan.workDate);
@@ -346,16 +402,21 @@ async function evaluate(
     kind: "IN",
     workDate: plan.workDate,
     shift: rosterDay?.shift ?? null,
-    window: plan.window,
-    labels: [...plan.labels, ...(shortRest ? (["SHORT_REST"] as const) : []), ...geofence.labels],
+    window: scheduled.window,
+    labels: [
+      ...scheduled.labels,
+      ...(shortRest ? (["SHORT_REST"] as const) : []),
+      ...geofence.labels,
+    ],
     geofence,
     openDay: null,
     location: expected,
-    suspicion: suspicionFor("IN", now, plan.window, null, stillOpen !== null),
+    suspicion: suspicionFor("IN", now, scheduled.window, null, stillOpen !== null),
     stillOpen,
     offDay: plan.offDay,
     checkOutOpensAt: null,
     breakWindow: null,
+    overtimeOrder,
   };
 }
 
@@ -560,6 +621,16 @@ export interface TodayView {
   checkOutOpensAt: string | null;
   breakOpensAt: string | null;
   breakClosesAt: string | null;
+  /**
+   * TM-D17: perintah lembur untuk hari terbuka / shift berikutnya. App memakai `endsAt` (bila ada) sebagai
+   * jam pulang untuk alarm lupa Clock Out (TM-D16).
+   */
+  overtimeOrder: {
+    workDate: string;
+    startsAt: string | null;
+    endsAt: string | null;
+    reason: string;
+  } | null;
 }
 
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
@@ -590,18 +661,17 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
   const location = resolved.location;
   const recent = await toDayViews(ctx, recentRows, false);
   const byDate = new Map(rosterDays.map((d) => [toIso(d.workDate), d]));
+  const orders = await ordersOfEmployee(employeeId, [
+    ...dates,
+    ...(open ? [toIso(open.workDate)] : []),
+  ]);
   const plan = planCheckIn(
     now,
     settings.timezone,
-    dates.map((date) => {
-      const d = byDate.get(date);
-      return {
-        workDate: date,
-        shift: d === undefined ? undefined : d.shift ? shiftTimes(d.shift) : null,
-      };
-    }),
+    candidatesOf(dates, byDate, orders),
     takenDates(recentRows),
   );
+  const order = orders.get(open ? toIso(open.workDate) : plan.workDate) ?? null;
   const openShift = open?.shiftId ? await rosterRepo.findShift(open.shiftId) : null;
   const times = open
     ? openDayTimes(toIso(open.workDate), openShift, settings, open)
@@ -643,6 +713,14 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
     checkOutOpensAt: times.checkOutOpensAt?.toISOString() ?? null,
     breakOpensAt: times.breakWindow?.opens.toISOString() ?? null,
     breakClosesAt: times.breakWindow?.closes.toISOString() ?? null,
+    overtimeOrder: order
+      ? {
+          workDate: toIso(order.workDate),
+          startsAt: order.startsAt?.toISOString() ?? null,
+          endsAt: order.endsAt?.toISOString() ?? null,
+          reason: order.reason,
+        }
+      : null,
     // TM-D13: ada shift terbuka yang belum di-Clock In → IN; tidak ada & tanggal hari ini sudah absen → DONE.
     next: open
       ? "OUT"
@@ -848,6 +926,12 @@ async function recordPunch(
   if (e.kind === "IN" && e.offDay && !input.offDayOvertime) {
     throw new BusinessRuleError(
       "Hari ini jadwal Anda libur (OFF). Silakan beristirahat. Bila memang lembur, pilih Lembur hari libur.",
+      [{ offDay: true }],
+    );
+  }
+  if (e.kind === "IN" && e.offDay && !e.overtimeOrder) {
+    throw new BusinessRuleError(
+      "Belum ada perintah lembur (SPL) dari atasan atau HR untuk hari libur ini.",
       [{ offDay: true }],
     );
   }

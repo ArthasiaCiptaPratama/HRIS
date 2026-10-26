@@ -75,6 +75,17 @@ export function canRequestRosterChange(actor: Actor, target: RosterTarget): bool
   return actor.role === ROLE.MANAGER && target.managerId === actor.employeeId;
 }
 
+/**
+ * TM-D17: buat/batalkan perintah lembur (SPL) — Atasan langsung karyawan; HR PT-nya; SA. Tidak untuk diri
+ * sendiri (kecuali SA).
+ */
+export function canOrderOvertime(actor: Actor, target: RosterTarget): boolean {
+  if (isSa(actor)) return true;
+  if (actor.employeeId !== null && actor.employeeId === target.employeeId) return false;
+  if (isHr(actor) && (actor.companyIds?.has(target.companyId) ?? false)) return true;
+  return actor.employeeId !== null && target.managerId === actor.employeeId;
+}
+
 // ── TM-D6 lembur & biaya / TM-D7 istirahat ─────────────────────────────────────
 /** Rupiah per orang & tabel upah grade: SA; HR ber-grant `labor.cost.read` (PT dicek pemanggil). */
 export const canSeeLaborCost = (actor: Actor) =>

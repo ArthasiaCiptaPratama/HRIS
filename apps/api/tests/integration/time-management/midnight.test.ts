@@ -90,6 +90,8 @@ beforeAll(async () => {
         startMinute,
         endMinute,
         startsNextDay,
+        // Batas absen pulang 4 jam (bawaan master shift kini 30 menit, TM-D16).
+        checkOutCloseMin: 240,
       },
     });
   const s2 = await mkShift("S", 16 * 60, 0, false);

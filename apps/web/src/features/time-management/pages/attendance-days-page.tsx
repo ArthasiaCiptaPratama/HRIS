@@ -58,6 +58,7 @@ import {
   addDays,
   DayStatusBadge,
   LabelChips,
+  scheduleLabel,
   timeIn,
   todayIn,
   workDateLabel,
@@ -190,7 +191,7 @@ export function AttendanceDaysPage() {
                 <>
                   <span className="text-foreground font-medium">{row.original.shiftCode}</span>
                   {row.original.scheduledStart && row.original.scheduledEnd
-                    ? ` · ${timeIn(row.original.scheduledStart, tz)}–${timeIn(row.original.scheduledEnd, tz)}`
+                    ? ` · ${scheduleLabel(row.original.workDate, row.original.scheduledStart, row.original.scheduledEnd, tz)}`
                     : ""}
                 </>
               ) : (
@@ -857,7 +858,7 @@ function DayDialog({
           </DialogTitle>
           <DialogDescription>
             {d
-              ? `${d.employee.employeeNumber ?? "—"} · ${d.shiftCode ? `Shift ${d.shiftCode} ${timeIn(d.scheduledStart, tz)}–${timeIn(d.scheduledEnd, tz)}` : "Tanpa jadwal roster"}${d.workLocation ? ` · ${d.workLocation.name}` : ""}`
+              ? `${d.employee.employeeNumber ?? "—"} · ${d.shiftCode ? `Shift ${d.shiftCode} ${scheduleLabel(d.workDate, d.scheduledStart, d.scheduledEnd, tz)}` : "Tanpa jadwal roster"}${d.workLocation ? ` · ${d.workLocation.name}` : ""}`
               : "Memuat…"}
           </DialogDescription>
         </DialogHeader>

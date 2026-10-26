@@ -5,6 +5,7 @@ import {
   OVERTIME_FLAGS,
   OVERTIME_FORMULAS,
   OVERTIME_STATUSES,
+  type OvertimeOrderInput,
   type RosterTemplateInput,
 } from "@hris/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -98,6 +99,7 @@ const keys = {
     [...tmKeys.all, "overtime-summary", month, companyId] as const,
   wages: [...tmKeys.all, "grade-wages"] as const,
   breaks: [...tmKeys.all, "break-locations"] as const,
+  orders: (params: object) => [...tmKeys.all, "overtime-orders", params] as const,
 };
 
 function useRefresh() {
@@ -192,6 +194,57 @@ export function useApplyRosterTemplate() {
             restWarnings: z.array(z.string()).optional(),
           }),
         ),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+}
+
+// ── TM-D17 perintah lembur (SPL) ───────────────────────────────────────────────
+export const overtimeOrderSchema = z.object({
+  id: z.string(),
+  employee: person,
+  companyId: z.string(),
+  workDate: z.string(),
+  startsAt: z.string().nullable(),
+  endsAt: z.string().nullable(),
+  reason: z.string(),
+  createdAt: z.string(),
+  canManage: z.boolean(),
+});
+export type OvertimeOrder = z.infer<typeof overtimeOrderSchema>;
+
+export function useOvertimeOrders(params: { from: string; to: string; companyId?: string }) {
+  return useQuery({
+    queryKey: keys.orders(params),
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams({ from: params.from, to: params.to });
+      if (params.companyId) search.set("companyId", params.companyId);
+      return api(`/overtime-orders?${search}`, {
+        schema: one(z.array(overtimeOrderSchema)),
+        signal,
+      }).then((r) => r.data);
+    },
+  });
+}
+
+export function useSetOvertimeOrder() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: OvertimeOrderInput) =>
+      api("/overtime-orders", { method: "PUT", body, schema: one(overtimeOrderSchema) }).then(
+        (r) => r.data,
+      ),
+    onSuccess: refresh,
+  });
+}
+
+export function useCancelOvertimeOrder() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/overtime-orders/${id}/cancel`, {
+        method: "POST",
+        schema: one(z.object({ id: z.string() })),
       }).then((r) => r.data),
     onSuccess: refresh,
   });
