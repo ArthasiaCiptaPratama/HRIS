@@ -11,6 +11,19 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-22 — Project Firebase staging untuk push FCM (Oatse)
+- **Dikerjakan (serah-terima `.handoff/2026-10-22-1320-HRIS-mobile-ke-HRIS-firebase-fcm.md`, lewat Zen):** project Firebase `arthasia-akselerasi-stg` milik admin.arthasia@gmail.com (Spark; Analytics, Gemini, Google Developer Program dimatikan); app Android `com.arthasia.akselerasi.dev` (App ID `1:266363554852:android:64ce3d05544b21f661dcb1`) & `com.arthasia.akselerasi.stg`, tanpa SHA-1; FCM API (V1) aktif bawaan (legacy mati). `google-services.json` (kedua app) & kunci service account `firebase-adminsdk-fbsvc@arthasia-akselerasi-stg.iam.gserviceaccount.com` disimpan di `/mnt/winD/WORK/Magang/.secrets/firebase/` (di luar git); `FCM_SERVICE_ACCOUNT_JSON` ditulis ke `.env` HRIS & HRIS-mobile lewat `jq -c` tanpa dicetak.
+- **Keputusan:** satu project untuk flavor dev & staging; produksi nanti project terpisah dengan service account khusus peran FCM (ikut OD-4, belum diputuskan).
+- **Verifikasi:** `.env` dibaca Bun → `type service_account`, `project_id arthasia-akselerasi-stg`, kunci ada; `git status` kedua worktree bersih. Uji asap `createFcmSender` (script scratchpad, hanya status dicetak): token OAuth **200**, `messages:send` ke token palsu **400 `INVALID_ARGUMENT`** ("not a valid FCM registration token") → autentikasi & izin FCM benar.
+- **Masalah / catatan:** `push.ts` memetakan 400 `INVALID_ARGUMENT` (token rusak) ke `failed`, bukan `unregistered` → token rusak tidak terhapus otomatis; dampak kecil karena token dari `firebase_messaging` selalu berformat benar (temuan, tidak diubah). Env Vercel `hris-staging-api` `FCM_SERVICE_ACCOUNT_JSON` diisi lewat dasbor (Secret, Production; ditempel dari clipboard, tidak tercetak), aktif mulai deploy rilis gel. 13. Uji ke HP menunggu M5.
+- **Berikutnya:** app M5 memasang `google-services.json` + `firebase_messaging` → uji kirim ke POCO X6 Pro.
+
+### 2026-10-22 — Celah kontrak OpenAPI dari M2 Absen (Oatse)
+- **Dikerjakan (`HRIS/mobile-app`, serah-terima sesi app `.handoff/2026-10-22-1110-…-idempotency-key-spec.md`):** helper `route` di `attendance-day.routes.ts` menerima `headers`; `POST /attendance/punch` mendeklarasikan header opsional `Idempotency-Key` (pola `^[A-Za-z0-9_-]{8,64}$`), perilaku runtime tetap (`idempotencyKeyOf`). `core/openapi.ts` → `withInputDates`: `format: date` pada parameter & request body (inline + komponen yang hanya dipakai input, termasuk rujukan bertingkat) diganti `string` + pola `^\d{4}-\d{2}-\d{2}$`; komponen yang juga dipakai respons tidak diubah. Sebelumnya 22 tanggal input inline + 8 komponen input (`CreateEmployee`, `HolidayInput`, …) ber-`format: date`; sesudahnya 0.
+- **Keputusan:** MOB-D19 (tanggal input = string + pola) — isi lengkap dicatat sesi app di `Arthasia-Mobile/docs/decisions.md`.
+- **Verifikasi:** `core/__tests__/openapi.test.ts` 5 lulus (+2: header punch, tidak ada `format: date` di input & komponen input, `history.from` = string+pola, `AttendanceDay.workDate` tetap `format: date`); `mobile-punch.test.ts` 4 lulus (200/409/400 tetap); typecheck ✔; biome ✔ 640 file; boundaries ✔ 519 modul; shared 335; api 889 lulus 0 gagal; web 313 (`--maxWorkers=3`; run paralel bawaan 16 timeout, load average 20, kode web tidak berubah).
+- **Berikutnya:** commit `cecd660` + merge ke develop ✔ 2026-10-22 (push menunggu izin); app: `openapi/fetch-spec.sh` + generate ulang klien.
+
 ### 2026-10-21 — Penutup hari: semua BE app di develop, app M1 selesai (Oatse)
 - **Dikerjakan:** develop berisi tahap 1 (`f99f0c9`), merge Mat (`247c0fa`, `bc50142`), tahap 3 (`cf9de90`), `operationId` (`c34eb22`) — semua di-push, CI ✔ (terakhir #39582217626). App: klien generate dipakai `core/api`, `Me` generate, config `API_ORIGIN` (M1 selesai).
 - **Verifikasi:** CI develop ✔; app `flutter analyze` 0 isu, 12 test, terpasang di POCO X6 Pro tanpa galat log.
