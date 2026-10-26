@@ -205,3 +205,17 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Web `alpha-verification.test.tsx`.
   - Browser lokal: Budi memverifikasi Alpha Dimas → tersimpan "Izin".
 - Kontrak API baru: `GET/POST /attendance/alpha-verifications`, `AttendancePeriodPreview.unverifiedAlpha`. **Kabari tim mobile.**
+
+## 2026-10-23 — TM-D13: kasus uji batas 00:00 — Mat
+
+- Permintaan: "buatkan testing case untuk 00:00".
+- QA TC-TM-050..058: Clock In shift 3 tepat 00:00, buka absen/toleransi, Clock Out shift 2 tepat 00:00, akhir bulan, Alpha shift 3 tidak lebih awal, jeda setelah 00:00, istirahat melewati 00:00, shift tanpa centang "mulai setelah tengah malam", zona WITA/WIT & tahun baru.
+- Test: unit `src/modules/attendance/__tests__/midnight.test.ts` (22) + integrasi `tests/integration/time-management/midnight.test.ts` (5, DB lokal, 30 Apr–2 Mei 2027). Semua lulus; tidak ada perubahan kode produksi.
+
+## 2026-10-23 — Rapikan test bocor & label istirahat hari OFF — Mat
+
+- Dua temuan UAT 22 Okt, dipilih Mat ("lanjutkan time management").
+- **Cleanup test:** helper baru `tests/helpers/attendance.ts` `deleteAttendanceData(employeeIds)` menghapus approval hari/absen/lembur, usulan lembur, lalu hari absen. Dipakai di 11 test integrasi (attendance, mobile-punch, alpha, location-setting, time-notify, leave, overtime, period, punch-window, shift-instance, midnight) + warning-letters.
+  - Dicari per file: bocoran approval lembur PENDING berasal dari cleanup `shift-instance.test` (menghapus usulan lembur tanpa approval-nya; tersalin ke midnight). Approval absen CANCELLED tanpa absen dari `cancelOwnPunch` = jejak pembatalan, disengaja (bukan bocor).
+- **Label istirahat:** `computeOvertimeDay` (@hris/shared) tidak memasang `NO_BREAK_PUNCH` di hari tanpa jadwal (OFF / tanpa roster), karena tidak ada jatah istirahat shift. Hari kerja bershift tetap seperti TM-D7. Test shared baru.
+- Verifikasi Alpha Izin/Sakit/Tugas luar tetap dicatat + karyawan mengajukan sendiri (dikonfirmasi Mat).

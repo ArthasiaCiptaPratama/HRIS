@@ -11,6 +11,7 @@ import {
 import { readTimeSettings } from "../../../src/modules/attendance/index.ts";
 import { withEmployeeCompanyScope } from "../../../src/modules/employee/index.ts";
 import { loadActor } from "../../../src/modules/iam/index.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -130,14 +131,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const days = await prisma.attendanceDay.findMany({
-    where: { employeeId: ids.employee },
-    select: { id: true, punches: { select: { id: true } } },
-  });
-  const subjects = days.flatMap((d) => [d.id, ...d.punches.map((p) => p.id)]);
-  await prisma.approvalRequest.deleteMany({ where: { subjectId: { in: subjects } } });
-  await prisma.overtimeRequest.deleteMany({ where: { employeeId: ids.employee } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: ids.employee } });
+  await deleteAttendanceData([ids.employee]);
   await prisma.rosterDay.deleteMany({ where: { employeeId: ids.employee } });
   await prisma.shift.deleteMany({ where: { id: { in: ids.shifts } } });
   await auth.cleanup();

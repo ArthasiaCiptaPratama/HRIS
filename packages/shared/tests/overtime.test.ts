@@ -146,6 +146,20 @@ describe("hitung lembur satu hari", () => {
     expect(r.proposedMin).toBe(60);
   });
 
+  test("lembur hari OFF di lokasi wajib istirahat tanpa absen istirahat → tanpa label NO_BREAK_PUNCH", () => {
+    const r = computeOvertimeDay({
+      ...office,
+      dayType: "OFF_DAY",
+      scheduledStart: null,
+      scheduledEnd: null,
+      breakStart: null,
+      breakEnd: null,
+      checkIn: at("08:00"),
+      checkOut: at("13:00"),
+    });
+    expect(r.breakLabels).toEqual([]);
+  });
+
   test("JT pulang tepat: lembur rutin 60 menit (1,5 jam setara), tanpa usulan", () => {
     const r = computeOvertimeDay(jt);
     expect(r.regularMin).toBe(60);

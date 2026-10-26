@@ -8,6 +8,7 @@ import {
   runApprovalDigest,
   runAttendanceReminders,
 } from "../../../src/modules/attendance/index.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -128,7 +129,7 @@ afterAll(async () => {
     where: { subjectId: { in: corrections.map((c) => c.id) } },
   });
   await prisma.attendanceCorrection.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.shift.deleteMany({ where: { id: { in: shiftIds } } });
   await auth.cleanup();

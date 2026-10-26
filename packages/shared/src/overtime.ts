@@ -160,8 +160,10 @@ export function computeOvertimeDay(input: OvertimeDayInput): OvertimeDayResult {
       ? minutesBetween(input.breakStart, input.breakEnd)
       : null;
   const breakLabels: BreakLabel[] = [];
-  if (input.breakRequired && breakActual === null) breakLabels.push("NO_BREAK_PUNCH");
   const hasSchedule = input.scheduledStart !== null && input.scheduledEnd !== null;
+  // Hari OFF / tanpa jadwal tidak punya jatah istirahat shift → tidak wajib absen istirahat (UAT 2026-10-22).
+  if (input.breakRequired && hasSchedule && breakActual === null)
+    breakLabels.push("NO_BREAK_PUNCH");
   const breakOverMin =
     breakActual !== null && hasSchedule ? Math.max(0, breakActual - input.breakMin) : 0;
   if (breakOverMin > 0) breakLabels.push("BREAK_OVER");

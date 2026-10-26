@@ -9,6 +9,7 @@ import {
   overtimeSummarySchema,
   overtimeViewSchema,
 } from "../../../src/modules/attendance/overtime.contract.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -205,8 +206,7 @@ afterAll(async () => {
       ],
     },
   });
-  await prisma.overtimeRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crew.deleteMany({ where: { companyId: ids.company2 } });
   await prisma.rosterPattern.deleteMany({ where: { companyId: ids.company2 } });
