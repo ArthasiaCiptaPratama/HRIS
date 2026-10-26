@@ -1,5 +1,6 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import {
+  alphaVerificationInputSchema,
   correctionInputSchema,
   periodCloseInputSchema,
   statementInputSchema,
@@ -11,6 +12,7 @@ import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import * as alpha from "./alpha.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import {
+  alphaVerificationSchema,
   attendanceRecordSchema,
   correctionSchema,
   monthlyRecapSchema,
@@ -165,6 +167,32 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       response: correctionSchema,
     }),
     (c) => service.cancelCorrection(ctxOf(c), c.req.param("id") as string),
+  ],
+  [
+    route(
+      "get",
+      "/attendance/alpha-verifications",
+      "Verifikasi Alpha: inbox atasan / semua dalam cakupan (TM-D13)",
+      {
+        query: z.object({ scope: z.enum(["inbox", "all"]).optional() }),
+        response: z.array(alphaVerificationSchema),
+      },
+    ),
+    (c) => alpha.listAlphaVerifications(ctxOf(c), c.req.query("scope") === "all" ? "all" : "inbox"),
+  ],
+  [
+    route(
+      "post",
+      "/attendance/alpha-verifications/{id}",
+      "Atasan memverifikasi Alpha: Alpha / izin / sakit / tugas luar (TM-D13)",
+      { params: idParam, body: alphaVerificationInputSchema, response: alphaVerificationSchema },
+    ),
+    async (c) =>
+      alpha.verifyAlpha(
+        ctxOf(c),
+        c.req.param("id") as string,
+        strict(alphaVerificationInputSchema, await body(c)),
+      ),
   ],
 ];
 

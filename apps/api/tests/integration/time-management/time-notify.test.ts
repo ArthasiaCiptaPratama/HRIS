@@ -8,6 +8,7 @@ import {
   runApprovalDigest,
   runAttendanceReminders,
 } from "../../../src/modules/attendance/index.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -128,7 +129,7 @@ afterAll(async () => {
     where: { subjectId: { in: corrections.map((c) => c.id) } },
   });
   await prisma.attendanceCorrection.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.shift.deleteMany({ where: { id: { in: shiftIds } } });
   await auth.cleanup();
@@ -150,6 +151,118 @@ describe("notifikasi Time Management", () => {
     // MOB-D6: target terstruktur untuk app mobile (layar absen hari ini).
     expect(notes[0]?.targetType).toBe("ATTENDANCE_TODAY");
     expect(notes[0]?.targetId).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  test("TM-D16: pengingat belum Clock Out baru dikirim 15 menit setelah jam pulang terkunci", async () => {
+    const b = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `TN-${RUN}-B`,
+          fullName: `Notif ${RUN} B`,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId,
+          employmentStatusId: ids.status,
+          positionId: ids.position,
+        },
+      })
+    ).id;
+    ids.employees.push(b);
+    const bAccount = (await auth.loginAs("EMPLOYEE", { employeeId: b, companies: [companyId] }))
+      .account.id;
+    await prisma.rosterDay.create({
+      data: { employeeId: b, workDate: D(today), shiftId: shiftIds[0], source: "MANUAL" },
+    });
+    const now = Date.now();
+    const day = await prisma.attendanceDay.create({
+      data: {
+        employeeId: b,
+        companyId,
+        workDate: D(today),
+        shiftId: shiftIds[0],
+        scheduledStart: new Date(now - 8 * 3600_000),
+        scheduledEnd: new Date(now - 10 * 60_000),
+        checkOutDeadline: new Date(now + 20 * 60_000),
+        status: "PENDING",
+        labels: [],
+      },
+    });
+    await prisma.attendancePunch.create({
+      data: {
+        dayId: day.id,
+        kind: "IN",
+        at: new Date(now - 8 * 3600_000),
+        insideGeofence: true,
+        labels: [],
+      },
+    });
+    await runAttendanceReminders(new Date(now), [b]);
+    expect(await notesOf(bAccount, "attendance.reminder_out")).toHaveLength(0);
+    await runAttendanceReminders(new Date(now + 6 * 60_000), [b]);
+    const notes = await notesOf(bAccount, "attendance.reminder_out");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.title).toContain("Belum Clock Out");
+  });
+
+  test("TM-D17: hari OFF dengan perintah lembur → pengingat pulang 15 menit setelah akhir SPL", async () => {
+    const c = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `TN-${RUN}-C`,
+          fullName: `Notif ${RUN} C`,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId,
+          employmentStatusId: ids.status,
+          positionId: ids.position,
+        },
+      })
+    ).id;
+    ids.employees.push(c);
+    const cAccount = (await auth.loginAs("EMPLOYEE", { employeeId: c, companies: [companyId] }))
+      .account.id;
+    // Hari OFF: hari roster tanpa shift.
+    await prisma.rosterDay.create({
+      data: { employeeId: c, workDate: D(today), shiftId: null, source: "MANUAL" },
+    });
+    const now = Date.now();
+    const endsAt = new Date(now - 10 * 60_000);
+    await prisma.overtimeOrder.create({
+      data: {
+        employeeId: c,
+        companyId,
+        workDate: D(today),
+        startsAt: new Date(now - 4 * 3600_000),
+        endsAt,
+        reason: "Lembur hari libur",
+        createdByAccountId: accounts.mgr,
+      },
+    });
+    const day = await prisma.attendanceDay.create({
+      data: {
+        employeeId: c,
+        companyId,
+        workDate: D(today),
+        scheduledStart: new Date(now - 4 * 3600_000),
+        scheduledEnd: endsAt,
+        checkOutDeadline: new Date(now + 20 * 60_000),
+        status: "OPEN",
+        labels: [],
+      },
+    });
+    await prisma.attendancePunch.create({
+      data: {
+        dayId: day.id,
+        kind: "IN",
+        at: new Date(now - 4 * 3600_000),
+        insideGeofence: true,
+        labels: [],
+      },
+    });
+    await runAttendanceReminders(new Date(now), [c]);
+    expect(await notesOf(cAccount, "attendance.reminder_out")).toHaveLength(0);
+    await runAttendanceReminders(new Date(now + 6 * 60_000), [c]);
+    const notes = await notesOf(cAccount, "attendance.reminder_out");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.title).toContain("lembur hari libur");
   });
 
   test("hari tanpa absen → Alpha + notifikasi dengan batas koreksi", async () => {

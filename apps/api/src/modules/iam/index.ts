@@ -24,6 +24,7 @@ export {
   listDocumentReminderRecipients,
   listManagerEmployeeIds,
   listOnboardingReviewers,
+  listTestAccounts,
   loadActor,
   notifyExpiringGrants,
   provisionAccount,

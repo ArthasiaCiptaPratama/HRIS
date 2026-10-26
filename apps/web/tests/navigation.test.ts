@@ -38,3 +38,43 @@ describe("navigasi: Master Cuti", () => {
     }
   });
 });
+
+// IAM-D1: HR Kepegawaian — Personal Management (lihat data kerja) saja; modul lain & Arsip tersembunyi.
+describe("navigasi: HR Kepegawaian", () => {
+  const me = {
+    id: "a",
+    email: "hrk@example.test",
+    role: "HR_PERSONNEL",
+    isPrimarySuperAdmin: false,
+    employeeId: null,
+    lastLoginAt: null,
+    grants: [],
+  } as never;
+  const visibleItems = (groupId: string) => {
+    const group = NAV_GROUPS.find((g) => g.id === groupId);
+    if (!group || (group.visible && !group.visible(me))) return [];
+    return flatten(group.sections.flatMap((s) => s.items))
+      .filter((i) => !i.visible || i.visible(me))
+      .map((i) => i.to);
+  };
+  it("Personal Management: daftar aktif, tidak aktif, struktur; tanpa arsip, kelola, laporan", () => {
+    const items = visibleItems("personal");
+    expect(items).toContain("/personal/pegawai-tidak-aktif");
+    expect(items).toContain("/personal/struktur-organisasi");
+    expect(items.some((to) => to.startsWith("/personal/pegawai-aktif"))).toBe(true);
+    for (const hidden of [
+      "/personal/arsip",
+      "/personal/ubah-status",
+      "/personal/import",
+      "/personal/laporan",
+    ]) {
+      expect(items.some((to) => to.startsWith(hidden))).toBe(false);
+    }
+  });
+  it("grup lain (Time Management, Administrasi, dst.) tidak menampilkan menu; Akun Saya tetap", () => {
+    for (const group of NAV_GROUPS.filter((g) => !["dashboard", "personal", "me"].includes(g.id))) {
+      const items = visibleItems(group.id).filter((to) => !to.startsWith("/absen"));
+      expect({ group: group.id, items }).toEqual({ group: group.id, items: [] });
+    }
+  });
+});

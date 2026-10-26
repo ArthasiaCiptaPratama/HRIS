@@ -90,6 +90,16 @@ const issueSchema = z.object({
   severity: z.enum(["ERROR", "WARNING"]),
 });
 
+// Nama sendiri supaya codegen app tidak menamainya "MasterData" & menimpa skema GET /master-data.
+const importMasterDataSchema = z
+  .object({
+    departments: z.array(z.string()),
+    positions: z.array(z.object({ department: z.string(), name: z.string() })),
+    grades: z.array(z.string()),
+    workLocations: z.array(z.string()),
+  })
+  .openapi("EmployeeImportMasterData");
+
 export const previewSchema = z
   .object({
     counts: z.object({
@@ -153,12 +163,7 @@ export const previewSchema = z
         ),
       }),
     ),
-    masterData: z.object({
-      departments: z.array(z.string()),
-      positions: z.array(z.object({ department: z.string(), name: z.string() })),
-      grades: z.array(z.string()),
-      workLocations: z.array(z.string()),
-    }),
+    masterData: importMasterDataSchema,
     /** Field sensitif di file yang dilewati karena aktor tidak berhak menulisnya. */
     skippedFields: z.array(fieldKey),
     previewHash: z.string(),

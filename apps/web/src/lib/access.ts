@@ -8,10 +8,13 @@ const isSuperAdmin = (me: Me) => me.role === ROLE.SUPER_ADMIN;
 const isHrAdmin = (me: Me) => me.role === ROLE.HR_ADMIN;
 
 export const access = {
+  /** IAM-D1: HR Kepegawaian — hanya melihat data kerja karyawan (tanpa arsip, dokumen, aksi, modul lain). */
+  employmentOnly: (me: Me) => me.role === ROLE.HR_PERSONNEL,
   listAccounts: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
   inviteRoles: (me: Me): readonly Role[] => {
-    if (me.isPrimarySuperAdmin) return ["SUPER_ADMIN", "HR_ADMIN", "MANAGER", "EMPLOYEE"];
-    if (isSuperAdmin(me)) return ["HR_ADMIN", "MANAGER", "EMPLOYEE"];
+    if (me.isPrimarySuperAdmin)
+      return ["SUPER_ADMIN", "HR_ADMIN", "HR_PERSONNEL", "MANAGER", "EMPLOYEE"];
+    if (isSuperAdmin(me)) return ["HR_ADMIN", "HR_PERSONNEL", "MANAGER", "EMPLOYEE"];
     return isHrAdmin(me) ? ["EMPLOYEE"] : [];
   },
   changeRole: (me: Me) => isSuperAdmin(me),
@@ -48,7 +51,16 @@ export const access = {
   // Modul employee (apps/api/src/modules/employee/employee.policy.ts, D-035).
   /** Menu Personal Management: SA & HR penuh; MANAGER baca tim (butuh data karyawan). */
   personalMenu: (me: Me) =>
+    isSuperAdmin(me) ||
+    isHrAdmin(me) ||
+    me.role === ROLE.HR_PERSONNEL ||
+    (me.role === ROLE.MANAGER && me.employeeId !== null),
+  /** Menu Arsip (tabel lintas karyawan): bukan untuk HR Kepegawaian (IAM-D1). */
+  readArchive: (me: Me) =>
     isSuperAdmin(me) || isHrAdmin(me) || (me.role === ROLE.MANAGER && me.employeeId !== null),
+  /** Data Karyawan Tidak Aktif: pengelola (SA/HR) & HR Kepegawaian (lihat saja). */
+  viewInactiveEmployees: (me: Me) =>
+    isSuperAdmin(me) || isHrAdmin(me) || me.role === ROLE.HR_PERSONNEL,
   /** Tambah/ubah, ubah status, aktifkan/nonaktifkan, arsip & laporan. */
   manageEmployees: (me: Me) => isSuperAdmin(me) || isHrAdmin(me),
   /** EMP-D2 (employee.policy canWriteSensitiveOnCreate): isi data pribadi/keluarga & rekening saat tambah. */

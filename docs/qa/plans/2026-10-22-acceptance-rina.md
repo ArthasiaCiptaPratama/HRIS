@@ -18,6 +18,11 @@
 
 ## Akun (password sama dengan akun uji lokal lain)
 
+**Menguji beberapa akun sekaligus:**
+1. Buka panel **DB · Lokal** di pojok kanan bawah.
+2. Di **Akun uji (tab ini)**, pilih akunnya. Tanpa password, langsung masuk.
+3. Untuk akun berikutnya, buka tab baru dan pilih akun lain. Contoh: tab 1 Rina absen, tab 2 Budi langsung memutuskan.
+
 | Akun | Peran | Orang |
 |---|---|---|
 | karyawan.lokal@arthasia.test | Karyawan | Rina Lestari, kantor 08–17 |

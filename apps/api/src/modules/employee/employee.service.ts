@@ -7,6 +7,7 @@ import {
   employeeProfileInputSchema,
   employeeProfileUpdateSchema,
   POSITION_LEVELS,
+  usesAssignedCompanies,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
@@ -176,7 +177,7 @@ export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
         }
       : null,
   };
-  if (actor.role === "SUPER_ADMIN" || actor.role === "HR_ADMIN") return withOnboarding;
+  if (actor.role === "SUPER_ADMIN" || usesAssignedCompanies(actor.role)) return withOnboarding;
   return { ...withOnboarding, companyIds: new Set(employee ? [employee.companyId] : []) };
 }
 
@@ -659,24 +660,29 @@ export async function getEmployee(
   }
 
   const link = links.get(id);
+  // IAM-D1: HR Kepegawaian hanya data kerja + riwayat jabatan/status (tanpa kontak darurat, pendidikan,
+  // pelatihan, riwayat kerja sebelumnya) — kecuali data dirinya sendiri.
+  const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
   const detail: EmployeeDetail = {
     ...toListItem(row, lookup, photoUrls),
-    emergencyPhone: row.emergencyPhone,
-    emergencyContactName: row.emergencyContactName,
-    emergencyContactRelationship: row.emergencyContactRelationship,
+    emergencyPhone: workOnly ? null : row.emergencyPhone,
+    emergencyContactName: workOnly ? null : row.emergencyContactName,
+    emergencyContactRelationship: workOnly ? null : row.emergencyContactRelationship,
     account: link ? { role: link.role, isActive: link.isActive } : null,
     access,
-    educations: parts.educations,
-    trainings: parts.trainings.map(({ cost, startDate, endDate, ...training }) => ({
-      ...training,
-      startDate: startDate ? toIso(startDate) : null,
-      endDate: endDate ? toIso(endDate) : null,
-      // D-054: biaya pelatihan hanya untuk SA/HR (bukan need-to-know MANAGER/diri sendiri).
-      ...(policy.canSeeArchiveCost(ctx.actor, targetOf(row))
-        ? { cost: cost ? cost.toNumber() : null }
-        : {}),
-    })),
-    workExperiences: parts.workExperiences,
+    educations: workOnly ? [] : parts.educations,
+    trainings: (workOnly ? [] : parts.trainings).map(
+      ({ cost, startDate, endDate, ...training }) => ({
+        ...training,
+        startDate: startDate ? toIso(startDate) : null,
+        endDate: endDate ? toIso(endDate) : null,
+        // D-054: biaya pelatihan hanya untuk SA/HR (bukan need-to-know MANAGER/diri sendiri).
+        ...(policy.canSeeArchiveCost(ctx.actor, targetOf(row))
+          ? { cost: cost ? cost.toNumber() : null }
+          : {}),
+      }),
+    ),
+    workExperiences: workOnly ? [] : parts.workExperiences,
     histories: parts.histories.map((h) => ({
       id: h.id,
       changeType: h.changeType,

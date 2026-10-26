@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ROLE_LABELS, ROLES, type Role } from "@hris/shared";
+import { ROLE_LABELS, ROLES, type Role, usesAssignedCompanies } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { SearchX, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
@@ -108,7 +108,7 @@ export function AccountsPage() {
           <Badge variant="secondary">{ROLE_LABELS[row.original.role]}</Badge>
           {row.original.isPrimarySuperAdmin ? <Badge variant="brand">Utama</Badge> : null}
           {/* D-040: perusahaan yang ditugaskan ke akun HR. */}
-          {row.original.role === "HR_ADMIN" && access.assignCompanies(me) ? (
+          {usesAssignedCompanies(row.original.role) && access.assignCompanies(me) ? (
             row.original.companyIds.length > 0 ? (
               row.original.companyIds.map((id) => (
                 <Badge key={id} variant="muted" className="font-mono">
@@ -150,7 +150,7 @@ export function AccountsPage() {
         const account = row.original;
         return (
           <div className="flex justify-end gap-1">
-            {access.assignCompanies(me) && account.role === "HR_ADMIN" ? (
+            {access.assignCompanies(me) && usesAssignedCompanies(account.role) ? (
               <Button size="sm" variant="outline" onClick={() => setCompanyTarget(account)}>
                 Atur PT
               </Button>

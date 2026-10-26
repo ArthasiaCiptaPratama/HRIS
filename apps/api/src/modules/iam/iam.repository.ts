@@ -47,7 +47,10 @@ export async function touchLastLogin(accountId: string, at: Date) {
   return getPrisma().account.update({
     where: { id: accountId },
     data: { lastLoginAt: at },
-    include: { ...activeGrantsInclude(at), employee: { select: { fullName: true } } },
+    include: {
+      ...activeGrantsInclude(at),
+      employee: { select: { fullName: true, companyId: true } },
+    },
   });
 }
 
@@ -212,6 +215,15 @@ export async function listActiveSuperAdmins() {
   return getPrisma().account.findMany({
     where: { role: "SUPER_ADMIN", isActive: true },
     select: { id: true, email: true },
+  });
+}
+
+/** DEV: akun aktif dengan domain email uji (switcher akun uji). */
+export async function listActiveAccountsByEmailSuffix(suffix: string) {
+  return getPrisma().account.findMany({
+    where: { isActive: true, email: { endsWith: suffix } },
+    orderBy: [{ role: "asc" }, { email: "asc" }],
+    select: { email: true, role: true, employeeId: true },
   });
 }
 

@@ -4,6 +4,7 @@
 enum Role {
   SUPER_ADMIN
   HR_ADMIN
+  HR_PERSONNEL
   MANAGER
   EMPLOYEE
 

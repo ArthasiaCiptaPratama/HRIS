@@ -3,6 +3,7 @@ import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } f
 import { env } from "@/lib/env";
 import { activeSupabaseUrl, DEV_AUTH_KEY } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { DevAccountSwitcher, tabAccountEmail } from "./dev-account-switcher";
 
 // DEV-ONLY: dirender hanya saat import.meta.env.DEV (providers.tsx, lazy → tak masuk bundle produksi).
 // Satu klik = pindah penuh lokal ⇄ Supabase (DB, dan Auth/Storage pada mode terpisah) lewat /dev/db yang
@@ -173,6 +174,8 @@ export function DevDbSwitcher() {
   }
 
   const dot = info.target === "local" ? "bg-emerald-500" : "bg-amber-500";
+  const tabAccount = tabAccountEmail()?.replace(/@arthasia\.test$/, "") ?? null;
+  const allLocal = info.target === "local" && info.auth?.target === "local";
 
   if (!open) {
     return (
@@ -186,6 +189,7 @@ export function DevDbSwitcher() {
         >
           <span className={cn("size-2 rounded-full", dot)} />
           DB · {LABELS[info.target]}
+          {tabAccount ? <span className="font-mono">· {tabAccount}</span> : null}
         </button>
       </div>
     );
@@ -195,7 +199,8 @@ export function DevDbSwitcher() {
     <div
       ref={box}
       className="fixed z-[100] w-64 rounded-xl border border-amber-400/60 bg-amber-50/95 p-3 text-xs shadow-lg backdrop-blur dark:bg-amber-950/90"
-      style={{ left: pos.x, bottom: pos.y }}
+      // Badge di tepi kanan → panel (w-64) dibuka ke kiri supaya tidak terpotong layar.
+      style={{ left: Math.max(8, Math.min(pos.x, window.innerWidth - 264)), bottom: pos.y }}
     >
       <div className="mb-2 flex items-center gap-2">
         <button
@@ -259,6 +264,7 @@ export function DevDbSwitcher() {
       ) : null}
       {error ? <p className="mt-2 text-[11px] text-red-600">{error}</p> : null}
       {busy ? <p className="mt-2 text-[11px] text-amber-700">Menukar & memuat ulang…</p> : null}
+      {allLocal ? <DevAccountSwitcher /> : null}
     </div>
   );
 }

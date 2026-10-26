@@ -25,6 +25,9 @@ export const shiftSchema = z
     startMinute: z.number().int(),
     endMinute: z.number().int(),
     crossesMidnight: z.boolean(),
+    startsNextDay: z
+      .boolean()
+      .openapi({ description: "TM-D13: mulai setelah tengah malam tanggal roster (shift 3)" }),
     checkInOpenMin: z.number().int(),
     lateToleranceMin: z.number().int(),
     earlyLeaveToleranceMin: z.number().int(),
@@ -93,6 +96,16 @@ export const dayViewSchema = z
   .openapi("AttendanceDay");
 assertExact<z.infer<typeof dayViewSchema>, DayView>(true);
 
+// Nama sendiri: inline dinamai "OvertimeOrder" oleh codegen app & menimpa skema GET /overtime-orders.
+export const todayOvertimeOrderSchema = z
+  .object({
+    workDate: z.iso.date(),
+    startsAt: z.iso.datetime().nullable(),
+    endsAt: z.iso.datetime().nullable(),
+    reason: z.string(),
+  })
+  .openapi("TodayOvertimeOrder");
+
 export const todayViewSchema = z
   .object({
     serverTime: z.iso.datetime(),
@@ -100,7 +113,14 @@ export const todayViewSchema = z
     gpsAccuracyMaxM: z.number(),
     employee: employeeRef,
     roster: z.array(
-      z.object({ date: z.iso.date(), code: z.string(), shift: nullableRef(shiftSchema) }),
+      z.object({
+        date: z.iso.date(),
+        code: z.string(),
+        shift: nullableRef(shiftSchema),
+        changed: z.boolean().openapi({
+          description: "TM-D13: diubah (tukar shift / edit HR / import) ≤ 7 hari terakhir",
+        }),
+      }),
     ),
     location: z
       .object({
@@ -125,6 +145,10 @@ export const todayViewSchema = z
     }),
     breakOpensAt: z.iso.datetime().nullable(),
     breakClosesAt: z.iso.datetime().nullable(),
+    overtimeOrder: nullableRef(todayOvertimeOrderSchema).openapi({
+      description:
+        "TM-D17: perintah lembur hari terbuka / shift berikutnya; endsAt = jam pulang untuk alarm (TM-D16)",
+    }),
   })
   .openapi("AttendanceToday");
 assertExact<z.infer<typeof todayViewSchema>, TodayView>(true);

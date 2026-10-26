@@ -45,7 +45,7 @@
     },
     {
       "path": "/api/cron/attendance-reminders",
-      "schedule": "*/30 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/approval-digest",

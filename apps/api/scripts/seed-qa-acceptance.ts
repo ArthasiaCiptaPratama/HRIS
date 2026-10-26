@@ -33,6 +33,7 @@ const EMAILS = {
   rina: "karyawan.lokal@arthasia.test",
   budi: "manager.lokal@arthasia.test",
   joko: "jetty.lokal@arthasia.test",
+  hrPersonnel: "hr.kepegawaian@arthasia.test",
   hr: "hr.lokal@arthasia.test",
   hrCost: "hr.biaya@arthasia.test",
 };
@@ -119,27 +120,40 @@ async function main() {
       },
     }));
 
-  // Akun jetty.lokal: password sama dengan karyawan.lokal (hash disalin di Auth lokal, tanpa membaca password).
+  // Akun uji baru: password sama dengan karyawan.lokal (hash disalin di Auth lokal, tanpa membaca password).
   const admin = createSupabaseAdmin(supabaseUrl, serviceRoleKey);
-  const existing = await admin.findUserByEmail(EMAILS.joko);
-  const user =
-    existing ??
-    (await admin.createConfirmedUser(EMAILS.joko, crypto.randomUUID() + crypto.randomUUID()));
-  const authDb = new SQL(authDbUrl);
-  const copied = await authDb`
-    update auth.users set encrypted_password = src.encrypted_password
-    from auth.users src where src.email = ${EMAILS.rina} and auth.users.id = ${user.id}
-    returning auth.users.id`;
-  await authDb.close();
-  if (copied.length !== 1)
-    throw new Error(
-      "Gagal menyamakan password jetty.lokal (karyawan.lokal tidak ada di Auth lokal).",
-    );
-  await provisionAccount({
-    authUserId: user.id,
-    email: EMAILS.joko,
-    role: "EMPLOYEE",
-    employeeId: joko.id,
+  const ensureAccount = async (
+    email: string,
+    role: "EMPLOYEE" | "HR_PERSONNEL",
+    employeeId: string | null,
+  ) => {
+    const existing = await admin.findUserByEmail(email);
+    const user =
+      existing ??
+      (await admin.createConfirmedUser(email, crypto.randomUUID() + crypto.randomUUID()));
+    const authDb = new SQL(authDbUrl);
+    const copied = await authDb`
+      update auth.users set encrypted_password = src.encrypted_password
+      from auth.users src where src.email = ${EMAILS.rina} and auth.users.id = ${user.id}
+      returning auth.users.id`;
+    await authDb.close();
+    if (copied.length !== 1)
+      throw new Error(
+        `Gagal menyamakan password ${email} (karyawan.lokal tidak ada di Auth lokal).`,
+      );
+    await provisionAccount({ authUserId: user.id, email, role, employeeId });
+    return existing ? "sudah ada" : "dibuat";
+  };
+  const jokoAccount = await ensureAccount(EMAILS.joko, "EMPLOYEE", joko.id);
+  // IAM-D1: HR Kepegawaian (lihat data kerja karyawan PT ACP saja).
+  const personnelAccount = await ensureAccount(EMAILS.hrPersonnel, "HR_PERSONNEL", null);
+  const personnel = await prisma.account.findUniqueOrThrow({
+    where: { email: EMAILS.hrPersonnel },
+  });
+  await prisma.accountCompany.upsert({
+    where: { accountId_companyId: { accountId: personnel.id, companyId: rina.companyId } },
+    create: { accountId: personnel.id, companyId: rina.companyId },
+    update: {},
   });
 
   const accounts = await prisma.account.findMany({
@@ -394,7 +408,7 @@ async function main() {
     );
   }
   out(
-    `  Akun jetty.lokal@arthasia.test ${existing ? "sudah ada" : "dibuat"} (password = karyawan.lokal).`,
+    `  Akun jetty.lokal ${jokoAccount}, hr.kepegawaian ${personnelAccount} (password = karyawan.lokal).`,
   );
 }
 

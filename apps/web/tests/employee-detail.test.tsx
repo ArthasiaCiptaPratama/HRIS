@@ -309,6 +309,20 @@ describe("panel detail pegawai", () => {
     click.mockRestore();
   });
 
+  it("HR Kepegawaian (IAM-D1): hanya tab Kepegawaian & Riwayat; tanpa Ubah data / Print", async () => {
+    mockBackend("HR_PERSONNEL", {});
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("heading", { name: "Agus Pratama" });
+    expect(within(dialog).getByRole("tab", { name: /Kepegawaian/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: /Riwayat/ })).toBeInTheDocument();
+    for (const name of [/Pribadi/, /Keluarga/, /Pendidikan/, /Dokumen/, /Rekening/, /Aset/]) {
+      expect(within(dialog).queryByRole("tab", { name })).not.toBeInTheDocument();
+    }
+    expect(within(dialog).queryByRole("button", { name: /Print data/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Ubah data/ })).not.toBeInTheDocument();
+  });
+
   it("MANAGER (tanpa hak print): tombol Print data & Ubah data tidak tampil", async () => {
     mockBackend("MANAGER", {});
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
