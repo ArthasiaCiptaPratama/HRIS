@@ -74,6 +74,7 @@ const ORDER = {
   startsAt: null,
   endsAt: "2026-10-27T12:00:00.000Z",
   reason: "Bongkar muat kapal",
+  retroactive: false,
   createdAt: "2026-10-26T01:00:00.000Z",
   canManage: true,
 };

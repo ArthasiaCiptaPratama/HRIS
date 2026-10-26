@@ -159,6 +159,7 @@ export const overtimeOrderViewSchema = z
     startsAt: z.iso.datetime().nullable(),
     endsAt: z.iso.datetime().nullable(),
     reason: z.string(),
+    retroactive: z.boolean(),
     createdAt: z.iso.datetime(),
     canManage: z.boolean(),
   })

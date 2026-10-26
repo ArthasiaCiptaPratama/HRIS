@@ -7,11 +7,15 @@ import { localDate, orderInstants, shiftWindow } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import * as repository from "./overtime.repository.ts";
+import { syncOvertime } from "./overtime.service.ts";
+import { isDateClosed } from "./period.service.ts";
 import { rosterDaysBetween } from "./roster.repository.ts";
 import { notifyEmployees } from "./time-notify.service.ts";
 
 // TM-D17: perintah lembur (SPL) dari Atasan / HR sebelum dijalani. Lembur hanya diakui di dalam rentang SPL;
 // batas Clock Out ikut mundur; Clock In hari OFF ("Lembur hari libur") hanya bila ada SPL.
+// SPL susulan (tanggal lampau / sudah Clock Out): hanya HR PT & SA, periode belum ditutup; usulan lembur
+// hari itu dihitung ulang (keputusan pengguna 2026-10-26, Q1 opsi B).
 
 const MINUTE = 60_000;
 /** Batas absen pulang hari OFF ber-SPL (tanpa master shift) — sama dengan bawaan master shift (TM-D16). */
@@ -28,6 +32,8 @@ export interface OvertimeOrderView {
   startsAt: string | null;
   endsAt: string | null;
   reason: string;
+  /** SPL susulan (dibuat HR / SA setelah lembur dijalani). */
+  retroactive: boolean;
   createdAt: string;
   /** Penanda untuk UI: pemanggil boleh mengubah / membatalkan. */
   canManage: boolean;
@@ -76,6 +82,7 @@ function toView(
     startsAt: row.startsAt?.toISOString() ?? null,
     endsAt: row.endsAt?.toISOString() ?? null,
     reason: row.reason,
+    retroactive: row.retroactive,
     createdAt: row.createdAt.toISOString(),
     canManage,
   };
@@ -111,11 +118,13 @@ const snapshot = (r: {
   startsAt: Date | null;
   endsAt: Date | null;
   reason: string;
+  retroactive: boolean;
 }) => ({
   workDate: toIso(r.workDate),
   startsAt: r.startsAt?.toISOString() ?? null,
   endsAt: r.endsAt?.toISOString() ?? null,
   reason: r.reason,
+  retroactive: r.retroactive,
 });
 
 /** Hari absen yang masih terbuka: batas absen pulang dihitung ulang dari jadwal terkunci + SPL. */
@@ -139,12 +148,34 @@ async function scheduleOf(employeeId: string, workDate: string) {
   return rows[0]?.shift ?? null;
 }
 
-async function assertNotCheckedOut(employeeId: string, workDate: string) {
-  const day = await dayRepo.findDay(employeeId, toDate(workDate));
-  if (day?.punches.some((p) => p.kind === "OUT")) {
-    throw new BusinessRuleError("Karyawan sudah Clock Out untuk tanggal kerja ini.");
+/**
+ * Susulan = tanggal kerja sudah lewat atau karyawan sudah Clock Out. Hanya HR PT / SA, dan periode absen
+ * tanggal itu belum ditutup; selain itu ditolak dengan pesan yang menjelaskan jalurnya.
+ */
+async function assertCanChange(
+  ctx: RequestContext,
+  employee: directory.DirectoryEmployee,
+  workDate: string,
+  today: string,
+) {
+  const day = await dayRepo.findDay(employee.id, toDate(workDate));
+  const retroactive = workDate < today || (day?.punches.some((p) => p.kind === "OUT") ?? false);
+  if (retroactive) {
+    if (!policy.canOrderOvertimeRetroactive(ctx.actor, employee.companyId)) {
+      throw new BusinessRuleError(
+        "Lembur yang sudah dijalani hanya bisa dibuatkan perintah lembur susulan oleh HR.",
+      );
+    }
+    if (await isDateClosed(employee.companyId, workDate)) {
+      throw new BusinessRuleError("Periode absen tanggal ini sudah ditutup.");
+    }
   }
-  return day;
+  return { day, retroactive };
+}
+
+/** SPL berubah pada hari yang sudah Clock Out → usulan lembur hari itu dihitung ulang. */
+async function resync(tx: repository.Tx, day: { id: string; punches: { kind: string }[] } | null) {
+  if (day?.punches.some((p) => p.kind === "OUT")) await syncOvertime(tx, day.id);
 }
 
 export async function setOvertimeOrder(
@@ -157,30 +188,36 @@ export async function setOvertimeOrder(
   if (!policy.canOrderOvertime(ctx.actor, targetOf(employee))) throw new ForbiddenError();
   if (!employee.isActive) throw new BusinessRuleError("Karyawan tidak aktif.");
   const { timezone } = await readTimeSettings();
-  if (input.workDate < localDate(now, timezone)) {
-    throw new BusinessRuleError(
-      "Perintah lembur dibuat sebelum dijalani (hari ini atau setelahnya).",
-    );
-  }
+  const { day, retroactive } = await assertCanChange(
+    ctx,
+    employee,
+    input.workDate,
+    localDate(now, timezone),
+  );
   const shift = await scheduleOf(employee.id, input.workDate);
   const times = orderInstants(input.workDate, shift, input, timezone);
   if ("error" in times) throw new BusinessRuleError(times.error);
 
   const existing = await repository.findOrder(employee.id, toDate(input.workDate));
-  const day = await assertNotCheckedOut(employee.id, input.workDate);
   const same = (a: Date | null | undefined, b: Date | null) =>
     (a?.getTime() ?? null) === (b?.getTime() ?? null);
   // Sebelum dijalani: jam mulai baru belum lewat; perpanjangan diberikan sebelum jadwal pulang.
-  if (times.startsAt && !same(existing?.startsAt, times.startsAt) && times.startsAt <= now) {
+  const fresh = !retroactive;
+  if (
+    fresh &&
+    times.startsAt &&
+    !same(existing?.startsAt, times.startsAt) &&
+    times.startsAt <= now
+  ) {
     throw new BusinessRuleError("Jam mulai lembur sudah lewat.");
   }
-  if (times.endsAt && !same(existing?.endsAt, times.endsAt)) {
+  if (fresh && times.endsAt && !same(existing?.endsAt, times.endsAt)) {
     const normalEnd = shift
       ? (day?.scheduledEnd ?? shiftWindow(input.workDate, shift, timezone).end)
       : times.endsAt;
     if (now >= normalEnd) {
       throw new BusinessRuleError(
-        "Perpanjangan lembur diberikan sebelum jam pulang shift. Lewat dari itu gunakan koreksi absen.",
+        "Perpanjangan lembur diberikan sebelum jam pulang shift. Lewat dari itu, HR membuat perintah lembur susulan.",
       );
     }
   }
@@ -194,9 +231,11 @@ export async function setOvertimeOrder(
       startsAt: times.startsAt,
       endsAt: times.endsAt,
       reason: input.reason,
+      retroactive,
       createdByAccountId: ctx.actor.accountId,
     });
     await syncOpenDay(tx, employee.id, input.workDate, saved, closeMin);
+    await resync(tx, day);
     return saved;
   });
   await audit(
@@ -211,7 +250,7 @@ export async function setOvertimeOrder(
       {
         employeeId: employee.id,
         type: "attendance.overtime_order",
-        title: `Perintah lembur ${input.workDate}${
+        title: `Perintah lembur${retroactive ? " susulan" : ""} ${input.workDate}${
           input.startTime ? ` mulai ${input.startTime}` : ""
         }${input.endTime ? ` sampai ${input.endTime}` : ""}`,
         body: input.reason,
@@ -236,11 +275,13 @@ export async function cancelOvertimeOrder(
     throw new ForbiddenError();
   }
   const workDate = toIso(row.workDate);
-  await assertNotCheckedOut(row.employeeId, workDate);
+  const { timezone } = await readTimeSettings();
+  const { day } = await assertCanChange(ctx, employee, workDate, localDate(now, timezone));
   const shift = await scheduleOf(row.employeeId, workDate);
   await repository.withTransaction(async (tx) => {
     await repository.deleteOrder(tx, row.id);
     await syncOpenDay(tx, row.employeeId, workDate, null, shift?.checkOutCloseMin ?? 0);
+    await resync(tx, day);
   });
   await audit(ctx, "attendance.overtime_order.cancel", row.id, snapshot(row), null);
   await notifyEmployees(

@@ -50,6 +50,10 @@ const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000)
 const ids = { status: "", department: "", position: "", company2: "", employees: [] as string[] };
 let companyId = "";
 let shiftId = "";
+let officeId = "";
+let emp2 = "";
+const atLocal = (date: string, hhmm: string) =>
+  new Date(Date.parse(`${date}T${hhmm}:00.000Z`) - offsetH * 3600_000);
 const emp = { mgr: "", a: "", other: "" };
 let h: Record<"sa" | "hr" | "hr2" | "mgr" | "a" | "otherMgr", Record<string, string>>;
 let accountA = "";
@@ -99,6 +103,66 @@ beforeAll(async () => {
   await prisma.rosterDay.create({
     data: { employeeId: emp.a, workDate: D(today), shiftId, source: "MANUAL" },
   });
+  // Susulan (Q1 opsi B): kemarin shift kantor 08–17, karyawan pulang 20.00 tanpa SPL.
+  officeId = (
+    await prisma.shift.create({
+      data: {
+        companyId,
+        code: `K${RUN.slice(0, 5)}`,
+        name: `SPL kantor ${RUN}`,
+        startMinute: 8 * 60,
+        endMinute: 17 * 60,
+      },
+    })
+  ).id;
+  await prisma.rosterDay.create({
+    data: { employeeId: emp.a, workDate: D(yesterday), shiftId: officeId, source: "MANUAL" },
+  });
+  const past = await prisma.attendanceDay.create({
+    data: {
+      employeeId: emp.a,
+      companyId,
+      managerEmployeeId: emp.mgr,
+      workDate: D(yesterday),
+      shiftId: officeId,
+      scheduledStart: atLocal(yesterday, "08:00"),
+      scheduledEnd: atLocal(yesterday, "17:00"),
+      checkOutDeadline: atLocal(yesterday, "17:30"),
+      status: "PENDING",
+      labels: [],
+    },
+  });
+  for (const [kind, hhmm] of [
+    ["IN", "08:00"],
+    ["OUT", "20:00"],
+  ] as const) {
+    await prisma.attendancePunch.create({
+      data: {
+        dayId: past.id,
+        kind,
+        at: atLocal(yesterday, hhmm),
+        insideGeofence: true,
+        labels: [],
+      },
+    });
+  }
+  // Karyawan PT lain dengan periode September tertutup.
+  emp2 = (
+    await prisma.employee.create({
+      data: {
+        employeeNumber: `SPL-${RUN}-X`,
+        fullName: `SPL ${RUN} X`,
+        joinDate: new Date("2024-01-01T00:00:00Z"),
+        companyId: ids.company2,
+        employmentStatusId: ids.status,
+        positionId: ids.position,
+      },
+    })
+  ).id;
+  ids.employees.push(emp2);
+  await prisma.attendancePeriod.create({
+    data: { companyId: ids.company2, month: "2026-09", status: "CLOSED" },
+  });
 
   const a = await auth.loginAs("EMPLOYEE", { employeeId: emp.a, companies: [companyId] });
   accountA = a.account.id;
@@ -116,7 +180,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.shift.delete({ where: { id: shiftId } });
+  await prisma.shift.deleteMany({ where: { id: { in: [shiftId, officeId] } } });
+  await prisma.attendancePeriod.deleteMany({ where: { companyId: ids.company2 } });
   await auth.cleanup();
   await prisma.employee.deleteMany({ where: { id: { in: ids.employees } } });
   await prisma.company.delete({ where: { id: ids.company2 } });
@@ -247,5 +312,39 @@ describe("perintah lembur (TM-D17)", () => {
       (day.scheduledEnd as Date).getTime() + 30 * 60_000,
     );
     expect((await call("POST", `/overtime-orders/${row.id}/cancel`, h.mgr)).status).toBe(404);
+  });
+
+  test("susulan (Q1 opsi B): atasan 422; HR PT tanggal lampau → 200 bertanda susulan + usulan lembur dihitung ulang", async () => {
+    const body = order({ workDate: yesterday, startTime: null, endTime: "19:00" });
+    const mgr = await call("PUT", "/overtime-orders", h.mgr, body);
+    expect(mgr.status).toBe(422);
+    const res = await call("PUT", "/overtime-orders", h.hr, body);
+    expect(res.status).toBe(200);
+    expect((await data<{ retroactive: boolean }>(res)).retroactive).toBe(true);
+    const day = await prisma.attendanceDay.findFirstOrThrow({
+      where: { employeeId: emp.a, workDate: D(yesterday) },
+    });
+    const proposal = await prisma.overtimeRequest.findUnique({ where: { dayId: day.id } });
+    expect(proposal?.proposedMin).toBe(120);
+
+    // Batal susulan → usulan lembur hilang lagi.
+    const row = await prisma.overtimeOrder.findFirstOrThrow({
+      where: { employeeId: emp.a, workDate: D(yesterday) },
+    });
+    expect((await call("POST", `/overtime-orders/${row.id}/cancel`, h.hr)).status).toBe(200);
+    expect(await prisma.overtimeRequest.findUnique({ where: { dayId: day.id } })).toBeNull();
+  });
+
+  test("susulan di periode tertutup → 422", async () => {
+    const res = await call(
+      "PUT",
+      "/overtime-orders",
+      h.hr2,
+      order({ employeeId: emp2, workDate: "2026-09-15", startTime: "06:00", endTime: "10:00" }),
+    );
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain(
+      "ditutup",
+    );
   });
 });

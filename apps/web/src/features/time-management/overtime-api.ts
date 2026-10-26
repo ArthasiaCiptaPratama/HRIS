@@ -208,6 +208,7 @@ export const overtimeOrderSchema = z.object({
   startsAt: z.string().nullable(),
   endsAt: z.string().nullable(),
   reason: z.string(),
+  retroactive: z.boolean(),
   createdAt: z.string(),
   canManage: z.boolean(),
 });

@@ -464,6 +464,8 @@ model OvertimeOrder {
   startsAt           DateTime? @map("starts_at") @db.Timestamptz(6)
   endsAt             DateTime? @map("ends_at") @db.Timestamptz(6)
   reason             String    @db.VarChar(300)
+  /// SPL susulan (dibuat HR PT / SA setelah lembur dijalani, periode belum ditutup) — penanda di laporan.
+  retroactive        Boolean   @default(false)
   createdByAccountId String    @map("created_by_account_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)

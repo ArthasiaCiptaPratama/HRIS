@@ -86,6 +86,12 @@ export function canOrderOvertime(actor: Actor, target: RosterTarget): boolean {
   return actor.employeeId !== null && target.managerId === actor.employeeId;
 }
 
+/** SPL susulan (sudah dijalani): HR PT & SA saja; atasan hanya sebelum dijalani (Q1 opsi B, 2026-10-26). */
+export function canOrderOvertimeRetroactive(actor: Actor, companyId: string): boolean {
+  if (isSa(actor)) return true;
+  return isHr(actor) && (actor.companyIds?.has(companyId) ?? false);
+}
+
 // ── TM-D6 lembur & biaya / TM-D7 istirahat ─────────────────────────────────────
 /** Rupiah per orang & tabel upah grade: SA; HR ber-grant `labor.cost.read` (PT dicek pemanggil). */
 export const canSeeLaborCost = (actor: Actor) =>

@@ -13,6 +13,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-26 — Perintah lembur susulan TM-D19 (Oatse)
+- **Dikerjakan:** SPL untuk tanggal lampau / hari yang sudah Clock Out hanya HR PT & SA, periode belum ditutup (`isDateClosed`), kolom `retroactive` (migrasi `20261026070605_overtime_order_retroactive`), usulan lembur dihitung ulang (`syncOvertime`) saat SPL disimpan/dibatalkan; web badge Susulan + tanggal lampau untuk HR/SA.
+- **Keputusan:** TM-D19 (Q1 opsi B, pengguna lewat supervisor).
+- **Verifikasi:** `overtime-order.test.ts` 8/8 (baru: atasan 422, HR susulan 200 + usulan 120 menit, batal → usulan hilang, periode tertutup 422); verifikasi penuh di laporan commit.
+- **Berikutnya:** draf kabar Mat (seluruh BE selesai).
+
 ### 2026-10-26 — Pengingat pulang hari OFF ber-SPL (Oatse)
 - **Dikerjakan:** `runAttendanceReminders` juga membaca perintah lembur di tanggal tanpa shift roster (hari OFF): sudah Clock In, belum Clock Out, ≥ 15 menit setelah akhir SPL, sebelum batas absen pulang → `attendance.reminder_out` (dedupe sama).
 - **Keputusan:** — (pelaksanaan TM-D16/TM-D17; Q2 opsi A disetujui supervisor atas nama pengguna)

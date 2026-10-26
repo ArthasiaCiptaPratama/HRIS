@@ -2,6 +2,7 @@ import { ClipboardList, Pencil, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,8 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useMe } from "@/features/auth/api";
+import type { Me } from "@/features/auth/schemas";
 import { EmployeePicker } from "@/features/employee/components/employee-picker";
 import { errorMessage } from "@/lib/errors";
+import { tmAccess } from "../access";
 import { useTimezone } from "../api";
 import {
   type OvertimeOrder,
@@ -51,7 +55,9 @@ export function OvertimeOrdersView({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-muted-foreground max-w-2xl text-sm">
           Lembur hanya dihitung bila ada perintah lembur sebelum dijalani. Hari kerja: isi jam mulai
-          lebih awal dan/atau jam selesai lebih lambat. Hari libur (OFF): isi keduanya.
+          lebih awal dan/atau jam selesai lebih lambat. Hari libur (OFF): isi keduanya. Lembur yang
+          terlanjur dijalani tanpa perintah: HR membuat perintah susulan selama periode belum
+          ditutup.
         </p>
         {canCreate ? (
           <Button size="sm" onClick={() => setEditing("new")}>
@@ -95,7 +101,14 @@ export function OvertimeOrdersView({
                       {r.employee.employeeNumber ?? "—"}
                     </p>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">{workDateLabel(r.workDate)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {workDateLabel(r.workDate)}
+                    {r.retroactive ? (
+                      <Badge variant="warning" className="ml-2">
+                        Susulan
+                      </Badge>
+                    ) : null}
+                  </td>
                   <td className="px-3 py-2 tabular-nums">
                     {r.startsAt ? timeIn(r.startsAt, tz) : "—"}
                   </td>
@@ -147,6 +160,8 @@ export function OvertimeOrdersView({
 function OrderDialog({ row, onClose }: { row: OvertimeOrder | null; onClose: () => void }) {
   const tz = useTimezone();
   const save = useSetOvertimeOrder();
+  // Q1 opsi B: HR / SA boleh memilih tanggal lampau (SPL susulan, periode belum ditutup).
+  const retroactiveAllowed = tmAccess.orderOvertimeRetroactive(useMe().data as Me);
   const [employee, setEmployee] = useState<{ id: string; fullName: string } | null>(
     row ? { id: row.employee.id, fullName: row.employee.fullName } : null,
   );
@@ -208,7 +223,7 @@ function OrderDialog({ row, onClose }: { row: OvertimeOrder | null; onClose: () 
             <Input
               id="ot-date"
               type="date"
-              min={todayIn(tz)}
+              {...(retroactiveAllowed ? {} : { min: todayIn(tz) })}
               value={workDate}
               disabled={row !== null}
               onChange={(e) => setWorkDate(e.target.value)}
