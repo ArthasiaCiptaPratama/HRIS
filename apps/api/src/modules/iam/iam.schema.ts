@@ -22,6 +22,8 @@ export const meResponseSchema = z
     employeeId: z.uuid().nullable(),
     // BUG-004: nama karyawan tertaut (sapaan & kartu akun); null = akun tanpa karyawan.
     employeeName: z.string().nullable(),
+    // Perusahaan karyawan tertaut (filter roster/shift/crew di app mobile); null = akun tanpa karyawan.
+    employeeCompanyId: z.uuid().nullable(),
     lastLoginAt: z.iso.datetime().nullable(),
     grants: z.array(
       z.object({ permission: permissionSchema, expiresAt: z.iso.datetime().nullable() }),

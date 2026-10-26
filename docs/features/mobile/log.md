@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-26 — Gabung develop 9796376 + kebutuhan BE app M3 Jadwal (Oatse)
+- **Dikerjakan:** serah-terima `.handoff/2026-10-26-0938-HRIS-ke-HRIS-mobile-gabung-develop.md` poin 1–10 (README checklist Tahap 4). Fast-forward `HRIS/mobile-app` → develop `9796376` (memuat Mat `8d3fd76`); `/me` + `employeeCompanyId`; `APP_OPERATION_IDS` + roster karyawan/shift/crew; `EmployeeRosterDay`; enum roster dari shared; `EmployeeImportMasterData`; `lockedEmployeesOn` + `assertDayUnlocked` di perubahan roster (ajukan & handler APPROVED), zona tanggal dari `readTimeSettings`.
+- **Keputusan:** — (pelaksanaan MOB-D7/MOB-D9/MOB-D17; aturan kunci roster = D-069 + edit grid yang sudah ada)
+- **Verifikasi:** `db:deploy` 3 migrasi, `db:check` no difference; `bun run typecheck` ✔ 3 workspace; `bunx biome ci .` ✔ 661 file; `check:boundaries` ✔ 0 pelanggaran; `bun run test`: shared 339 · api 969 (baru: openapi.test +5, roster.test +2, me-employee-name +1 cek) ✔; web 324 ✔ dengan `--maxWorkers=2` (run penuh default sempat 1 lalu 16 gagal timeout, berbeda tiap run, saat load mesin 16 di 12 core; file yang gagal lulus saat diulang; tidak ada perubahan web).
+- **Masalah / catatan:** nama otomatis lama di klien app berubah (`getRosterEmployeesById` → `getEmployeeRoster`, `getShifts` → `listShifts`, `getCrews` → `listCrews`); app regenerate setelah gel. 14 di staging. `roster.service.ts:36` & `period.service.ts:44` masih `Asia/Jakarta` hard-code (di luar cakupan).
+- **Berikutnya:** gabung ke develop & rilis gel. 14 (jalur biasa); app M3 uji ke API lokal.
+
 ### 2026-10-22 — Project Firebase staging untuk push FCM (Oatse)
 - **Dikerjakan (serah-terima `.handoff/2026-10-22-1320-HRIS-mobile-ke-HRIS-firebase-fcm.md`, lewat Zen):** project Firebase `arthasia-akselerasi-stg` milik admin.arthasia@gmail.com (Spark; Analytics, Gemini, Google Developer Program dimatikan); app Android `com.arthasia.akselerasi.dev` (App ID `1:266363554852:android:64ce3d05544b21f661dcb1`) & `com.arthasia.akselerasi.stg`, tanpa SHA-1; FCM API (V1) aktif bawaan (legacy mati). `google-services.json` (kedua app) & kunci service account `firebase-adminsdk-fbsvc@arthasia-akselerasi-stg.iam.gserviceaccount.com` disimpan di `/mnt/winD/WORK/Magang/.secrets/firebase/` (di luar git); `FCM_SERVICE_ACCOUNT_JSON` ditulis ke `.env` HRIS & HRIS-mobile lewat `jq -c` tanpa dicetak.
 - **Keputusan:** satu project untuk flavor dev & staging; produksi nanti project terpisah dengan service account khusus peran FCM (ikut OD-4, belum diputuskan).

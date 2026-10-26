@@ -5,7 +5,7 @@
 ## API (`apps/api/src/modules/`)
 
 ```
-│   │   ├── iam/                      [done] 13 endpoint (`/me` + `employeeName` nama karyawan tertaut, BUG-004 2026-10-12; + `PUT /accounts/:id/companies` D-040: penugasan PT HR, SA saja, audit + notifikasi; HR hanya akun karyawan PT-nya + akun belum tertaut; ganti role dari HR mencabut penugasan; `configureIam`) + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log + `actorEmail`/`entityLabel` lewat `employeeScope.employeeLabels`, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`, `provisionAccount` (akun uji); notifikasi & web selesai (Fase 2 Review)
+│   │   ├── iam/                      [done] 13 endpoint (`/me` + `employeeName` nama karyawan tertaut, BUG-004 2026-10-12; + `employeeCompanyId` untuk app mobile M3 2026-10-26; + `PUT /accounts/:id/companies` D-040: penugasan PT HR, SA saja, audit + notifikasi; HR hanya akun karyawan PT-nya + akun belum tertaut; ganti role dari HR mencabut penugasan; `configureIam`) + fungsi publik untuk employee (`getAccountLinksForEmployees`, `getAccountSummaries`, `listManagerEmployeeIds`, `deactivateAccountOfEmployee`) (akun, role, nonaktif, serah-terima Utama, grant, audit log + `actorEmail`/`entityLabel` lewat `employeeScope.employeeLabels`, `/me`); policy matriks IAM (60 test); `loadActor`; `bootstrapPrimarySuperAdmin`, `recoverPrimarySuperAdmin`, `provisionAccount` (akun uji); notifikasi & web selesai (Fase 2 Review)
 ```
 
 ## Web (`apps/web/src/features/`)

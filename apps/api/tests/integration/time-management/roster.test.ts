@@ -94,6 +94,7 @@ afterAll(async () => {
     where: { requesterEmployeeId: { in: ids.employees } },
   });
   await prisma.rosterChangeRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crew.deleteMany({ where: { name: { contains: RUN } } });
@@ -333,6 +334,79 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
       expect(notice?.title).toBe("Tukar shift disetujui — jadwal Anda berubah");
       expect(notice).toMatchObject({ targetType: "ROSTER", targetId: date });
     }
+  });
+
+  // Handoff app M3 poin 6: hari yang absennya sudah disetujui tidak bisa diubah (sama dengan edit grid).
+  const lockDay = (employeeId: string, date: string) =>
+    prisma.attendanceDay.create({
+      data: {
+        employeeId,
+        companyId,
+        workDate: new Date(`${date}T00:00:00Z`),
+        status: "APPROVED",
+        labels: [],
+      },
+    });
+  const setCell = (employeeId: string, date: string) =>
+    call("PUT", "/roster/cells", h.hr, {
+      companyId,
+      cells: [{ employeeId, date, code: `D${RUN.slice(0, 4)}` }],
+    });
+
+  test("hari terkunci (absen disetujui) → ajuan ditolak 422, termasuk hari rekan", async () => {
+    const date = addDays(today, 6);
+    await setCell(emp.a, date);
+    await setCell(emp.b, date);
+    await lockDay(emp.a, date);
+    const own = await call("POST", "/roster-changes", h.a, {
+      date,
+      toCode: "OFF",
+      reason: "Terkunci",
+    });
+    expect(own.status).toBe(422);
+    expect(((await own.json()) as { error: { message: string } }).error.message).toContain(
+      "sudah disetujui",
+    );
+
+    const date2 = addDays(today, 7);
+    await setCell(emp.a, date2);
+    await call("PUT", "/roster/cells", h.hr, {
+      companyId,
+      cells: [{ employeeId: emp.b, date: date2, code: "OFF" }],
+    });
+    await lockDay(emp.b, date2);
+    const swap = await call("POST", "/roster-changes", h.a, {
+      date: date2,
+      peerEmployeeId: emp.b,
+      reason: "Tukar terkunci",
+    });
+    expect(swap.status).toBe(422);
+    expect(((await swap.json()) as { error: { message: string } }).error.message).toContain(
+      "Hari rekan",
+    );
+  });
+
+  test("hari terkunci setelah diajukan → keputusan akhir ditolak 422, roster tetap", async () => {
+    const date = addDays(today, 8);
+    await setCell(emp.a, date);
+    const created = await data<{ id: string; approval: { id: string } }>(
+      await call("POST", "/roster-changes", h.a, { date, toCode: "OFF", reason: "Kunci nanti" }),
+    );
+    await lockDay(emp.a, date);
+    const decide = (headers: Record<string, string>) =>
+      call("POST", `/approvals/${created.approval.id}/decision`, headers, { decision: "APPROVED" });
+    const responses = [await decide(h.mgr), await decide(h.hr)];
+    const rejected = responses.find((r) => r.status === 422) as Response;
+    expect(rejected).toBeDefined();
+    expect(((await rejected.json()) as { error: { message: string } }).error.message).toContain(
+      "sudah disetujui",
+    );
+    const row = await prisma.rosterChangeRequest.findUniqueOrThrow({ where: { id: created.id } });
+    expect(row.status).toBe("PENDING");
+    const day = await data<{ code: string }[]>(
+      await call("GET", `/roster/employees/${emp.a}?from=${date}&to=${date}`, h.hr),
+    );
+    expect(day[0]?.code).toBe(`D${RUN.slice(0, 4)}`);
   });
 
   test("tanggal lampau ditolak; batal oleh pengaju", async () => {

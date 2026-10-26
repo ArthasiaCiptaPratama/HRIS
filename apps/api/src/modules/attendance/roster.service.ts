@@ -1,10 +1,12 @@
 import {
   type CrewInput,
   type CrewMembersInput,
+  type HolidayKind,
   OFF_CODE,
   type RosterCellsInput,
   type RosterImportInput,
   type RosterPatternInput,
+  type RosterSource,
   type ShiftInput,
 } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
@@ -611,10 +613,10 @@ export interface RosterGrid {
   month: string;
   companyId: string;
   dates: string[];
-  holidays: { date: string; name: string; kind: string }[];
+  holidays: { date: string; name: string; kind: HolidayKind }[];
   shifts: ShiftDto[];
   employees: { id: string; fullName: string; employeeNumber: string | null; crew: string | null }[];
-  days: { employeeId: string; date: string; code: string; source: string }[];
+  days: { employeeId: string; date: string; code: string; source: RosterSource }[];
   canEdit: boolean;
 }
 
@@ -741,6 +743,12 @@ export function configureRosterLocks(check: LockedDayCheck) {
   lockedDays = check;
 }
 const dayKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
+
+/** Karyawan dari daftar yang tanggal `date`-nya terkunci (dipakai juga oleh perubahan/tukar shift). */
+export async function lockedEmployeesOn(employeeIds: string[], date: string): Promise<string[]> {
+  const locked = await lockedDays(employeeIds, date, date);
+  return employeeIds.filter((id) => locked.has(dayKey(id, date)));
+}
 
 export interface CellIssue {
   index: number;
