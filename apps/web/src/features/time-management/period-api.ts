@@ -1,4 +1,9 @@
-import type { CorrectionInput, PeriodCloseInput } from "@hris/shared";
+import {
+  ALPHA_VERIFICATION_STATES,
+  type AlphaVerificationInput,
+  type CorrectionInput,
+  type PeriodCloseInput,
+} from "@hris/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
@@ -60,6 +65,8 @@ const recapSchema = z.object({
 const closePreviewSchema = z.object({
   status: z.string(),
   alpha: z.number(),
+  /** TM-D13: Alpha belum diverifikasi atasan (opsional: API lama tidak mengirim). */
+  unverifiedAlpha: z.number().optional(),
   noAttendance: z.number(),
   pending: z.number(),
   rejected: z.number(),
@@ -230,5 +237,47 @@ export function useCreateStatement() {
       });
     },
     onSuccess: refresh,
+  });
+}
+
+// ── TM-D13 Fase B: verifikasi Alpha oleh atasan ───────────────────────────────────
+export const alphaVerificationSchema = z.object({
+  dayId: z.string(),
+  employee: person,
+  workDate: z.string(),
+  shiftCode: z.string().nullable(),
+  scheduledStart: z.string().nullable(),
+  verification: z.enum(ALPHA_VERIFICATION_STATES),
+  note: z.string().nullable(),
+  verifiedAt: z.string().nullable(),
+  deadline: z.string(),
+  canVerify: z.boolean(),
+});
+export type AlphaVerification = z.infer<typeof alphaVerificationSchema>;
+
+const alphaKey = (scope: string) => ["time-management", "alpha-verifications", scope] as const;
+
+export function useAlphaVerifications(scope: "inbox" | "all", enabled = true) {
+  return useQuery({
+    queryKey: alphaKey(scope),
+    queryFn: ({ signal }) =>
+      api(`/attendance/alpha-verifications?scope=${scope}`, {
+        schema: z.object({ data: z.array(alphaVerificationSchema) }),
+        signal,
+      }).then((r) => r.data),
+    enabled,
+  });
+}
+
+export function useVerifyAlpha() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ dayId, ...body }: AlphaVerificationInput & { dayId: string }) =>
+      api(`/attendance/alpha-verifications/${dayId}`, {
+        method: "POST",
+        body,
+        schema: z.object({ data: alphaVerificationSchema }),
+      }).then((r) => r.data),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["time-management"] }),
   });
 }

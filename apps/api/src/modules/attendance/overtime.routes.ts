@@ -2,6 +2,7 @@ import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   breakLocationsInputSchema,
   gradeWageInputSchema,
+  overtimeOrderInputSchema,
   rosterMonthSchema,
   rosterTemplateInputSchema,
 } from "@hris/shared";
@@ -14,10 +15,14 @@ import {
   gradeWageListSchema,
   gradeWageViewSchema,
   overtimeListSchema,
+  overtimeOrderCancelSchema,
+  overtimeOrderListSchema,
+  overtimeOrderViewSchema,
   overtimeSummarySchema,
   rosterTemplateResultSchema,
 } from "./overtime.contract.ts";
 import * as service from "./overtime.service.ts";
+import * as orders from "./overtime-order.service.ts";
 import { strict } from "./roster.routes.ts";
 import { applyRosterTemplate } from "./roster-template.service.ts";
 
@@ -74,7 +79,40 @@ const listQuery = z.object({
   companyId: z.uuid().optional(),
 });
 
+const orderQuery = z.object({
+  from: isoDate,
+  to: isoDate,
+  companyId: z.uuid().optional(),
+  employeeId: z.uuid().optional(),
+});
+
 const ROUTES: [ReturnType<typeof route>, Handler][] = [
+  [
+    route(
+      "get",
+      "/overtime-orders",
+      "Perintah lembur (SPL): cakupan atasan / HR / milik saya (TM-D17)",
+      {
+        query: orderQuery,
+        response: overtimeOrderListSchema,
+      },
+    ),
+    (c) => orders.listOvertimeOrders(ctxOf(c), strict(orderQuery, c.req.query())),
+  ],
+  [
+    route("put", "/overtime-orders", "Buat / ubah perintah lembur (Atasan, HR PT, SA) (TM-D17)", {
+      body: overtimeOrderInputSchema,
+      response: overtimeOrderViewSchema,
+    }),
+    async (c) => orders.setOvertimeOrder(ctxOf(c), strict(overtimeOrderInputSchema, await body(c))),
+  ],
+  [
+    route("post", "/overtime-orders/{id}/cancel", "Batalkan perintah lembur (TM-D17)", {
+      params: z.object({ id: z.uuid() }),
+      response: overtimeOrderCancelSchema,
+    }),
+    (c) => orders.cancelOvertimeOrder(ctxOf(c), c.req.param("id") as string),
+  ],
   [
     route("get", "/overtime", "Usulan lembur: inbox / cakupan / milik saya (TM-D6)", {
       query: listQuery,

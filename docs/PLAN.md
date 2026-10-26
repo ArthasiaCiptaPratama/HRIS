@@ -160,6 +160,7 @@ Catatan untuk Vercel:
 | **SUPER_ADMIN** | Akses **penuh**: akses sistem, kebijakan HR, dan operasional. Satu-satunya yang melihat & mengisi nominal gaji. |
 | ↳ **Utama**     | Penanda pada **tepat satu** akun SUPER_ADMIN. Punya 4 hak eksklusif (lihat 4.4).                      |
 | **HR_ADMIN**    | Operator administrasi seluruh perusahaan. Data sensitif hanya dengan grant.                           |
+| **HR_PERSONNEL** | "HR Kepegawaian" ([IAM-D1](features/iam/README.md#keputusan), 2026-10-23): hanya **melihat data kerja** karyawan di PT yang ditugaskan; tanpa data pribadi/rekening/dokumen (izin sensitif tidak bisa di-grant), tanpa aksi, modul lain tertutup. |
 | **MANAGER**     | Pemilik operasional **tim sendiri** (bawahan langsung). Data sensitif tim hanya dengan grant.         |
 | **EMPLOYEE**    | Karyawan biasa (tanpa hak administrasi).                                                             |
 
@@ -199,6 +200,8 @@ Sifat grant:
 ### 4.3 Matriks Akses
 
 Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "tim" = bawahan langsung · "sendiri" = data milik akun itu
+
+**HR_PERSONNEL (IAM-D1)** tidak diberi kolom sendiri: sama dengan ❌ di seluruh matriks, **kecuali** 👁 data kerja karyawan (Data Karyawan Aktif & Tidak Aktif, detail tab Kepegawaian + Riwayat, struktur organisasi) di PT yang ditugaskan, plus hak layanan diri bila akunnya tertaut data karyawan. Daftar endpoint yang diizinkan diuji di `apps/api/tests/integration/iam/hr-personnel.test.ts`.
 
 | Area / Aksi | SUPER_ADMIN | HR_ADMIN | MANAGER | EMPLOYEE |
 |---|---|---|---|---|
@@ -427,7 +430,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [D-004](decisions.md#d-004) | Satu skema Postgres per modul; lintas modul via index.ts | lintas |
 | [D-005](decisions.md#d-005) | Supabase DB + Auth + Storage; modul iam | [FND](features/fondasi/README.md) |
 | [D-006](decisions.md#d-006) | Akun dari undangan, tanpa self sign-up | [IAM](features/iam/README.md) |
-| [D-007](decisions.md#d-007) | Role tetap SA/HR/MGR/EMP (sebagian diganti D-028) | [IAM](features/iam/README.md) |
+| [D-007](decisions.md#d-007) | Role tetap SA/HR/MGR/EMP (sebagian diganti D-028; role kelima HR_PERSONNEL → IAM-D1) | [IAM](features/iam/README.md) |
 | [D-008](decisions.md#d-008) | Role & grant dicek dari DB tiap request | [IAM](features/iam/README.md) |
 | [D-009](decisions.md#d-009) | Tim MANAGER = bawahan langsung | [IAM](features/iam/README.md) |
 | [D-010](decisions.md#d-010) | Approval paralel MANAGER + HR | [TM](features/time-management/README.md) |
@@ -530,6 +533,16 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [TM-D8](features/time-management/README.md#keputusan) | Template roster JT (Jetty & Loading): 3 shift, pola 6 kerja + libur | [TM](features/time-management/README.md) |
 | [TM-D9](features/time-management/README.md#keputusan) | Cuti tahunan baru: sisa hangus 31 Desember tanpa uang, ajukan ulang, hak cuti karyawan keluar (mengubah sebagian D-072) | [TM](features/time-management/README.md) |
 | [TM-D10](features/time-management/README.md#keputusan) | Kompensasi akhir (pesangon, UPMK, penggantian hak) & dashboard analitik | [TM](features/time-management/README.md) |
+| [TM-D11](features/time-management/README.md#keputusan) | Data Absen Harian hanya hari yang punya absen; Alpha tanpa absen di Rekap & Tutup Periode › Alpha & pernyataan | [TM](features/time-management/README.md) |
+| [TM-D12](features/time-management/README.md#keputusan) | Batas waktu Clock Out (dibuka 30 menit sebelum jam pulang, lebih awal = pulang darurat + alasan), jendela istirahat per shift, Clock In hari OFF lewat lembur hari libur | [TM](features/time-management/README.md) |
+| [TM-D13](features/time-management/README.md#keputusan) | Absen per shift, bukan per tanggal kalender: tanggal kerja = tanggal roster, shift "mulai setelah tengah malam", jeda antarshift (fase A; mengubah sebagian D-069) | [TM](features/time-management/README.md) |
+| [TM-D14](features/time-management/README.md#keputusan) | Jam 00.00/24.00 bawaannya milik tanggal roster; pilihan "malam setelah tanggal roster" hanya ditanyakan untuk shift dini hari, bertanggal nyata | [TM](features/time-management/README.md) |
+| [TM-D15](features/time-management/README.md#keputusan) | Patokan Clock In = shift yang sedang berjalan (mengganti "shift terdekat" TM-D13) | [TM](features/time-management/README.md) |
+| [TM-D16](features/time-management/README.md#keputusan) | Lupa Clock Out: tanpa auto Clock Out; batas per master shift (bawaan 30 menit) → tidak absen pulang; alarm lokal app + FCM cadangan +15 menit | [TM](features/time-management/README.md) |
+| [TM-D17](features/time-management/README.md#keputusan) | Perintah lembur (SPL) Atasan/HR sebelum dijalani; lembur hanya di rentang SPL; hari OFF wajib SPL | [TM](features/time-management/README.md) |
+| [TM-D18](features/time-management/README.md#keputusan) | 45 jam/minggu = patokan jadwal; lembur tetap per hari; selisih PP 35/2021 risiko diterima | [TM](features/time-management/README.md) |
+| [TM-D19](features/time-management/README.md#keputusan) | Perintah lembur susulan: HR PT / SA, periode belum ditutup, bertanda Susulan, usulan lembur dihitung ulang | [TM](features/time-management/README.md) |
+| [IAM-D1](features/iam/README.md#keputusan) | Role kelima `HR_PERSONNEL` "HR Kepegawaian": lihat data kerja karyawan di PT yang ditugaskan saja (mengubah PLAN §4.1 "role tetap 4") | [IAM](features/iam/README.md) |
 | [DSB-D1](features/dashboard/README.md#keputusan) | Dashboard analitik SDM & biaya: aktif awal/akhir bulan, masuk/keluar per alasan, turnover 12 bulan, gender, masa kerja | [DSB](features/dashboard/README.md) |
 | MOB-D1–MOB-D16 | App mobile Flutter (Android, paritas PWA, push FCM, versi minimum, branch BE `HRIS/mobile-app`) — **isi di repo `Arthasia-Mobile/docs/decisions.md`** (MOB-D13) | [MOB](features/mobile/README.md) |
 | [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |

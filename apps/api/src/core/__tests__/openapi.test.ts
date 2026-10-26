@@ -58,6 +58,49 @@ const formatsDate = (node: unknown): boolean =>
   JSON.stringify(node ?? null).includes('"format":"date"');
 
 describe("kontrak OpenAPI untuk app mobile", () => {
+  test("EmployeeRoster = array dengan item skema bernama EmployeeRosterDay", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    expect(doc.components.schemas.EmployeeRoster).toMatchObject({
+      type: "array",
+      items: { $ref: "#/components/schemas/EmployeeRosterDay" },
+    });
+  });
+
+  test("status/jenis/sumber roster berupa enum, bukan string bebas", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const props = (name: string) =>
+      doc.components.schemas[name]?.properties as Record<
+        string,
+        { items?: { properties: Record<string, unknown> } }
+      >;
+    expect(props("RosterChange").status).toMatchObject({
+      enum: ["AWAITING_PEER", "PENDING", "APPROVED", "REJECTED", "CANCELLED"],
+    });
+    const grid = props("RosterGrid");
+    expect(grid.holidays?.items?.properties.kind).toMatchObject({
+      enum: ["NATIONAL", "COLLECTIVE_LEAVE"],
+    });
+    expect(grid.days?.items?.properties.source).toMatchObject({
+      enum: ["PATTERN", "MANUAL", "IMPORT", "CHANGE"],
+    });
+  });
+
+  test("perintah lembur di AttendanceToday = TodayOvertimeOrder, tidak menimpa OvertimeOrder", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    expect(
+      JSON.stringify(doc.components.schemas.AttendanceToday?.properties?.overtimeOrder),
+    ).toContain("#/components/schemas/TodayOvertimeOrder");
+    expect(doc.components.schemas.OvertimeOrder?.properties).toHaveProperty("employee");
+  });
+
+  test("skema inline impor karyawan tidak memakai nama MasterData milik GET /master-data", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    expect(doc.components.schemas.EmployeeImportPreview?.properties?.masterData).toEqual({
+      $ref: "#/components/schemas/EmployeeImportMasterData",
+    });
+    expect(doc.components.schemas.MasterData?.properties).toHaveProperty("companies");
+  });
+
   test("punch mendeklarasikan header Idempotency-Key opsional", async () => {
     const doc = (await spec()) as unknown as Doc;
     const parameters = doc.paths["/api/v1/attendance/punch"]?.post?.parameters as {
@@ -99,5 +142,15 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     expect(doc.components.schemas.AttendanceDay?.properties?.workDate).toMatchObject({
       format: "date",
     });
+  });
+
+  test("Me memuat employeeCompanyId nullable (filter roster/shift/crew di app)", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const me = doc.components.schemas.Me as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(me.properties?.employeeCompanyId).toMatchObject({ type: ["string", "null"] });
+    expect(me.required).toContain("employeeCompanyId");
   });
 });

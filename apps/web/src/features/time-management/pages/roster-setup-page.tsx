@@ -1,6 +1,8 @@
 import {
+  DEFAULT_TIME_SETTINGS,
   expandRosterShorthand,
   OFF_CODE,
+  patternRestWarnings,
   ROSTER_TEMPLATE_LABELS,
   ROSTER_TEMPLATES,
   type RosterTemplate,
@@ -38,7 +40,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEmployees, useMasterData } from "@/features/employee/api";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-import { useCrews, usePatterns, useRosterMaster, useSetCrewMembers, useShifts } from "../api";
+import {
+  useCrews,
+  usePatterns,
+  useRosterMaster,
+  useSetCrewMembers,
+  useShifts,
+  useTimeSettings,
+} from "../api";
 import { hhmm, parseHhmm, todayIn, workDateLabel } from "../components/display";
 import { useApplyRosterTemplate } from "../overtime-api";
 import type { Crew, Pattern, Shift } from "../schemas";
@@ -175,7 +184,11 @@ function ShiftTab({ companyId }: { companyId: string }) {
               </div>
               <p className="mt-2 text-sm tabular-nums">
                 {hhmm(s.startMinute)}–{hhmm(s.endMinute)}
-                {s.crossesMidnight ? (
+                {s.startsNextDay ? (
+                  <Badge variant="muted" className="ml-2">
+                    malam setelah tanggal roster
+                  </Badge>
+                ) : s.crossesMidnight ? (
                   <Badge variant="muted" className="ml-2">
                     lintas tengah malam
                   </Badge>
@@ -217,6 +230,9 @@ function ShiftTab({ companyId }: { companyId: string }) {
 }
 
 /** TM-D8: pasang template JT — 3 shift × 8 jam (7j + 1j lembur rutin), pola 6+1 rotasi mingguan. */
+/** TM-D14: jam mulai sebelum 06.00 = shift dini hari (pertanyaan tanggal nyata ditampilkan). */
+const DAWN_END_MIN = 6 * 60;
+
 const TEMPLATE_INFO: Record<
   RosterTemplate,
   { description: string; crewHint: string; warning?: string; crewWarning?: string }
@@ -234,6 +250,12 @@ const TEMPLATE_INFO: Record<
     crewHint: "Diisi = dibuat 1 crew (13+1 Crew A) yang mulai siklus pada tanggal mulai.",
     warning:
       "13 hari × 7 jam normal per 14 hari ≈ 45,5 jam/minggu, di atas 40 jam/minggu. Pastikan sesuai perjanjian kerja (lembur/waktu kerja khusus sektor).",
+  },
+  SHIFT_3X8: {
+    description:
+      "Shift S1 08–16, S2 16–24, S3 24–08 (S3 dijalani malam setelah tanggal roster, tetap tercatat di tanggal roster), istirahat 60 mnt dibayar. Pola 2 hari S1 → 2 hari S2 → 2 hari S3 → 2 OFF (siklus 8 hari).",
+    crewHint:
+      "Diisi = dibuat 4 crew (A–D) bergeser 2 hari, sehingga setiap shift selalu dijaga satu crew.",
   },
   WEEK_5_2: {
     description:
@@ -263,6 +285,8 @@ function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: ()
           .map((s) => s.code)
           .join(", ")}${out.crews.length ? ` + ${out.crews.length} crew` : ""}.`,
       );
+      // TM-D13 Fase D: jeda antarshift di pola yang kurang dari pengaturan.
+      for (const warning of out.restWarnings ?? []) toast.warning(warning);
       onClose();
     } catch (e) {
       toast.error(errorMessage(e));
@@ -349,9 +373,10 @@ function ShiftDialog({
     checkInOpenMin: shift?.checkInOpenMin ?? 60,
     lateToleranceMin: shift?.lateToleranceMin ?? 15,
     earlyLeaveToleranceMin: shift?.earlyLeaveToleranceMin ?? 15,
-    checkOutCloseMin: shift?.checkOutCloseMin ?? 240,
+    checkOutCloseMin: shift?.checkOutCloseMin ?? 30,
     breakMin: shift?.breakMin ?? 0,
     breakPaid: shift?.breakPaid ?? false,
+    startsNextDay: shift?.startsNextDay ?? false,
     breakStart: shift?.breakStartMinute != null ? hhmm(shift.breakStartMinute) : "",
     breakEnd: shift?.breakEndMinute != null ? hhmm(shift.breakEndMinute) : "",
     regularOvertimeMin: shift?.regularOvertimeMin ?? 0,
@@ -367,6 +392,9 @@ function ShiftDialog({
     });
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+  // TM-D14: tanggal nyata shift dini hari ditanyakan dengan contoh; shift lain tidak perlu memilih.
+  const startParsed = parseHhmm(form.start);
+  const dawn = startParsed !== null && startParsed < DAWN_END_MIN;
   const submit = async () => {
     const startMinute = parseHhmm(form.start);
     const endMinute = parseHhmm(form.end);
@@ -395,6 +423,8 @@ function ShiftDialog({
           checkOutCloseMin: Number(form.checkOutCloseMin),
           breakMin: Number(form.breakMin),
           breakPaid: form.breakPaid,
+          // TM-D14: pilihan tanggal hanya berlaku untuk shift dini hari (00.00–05.59).
+          startsNextDay: dawn && form.startsNextDay,
           breakStartMinute,
           breakEndMinute,
           regularOvertimeMin: Number(form.regularOvertimeMin),
@@ -479,6 +509,37 @@ function ShiftDialog({
           >
             {num("regularOvertimeMin")}
           </Field>
+          {dawn ? (
+            <fieldset className="bg-muted/40 col-span-2 space-y-2 rounded-lg border p-3 text-sm">
+              <legend className="px-1 font-medium">Shift ini dimulai dini hari</legend>
+              <p className="text-muted-foreground">Kalau di roster ditulis tanggal 17, artinya:</p>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="starts-next-day"
+                  className="size-4"
+                  checked={!form.startsNextDay}
+                  onChange={() => set("startsNextDay", false)}
+                />
+                <span>
+                  17, pukul {form.start} <span className="text-muted-foreground">(bawaan)</span>
+                </span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="starts-next-day"
+                  className="size-4"
+                  checked={form.startsNextDay}
+                  onChange={() => set("startsNextDay", true)}
+                />
+                <span>
+                  18, pukul {form.start}{" "}
+                  <span className="text-muted-foreground">(malam setelah tanggal roster)</span>
+                </span>
+              </label>
+            </fieldset>
+          ) : null}
           <label className="col-span-2 flex items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -624,6 +685,13 @@ function PatternDialog({
     .filter(Boolean);
   const codes = (shifts.data ?? []).filter((s) => !s.archived).map((s) => s.code);
   const unknown = [...new Set(steps.filter((s) => s !== OFF_CODE && !codes.includes(s)))];
+  // TM-D13 Fase D: pergantian shift berurutan dengan jeda < pengaturan (hanya peringatan).
+  const minRestHours = useTimeSettings().data?.minRestHours ?? DEFAULT_TIME_SETTINGS.minRestHours;
+  const restWarnings = patternRestWarnings(
+    steps,
+    (shifts.data ?? []).filter((s) => !s.archived),
+    minRestHours,
+  );
   const submit = async () => {
     try {
       await save.mutateAsync({ id: pattern?.id, body: { companyId, name, steps } });
@@ -697,6 +765,18 @@ function PatternDialog({
             <p className="text-destructive text-xs">
               Kode belum ada di master shift: {unknown.join(", ")}
             </p>
+          ) : null}
+          {restWarnings.length > 0 ? (
+            <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="font-medium">Jeda antarshift kurang dari {minRestHours} jam:</p>
+              <ul className="mt-1 list-disc pl-4">
+                {restWarnings.map((w) => (
+                  <li key={w.index}>
+                    Hari {w.index + 1} → {w.index + 2}: {w.from} lalu {w.to} ({w.restHours} jam)
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
         <DialogFooter>

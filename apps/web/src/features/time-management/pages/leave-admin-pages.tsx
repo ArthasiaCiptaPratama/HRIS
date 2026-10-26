@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useDecideApproval } from "../api";
 import { StepBadge, workDateLabel } from "../components/display";
+import { RefreshButton } from "../components/refresh-button";
 import {
   type BalanceRow,
   type ExitSettlement,
@@ -98,16 +99,19 @@ export function LeaveApprovalsPage() {
         title="Persetujuan Cuti & Izin"
         description="Setiap pengajuan disetujui Atasan dan HR. Lampiran (mis. surat dokter) dapat dibuka dari kartu pengajuan."
         actions={
-          companies.length > 1 ? (
-            <FormSelect
-              aria-label="Perusahaan"
-              className="h-9 w-56"
-              value={companyId}
-              onChange={setCompanyId}
-              placeholder="Perusahaan"
-              options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
-            />
-          ) : null
+          <div className="flex items-center gap-2">
+            {companies.length > 1 ? (
+              <FormSelect
+                aria-label="Perusahaan"
+                className="h-9 w-56"
+                value={companyId}
+                onChange={setCompanyId}
+                placeholder="Perusahaan"
+                options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+              />
+            ) : null}
+            <RefreshButton />
+          </div>
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">

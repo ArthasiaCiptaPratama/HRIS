@@ -34,6 +34,7 @@ import {
   useHolidays,
   useMyHistory,
 } from "../api";
+import { AlphaVerificationList, useAlphaInbox } from "../components/alpha-verification-list";
 import {
   addDays,
   CoordLink,
@@ -45,6 +46,7 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
+import { RefreshButton } from "../components/refresh-button";
 import { RosterWeek } from "../components/roster-week";
 import { SelfieThumb } from "../components/selfie-thumb";
 import { type LeaveRequest, useLeaveRequests } from "../leave-api";
@@ -397,7 +399,9 @@ export function MobileApprovalsPage() {
   const { me, tz } = useMobileApp();
   const canDays = tmAccess.reviewDays(me);
   const canLeave = tmAccess.decideLeave(me);
-  const [tab, setTab] = useState<"absen" | "cuti">(canDays ? "absen" : "cuti");
+  const canAlpha = tmAccess.verifyAlpha(me);
+  const [tab, setTab] = useState<"absen" | "cuti" | "alpha">(canDays ? "absen" : "cuti");
+  const alphaCount = useAlphaInbox(canAlpha).data?.length ?? 0;
   const today = todayIn(tz);
   const days = useAttendanceDays({ scope: "inbox", from: addDays(today, -60), to: today }, canDays);
   const leave = useLeaveRequests({ scope: "inbox" }, canLeave);
@@ -405,21 +409,35 @@ export function MobileApprovalsPage() {
   const leaveRows = leave.data ?? [];
   return (
     <>
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "absen" | "cuti")}>
-        <TabsList className="w-full">
-          {canDays ? (
-            <TabsTrigger value="absen" className="flex-1">
-              Absen {dayRows.length ? `(${dayRows.length})` : ""}
-            </TabsTrigger>
-          ) : null}
-          {canLeave ? (
-            <TabsTrigger value="cuti" className="flex-1">
-              Cuti/Izin {leaveRows.length ? `(${leaveRows.length})` : ""}
-            </TabsTrigger>
-          ) : null}
-        </TabsList>
-      </Tabs>
-      {tab === "absen" ? (
+      <div className="flex items-center gap-2">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as "absen" | "cuti" | "alpha")}
+          className="flex-1"
+        >
+          <TabsList className="w-full">
+            {canDays ? (
+              <TabsTrigger value="absen" className="flex-1">
+                Absen {dayRows.length ? `(${dayRows.length})` : ""}
+              </TabsTrigger>
+            ) : null}
+            {canLeave ? (
+              <TabsTrigger value="cuti" className="flex-1">
+                Cuti/Izin {leaveRows.length ? `(${leaveRows.length})` : ""}
+              </TabsTrigger>
+            ) : null}
+            {canAlpha ? (
+              <TabsTrigger value="alpha" className="flex-1">
+                Alpha {alphaCount ? `(${alphaCount})` : ""}
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
+        </Tabs>
+        <RefreshButton compact />
+      </div>
+      {tab === "alpha" ? (
+        <AlphaVerificationList enabled={canAlpha} />
+      ) : tab === "absen" ? (
         days.isPending ? (
           <Skeleton className="h-60 rounded-2xl" />
         ) : dayRows.length === 0 ? (
@@ -542,6 +560,7 @@ export function MobileProfilePage() {
   const roleText: Record<string, string> = {
     SUPER_ADMIN: "Super Admin",
     HR_ADMIN: "HR Admin",
+    HR_PERSONNEL: "HR Kepegawaian",
     MANAGER: "Manager",
     EMPLOYEE: "Karyawan",
   };

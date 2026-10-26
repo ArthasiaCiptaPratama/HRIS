@@ -33,6 +33,8 @@ import { formatRupiah } from "@/lib/format";
 import { tmAccess } from "../access";
 import { useDecideApproval, useTimezone } from "../api";
 import { StepBadge, timeIn, todayIn, workDateLabel } from "../components/display";
+import { OvertimeOrdersView } from "../components/overtime-orders";
+import { RefreshButton } from "../components/refresh-button";
 import {
   type GradeWage,
   type Overtime,
@@ -49,7 +51,7 @@ import { useRosterCompany } from "./roster-page";
 // bulat ke atas per 30 menit), diputuskan Atasan + HR. Rupiah hanya untuk SA / HR ber-grant "Biaya";
 // atasan melihat total rupiah tim di rekap.
 
-type Tab = "inbox" | "all" | "me" | "summary";
+type Tab = "inbox" | "all" | "me" | "orders" | "summary";
 
 const monthRange = (month: string) => {
   const [y, m] = month.split("-").map(Number) as [number, number];
@@ -67,11 +69,11 @@ export function OvertimePage() {
   const company = companies.length > 1 ? companyId : undefined;
   const list = useOvertimeList(
     {
-      scope: tab === "summary" ? "all" : tab,
+      scope: tab === "summary" || tab === "orders" ? "all" : tab,
       ...range,
       ...(company ? { companyId: company } : {}),
     },
-    tab !== "summary",
+    tab !== "summary" && tab !== "orders",
   );
   const summary = useOvertimeSummary(month, company ?? "", tab === "summary");
   const [open, setOpen] = useState<Overtime | null>(null);
@@ -80,18 +82,21 @@ export function OvertimePage() {
     <div>
       <PageHeader
         title="Lembur"
-        description="Usulan lembur dibuat otomatis dari absen: kelebihan jam di luar jadwal dikurangi telat & istirahat lebih, diakui bila ≥ 60 menit lalu dibulatkan ke atas per 30 menit. Disetujui Atasan dan HR."
+        description="Lembur dijalani atas perintah lembur (SPL) dari atasan atau HR. Usulan dibuat otomatis dari absen di dalam rentang SPL, dikurangi telat & istirahat lebih, diakui bila ≥ 60 menit lalu dibulatkan ke atas per 30 menit. Disetujui Atasan dan HR."
         actions={
-          companies.length > 1 && decider ? (
-            <FormSelect
-              aria-label="Perusahaan"
-              className="h-9 w-56"
-              value={companyId}
-              onChange={setCompanyId}
-              placeholder="Perusahaan"
-              options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
-            />
-          ) : null
+          <div className="flex items-center gap-2">
+            {companies.length > 1 && decider ? (
+              <FormSelect
+                aria-label="Perusahaan"
+                className="h-9 w-56"
+                value={companyId}
+                onChange={setCompanyId}
+                placeholder="Perusahaan"
+                options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+              />
+            ) : null}
+            {decider ? <RefreshButton /> : null}
+          </div>
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -100,6 +105,7 @@ export function OvertimePage() {
             {decider ? <TabsTrigger value="inbox">Perlu keputusan</TabsTrigger> : null}
             {decider ? <TabsTrigger value="all">Semua</TabsTrigger> : null}
             {me.employeeId ? <TabsTrigger value="me">Lembur saya</TabsTrigger> : null}
+            <TabsTrigger value="orders">Perintah lembur</TabsTrigger>
             {decider ? <TabsTrigger value="summary">Rekap bulanan</TabsTrigger> : null}
           </TabsList>
         </Tabs>
@@ -114,7 +120,13 @@ export function OvertimePage() {
         ) : null}
       </div>
 
-      {tab === "summary" ? (
+      {tab === "orders" ? (
+        <OvertimeOrdersView
+          {...range}
+          {...(company ? { companyId: company } : {})}
+          canCreate={decider}
+        />
+      ) : tab === "summary" ? (
         <SummaryView query={summary} />
       ) : list.isPending ? (
         <Skeleton className="h-60" />

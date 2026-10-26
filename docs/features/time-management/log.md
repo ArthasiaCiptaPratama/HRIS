@@ -13,6 +13,32 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-26 — Perintah lembur susulan TM-D19 (Oatse)
+- **Dikerjakan:** SPL untuk tanggal lampau / hari yang sudah Clock Out hanya HR PT & SA, periode belum ditutup (`isDateClosed`), kolom `retroactive` (migrasi `20261026070605_overtime_order_retroactive`), usulan lembur dihitung ulang (`syncOvertime`) saat SPL disimpan/dibatalkan; web badge Susulan + tanggal lampau untuk HR/SA.
+- **Keputusan:** TM-D19 (Q1 opsi B, pengguna lewat supervisor).
+- **Verifikasi:** `overtime-order.test.ts` 8/8 (baru: atasan 422, HR susulan 200 + usulan 120 menit, batal → usulan hilang, periode tertutup 422); verifikasi penuh di laporan commit.
+- **Berikutnya:** draf kabar Mat (seluruh BE selesai).
+
+### 2026-10-26 — Pengingat pulang hari OFF ber-SPL (Oatse)
+- **Dikerjakan:** `runAttendanceReminders` juga membaca perintah lembur di tanggal tanpa shift roster (hari OFF): sudah Clock In, belum Clock Out, ≥ 15 menit setelah akhir SPL, sebelum batas absen pulang → `attendance.reminder_out` (dedupe sama).
+- **Keputusan:** — (pelaksanaan TM-D16/TM-D17; Q2 opsi A disetujui supervisor atas nama pengguna)
+- **Verifikasi:** `time-notify.test.ts` 5/5 (baru: hari OFF ber-SPL); verifikasi penuh di laporan commit.
+- **Berikutnya:** Q1 SPL susulan menunggu keputusan pengguna.
+
+### 2026-10-26 — Grill shift + TM-D14–TM-D18: patokan Clock In, lupa Clock Out, perintah lembur (Oatse)
+- **Dikerjakan:** grill pemilik projek (serah-terima `HRIS-rilis` `2026-10-26-1000-…-grill-shift-lupa-clockout.md`); gabung `HRIS/Mat/Mac` `8d3fd76` (TM-D13 fase B–D, migrasi `alpha_verification`) → develop `9796376` (di-push); implementasi TM-D14 (form shift dini hari + `scheduleLabel`), TM-D15 (`planCheckIn` shift berjalan), TM-D16 (bawaan batas 30 menit, pengingat +15 menit, cron 5 menit), TM-D17 (perintah lembur/SPL: tabel, rute, policy, Clock In/Out, hari OFF, klem lembur, tab web), TM-D18 (dokumen). Migrasi `20261026041053_overtime_orders`.
+- **Keputusan:** TM-D14–TM-D18 (TM-D14 direvisi pengguna: centang tetap, ditanyakan hanya untuk shift dini hari).
+- **Verifikasi:** typecheck ✔ · biome ✔ (665 file) · boundaries ✔ (532 modul) · test shared 339 · api 981 (baru: `__tests__/overtime-order.test.ts` 6, `integration/time-management/overtime-order.test.ts` 6, kasus TM-D15 di `shift-instance.test.ts`, TM-D16 di `time-notify.test.ts`, klem SPL di `overtime.test.ts`, hari OFF ber-SPL di `punch-window.test.ts`) · web (lihat laporan).
+- **Masalah / catatan:** test lama disesuaikan dengan aturan baru (lembur tanpa SPL tidak dihitung; Lembur hari libur wajib SPL; `midnight.test.ts` memakai batas 240 menit eksplisit). Batasan: SPL tidak bisa dibuat susulan untuk tanggal lampau; pengingat FCM hari OFF ber-SPL belum ada. Alarm lokal = pekerjaan app.
+- **Berikutnya:** commit + push (izin), serah-terima app (alarm lokal TM-D16 + tampilan SPL TM-D17), kabari Mat setelah seluruh BE selesai (arahan pengguna), rilis gel. 14.
+
+### 2026-10-26 — Gabung `HRIS/Mat/Mac` (TM-D13 fase A, IAM-D1) ke develop (Oatse)
+- **Dikerjakan:** merge `origin/HRIS/Mat/Mac` (`e76bd16` switcher akun uji dev, `92b8f5b` tombol muat ulang persetujuan, `1f66690` role HR Kepegawaian IAM-D1, `5df7538` absen per shift TM-D13 fase A) → develop `d3c1ebc`, tanpa konflik; induk: PLAN §4.1/§4.3 + indeks §8 (TM-D11–D13, IAM-D1), RELEASE antrean #62, PROGRESS.
+- **Keputusan:** — (TM-D13 & IAM-D1 sudah diputuskan pemilik projek 2026-10-23)
+- **Verifikasi:** `db:deploy` 2 migrasi (`20261023080413_role_hr_personnel`, `20261023084227_shift_starts_next_day`) · `db:check` tanpa selisih · typecheck ✔ · biome ✔ 653 file · boundaries ✔ 526 modul · test shared 335 · api 928 · web 323 (`--maxWorkers=4`); simulasi CI DB kosong `hris_ci`: 45 migrasi + api 928 lulus (DB dihapus lagi).
+- **Masalah / catatan:** endpoint `/api/v1/dev/test-*` (login akun uji tanpa password) hanya terdaftar saat `NODE_ENV=development` dan ditolak di luar itu; web hanya `import.meta.env.DEV`. Branch Mat sebelumnya belum memuat develop `9b43cc8`.
+- **Berikutnya:** push develop (izin) → Mat pull develop → rilis gel. 14 (2 migrasi) bila diminta, lalu ganti role akun QA HR di staging.
+
 ### 2026-10-21 — Gabung `HRIS/Mat/Mac` ke develop (Oatse)
 - **Dikerjakan:** merge 9 commit Mat (lembur/istirahat/upah grade TM-D6–D8, aturan cuti TM-D9, dashboard DSB-D1, saklar per fitur TM). Konflik `attendance/directory.ts`: fungsi baru Mat (`activeGrades`, `activeLocations`, `exitedEmployees`, `exitStatusOf`, `analyticsEmployees`) dipindah dari query Prisma langsung ke interface publik — employee `listExitedEmployees`, `getEmployeeExitStatuses`, `listAnalyticsEmployees`, `EmployeeBrief.gradeId`; organization `listActiveGrades`, `listActiveWorkLocations`, `getEmploymentStatusCategories` (aturan emas #3). Bentuk fungsi `directory.ts` tetap, pemanggil tidak berubah.
 - **Catatan untuk Mat:** merge develop ke branch sendiri sebelum lanjut; data karyawan/PT/lokasi untuk TM hanya lewat `employee/index.ts` & `organization/index.ts` (tambah fungsi di sana bila perlu); rute TM baru wajib skema bertipe untuk app mobile (MOB-D10, `features/mobile`).
@@ -129,3 +155,86 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Staf 5,7+1,5 jt, Staf Senior 8+2 jt, Supervisor 14+4 jt, Manajer 30+8 jt, Direktur 100+25 jt.
   - Jabatan demo disesuaikan: Rina Administrasi, Joko Checker Jetty, Dimas Helper Bor, Sari GA Staff, Budi Operations Manager (Manajer).
   - Ikut `db:seed:acceptance`.
+
+## 2026-10-22 — Switcher akun uji per tab & tombol Muat ulang persetujuan — Mat
+
+- **Switcher akun uji (dev saja)** di panel "DB · Lokal":
+  - Sekali klik masuk sebagai akun `@arthasia.test` tanpa password, satu akun per tab.
+  - Pengaman: hanya `NODE_ENV=development`, DB & Auth lokal, akun uji aktif.
+  - Rincian: skill `hris-db-switch`.
+  - Panel DB tidak lagi terpotong di tepi kanan.
+- **Tombol Muat ulang** di halaman persetujuan: Lembur, Data Absen Harian, Persetujuan Cuti, dan Approval HP. Mengambil ulang antrean tanpa memuat ulang halaman (`components/refresh-button.tsx`).
+
+## 2026-10-23 — TM-D13 Fase A: absen per shift — Mat
+
+- Masalah dari pemilik projek: shift 3 roster tgl 27 (00:00–08:00) lalu shift 2 roster 28 (16:00–24:00) → absen jatuh ke tgl 28, tgl 27 Alpha.
+  - Akar masalah: pencocokan Clock In memakai tanggal kalender, plus aturan sekali Clock In per tanggal kalender.
+- Keputusan grill:
+  - Shift 3 = malam setelah tanggal roster.
+  - Tap-out ikut shift yang di-tap-in.
+  - Jeda < 8 jam ditandai.
+  - Alpha → notif + verifikasi atasan (Fase B).
+- Kode:
+  - Engine: `startsNextDay` di `shiftWindow`/`breakWindow`, `planCheckIn(…, taken)` memilih shift terdekat yang belum di-Clock In, `restShortfall`.
+  - Service: `openDayTimes(…, locked)` memakai jadwal tersimpan; `checkedInAlready` per tanggal roster; `next` beranda per shift.
+  - Kolom `shifts.starts_next_day`; label `SHORT_REST`; pengaturan `minRestHours`.
+  - Web: master shift & pengaturan.
+- Test:
+  - `__tests__/shift-instance.test.ts` (engine, kasus 27→28, shift 3 dua malam, jendela tumpang tindih, jeda).
+  - `tests/integration/time-management/shift-instance.test.ts` (service asli dengan jam terkontrol: tap-in 23:50, tap-out 08:05, tap-in 15:45 + SHORT_REST, tanpa Alpha, jadwal terkunci walau master diubah).
+- Kontrak API berubah: `Shift.startsNextDay`, `TimeSettings.minRestHours`, label `SHORT_REST`. Path & operationId tetap. **Kabari tim mobile.**
+
+## 2026-10-23 — TM-D13 Fase C: notifikasi perubahan jadwal — Mat
+
+- Poin 12 "memperjelas mekanisme pertukaran shift agar karyawan mengetahui perubahan jadwalnya".
+- `roster-notify.service.ts`:
+  - Jadwal lama vs baru dibandingkan di `applyCells` (edit grid & import), `regenerateCrew` (pola/crew/anggota berubah) dan handler approval `ROSTER_CHANGE`.
+  - Satu notifikasi per karyawan, hanya tanggal hari ini ke depan, isi "tanggal: lama → baru".
+  - Tukar shift ditolak/dibatalkan → pengaju diberi tahu.
+  - Cron `roster-extend` tidak mengirim notifikasi (`regenerateCrew(…, notify=false)`).
+- Target notifikasi baru `ROSTER` (id = tanggal) dan `TodayView.roster[].changed` → titik "Jadwal berubah" di roster 7 hari. **Kabari tim mobile.**
+- Test:
+  - `roster-notify.test.ts`: edit HR → notifikasi; tanpa perubahan / tanggal lewat → tidak ada; cron perpanjangan → tidak ada.
+  - `roster.test.ts`: tukar shift disetujui → pengaju & rekan diberi tahu.
+
+## 2026-10-23 — TM-D13 Fase D: template 3 shift & jeda pola — Mat
+
+- Poin 15 "meninjau pengaturan shift agar jadwal kerja dan absensi sesuai ketentuan operasional".
+- Template baru `SHIFT_3X8`:
+  - S1 08–16, S2 16–24, S3 24–08 (malam setelah tanggal roster); istirahat 60 mnt dibayar; tanpa lembur rutin.
+  - Pola S1 S1 S2 S2 S3 S3 OFF OFF; 4 crew bergeser 2 hari → tiap shift selalu dijaga satu crew.
+  - Jam shift diasumsikan (pertanyaan ke pemilik projek belum dijawab).
+- `patternRestWarnings` di `@hris/shared`: jeda antarlangkah pola melingkar < `minRestHours` → peringatan langsung di form Pola dan `restWarnings` di hasil `POST /roster/templates` (kontrak bertambah; **kabari tim mobile**). Tidak menolak.
+- Test: shared `overtime.test.ts` (2-2-2 aman, S2→S1 8 jam, malam→pagi 0 jam); API `overtime.test.ts` (template 3 shift).
+
+## 2026-10-23 — TM-D13 Fase B: verifikasi Alpha oleh atasan — Mat
+
+- Poin 16 "notifikasi dan verifikasi atasan apabila karyawan tidak masuk atau tidak melakukan absensi".
+- Pilihan pemilik projek: notifikasi ke atasan + atasan memverifikasi; tutup periode ditolak bila belum (rekomendasi, "gas").
+- Kode:
+  - Migrasi `alpha_verification` (kolom `alpha_verification`, `alpha_verified_by`, `alpha_verified_at`, `alpha_verification_note` + enum).
+  - `markNoAttendanceAlpha` menandai PENDING + notifikasi `attendance.alpha_verify` ke atasan.
+  - `alpha.service`: `listAlphaVerifications`, `verifyAlpha` (audit `attendance.alpha.verify`, notifikasi karyawan), `pendingAlphaVerifications`.
+  - `period.service`: pratinjau `unverifiedAlpha`, tutup periode 422.
+  - Policy `canVerifyAlpha`/`canViewAlphaVerifications`.
+  - Web: tab Alpha di Approval HP (`alpha-verification-list.tsx`) & peringatan di pratinjau tutup periode.
+- **Beda dari usulan awal:** Izin/Sakit/Tugas luar tidak membuat pengajuan otomatis. Karyawan diminta mengajukan izin/sakit/koreksi (alur resmi diputus HR), karena modul cuti & koreksi belum punya pengajuan atas nama karyawan dan surat dokter/saldo harus tetap lewat alur cuti.
+- Test:
+  - API `alpha-verification.test.ts`: Alpha → PENDING + notif atasan; antrean atasan; karyawan 403; tutup periode 422; verifikasi Sakit + notif karyawan.
+  - Web `alpha-verification.test.tsx`.
+  - Browser lokal: Budi memverifikasi Alpha Dimas → tersimpan "Izin".
+- Kontrak API baru: `GET/POST /attendance/alpha-verifications`, `AttendancePeriodPreview.unverifiedAlpha`. **Kabari tim mobile.**
+
+## 2026-10-23 — TM-D13: kasus uji batas 00:00 — Mat
+
+- Permintaan: "buatkan testing case untuk 00:00".
+- QA TC-TM-050..058: Clock In shift 3 tepat 00:00, buka absen/toleransi, Clock Out shift 2 tepat 00:00, akhir bulan, Alpha shift 3 tidak lebih awal, jeda setelah 00:00, istirahat melewati 00:00, shift tanpa centang "mulai setelah tengah malam", zona WITA/WIT & tahun baru.
+- Test: unit `src/modules/attendance/__tests__/midnight.test.ts` (22) + integrasi `tests/integration/time-management/midnight.test.ts` (5, DB lokal, 30 Apr–2 Mei 2027). Semua lulus; tidak ada perubahan kode produksi.
+
+## 2026-10-23 — Rapikan test bocor & label istirahat hari OFF — Mat
+
+- Dua temuan UAT 22 Okt, dipilih Mat ("lanjutkan time management").
+- **Cleanup test:** helper baru `tests/helpers/attendance.ts` `deleteAttendanceData(employeeIds)` menghapus approval hari/absen/lembur, usulan lembur, lalu hari absen. Dipakai di 11 test integrasi (attendance, mobile-punch, alpha, location-setting, time-notify, leave, overtime, period, punch-window, shift-instance, midnight) + warning-letters.
+  - Dicari per file: bocoran approval lembur PENDING berasal dari cleanup `shift-instance.test` (menghapus usulan lembur tanpa approval-nya; tersalin ke midnight). Approval absen CANCELLED tanpa absen dari `cancelOwnPunch` = jejak pembatalan, disengaja (bukan bocor).
+- **Label istirahat:** `computeOvertimeDay` (@hris/shared) tidak memasang `NO_BREAK_PUNCH` di hari tanpa jadwal (OFF / tanpa roster), karena tidak ada jatah istirahat shift. Hari kerja bershift tetap seperti TM-D7. Test shared baru.
+- Verifikasi Alpha Izin/Sakit/Tugas luar tetap dicatat + karyawan mengajukan sendiri (dikonfirmasi Mat).
