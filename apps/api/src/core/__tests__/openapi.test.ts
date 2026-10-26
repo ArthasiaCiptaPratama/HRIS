@@ -85,6 +85,14 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     });
   });
 
+  test("perintah lembur di AttendanceToday = TodayOvertimeOrder, tidak menimpa OvertimeOrder", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    expect(
+      JSON.stringify(doc.components.schemas.AttendanceToday?.properties?.overtimeOrder),
+    ).toContain("#/components/schemas/TodayOvertimeOrder");
+    expect(doc.components.schemas.OvertimeOrder?.properties).toHaveProperty("employee");
+  });
+
   test("skema inline impor karyawan tidak memakai nama MasterData milik GET /master-data", async () => {
     const doc = (await spec()) as unknown as Doc;
     expect(doc.components.schemas.EmployeeImportPreview?.properties?.masterData).toEqual({
