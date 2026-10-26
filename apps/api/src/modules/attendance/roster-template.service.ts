@@ -140,6 +140,7 @@ export async function applyRosterTemplate(
         checkOutCloseMin: 240,
         breakStartMinute: null,
         breakEndMinute: null,
+        startsNextDay: false,
         color,
       }),
     );

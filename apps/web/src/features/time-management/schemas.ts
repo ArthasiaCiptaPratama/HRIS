@@ -40,6 +40,8 @@ export const shiftSchema = z.object({
   startMinute: z.number(),
   endMinute: z.number(),
   crossesMidnight: z.boolean(),
+  /** TM-D13: mulai setelah tengah malam tanggal roster (opsional: API lama tidak mengirim). */
+  startsNextDay: z.boolean().optional(),
   checkInOpenMin: z.number(),
   lateToleranceMin: z.number(),
   earlyLeaveToleranceMin: z.number(),

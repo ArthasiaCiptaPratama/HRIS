@@ -29,6 +29,18 @@
 
 **Merge Mat 2026-10-21:** `directory.ts` tetap fasad tanpa Prisma; fungsi baru `activeGrades`, `activeLocations`, `exitedEmployees`, `exitStatusOf`, `analyticsEmployees` mendelegasikan ke `employee/index.ts` & `organization/index.ts` (dipakai `overtime.service`, `leave-exit.service`, `analytics.service`).
 
+**TM-D13 Fase A (2026-10-23, Mat):**
+- `attendance-engine.ts`:
+  - `shiftWindow`/`breakWindow` menggeser shift `startsNextDay` 24 jam.
+  - `planCheckIn(now, tz, candidates, taken)` memilih shift terbuka terdekat yang tanggal rosternya belum punya hari absen.
+  - `restShortfall`.
+- `attendance.service.ts`:
+  - `openDayTimes(…, locked)` memakai `scheduledStart/End/checkOutDeadline` hari terbuka.
+  - `checkedInAlready` per tanggal roster.
+  - `next` beranda mengikuti shift terbuka.
+  - Label `SHORT_REST` saat Clock In.
+- Kolom `shifts.starts_next_day`.
+
 **TM-D12 (2026-10-22, Mat):** `attendance-engine.ts` `breakWindow` (jam istirahat sebelum jam mulai shift = keesokan hari), `checkOutOpensAt`, `planCheckIn().offDay`; `checkOutLabels(now, normalEnd, earlyMin)` memakai pengaturan `checkOutEarlyMin` (bukan toleransi shift). `attendance.service.ts` `openDayTimes` dipakai `evaluate` & `getToday`; Mulai istirahat di luar jendela → 422; Clock In hari OFF tanpa `offDayOvertime` → 422 (`details: [{ offDay: true }]`). Kolom `shifts.break_start_minute`/`break_end_minute`.
 
 **2026-10-21 (rapi lapisan, Mat):** query lembur/upah grade/lokasi istirahat/fakta dashboard pindah ke `overtime.repository.ts`; `overtime.service.ts` & `analytics-facts.ts` tanpa `getPrisma()` (PROMPT §4). Skema respons rute lembur/upah grade/lokasi istirahat/template roster ada di `overtime.contract.ts` (merge develop 2026-10-22 menggantikan `overtime.schema.ts` milik Mat).

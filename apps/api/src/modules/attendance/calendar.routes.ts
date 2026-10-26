@@ -45,6 +45,12 @@ const settingsSchema = z
       .min(0)
       .max(240)
       .openapi({ description: "TM-D12: Clock Out normal dibuka sekian menit sebelum jam pulang" }),
+    minRestHours: z
+      .number()
+      .int()
+      .min(0)
+      .max(24)
+      .openapi({ description: "TM-D13: jeda minimal antarshift (jam); kurang → label SHORT_REST" }),
   })
   .openapi("TimeSettings");
 const idParam = z.object({ id: z.uuid() });

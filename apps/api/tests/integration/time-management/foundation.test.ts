@@ -222,6 +222,7 @@ describe("kalender libur & pengaturan", () => {
       approvalDueDays: 2,
       rosterHorizonDays: 92,
       checkOutEarlyMin: 30,
+      minRestHours: 8,
     };
     expect((await call("PUT", "/time-settings", h.hr, next)).status).toBe(403);
     expect(

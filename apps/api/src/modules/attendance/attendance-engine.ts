@@ -24,7 +24,13 @@ export interface ShiftTimes {
   lateToleranceMin: number;
   earlyLeaveToleranceMin: number;
   checkOutCloseMin: number;
+  /** TM-D13: shift mulai setelah tengah malam tanggal roster (mis. shift 3 roster 27 = 28 00:00–08:00). */
+  startsNextDay?: boolean;
 }
+
+/** TM-D13: menit dari 00:00 tanggal roster ke jam mulai shift (shift "hari berikutnya" + 24 jam). */
+const startOffset = (shift: { startMinute: number; startsNextDay?: boolean }) =>
+  (shift.startsNextDay ? 1440 : 0) + shift.startMinute;
 
 export interface ShiftWindow {
   start: Date;
@@ -33,12 +39,16 @@ export interface ShiftWindow {
   checkOutDeadline: Date;
 }
 
-/** Instan mulai/selesai shift untuk tanggal kerja (shift lintas tengah malam selesai keesokan harinya). */
+/**
+ * Instan mulai/selesai shift untuk tanggal kerja (= tanggal roster). Shift lintas tengah malam selesai keesokan
+ * harinya; TM-D13: shift "mulai hari berikutnya" digeser 24 jam (tetap tercatat di tanggal roster).
+ */
 export function shiftWindow(workDate: string, shift: ShiftTimes, timezone: string): ShiftWindow {
   const midnightUtc = Date.parse(`${workDate}T00:00:00.000Z`) - offsetMinutes(timezone) * MINUTE;
-  const start = midnightUtc + shift.startMinute * MINUTE;
-  const endDay = shift.endMinute <= shift.startMinute ? 1 : 0;
-  const end = midnightUtc + (endDay * 24 * 60 + shift.endMinute) * MINUTE;
+  const startMin = startOffset(shift);
+  const length = (shift.endMinute - shift.startMinute + 1440) % 1440 || 1440;
+  const start = midnightUtc + startMin * MINUTE;
+  const end = start + length * MINUTE;
   return {
     start: new Date(start),
     end: new Date(end),
@@ -53,13 +63,19 @@ export function shiftWindow(workDate: string, shift: ShiftTimes, timezone: strin
  */
 export function breakWindow(
   workDate: string,
-  shift: { startMinute: number; breakStartMinute: number | null; breakEndMinute: number | null },
+  shift: {
+    startMinute: number;
+    startsNextDay?: boolean;
+    breakStartMinute: number | null;
+    breakEndMinute: number | null;
+  },
   timezone: string,
 ): { opens: Date; closes: Date } | null {
   if (shift.breakStartMinute === null || shift.breakEndMinute === null) return null;
   const midnightUtc = Date.parse(`${workDate}T00:00:00.000Z`) - offsetMinutes(timezone) * MINUTE;
+  const base = shift.startsNextDay ? 1440 : 0;
   const at = (minute: number) =>
-    new Date(midnightUtc + (minute < shift.startMinute ? minute + 1440 : minute) * MINUTE);
+    new Date(midnightUtc + (base + (minute < shift.startMinute ? minute + 1440 : minute)) * MINUTE);
   const opens = at(shift.breakStartMinute);
   let closes = at(shift.breakEndMinute);
   if (closes.getTime() <= opens.getTime()) closes = new Date(closes.getTime() + 1440 * MINUTE);
@@ -86,23 +102,36 @@ export interface CheckInPlan {
 }
 
 /**
- * Absen masuk: cari hari roster (kemarin untuk shift malam, hari ini, besok) yang jendela masuknya
- * [buka absen, selesai shift] memuat `now`. Tidak ketemu → tanggal lokal hari ini + label.
+ * TM-D13: absen masuk dicocokkan ke SHIFT, bukan tanggal kalender — dari hari roster di sekitar `now`
+ * (kemarin, hari ini, besok), pilih shift yang jendela masuknya [buka absen, selesai shift] memuat `now`,
+ * belum di-Clock In (`taken`), dan jam mulainya paling dekat. Tidak ketemu → tanggal lokal hari ini + label.
  */
 export function planCheckIn(
   now: Date,
   timezone: string,
   candidates: RosterCandidate[],
+  taken: ReadonlySet<string> = new Set(),
 ): CheckInPlan {
   const t = now.getTime();
+  let best: { c: RosterCandidate & { shift: ShiftTimes }; w: ShiftWindow } | null = null;
   for (const c of candidates) {
-    if (!c.shift) continue;
+    if (!c.shift || taken.has(c.workDate)) continue;
     const w = shiftWindow(c.workDate, c.shift, timezone);
-    if (t >= w.checkInOpen.getTime() && t <= w.end.getTime()) {
-      const labels: AttendanceLabel[] = [];
-      if (t > w.start.getTime() + c.shift.lateToleranceMin * MINUTE) labels.push("LATE");
-      return { workDate: c.workDate, shift: c.shift, window: w, labels, offDay: false };
+    if (t < w.checkInOpen.getTime() || t > w.end.getTime()) continue;
+    if (!best || Math.abs(t - w.start.getTime()) < Math.abs(t - best.w.start.getTime())) {
+      best = { c: c as RosterCandidate & { shift: ShiftTimes }, w };
     }
+  }
+  if (best) {
+    const labels: AttendanceLabel[] = [];
+    if (t > best.w.start.getTime() + best.c.shift.lateToleranceMin * MINUTE) labels.push("LATE");
+    return {
+      workDate: best.c.workDate,
+      shift: best.c.shift,
+      window: best.w,
+      labels,
+      offDay: false,
+    };
   }
   const today = localDate(now, timezone);
   const todayRoster = candidates.find((c) => c.workDate === today);
@@ -221,4 +250,23 @@ export function checkGeofence(
     inside: false,
     labels: [...labels, "OUTSIDE_RADIUS"],
   };
+}
+
+/** TM-D13: Clock In kurang dari `minRestHours` sejak Clock Out terakhir (tidak ditolak) → jeda antarshift kurang. */
+export function restShortfall(
+  days: { punches: { kind: string; at: Date; status: string }[] }[],
+  now: Date,
+  minRestHours: number,
+): boolean {
+  if (minRestHours <= 0) return false;
+  const t = now.getTime();
+  const lastOut = Math.max(
+    0,
+    ...days.flatMap((d) =>
+      d.punches
+        .filter((p) => p.kind === "OUT" && p.status !== "REJECTED" && p.at.getTime() <= t)
+        .map((p) => p.at.getTime()),
+    ),
+  );
+  return lastOut > 0 && t - lastOut < minRestHours * 60 * MINUTE;
 }

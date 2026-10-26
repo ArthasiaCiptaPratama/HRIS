@@ -175,7 +175,11 @@ function ShiftTab({ companyId }: { companyId: string }) {
               </div>
               <p className="mt-2 text-sm tabular-nums">
                 {hhmm(s.startMinute)}–{hhmm(s.endMinute)}
-                {s.crossesMidnight ? (
+                {s.startsNextDay ? (
+                  <Badge variant="muted" className="ml-2">
+                    malam setelah tanggal roster
+                  </Badge>
+                ) : s.crossesMidnight ? (
                   <Badge variant="muted" className="ml-2">
                     lintas tengah malam
                   </Badge>
@@ -352,6 +356,7 @@ function ShiftDialog({
     checkOutCloseMin: shift?.checkOutCloseMin ?? 240,
     breakMin: shift?.breakMin ?? 0,
     breakPaid: shift?.breakPaid ?? false,
+    startsNextDay: shift?.startsNextDay ?? false,
     breakStart: shift?.breakStartMinute != null ? hhmm(shift.breakStartMinute) : "",
     breakEnd: shift?.breakEndMinute != null ? hhmm(shift.breakEndMinute) : "",
     regularOvertimeMin: shift?.regularOvertimeMin ?? 0,
@@ -395,6 +400,7 @@ function ShiftDialog({
           checkOutCloseMin: Number(form.checkOutCloseMin),
           breakMin: Number(form.breakMin),
           breakPaid: form.breakPaid,
+          startsNextDay: form.startsNextDay,
           breakStartMinute,
           breakEndMinute,
           regularOvertimeMin: Number(form.regularOvertimeMin),
@@ -479,6 +485,18 @@ function ShiftDialog({
           >
             {num("regularOvertimeMin")}
           </Field>
+          <label className="col-span-2 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4"
+              checked={form.startsNextDay}
+              onChange={(e) => set("startsNextDay", e.target.checked)}
+            />
+            <span>
+              Mulai setelah tengah malam: shift ini dijalani malam setelah tanggal roster (mis.
+              shift 3 roster tgl 27 = 28 pukul 00.00–08.00), tetap tercatat di tanggal roster.
+            </span>
+          </label>
           <label className="col-span-2 flex items-start gap-2 text-sm">
             <input
               type="checkbox"

@@ -45,6 +45,7 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
+import { RefreshButton } from "../components/refresh-button";
 import { RosterWeek } from "../components/roster-week";
 import { SelfieThumb } from "../components/selfie-thumb";
 import { type LeaveRequest, useLeaveRequests } from "../leave-api";
@@ -405,20 +406,23 @@ export function MobileApprovalsPage() {
   const leaveRows = leave.data ?? [];
   return (
     <>
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "absen" | "cuti")}>
-        <TabsList className="w-full">
-          {canDays ? (
-            <TabsTrigger value="absen" className="flex-1">
-              Absen {dayRows.length ? `(${dayRows.length})` : ""}
-            </TabsTrigger>
-          ) : null}
-          {canLeave ? (
-            <TabsTrigger value="cuti" className="flex-1">
-              Cuti/Izin {leaveRows.length ? `(${leaveRows.length})` : ""}
-            </TabsTrigger>
-          ) : null}
-        </TabsList>
-      </Tabs>
+      <div className="flex items-center gap-2">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "absen" | "cuti")} className="flex-1">
+          <TabsList className="w-full">
+            {canDays ? (
+              <TabsTrigger value="absen" className="flex-1">
+                Absen {dayRows.length ? `(${dayRows.length})` : ""}
+              </TabsTrigger>
+            ) : null}
+            {canLeave ? (
+              <TabsTrigger value="cuti" className="flex-1">
+                Cuti/Izin {leaveRows.length ? `(${leaveRows.length})` : ""}
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
+        </Tabs>
+        <RefreshButton compact />
+      </div>
       {tab === "absen" ? (
         days.isPending ? (
           <Skeleton className="h-60 rounded-2xl" />
@@ -542,6 +546,7 @@ export function MobileProfilePage() {
   const roleText: Record<string, string> = {
     SUPER_ADMIN: "Super Admin",
     HR_ADMIN: "HR Admin",
+    HR_PERSONNEL: "HR Kepegawaian",
     MANAGER: "Manager",
     EMPLOYEE: "Karyawan",
   };

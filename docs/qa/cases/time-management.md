@@ -1,6 +1,6 @@
 # Kasus Uji — Time Management & Dashboard Analitik
 
-Aturan: keputusan fitur TM-D6–TM-D12 (`docs/features/time-management/`) dan DSB-D1 (`docs/features/dashboard/`).
+Aturan: keputusan fitur TM-D6–TM-D13 (`docs/features/time-management/`) dan DSB-D1 (`docs/features/dashboard/`).
 Data uji: `bun run db:seed:time -- --demo --accounts`, lalu `DEV_ACCOUNT_PASSWORD=… bun run db:seed:qa` (khusus lokal).
 Kolom **Otomasi** = test yang sudah menutup aturan itu; "manual" = hanya lewat browser.
 
@@ -37,6 +37,11 @@ Kolom **Otomasi** = test yang sudah menutup aturan itu; "manual" = hanya lewat b
 | TC-TM-034 | P1 | TM-D12 lembur hari libur | EMPLOYEE → MANAGER/HR | TC-TM-033 | Lembur hari libur → isi alasan → Clock In, lalu Clock Out | Diterima berlabel Di luar jadwal roster; usulan lembur tipe Hari OFF | apps/api/tests/integration/time-management/punch-window.test.ts (Clock In); usulan Hari OFF manual |
 | TC-TM-035 | P2 | TM-D12 master shift jam istirahat | SA / HR PT | — | Tambah shift: istirahat 18.00–19.00 untuk shift 08–17; lalu hanya isi jam mulai; lalu 12.00–13.00 | Dua yang pertama ditolak; terakhir tersimpan, jatah istirahat otomatis 60 mnt | apps/api/tests/integration/time-management/punch-window.test.ts |
 | TC-TM-036 | P3 | TM-D12 pengaturan Clock Out dibuka | SA | — | Time › Pengaturan: ubah "Clock Out dibuka" ke 15 | Tersimpan; tombol Pulang biasa muncul 15 menit sebelum jam pulang | manual (simpan: apps/api/tests/integration/time-management/foundation.test.ts) |
+| TC-TM-037 | P1 | TM-D13 shift 3 malam setelah tanggal roster | EMPLOYEE (3 shift) | Master shift 3 00:00–08:00 dicentang "Mulai setelah tengah malam"; roster tgl X = shift 3 | Clock In pukul 23.50 tgl X, Clock Out 08.05 tgl X+1 | Satu hari absen bertanggal kerja X; tgl X tidak Alpha | apps/api/tests/integration/time-management/shift-instance.test.ts |
+| TC-TM-038 | P1 | TM-D13 dua shift di tanggal kalender sama | EMPLOYEE | TC-TM-037; roster X+1 = shift 2 16:00–24:00 | Clock In 15.45 tgl X+1 | Tercatat tanggal kerja X+1 (bukan ditolak "sudah Clock In hari ini") | apps/api/tests/integration/time-management/shift-instance.test.ts |
+| TC-TM-039 | P2 | TM-D13 jeda antarshift < 8 jam | EMPLOYEE → MANAGER | TC-TM-038 | Clock In tanpa alasan, lalu dengan alasan | Tanpa alasan ditolak; dengan alasan berlabel "Jeda antarshift kurang" | apps/api/tests/integration/time-management/shift-instance.test.ts |
+| TC-TM-040 | P2 | TM-D13 jadwal terkunci saat tap-in | HR → EMPLOYEE | Karyawan sedang shift 2 | HR ubah jam selesai shift 2 di master; karyawan lihat tombol Pulang | Batas Clock Out tetap dari jadwal saat tap-in | apps/api/tests/integration/time-management/shift-instance.test.ts |
+| TC-TM-041 | P3 | TM-D13 pengaturan jeda | SA | — | Time › Pengaturan: ubah "Jeda minimal antarshift" ke 10 | Tersimpan; Clock In < 10 jam setelah Clock Out berlabel jeda kurang | manual (simpan: apps/api/tests/integration/time-management/foundation.test.ts) |
 | TC-DSB-001 | P1 | DSB-D1 akses analitik | EMPLOYEE | — | Buka Dashboard | Widget analitik tidak ada; API /dashboard/analytics 403 | apps/api/tests/integration/analytics/dashboard-analytics.test.ts |
 | TC-DSB-002 | P1 | DSB-D1 biaya & liabilitas hanya dengan grant | hr.lokal vs hr.biaya | — | Dashboard → widget Biaya tenaga kerja & Liabilitas pesangon | hr.biaya: angka rupiah + pilihan skenario. hr.lokal: widget biaya tidak tersedia | apps/api/tests/integration/analytics/dashboard-analytics.test.ts |
 | TC-DSB-003 | P1 | DSB-D1 proyeksi pensiun butuh data pribadi | hr.lokal vs hr.biaya | — | Widget Proyeksi | hr.biaya/SA: hitungan pensiun terisi; hr.lokal: pensiun tidak dihitung | apps/api/tests/integration/analytics/dashboard-analytics.test.ts |

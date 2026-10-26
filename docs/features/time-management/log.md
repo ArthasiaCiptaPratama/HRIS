@@ -129,3 +129,31 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Staf 5,7+1,5 jt, Staf Senior 8+2 jt, Supervisor 14+4 jt, Manajer 30+8 jt, Direktur 100+25 jt.
   - Jabatan demo disesuaikan: Rina Administrasi, Joko Checker Jetty, Dimas Helper Bor, Sari GA Staff, Budi Operations Manager (Manajer).
   - Ikut `db:seed:acceptance`.
+
+## 2026-10-22 — Switcher akun uji per tab & tombol Muat ulang persetujuan — Mat
+
+- **Switcher akun uji (dev saja)** di panel "DB · Lokal":
+  - Sekali klik masuk sebagai akun `@arthasia.test` tanpa password, satu akun per tab.
+  - Pengaman: hanya `NODE_ENV=development`, DB & Auth lokal, akun uji aktif.
+  - Rincian: skill `hris-db-switch`.
+  - Panel DB tidak lagi terpotong di tepi kanan.
+- **Tombol Muat ulang** di halaman persetujuan: Lembur, Data Absen Harian, Persetujuan Cuti, dan Approval HP. Mengambil ulang antrean tanpa memuat ulang halaman (`components/refresh-button.tsx`).
+
+## 2026-10-23 — TM-D13 Fase A: absen per shift — Mat
+
+- Masalah dari pemilik projek: shift 3 roster tgl 27 (00:00–08:00) lalu shift 2 roster 28 (16:00–24:00) → absen jatuh ke tgl 28, tgl 27 Alpha.
+  - Akar masalah: pencocokan Clock In memakai tanggal kalender, plus aturan sekali Clock In per tanggal kalender.
+- Keputusan grill:
+  - Shift 3 = malam setelah tanggal roster.
+  - Tap-out ikut shift yang di-tap-in.
+  - Jeda < 8 jam ditandai.
+  - Alpha → notif + verifikasi atasan (Fase B).
+- Kode:
+  - Engine: `startsNextDay` di `shiftWindow`/`breakWindow`, `planCheckIn(…, taken)` memilih shift terdekat yang belum di-Clock In, `restShortfall`.
+  - Service: `openDayTimes(…, locked)` memakai jadwal tersimpan; `checkedInAlready` per tanggal roster; `next` beranda per shift.
+  - Kolom `shifts.starts_next_day`; label `SHORT_REST`; pengaturan `minRestHours`.
+  - Web: master shift & pengaturan.
+- Test:
+  - `__tests__/shift-instance.test.ts` (engine, kasus 27→28, shift 3 dua malam, jendela tumpang tindih, jeda).
+  - `tests/integration/time-management/shift-instance.test.ts` (service asli dengan jam terkontrol: tap-in 23:50, tap-out 08:05, tap-in 15:45 + SHORT_REST, tanpa Alpha, jadwal terkunci walau master diubah).
+- Kontrak API berubah: `Shift.startsNextDay`, `TimeSettings.minRestHours`, label `SHORT_REST`. Path & operationId tetap. **Kabari tim mobile.**

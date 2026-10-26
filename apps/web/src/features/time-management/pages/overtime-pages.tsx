@@ -33,6 +33,7 @@ import { formatRupiah } from "@/lib/format";
 import { tmAccess } from "../access";
 import { useDecideApproval, useTimezone } from "../api";
 import { StepBadge, timeIn, todayIn, workDateLabel } from "../components/display";
+import { RefreshButton } from "../components/refresh-button";
 import {
   type GradeWage,
   type Overtime,
@@ -82,16 +83,19 @@ export function OvertimePage() {
         title="Lembur"
         description="Usulan lembur dibuat otomatis dari absen: kelebihan jam di luar jadwal dikurangi telat & istirahat lebih, diakui bila ≥ 60 menit lalu dibulatkan ke atas per 30 menit. Disetujui Atasan dan HR."
         actions={
-          companies.length > 1 && decider ? (
-            <FormSelect
-              aria-label="Perusahaan"
-              className="h-9 w-56"
-              value={companyId}
-              onChange={setCompanyId}
-              placeholder="Perusahaan"
-              options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
-            />
-          ) : null
+          <div className="flex items-center gap-2">
+            {companies.length > 1 && decider ? (
+              <FormSelect
+                aria-label="Perusahaan"
+                className="h-9 w-56"
+                value={companyId}
+                onChange={setCompanyId}
+                placeholder="Perusahaan"
+                options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
+              />
+            ) : null}
+            {decider ? <RefreshButton /> : null}
+          </div>
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">
