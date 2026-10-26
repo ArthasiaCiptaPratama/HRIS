@@ -21,7 +21,7 @@
 | [kontrak](features/kontrak/README.md) | 7 | – | – | Belum mulai | – |
 | [payroll](features/payroll/README.md) | 8 | – | – | Belum mulai (OD-1–OD-3) | – |
 | [hardening](features/hardening/README.md) | 9 | – | – | Belum mulai | – |
-| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — MOB-D1–D19; BE tahap 1–3 (versi minimum, push FCM, 87 operasi TM/Cuti bertipe, punch app, target notifikasi) + `operationId` ✔ develop 2026-10-21; kontrak M2 (`Idempotency-Key` di spec punch, tanggal input string+pola MOB-D19) ✔ develop 2026-10-22; app M0–M1 ✔, M2 Absen berjalan (sisa uji ke API staging) | ✔ BE gel. 13 |
+| [mobile](features/mobile/README.md) | – | Oatse | BE `HRIS/mobile-app` (worktree `HRIS-mobile`); app repo `Arthasia-Mobile` | Berjalan — MOB-D1–D19; BE tahap 1–3 (versi minimum, push FCM, 87 operasi TM/Cuti bertipe, punch app, target notifikasi) + `operationId` ✔ develop 2026-10-21; kontrak M2 (`Idempotency-Key` di spec punch, tanggal input string+pola MOB-D19) ✔ develop 2026-10-22; app M0–M2 ✔ (M2 teruji di staging 2026-10-26), M3 Jadwal berjalan — kontrak & aturan roster M3 (`/me.employeeCompanyId`, `operationId` roster/shift/crew, skema `EmployeeRosterDay`, cek hari terkunci di tukar shift) ✔ develop 2026-10-26 | ✔ BE gel. 13 |
 
 Fase (PLAN §7) → fitur: 0–1 fondasi · 2 iam · 3 organisasi · 4 karyawan, import, onboarding, arsip, dashboard · 5–6 time-management · 7 kontrak · 8 payroll · 9 hardening · Rilis 1–3 → [RELEASE.md](RELEASE.md).
 
@@ -111,6 +111,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-26** — Gabung `HRIS/mobile-app` `ce579f8` (kontrak & aturan roster app M3) ke develop; konflik hanya dokumen (RELEASE #63 → #65, codemap). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-10-26** — Grill shift (serah-terima `HRIS-rilis`) → TM-D14–D18; gabung Mat `8d3fd76` (`9796376`, di-push); implementasi patokan Clock In shift berjalan, batas absen pulang 30 menit + pengingat +15, perintah lembur SPL (migrasi `overtime_orders`); shared 339 · api 981 · web 325. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-26** — Cek aktual (staging gel. 13 ✔ 43 migrasi, health/OpenAPI ✔); gabung `HRIS/Mat/Mac` (IAM-D1 role HR Kepegawaian, TM-D13 fase A absen per shift, tombol muat ulang, switcher akun uji dev; 2 migrasi) → develop `d3c1ebc`; shared 335 · api 928 · web 323, simulasi CI DB kosong ✔; PLAN §4.1/§4.3/§8 diperbarui. (Oatse) → [time-management/log](features/time-management/log.md), [iam/log](features/iam/log.md)
 - **2026-10-22** — Gabung `HRIS/Mat/Mac` (4 commit s.d. `f341027`: query lembur & hak cuti keluar lewat repository + OpenAPI bertipe rute baru, TM-D12 batas Clock Out/jendela istirahat/hari OFF, seed UAT Rina) → develop `9b43cc8`; migrasi `20261022030522_shift_break_window` (kolom nullable); simulasi CI DB kosong api 904 lulus. (Oatse) → [time-management/log](features/time-management/log.md)

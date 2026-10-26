@@ -47,7 +47,10 @@ export async function touchLastLogin(accountId: string, at: Date) {
   return getPrisma().account.update({
     where: { id: accountId },
     data: { lastLoginAt: at },
-    include: { ...activeGrantsInclude(at), employee: { select: { fullName: true } } },
+    include: {
+      ...activeGrantsInclude(at),
+      employee: { select: { fullName: true, companyId: true } },
+    },
   });
 }
 

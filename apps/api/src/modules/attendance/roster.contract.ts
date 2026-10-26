@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { HOLIDAY_KINDS, ROSTER_CHANGE_STATUSES, ROSTER_SOURCES } from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import { approvalViewSchema } from "../approval/index.ts";
 import { shiftSchema } from "./attendance.contract.ts";
@@ -67,7 +68,9 @@ export const rosterGridSchema = z
     month: z.string(),
     companyId: z.uuid(),
     dates: z.array(z.iso.date()),
-    holidays: z.array(z.object({ date: z.iso.date(), name: z.string(), kind: z.string() })),
+    holidays: z.array(
+      z.object({ date: z.iso.date(), name: z.string(), kind: z.enum(HOLIDAY_KINDS) }),
+    ),
     shifts: z.array(shiftSchema),
     employees: z.array(
       z.object({
@@ -82,7 +85,7 @@ export const rosterGridSchema = z
         employeeId: z.uuid(),
         date: z.iso.date(),
         code: z.string(),
-        source: z.string(),
+        source: z.enum(ROSTER_SOURCES),
       }),
     ),
     canEdit: z.boolean(),
@@ -90,16 +93,16 @@ export const rosterGridSchema = z
   .openapi("RosterGrid");
 assertExact<z.infer<typeof rosterGridSchema>, service.RosterGrid>(true);
 
-export const employeeRosterSchema = z
-  .array(
-    z.object({
-      date: z.iso.date(),
-      code: z.string(),
-      shift: nullableRef(shiftSchema),
-      source: z.enum(["PATTERN", "MANUAL", "IMPORT", "CHANGE"]),
-    }),
-  )
-  .openapi("EmployeeRoster");
+// Item bernama: tanpa ini codegen app menamai item-nya "EmployeeRoster" & membuat `data` objek tunggal.
+export const employeeRosterDaySchema = z
+  .object({
+    date: z.iso.date(),
+    code: z.string(),
+    shift: nullableRef(shiftSchema),
+    source: z.enum(ROSTER_SOURCES),
+  })
+  .openapi("EmployeeRosterDay");
+export const employeeRosterSchema = z.array(employeeRosterDaySchema).openapi("EmployeeRoster");
 assertExact<
   z.infer<typeof employeeRosterSchema>,
   Awaited<ReturnType<typeof service.getEmployeeRoster>>
@@ -149,7 +152,7 @@ export const rosterChangeSchema = z
     fromCode: z.string(),
     toCode: z.string(),
     reason: z.string(),
-    status: z.string(),
+    status: z.enum(ROSTER_CHANGE_STATUSES),
     createdAt: z.iso.datetime(),
     approval: nullableRef(approvalViewSchema),
     awaitingMyConsent: z.boolean(),
