@@ -141,6 +141,9 @@ export const rosterTemplateResultSchema = z
         ),
       }),
     ),
+    restWarnings: z
+      .array(z.string())
+      .openapi({ description: "TM-D13: jeda antarshift di pola < pengaturan (peringatan)" }),
   })
   .openapi("OvertimeRosterTemplateResult");
 assertExact<z.infer<typeof rosterTemplateResultSchema>, RosterTemplateResult>(true);

@@ -10,6 +10,8 @@ export interface RosterWeekDay {
   date: string;
   code: string;
   shift: Shift | null;
+  /** TM-D13 Fase C: jadwal hari ini diubah baru-baru ini (tukar shift / HR). */
+  changed?: boolean | undefined;
 }
 
 export function RosterWeek({
@@ -37,8 +39,9 @@ export function RosterWeek({
           return (
             <li
               key={date}
+              title={day?.changed ? "Jadwal berubah" : undefined}
               className={cn(
-                "flex min-w-0 flex-col items-center rounded-lg border px-0.5 py-1.5 text-center",
+                "relative flex min-w-0 flex-col items-center rounded-lg border px-0.5 py-1.5 text-center",
                 off && "bg-muted text-muted-foreground border-transparent",
                 !day && "border-dashed",
                 isToday && "border-brand bg-brand-soft/60 border-2",
@@ -65,6 +68,11 @@ export function RosterWeek({
               >
                 {day ? day.code : "—"}
               </span>
+              {day?.changed ? (
+                <span className="absolute -top-1 -right-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-white dark:ring-neutral-900">
+                  <span className="sr-only">Jadwal berubah</span>
+                </span>
+              ) : null}
               {day?.shift ? (
                 <span className="text-muted-foreground mt-1 hidden text-[9px] leading-none tabular-nums sm:block">
                   {hhmm(day.shift.startMinute)}
@@ -90,6 +98,11 @@ export function RosterWeek({
           <span className="flex items-center gap-1">
             <span className="font-mono font-bold">OFF</span> Libur
           </span>
+          {roster.some((r) => r.changed) ? (
+            <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
+              <span className="size-2 rounded-full bg-amber-500" /> Jadwal berubah
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -34,6 +34,7 @@ import {
   useHolidays,
   useMyHistory,
 } from "../api";
+import { AlphaVerificationList, useAlphaInbox } from "../components/alpha-verification-list";
 import {
   addDays,
   CoordLink,
@@ -398,7 +399,9 @@ export function MobileApprovalsPage() {
   const { me, tz } = useMobileApp();
   const canDays = tmAccess.reviewDays(me);
   const canLeave = tmAccess.decideLeave(me);
-  const [tab, setTab] = useState<"absen" | "cuti">(canDays ? "absen" : "cuti");
+  const canAlpha = tmAccess.verifyAlpha(me);
+  const [tab, setTab] = useState<"absen" | "cuti" | "alpha">(canDays ? "absen" : "cuti");
+  const alphaCount = useAlphaInbox(canAlpha).data?.length ?? 0;
   const today = todayIn(tz);
   const days = useAttendanceDays({ scope: "inbox", from: addDays(today, -60), to: today }, canDays);
   const leave = useLeaveRequests({ scope: "inbox" }, canLeave);
@@ -407,7 +410,11 @@ export function MobileApprovalsPage() {
   return (
     <>
       <div className="flex items-center gap-2">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "absen" | "cuti")} className="flex-1">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as "absen" | "cuti" | "alpha")}
+          className="flex-1"
+        >
           <TabsList className="w-full">
             {canDays ? (
               <TabsTrigger value="absen" className="flex-1">
@@ -419,11 +426,18 @@ export function MobileApprovalsPage() {
                 Cuti/Izin {leaveRows.length ? `(${leaveRows.length})` : ""}
               </TabsTrigger>
             ) : null}
+            {canAlpha ? (
+              <TabsTrigger value="alpha" className="flex-1">
+                Alpha {alphaCount ? `(${alphaCount})` : ""}
+              </TabsTrigger>
+            ) : null}
           </TabsList>
         </Tabs>
         <RefreshButton compact />
       </div>
-      {tab === "absen" ? (
+      {tab === "alpha" ? (
+        <AlphaVerificationList enabled={canAlpha} />
+      ) : tab === "absen" ? (
         days.isPending ? (
           <Skeleton className="h-60 rounded-2xl" />
         ) : dayRows.length === 0 ? (

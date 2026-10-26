@@ -368,6 +368,8 @@ export const TM_NOTIFICATION_TARGETS = [
   "LEAVE_REQUEST",
   "OVERTIME",
   "APPROVAL_QUEUE",
+  // TM-D13 Fase C: jadwal berubah → layar Roster Saya (id = tanggal YYYY-MM-DD pertama yang berubah).
+  "ROSTER",
 ] as const;
 export type TmNotificationTarget = (typeof TM_NOTIFICATION_TARGETS)[number];
 
@@ -702,3 +704,22 @@ export const CORRECTION_STATUS_LABELS = {
   REJECTED: "Ditolak",
   CANCELLED: "Dibatalkan",
 } as const;
+
+// ── TM-D13 Fase B: verifikasi atasan atas Alpha (tidak absen) ────────────────────
+/** Pilihan atasan. Izin/Sakit/Tugas luar → karyawan mengajukan izin/sakit/koreksi (diputus HR). */
+export const ALPHA_VERIFICATION_OUTCOMES = ["CONFIRMED", "PERMIT", "SICK", "DUTY"] as const;
+export type AlphaVerificationOutcome = (typeof ALPHA_VERIFICATION_OUTCOMES)[number];
+export const ALPHA_VERIFICATION_STATES = ["PENDING", ...ALPHA_VERIFICATION_OUTCOMES] as const;
+export type AlphaVerificationState = (typeof ALPHA_VERIFICATION_STATES)[number];
+export const ALPHA_VERIFICATION_LABELS: Record<AlphaVerificationState, string> = {
+  PENDING: "Menunggu verifikasi atasan",
+  CONFIRMED: "Alpha dikonfirmasi",
+  PERMIT: "Izin",
+  SICK: "Sakit",
+  DUTY: "Tugas luar / dinas",
+};
+export const alphaVerificationInputSchema = z.object({
+  outcome: z.enum(ALPHA_VERIFICATION_OUTCOMES),
+  note: z.string().trim().min(3, "Catatan minimal 3 karakter").max(300),
+});
+export type AlphaVerificationInput = z.infer<typeof alphaVerificationInputSchema>;

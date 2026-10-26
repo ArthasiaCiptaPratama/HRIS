@@ -7,6 +7,7 @@ import {
   type OvertimeDayInput,
   overtimeEquivalentHours,
   overtimePay,
+  patternRestWarnings,
   recognizeOvertimeMinutes,
 } from "../src/index.ts";
 
@@ -145,6 +146,20 @@ describe("hitung lembur satu hari", () => {
     expect(r.proposedMin).toBe(60);
   });
 
+  test("lembur hari OFF di lokasi wajib istirahat tanpa absen istirahat → tanpa label NO_BREAK_PUNCH", () => {
+    const r = computeOvertimeDay({
+      ...office,
+      dayType: "OFF_DAY",
+      scheduledStart: null,
+      scheduledEnd: null,
+      breakStart: null,
+      breakEnd: null,
+      checkIn: at("08:00"),
+      checkOut: at("13:00"),
+    });
+    expect(r.breakLabels).toEqual([]);
+  });
+
   test("JT pulang tepat: lembur rutin 60 menit (1,5 jam setara), tanpa usulan", () => {
     const r = computeOvertimeDay(jt);
     expect(r.regularMin).toBe(60);
@@ -223,5 +238,29 @@ describe("pola & rupiah", () => {
     expect(formatMinutes(90)).toBe("1 jam 30 menit");
     expect(formatMinutes(45)).toBe("45 menit");
     expect(formatMinutes(120)).toBe("2 jam");
+  });
+});
+
+describe("patternRestWarnings (TM-D13 Fase D)", () => {
+  const S1 = { code: "S1", startMinute: 480, endMinute: 960 };
+  const S2 = { code: "S2", startMinute: 960, endMinute: 0 };
+  const S3 = { code: "S3", startMinute: 0, endMinute: 480, startsNextDay: true };
+  test("pola 2-2-2 + 2 OFF aman (jeda ≥ 16 jam)", () => {
+    expect(
+      patternRestWarnings(["S1", "S1", "S2", "S2", "S3", "S3", "OFF", "OFF"], [S1, S2, S3], 8),
+    ).toEqual([]);
+  });
+  test("S2 lalu S1 keesokan hari hanya 8 jam → aman di 8, kurang di 10", () => {
+    expect(patternRestWarnings(["S2", "S1"], [S1, S2], 8)).toEqual([]);
+    expect(patternRestWarnings(["S2", "S1"], [S1, S2], 10)).toEqual([
+      { index: 0, from: "S2", to: "S1", restHours: 8 },
+    ]);
+  });
+  test("malam (tanpa tanda hari berikutnya) 23–07 lalu pagi 07–15 → 0 jam", () => {
+    const night = { code: "N", startMinute: 1380, endMinute: 420 };
+    const day = { code: "D", startMinute: 420, endMinute: 900 };
+    expect(patternRestWarnings(["N", "D", "OFF"], [night, day], 8)).toEqual([
+      { index: 0, from: "N", to: "D", restHours: 0 },
+    ]);
   });
 });

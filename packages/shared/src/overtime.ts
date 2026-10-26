@@ -160,8 +160,10 @@ export function computeOvertimeDay(input: OvertimeDayInput): OvertimeDayResult {
       ? minutesBetween(input.breakStart, input.breakEnd)
       : null;
   const breakLabels: BreakLabel[] = [];
-  if (input.breakRequired && breakActual === null) breakLabels.push("NO_BREAK_PUNCH");
   const hasSchedule = input.scheduledStart !== null && input.scheduledEnd !== null;
+  // Hari OFF / tanpa jadwal tidak punya jatah istirahat shift → tidak wajib absen istirahat (UAT 2026-10-22).
+  if (input.breakRequired && hasSchedule && breakActual === null)
+    breakLabels.push("NO_BREAK_PUNCH");
   const breakOverMin =
     breakActual !== null && hasSchedule ? Math.max(0, breakActual - input.breakMin) : 0;
   if (breakOverMin > 0) breakLabels.push("BREAK_OVER");
@@ -302,12 +304,13 @@ export type BreakLocationsInput = z.infer<typeof breakLocationsInputSchema>;
  * Template roster siap pakai (TM-D8): JT (Jetty & Loading, 3 shift rotasi 6+1), 13+1 (13 kerja + 1 OFF,
  * 7 j normal + 1 j lembur rutin seperti JT), 5+2 (Senin–Jumat 08–17, istirahat 1 j tidak dibayar).
  */
-export const ROSTER_TEMPLATES = ["JT", "ROT_13_1", "WEEK_5_2"] as const;
+export const ROSTER_TEMPLATES = ["JT", "ROT_13_1", "WEEK_5_2", "SHIFT_3X8"] as const;
 export type RosterTemplate = (typeof ROSTER_TEMPLATES)[number];
 export const ROSTER_TEMPLATE_LABELS: Record<RosterTemplate, string> = {
   JT: "JT — Jetty & Loading (3 shift, 6+1 rotasi)",
   ROT_13_1: "13+1 — 13 hari kerja, 1 OFF",
   WEEK_5_2: "5+2 — Senin–Jumat 08.00–17.00",
+  SHIFT_3X8: "3 shift × 8 jam — 08–16 / 16–24 / 24–08 (2-2-2 + 2 OFF, 4 crew)",
 };
 export const rosterTemplateInputSchema = z.object({
   template: z.enum(ROSTER_TEMPLATES),
@@ -317,3 +320,46 @@ export const rosterTemplateInputSchema = z.object({
   cycleStartDate: z.iso.date(),
 });
 export type RosterTemplateInput = z.infer<typeof rosterTemplateInputSchema>;
+
+/**
+ * TM-D13 Fase D: jeda antarshift di dalam pola (berurutan & melingkar). Menit dari 00:00 tanggal roster;
+ * shift `startsNextDay` mulai +24 jam. Kembalikan pasangan langkah yang jedanya < `minRestHours`.
+ */
+export function patternRestWarnings(
+  steps: readonly string[],
+  shifts: readonly {
+    code: string;
+    startMinute: number;
+    endMinute: number;
+    startsNextDay?: boolean;
+  }[],
+  minRestHours: number,
+  offCode = "OFF",
+): { index: number; from: string; to: string; restHours: number }[] {
+  if (minRestHours <= 0 || steps.length < 2) return [];
+  const byCode = new Map(shifts.map((s) => [s.code, s]));
+  const span = (code: string) => {
+    const s = code === offCode ? undefined : byCode.get(code);
+    if (!s) return null;
+    const start = (s.startsNextDay ? 1440 : 0) + s.startMinute;
+    const length = (s.endMinute - s.startMinute + 1440) % 1440 || 1440;
+    return { start, end: start + length };
+  };
+  const warnings: { index: number; from: string; to: string; restHours: number }[] = [];
+  steps.forEach((code, index) => {
+    const nextCode = steps[(index + 1) % steps.length] as string;
+    const a = span(code);
+    const b = span(nextCode);
+    if (!a || !b) return;
+    const rest = 1440 + b.start - a.end;
+    if (rest < minRestHours * 60) {
+      warnings.push({
+        index,
+        from: code,
+        to: nextCode,
+        restHours: Math.round((rest / 60) * 10) / 10,
+      });
+    }
+  });
+  return warnings;
+}

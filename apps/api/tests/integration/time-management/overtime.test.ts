@@ -9,6 +9,7 @@ import {
   overtimeSummarySchema,
   overtimeViewSchema,
 } from "../../../src/modules/attendance/overtime.contract.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -205,8 +206,7 @@ afterAll(async () => {
       ],
     },
   });
-  await prisma.overtimeRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crew.deleteMany({ where: { companyId: ids.company2 } });
   await prisma.rosterPattern.deleteMany({ where: { companyId: ids.company2 } });
@@ -508,6 +508,30 @@ describe("template roster JT (TM-D8)", () => {
     ]);
     expect(week.pattern.steps).toEqual(["K52", "K52", "K52", "K52", "K52", "OFF", "OFF"]);
     expect(week.crews[0]?.cycleStartDate).toBe("2026-11-02");
+  });
+
+  test("template 3 shift × 8 jam (TM-D13): S3 malam setelah tanggal roster, 4 crew, jeda aman", async () => {
+    const out = await data<{
+      shifts: { code: string; startsNextDay: boolean; startMinute: number; endMinute: number }[];
+      pattern: { steps: string[] };
+      crews: { name: string }[];
+      restWarnings: string[];
+    }>(
+      await call("POST", "/roster/templates", h.hrCost, {
+        companyId: ids.company2,
+        workLocationId: ids.location,
+        template: "SHIFT_3X8",
+        cycleStartDate: "2026-11-04",
+      }),
+    );
+    expect(out.shifts).toMatchObject([
+      { code: "S1", startsNextDay: false, startMinute: 480, endMinute: 960 },
+      { code: "S2", startsNextDay: false, startMinute: 960, endMinute: 0 },
+      { code: "S3", startsNextDay: true, startMinute: 0, endMinute: 480 },
+    ]);
+    expect(out.pattern.steps).toEqual(["S1", "S1", "S2", "S2", "S3", "S3", "OFF", "OFF"]);
+    expect(out.crews).toHaveLength(4);
+    expect(out.restWarnings).toEqual([]);
   });
 });
 

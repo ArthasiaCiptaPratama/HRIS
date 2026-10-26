@@ -18,6 +18,7 @@ import * as policy from "./attendance.policy.ts";
 import { type RequestContext, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import * as repository from "./roster.repository.ts";
+import { notifyRosterChangeRejected, notifyRosterChanges } from "./roster-notify.service.ts";
 
 // Tahap B — perubahan / tukar shift (D-069): rekan yang ditukar setuju dulu, lalu MANAGER + HR paralel.
 
@@ -235,9 +236,9 @@ export function registerRosterChangeHandler() {
     const row = await repository.findChange(event.subjectId, tx);
     if (!row) return;
     if (event.status !== "APPROVED") {
-      await repository.updateChange(tx, row.id, {
-        status: event.status === "CANCELLED" ? "CANCELLED" : "REJECTED",
-      });
+      const status = event.status === "CANCELLED" ? "CANCELLED" : "REJECTED";
+      await repository.updateChange(tx, row.id, { status });
+      await notifyRosterChangeRejected(row.employeeId, toIso(row.workDate), status);
       return;
     }
     await repository.upsertDay(tx, row.employeeId, row.workDate, {
@@ -251,5 +252,26 @@ export function registerRosterChangeHandler() {
       });
     }
     await repository.updateChange(tx, row.id, { status: "APPROVED" });
+    // TM-D13 Fase C: pengaju & rekan diberi tahu jadwal barunya.
+    const shiftIds = [row.fromShiftId, row.toShiftId].filter((id): id is string => id !== null);
+    const codeOf = new Map((await repository.shiftsByIds(shiftIds)).map((s) => [s.id, s.code]));
+    const code = (id: string | null) => (id === null ? null : (codeOf.get(id) ?? null));
+    const date = toIso(row.workDate);
+    await notifyRosterChanges(
+      [
+        { employeeId: row.employeeId, date, from: code(row.fromShiftId), to: code(row.toShiftId) },
+        ...(row.peerEmployeeId
+          ? [
+              {
+                employeeId: row.peerEmployeeId,
+                date,
+                from: code(row.toShiftId),
+                to: code(row.fromShiftId),
+              },
+            ]
+          : []),
+      ],
+      "swap",
+    );
   });
 }

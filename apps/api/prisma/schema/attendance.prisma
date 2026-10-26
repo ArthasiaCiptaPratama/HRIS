@@ -208,6 +208,17 @@ model RosterChangeRequest {
 }
 
 // ── Tahap C: absen PWA (D-067, D-070) ────────────────────────────────────────────
+/// TM-D13 Fase B: hasil verifikasi atasan atas hari Alpha (tidak absen).
+enum AlphaVerification {
+  PENDING // menunggu atasan
+  CONFIRMED // Alpha dikonfirmasi
+  PERMIT // izin → karyawan mengajukan izin (diputus HR)
+  SICK // sakit → karyawan mengajukan sakit (diputus HR)
+  DUTY // tugas luar / dinas → karyawan mengajukan koreksi absen (diputus HR)
+
+  @@schema("attendance")
+}
+
 enum AttendanceDayStatus {
   OPEN // sudah absen masuk, menunggu absen pulang
   PENDING // menunggu persetujuan MANAGER + HR (D-068)
@@ -235,6 +246,11 @@ model AttendanceDay {
   workLocationId    String?             @map("work_location_id") @db.Uuid
   status            AttendanceDayStatus
   labels            String[]            @db.VarChar(20)
+  /// TM-D13 Fase B: verifikasi atasan atas Alpha tanpa absen (null = bukan Alpha harian / sebelum aturan).
+  alphaVerification     AlphaVerification? @map("alpha_verification")
+  alphaVerifiedBy       String?            @map("alpha_verified_by") @db.Uuid
+  alphaVerifiedAt       DateTime?          @map("alpha_verified_at") @db.Timestamptz(6)
+  alphaVerificationNote String?            @map("alpha_verification_note") @db.VarChar(300)
   createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -244,6 +260,7 @@ model AttendanceDay {
   @@index([companyId, workDate])
   @@index([status, checkOutDeadline])
   @@index([managerEmployeeId, workDate])
+  @@index([alphaVerification, companyId])
   @@map("attendance_days")
   @@schema("attendance")
 }

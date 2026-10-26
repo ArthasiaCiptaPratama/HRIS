@@ -1,6 +1,8 @@
 import {
+  DEFAULT_TIME_SETTINGS,
   expandRosterShorthand,
   OFF_CODE,
+  patternRestWarnings,
   ROSTER_TEMPLATE_LABELS,
   ROSTER_TEMPLATES,
   type RosterTemplate,
@@ -38,7 +40,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEmployees, useMasterData } from "@/features/employee/api";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-import { useCrews, usePatterns, useRosterMaster, useSetCrewMembers, useShifts } from "../api";
+import {
+  useCrews,
+  usePatterns,
+  useRosterMaster,
+  useSetCrewMembers,
+  useShifts,
+  useTimeSettings,
+} from "../api";
 import { hhmm, parseHhmm, todayIn, workDateLabel } from "../components/display";
 import { useApplyRosterTemplate } from "../overtime-api";
 import type { Crew, Pattern, Shift } from "../schemas";
@@ -239,6 +248,12 @@ const TEMPLATE_INFO: Record<
     warning:
       "13 hari × 7 jam normal per 14 hari ≈ 45,5 jam/minggu, di atas 40 jam/minggu. Pastikan sesuai perjanjian kerja (lembur/waktu kerja khusus sektor).",
   },
+  SHIFT_3X8: {
+    description:
+      "Shift S1 08–16, S2 16–24, S3 24–08 (S3 dijalani malam setelah tanggal roster, tetap tercatat di tanggal roster), istirahat 60 mnt dibayar. Pola 2 hari S1 → 2 hari S2 → 2 hari S3 → 2 OFF (siklus 8 hari).",
+    crewHint:
+      "Diisi = dibuat 4 crew (A–D) bergeser 2 hari, sehingga setiap shift selalu dijaga satu crew.",
+  },
   WEEK_5_2: {
     description:
       "Shift K52 08–17 (8 jam kerja + 1 jam istirahat tidak dibayar, tanpa lembur rutin), pola Senin–Jumat kerja, Sabtu–Minggu OFF.",
@@ -267,6 +282,8 @@ function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: ()
           .map((s) => s.code)
           .join(", ")}${out.crews.length ? ` + ${out.crews.length} crew` : ""}.`,
       );
+      // TM-D13 Fase D: jeda antarshift di pola yang kurang dari pengaturan.
+      for (const warning of out.restWarnings ?? []) toast.warning(warning);
       onClose();
     } catch (e) {
       toast.error(errorMessage(e));
@@ -642,6 +659,13 @@ function PatternDialog({
     .filter(Boolean);
   const codes = (shifts.data ?? []).filter((s) => !s.archived).map((s) => s.code);
   const unknown = [...new Set(steps.filter((s) => s !== OFF_CODE && !codes.includes(s)))];
+  // TM-D13 Fase D: pergantian shift berurutan dengan jeda < pengaturan (hanya peringatan).
+  const minRestHours = useTimeSettings().data?.minRestHours ?? DEFAULT_TIME_SETTINGS.minRestHours;
+  const restWarnings = patternRestWarnings(
+    steps,
+    (shifts.data ?? []).filter((s) => !s.archived),
+    minRestHours,
+  );
   const submit = async () => {
     try {
       await save.mutateAsync({ id: pattern?.id, body: { companyId, name, steps } });
@@ -715,6 +739,18 @@ function PatternDialog({
             <p className="text-destructive text-xs">
               Kode belum ada di master shift: {unknown.join(", ")}
             </p>
+          ) : null}
+          {restWarnings.length > 0 ? (
+            <div className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+              <p className="font-medium">Jeda antarshift kurang dari {minRestHours} jam:</p>
+              <ul className="mt-1 list-disc pl-4">
+                {restWarnings.map((w) => (
+                  <li key={w.index}>
+                    Hari {w.index + 1} → {w.index + 2}: {w.from} lalu {w.to} ({w.restHours} jam)
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
         <DialogFooter>

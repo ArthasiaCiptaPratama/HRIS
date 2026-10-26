@@ -4,6 +4,7 @@ import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { runDisciplineDaily } from "../../../src/modules/discipline/index.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
@@ -161,7 +162,7 @@ afterAll(async () => {
     .map((a) => a.account.id);
   await prisma.warningLetter.deleteMany({ where: { employeeId: { in: employees } } });
   await prisma.violationType.deleteMany({ where: { name: { contains: RUN } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: employees } } });
+  await deleteAttendanceData(employees);
   await prisma.employeeDocument.deleteMany({ where: { employeeId: { in: employees } } });
   await prisma.notification.deleteMany({ where: { recipientAccountId: { in: accounts } } });
   await prisma.disciplineSetting.update({ where: { id: 1 }, data: { validityMonths: 6 } });

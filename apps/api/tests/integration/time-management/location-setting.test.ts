@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
@@ -133,7 +134,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.employeeLocationSetting.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crew.deleteMany({ where: { id: ids.crew } });
   await prisma.rosterPattern.deleteMany({ where: { id: ids.pattern } });

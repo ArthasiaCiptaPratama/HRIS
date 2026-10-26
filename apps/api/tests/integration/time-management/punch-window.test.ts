@@ -3,6 +3,7 @@ import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { readTimeSettings } from "../../../src/modules/attendance/index.ts";
+import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -145,14 +146,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const days = await prisma.attendanceDay.findMany({
-    where: { employeeId: { in: ids.employees } },
-    select: { id: true, punches: { select: { id: true } } },
-  });
-  const subjects = days.flatMap((d) => [d.id, ...d.punches.map((p) => p.id)]);
-  await prisma.approvalRequest.deleteMany({ where: { subjectId: { in: subjects } } });
-  await prisma.overtimeRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
-  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.shift.deleteMany({ where: { name: { startsWith: `Uji PW ${RUN}` } } });
   await auth.cleanup();
