@@ -13,6 +13,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-26 — Pengingat pulang hari OFF ber-SPL (Oatse)
+- **Dikerjakan:** `runAttendanceReminders` juga membaca perintah lembur di tanggal tanpa shift roster (hari OFF): sudah Clock In, belum Clock Out, ≥ 15 menit setelah akhir SPL, sebelum batas absen pulang → `attendance.reminder_out` (dedupe sama).
+- **Keputusan:** — (pelaksanaan TM-D16/TM-D17; Q2 opsi A disetujui supervisor atas nama pengguna)
+- **Verifikasi:** `time-notify.test.ts` 5/5 (baru: hari OFF ber-SPL); verifikasi penuh di laporan commit.
+- **Berikutnya:** Q1 SPL susulan menunggu keputusan pengguna.
+
 ### 2026-10-26 — Grill shift + TM-D14–TM-D18: patokan Clock In, lupa Clock Out, perintah lembur (Oatse)
 - **Dikerjakan:** grill pemilik projek (serah-terima `HRIS-rilis` `2026-10-26-1000-…-grill-shift-lupa-clockout.md`); gabung `HRIS/Mat/Mac` `8d3fd76` (TM-D13 fase B–D, migrasi `alpha_verification`) → develop `9796376` (di-push); implementasi TM-D14 (form shift dini hari + `scheduleLabel`), TM-D15 (`planCheckIn` shift berjalan), TM-D16 (bawaan batas 30 menit, pengingat +15 menit, cron 5 menit), TM-D17 (perintah lembur/SPL: tabel, rute, policy, Clock In/Out, hari OFF, klem lembur, tab web), TM-D18 (dokumen). Migrasi `20261026041053_overtime_orders`.
 - **Keputusan:** TM-D14–TM-D18 (TM-D14 direvisi pengguna: centang tetap, ditanyakan hanya untuk shift dini hari).

@@ -198,6 +198,28 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
       });
     }
   }
+  // TM-D17: hari OFF (tanpa shift roster) dengan perintah lembur — pengingat pulang dari akhir SPL.
+  const rostered = new Set(roster.map((r) => `${r.employeeId}|${toIso(r.workDate)}`));
+  for (const [key, orderEnd] of orderOf) {
+    if (rostered.has(key)) continue;
+    const day = dayOf.get(key);
+    if (!day || day.status === "LEAVE" || day.status === "ALPHA") continue;
+    const hasIn = day.punches.some((p) => p.kind === "IN");
+    const hasOut = day.punches.some((p) => p.kind === "OUT");
+    if (!hasIn || hasOut) continue;
+    if (day.checkOutDeadline && now.getTime() >= day.checkOutDeadline.getTime()) continue;
+    if (now.getTime() < orderEnd.getTime() + OUT_REMINDER_AFTER_MIN * 60_000) continue;
+    const date = toIso(day.workDate);
+    notices.push({
+      employeeId: day.employeeId,
+      type: "attendance.reminder_out",
+      title: `Belum Clock Out — lembur hari libur ${dateLabel(date)}`,
+      body: "Jam selesai perintah lembur sudah lewat. Lakukan Clock Out sebelum batas absen pulang.",
+      link: "/absen",
+      dedupeKey: `tm-remind-out:${day.employeeId}:${date}`,
+      target: { type: "ATTENDANCE_TODAY", id: date },
+    });
+  }
 
   // Alpha yang hari ini adalah hari terakhir koreksinya (tanggal kerja = hari ini − 3).
   const lastDay = isoAddDays(today, -3);

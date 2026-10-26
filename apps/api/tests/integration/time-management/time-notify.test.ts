@@ -203,6 +203,68 @@ describe("notifikasi Time Management", () => {
     expect(notes[0]?.title).toContain("Belum Clock Out");
   });
 
+  test("TM-D17: hari OFF dengan perintah lembur → pengingat pulang 15 menit setelah akhir SPL", async () => {
+    const c = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `TN-${RUN}-C`,
+          fullName: `Notif ${RUN} C`,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId,
+          employmentStatusId: ids.status,
+          positionId: ids.position,
+        },
+      })
+    ).id;
+    ids.employees.push(c);
+    const cAccount = (await auth.loginAs("EMPLOYEE", { employeeId: c, companies: [companyId] }))
+      .account.id;
+    // Hari OFF: hari roster tanpa shift.
+    await prisma.rosterDay.create({
+      data: { employeeId: c, workDate: D(today), shiftId: null, source: "MANUAL" },
+    });
+    const now = Date.now();
+    const endsAt = new Date(now - 10 * 60_000);
+    await prisma.overtimeOrder.create({
+      data: {
+        employeeId: c,
+        companyId,
+        workDate: D(today),
+        startsAt: new Date(now - 4 * 3600_000),
+        endsAt,
+        reason: "Lembur hari libur",
+        createdByAccountId: accounts.mgr,
+      },
+    });
+    const day = await prisma.attendanceDay.create({
+      data: {
+        employeeId: c,
+        companyId,
+        workDate: D(today),
+        scheduledStart: new Date(now - 4 * 3600_000),
+        scheduledEnd: endsAt,
+        checkOutDeadline: new Date(now + 20 * 60_000),
+        status: "OPEN",
+        labels: [],
+      },
+    });
+    await prisma.attendancePunch.create({
+      data: {
+        dayId: day.id,
+        kind: "IN",
+        at: new Date(now - 4 * 3600_000),
+        insideGeofence: true,
+        labels: [],
+      },
+    });
+    await runAttendanceReminders(new Date(now), [c]);
+    expect(await notesOf(cAccount, "attendance.reminder_out")).toHaveLength(0);
+    await runAttendanceReminders(new Date(now + 6 * 60_000), [c]);
+    const notes = await notesOf(cAccount, "attendance.reminder_out");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.title).toContain("lembur hari libur");
+  });
+
   test("hari tanpa absen → Alpha + notifikasi dengan batas koreksi", async () => {
     await markNoAttendanceAlpha(new Date(), [emp.a]);
     const notes = await notesOf(accounts.a, "attendance.alpha");
