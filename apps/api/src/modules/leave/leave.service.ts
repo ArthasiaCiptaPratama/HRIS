@@ -41,6 +41,7 @@ import {
   type RequestContext,
   rosteredWithoutAttendance,
   rosterMarks,
+  settingsToday,
 } from "../attendance/index.ts";
 import * as policy from "./leave.policy.ts";
 import * as repository from "./leave.repository.ts";
@@ -91,9 +92,6 @@ function ensureBucket() {
 
 const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const toIso = (date: Date) => date.toISOString().slice(0, 10);
-/** Logika harian cuti memakai Asia/Jakarta (PROMPT §4). */
-export const todayJakarta = (now = new Date()) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
 
 async function audit(
   ctx: RequestContext,
@@ -407,7 +405,7 @@ export async function previewLeave(
   const charges = charging ? allocateCharges(charged, chargeYear as number).byYear : new Map();
   return {
     expiredYear:
-      charging && isLeaveYearExpired(chargeYear as number, todayJakarta())
+      charging && isLeaveYearExpired(chargeYear as number, await settingsToday())
         ? (chargeYear as number)
         : null,
     dates,
@@ -496,7 +494,7 @@ async function rootRejectedOn(row: repository.RequestRow): Promise<string | null
     if (!parent) break;
     current = parent;
   }
-  return current?.decidedAt ? todayJakarta(current.decidedAt) : null;
+  return current?.decidedAt ? await settingsToday(current.decidedAt) : null;
 }
 
 async function toDtos(
@@ -518,7 +516,7 @@ async function toDtos(
     for (const [id, view] of await getApprovalViews(ctx.actor, subject, ids))
       approvals.set(id, view);
   }
-  const today = todayJakarta();
+  const today = await settingsToday();
   const rejectedOwn = rows.filter(
     (r) => r.status === "REJECTED" && r.employeeId === ctx.actor.employeeId,
   );
@@ -612,7 +610,7 @@ export async function createLeaveRequest(
     );
   }
   const charged = annualChargedDates(type, dates);
-  const today = todayJakarta();
+  const today = await settingsToday();
   // TM-D9: pembebanan ke tahun mulai; saldo tahun yang sudah hangus tidak bisa dipakai lagi.
   const chargeYear = chargeYearOf(dates) as number;
   if (charged.length > 0 && isLeaveYearExpired(chargeYear, today)) {
@@ -778,7 +776,7 @@ async function settleHolds(
     entries.push({ ...base, kind: "RELEASE", days });
     if (convertToUse) {
       entries.push({ ...base, kind: "USE", days: -days });
-    } else if (days > 0 && isLeaveYearExpired(year, todayJakarta())) {
+    } else if (days > 0 && isLeaveYearExpired(year, await settingsToday())) {
       // TM-D9: tahanan yang dilepas setelah saldo tahun itu hangus tidak menghidupkan saldo lagi —
       // hanya bagian yang membuat saldo positif yang ikut hangus (hutang nyata tetap hutang).
       await repository.lockEmployeeYear(tx, row.employeeId, year);
@@ -864,7 +862,7 @@ export function registerLeaveIntegrations() {
 
 export async function myLeave(ctx: RequestContext, now = new Date()) {
   const employeeId = selfEmployee(ctx);
-  const year = Number(todayJakarta(now).slice(0, 4));
+  const year = Number((await settingsToday(now)).slice(0, 4));
   const ledger = await repository.ledgerOf(employeeId, [year - 1, year]);
   const requests = await repository.listRequests({ employeeId });
   return {
@@ -1263,7 +1261,7 @@ export interface LeaveDailyResult {
 }
 
 export async function runLeaveDaily(now = new Date()): Promise<LeaveDailyResult> {
-  const today = todayJakarta(now);
+  const today = await settingsToday(now);
   const year = Number(today.slice(0, 4));
   const monthDay = today.slice(5);
   const master = await ensureYear(year);

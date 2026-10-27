@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-27 — Batas hari roster, periode & cuti ikut zona pengaturan TM-D20–D22 (Oatse)
+- **Dikerjakan:** temuan uji M3 staging (staging WITA karena `time_settings` kosong) → sub-item "(tambahan 2026-10-27)" di checklist zona waktu. Helper `settingsToday(now)` di `calendar.service.ts` (diekspor `index.ts`) menggantikan `todayIso` (roster.service), `todayJakarta` (period.service, leave.service); `regenerateCrew(from?)` mulai dari hari ini zona pengaturan; `assertClosable` jadi async.
+- **Keputusan:** TM-D20 (zona global), TM-D21 (cuti ikut zona pengaturan), TM-D22 (bawaan WITA, PROMPT §4 diperjelas) — diputuskan supervisor atas nama pengguna 27 Okt; bisa diubah pengguna.
+- **Verifikasi:** `tests/integration/time-management/timezone.test.ts` (4 test, `setSystemTime` 00:30 WITA, zona dipaksa WITA lalu dikembalikan) merah dulu (koreksi 422, pratinjau 422, horizon kurang 1 hari) lalu hijau; typecheck ✔ · `biome ci` ✔ · boundaries ✔ · test shared 340 · api 996 · web 327 ✔.
+- **Masalah / catatan:** file milik Mat (TM, `82a5dce`); Mat/Mac belum memuat develop → dikabari lewat kabar gabungan. Staging tetap campur WIB/WITA sampai rilis berikutnya; zona staging diisi eksplisit di tugas rilis.
+- **Berikutnya:** rilis; isi zona staging.
+
 ### 2026-10-26 — Perintah lembur susulan TM-D19 (Oatse)
 - **Dikerjakan:** SPL untuk tanggal lampau / hari yang sudah Clock Out hanya HR PT & SA, periode belum ditutup (`isDateClosed`), kolom `retroactive` (migrasi `20261026070605_overtime_order_retroactive`), usulan lembur dihitung ulang (`syncOvertime`) saat SPL disimpan/dibatalkan; web badge Susulan + tanggal lampau untuk HR/SA.
 - **Keputusan:** TM-D19 (Q1 opsi B, pengguna lewat supervisor).

@@ -73,6 +73,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-10-27, TM-D20)** Zona waktu TM **per PT** (sekarang satu pengaturan global) — dibuka bila ada PT di zona berbeda.
 - **(2026-10-19, pertanyaan pemilik projek)** **Aturan waktu status kepegawaian & grade** belum ada (master hanya nama/kategori): masa percobaan ≤ 3 bulan + pengingat, tanggal akhir & total PKWT ≤ 5 tahun (Fase 7 Kontrak), syarat masa kerja/jenjang grade (Payroll Fase 8). Perlu keputusan HR: durasi standar kontrak per jabatan, kebijakan perpanjangan, penyetuju.
 Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerjakan**.
 
