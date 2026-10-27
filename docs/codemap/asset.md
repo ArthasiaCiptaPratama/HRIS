@@ -32,7 +32,7 @@
 ├── components/display.tsx       [done] badge status/kondisi/pinjaman/masa ganti/konfirmasi, formatPrice (string → Rupiah tanpa number)
 ├── components/asset-actions.tsx [done] dialog kembali, hilang, kembali APD; BastButtons (PDF + unggah scan BAST_ASSET → tautkan). Tanpa impor fitur employee
 ├── components/holdings.tsx      [done] HoldingsList, EmployeeAssetsTab (tab Aset detail karyawan), MyAssets (Layanan Mandiri), OpenHoldingsWarning (form nonaktifkan)
-├── components/asset-forms.tsx   [done] AssetFormDialog, AssignAssetDialog, PpeIssueDialog (pakai EmployeePicker & master data employee)
+├── components/asset-forms.tsx   [done] AssetFormDialog, AssignAssetDialog, PpeIssueDialog (pakai EmployeePicker & master data employee); `FormDialog` berpola dialog SP: judul & tombol tetap, isi saja yang di-scroll (2026-10-27)
 ├── pages/assets-page.tsx        [done] /personal/arsip/aset — tab aset | apd | belum-kembali, panel ?asset=<id>, panel pegangan ?pegawai=<id>
 └── pages/asset-masters-page.tsx [done] /master-data/aset — tab kategori | apd
 ```
