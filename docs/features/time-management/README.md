@@ -1,7 +1,7 @@
 # Time Management — absensi, roster, cuti, approval
 
 > **Kode prefix:** `TM` · **Fase:** 5–6 · **PIC:** Mat · **Branch:** `HRIS/Mat/windows` · **Saklar `FEATURES`:** `timeManagement`
-> **Status:** ✔ develop (gabung 2026-10-13, merge `e31e934`; terakhir TM-D13 fase A merge `d3c1ebc` 2026-10-26); terpasang tersembunyi di staging s.d. gel. 13 (TM-D12)
+> **Status:** ✔ develop (gabung 2026-10-13, merge `e31e934`; terakhir TM-D13 fase A merge `d3c1ebc` 2026-10-26); terpasang tersembunyi di staging s.d. gel. 14 (TM-D13–D17, TM-D19; 2026-10-26)
 
 Approval paralel, kalender libur & pengaturan, roster tambang (shift/pola/crew/tukar shift), absen PWA selfie + GPS + label, aplikasi HP `/absen/*`, Data Absen Harian, koreksi & absen manual, tutup periode → ALPHA + surat pernyataan, cuti (D-067–D-073).
 
