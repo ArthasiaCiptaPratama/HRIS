@@ -27,6 +27,8 @@ import {
   rosterChangeSchema,
   rosterCustomTemplateListSchema,
   rosterCustomTemplateSchema,
+  rosterEditListSchema,
+  rosterEditSchema,
   rosterGridSchema,
   rosterImportCommitSchema,
   rosterImportPreviewSchema,
@@ -38,6 +40,7 @@ import {
 } from "./roster.contract.ts";
 import * as service from "./roster.service.ts";
 import * as change from "./roster-change.service.ts";
+import * as edits from "./roster-edit.service.ts";
 import * as templates from "./roster-template.service.ts";
 
 // Tahap B — roster tambang (D-069). Body divalidasi skema @hris/shared di handler lewat `strict` (aturan
@@ -251,6 +254,32 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
         param(c),
         strict(rosterTemplateAssignInputSchema, await body(c)),
       ),
+  ],
+  [
+    route(
+      "get",
+      "/roster-edits",
+      "Perubahan roster oleh HR (TM-D24): inbox keputusan / diajukan saya / semua di PT",
+      {
+        query: z.object({
+          scope: z.enum(["inbox", "mine", "all"]).optional(),
+          companyId: z.uuid().optional(),
+        }),
+        response: rosterEditListSchema,
+      },
+    ),
+    (c) =>
+      edits.listRosterEdits(ctxOf(c), {
+        scope: (c.req.query("scope") as "inbox" | "mine" | "all" | undefined) ?? "inbox",
+        companyId: c.req.query("companyId"),
+      }),
+  ],
+  [
+    route("post", "/roster-edits/{id}/cancel", "Batalkan pengajuan perubahan roster (pengaju)", {
+      params: idParam,
+      response: rosterEditSchema,
+    }),
+    (c) => edits.cancelRosterEdit(ctxOf(c), param(c)),
   ],
   [
     route("get", "/crews", "Daftar crew PT + anggota aktif", {

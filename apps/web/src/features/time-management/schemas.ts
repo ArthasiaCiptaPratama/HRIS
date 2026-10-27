@@ -223,6 +223,7 @@ export const templateAssignPlanSchema = z.object({
       crewName: z.string(),
       fromCrew: z.string().nullable(),
       stays: z.boolean(),
+      needsApproval: z.boolean(),
     }),
   ),
   skipped: z.array(
@@ -230,9 +231,33 @@ export const templateAssignPlanSchema = z.object({
   ),
   replacedDays: z.number(),
   lockedDays: z.number(),
+  approvalCount: z.number(),
   restWarnings: z.array(z.string()),
 });
 export type TemplateAssignPlan = z.infer<typeof templateAssignPlanSchema>;
+
+/** TM-D24: perubahan roster karyawan ber-crew oleh HR — berlaku setelah disetujui atasan + HR. */
+export const rosterEditSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["TEMPLATE", "CELLS", "IMPORT", "CREW"]),
+  status: z.enum(["PENDING", "APPLIED", "REJECTED", "CANCELLED"]),
+  employee: z.object({
+    id: z.string(),
+    fullName: z.string(),
+    employeeNumber: z.string().nullable(),
+  }),
+  summary: z.string(),
+  effectiveDate: z.string(),
+  appliedFrom: z.string().nullable(),
+  reason: z.string().nullable(),
+  preview: z.array(
+    z.object({ date: z.string(), from: z.string().nullable(), to: z.string().nullable() }),
+  ),
+  createdAt: z.string(),
+  createdByMe: z.boolean(),
+  approval: approvalSchema.nullable(),
+});
+export type RosterEdit = z.infer<typeof rosterEditSchema>;
 
 export const crewSchema = z.object({
   id: z.string(),

@@ -12,6 +12,7 @@ export const APPROVAL_SUBJECTS = [
   "ATTENDANCE_DAY",
   "ROSTER_CHANGE",
   "ATTENDANCE_PUNCH",
+  "ROSTER_EDIT",
 ] as const;
 export const approvalSubjectSchema = z.enum(APPROVAL_SUBJECTS);
 export type ApprovalSubject = z.infer<typeof approvalSubjectSchema>;
@@ -23,6 +24,7 @@ export const APPROVAL_SUBJECT_LABELS: Record<ApprovalSubject, string> = {
   ATTENDANCE_DAY: "Hari absen",
   ROSTER_CHANGE: "Perubahan roster",
   ATTENDANCE_PUNCH: "Absen masuk/pulang",
+  ROSTER_EDIT: "Perubahan jadwal oleh HR",
 };
 
 export const APPROVAL_STEP_DECISIONS = ["PENDING", "APPROVED", "REJECTED"] as const;

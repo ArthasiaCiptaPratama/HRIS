@@ -173,6 +173,52 @@ model EmployeeLocationSetting {
   @@schema("attendance")
 }
 
+/// TM-D24: jenis perubahan roster yang diajukan HR untuk karyawan ber-crew.
+enum RosterEditKind {
+  TEMPLATE
+  CELLS
+  IMPORT
+  CREW
+
+  @@schema("attendance")
+}
+
+enum RosterEditStatus {
+  PENDING
+  APPLIED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+/// TM-D24: perubahan roster karyawan yang sudah anggota crew — berlaku setelah disetujui atasan + HR.
+model RosterEditRequest {
+  id                 String           @id @default(uuid()) @db.Uuid
+  companyId          String           @map("company_id") @db.Uuid
+  employeeId         String           @map("employee_id") @db.Uuid
+  managerEmployeeId  String?          @map("manager_employee_id") @db.Uuid
+  kind               RosterEditKind
+  effectiveDate      DateTime         @map("effective_date") @db.Date
+  /// Data untuk menerapkan perubahan (mis. TEMPLATE: { templateId, workLocationId, crewId }).
+  payload            Json
+  /// Ringkasan jadwal lama → baru per tanggal saat diajukan: [{ date, from, to }].
+  preview            Json
+  reason             String?          @db.VarChar(300)
+  status             RosterEditStatus @default(PENDING)
+  createdByAccountId String           @map("created_by_account_id") @db.Uuid
+  /// Tanggal mulai benar-benar diterapkan (tanggal efektif atau tanggal disetujui bila sudah lewat).
+  appliedFrom        DateTime?        @map("applied_from") @db.Date
+  decidedAt          DateTime?        @map("decided_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, status])
+  @@index([companyId, status])
+  @@map("roster_edit_requests")
+  @@schema("attendance")
+}
+
 enum RosterSource {
   PATTERN
   MANUAL

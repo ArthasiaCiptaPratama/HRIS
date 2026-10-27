@@ -40,6 +40,7 @@ const plan = {
       crewName: "Rotasi D-N · Crew A (Site)",
       fromCrew: null,
       stays: false,
+      needsApproval: false,
     },
     {
       employeeId: "e2",
@@ -48,11 +49,13 @@ const plan = {
       crewName: "Rotasi D-N · Crew B (Site)",
       fromCrew: "Crew Lama",
       stays: false,
+      needsApproval: true,
     },
   ],
   skipped: [],
   replacedDays: 3,
   lockedDays: 1,
+  approvalCount: 1,
   restWarnings: [],
 };
 const grid = {
@@ -122,9 +125,11 @@ describe("Isi roster dengan template", () => {
     expect(screen.getByText(/3 sel roster lama .* akan ditimpa template/)).toBeInTheDocument();
     expect(screen.getByText(/1 hari terkunci/)).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /Timpa/ })).not.toBeInTheDocument();
+    // TM-D24: Budi sudah ber-crew → ditandai perlu persetujuan; tombol jadi "Terapkan & ajukan".
+    expect(screen.getByText("Perlu persetujuan atasan + HR")).toBeInTheDocument();
     const table = screen.getByRole("table");
     expect(within(table).getByText("Crew A (Site)")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Terapkan template" }));
+    await user.click(screen.getByRole("button", { name: "Terapkan & ajukan" }));
     await waitFor(() =>
       expect(calls.some((c) => c.path === "/roster-custom-templates/t1/assign")).toBe(true),
     );

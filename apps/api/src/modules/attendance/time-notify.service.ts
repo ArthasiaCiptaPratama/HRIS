@@ -103,7 +103,7 @@ const QUEUE_SUBJECTS: Record<Exclude<keyof TimeQueue, "total">, ApprovalSubject[
   attendance: ["ATTENDANCE_PUNCH"],
   leave: ["LEAVE", "PERMIT"],
   corrections: ["ATTENDANCE_CORRECTION"],
-  rosterChanges: ["ROSTER_CHANGE"],
+  rosterChanges: ["ROSTER_CHANGE", "ROSTER_EDIT"],
   overtime: ["OVERTIME"],
 };
 

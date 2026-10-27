@@ -28,11 +28,11 @@ import {
   dayKey,
   lockedDayKeys,
   type PatternDto,
-  regenerateCrew,
   type ShiftDto,
   setCrewMembers,
   validateSteps,
 } from "./roster.service.ts";
+import { employeesWithPendingEdit, submitTemplateEdits } from "./roster-edit.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
 
 // TM-D8 — template roster siap pakai: JT (Jetty & Loading team), 13+1, 5+2. JT: 3 shift × 8 jam (7 jam normal + 1 jam
@@ -498,12 +498,16 @@ export interface RosterTemplateAssignPlan {
     fromCrew: string | null;
     /** Sudah anggota crew ini → tidak dipindah. */
     stays: boolean;
+    /** TM-D24: karyawan sudah ber-crew → diajukan ke atasan + HR, berlaku setelah disetujui. */
+    needsApproval: boolean;
   }[];
   skipped: { employeeId: string; fullName: string | null; reason: string }[];
   /** Sel roster lama (kuas / import / tukar shift) mulai tanggal efektif yang akan ditimpa template. */
   replacedDays: number;
   /** Hari terkunci (absen disetujui / periode tertutup) yang tidak disentuh. */
   lockedDays: number;
+  /** TM-D24: jumlah karyawan yang perubahannya diajukan (bukan langsung berlaku). */
+  approvalCount: number;
   restWarnings: string[];
 }
 
@@ -545,6 +549,29 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     else return true;
     return false;
   });
+  // TM-D24: satu pengajuan menunggu per karyawan.
+  const pending = await employeesWithPendingEdit(valid);
+  for (const employeeId of [...valid]) {
+    if (!pending.has(employeeId)) continue;
+    skipped.push({
+      employeeId,
+      fullName: people.get(employeeId)?.fullName ?? null,
+      reason: "Masih ada perubahan jadwal yang menunggu persetujuan",
+    });
+    valid.splice(valid.indexOf(employeeId), 1);
+  }
+  const settings = await readTimeSettings();
+  const horizon = isoAddDays(today, settings.rosterHorizonDays);
+  const manual = valid.length
+    ? await repository.nonPatternDaysBetween(valid, effective, new Date(`${horizon}T00:00:00Z`))
+    : [];
+  const locked = valid.length
+    ? await lockedDayKeys(valid, input.effectiveDate, horizon)
+    : new Set<string>();
+  const replaceable = manual.filter(
+    (d) => !locked.has(dayKey(d.employeeId, d.workDate.toISOString().slice(0, 10))),
+  );
+  const replacing = new Set(replaceable.map((d) => d.employeeId));
   const current = new Map(
     (await repository.membershipsOn(valid, effective)).map((m) => [m.employeeId, m.crew]),
   );
@@ -555,12 +582,14 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const existing = [...counts];
   const assignments: RosterTemplateAssignPlan["assignments"] = [];
   const movers: string[] = [];
+  const crewIndexOf = new Map<string, number>();
   for (const employeeId of valid) {
     const index = crews.findIndex((c) =>
       c.members.some((m) => m.employeeId === employeeId && activeOn(m)),
     );
     if (index >= 0) {
       const e = people.get(employeeId);
+      crewIndexOf.set(employeeId, index);
       assignments.push({
         employeeId,
         fullName: e?.fullName ?? "",
@@ -568,6 +597,8 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
         crewName: crews[index]?.name ?? "",
         fromCrew: crews[index]?.name ?? null,
         stays: true,
+        // Tetap di crew: hanya berubah bila ada sel lama yang ditimpa.
+        needsApproval: replacing.has(employeeId),
       });
     } else movers.push(employeeId);
   }
@@ -580,6 +611,7 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     for (let i = 1; i < counts.length; i++) if ((counts[i] ?? 0) < (counts[best] ?? 0)) best = i;
     counts[best] = (counts[best] ?? 0) + 1;
     target.set(employeeId, best);
+    crewIndexOf.set(employeeId, best);
     const e = people.get(employeeId);
     assignments.push({
       employeeId,
@@ -588,23 +620,13 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
       crewName: crews[best]?.name ?? "",
       fromCrew: current.get(employeeId)?.name ?? null,
       stays: false,
+      needsApproval: current.has(employeeId),
     });
   }
   assignments.sort(
     (a, b) => a.crewName.localeCompare(b.crewName) || a.fullName.localeCompare(b.fullName),
   );
 
-  const settings = await readTimeSettings();
-  const horizon = isoAddDays(today, settings.rosterHorizonDays);
-  const manual = valid.length
-    ? await repository.nonPatternDaysBetween(valid, effective, new Date(`${horizon}T00:00:00Z`))
-    : [];
-  const locked = valid.length
-    ? await lockedDayKeys(valid, input.effectiveDate, horizon)
-    : new Set<string>();
-  const replaceable = manual.filter(
-    (d) => !locked.has(dayKey(d.employeeId, d.workDate.toISOString().slice(0, 10))),
-  );
   const shifts = await repository.listShifts(template.companyId);
   const plan: RosterTemplateAssignPlan = {
     installed: Boolean(installation),
@@ -622,13 +644,14 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     skipped,
     replacedDays: replaceable.length,
     lockedDays: locked.size,
+    approvalCount: assignments.filter((a) => a.needsApproval).length,
     restWarnings: patternRestWarnings(template.steps, shifts, settings.minRestHours).map((w) =>
       w.restHours < 0
         ? `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} bertabrakan ${Math.abs(w.restHours)} jam.`
         : `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} hanya ${w.restHours} jam istirahat.`,
     ),
   };
-  return { template, crews, target, plan, replaceable };
+  return { template, crews, target, crewIndexOf, plan, replaceable };
 }
 
 export async function previewTemplateAssignment(
@@ -644,9 +667,12 @@ export async function applyTemplateAssignment(
   id: string,
   input: RosterTemplateAssignInput,
 ): Promise<RosterTemplateAssignPlan> {
-  const { plan, target, replaceable } = await planAssignment(ctx, id, input);
-  if (target.size === 0 && plan.assignments.length === 0) {
-    throw new BusinessRuleError("Tidak ada karyawan yang bisa diisi dengan template ini.");
+  const { template, plan, crewIndexOf, replaceable } = await planAssignment(ctx, id, input);
+  // Langsung berlaku: karyawan yang belum punya crew. Yang sudah ber-crew → pengajuan (TM-D24).
+  const direct = plan.assignments.filter((a) => !a.stays && !a.needsApproval);
+  const approval = plan.assignments.filter((a) => a.needsApproval);
+  if (direct.length === 0 && approval.length === 0) {
+    throw new BusinessRuleError("Tidak ada perubahan roster untuk karyawan terpilih.");
   }
   if (!plan.installed) {
     await installCustomTemplate(ctx, id, {
@@ -660,19 +686,18 @@ export async function applyTemplateAssignment(
     fresh?.patterns.find((p) => p.crews.some((c) => c.workLocationId === input.workLocationId))
       ?.crews ?? []
   ).filter((c) => c.workLocationId === input.workLocationId);
-  if (replaceable.length > 0) {
+  const directIds = new Set(direct.map((a) => a.employeeId));
+  const directDays = replaceable.filter((d) => directIds.has(d.employeeId));
+  if (directDays.length > 0) {
     // Paksa tempel: sel lama dihapus dulu supaya hari pola mengisi tanggal itu (hari terkunci tidak ikut).
-    await repository.deleteRosterDays(replaceable.map((d) => d.id));
+    await repository.deleteRosterDays(directDays.map((d) => d.id));
   }
   const effective = new Date(`${input.effectiveDate}T00:00:00Z`);
-  const replaced = replaceable.length > 0;
   for (const [index, crew] of crews.entries()) {
-    const added = [...target].filter(([, i]) => i === index).map(([employeeId]) => employeeId);
-    if (added.length === 0) {
-      // Sel manual anggota lama dihapus → isi tanggal itu dengan hari pola.
-      if (replaced) await regenerateCrew(crew.id, input.effectiveDate);
-      continue;
-    }
+    const added = direct
+      .filter((a) => crewIndexOf.get(a.employeeId) === index)
+      .map((a) => a.employeeId);
+    if (added.length === 0) continue;
     const keep = crew.members
       .filter((m) => m.startDate <= effective && (!m.endDate || m.endDate >= effective))
       .map((m) => m.employeeId);
@@ -681,10 +706,20 @@ export async function applyTemplateAssignment(
       effectiveDate: input.effectiveDate,
     });
   }
+  const submitted = await submitTemplateEdits(ctx, {
+    companyId: template.companyId,
+    effectiveDate: input.effectiveDate,
+    payload: { templateId: id, templateName: template.name, workLocationId: input.workLocationId },
+    employees: approval.flatMap((a) => {
+      const crew = crews[crewIndexOf.get(a.employeeId) ?? -1];
+      return crew ? [{ employeeId: a.employeeId, crewId: crew.id, crewName: crew.name }] : [];
+    }),
+  });
   await audit(ctx, "attendance.roster_template.assign", "attendance.roster_template", id, null, {
     ...input,
-    assigned: [...target.keys()],
-    replacedDays: replaceable.length,
+    assigned: direct.map((a) => a.employeeId),
+    submitted,
+    replacedDays: directDays.length,
   });
   return plan;
 }

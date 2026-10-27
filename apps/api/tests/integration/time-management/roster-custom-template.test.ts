@@ -144,6 +144,12 @@ afterAll(async () => {
   await prisma.crew.deleteMany({ where: { patternId: { in: patternIds } } });
   await prisma.rosterPattern.deleteMany({ where: { id: { in: patternIds } } });
   await prisma.rosterTemplate.deleteMany({ where: { name: { contains: RUN } } });
+  const edits = await prisma.rosterEditRequest.findMany({
+    where: { employeeId: { in: people.employees } },
+    select: { id: true },
+  });
+  await prisma.approvalRequest.deleteMany({ where: { subjectId: { in: edits.map((e) => e.id) } } });
+  await prisma.rosterEditRequest.deleteMany({ where: { employeeId: { in: people.employees } } });
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: people.employees } } });
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: people.employees } } });
   await prisma.shift.deleteMany({ where: { id: { in: shiftIds } } });
@@ -365,25 +371,33 @@ describe("template roster buatan HR (TM-D23)", () => {
     });
     expect(before).toBe(0);
 
-    // Pakai lagi untuk Ani (sudah di Crew A) setelah diisi kuas → tetap di crew, sel kuas ditimpa lagi.
+    // TM-D24: Ani sudah ber-crew; diisi kuas lalu dipakai lagi → diajukan (sel kuas tetap sampai disetujui).
     await prisma.rosterDay.update({
       where: {
         employeeId_workDate: { employeeId: ani, workDate: new Date(`${effectiveDate}T00:00:00Z`) },
       },
       data: { source: "MANUAL", crewId: null, shiftId: shiftIds[1] },
     });
-    const again = await data<{ assignments: { stays: boolean }[]; replacedDays: number }>(
+    const again = await data<{
+      assignments: { stays: boolean; needsApproval: boolean }[];
+      approvalCount: number;
+    }>(
       await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, {
         ...body,
         employeeIds: [ani],
       }),
     );
-    expect(again).toMatchObject({ assignments: [{ stays: true }], replacedDays: 1 });
+    expect(again).toMatchObject({
+      assignments: [{ stays: true, needsApproval: true }],
+      approvalCount: 1,
+    });
     const anis2 = await prisma.rosterDay.findFirst({
       where: { employeeId: ani, workDate: new Date(`${effectiveDate}T00:00:00Z`) },
       include: { shift: true },
     });
-    expect(anis2).toMatchObject({ source: "PATTERN", shift: { code: code("D") } });
+    expect(anis2).toMatchObject({ source: "MANUAL", shift: { code: code("N") } });
+    const pending = await prisma.rosterEditRequest.findMany({ where: { employeeId: ani } });
+    expect(pending.map((p) => p.status)).toEqual(["PENDING"]);
   });
 
   test("hari terkunci (absen disetujui) tidak ditimpa saat paksa tempel", async () => {
@@ -411,12 +425,22 @@ describe("template roster buatan HR (TM-D23)", () => {
         status: "APPROVED",
       },
     });
-    const res = await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, {
+    const res = await call("POST", `/roster-custom-templates/${t.id}/assign/preview`, h.hr, {
       workLocationId: people.location2,
       employeeIds: [budi],
       effectiveDate: plusDays(today, 3),
     });
-    expect(res.status).toBe(200);
+    // Sel kuas Budi terkunci → tidak dihitung ditimpa; Budi tetap di crew → tidak ada perubahan.
+    expect(await data(res)).toMatchObject({ replacedDays: 0, approvalCount: 0 });
+    expect(
+      (
+        await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, {
+          workLocationId: people.location2,
+          employeeIds: [budi],
+          effectiveDate: plusDays(today, 3),
+        })
+      ).status,
+    ).toBe(422);
     const day = await prisma.rosterDay.findFirst({
       where: { employeeId: budi, workDate: new Date(`${date}T00:00:00Z`) },
       include: { shift: true },
@@ -425,7 +449,7 @@ describe("template roster buatan HR (TM-D23)", () => {
     await prisma.attendanceDay.deleteMany({ where: { employeeId: budi } });
   });
 
-  test("pindah crew: hari mulai tanggal efektif ikut crew baru (tidak kosong)", async () => {
+  test("pindah crew lewat atur anggota crew: hari mulai tanggal efektif ikut crew baru (tidak kosong)", async () => {
     const effectiveDate = plusDays(today, 5);
     const dedi = people.employees[3] as string;
     const t2 = await data<Template>(
@@ -436,15 +460,17 @@ describe("template roster buatan HR (TM-D23)", () => {
         def({ name: `Malam ${RUN}`, steps: [code("N"), "OFF"], crewCount: 1, crewOffsetDays: 0 }),
       ),
     );
-    const res = await call("POST", `/roster-custom-templates/${t2.id}/assign`, h.hr, {
-      workLocationId: people.location2,
+    const installed = await data<{ crews: { id: string }[] }>(
+      await call("POST", `/roster-custom-templates/${t2.id}/install`, h.hr, {
+        workLocationId: people.location2,
+        cycleStartDate: effectiveDate,
+      }),
+    );
+    const res = await call("PUT", `/crews/${installed.crews[0]?.id}/members`, h.hr, {
       employeeIds: [dedi],
       effectiveDate,
     });
     expect(res.status).toBe(200);
-    expect(
-      (await data<{ assignments: { fromCrew: string | null }[] }>(res)).assignments[0]?.fromCrew,
-    ).toContain("Crew A");
     const days = await prisma.rosterDay.findMany({
       where: {
         employeeId: dedi,

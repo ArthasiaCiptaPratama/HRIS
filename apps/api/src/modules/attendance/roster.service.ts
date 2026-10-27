@@ -547,8 +547,10 @@ export async function regenerateCrew(
   crewId: string,
   from?: string,
   notify = true,
+  /** TM-D24: jalankan di transaksi pemanggil (keputusan approval) — gagal = semuanya batal. */
+  outerTx?: repository.AttendanceTx,
 ): Promise<number> {
-  const crew = await repository.findCrew(crewId);
+  const crew = await repository.findCrew(crewId, outerTx);
   if (!crew) return 0;
   const settings = await readTimeSettings();
   const today = await settingsToday();
@@ -557,10 +559,9 @@ export async function regenerateCrew(
   const memberIds = [...new Set(crew.members.map((m) => m.employeeId))];
   const snapshot = async () =>
     new Map(
-      (await repository.rosterDaysBetween(memberIds, toDate(start), toDate(end))).map((r) => [
-        `${r.employeeId}|${toIso(r.workDate)}`,
-        r.shift?.code ?? null,
-      ]),
+      (await repository.rosterDaysBetween(memberIds, toDate(start), toDate(end), outerTx)).map(
+        (r) => [`${r.employeeId}|${toIso(r.workDate)}`, r.shift?.code ?? null],
+      ),
     );
   const before = notify && memberIds.length > 0 ? await snapshot() : null;
   const codes = await shiftCodeMap(crew.companyId);
@@ -577,7 +578,7 @@ export async function regenerateCrew(
         start,
         end,
       );
-  const count = await repository.withTransaction(async (tx) => {
+  const write = async (tx: repository.AttendanceTx) => {
     await repository.deletePatternDays(tx, crewId, toDate(start), toDate(end));
     const result = await repository.insertDays(
       tx,
@@ -590,7 +591,8 @@ export async function regenerateCrew(
       })),
     );
     return result.count;
-  });
+  };
+  const count = outerTx ? await write(outerTx) : await repository.withTransaction(write);
   if (before) {
     const after = await snapshot();
     const changes: RosterChange[] = [];

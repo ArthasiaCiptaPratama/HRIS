@@ -91,9 +91,18 @@ export function TemplateAssignDialog({
   const submit = async () => {
     try {
       const plan = await assign.mutateAsync({ id: templateId, body });
-      const moved = plan.assignments.filter((a) => !a.stays).length;
+      const direct = plan.assignments.filter((a) => !a.stays && !a.needsApproval).length;
       toast.success(
-        `${moved} karyawan diisi dengan "${template?.name}" mulai ${workDateLabel(effectiveDate)}.`,
+        [
+          direct > 0
+            ? `${direct} karyawan diisi dengan "${template?.name}" mulai ${workDateLabel(effectiveDate)}.`
+            : null,
+          plan.approvalCount > 0
+            ? `${plan.approvalCount} perubahan diajukan ke atasan + HR (Perubahan Roster › Diajukan saya).`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
       );
       onClose();
     } catch (e) {
@@ -242,11 +251,11 @@ export function TemplateAssignDialog({
               assign.isPending ||
               !plan ||
               preview.isFetching ||
-              (plan.assignments.every((a) => a.stays) && plan.replacedDays === 0)
+              plan.assignments.every((a) => a.stays && !a.needsApproval)
             }
             onClick={() => void submit()}
           >
-            Terapkan template
+            {plan && plan.approvalCount > 0 ? "Terapkan & ajukan" : "Terapkan template"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -291,10 +300,17 @@ function PlanView({
                 <td className="px-3 py-1.5">{a.crewName.split(" · ")[1] ?? a.crewName}</td>
                 <td className="text-muted-foreground px-3 py-1.5 text-xs">
                   {a.stays
-                    ? "Sudah di crew ini"
+                    ? a.needsApproval
+                      ? "Sudah di crew ini · roster lama ditimpa"
+                      : "Sudah di crew ini · tidak ada perubahan"
                     : a.fromCrew
                       ? `Pindah dari ${a.fromCrew}`
                       : "Belum punya crew"}
+                  {a.needsApproval ? (
+                    <Badge className="ml-1 border-0 bg-amber-100 text-amber-900">
+                      Perlu persetujuan atasan + HR
+                    </Badge>
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -308,6 +324,12 @@ function PlanView({
           </tbody>
         </table>
       </div>
+      {plan.approvalCount > 0 ? (
+        <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          {plan.approvalCount} karyawan sudah ber-crew: perubahannya diajukan ke atasan + HR dan
+          baru berlaku setelah disetujui. Roster lama tetap berlaku sampai saat itu.
+        </p>
+      ) : null}
       {plan.restWarnings.length > 0 ? (
         <ul className="list-disc rounded-lg bg-amber-50 p-2 pl-6 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           {plan.restWarnings.map((w) => (

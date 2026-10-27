@@ -121,8 +121,13 @@ export const rosterDaysBetween = (employeeIds: string[], from: Date, to: Date, t
   });
 
 /** TM-D23: sel non-pola (kuas / import / tukar shift disetujui) pada rentang — ditimpa saat isi template. */
-export const nonPatternDaysBetween = (employeeIds: string[], from: Date, to: Date) =>
-  getPrisma().rosterDay.findMany({
+export const nonPatternDaysBetween = (
+  employeeIds: string[],
+  from: Date,
+  to: Date,
+  tx?: AttendanceTx,
+) =>
+  db(tx).rosterDay.findMany({
     where: {
       employeeId: { in: employeeIds },
       workDate: { gte: from, lte: to },
@@ -130,8 +135,33 @@ export const nonPatternDaysBetween = (employeeIds: string[], from: Date, to: Dat
     },
     select: { id: true, employeeId: true, workDate: true },
   });
-export const deleteRosterDays = (ids: string[]) =>
-  getPrisma().rosterDay.deleteMany({ where: { id: { in: ids } } });
+export const deleteRosterDays = (ids: string[], tx?: AttendanceTx) =>
+  db(tx).rosterDay.deleteMany({ where: { id: { in: ids } } });
+
+// ── Pengajuan perubahan roster oleh HR (TM-D24) ──
+export const createRosterEdit = (
+  tx: AttendanceTx,
+  data: Prisma.RosterEditRequestUncheckedCreateInput,
+) => tx.rosterEditRequest.create({ data });
+export const findRosterEdit = (id: string, tx?: AttendanceTx) =>
+  db(tx).rosterEditRequest.findUnique({ where: { id } });
+export type RosterEditRow = NonNullable<Awaited<ReturnType<typeof findRosterEdit>>>;
+export const updateRosterEdit = (
+  tx: AttendanceTx,
+  id: string,
+  data: Prisma.RosterEditRequestUncheckedUpdateInput,
+) => tx.rosterEditRequest.update({ where: { id }, data });
+export const listRosterEdits = (where: Prisma.RosterEditRequestWhereInput, take = 500) =>
+  getPrisma().rosterEditRequest.findMany({ where, orderBy: { createdAt: "desc" }, take });
+export const pendingRosterEditEmployees = async (employeeIds: string[]) =>
+  new Set(
+    (
+      await getPrisma().rosterEditRequest.findMany({
+        where: { employeeId: { in: employeeIds }, status: "PENDING" },
+        select: { employeeId: true },
+      })
+    ).map((r) => r.employeeId),
+  );
 export const membershipsOn = (employeeIds: string[], onDate: Date) =>
   getPrisma().crewMember.findMany({
     where: {

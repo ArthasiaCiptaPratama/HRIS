@@ -5,6 +5,7 @@ import { approvalViewSchema } from "../approval/index.ts";
 import { shiftSchema } from "./attendance.contract.ts";
 import type * as service from "./roster.service.ts";
 import type { RosterChangeDto } from "./roster-change.service.ts";
+import type * as edits from "./roster-edit.service.ts";
 import type * as templates from "./roster-template.service.ts";
 
 // MOB-D7 #1: skema respons OpenAPI roster (D-069) untuk codegen app mobile (MOB-D9).
@@ -232,6 +233,7 @@ export const rosterTemplateAssignPlanSchema = z
         crewName: z.string(),
         fromCrew: z.string().nullable(),
         stays: z.boolean(),
+        needsApproval: z.boolean(),
       }),
     ),
     skipped: z.array(
@@ -239,9 +241,32 @@ export const rosterTemplateAssignPlanSchema = z
     ),
     replacedDays: z.number().int(),
     lockedDays: z.number().int(),
+    approvalCount: z.number().int(),
     restWarnings: z.array(z.string()),
   })
   .openapi("RosterTemplateAssignPlan");
 assertExact<z.infer<typeof rosterTemplateAssignPlanSchema>, templates.RosterTemplateAssignPlan>(
   true,
 );
+
+// TM-D24: perubahan roster karyawan ber-crew oleh HR — berlaku setelah disetujui atasan + HR.
+export const rosterEditSchema = z
+  .object({
+    id: z.uuid(),
+    kind: z.enum(["TEMPLATE", "CELLS", "IMPORT", "CREW"]),
+    status: z.enum(["PENDING", "APPLIED", "REJECTED", "CANCELLED"]),
+    employee: employeeRef,
+    summary: z.string(),
+    effectiveDate: z.iso.date(),
+    appliedFrom: z.iso.date().nullable(),
+    reason: z.string().nullable(),
+    preview: z.array(
+      z.object({ date: z.iso.date(), from: z.string().nullable(), to: z.string().nullable() }),
+    ),
+    createdAt: z.string(),
+    createdByMe: z.boolean(),
+    approval: nullableRef(approvalViewSchema),
+  })
+  .openapi("RosterEdit");
+assertExact<z.infer<typeof rosterEditSchema>, edits.RosterEditDto>(true);
+export const rosterEditListSchema = z.array(rosterEditSchema).openapi("RosterEditList");

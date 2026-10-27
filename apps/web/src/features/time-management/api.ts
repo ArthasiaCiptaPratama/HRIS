@@ -25,6 +25,7 @@ import {
   patternSchema,
   precheckSchema,
   rosterChangeSchema,
+  rosterEditSchema,
   rosterGridSchema,
   selfieUploadSchema,
   shiftSchema,
@@ -210,6 +211,29 @@ export function useDecideApproval() {
         body,
         schema: one(z.object({ requestId: z.string(), status: z.string() })),
       }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+}
+
+/** TM-D24: pengajuan perubahan roster oleh HR — inbox keputusan / diajukan saya. */
+export function useRosterEdits(scope: "inbox" | "mine", enabled = true) {
+  return useQuery({
+    queryKey: ["time-management", "roster-edits", scope] as const,
+    queryFn: ({ signal }) =>
+      api(`/roster-edits?scope=${scope}`, { schema: many(rosterEditSchema), signal }).then(
+        (r) => r.data,
+      ),
+    enabled,
+  });
+}
+
+export function useCancelRosterEdit() {
+  const refresh = useRefreshAll();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/roster-edits/${id}/cancel`, { method: "POST", schema: one(rosterEditSchema) }).then(
+        (r) => r.data,
+      ),
     onSuccess: refresh,
   });
 }
