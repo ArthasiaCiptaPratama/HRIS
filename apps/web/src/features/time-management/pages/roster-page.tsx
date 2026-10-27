@@ -200,7 +200,17 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
     });
     try {
       const result = await save.mutateAsync({ companyId: grid.companyId, cells: list });
-      toast.success(`${result.updated} sel roster disimpan.`);
+      toast.success(
+        [
+          result.updated > 0 ? `${result.updated} sel roster disimpan.` : null,
+          // TM-D24: karyawan ber-crew → diajukan ke atasan + HR, berlaku setelah disetujui.
+          result.submitted > 0
+            ? `${result.submitted} karyawan ber-crew: perubahan diajukan ke atasan + HR (Perubahan Roster › Diajukan saya).`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       setPending(new Map());
       setIssues(new Map());
     } catch (error) {
@@ -481,7 +491,16 @@ function ImportDialog({
   const save = async () => {
     try {
       const saved = await commit.mutateAsync({ companyId, rows });
-      toast.success(`${saved.saved} hari roster diimport.`);
+      toast.success(
+        [
+          saved.saved > 0 ? `${saved.saved} hari roster diimport.` : null,
+          saved.submitted > 0
+            ? `${saved.submitted} karyawan ber-crew: perubahan diajukan ke atasan + HR.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       reset();
       onClose();
     } catch (e) {

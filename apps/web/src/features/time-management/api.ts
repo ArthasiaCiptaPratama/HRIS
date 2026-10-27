@@ -450,7 +450,7 @@ export function useSetRosterCells() {
       api("/roster/cells", {
         method: "PUT",
         body: input,
-        schema: one(z.object({ updated: z.number() })),
+        schema: one(z.object({ updated: z.number(), submitted: z.number().default(0) })),
       }).then((r) => r.data),
     onSuccess: refresh,
   });
@@ -471,7 +471,7 @@ export function useRosterImport() {
       api("/roster/import/commit", {
         method: "POST",
         body: input,
-        schema: one(z.object({ saved: z.number() })),
+        schema: one(z.object({ saved: z.number(), submitted: z.number().default(0) })),
       }).then((r) => r.data),
     onSuccess: refresh,
   });

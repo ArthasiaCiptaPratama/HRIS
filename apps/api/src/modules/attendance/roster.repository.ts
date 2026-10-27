@@ -153,6 +153,17 @@ export const updateRosterEdit = (
 ) => tx.rosterEditRequest.update({ where: { id }, data });
 export const listRosterEdits = (where: Prisma.RosterEditRequestWhereInput, take = 500) =>
   getPrisma().rosterEditRequest.findMany({ where, orderBy: { createdAt: "desc" }, take });
+/** Keanggotaan crew aktif yang bersinggungan dengan rentang (crew tidak diarsipkan). */
+export const membershipsBetween = (employeeIds: string[], from: Date, to: Date) =>
+  getPrisma().crewMember.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      startDate: { lte: to },
+      OR: [{ endDate: null }, { endDate: { gte: from } }],
+      crew: { deletedAt: null },
+    },
+    select: { employeeId: true, startDate: true, endDate: true },
+  });
 export const pendingRosterEditEmployees = async (employeeIds: string[]) =>
   new Set(
     (

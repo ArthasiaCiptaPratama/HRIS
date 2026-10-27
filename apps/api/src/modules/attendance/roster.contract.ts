@@ -111,7 +111,11 @@ assertExact<
 >(true);
 
 export const rosterCellsResultSchema = z
-  .object({ updated: z.number().int() })
+  .object({
+    updated: z.number().int(),
+    /** TM-D24: jumlah karyawan ber-crew yang perubahannya diajukan (belum berlaku). */
+    submitted: z.number().int(),
+  })
   .openapi("RosterCellsResult");
 assertExact<
   z.infer<typeof rosterCellsResultSchema>,
@@ -138,7 +142,7 @@ export const rosterImportPreviewSchema = z
 assertExact<z.infer<typeof rosterImportPreviewSchema>, service.ImportPreview>(true);
 
 export const rosterImportCommitSchema = z
-  .object({ saved: z.number().int() })
+  .object({ saved: z.number().int(), submitted: z.number().int() })
   .openapi("RosterImportCommit");
 assertExact<
   z.infer<typeof rosterImportCommitSchema>,

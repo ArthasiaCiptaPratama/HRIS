@@ -853,15 +853,41 @@ async function applyCells(
   );
 }
 
+export type RosterCell = { employeeId: string; date: string; code: string | null };
+
+/**
+ * TM-D24: pemisah sel untuk karyawan yang sedang ber-crew pada tanggal sel → diajukan (persetujuan atasan + HR),
+ * sisanya langsung disimpan. Dipasang oleh roster-edit.service (hindari import melingkar).
+ */
+export type CrewedCellSplitter = (
+  ctx: RequestContext,
+  companyId: string,
+  kind: "CELLS" | "IMPORT",
+  cells: RosterCell[],
+) => Promise<{ direct: RosterCell[]; submitted: number; blocked: CellIssue[] }>;
+let splitCrewedCells: CrewedCellSplitter = async (_ctx, _companyId, _kind, cells) => ({
+  direct: cells,
+  submitted: 0,
+  blocked: [],
+});
+export function configureCrewedCellSplitter(splitter: CrewedCellSplitter) {
+  splitCrewedCells = splitter;
+}
+
 export async function setRosterCells(
   ctx: RequestContext,
   input: RosterCellsInput,
-): Promise<{ updated: number }> {
+): Promise<{ updated: number; submitted: number }> {
   assertManage(ctx.actor, input.companyId);
   const { issues, codes } = await validateCells(input.companyId, input.cells);
   if (issues.length > 0) throw new BusinessRuleError("Sebagian sel tidak bisa disimpan.", issues);
-  await applyCells(ctx, input.companyId, input.cells, "MANUAL", codes);
-  return { updated: input.cells.length };
+  const split = await splitCrewedCells(ctx, input.companyId, "CELLS", input.cells);
+  if (split.blocked.length > 0) {
+    throw new BusinessRuleError("Sebagian sel tidak bisa disimpan.", split.blocked);
+  }
+  if (split.direct.length > 0)
+    await applyCells(ctx, input.companyId, split.direct, "MANUAL", codes);
+  return { updated: split.direct.length, submitted: split.submitted };
 }
 
 export interface ImportPreview {
@@ -916,7 +942,7 @@ export async function previewRosterImport(
 export async function commitRosterImport(
   ctx: RequestContext,
   input: RosterImportInput,
-): Promise<{ saved: number }> {
+): Promise<{ saved: number; submitted: number }> {
   assertManage(ctx.actor, input.companyId);
   const { cells, issues, codes } = await resolveImport(input);
   if (issues.length > 0)
@@ -924,8 +950,13 @@ export async function commitRosterImport(
       "Masih ada baris bermasalah; perbaiki lalu pratinjau ulang.",
       issues.slice(0, 500),
     );
-  await applyCells(ctx, input.companyId, cells, "IMPORT", codes);
-  return { saved: cells.length };
+  const split = await splitCrewedCells(ctx, input.companyId, "IMPORT", cells);
+  if (split.blocked.length > 0) {
+    throw new BusinessRuleError("Sebagian baris tidak bisa disimpan.", split.blocked.slice(0, 500));
+  }
+  if (split.direct.length > 0)
+    await applyCells(ctx, input.companyId, split.direct, "IMPORT", codes);
+  return { saved: split.direct.length, submitted: split.submitted };
 }
 
 export { dayKey };

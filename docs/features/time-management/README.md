@@ -73,8 +73,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [ ] Fase 3: ubah pola template yang sudah dipasang, berlaku mulai tanggal efektif (versi pola)
 - [~] **Perubahan roster karyawan ber-crew wajib disetujui (TM-D24)** (tambahan 2026-10-27: permintaan Mat)
   - [x] Tahap 1 — isi dengan template: migrasi `roster_edit_requests` (enum `ROSTER_EDIT`, kolom `approval_requests.submitted_by_account_id`, tabel + enum `RosterEditKind`/`RosterEditStatus`; lokal saja); `roster-edit.service.ts` (ajukan, terapkan di handler approval, batal, daftar); `GET /roster-edits?scope=inbox|mine|all`, `POST /roster-edits/{id}/cancel`; `regenerateCrew(..., outerTx)`; badge menu Perubahan Roster ikut `ROSTER_EDIT`; web: tanda "Perlu persetujuan atasan + HR" di Isi dengan template, tab **Perubahan dari HR** & **Diajukan saya (HR)** di Perubahan Roster, tab **Jadwal** di Approval HP
-  - [ ] Tahap 2 — kuas grid
-  - [ ] Tahap 3 — import Excel
+  - [x] Tahap 2 — kuas grid: `PUT /roster/cells` memisah sel karyawan yang ber-crew pada tanggal sel → pengajuan `CELLS` (satu per karyawan), sisanya langsung; respons `{ updated, submitted }`; karyawan dengan pengajuan menunggu → 422 (issue per sel); disetujui → sel MANUAL (hari terkunci dilewati) + notifikasi
+  - [x] Tahap 3 — import Excel: `POST /roster/import/commit` sama (pengajuan `IMPORT`, sumber IMPORT saat diterapkan); respons `{ saved, submitted }`
   - [ ] Tahap 4 — atur anggota crew
 - [x] **Konfigurasi shift, patokan Clock In, lupa Clock Out, perintah lembur (TM-D14–TM-D18)** (tambahan 2026-10-26: grill pemilik projek, serah-terima `HRIS-rilis`) — BE dikerjakan Oatse di develop setelah gabung `HRIS/Mat/Mac` `8d3fd76`; alarm lokal diserahkan ke app `Arthasia-Mobile`
   - [x] TM-D14: `startsNextDay` dipertahankan; form shift menanyakan hanya untuk jam mulai 00.00–05.59 dengan pilihan tanggal nyata (`roster-setup-page.tsx`, `DAWN_END_MIN`); Data Absen Harian menampilkan "(mulai Rab, 28 Okt)" bila jadwal terkunci mulai setelah tanggal roster (`scheduleLabel`)

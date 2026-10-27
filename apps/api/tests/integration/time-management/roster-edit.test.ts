@@ -277,4 +277,68 @@ describe("perubahan roster karyawan ber-crew wajib disetujui (TM-D24)", () => {
       (await call("GET", `/roster-edits?scope=all&companyId=${companyId}`, h.emp)).status,
     ).toBe(403);
   });
+
+  test("kuas: sel karyawan ber-crew diajukan, tanpa crew langsung; selama menunggu edit lagi ditolak; disetujui → tersimpan", async () => {
+    const date = plusDays(E, 6);
+    const before = await dayCode(ids.emp.budi, date);
+    const res = await call("PUT", "/roster/cells", h.hr1, {
+      companyId,
+      cells: [
+        { employeeId: ids.emp.budi, date, code: code("D") },
+        { employeeId: ids.emp.mgr, date, code: code("D") },
+      ],
+    });
+    expect(await data<{ updated: number; submitted: number }>(res)).toEqual({
+      updated: 1,
+      submitted: 1,
+    });
+    expect(await dayCode(ids.emp.mgr, date)).toBe(code("D"));
+    expect(await dayCode(ids.emp.budi, date)).toBe(before);
+
+    const again = await call("PUT", "/roster/cells", h.hr1, {
+      companyId,
+      cells: [{ employeeId: ids.emp.budi, date: plusDays(date, 1), code: "OFF" }],
+    });
+    expect(again.status).toBe(422);
+
+    const edit = (await mine()).find(
+      (e) => e.employee.id === ids.emp.budi && e.status === "PENDING",
+    );
+    expect(edit?.preview).toEqual([{ date, from: before, to: code("D") }]);
+    for (const headers of [h.mgr, h.hr2]) {
+      await call("POST", `/approvals/${edit?.approval?.id}/decision`, headers, {
+        decision: "APPROVED",
+      });
+    }
+    expect(await dayCode(ids.emp.budi, date)).toBe(code("D"));
+    const day = await prisma.rosterDay.findFirst({
+      where: { employeeId: ids.emp.budi, workDate: D(date) },
+    });
+    expect(day?.source).toBe("MANUAL");
+  });
+
+  test("import: baris karyawan ber-crew diajukan (IMPORT), disetujui → sumber IMPORT", async () => {
+    const date = plusDays(E, 8);
+    const res = await call("POST", "/roster/import/commit", h.hr1, {
+      companyId,
+      rows: [{ employeeNumber: `RE-${RUN}-ani`, date, code: "OFF" }],
+    });
+    expect(await data<{ saved: number; submitted: number }>(res)).toEqual({
+      saved: 0,
+      submitted: 1,
+    });
+    const edit = (await mine()).find(
+      (e) => e.employee.id === ids.emp.ani && e.status === "PENDING",
+    );
+    expect(edit).toBeDefined();
+    for (const headers of [h.mgr, h.hr2]) {
+      await call("POST", `/approvals/${edit?.approval?.id}/decision`, headers, {
+        decision: "APPROVED",
+      });
+    }
+    const day = await prisma.rosterDay.findFirst({
+      where: { employeeId: ids.emp.ani, workDate: D(date) },
+    });
+    expect(day).toMatchObject({ source: "IMPORT", shiftId: null });
+  });
 });
