@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-27 — No. sertifikat di Arsip › Pelatihan (Oatse)
+- **Dikerjakan:** item Backlog PROGRESS "No. Sertifikasi" → sub-item "(tambahan 2026-10-27)" di Gel. 1a. Koreksi: Print data PDF sudah mengisi nomor sertifikat sejak `e25101b` (2026-10-19), catatan Backlog basi. Celah yang diperbaiki: shared `trainingInputSchema` + `certificateNumber` (maks 60, kosong → null, tidak dikirim → undefined); api `archive.service.ts` `trainingData` (kolom hanya diubah bila dikirim, tidak tercatat di audit bila tidak), daftar `GET /archive/trainings` + `certificateNumber` & pencarian `q`, `archive.schema.ts` `trainingRowSchema`, ekspor Excel kolom "No. sertifikat"; web field "No. sertifikat" di dialog pelatihan + nomor di baris daftar.
+- **Keputusan:** – (A2-Q1 form onboarding mandiri tidak diubah; A2-Q2 pengajuan perubahan data karyawan tetap tanpa pelatihan — supervisor atas nama pengguna)
+- **Verifikasi:** test gagal-dulu lalu hijau: shared `archive.test.ts` (+1), api `integration/employee/archive.test.ts` (+1, + ekspor), web `archive.test.tsx` (+1, + baris daftar); typecheck ✔ · `biome ci` ✔ · boundaries ✔ · test shared 340 · api 992 · web 327 ✔. Tanpa migrasi.
+- **Masalah / catatan:** ekspor Excel pelatihan bertambah satu kolom setelah "Jenis".
+- **Berikutnya:** ikut merge ke develop & rilis berikutnya.
+
 ### 2026-10-27 — Dialog Aset: judul & tombol tetap di layar pendek (Oatse)
 - **Dikerjakan:** item Backlog PROGRESS (2026-10-19, dari perbaikan dialog SP) → sub-item "(tambahan 2026-10-27)" di Gel. 2a. `FormDialog` di `asset-forms.tsx` disamakan dengan pola dialog SP (`DialogContent` flex, header & footer ber-border, hanya isi `overflow-y-auto`); `EmployeePicker` di Serahkan & Catat pembagian APD diberi `min-h-0`, karena `min-h-[420px]` bawaan picker mengalahkan `h-64`/`h-56`.
 - **Keputusan:** – (tidak membuat komponen dialog bersama lintas fitur; refaktor di luar cakupan)
