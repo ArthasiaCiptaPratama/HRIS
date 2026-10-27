@@ -120,13 +120,13 @@ export const rosterDaysBetween = (employeeIds: string[], from: Date, to: Date, t
     include: { shift: true },
   });
 
-/** TM-D20: sel manual/import (bukan pola, bukan tukar shift disetujui) pada rentang. */
-export const manualDaysBetween = (employeeIds: string[], from: Date, to: Date) =>
+/** TM-D20: sel non-pola (kuas / import / tukar shift disetujui) pada rentang — ditimpa saat isi template. */
+export const nonPatternDaysBetween = (employeeIds: string[], from: Date, to: Date) =>
   getPrisma().rosterDay.findMany({
     where: {
       employeeId: { in: employeeIds },
       workDate: { gte: from, lte: to },
-      source: { in: ["MANUAL", "IMPORT"] },
+      source: { in: ["MANUAL", "IMPORT", "CHANGE"] },
     },
     select: { id: true, employeeId: true, workDate: true },
   });

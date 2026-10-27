@@ -237,7 +237,8 @@ export const rosterTemplateAssignPlanSchema = z
     skipped: z.array(
       z.object({ employeeId: z.uuid(), fullName: z.string().nullable(), reason: z.string() }),
     ),
-    manualDays: z.number().int(),
+    replacedDays: z.number().int(),
+    lockedDays: z.number().int(),
     restWarnings: z.array(z.string()),
   })
   .openapi("RosterTemplateAssignPlan");

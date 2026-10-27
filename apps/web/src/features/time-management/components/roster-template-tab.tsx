@@ -3,6 +3,7 @@ import {
   OFF_CODE,
   ROSTER_TEMPLATE_MAX_CREWS,
   rosterTemplatePreview,
+  weeklyWorkSteps,
 } from "@hris/shared";
 import { Archive, LayoutTemplate, MapPin, Pencil, Plus, Undo2 } from "lucide-react";
 import { useState } from "react";
@@ -183,6 +184,7 @@ function TemplateBuilderDialog({
   const [crewCount, setCrewCount] = useState(template?.crewCount ?? 1);
   const [offset, setOffset] = useState(template?.crewOffsetDays ?? 0);
   const [startOnMonday, setStartOnMonday] = useState(template?.startOnMonday ?? false);
+  const [quickCode, setQuickCode] = useState("");
   const active = (shifts.data ?? []).filter((s) => !s.archived);
   const unknown = [
     ...new Set(steps.filter((s) => s !== OFF_CODE && !active.some((a) => a.code === s))),
@@ -257,6 +259,38 @@ function TemplateBuilderDialog({
           ) : null}
           <fieldset disabled={locked} className="space-y-3">
             <legend className="sr-only">Pola template</legend>
+            <div className="bg-muted/50 flex flex-wrap items-end gap-2 rounded-lg p-3">
+              <Field label="Template cepat · shift kerja">
+                <FormSelect
+                  aria-label="Shift template cepat"
+                  className="h-9 w-44"
+                  value={quickCode}
+                  onChange={setQuickCode}
+                  placeholder="Pilih shift"
+                  options={active.map((s) => ({ value: s.code, label: `${s.code} · ${s.name}` }))}
+                />
+              </Field>
+              {([5, 6] as const).map((days) => (
+                <Button
+                  key={days}
+                  variant="outline"
+                  disabled={!quickCode}
+                  onClick={() => {
+                    setSteps(weeklyWorkSteps(days, quickCode));
+                    setStartOnMonday(true);
+                    setCrewCount(1);
+                    setOffset(0);
+                    if (!name.trim()) setName(`${days} hari kerja ${quickCode}`);
+                  }}
+                >
+                  {days} hari kerja ({days === 5 ? "Sen–Jum" : "Sen–Sab"})
+                </Button>
+              ))}
+              <p className="text-muted-foreground w-full text-xs">
+                Pola diulang otomatis setiap minggu ke depan (roster dibangkitkan sampai horizon
+                pengaturan dan diperpanjang setiap hari).
+              </p>
+            </div>
             <Field label="Pola satu siklus" hint={`${steps.length} hari per siklus`}>
               <div className="flex flex-wrap gap-1">
                 {active.map((s) => (

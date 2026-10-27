@@ -380,7 +380,6 @@ export interface TemplateAssignBody {
   workLocationId: string;
   employeeIds: string[];
   effectiveDate: string;
-  replaceManual: boolean;
 }
 
 /** TM-D20 Fase 2: pratinjau pembagian karyawan ke crew template (belum menyimpan apa pun). */

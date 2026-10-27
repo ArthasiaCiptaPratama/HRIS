@@ -299,7 +299,7 @@ describe("template roster buatan HR (TM-D20)", () => {
       string,
       string,
     ];
-    // Sel manual Ani di tanggal efektif: dipertahankan bila tidak ditimpa.
+    // Sel kuas Ani di tanggal efektif: ditimpa template (paksa tempel full).
     await prisma.rosterDay.create({
       data: {
         employeeId: ani,
@@ -318,7 +318,7 @@ describe("template roster buatan HR (TM-D20)", () => {
       crews: { existing: number; added: number }[];
       assignments: { fullName: string; crewName: string; stays: boolean }[];
       skipped: { reason: string }[];
-      manualDays: number;
+      replacedDays: number;
     }>(await call("POST", `/roster-custom-templates/${t.id}/assign/preview`, h.hr, body));
     expect(preview.installed).toBe(false);
     expect(preview.crews.map((c) => c.added)).toEqual([2, 2, 1]);
@@ -336,7 +336,7 @@ describe("template roster buatan HR (TM-D20)", () => {
       ["Cici", "Crew C"],
     ]);
     expect(preview.skipped).toEqual([expect.objectContaining({ reason: "Tidak aktif" })]);
-    expect(preview.manualDays).toBe(1);
+    expect(preview.replacedDays).toBe(1);
     expect(await prisma.crew.count({ where: { pattern: { templateId: t.id } } })).toBe(0);
 
     const res = await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, body);
@@ -356,25 +356,70 @@ describe("template roster buatan HR (TM-D20)", () => {
     const anis = await prisma.rosterDay.findFirst({
       where: { employeeId: ani, workDate: new Date(`${effectiveDate}T00:00:00Z`) },
     });
-    expect(anis?.source).toBe("MANUAL");
+    expect(anis?.source).toBe("PATTERN");
     const before = await prisma.rosterDay.count({
       where: { employeeId: dedi, workDate: { lt: new Date(`${effectiveDate}T00:00:00Z`) } },
     });
     expect(before).toBe(0);
 
-    // Tambah 1 orang lagi (Ani pindah? tidak — sudah di Crew A, tetap) + timpa manual → sel Ani jadi pola.
-    const again = await data<{ assignments: { fullName: string; stays: boolean }[] }>(
+    // Pakai lagi untuk Ani (sudah di Crew A) setelah diisi kuas → tetap di crew, sel kuas ditimpa lagi.
+    await prisma.rosterDay.update({
+      where: {
+        employeeId_workDate: { employeeId: ani, workDate: new Date(`${effectiveDate}T00:00:00Z`) },
+      },
+      data: { source: "MANUAL", crewId: null, shiftId: shiftIds[1] },
+    });
+    const again = await data<{ assignments: { stays: boolean }[]; replacedDays: number }>(
       await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, {
         ...body,
         employeeIds: [ani],
-        replaceManual: true,
       }),
     );
-    expect(again.assignments).toEqual([expect.objectContaining({ stays: true })]);
+    expect(again).toMatchObject({ assignments: [{ stays: true }], replacedDays: 1 });
     const anis2 = await prisma.rosterDay.findFirst({
       where: { employeeId: ani, workDate: new Date(`${effectiveDate}T00:00:00Z`) },
+      include: { shift: true },
     });
-    expect(anis2?.source).toBe("PATTERN");
+    expect(anis2).toMatchObject({ source: "PATTERN", shift: { code: code("D") } });
+  });
+
+  test("hari terkunci (absen disetujui) tidak ditimpa saat paksa tempel", async () => {
+    const list = await data<Template[]>(
+      await call("GET", `/roster-custom-templates?companyId=${companyId}`, h.hr),
+    );
+    const t = list.find((x) => x.name === `Auto ${RUN}`) as Template;
+    const budi = people.employees[1] as string;
+    const date = plusDays(todayJkt, 4);
+    await prisma.rosterDay.upsert({
+      where: { employeeId_workDate: { employeeId: budi, workDate: new Date(`${date}T00:00:00Z`) } },
+      update: { source: "MANUAL", crewId: null, shiftId: shiftIds[2] },
+      create: {
+        employeeId: budi,
+        workDate: new Date(`${date}T00:00:00Z`),
+        shiftId: shiftIds[2],
+        source: "MANUAL",
+      },
+    });
+    await prisma.attendanceDay.create({
+      data: {
+        employeeId: budi,
+        companyId,
+        workDate: new Date(`${date}T00:00:00Z`),
+        status: "APPROVED",
+      },
+    });
+    const res = await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, {
+      workLocationId: people.location2,
+      employeeIds: [budi],
+      effectiveDate: plusDays(todayJkt, 3),
+    });
+    expect(res.status).toBe(200);
+    const day = await prisma.rosterDay.findFirst({
+      where: { employeeId: budi, workDate: new Date(`${date}T00:00:00Z`) },
+      include: { shift: true },
+    });
+    expect(day).toMatchObject({ source: "MANUAL", shift: { code: code("M") } });
+    await prisma.attendanceDay.deleteMany({ where: { employeeId: budi } });
   });
 
   test("pindah crew: hari mulai tanggal efektif ikut crew baru (tidak kosong)", async () => {

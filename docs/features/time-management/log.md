@@ -260,3 +260,9 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Bug lama diperbaiki** (`setCrewMembers`): saat karyawan dipindah ke crew lain, crew tujuan dibangkitkan lebih dulu → hari polanya dilewati karena tanggal masih terisi crew asal, lalu crew asal menghapus harinya → roster kosong mulai tanggal efektif. Urutan kini: crew asal dulu, crew tujuan terakhir. Ketahuan saat uji browser (Super Admin Lokal pindah dari Crew Demo).
 - Test: API `roster-custom-template.test.ts` (7: buat/validasi/akses, pasang + geser crew, kunci pola setelah dipasang, bentrok shift dini hari tanpa centang, bagi rata 2/2/1 + pasang otomatis + manual dipertahankan/ditimpa, pindah crew tidak kosong, tanggal lampau & akses); shared `roster-template.test.ts` (5); web `template-assign.test.tsx`; browser lokal (HR: buat "Rotasi D-N", isi Dimas & Super Admin Lokal). QA TC-TM-060..064.
 - Kontrak baru (web HR, bukan app HP): `/roster-custom-templates*`.
+
+## 2026-10-27 — TM-D20: paksa tempel penuh & template cepat 5/6 hari kerja — Mat
+
+- Mat mencoba Isi dengan template untuk Joko (akun hr.absensi, 15.16) — sel kuas tetap dipakai sehingga template "tidak menempel". Permintaan: "paksa tempel full, jadikan templatenya 5/6 hari kerja yang dapat di-loop hingga minggu-minggu ke depan; jika sudah ada roster untuk user tersebut, langsung tempel".
+- Perubahan: pilihan `replaceManual` dihapus — sel non-pola (MANUAL / IMPORT / CHANGE) mulai tanggal efektif selalu ditimpa; hari terkunci (absen disetujui / periode tertutup) dilewati. Pratinjau menampilkan `replacedDays` & `lockedDays`. Builder: template cepat `weeklyWorkSteps` 5 / 6 hari kerja (mulai Senin).
+- Test: API `roster-custom-template.test.ts` 8 (+ hari terkunci tidak ditimpa); shared 6; web `template-assign.test.tsx`. Browser lokal: "5 hari kerja QA" untuk Dimas → mulai 27 Okt QA Sen–Jum, OFF Sab–Min, berulang; 8 sel kuas lama tertimpa.

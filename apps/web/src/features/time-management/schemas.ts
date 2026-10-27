@@ -228,7 +228,8 @@ export const templateAssignPlanSchema = z.object({
   skipped: z.array(
     z.object({ employeeId: z.string(), fullName: z.string().nullable(), reason: z.string() }),
   ),
-  manualDays: z.number(),
+  replacedDays: z.number(),
+  lockedDays: z.number(),
   restWarnings: z.array(z.string()),
 });
 export type TemplateAssignPlan = z.infer<typeof templateAssignPlanSchema>;

@@ -4,6 +4,7 @@ import {
   mondayOnOrBefore,
   rosterTemplateDefInputSchema,
   rosterTemplatePreview,
+  weeklyWorkSteps,
 } from "../src/index.ts";
 
 // TM-D20: pratinjau template roster buatan HR (sama dengan pembangkit roster API: indeks = selisih hari mod siklus).
@@ -97,5 +98,10 @@ describe("rosterTemplatePreview", () => {
     expect(rosterTemplateDefInputSchema.safeParse(base).success).toBe(true);
     expect(rosterTemplateDefInputSchema.safeParse({ ...base, crewCount: 9 }).success).toBe(false);
     expect(rosterTemplateDefInputSchema.safeParse({ ...base, steps: [] }).success).toBe(false);
+  });
+
+  test("template cepat 5/6 hari kerja: siklus 7 hari mulai Senin", () => {
+    expect(weeklyWorkSteps(5, "QA")).toEqual(["QA", "QA", "QA", "QA", "QA", "OFF", "OFF"]);
+    expect(weeklyWorkSteps(6, "D")).toEqual(["D", "D", "D", "D", "D", "D", "OFF"]);
   });
 });

@@ -28,7 +28,8 @@ export type RosterTemplateInstallInput = z.infer<typeof rosterTemplateInstallInp
 
 /**
  * TM-D20 Fase 2: isi roster karyawan dengan template — karyawan dibagi rata ke crew pemasangan template di
- * lokasi itu (dipasang otomatis bila belum), mulai tanggal efektif.
+ * lokasi itu (dipasang otomatis bila belum), mulai tanggal efektif. Roster lama karyawan itu (kuas / import /
+ * tukar shift) mulai tanggal efektif SELALU ditimpa ("paksa tempel full", Mat 2026-10-27); hari terkunci tetap.
  */
 export const rosterTemplateAssignInputSchema = z.object({
   workLocationId: z.uuid(),
@@ -36,12 +37,16 @@ export const rosterTemplateAssignInputSchema = z.object({
   effectiveDate: z.iso.date(),
   /** Hanya dipakai bila template belum terpasang di lokasi itu (bawaan: tanggal efektif). */
   cycleStartDate: z.iso.date().nullish(),
-  /** Timpa sel manual/import mulai tanggal efektif (hari terkunci & tukar shift disetujui tetap). */
-  replaceManual: z.boolean().default(false),
 });
 export type RosterTemplateAssignInput = z.infer<typeof rosterTemplateAssignInputSchema>;
 
 /** Huruf crew ke-i: A, B, C, … */
+/** Template cepat: 5 hari kerja (Sen–Jum) / 6 hari kerja (Sen–Sab), siklus mingguan mulai Senin. */
+export const weeklyWorkSteps = (workDays: 5 | 6, code: string) => [
+  ...Array<string>(workDays).fill(code),
+  ...Array<string>(7 - workDays).fill(OFF_CODE),
+];
+
 export const crewLetter = (index: number) => String.fromCharCode(65 + index);
 
 const addDays = (date: string, days: number) =>

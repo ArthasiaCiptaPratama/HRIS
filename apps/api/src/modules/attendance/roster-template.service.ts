@@ -502,8 +502,10 @@ export interface RosterTemplateAssignPlan {
     stays: boolean;
   }[];
   skipped: { employeeId: string; fullName: string | null; reason: string }[];
-  /** Sel manual/import mulai tanggal efektif yang akan ditimpa (replaceManual) atau dipertahankan. */
-  manualDays: number;
+  /** Sel roster lama (kuas / import / tukar shift) mulai tanggal efektif yang akan ditimpa template. */
+  replacedDays: number;
+  /** Hari terkunci (absen disetujui / periode tertutup) yang tidak disentuh. */
+  lockedDays: number;
   restWarnings: string[];
 }
 
@@ -538,7 +540,7 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const skipped: RosterTemplateAssignPlan["skipped"] = [];
   const valid = [...new Set(input.employeeIds)].filter((employeeId) => {
     const e = people.get(employeeId);
-    if (!e || !e.isActive)
+    if (!e?.isActive)
       skipped.push({ employeeId, fullName: e?.fullName ?? null, reason: "Tidak aktif" });
     else if (e.companyId !== template.companyId)
       skipped.push({ employeeId, fullName: e.fullName, reason: "Bukan karyawan PT template ini" });
@@ -597,7 +599,7 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const settings = await readTimeSettings();
   const horizon = isoAddDays(today, settings.rosterHorizonDays);
   const manual = valid.length
-    ? await repository.manualDaysBetween(valid, effective, new Date(`${horizon}T00:00:00Z`))
+    ? await repository.nonPatternDaysBetween(valid, effective, new Date(`${horizon}T00:00:00Z`))
     : [];
   const locked = valid.length
     ? await lockedDayKeys(valid, input.effectiveDate, horizon)
@@ -620,7 +622,8 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     })),
     assignments,
     skipped,
-    manualDays: replaceable.length,
+    replacedDays: replaceable.length,
+    lockedDays: locked.size,
     restWarnings: patternRestWarnings(template.steps, shifts, settings.minRestHours).map((w) =>
       w.restHours < 0
         ? `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} bertabrakan ${Math.abs(w.restHours)} jam.`
@@ -659,12 +662,12 @@ export async function applyTemplateAssignment(
     fresh?.patterns.find((p) => p.crews.some((c) => c.workLocationId === input.workLocationId))
       ?.crews ?? []
   ).filter((c) => c.workLocationId === input.workLocationId);
-  if (input.replaceManual && replaceable.length > 0) {
-    // Sel manual/import dihapus dulu supaya hari pola bisa mengisi tanggal itu.
+  if (replaceable.length > 0) {
+    // Paksa tempel: sel lama dihapus dulu supaya hari pola mengisi tanggal itu (hari terkunci tidak ikut).
     await repository.deleteRosterDays(replaceable.map((d) => d.id));
   }
   const effective = new Date(`${input.effectiveDate}T00:00:00Z`);
-  const replaced = input.replaceManual && replaceable.length > 0;
+  const replaced = replaceable.length > 0;
   for (const [index, crew] of crews.entries()) {
     const added = [...target].filter(([, i]) => i === index).map(([employeeId]) => employeeId);
     if (added.length === 0) {
@@ -683,7 +686,7 @@ export async function applyTemplateAssignment(
   await audit(ctx, "attendance.roster_template.assign", "attendance.roster_template", id, null, {
     ...input,
     assigned: [...target.keys()],
-    replacedManualDays: input.replaceManual ? replaceable.length : 0,
+    replacedDays: replaceable.length,
   });
   return plan;
 }

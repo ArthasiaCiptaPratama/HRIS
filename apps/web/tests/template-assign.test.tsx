@@ -51,7 +51,8 @@ const plan = {
     },
   ],
   skipped: [],
-  manualDays: 3,
+  replacedDays: 3,
+  lockedDays: 1,
   restWarnings: [],
 };
 const grid = {
@@ -117,9 +118,10 @@ describe("Isi roster dengan template", () => {
     await user.click(await screen.findByRole("option", { name: "Site" }));
     await user.click(screen.getByRole("button", { name: "Pilih semua" }));
     expect(await screen.findByText("Pindah dari Crew Lama")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Timpa isian manual \/ import mulai tanggal ini \(3 sel\)/),
-    ).toBeInTheDocument();
+    // Paksa tempel full: tidak ada pilihan, hanya keterangan sel yang ditimpa & hari terkunci.
+    expect(screen.getByText(/3 sel roster lama .* akan ditimpa template/)).toBeInTheDocument();
+    expect(screen.getByText(/1 hari terkunci/)).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Timpa/ })).not.toBeInTheDocument();
     const table = screen.getByRole("table");
     expect(within(table).getByText("Crew A (Site)")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Terapkan template" }));
@@ -130,7 +132,6 @@ describe("Isi roster dengan template", () => {
     expect(applied?.body).toMatchObject({
       workLocationId: "loc1",
       employeeIds: ["e1", "e2"],
-      replaceManual: false,
     });
   });
 });

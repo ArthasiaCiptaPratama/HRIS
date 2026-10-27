@@ -52,7 +52,6 @@ export function TemplateAssignDialog({
   const [locationId, setLocationId] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(monthStart > today ? monthStart : today);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [replaceManual, setReplaceManual] = useState(false);
   const [search, setSearch] = useState("");
   const q = useDeferredValue(search.trim().toLowerCase());
   const { assign } = useCustomTemplateMutations();
@@ -62,7 +61,6 @@ export function TemplateAssignDialog({
     workLocationId: locationId,
     employeeIds: [...selected].sort(),
     effectiveDate,
-    replaceManual,
   };
   const preview = useTemplateAssignPreview(
     templateId,
@@ -109,8 +107,9 @@ export function TemplateAssignDialog({
         <DialogHeader>
           <DialogTitle>Isi roster dengan template</DialogTitle>
           <DialogDescription>
-            Karyawan terpilih dibagi rata ke crew template mulai tanggal efektif. Hari yang sudah
-            ada absennya dan tukar shift yang disetujui tidak berubah.
+            Karyawan terpilih dibagi rata ke crew template mulai tanggal berlaku, dan roster lamanya
+            ditimpa penuh. Pola berulang otomatis ke minggu-minggu berikutnya. Hari yang absennya
+            sudah disetujui atau periodenya ditutup tidak berubah.
           </DialogDescription>
         </DialogHeader>
         {templates.isPending ? (
@@ -220,21 +219,16 @@ export function TemplateAssignDialog({
                 ))}
               </ul>
             </div>
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="accent-brand mt-0.5 size-4"
-                checked={replaceManual}
-                onChange={(e) => setReplaceManual(e.target.checked)}
-              />
-              <span>
-                Timpa isian manual / import mulai tanggal ini
-                {plan ? ` (${plan.manualDays} sel)` : ""}
-                <span className="text-muted-foreground block text-xs">
-                  Bila tidak dicentang, sel yang diisi dengan kuas atau import tetap dipakai.
-                </span>
-              </span>
-            </label>
+            {plan && (plan.replacedDays > 0 || plan.lockedDays > 0) ? (
+              <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                {plan.replacedDays > 0
+                  ? `${plan.replacedDays} sel roster lama (kuas / import / tukar shift) mulai tanggal ini akan ditimpa template.`
+                  : ""}
+                {plan.lockedDays > 0
+                  ? ` ${plan.lockedDays} hari terkunci (absen disetujui / periode tertutup) tidak diubah.`
+                  : ""}
+              </p>
+            ) : null}
             {plan ? <PlanView plan={plan} /> : null}
           </div>
         )}
@@ -248,7 +242,7 @@ export function TemplateAssignDialog({
               assign.isPending ||
               !plan ||
               preview.isFetching ||
-              (plan.assignments.every((a) => a.stays) && !(replaceManual && plan.manualDays > 0))
+              (plan.assignments.every((a) => a.stays) && plan.replacedDays === 0)
             }
             onClick={() => void submit()}
           >
