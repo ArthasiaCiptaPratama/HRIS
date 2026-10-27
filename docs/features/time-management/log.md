@@ -238,3 +238,13 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Dicari per file: bocoran approval lembur PENDING berasal dari cleanup `shift-instance.test` (menghapus usulan lembur tanpa approval-nya; tersalin ke midnight). Approval absen CANCELLED tanpa absen dari `cancelOwnPunch` = jejak pembatalan, disengaja (bukan bocor).
 - **Label istirahat:** `computeOvertimeDay` (@hris/shared) tidak memasang `NO_BREAK_PUNCH` di hari tanpa jadwal (OFF / tanpa roster), karena tidak ada jatah istirahat shift. Hari kerja bershift tetap seperti TM-D7. Test shared baru.
 - Verifikasi Alpha Izin/Sakit/Tugas luar tetap dicatat + karyawan mengajukan sendiri (dikonfirmasi Mat).
+
+## 2026-10-26 — Cari karyawan di Data Absen Harian — Mat
+
+- Permintaan Mat: "Buatkan filter search juga di Data Absen Harian".
+- API: `GET /attendance/days` menerima `q` (nama / NIK, sebagian, tidak peka huruf). Disaring di query **sebelum** batas 500 baris (tab Semua) dan di antrean (tab Perlu keputusan), tetap dalam cakupan aktor. Fasad `directory.employeeIdsMatching(q)` (karyawan aktif & tidak aktif).
+- Web: kotak cari (`SearchField`, `useDeferredValue`) di bilah filter; pesan kosong khusus pencarian.
+- Test: API `attendance.test.ts` (inbox & semua: NIK huruf kecil, nama lain, tidak ada); web `attendance-days-search.test.tsx`; browser lokal: "joko" → 21 hari Joko Jetty, "TMDEMO-EMP" → 17 hari Rina. QA TC-TM-059.
+- Kontrak: parameter opsional baru `q` (tidak memecah klien lama).
+- **Tanggal dirapikan** (permintaan Mat, screenshot "masih berantakan"): `listDays` mengurutkan tanggal kerja terbaru dulu di kedua tab (antrean sebelumnya acak karena diambil per approval); kolom Tanggal memakai `scheduleLabel` TM-D14 dari develop ("00.00–07.00 (mulai Kam, 15 Okt)") — versi `scheduleText` buatan sendiri dibuang saat merge develop `dccb1e7`.
+- Data uji lokal hari ini: absen penuh roster Joko (JTM, 14 Okt–5 Nov) & Rina (JTMV2 tanpa centang "mulai setelah tengah malam", 28–29 Okt dilewati karena cuti menunggu). Cadangan absen lama di `~/Documents/QA/2026-10-26-{joko,rina}-roster/backup/`.

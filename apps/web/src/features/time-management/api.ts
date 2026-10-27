@@ -166,6 +166,8 @@ export interface DayListParams {
   labeledOnly?: boolean;
   status?: string | undefined;
   employeeId?: string | undefined;
+  /** Cari nama / NIK karyawan. */
+  q?: string | undefined;
 }
 
 export function useAttendanceDays(params: DayListParams, enabled = true) {
@@ -174,6 +176,7 @@ export function useAttendanceDays(params: DayListParams, enabled = true) {
   if (params.labeledOnly) search.set("labeledOnly", "true");
   if (params.status) search.set("status", params.status);
   if (params.employeeId) search.set("employeeId", params.employeeId);
+  if (params.q) search.set("q", params.q);
   return useQuery({
     queryKey: tmKeys.days(params),
     queryFn: ({ signal }) =>

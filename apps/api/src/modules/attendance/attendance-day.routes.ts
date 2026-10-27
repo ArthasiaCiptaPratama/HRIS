@@ -182,6 +182,11 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
         labeledOnly: z.enum(["true", "false"]).optional(),
         status: z.enum(["OPEN", "PENDING", "APPROVED", "REJECTED", "ALPHA", "LEAVE"]).optional(),
         employeeId: z.uuid().optional(),
+        q: z
+          .string()
+          .max(100)
+          .optional()
+          .openapi({ description: "Cari nama atau NIK karyawan (tidak peka huruf besar/kecil)" }),
       }),
     }),
     (c) =>
@@ -193,6 +198,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
         labeledOnly: c.req.query("labeledOnly") === "true",
         status: c.req.query("status"),
         employeeId: c.req.query("employeeId"),
+        q: c.req.query("q"),
       }),
   ],
   [

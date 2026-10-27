@@ -1114,6 +1114,8 @@ export interface DayListQuery {
   status?: string | undefined;
   /** Rekap per karyawan: hanya hari milik karyawan ini (tetap dalam cakupan aktor). */
   employeeId?: string | undefined;
+  /** Cari nama / NIK karyawan (2026-10-26, permintaan Mat). */
+  q?: string | undefined;
 }
 
 /** Data Absen Harian: inbox = menunggu keputusan aktor; all = semua hari dalam cakupan aktor. */
@@ -1121,6 +1123,9 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
   // TM-D3: Data Absen Harian ikut menampilkan Alpha karena tidak absen tanpa menunggu cron.
   await markNoAttendanceAlpha();
   const actor = ctx.actor;
+  const q = query.q?.trim();
+  const matching = q ? new Set(await directory.employeeIdsMatching(q)) : null;
+  if (matching?.size === 0) return [];
   let rows: repository.DayRow[];
   if (query.scope === "inbox") {
     // D-073: hari yang punya absen menunggu keputusan aktor (+ approval hari model lama).
@@ -1146,15 +1151,25 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
       throw new ForbiddenError();
     }
     if (query.status) where.status = query.status;
-    if (query.employeeId) where.AND = [{ employeeId: query.employeeId }];
+    const and: Record<string, unknown>[] = [];
+    if (query.employeeId) and.push({ employeeId: query.employeeId });
+    // Disaring di query (sebelum batas 500 baris) agar karyawan di luar 500 hari terbaru tetap ketemu.
+    if (matching) and.push({ employeeId: { in: [...matching] } });
+    if (and.length > 0) where.AND = and;
     rows = await repository.listDays(where, query.employeeId ? 1000 : 500);
   }
   rows = rows.filter((r) => toIso(r.workDate) >= query.from && toIso(r.workDate) <= query.to);
   if (query.companyId) rows = rows.filter((r) => r.companyId === query.companyId);
+  if (matching) rows = rows.filter((r) => matching.has(r.employeeId));
   if (query.labeledOnly) rows = rows.filter((r) => r.labels.length > 0);
   // Permintaan pemilik projek 2026-10-21: Data Absen Harian hanya hari yang punya absen (sudah absen, telat,
   // diperbaiki). Alpha tanpa absen ada di Rekap › Alpha & pernyataan dan bukti SP, kecuali diminta per karyawan.
   if (!query.employeeId) rows = rows.filter((r) => r.status !== "ALPHA" || r.punches.length > 0);
+  // Urutan tetap di kedua tab (antrean diambil per approval → acak): tanggal terbaru dulu.
+  rows.sort(
+    (a, b) =>
+      b.workDate.getTime() - a.workDate.getTime() || a.createdAt.getTime() - b.createdAt.getTime(),
+  );
   return toDayViews(ctx, rows, true);
 }
 
