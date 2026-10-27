@@ -287,3 +287,9 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 
 - Kode: `roster.service` hook `configureCrewedCellSplitter` (dipasang `roster-edit.service`, hindari import melingkar) dipakai `setRosterCells` & `commitRosterImport`; pengajuan `CELLS` / `IMPORT` per karyawan (payload sel, ringkasan lama → baru per tanggal sel); `applyCellEdit` di handler approval (upsert/hapus sel, hari terkunci dilewati, shift diarsipkan → keputusan ditolak, notifikasi Fase C); `repository.membershipsBetween`. Kontrak: `RosterCellsResult` + `submitted`, `RosterImportCommit` + `submitted` (aditif). Web: toast Simpan / Import menyebut jumlah yang diajukan.
 - Test: API `roster-edit.test.ts` +2 (kuas: langsung vs diajukan, menunggu → 422, disetujui → MANUAL; import → IMPORT); `roster.test.ts` disesuaikan (helper `tests/helpers/roster-edits.ts` `approvePendingRosterEdits` — atasan + HR kedua); browser lokal: kuas JTS sel Dimas 20 Nov → pengajuan CELLS D → JTS (dibiarkan menunggu sebagai contoh).
+
+## 2026-10-27 — TM-D24 tahap 4: atur anggota crew — Mat
+
+- `roster-edit.service.requestCrewMembers` (dipakai route `PUT /crews/{id}/members`; `setCrewMembers` internal tetap langsung): anggota baru tanpa crew → langsung; pindah dari crew lain / dikeluarkan → pengajuan `CREW` (`join` / `leave`, ringkasan 14 hari); disetujui → `moveToCrew` (tanpa menimpa sel manual) / `leaveCrew` (keanggotaan diakhiri sehari sebelum, hari pola crew dihapus). Kontrak `CrewMembersResult` (`CrewDto` + `submitted`). Web: toast dialog anggota crew menyebut jumlah yang diajukan.
+- Test: API `roster-edit.test.ts` +1 (Mgr tanpa crew langsung N; Cici pindah & Ani keluar diajukan → disetujui → Cici N, Ani tanpa hari pola + keanggotaan berakhir); `roster-custom-template.test.ts` pindah crew kini lewat pengajuan (atasan = SA karena tanpa atasan, HR lain).
+- TM-D24 lengkap (template, kuas, import, anggota crew).

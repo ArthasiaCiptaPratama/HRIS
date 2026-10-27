@@ -341,4 +341,45 @@ describe("perubahan roster karyawan ber-crew wajib disetujui (TM-D24)", () => {
     });
     expect(day).toMatchObject({ source: "IMPORT", shiftId: null });
   });
+
+  test("atur anggota crew: tanpa crew langsung masuk; pindah & keluar diajukan → disetujui berlaku", async () => {
+    const F = plusDays(today, 20);
+    const malam = await prisma.crew.findFirstOrThrow({
+      where: { name: { contains: `Malam ${RUN}` }, deletedAt: null },
+    });
+    // Anggota Malam sekarang: Ani, Budi. Target: Budi tetap, Mgr (tanpa crew) masuk, Cici (crew Siang) pindah,
+    // Ani dikeluarkan.
+    const res = await call("PUT", `/crews/${malam.id}/members`, h.hr1, {
+      employeeIds: [ids.emp.budi, ids.emp.mgr, ids.emp.cici],
+      effectiveDate: F,
+    });
+    expect(res.status).toBe(200);
+    expect((await data<{ submitted: number }>(res)).submitted).toBe(2);
+    expect(await dayCode(ids.emp.mgr, F)).toBe(code("N"));
+    expect(await dayCode(ids.emp.cici, F)).toBe(code("D")); // masih crew Siang sampai disetujui
+
+    const pending = (await mine()).filter(
+      (e) => e.status === "PENDING" && [ids.emp.ani, ids.emp.cici].includes(e.employee.id),
+    );
+    expect(pending.map((e) => (e as Edit & { summary: string }).summary).sort()).toEqual([
+      `Keluar dari crew ${malam.name}`,
+      `Pindah ke crew ${malam.name}`,
+    ]);
+    for (const e of pending) {
+      for (const headers of [h.mgr, h.hr2]) {
+        await call("POST", `/approvals/${e.approval?.id}/decision`, headers, {
+          decision: "APPROVED",
+        });
+      }
+    }
+    expect(await dayCode(ids.emp.cici, F)).toBe(code("N"));
+    const ani = await prisma.rosterDay.findFirst({
+      where: { employeeId: ids.emp.ani, workDate: D(F) },
+    });
+    expect(ani).toBeNull();
+    const aniMembership = await prisma.crewMember.findFirst({
+      where: { employeeId: ids.emp.ani, crewId: malam.id },
+    });
+    expect(aniMembership?.endDate?.toISOString().slice(0, 10)).toBe(plusDays(F, -1));
+  });
 });

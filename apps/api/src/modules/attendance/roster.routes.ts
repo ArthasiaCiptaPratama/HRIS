@@ -19,6 +19,7 @@ import { shiftSchema } from "./attendance.contract.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import {
   crewListSchema,
+  crewMembersResultSchema,
   crewSchema,
   employeeRosterSchema,
   rosterArchivedSchema,
@@ -311,10 +312,11 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     route("put", "/crews/{id}/members", "Atur anggota crew mulai tanggal efektif", {
       params: idParam,
       body: crewMembersInputSchema,
-      response: crewSchema,
+      response: crewMembersResultSchema,
     }),
+    // TM-D24: anggota yang pindah / keluar diajukan ke atasan + HR; anggota baru tanpa crew langsung.
     async (c) =>
-      service.setCrewMembers(ctxOf(c), param(c), strict(crewMembersInputSchema, await body(c))),
+      edits.requestCrewMembers(ctxOf(c), param(c), strict(crewMembersInputSchema, await body(c))),
   ],
   [
     route("get", "/roster", "Grid roster bulanan (SA/HR: PT; MANAGER: tim; karyawan: sendiri)", {

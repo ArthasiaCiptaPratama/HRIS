@@ -437,8 +437,8 @@ export function useSetCrewMembers() {
       api(`/crews/${crewId}/members`, {
         method: "PUT",
         body: { employeeIds, effectiveDate },
-        schema: one(z.unknown()),
-      }),
+        schema: one(z.object({ submitted: z.number().default(0) }).passthrough()),
+      }).then((r) => r.data),
     onSuccess: refresh,
   });
 }

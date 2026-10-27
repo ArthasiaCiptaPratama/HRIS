@@ -6,6 +6,7 @@ import { settingsToday } from "../../../src/modules/attendance/calendar.service.
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
+import { approvePendingRosterEdits } from "../../helpers/roster-edits.ts";
 
 // TM-D23 Fase 1: template roster buatan HR — buat, validasi, akses, pasang ke lokasi (pola + crew bergeser).
 const RUN = crypto.randomUUID().slice(0, 6).toUpperCase();
@@ -38,7 +39,7 @@ const code = (c: string) => `${c}${RUN.slice(0, 4)}`;
 let companyId = "";
 let otherCompany = "";
 let locationId = "";
-let h: Record<"hr" | "otherHr" | "emp", Record<string, string>>;
+let h: Record<"hr" | "hr2" | "sa" | "otherHr" | "emp", Record<string, string>>;
 const shiftIds: string[] = [];
 let templateId = "";
 const people = {
@@ -125,6 +126,8 @@ beforeAll(async () => {
   }
   h = {
     hr: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
+    hr2: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
+    sa: (await auth.loginAs("SUPER_ADMIN")).headers,
     otherHr: (await auth.loginAs("HR_ADMIN", { companies: [otherCompany] })).headers,
     emp: (await auth.loginAs("EMPLOYEE")).headers,
   };
@@ -471,6 +474,9 @@ describe("template roster buatan HR (TM-D23)", () => {
       effectiveDate,
     });
     expect(res.status).toBe(200);
+    // TM-D24: Dedi ber-crew → pindah diajukan; Dedi tanpa atasan → langkah atasan SA, langkah HR HR lain.
+    expect((await data<{ submitted: number }>(res)).submitted).toBe(1);
+    expect(await approvePendingRosterEdits(call, [dedi], [h.sa, h.hr2])).toBe(1);
     const days = await prisma.rosterDay.findMany({
       where: {
         employeeId: dedi,

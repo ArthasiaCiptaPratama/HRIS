@@ -274,3 +274,12 @@ export const rosterEditSchema = z
   .openapi("RosterEdit");
 assertExact<z.infer<typeof rosterEditSchema>, edits.RosterEditDto>(true);
 export const rosterEditListSchema = z.array(rosterEditSchema).openapi("RosterEditList");
+
+/** TM-D24: hasil atur anggota crew — crew (perubahan langsung) + jumlah pengajuan pindah / keluar. */
+export const crewMembersResultSchema = crewSchema
+  .extend({ submitted: z.number().int() })
+  .openapi("CrewMembersResult");
+assertExact<
+  z.infer<typeof crewMembersResultSchema>,
+  Awaited<ReturnType<typeof edits.requestCrewMembers>>
+>(true);

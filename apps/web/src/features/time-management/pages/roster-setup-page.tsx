@@ -971,12 +971,16 @@ function MembersDialog({ crew, onClose }: { crew: Crew; onClose: () => void }) {
   const has = (id: string) => selected.some((s) => s.id === id);
   const submit = async () => {
     try {
-      await setMembers.mutateAsync({
+      const result = await setMembers.mutateAsync({
         crewId: crew.id,
         employeeIds: selected.map((s) => s.id),
         effectiveDate,
       });
-      toast.success("Anggota crew disimpan; roster anggota dibangkitkan dari tanggal efektif.");
+      toast.success(
+        result.submitted > 0
+          ? `Anggota crew disimpan. ${result.submitted} perpindahan / pengeluaran karyawan ber-crew diajukan ke atasan + HR dan berlaku setelah disetujui.`
+          : "Anggota crew disimpan; roster anggota dibangkitkan dari tanggal efektif.",
+      );
       onClose();
     } catch (e) {
       toast.error(errorMessage(e));
