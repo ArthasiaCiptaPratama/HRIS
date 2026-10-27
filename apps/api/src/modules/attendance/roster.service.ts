@@ -32,14 +32,14 @@ import { notifyRosterChanges, type RosterChange, rosterCodes } from "./roster-no
 
 // Tahap B — roster tambang (D-069): shift, pola, crew, pembangkit hari roster, grid bulanan, import.
 
-const todayIso = (now = new Date()) =>
+export const todayIso = (now = new Date()) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
 
 const isUnique = (error: unknown) =>
   typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
 
 type Snapshot = Record<string, unknown> | null;
-async function audit(
+export async function audit(
   ctx: RequestContext,
   action: string,
   entityType: string,
@@ -256,7 +256,7 @@ export async function listPatterns(ctx: RequestContext, companyId: string): Prom
   return (await repository.listPatterns(companyId)).map(patternDto);
 }
 
-async function validateSteps(companyId: string, steps: string[]) {
+export async function validateSteps(companyId: string, steps: string[]) {
   const codes = await shiftCodeMap(companyId);
   const unknown = [...new Set(steps.filter((step) => step !== OFF_CODE && !codes.has(step)))];
   if (unknown.length > 0) {
@@ -527,7 +527,12 @@ export async function setCrewMembers(
     employeeIds: input.employeeIds,
     effectiveDate: input.effectiveDate,
   });
-  for (const id of touchedCrews) await regenerateCrew(id, input.effectiveDate);
+  // Crew asal dulu (hari polanya dihapus mulai tanggal efektif), crew tujuan terakhir — kalau terbalik,
+  // hari pola crew tujuan dilewati karena tanggal itu masih terisi crew asal, lalu kosong.
+  for (const id of [...touchedCrews].filter((c) => c !== crewId)) {
+    await regenerateCrew(id, input.effectiveDate);
+  }
+  await regenerateCrew(crewId, input.effectiveDate);
   return (
     await crewDtos([(await repository.findCrew(crewId)) as repository.CrewRow], input.effectiveDate)
   )[0] as CrewDto;
@@ -743,6 +748,10 @@ export function configureRosterLocks(check: LockedDayCheck) {
   lockedDays = check;
 }
 const dayKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
+
+/** Kunci `employeeId|tanggal` yang terkunci (hari absen disetujui / periode tertutup) pada rentang. */
+export const lockedDayKeys = (employeeIds: string[], from: string, to: string) =>
+  lockedDays(employeeIds, from, to);
 
 /** Karyawan dari daftar yang tanggal `date`-nya terkunci (dipakai juga oleh perubahan/tukar shift). */
 export async function lockedEmployeesOn(employeeIds: string[], date: string): Promise<string[]> {

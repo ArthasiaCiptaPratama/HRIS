@@ -1,5 +1,14 @@
 import { OFF_CODE, ROSTER_SOURCE_LABELS, type RosterSource } from "@hris/shared";
-import { CalendarRange, Eraser, FileUp, Paintbrush, Save, Settings2, Undo2 } from "lucide-react";
+import {
+  CalendarRange,
+  Eraser,
+  FileUp,
+  LayoutTemplate,
+  Paintbrush,
+  Save,
+  Settings2,
+  Undo2,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -26,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useCrews, useRosterGrid, useRosterImport, useSetRosterCells } from "../api";
 import { hhmm, todayIn } from "../components/display";
+import { TemplateAssignDialog } from "../components/template-assign-dialog";
 import { RosterFileError, type RosterFileRow, readRosterFile, rowsFromGrid } from "../roster-file";
 import type { CellIssue, RosterGrid } from "../schemas";
 
@@ -52,6 +62,7 @@ export function RosterPage() {
   const crews = useCrews(companyId || undefined);
   const grid = useRosterGrid(companyId || undefined, month, crewId);
   const [importOpen, setImportOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const manage = tmAccess.manageRoster(me);
 
   return (
@@ -66,6 +77,13 @@ export function RosterPage() {
                 <Link to="/time/roster/pengaturan">
                   <Settings2 /> Shift, pola & crew
                 </Link>
+              </Button>
+              <Button
+                variant="brand"
+                onClick={() => setAssignOpen(true)}
+                disabled={!companyId || !grid.data}
+              >
+                <LayoutTemplate /> Isi dengan template
               </Button>
               <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!companyId}>
                 <FileUp /> Import
@@ -118,6 +136,13 @@ export function RosterPage() {
       ) : (
         <RosterGridView key={`${companyId}-${month}-${crewId}`} grid={grid.data} />
       )}
+      {manage && companyId && assignOpen && grid.data ? (
+        <TemplateAssignDialog
+          companyId={companyId}
+          grid={grid.data}
+          onClose={() => setAssignOpen(false)}
+        />
+      ) : null}
       {manage && companyId ? (
         <ImportDialog
           open={importOpen}

@@ -36,6 +36,33 @@ export const createPattern = (data: Prisma.RosterPatternUncheckedCreateInput) =>
 export const updatePattern = (id: string, data: Prisma.RosterPatternUncheckedUpdateInput) =>
   getPrisma().rosterPattern.update({ where: { id }, data });
 
+// ── Template buatan HR (TM-D20) ──
+const templateInclude = {
+  patterns: {
+    where: { deletedAt: null },
+    include: {
+      crews: {
+        where: { deletedAt: null },
+        orderBy: { name: "asc" as const },
+        include: { members: { select: { employeeId: true, startDate: true, endDate: true } } },
+      },
+    },
+  },
+} satisfies Prisma.RosterTemplateInclude;
+export const listTemplates = (companyId: string) =>
+  getPrisma().rosterTemplate.findMany({
+    where: { companyId, deletedAt: null },
+    orderBy: { name: "asc" },
+    include: templateInclude,
+  });
+export const findTemplate = (id: string) =>
+  getPrisma().rosterTemplate.findUnique({ where: { id }, include: templateInclude });
+export type TemplateRow = NonNullable<Awaited<ReturnType<typeof findTemplate>>>;
+export const createTemplate = (data: Prisma.RosterTemplateUncheckedCreateInput) =>
+  getPrisma().rosterTemplate.create({ data, include: templateInclude });
+export const updateTemplate = (id: string, data: Prisma.RosterTemplateUncheckedUpdateInput) =>
+  getPrisma().rosterTemplate.update({ where: { id }, data, include: templateInclude });
+
 // ── Crew ──
 const crewInclude = {
   pattern: true,
@@ -91,6 +118,29 @@ export const rosterDaysBetween = (employeeIds: string[], from: Date, to: Date, t
   db(tx).rosterDay.findMany({
     where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
     include: { shift: true },
+  });
+
+/** TM-D20: sel manual/import (bukan pola, bukan tukar shift disetujui) pada rentang. */
+export const manualDaysBetween = (employeeIds: string[], from: Date, to: Date) =>
+  getPrisma().rosterDay.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      workDate: { gte: from, lte: to },
+      source: { in: ["MANUAL", "IMPORT"] },
+    },
+    select: { id: true, employeeId: true, workDate: true },
+  });
+export const deleteRosterDays = (ids: string[]) =>
+  getPrisma().rosterDay.deleteMany({ where: { id: { in: ids } } });
+export const membershipsOn = (employeeIds: string[], onDate: Date) =>
+  getPrisma().crewMember.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      startDate: { lte: onDate },
+      OR: [{ endDate: null }, { endDate: { gte: onDate } }],
+      crew: { deletedAt: null },
+    },
+    include: { crew: { select: { id: true, name: true } } },
   });
 
 export const rosterDay = (employeeId: string, workDate: Date, tx?: AttendanceTx) =>

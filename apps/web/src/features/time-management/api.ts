@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import {
   bulkResultSchema,
   crewSchema,
+  customTemplateSchema,
   daySchema,
   holidaySchema,
   importPreviewSchema,
@@ -27,6 +28,7 @@ import {
   rosterGridSchema,
   selfieUploadSchema,
   shiftSchema,
+  templateAssignPlanSchema,
   todaySchema,
 } from "./schemas";
 
@@ -45,6 +47,8 @@ export const tmKeys = {
   shifts: (companyId: string) => ["time-management", "shifts", companyId] as const,
   patterns: (companyId: string) => ["time-management", "patterns", companyId] as const,
   crews: (companyId: string) => ["time-management", "crews", companyId] as const,
+  customTemplates: (companyId: string) =>
+    ["time-management", "custom-templates", companyId] as const,
   grid: (companyId: string, month: string, crewId: string) =>
     ["time-management", "grid", companyId, month, crewId] as const,
   changes: (scope: string) => ["time-management", "changes", scope] as const,
@@ -307,6 +311,92 @@ export function useRosterMaster(resource: "shifts" | "roster-patterns" | "crews"
     onSuccess: refresh,
   });
   return { save, archive };
+}
+
+/** TM-D20: template roster buatan HR. */
+export function useCustomTemplates(companyId: string | undefined) {
+  return useQuery({
+    queryKey: tmKeys.customTemplates(companyId ?? ""),
+    queryFn: ({ signal }) =>
+      api(`/roster-custom-templates?companyId=${companyId}`, {
+        schema: many(customTemplateSchema),
+        signal,
+      }).then((r) => r.data),
+    enabled: Boolean(companyId),
+  });
+}
+
+export function useCustomTemplateMutations() {
+  const refresh = useRefreshAll();
+  const save = useMutation({
+    mutationFn: ({ id, body }: { id?: string | undefined; body: Record<string, unknown> }) =>
+      api(id ? `/roster-custom-templates/${id}` : "/roster-custom-templates", {
+        method: id ? "PUT" : "POST",
+        body,
+        schema: one(customTemplateSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+  const archive = useMutation({
+    mutationFn: (id: string) =>
+      api(`/roster-custom-templates/${id}`, { method: "DELETE", schema: one(z.unknown()) }),
+    onSuccess: refresh,
+  });
+  const install = useMutation({
+    mutationFn: ({
+      id,
+      workLocationId,
+      cycleStartDate,
+    }: {
+      id: string;
+      workLocationId: string;
+      cycleStartDate: string;
+    }) =>
+      api(`/roster-custom-templates/${id}/install`, {
+        method: "POST",
+        body: { workLocationId, cycleStartDate },
+        schema: one(
+          z.object({
+            crews: z.array(z.object({ id: z.string(), name: z.string() })),
+            restWarnings: z.array(z.string()),
+          }),
+        ),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+  const assign = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: TemplateAssignBody }) =>
+      api(`/roster-custom-templates/${id}/assign`, {
+        method: "POST",
+        body,
+        schema: one(templateAssignPlanSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+  return { save, archive, install, assign };
+}
+
+export interface TemplateAssignBody {
+  workLocationId: string;
+  employeeIds: string[];
+  effectiveDate: string;
+  replaceManual: boolean;
+}
+
+/** TM-D20 Fase 2: pratinjau pembagian karyawan ke crew template (belum menyimpan apa pun). */
+export function useTemplateAssignPreview(id: string, body: TemplateAssignBody, enabled: boolean) {
+  return useQuery({
+    queryKey: ["time-management", "template-assign", id, body] as const,
+    queryFn: ({ signal }) =>
+      api(`/roster-custom-templates/${id}/assign/preview`, {
+        method: "POST",
+        body,
+        schema: one(templateAssignPlanSchema),
+        signal,
+      }).then((r) => r.data),
+    enabled,
+    placeholderData: (previous) => previous,
+  });
 }
 
 export function useSetCrewMembers() {

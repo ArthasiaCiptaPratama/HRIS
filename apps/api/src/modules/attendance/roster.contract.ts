@@ -5,6 +5,7 @@ import { approvalViewSchema } from "../approval/index.ts";
 import { shiftSchema } from "./attendance.contract.ts";
 import type * as service from "./roster.service.ts";
 import type { RosterChangeDto } from "./roster-change.service.ts";
+import type * as templates from "./roster-template.service.ts";
 
 // MOB-D7 #1: skema respons OpenAPI roster (D-069) untuk codegen app mobile (MOB-D9).
 // Setiap skema dikunci ke tipe service dengan assertExact → typecheck gagal bila tidak sama.
@@ -161,3 +162,85 @@ export const rosterChangeSchema = z
   .openapi("RosterChange");
 assertExact<z.infer<typeof rosterChangeSchema>, RosterChangeDto>(true);
 export const rosterChangeListSchema = z.array(rosterChangeSchema).openapi("RosterChangeList");
+
+// ── TM-D20: template roster buatan HR ──
+export const rosterCustomTemplateSchema = z
+  .object({
+    id: z.uuid(),
+    companyId: z.uuid(),
+    name: z.string(),
+    description: z.string().nullable(),
+    steps: z.array(z.string()),
+    crewCount: z.number().int(),
+    crewOffsetDays: z.number().int(),
+    startOnMonday: z.boolean(),
+    cycleLength: z.number().int(),
+    workDays: z.number().int(),
+    installations: z.array(
+      z.object({
+        patternId: z.uuid(),
+        patternName: z.string(),
+        workLocationId: z.uuid().nullable(),
+        workLocationName: z.string().nullable(),
+        crews: z.array(
+          z.object({
+            id: z.uuid(),
+            name: z.string(),
+            cycleStartDate: z.iso.date(),
+            memberCount: z.number().int(),
+          }),
+        ),
+      }),
+    ),
+    updatedAt: z.string(),
+  })
+  .openapi("RosterCustomTemplate");
+assertExact<z.infer<typeof rosterCustomTemplateSchema>, templates.RosterTemplateDto>(true);
+export const rosterCustomTemplateListSchema = z
+  .array(rosterCustomTemplateSchema)
+  .openapi("RosterCustomTemplateList");
+export const rosterTemplateInstallResultSchema = z
+  .object({
+    template: rosterCustomTemplateSchema,
+    pattern: rosterPatternSchema,
+    crews: z.array(crewSchema),
+    restWarnings: z.array(z.string()),
+  })
+  .openapi("RosterTemplateInstallResult");
+assertExact<
+  z.infer<typeof rosterTemplateInstallResultSchema>,
+  templates.RosterTemplateInstallResult
+>(true);
+assertExact<
+  z.infer<typeof rosterArchivedSchema>,
+  Awaited<ReturnType<typeof templates.archiveCustomTemplate>>
+>(true);
+
+// TM-D20 Fase 2: isi roster karyawan dengan template (bagi rata ke crew).
+export const rosterTemplateAssignPlanSchema = z
+  .object({
+    installed: z.boolean(),
+    cycleStartDate: z.iso.date(),
+    crews: z.array(
+      z.object({ name: z.string(), existing: z.number().int(), added: z.number().int() }),
+    ),
+    assignments: z.array(
+      z.object({
+        employeeId: z.uuid(),
+        fullName: z.string(),
+        employeeNumber: z.string().nullable(),
+        crewName: z.string(),
+        fromCrew: z.string().nullable(),
+        stays: z.boolean(),
+      }),
+    ),
+    skipped: z.array(
+      z.object({ employeeId: z.uuid(), fullName: z.string().nullable(), reason: z.string() }),
+    ),
+    manualDays: z.number().int(),
+    restWarnings: z.array(z.string()),
+  })
+  .openapi("RosterTemplateAssignPlan");
+assertExact<z.infer<typeof rosterTemplateAssignPlanSchema>, templates.RosterTemplateAssignPlan>(
+  true,
+);

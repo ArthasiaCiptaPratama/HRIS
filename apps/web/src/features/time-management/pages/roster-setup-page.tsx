@@ -39,7 +39,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEmployees, useMasterData } from "@/features/employee/api";
 import { errorMessage } from "@/lib/errors";
-import { cn } from "@/lib/utils";
 import {
   useCrews,
   usePatterns,
@@ -49,6 +48,8 @@ import {
   useTimeSettings,
 } from "../api";
 import { hhmm, parseHhmm, todayIn, workDateLabel } from "../components/display";
+import { PatternChips } from "../components/pattern-chips";
+import { TemplateTab } from "../components/roster-template-tab";
 import { useApplyRosterTemplate } from "../overtime-api";
 import type { Crew, Pattern, Shift } from "../schemas";
 import { useRosterCompany } from "./roster-page";
@@ -79,12 +80,16 @@ export function RosterSetupPage() {
       {!companyId ? (
         <EmptyState icon={CalendarCog} title="Belum ada perusahaan dalam cakupan akun ini" />
       ) : (
-        <Tabs defaultValue="shift">
+        <Tabs defaultValue="template">
           <TabsList>
+            <TabsTrigger value="template">Template</TabsTrigger>
             <TabsTrigger value="shift">Shift</TabsTrigger>
             <TabsTrigger value="pattern">Pola roster</TabsTrigger>
             <TabsTrigger value="crew">Crew</TabsTrigger>
           </TabsList>
+          <TabsContent value="template" className="mt-4">
+            <TemplateTab companyId={companyId} />
+          </TabsContent>
           <TabsContent value="shift" className="mt-4">
             <ShiftTab companyId={companyId} />
           </TabsContent>
@@ -575,27 +580,6 @@ function ShiftDialog({
 }
 
 // ── Pola ───────────────────────────────────────────────────────────────────────
-
-export function PatternChips({ steps, className }: { steps: string[]; className?: string }) {
-  return (
-    <div className={cn("flex flex-wrap gap-0.5", className)}>
-      {steps.map((step, i) => (
-        <span
-          // biome-ignore lint/suspicious/noArrayIndexKey: urutan langkah pola adalah identitasnya
-          key={i}
-          className={cn(
-            "rounded px-1 font-mono text-[10px] font-semibold",
-            step === OFF_CODE
-              ? "bg-muted text-muted-foreground"
-              : "bg-brand-soft text-brand-soft-foreground",
-          )}
-        >
-          {step}
-        </span>
-      ))}
-    </div>
-  );
-}
 
 function PatternTab({ companyId }: { companyId: string }) {
   const patterns = usePatterns(companyId);

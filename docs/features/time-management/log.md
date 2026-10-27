@@ -248,3 +248,15 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - Kontrak: parameter opsional baru `q` (tidak memecah klien lama).
 - **Tanggal dirapikan** (permintaan Mat, screenshot "masih berantakan"): `listDays` mengurutkan tanggal kerja terbaru dulu di kedua tab (antrean sebelumnya acak karena diambil per approval); kolom Tanggal memakai `scheduleLabel` TM-D14 dari develop ("00.00–07.00 (mulai Kam, 15 Okt)") — versi `scheduleText` buatan sendiri dibuang saat merge develop `dccb1e7`.
 - Data uji lokal hari ini: absen penuh roster Joko (JTM, 14 Okt–5 Nov) & Rina (JTMV2 tanpa centang "mulai setelah tengah malam", 28–29 Okt dilewati karena cuti menunggu). Cadangan absen lama di `~/Documents/QA/2026-10-26-{joko,rina}-roster/backup/`.
+
+## 2026-10-27 — TM-D20 Fase 1–2: template roster buatan HR & isi roster dengan template — Mat
+
+- Permintaan Mat: "untuk roster tolong adakan setup template dan auto template setup untuk karyawan"; pilihan: HR menyusun template sendiri, pilih banyak → bagi rata ke crew, perubahan hanya ke depan. Saat dikerjakan: "Buatkan automationnya di sini (Roster Bulanan), jadi tidak dengan kuas saja".
+- Kode:
+  - Shared `roster-template.ts`: `rosterTemplateDefInputSchema`, `rosterTemplateInstallInputSchema`, `rosterTemplateAssignInputSchema`, `rosterTemplatePreview` (kode crew per tanggal, cakupan per hari, jeda/bentrok via `patternRestWarnings`).
+  - Prisma `RosterTemplate` + `RosterPattern.templateId` (migrasi `20261027063355_roster_templates`, hanya menambah; lokal).
+  - `roster-template.service.ts`: CRUD template, `installCustomTemplate`, `previewTemplateAssignment`/`applyTemplateAssignment`; routes di `roster.routes.ts`; contract `roster.contract.ts` (assertExact).
+  - Web: `components/roster-template-tab.tsx` (tab Template), `components/template-assign-dialog.tsx` (Roster Bulanan › Isi dengan template), `components/pattern-chips.tsx` (dipindah dari halaman pengaturan).
+- **Bug lama diperbaiki** (`setCrewMembers`): saat karyawan dipindah ke crew lain, crew tujuan dibangkitkan lebih dulu → hari polanya dilewati karena tanggal masih terisi crew asal, lalu crew asal menghapus harinya → roster kosong mulai tanggal efektif. Urutan kini: crew asal dulu, crew tujuan terakhir. Ketahuan saat uji browser (Super Admin Lokal pindah dari Crew Demo).
+- Test: API `roster-custom-template.test.ts` (7: buat/validasi/akses, pasang + geser crew, kunci pola setelah dipasang, bentrok shift dini hari tanpa centang, bagi rata 2/2/1 + pasang otomatis + manual dipertahankan/ditimpa, pindah crew tidak kosong, tanggal lampau & akses); shared `roster-template.test.ts` (5); web `template-assign.test.tsx`; browser lokal (HR: buat "Rotasi D-N", isi Dimas & Super Admin Lokal). QA TC-TM-060..064.
+- Kontrak baru (web HR, bukan app HP): `/roster-custom-templates*`.

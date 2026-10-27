@@ -1,15 +1,38 @@
-import { OFF_CODE, patternRestWarnings, type RosterTemplateInput } from "@hris/shared";
-import { ConflictError, ForbiddenError } from "../../core/errors.ts";
+import {
+  crewCycleStart,
+  crewLetter,
+  mondayOnOrBefore,
+  OFF_CODE,
+  patternRestWarnings,
+  type RosterTemplateAssignInput,
+  type RosterTemplateDefInput,
+  type RosterTemplateInput,
+  type RosterTemplateInstallInput,
+} from "@hris/shared";
+import {
+  BusinessRuleError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
 import { type RequestContext, readTimeSettings } from "./calendar.service.ts";
+import * as directory from "./directory.ts";
 import * as repository from "./roster.repository.ts";
 import {
+  audit,
   type CrewDto,
   createCrew,
   createPattern,
   createShift,
+  dayKey,
+  lockedDayKeys,
   type PatternDto,
+  regenerateCrew,
   type ShiftDto,
+  setCrewMembers,
+  todayIso,
+  validateSteps,
 } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
 
@@ -205,4 +228,462 @@ export async function applyRosterTemplate(
       `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} hanya ${w.restHours} jam istirahat.`,
   );
   return { shifts, pattern, crews, restWarnings };
+}
+
+// ── TM-D20: template roster buatan HR ──────────────────────────────────────────
+
+export interface RosterTemplateDto {
+  id: string;
+  companyId: string;
+  name: string;
+  description: string | null;
+  steps: string[];
+  crewCount: number;
+  crewOffsetDays: number;
+  startOnMonday: boolean;
+  cycleLength: number;
+  workDays: number;
+  /** Pemasangan per lokasi kerja: pola + crew A/B/C… beserta jumlah anggota aktif hari ini. */
+  installations: {
+    patternId: string;
+    patternName: string;
+    workLocationId: string | null;
+    workLocationName: string | null;
+    crews: { id: string; name: string; cycleStartDate: string; memberCount: number }[];
+  }[];
+  updatedAt: string;
+}
+
+const isUnique = (error: unknown) =>
+  typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function templateDtos(rows: repository.TemplateRow[]): Promise<RosterTemplateDto[]> {
+  const locationIds = [
+    ...new Set(
+      rows.flatMap((r) => r.patterns.flatMap((p) => p.crews.map((c) => c.workLocationId))),
+    ),
+  ];
+  const locations = await directory.locationsByIds(locationIds);
+  const now = today();
+  return rows.map((row) => ({
+    id: row.id,
+    companyId: row.companyId,
+    name: row.name,
+    description: row.description,
+    steps: row.steps,
+    crewCount: row.crewCount,
+    crewOffsetDays: row.crewOffsetDays,
+    startOnMonday: row.startOnMonday,
+    cycleLength: row.steps.length,
+    workDays: row.steps.filter((s) => s !== OFF_CODE).length,
+    installations: row.patterns.map((p) => {
+      const locationId = p.crews[0]?.workLocationId ?? null;
+      return {
+        patternId: p.id,
+        patternName: p.name,
+        workLocationId: locationId,
+        workLocationName: locationId ? (locations.get(locationId)?.name ?? null) : null,
+        crews: p.crews.map((c) => ({
+          id: c.id,
+          name: c.name,
+          cycleStartDate: iso(c.cycleStartDate),
+          memberCount: new Set(
+            c.members
+              .filter((m) => iso(m.startDate) <= now && (!m.endDate || iso(m.endDate) >= now))
+              .map((m) => m.employeeId),
+          ).size,
+        })),
+      };
+    }),
+    updatedAt: row.updatedAt.toISOString(),
+  }));
+}
+
+async function loadTemplate(ctx: RequestContext, id: string) {
+  const row = await repository.findTemplate(id);
+  if (!row || row.deletedAt) throw new NotFoundError();
+  if (!policy.canManageRoster(ctx.actor, row.companyId)) throw new ForbiddenError();
+  return row;
+}
+
+export async function listCustomTemplates(
+  ctx: RequestContext,
+  companyId: string,
+): Promise<RosterTemplateDto[]> {
+  if (!policy.canViewRosterSetup(ctx.actor, companyId)) throw new ForbiddenError();
+  return templateDtos(await repository.listTemplates(companyId));
+}
+
+export async function createCustomTemplate(
+  ctx: RequestContext,
+  input: RosterTemplateDefInput,
+): Promise<RosterTemplateDto> {
+  if (!policy.canManageRoster(ctx.actor, input.companyId)) throw new ForbiddenError();
+  await validateSteps(input.companyId, input.steps);
+  try {
+    const row = await repository.createTemplate({
+      ...input,
+      description: input.description ?? null,
+    });
+    await audit(
+      ctx,
+      "attendance.roster_template.create",
+      "attendance.roster_template",
+      row.id,
+      null,
+      {
+        ...input,
+      },
+    );
+    return (await templateDtos([row]))[0] as RosterTemplateDto;
+  } catch (error) {
+    if (isUnique(error)) throw new ConflictError(`Template "${input.name}" sudah ada.`);
+    throw error;
+  }
+}
+
+export async function updateCustomTemplate(
+  ctx: RequestContext,
+  id: string,
+  input: RosterTemplateDefInput,
+): Promise<RosterTemplateDto> {
+  const before = await loadTemplate(ctx, id);
+  if (input.companyId !== before.companyId)
+    throw new BusinessRuleError("Perusahaan template tidak bisa diubah.");
+  const patternChanged =
+    input.steps.join(" ") !== before.steps.join(" ") ||
+    input.crewCount !== before.crewCount ||
+    input.crewOffsetDays !== before.crewOffsetDays ||
+    input.startOnMonday !== before.startOnMonday;
+  if (patternChanged && before.patterns.length > 0) {
+    throw new BusinessRuleError(
+      "Template sudah dipasang; pola, jumlah crew, dan jarak geser belum bisa diubah. Buat template baru, atau ubah pola di tab Pola roster.",
+    );
+  }
+  await validateSteps(before.companyId, input.steps);
+  try {
+    const row = await repository.updateTemplate(id, {
+      name: input.name,
+      description: input.description ?? null,
+      steps: input.steps,
+      crewCount: input.crewCount,
+      crewOffsetDays: input.crewOffsetDays,
+      startOnMonday: input.startOnMonday,
+    });
+    await audit(
+      ctx,
+      "attendance.roster_template.update",
+      "attendance.roster_template",
+      id,
+      { name: before.name, steps: before.steps, crewCount: before.crewCount },
+      { ...input },
+    );
+    return (await templateDtos([row]))[0] as RosterTemplateDto;
+  } catch (error) {
+    if (isUnique(error)) throw new ConflictError(`Template "${input.name}" sudah ada.`);
+    throw error;
+  }
+}
+
+export async function archiveCustomTemplate(
+  ctx: RequestContext,
+  id: string,
+): Promise<{ id: string }> {
+  const before = await loadTemplate(ctx, id);
+  // Pola & crew hasil pemasangan tetap berjalan; template hanya tidak bisa dipasang lagi.
+  await repository.updateTemplate(id, { deletedAt: new Date() });
+  await audit(
+    ctx,
+    "attendance.roster_template.archive",
+    "attendance.roster_template",
+    id,
+    {
+      name: before.name,
+    },
+    null,
+  );
+  return { id };
+}
+
+export interface RosterTemplateInstallResult {
+  template: RosterTemplateDto;
+  pattern: PatternDto;
+  crews: CrewDto[];
+  restWarnings: string[];
+}
+
+/** Pasang template ke lokasi kerja: 1 pola + `crewCount` crew bergeser `crewOffsetDays` hari. */
+export async function installCustomTemplate(
+  ctx: RequestContext,
+  id: string,
+  input: RosterTemplateInstallInput,
+): Promise<RosterTemplateInstallResult> {
+  const template = await loadTemplate(ctx, id);
+  const location = (await directory.locationsByIds([input.workLocationId])).get(
+    input.workLocationId,
+  );
+  if (!location) throw new BusinessRuleError("Lokasi kerja tidak ditemukan.");
+  const patternName = `${template.name} · ${location.name}`.slice(0, 80);
+  const crewNames = Array.from({ length: template.crewCount }, (_, i) =>
+    `${template.name} · Crew ${crewLetter(i)} (${location.name})`.slice(0, 80),
+  );
+  // Cek bentrok nama lebih dulu supaya template tidak terpasang setengah.
+  if ((await repository.listPatterns(template.companyId)).some((p) => p.name === patternName)) {
+    throw new ConflictError(`Template "${template.name}" sudah dipasang di ${location.name}.`);
+  }
+  const takenCrews = (await repository.listCrews({ companyId: template.companyId }))
+    .map((c) => c.name)
+    .filter((name) => crewNames.includes(name));
+  if (takenCrews.length > 0) throw new ConflictError(`Crew "${takenCrews[0]}" sudah ada.`);
+
+  const pattern = await createPattern(ctx, {
+    companyId: template.companyId,
+    name: patternName,
+    steps: template.steps,
+  });
+  await repository.updatePattern(pattern.id, { templateId: template.id });
+  const base = template.startOnMonday
+    ? mondayOnOrBefore(input.cycleStartDate)
+    : input.cycleStartDate;
+  const crews: CrewDto[] = [];
+  for (const [i, name] of crewNames.entries()) {
+    crews.push(
+      await createCrew(ctx, {
+        companyId: template.companyId,
+        workLocationId: input.workLocationId,
+        name,
+        patternId: pattern.id,
+        cycleStartDate: crewCycleStart(base, i, template.crewOffsetDays),
+      }),
+    );
+  }
+  await audit(ctx, "attendance.roster_template.install", "attendance.roster_template", id, null, {
+    ...input,
+    patternId: pattern.id,
+    crewIds: crews.map((c) => c.id),
+  });
+  const shifts = await repository.listShifts(template.companyId);
+  const restWarnings = patternRestWarnings(
+    template.steps,
+    shifts,
+    (await readTimeSettings()).minRestHours,
+  ).map((w) =>
+    w.restHours < 0
+      ? `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} bertabrakan ${Math.abs(w.restHours)} jam.`
+      : `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} hanya ${w.restHours} jam istirahat.`,
+  );
+  return {
+    template: (
+      await templateDtos([(await repository.findTemplate(id)) as repository.TemplateRow])
+    )[0] as RosterTemplateDto,
+    pattern,
+    crews,
+    restWarnings,
+  };
+}
+
+// ── TM-D20 Fase 2: isi roster karyawan dengan template (bagi rata ke crew) ─────────────
+
+export interface RosterTemplateAssignPlan {
+  /** false = template belum terpasang di lokasi itu; akan dipasang otomatis saat disimpan. */
+  installed: boolean;
+  cycleStartDate: string;
+  crews: { name: string; existing: number; added: number }[];
+  assignments: {
+    employeeId: string;
+    fullName: string;
+    employeeNumber: string | null;
+    crewName: string;
+    /** Crew lama karyawan pada tanggal efektif (null = belum punya crew). */
+    fromCrew: string | null;
+    /** Sudah anggota crew ini → tidak dipindah. */
+    stays: boolean;
+  }[];
+  skipped: { employeeId: string; fullName: string | null; reason: string }[];
+  /** Sel manual/import mulai tanggal efektif yang akan ditimpa (replaceManual) atau dipertahankan. */
+  manualDays: number;
+  restWarnings: string[];
+}
+
+const crewNameOf = (templateName: string, index: number, locationName: string) =>
+  `${templateName} · Crew ${crewLetter(index)} (${locationName})`.slice(0, 80);
+
+async function planAssignment(ctx: RequestContext, id: string, input: RosterTemplateAssignInput) {
+  const template = await loadTemplate(ctx, id);
+  const location = (await directory.locationsByIds([input.workLocationId])).get(
+    input.workLocationId,
+  );
+  if (!location) throw new BusinessRuleError("Lokasi kerja tidak ditemukan.");
+  const today = todayIso();
+  if (input.effectiveDate < today) {
+    throw new BusinessRuleError("Tanggal efektif tidak boleh sebelum hari ini.");
+  }
+  const installation = template.patterns.find((p) =>
+    p.crews.some((c) => c.workLocationId === input.workLocationId),
+  );
+  const crews = installation
+    ? installation.crews.filter((c) => c.workLocationId === input.workLocationId)
+    : Array.from({ length: template.crewCount }, (_, i) => ({
+        id: null as string | null,
+        name: crewNameOf(template.name, i, location.name),
+        members: [] as { employeeId: string; startDate: Date; endDate: Date | null }[],
+      }));
+  const effective = new Date(`${input.effectiveDate}T00:00:00Z`);
+  const activeOn = (m: { startDate: Date; endDate: Date | null }) =>
+    m.startDate <= effective && (!m.endDate || m.endDate >= effective);
+
+  const people = await directory.employeesByIds(input.employeeIds);
+  const skipped: RosterTemplateAssignPlan["skipped"] = [];
+  const valid = [...new Set(input.employeeIds)].filter((employeeId) => {
+    const e = people.get(employeeId);
+    if (!e || !e.isActive)
+      skipped.push({ employeeId, fullName: e?.fullName ?? null, reason: "Tidak aktif" });
+    else if (e.companyId !== template.companyId)
+      skipped.push({ employeeId, fullName: e.fullName, reason: "Bukan karyawan PT template ini" });
+    else return true;
+    return false;
+  });
+  const current = new Map(
+    (await repository.membershipsOn(valid, effective)).map((m) => [m.employeeId, m.crew]),
+  );
+  // Anggota yang sudah di salah satu crew pemasangan ini tetap; sisanya diisi ke crew paling sedikit.
+  const counts = crews.map(
+    (c) => new Set(c.members.filter(activeOn).map((m) => m.employeeId)).size,
+  );
+  const existing = [...counts];
+  const assignments: RosterTemplateAssignPlan["assignments"] = [];
+  const movers: string[] = [];
+  for (const employeeId of valid) {
+    const index = crews.findIndex((c) =>
+      c.members.some((m) => m.employeeId === employeeId && activeOn(m)),
+    );
+    if (index >= 0) {
+      const e = people.get(employeeId);
+      assignments.push({
+        employeeId,
+        fullName: e?.fullName ?? "",
+        employeeNumber: e?.employeeNumber ?? null,
+        crewName: crews[index]?.name ?? "",
+        fromCrew: crews[index]?.name ?? null,
+        stays: true,
+      });
+    } else movers.push(employeeId);
+  }
+  movers.sort((a, b) =>
+    (people.get(a)?.fullName ?? "").localeCompare(people.get(b)?.fullName ?? ""),
+  );
+  const target = new Map<string, number>();
+  for (const employeeId of movers) {
+    let best = 0;
+    for (let i = 1; i < counts.length; i++) if ((counts[i] ?? 0) < (counts[best] ?? 0)) best = i;
+    counts[best] = (counts[best] ?? 0) + 1;
+    target.set(employeeId, best);
+    const e = people.get(employeeId);
+    assignments.push({
+      employeeId,
+      fullName: e?.fullName ?? "",
+      employeeNumber: e?.employeeNumber ?? null,
+      crewName: crews[best]?.name ?? "",
+      fromCrew: current.get(employeeId)?.name ?? null,
+      stays: false,
+    });
+  }
+  assignments.sort(
+    (a, b) => a.crewName.localeCompare(b.crewName) || a.fullName.localeCompare(b.fullName),
+  );
+
+  const settings = await readTimeSettings();
+  const horizon = isoAddDays(today, settings.rosterHorizonDays);
+  const manual = valid.length
+    ? await repository.manualDaysBetween(valid, effective, new Date(`${horizon}T00:00:00Z`))
+    : [];
+  const locked = valid.length
+    ? await lockedDayKeys(valid, input.effectiveDate, horizon)
+    : new Set<string>();
+  const replaceable = manual.filter(
+    (d) => !locked.has(dayKey(d.employeeId, d.workDate.toISOString().slice(0, 10))),
+  );
+  const shifts = await repository.listShifts(template.companyId);
+  const plan: RosterTemplateAssignPlan = {
+    installed: Boolean(installation),
+    cycleStartDate: installation
+      ? crews[0] && "cycleStartDate" in crews[0]
+        ? (crews[0].cycleStartDate as Date).toISOString().slice(0, 10)
+        : input.effectiveDate
+      : (input.cycleStartDate ?? input.effectiveDate),
+    crews: crews.map((c, i) => ({
+      name: c.name,
+      existing: existing[i] ?? 0,
+      added: (counts[i] ?? 0) - (existing[i] ?? 0),
+    })),
+    assignments,
+    skipped,
+    manualDays: replaceable.length,
+    restWarnings: patternRestWarnings(template.steps, shifts, settings.minRestHours).map((w) =>
+      w.restHours < 0
+        ? `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} bertabrakan ${Math.abs(w.restHours)} jam.`
+        : `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} hanya ${w.restHours} jam istirahat.`,
+    ),
+  };
+  return { template, crews, target, plan, replaceable };
+}
+
+export async function previewTemplateAssignment(
+  ctx: RequestContext,
+  id: string,
+  input: RosterTemplateAssignInput,
+): Promise<RosterTemplateAssignPlan> {
+  return (await planAssignment(ctx, id, input)).plan;
+}
+
+export async function applyTemplateAssignment(
+  ctx: RequestContext,
+  id: string,
+  input: RosterTemplateAssignInput,
+): Promise<RosterTemplateAssignPlan> {
+  const { plan, target, replaceable } = await planAssignment(ctx, id, input);
+  if (target.size === 0 && plan.assignments.length === 0) {
+    throw new BusinessRuleError("Tidak ada karyawan yang bisa diisi dengan template ini.");
+  }
+  if (!plan.installed) {
+    await installCustomTemplate(ctx, id, {
+      workLocationId: input.workLocationId,
+      cycleStartDate: plan.cycleStartDate,
+    });
+  }
+  // Muat ulang crew pemasangan (baru dibuat atau sudah ada) berurutan A, B, C…
+  const fresh = await repository.findTemplate(id);
+  const crews = (
+    fresh?.patterns.find((p) => p.crews.some((c) => c.workLocationId === input.workLocationId))
+      ?.crews ?? []
+  ).filter((c) => c.workLocationId === input.workLocationId);
+  if (input.replaceManual && replaceable.length > 0) {
+    // Sel manual/import dihapus dulu supaya hari pola bisa mengisi tanggal itu.
+    await repository.deleteRosterDays(replaceable.map((d) => d.id));
+  }
+  const effective = new Date(`${input.effectiveDate}T00:00:00Z`);
+  const replaced = input.replaceManual && replaceable.length > 0;
+  for (const [index, crew] of crews.entries()) {
+    const added = [...target].filter(([, i]) => i === index).map(([employeeId]) => employeeId);
+    if (added.length === 0) {
+      // Sel manual anggota lama dihapus → isi tanggal itu dengan hari pola.
+      if (replaced) await regenerateCrew(crew.id, input.effectiveDate);
+      continue;
+    }
+    const keep = crew.members
+      .filter((m) => m.startDate <= effective && (!m.endDate || m.endDate >= effective))
+      .map((m) => m.employeeId);
+    await setCrewMembers(ctx, crew.id, {
+      employeeIds: [...new Set([...keep, ...added])],
+      effectiveDate: input.effectiveDate,
+    });
+  }
+  await audit(ctx, "attendance.roster_template.assign", "attendance.roster_template", id, null, {
+    ...input,
+    assigned: [...target.keys()],
+    replacedManualDays: input.replaceManual ? replaceable.length : 0,
+  });
+  return plan;
 }
