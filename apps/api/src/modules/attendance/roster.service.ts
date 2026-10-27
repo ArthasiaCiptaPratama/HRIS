@@ -22,6 +22,7 @@ import {
   holidaysBetween,
   type RequestContext,
   readTimeSettings,
+  settingsToday,
   toDate,
   toIso,
 } from "./calendar.service.ts";
@@ -31,9 +32,6 @@ import { eachDate, generateCrewDays, isoAddDays } from "./roster-engine.ts";
 import { notifyRosterChanges, type RosterChange, rosterCodes } from "./roster-notify.service.ts";
 
 // Tahap B — roster tambang (D-069): shift, pola, crew, pembangkit hari roster, grid bulanan, import.
-
-export const todayIso = (now = new Date()) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
 
 const isUnique = (error: unknown) =>
   typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
@@ -206,7 +204,7 @@ export async function archiveShift(ctx: RequestContext, id: string): Promise<Shi
   const before = await repository.findShift(id);
   if (!before) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
-  const used = await repository.countShiftUsage(id, toDate(todayIso()));
+  const used = await repository.countShiftUsage(id, toDate(await settingsToday()));
   if (used > 0) {
     throw new BusinessRuleError(
       `Shift masih dipakai ${used} hari roster mendatang; ubah roster dulu.`,
@@ -386,7 +384,7 @@ async function crewDtos(rows: repository.CrewRow[], onDate: string): Promise<Cre
 
 export async function listCrews(ctx: RequestContext, companyId: string): Promise<CrewDto[]> {
   if (!policy.canViewRosterSetup(ctx.actor, companyId)) throw new ForbiddenError();
-  return crewDtos(await repository.listCrews({ companyId }), todayIso());
+  return crewDtos(await repository.listCrews({ companyId }), await settingsToday());
 }
 
 async function validateCrew(input: CrewInput) {
@@ -409,7 +407,7 @@ export async function createCrew(ctx: RequestContext, input: CrewInput): Promise
       cycleStartDate: toDate(input.cycleStartDate),
     });
     await audit(ctx, "attendance.crew.create", "attendance.crew", row.id, null, { ...input });
-    return (await crewDtos([row], todayIso()))[0] as CrewDto;
+    return (await crewDtos([row], await settingsToday()))[0] as CrewDto;
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Crew "${input.name}" sudah ada.`);
     throw error;
@@ -447,7 +445,7 @@ export async function updateCrew(
       { ...input },
     );
     await regenerateCrew(id);
-    return (await crewDtos([row], todayIso()))[0] as CrewDto;
+    return (await crewDtos([row], await settingsToday()))[0] as CrewDto;
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Crew "${input.name}" sudah ada.`);
     throw error;
@@ -458,7 +456,7 @@ export async function archiveCrew(ctx: RequestContext, id: string): Promise<{ id
   const before = await repository.findCrew(id);
   if (!before || before.deletedAt) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
-  const today = todayIso();
+  const today = await settingsToday();
   await repository.withTransaction(async (tx) => {
     for (const m of before.members) {
       if (m.endDate === null || toIso(m.endDate) >= today)
@@ -547,14 +545,15 @@ export async function setCrewMembers(
  */
 export async function regenerateCrew(
   crewId: string,
-  from = todayIso(),
+  from?: string,
   notify = true,
 ): Promise<number> {
   const crew = await repository.findCrew(crewId);
   if (!crew) return 0;
   const settings = await readTimeSettings();
-  const start = from < todayIso() ? todayIso() : from;
-  const end = isoAddDays(todayIso(), settings.rosterHorizonDays);
+  const today = await settingsToday();
+  const start = !from || from < today ? today : from;
+  const end = isoAddDays(today, settings.rosterHorizonDays);
   const memberIds = [...new Set(crew.members.map((m) => m.employeeId))];
   const snapshot = async () =>
     new Map(
@@ -608,7 +607,7 @@ export async function regenerateCrew(
 export async function extendAllRosters(): Promise<{ crews: number; days: number }> {
   let days = 0;
   const crews = await repository.allActiveCrews();
-  for (const crew of crews) days += await regenerateCrew(crew.id, todayIso(), false);
+  for (const crew of crews) days += await regenerateCrew(crew.id, undefined, false);
   return { crews: crews.length, days };
 }
 

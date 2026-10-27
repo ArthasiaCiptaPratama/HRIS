@@ -31,7 +31,7 @@ import type { RosterGrid } from "../schemas";
 import { todayIn, workDateLabel } from "./display";
 import { PatternChips } from "./pattern-chips";
 
-// TM-D20 Fase 2 (permintaan Mat: "tidak dengan kuas saja"): isi roster karyawan dengan template — pilih
+// TM-D23 Fase 2 (permintaan Mat: "tidak dengan kuas saja"): isi roster karyawan dengan template — pilih
 // karyawan, template, lokasi, tanggal efektif → dibagi rata ke crew A/B/C, roster terbentuk dari pola.
 
 export function TemplateAssignDialog({

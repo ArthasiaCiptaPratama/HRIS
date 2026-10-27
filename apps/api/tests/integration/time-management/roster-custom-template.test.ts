@@ -2,11 +2,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import { settingsToday } from "../../../src/modules/attendance/calendar.service.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
 
-// TM-D20 Fase 1: template roster buatan HR — buat, validasi, akses, pasang ke lokasi (pola + crew bergeser).
+// TM-D23 Fase 1: template roster buatan HR — buat, validasi, akses, pasang ke lokasi (pola + crew bergeser).
 const RUN = crypto.randomUUID().slice(0, 6).toUpperCase();
 const auth = createAuthFixture(RUN.toLowerCase());
 const prisma = getPrisma();
@@ -47,11 +48,13 @@ const people = {
   employees: [] as string[],
   location2: "",
 };
-const todayJkt = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+// TM-D21: "hari ini" mengikuti zona pengaturan TM (bukan WIB tetap).
+let today = "";
 const plusDays = (iso: string, n: number) =>
   new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 beforeAll(async () => {
+  today = await settingsToday();
   companyId = await acpCompanyId();
   otherCompany = await createTestCompany(`RT${RUN.slice(0, 4)}`, `PT Uji RT ${RUN}`);
   locationId = (
@@ -165,7 +168,7 @@ const def = (extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-describe("template roster buatan HR (TM-D20)", () => {
+describe("template roster buatan HR (TM-D23)", () => {
   test("HR PT membuat template; kode shift tak dikenal ditolak; karyawan & HR PT lain 403", async () => {
     const res = await call("POST", "/roster-custom-templates", h.hr, def());
     expect(res.status).toBe(200);
@@ -290,7 +293,7 @@ describe("template roster buatan HR (TM-D20)", () => {
     const t = await data<Template>(
       await call("POST", "/roster-custom-templates", h.hr, def({ name: `Auto ${RUN}` })),
     );
-    const effectiveDate = plusDays(todayJkt, 3);
+    const effectiveDate = plusDays(today, 3);
     const [ani, budi, cici, dedi, eko, fajar] = people.employees as [
       string,
       string,
@@ -389,7 +392,7 @@ describe("template roster buatan HR (TM-D20)", () => {
     );
     const t = list.find((x) => x.name === `Auto ${RUN}`) as Template;
     const budi = people.employees[1] as string;
-    const date = plusDays(todayJkt, 4);
+    const date = plusDays(today, 4);
     await prisma.rosterDay.upsert({
       where: { employeeId_workDate: { employeeId: budi, workDate: new Date(`${date}T00:00:00Z`) } },
       update: { source: "MANUAL", crewId: null, shiftId: shiftIds[2] },
@@ -411,7 +414,7 @@ describe("template roster buatan HR (TM-D20)", () => {
     const res = await call("POST", `/roster-custom-templates/${t.id}/assign`, h.hr, {
       workLocationId: people.location2,
       employeeIds: [budi],
-      effectiveDate: plusDays(todayJkt, 3),
+      effectiveDate: plusDays(today, 3),
     });
     expect(res.status).toBe(200);
     const day = await prisma.rosterDay.findFirst({
@@ -423,7 +426,7 @@ describe("template roster buatan HR (TM-D20)", () => {
   });
 
   test("pindah crew: hari mulai tanggal efektif ikut crew baru (tidak kosong)", async () => {
-    const effectiveDate = plusDays(todayJkt, 5);
+    const effectiveDate = plusDays(today, 5);
     const dedi = people.employees[3] as string;
     const t2 = await data<Template>(
       await call(
@@ -460,7 +463,7 @@ describe("template roster buatan HR (TM-D20)", () => {
     const body = {
       workLocationId: people.location2,
       employeeIds: [people.employees[0]],
-      effectiveDate: plusDays(todayJkt, -1),
+      effectiveDate: plusDays(today, -1),
     };
     const list = await data<Template[]>(
       await call("GET", `/roster-custom-templates?companyId=${companyId}`, h.hr),
@@ -473,7 +476,7 @@ describe("template roster buatan HR (TM-D20)", () => {
       (
         await call("POST", `/roster-custom-templates/${t.id}/assign`, h.emp, {
           ...body,
-          effectiveDate: plusDays(todayJkt, 3),
+          effectiveDate: plusDays(today, 3),
         })
       ).status,
     ).toBe(403);

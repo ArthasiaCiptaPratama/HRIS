@@ -36,7 +36,7 @@ export const createPattern = (data: Prisma.RosterPatternUncheckedCreateInput) =>
 export const updatePattern = (id: string, data: Prisma.RosterPatternUncheckedUpdateInput) =>
   getPrisma().rosterPattern.update({ where: { id }, data });
 
-// ── Template buatan HR (TM-D20) ──
+// ── Template buatan HR (TM-D23) ──
 const templateInclude = {
   patterns: {
     where: { deletedAt: null },
@@ -120,7 +120,7 @@ export const rosterDaysBetween = (employeeIds: string[], from: Date, to: Date, t
     include: { shift: true },
   });
 
-/** TM-D20: sel non-pola (kuas / import / tukar shift disetujui) pada rentang — ditimpa saat isi template. */
+/** TM-D23: sel non-pola (kuas / import / tukar shift disetujui) pada rentang — ditimpa saat isi template. */
 export const nonPatternDaysBetween = (employeeIds: string[], from: Date, to: Date) =>
   getPrisma().rosterDay.findMany({
     where: {

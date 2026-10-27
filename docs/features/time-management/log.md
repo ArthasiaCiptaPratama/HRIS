@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-27 — Batas hari roster, periode & cuti ikut zona pengaturan TM-D20–D22 (Oatse)
+- **Dikerjakan:** temuan uji M3 staging (staging WITA karena `time_settings` kosong) → sub-item "(tambahan 2026-10-27)" di checklist zona waktu. Helper `settingsToday(now)` di `calendar.service.ts` (diekspor `index.ts`) menggantikan `todayIso` (roster.service), `todayJakarta` (period.service, leave.service); `regenerateCrew(from?)` mulai dari hari ini zona pengaturan; `assertClosable` jadi async.
+- **Keputusan:** TM-D20 (zona global), TM-D21 (cuti ikut zona pengaturan), TM-D22 (bawaan WITA, PROMPT §4 diperjelas) — diputuskan supervisor atas nama pengguna 27 Okt; bisa diubah pengguna.
+- **Verifikasi:** `tests/integration/time-management/timezone.test.ts` (4 test, `setSystemTime` 00:30 WITA, zona dipaksa WITA lalu dikembalikan) merah dulu (koreksi 422, pratinjau 422, horizon kurang 1 hari) lalu hijau; typecheck ✔ · `biome ci` ✔ · boundaries ✔ · test shared 340 · api 996 · web 327 ✔.
+- **Masalah / catatan:** file milik Mat (TM, `82a5dce`); Mat/Mac belum memuat develop → dikabari lewat kabar gabungan. Staging tetap campur WIB/WITA sampai rilis berikutnya; zona staging diisi eksplisit di tugas rilis.
+- **Berikutnya:** rilis; isi zona staging.
+
 ### 2026-10-26 — Perintah lembur susulan TM-D19 (Oatse)
 - **Dikerjakan:** SPL untuk tanggal lampau / hari yang sudah Clock Out hanya HR PT & SA, periode belum ditutup (`isDateClosed`), kolom `retroactive` (migrasi `20261026070605_overtime_order_retroactive`), usulan lembur dihitung ulang (`syncOvertime`) saat SPL disimpan/dibatalkan; web badge Susulan + tanggal lampau untuk HR/SA.
 - **Keputusan:** TM-D19 (Q1 opsi B, pengguna lewat supervisor).
@@ -249,7 +256,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Tanggal dirapikan** (permintaan Mat, screenshot "masih berantakan"): `listDays` mengurutkan tanggal kerja terbaru dulu di kedua tab (antrean sebelumnya acak karena diambil per approval); kolom Tanggal memakai `scheduleLabel` TM-D14 dari develop ("00.00–07.00 (mulai Kam, 15 Okt)") — versi `scheduleText` buatan sendiri dibuang saat merge develop `dccb1e7`.
 - Data uji lokal hari ini: absen penuh roster Joko (JTM, 14 Okt–5 Nov) & Rina (JTMV2 tanpa centang "mulai setelah tengah malam", 28–29 Okt dilewati karena cuti menunggu). Cadangan absen lama di `~/Documents/QA/2026-10-26-{joko,rina}-roster/backup/`.
 
-## 2026-10-27 — TM-D20 Fase 1–2: template roster buatan HR & isi roster dengan template — Mat
+## 2026-10-27 — TM-D23 Fase 1–2: template roster buatan HR & isi roster dengan template — Mat
 
 - Permintaan Mat: "untuk roster tolong adakan setup template dan auto template setup untuk karyawan"; pilihan: HR menyusun template sendiri, pilih banyak → bagi rata ke crew, perubahan hanya ke depan. Saat dikerjakan: "Buatkan automationnya di sini (Roster Bulanan), jadi tidak dengan kuas saja".
 - Kode:
@@ -261,7 +268,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - Test: API `roster-custom-template.test.ts` (7: buat/validasi/akses, pasang + geser crew, kunci pola setelah dipasang, bentrok shift dini hari tanpa centang, bagi rata 2/2/1 + pasang otomatis + manual dipertahankan/ditimpa, pindah crew tidak kosong, tanggal lampau & akses); shared `roster-template.test.ts` (5); web `template-assign.test.tsx`; browser lokal (HR: buat "Rotasi D-N", isi Dimas & Super Admin Lokal). QA TC-TM-060..064.
 - Kontrak baru (web HR, bukan app HP): `/roster-custom-templates*`.
 
-## 2026-10-27 — TM-D20: paksa tempel penuh & template cepat 5/6 hari kerja — Mat
+## 2026-10-27 — TM-D23: paksa tempel penuh & template cepat 5/6 hari kerja — Mat
 
 - Mat mencoba Isi dengan template untuk Joko (akun hr.absensi, 15.16) — sel kuas tetap dipakai sehingga template "tidak menempel". Permintaan: "paksa tempel full, jadikan templatenya 5/6 hari kerja yang dapat di-loop hingga minggu-minggu ke depan; jika sudah ada roster untuk user tersebut, langsung tempel".
 - Perubahan: pilihan `replaceManual` dihapus — sel non-pola (MANUAL / IMPORT / CHANGE) mulai tanggal efektif selalu ditimpa; hari terkunci (absen disetujui / periode tertutup) dilewati. Pratinjau menampilkan `replacedDays` & `lockedDays`. Builder: template cepat `weeklyWorkSteps` 5 / 6 hari kerja (mulai Senin).

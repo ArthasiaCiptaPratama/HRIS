@@ -2,7 +2,7 @@ import { z } from "zod";
 import { patternRestWarnings } from "./overtime.ts";
 import { OFF_CODE, rosterStepSchema } from "./time-management.ts";
 
-// TM-D20 (permintaan Mat 2026-10-27): template roster buatan HR — pola + jumlah crew + jarak geser,
+// TM-D23 (permintaan Mat 2026-10-27): template roster buatan HR — pola + jumlah crew + jarak geser,
 // dipasang ke lokasi kerja (membuat pola & crew A/B/C…), lalu karyawan dibagi rata ke crew.
 
 export const ROSTER_TEMPLATE_MAX_CREWS = 8;
@@ -27,7 +27,7 @@ export const rosterTemplateInstallInputSchema = z.object({
 export type RosterTemplateInstallInput = z.infer<typeof rosterTemplateInstallInputSchema>;
 
 /**
- * TM-D20 Fase 2: isi roster karyawan dengan template — karyawan dibagi rata ke crew pemasangan template di
+ * TM-D23 Fase 2: isi roster karyawan dengan template — karyawan dibagi rata ke crew pemasangan template di
  * lokasi itu (dipasang otomatis bila belum), mulai tanggal efektif. Roster lama karyawan itu (kuas / import /
  * tukar shift) mulai tanggal efektif SELALU ditimpa ("paksa tempel full", Mat 2026-10-27); hari terkunci tetap.
  */

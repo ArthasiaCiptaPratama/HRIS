@@ -78,7 +78,7 @@ model Shift {
 }
 
 // Pola siklus: daftar kode shift atau "OFF" berurutan (mis. D×10 + OFF×4).
-/// TM-D20: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
+/// TM-D23: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
 model RosterTemplate {
   id             String    @id @default(uuid()) @db.Uuid
   companyId      String    @map("company_id") @db.Uuid
@@ -104,7 +104,7 @@ model RosterPattern {
   companyId  String          @map("company_id") @db.Uuid
   name       String          @db.VarChar(80)
   steps      String[]        @db.VarChar(10)
-  /// TM-D20: pola hasil pemasangan template (satu per lokasi).
+  /// TM-D23: pola hasil pemasangan template (satu per lokasi).
   templateId String?         @map("template_id") @db.Uuid
   template   RosterTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
   deletedAt  DateTime?       @map("deleted_at") @db.Timestamptz(6)

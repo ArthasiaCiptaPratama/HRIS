@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-26 — Skema TodayOvertimeOrder + data uji lokal app (Oatse)
+- **Dikerjakan:** `attendance.contract.ts` `todayOvertimeOrderSchema` (`.openapi("TodayOvertimeOrder")`, dirujuk `nullableRef`); ff `HRIS/mobile-app` → develop `dccb1e7` (+2 migrasi lokal `overtime_orders`, `overtime_order_retroactive`); data uji lokal `hris_mobile` untuk app (seed + `db:seed:time --demo`, akun emp/mgr/admin ditautkan dengan Auth hanya dibaca, shift `UJI` + SPL uji alarm lewat service).
+- **Keputusan:** — (MOB-D9/MOB-D17)
+- **Verifikasi:** lihat entri RELEASE §2 baris 68 / laporan sesi; test kontrak `openapi.test.ts` 10 pass.
+- **Masalah / catatan:** `dev:account` tidak dipakai untuk akun uji karena membuat user Supabase Auth bila email belum ada; dipakai skrip sekali-pakai yang hanya membaca Auth.
+- **Berikutnya:** gabung ke develop (hris-7a) → rilis gel. 14 → app regenerate klien.
+
 ### 2026-10-26 — Gabung develop 9796376 + kebutuhan BE app M3 Jadwal (Oatse)
 - **Dikerjakan:** serah-terima `.handoff/2026-10-26-0938-HRIS-ke-HRIS-mobile-gabung-develop.md` poin 1–10 (README checklist Tahap 4). Fast-forward `HRIS/mobile-app` → develop `9796376` (memuat Mat `8d3fd76`); `/me` + `employeeCompanyId`; `APP_OPERATION_IDS` + roster karyawan/shift/crew; `EmployeeRosterDay`; enum roster dari shared; `EmployeeImportMasterData`; `lockedEmployeesOn` + `assertDayUnlocked` di perubahan roster (ajukan & handler APPROVED), zona tanggal dari `readTimeSettings`.
 - **Keputusan:** — (pelaksanaan MOB-D7/MOB-D9/MOB-D17; aturan kunci roster = D-069 + edit grid yang sudah ada)

@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase", async () => ({
   supabase: (await import("./supabase-mock")).supabaseMock,
 }));
 
-// TM-D20 Fase 2: Roster Bulanan › Isi dengan template — pratinjau pembagian crew lalu terapkan.
+// TM-D23 Fase 2: Roster Bulanan › Isi dengan template — pratinjau pembagian crew lalu terapkan.
 const template = {
   id: "t1",
   companyId: "co",

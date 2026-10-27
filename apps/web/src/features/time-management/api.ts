@@ -313,7 +313,7 @@ export function useRosterMaster(resource: "shifts" | "roster-patterns" | "crews"
   return { save, archive };
 }
 
-/** TM-D20: template roster buatan HR. */
+/** TM-D23: template roster buatan HR. */
 export function useCustomTemplates(companyId: string | undefined) {
   return useQuery({
     queryKey: tmKeys.customTemplates(companyId ?? ""),
@@ -382,7 +382,7 @@ export interface TemplateAssignBody {
   effectiveDate: string;
 }
 
-/** TM-D20 Fase 2: pratinjau pembagian karyawan ke crew template (belum menyimpan apa pun). */
+/** TM-D23 Fase 2: pratinjau pembagian karyawan ke crew template (belum menyimpan apa pun). */
 export function useTemplateAssignPreview(id: string, body: TemplateAssignBody, enabled: boolean) {
   return useQuery({
     queryKey: ["time-management", "template-assign", id, body] as const,

@@ -159,6 +159,7 @@ async function sheetRows(
         trainingField: string;
         organizer: string | null;
         type: keyof typeof TRAINING_TYPE_LABELS | null;
+        certificateNumber: string | null;
         startDate: string | null;
         endDate: string | null;
         hours: number | null;
@@ -175,6 +176,7 @@ async function sheetRows(
             "Bidang pelatihan",
             "Penyelenggara",
             "Jenis",
+            "No. sertifikat",
             "Mulai",
             "Selesai",
             "Jam",
@@ -187,6 +189,7 @@ async function sheetRows(
             r.trainingField,
             r.organizer,
             label(TRAINING_TYPE_LABELS, r.type),
+            r.certificateNumber,
             date(r.startDate),
             date(r.endDate),
             r.hours,

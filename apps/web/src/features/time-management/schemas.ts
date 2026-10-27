@@ -179,7 +179,7 @@ export const patternSchema = z.object({
 });
 export type Pattern = z.infer<typeof patternSchema>;
 
-/** TM-D20: template roster buatan HR + pemasangannya per lokasi kerja. */
+/** TM-D23: template roster buatan HR + pemasangannya per lokasi kerja. */
 export const customTemplateSchema = z.object({
   id: z.string(),
   companyId: z.string(),

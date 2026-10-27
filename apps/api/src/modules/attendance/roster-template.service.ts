@@ -16,7 +16,7 @@ import {
   NotFoundError,
 } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
-import { type RequestContext, readTimeSettings } from "./calendar.service.ts";
+import { type RequestContext, readTimeSettings, settingsToday } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import * as repository from "./roster.repository.ts";
 import {
@@ -31,7 +31,6 @@ import {
   regenerateCrew,
   type ShiftDto,
   setCrewMembers,
-  todayIso,
   validateSteps,
 } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
@@ -230,7 +229,7 @@ export async function applyRosterTemplate(
   return { shifts, pattern, crews, restWarnings };
 }
 
-// ── TM-D20: template roster buatan HR ──────────────────────────────────────────
+// ── TM-D23: template roster buatan HR ──────────────────────────────────────────
 
 export interface RosterTemplateDto {
   id: string;
@@ -257,7 +256,6 @@ export interface RosterTemplateDto {
 const isUnique = (error: unknown) =>
   typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const today = () => new Date().toISOString().slice(0, 10);
 
 async function templateDtos(rows: repository.TemplateRow[]): Promise<RosterTemplateDto[]> {
   const locationIds = [
@@ -266,7 +264,7 @@ async function templateDtos(rows: repository.TemplateRow[]): Promise<RosterTempl
     ),
   ];
   const locations = await directory.locationsByIds(locationIds);
-  const now = today();
+  const now = await settingsToday();
   return rows.map((row) => ({
     id: row.id,
     companyId: row.companyId,
@@ -484,7 +482,7 @@ export async function installCustomTemplate(
   };
 }
 
-// ── TM-D20 Fase 2: isi roster karyawan dengan template (bagi rata ke crew) ─────────────
+// ── TM-D23 Fase 2: isi roster karyawan dengan template (bagi rata ke crew) ─────────────
 
 export interface RosterTemplateAssignPlan {
   /** false = template belum terpasang di lokasi itu; akan dipasang otomatis saat disimpan. */
@@ -518,7 +516,7 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     input.workLocationId,
   );
   if (!location) throw new BusinessRuleError("Lokasi kerja tidak ditemukan.");
-  const today = todayIso();
+  const today = await settingsToday();
   if (input.effectiveDate < today) {
     throw new BusinessRuleError("Tanggal efektif tidak boleh sebelum hari ini.");
   }

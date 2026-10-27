@@ -163,7 +163,7 @@ export const rosterChangeSchema = z
 assertExact<z.infer<typeof rosterChangeSchema>, RosterChangeDto>(true);
 export const rosterChangeListSchema = z.array(rosterChangeSchema).openapi("RosterChangeList");
 
-// ── TM-D20: template roster buatan HR ──
+// ── TM-D23: template roster buatan HR ──
 export const rosterCustomTemplateSchema = z
   .object({
     id: z.uuid(),
@@ -216,7 +216,7 @@ assertExact<
   Awaited<ReturnType<typeof templates.archiveCustomTemplate>>
 >(true);
 
-// TM-D20 Fase 2: isi roster karyawan dengan template (bagi rata ke crew).
+// TM-D23 Fase 2: isi roster karyawan dengan template (bagi rata ke crew).
 export const rosterTemplateAssignPlanSchema = z
   .object({
     installed: z.boolean(),

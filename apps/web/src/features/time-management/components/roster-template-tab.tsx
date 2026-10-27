@@ -37,7 +37,7 @@ import type { CustomTemplate, Shift } from "../schemas";
 import { hhmm, todayIn, workDateLabel } from "./display";
 import { PatternChips } from "./pattern-chips";
 
-// TM-D20: template roster buatan HR — pola + jumlah crew + jarak geser, pratinjau langsung (jeda/bentrok,
+// TM-D23: template roster buatan HR — pola + jumlah crew + jarak geser, pratinjau langsung (jeda/bentrok,
 // cakupan per hari), lalu dipasang ke lokasi kerja (membuat pola + crew A/B/C…).
 
 const PREVIEW_DAYS = 14;

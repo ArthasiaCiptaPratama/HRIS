@@ -7,7 +7,7 @@ import {
   weeklyWorkSteps,
 } from "../src/index.ts";
 
-// TM-D20: pratinjau template roster buatan HR (sama dengan pembangkit roster API: indeks = selisih hari mod siklus).
+// TM-D23: pratinjau template roster buatan HR (sama dengan pembangkit roster API: indeks = selisih hari mod siklus).
 const shifts = [
   { code: "D", startMinute: 420, endMinute: 1140 },
   { code: "N", startMinute: 1140, endMinute: 420 },

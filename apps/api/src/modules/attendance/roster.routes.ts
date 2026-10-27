@@ -157,7 +157,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     }),
     (c) => service.archivePattern(ctxOf(c), param(c)),
   ],
-  // TM-D20: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
+  // TM-D23: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
   [
     route("get", "/roster-custom-templates", "Daftar template roster buatan HR + pemasangannya", {
       query: companyQuery,
