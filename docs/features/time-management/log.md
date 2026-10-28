@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D23, TM-D24 tahap 1) ke develop + test susulan TM-D19 tahan tanggal merah (Oatse)
+- **Dikerjakan:** tinjauan 5 commit Mat (`43eaad9`…`3dd3861`; entri Mat di bawah) → merge **fast-forward** `cc12428 → 3dd3861` (Mat sudah memuat develop `cc12428`), tanpa konflik. Test `overtime-order.test.ts`: `yesterday` → `retroDate` = hari terakhir (kemarin s.d. 7 hari lalu) yang bukan tanggal merah (`holidaysBetween`) — sebelumnya gagal 660 ≠ 120 bila kemarin libur di DB lokal (laporan Mat 28 Okt).
+- **Keputusan:** — (merge & perbaikan test: persetujuan supervisor atas nama pengguna 28 Okt).
+- **Verifikasi (tinjauan, worktree `3dd3861` + DB lokal baru):** `db:deploy` 50 migrasi, `db:check` tanpa drift; typecheck ✔ · `biome ci` ⚠ 1 warning `useOptionalChain` (`roster-edit.service.ts:212`, kode Mat, dibiarkan) · boundaries ✔ · test shared 346 · api 1011 · web 331 ✔. Test susulan: libur uji sementara 27 Okt di DB lokal → versi lama 7 lulus/1 gagal (`Expected 120, Received 660`), versi baru 8/8 ✔; baris libur dihapus lagi.
+- **Masalah / catatan:** migrasi `roster_templates` & `roster_edit_requests` aditif (staging +2 saat rilis). `submitted_by_account_id` NULL → perilaku approval lama identik. ROSTER_EDIT belum bisa diputus dari app Flutter & tanpa push → Backlog PROGRESS.
+- **Berikutnya:** TM-D24 tahap 2–4 (Mat); rilis berikutnya membawa TM-D20–D24.
+
 ### 2026-10-27 — Batas hari roster, periode & cuti ikut zona pengaturan TM-D20–D22 (Oatse)
 - **Dikerjakan:** temuan uji M3 staging (staging WITA karena `time_settings` kosong) → sub-item "(tambahan 2026-10-27)" di checklist zona waktu. Helper `settingsToday(now)` di `calendar.service.ts` (diekspor `index.ts`) menggantikan `todayIso` (roster.service), `todayJakarta` (period.service, leave.service); `regenerateCrew(from?)` mulai dari hari ini zona pengaturan; `assertClosable` jadi async.
 - **Keputusan:** TM-D20 (zona global), TM-D21 (cuti ikut zona pengaturan), TM-D22 (bawaan WITA, PROMPT §4 diperjelas) — diputuskan supervisor atas nama pengguna 27 Okt; bisa diubah pengguna.

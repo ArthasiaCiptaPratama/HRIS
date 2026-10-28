@@ -84,6 +84,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] TM-D18: dokumentasi saja (45 jam/minggu = jadwal; lembur tetap per hari)
   - [x] Pengingat FCM "belum Clock Out" juga untuk hari OFF ber-SPL, 15 menit setelah akhir SPL (tambahan 2026-10-26: persetujuan supervisor atas nama pengguna, Q2 opsi A) — `time-notify.service.ts`, test `time-notify.test.ts`
   - [x] SPL susulan TM-D19 (tambahan 2026-10-26: keputusan pengguna lewat supervisor, Q1 opsi B) — kolom `overtime_orders.retroactive` (migrasi `overtime_order_retroactive`), policy `canOrderOvertimeRetroactive`, cek `isDateClosed`, `syncOvertime` saat simpan/batal; web: badge Susulan, tanggal lampau untuk HR/SA
+    - [x] (tambahan 2026-10-28: test gagal di mesin Mat saat kemarin tanggal merah) test susulan memakai tanggal lampau non-libur terakhir (`retroDate`, `overtime-order.test.ts`)
 - [x] Rekap bulanan per karyawan (hari kerja, hadir, menunggu, ditolak, tanpa absen, Alpha, cuti, telat, pulang cepat, di luar roster, pernyataan) + unduh CSV — `/attendance/recap`, UI Rekap & Tutup Periode
 - [x] Tutup periode (SA / HR PT + `payroll.period.prepare`; hanya setelah bulan berakhir): pratinjau → hari kerja belum disetujui/tanpa absen/ditolak → ALPHA, approval menunggu dibatalkan; periode terkunci (sel roster, koreksi, pengajuan cuti ditolak) — konfirmasi ketik bulan di UI
 - [x] Surat pernyataan absensi per hari ALPHA (HP/web, lampiran opsional, bucket private `attendance-statements`, sekali per hari) + daftar Alpha & pernyataan untuk HR/atasan
