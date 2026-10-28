@@ -18,6 +18,7 @@ import {
 import * as policy from "./attendance.policy.ts";
 import { type RequestContext, readTimeSettings, settingsToday } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
+import { isDateClosed } from "./period.service.ts";
 import * as repository from "./roster.repository.ts";
 import {
   audit,
@@ -26,14 +27,14 @@ import {
   createPattern,
   createShift,
   dayKey,
-  lockedDayKeys,
+  keepDayKeys,
   type PatternDto,
   type ShiftDto,
   setCrewMembers,
   validateSteps,
 } from "./roster.service.ts";
 import { employeesWithPendingEdit, submitTemplateEdits } from "./roster-edit.service.ts";
-import { isoAddDays } from "./roster-engine.ts";
+import { isoAddDays, patternCodeOn } from "./roster-engine.ts";
 
 // TM-D8 — template roster siap pakai: JT (Jetty & Loading team), 13+1, 5+2. JT: 3 shift × 8 jam (7 jam normal + 1 jam
 // lembur rutin, istirahat dibayar di dalam shift), pola 6 kerja + 1 OFF, rotasi maju tiap minggu
@@ -504,8 +505,10 @@ export interface RosterTemplateAssignPlan {
   skipped: { employeeId: string; fullName: string | null; reason: string }[];
   /** Sel roster lama (kuas / import / tukar shift) mulai tanggal efektif yang akan ditimpa template. */
   replacedDays: number;
-  /** Hari terkunci (absen disetujui / periode tertutup) yang tidak disentuh. */
+  /** Hari yang tidak disentuh: sudah ada absennya, absen disetujui, atau periode tertutup. */
   lockedDays: number;
+  /** TM-D24 (mundur): hari lalu tanpa absen yang menjadi hari kerja → akan ditandai Alpha (perlu verifikasi). */
+  newAlphaDays: number;
   /** TM-D24: jumlah karyawan yang perubahannya diajukan (bukan langsung berlaku). */
   approvalCount: number;
   restWarnings: string[];
@@ -521,8 +524,17 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   );
   if (!location) throw new BusinessRuleError("Lokasi kerja tidak ditemukan.");
   const today = await settingsToday();
+  // TM-D24 (Mat 2026-10-28): boleh mundur selama periode bulan-bulan itu belum ditutup.
   if (input.effectiveDate < today) {
-    throw new BusinessRuleError("Tanggal efektif tidak boleh sebelum hari ini.");
+    for (let month = input.effectiveDate.slice(0, 7); month <= today.slice(0, 7); ) {
+      if (await isDateClosed(template.companyId, `${month}-01`)) {
+        throw new BusinessRuleError(
+          `Periode ${month} sudah ditutup; tanggal berlaku tidak boleh di periode tertutup.`,
+        );
+      }
+      const [y, m] = month.split("-").map(Number) as [number, number];
+      month = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+    }
   }
   const installation = template.patterns.find((p) =>
     p.crews.some((c) => c.workLocationId === input.workLocationId),
@@ -565,8 +577,9 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const manual = valid.length
     ? await repository.nonPatternDaysBetween(valid, effective, new Date(`${horizon}T00:00:00Z`))
     : [];
+  // Terkunci + sudah ada absennya (hari lalu) → jadwal tidak diubah.
   const locked = valid.length
-    ? await lockedDayKeys(valid, input.effectiveDate, horizon)
+    ? await keepDayKeys(valid, input.effectiveDate, horizon)
     : new Set<string>();
   const replaceable = manual.filter(
     (d) => !locked.has(dayKey(d.employeeId, d.workDate.toISOString().slice(0, 10))),
@@ -627,6 +640,27 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     (a, b) => a.crewName.localeCompare(b.crewName) || a.fullName.localeCompare(b.fullName),
   );
 
+  // Hari lalu (tanggal berlaku s.d. kemarin) yang akan menjadi hari kerja tanpa absen → Alpha.
+  let newAlphaDays = 0;
+  if (input.effectiveDate < today) {
+    const steps = installation?.steps ?? template.steps;
+    const base = template.startOnMonday
+      ? mondayOnOrBefore(input.cycleStartDate ?? input.effectiveDate)
+      : (input.cycleStartDate ?? input.effectiveDate);
+    for (const a of assignments) {
+      if (a.stays && !a.needsApproval) continue;
+      const index = crewIndexOf.get(a.employeeId) ?? 0;
+      const crew = crews[index];
+      const cycle =
+        crew && "cycleStartDate" in crew
+          ? (crew.cycleStartDate as Date).toISOString().slice(0, 10)
+          : crewCycleStart(base, index, template.crewOffsetDays);
+      for (let d = input.effectiveDate; d < today; d = isoAddDays(d, 1)) {
+        if (locked.has(dayKey(a.employeeId, d))) continue;
+        if (patternCodeOn(steps, cycle, d) !== OFF_CODE) newAlphaDays++;
+      }
+    }
+  }
   const shifts = await repository.listShifts(template.companyId);
   const plan: RosterTemplateAssignPlan = {
     installed: Boolean(installation),
@@ -645,13 +679,14 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
     replacedDays: replaceable.length,
     lockedDays: locked.size,
     approvalCount: assignments.filter((a) => a.needsApproval).length,
+    newAlphaDays,
     restWarnings: patternRestWarnings(template.steps, shifts, settings.minRestHours).map((w) =>
       w.restHours < 0
         ? `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} bertabrakan ${Math.abs(w.restHours)} jam.`
         : `Langkah ${w.index + 1}→${w.index + 2}: ${w.from} lalu ${w.to} hanya ${w.restHours} jam istirahat.`,
     ),
   };
-  return { template, crews, target, crewIndexOf, plan, replaceable };
+  return { template, crews, target, crewIndexOf, plan, replaceable, keep: locked };
 }
 
 export async function previewTemplateAssignment(
@@ -667,7 +702,8 @@ export async function applyTemplateAssignment(
   id: string,
   input: RosterTemplateAssignInput,
 ): Promise<RosterTemplateAssignPlan> {
-  const { template, plan, crewIndexOf, replaceable } = await planAssignment(ctx, id, input);
+  const { template, plan, crewIndexOf, replaceable, keep } = await planAssignment(ctx, id, input);
+  const today = await settingsToday();
   // Langsung berlaku: karyawan yang belum punya crew. Yang sudah ber-crew → pengajuan (TM-D24).
   const direct = plan.assignments.filter((a) => !a.stays && !a.needsApproval);
   const approval = plan.assignments.filter((a) => a.needsApproval);
@@ -698,13 +734,17 @@ export async function applyTemplateAssignment(
       .filter((a) => crewIndexOf.get(a.employeeId) === index)
       .map((a) => a.employeeId);
     if (added.length === 0) continue;
-    const keep = crew.members
+    const members = crew.members
       .filter((m) => m.startDate <= effective && (!m.endDate || m.endDate >= effective))
       .map((m) => m.employeeId);
-    await setCrewMembers(ctx, crew.id, {
-      employeeIds: [...new Set([...keep, ...added])],
-      effectiveDate: input.effectiveDate,
-    });
+    await setCrewMembers(
+      ctx,
+      crew.id,
+      { employeeIds: [...new Set([...members, ...added])], effectiveDate: input.effectiveDate },
+      input.effectiveDate < today
+        ? { employeeIds: added, from: input.effectiveDate, keep }
+        : undefined,
+    );
   }
   const submitted = await submitTemplateEdits(ctx, {
     companyId: template.companyId,

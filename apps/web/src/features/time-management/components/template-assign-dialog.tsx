@@ -65,7 +65,7 @@ export function TemplateAssignDialog({
   const preview = useTemplateAssignPreview(
     templateId,
     body,
-    Boolean(templateId && locationId && selected.size > 0 && effectiveDate >= today),
+    Boolean(templateId && locationId && selected.size > 0 && effectiveDate),
   );
   const people = grid.employees.filter(
     (e) =>
@@ -167,7 +167,6 @@ export function TemplateAssignDialog({
                 <Input
                   id="assign-date"
                   type="date"
-                  min={today}
                   value={effectiveDate}
                   onChange={(e) => e.target.value && setEffectiveDate(e.target.value)}
                 />
@@ -234,8 +233,15 @@ export function TemplateAssignDialog({
                   ? `${plan.replacedDays} sel roster lama (kuas / import / tukar shift) mulai tanggal ini akan ditimpa template.`
                   : ""}
                 {plan.lockedDays > 0
-                  ? ` ${plan.lockedDays} hari terkunci (absen disetujui / periode tertutup) tidak diubah.`
+                  ? ` ${plan.lockedDays} hari sudah ada absennya / terkunci — jadwalnya tidak diubah.`
                   : ""}
+              </p>
+            ) : null}
+            {plan && plan.newAlphaDays > 0 ? (
+              <p className="bg-destructive/10 text-destructive rounded-lg p-2 text-xs">
+                Tanggal berlaku di masa lalu: {plan.newAlphaDays} hari lalu menjadi hari kerja tanpa
+                absen dan akan ditandai Alpha (menunggu verifikasi atasan). Pastikan memang begitu,
+                atau majukan tanggal berlaku.
               </p>
             ) : null}
             {plan ? <PlanView plan={plan} /> : null}

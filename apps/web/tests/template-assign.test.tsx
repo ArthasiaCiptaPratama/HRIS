@@ -123,7 +123,7 @@ describe("Isi roster dengan template", () => {
     expect(await screen.findByText("Pindah dari Crew Lama")).toBeInTheDocument();
     // Paksa tempel full: tidak ada pilihan, hanya keterangan sel yang ditimpa & hari terkunci.
     expect(screen.getByText(/3 sel roster lama .* akan ditimpa template/)).toBeInTheDocument();
-    expect(screen.getByText(/1 hari terkunci/)).toBeInTheDocument();
+    expect(screen.getByText(/1 hari sudah ada absennya \/ terkunci/)).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /Timpa/ })).not.toBeInTheDocument();
     // TM-D24: Budi sudah ber-crew → ditandai perlu persetujuan; tombol jadi "Terapkan & ajukan".
     expect(screen.getByText("Perlu persetujuan atasan + HR")).toBeInTheDocument();

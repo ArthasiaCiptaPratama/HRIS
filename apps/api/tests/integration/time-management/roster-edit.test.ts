@@ -3,6 +3,7 @@ import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { settingsToday } from "../../../src/modules/attendance/calendar.service.ts";
+import { patternCodeOn } from "../../../src/modules/attendance/roster-engine.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -43,7 +44,7 @@ const ids = {
   position: "",
   location: "",
   shifts: [] as string[],
-  emp: {} as Record<"mgr" | "ani" | "budi" | "cici", string>,
+  emp: {} as Record<"mgr" | "ani" | "budi" | "cici" | "dodi", string>,
 };
 let companyId = "";
 let today = "";
@@ -119,7 +120,7 @@ beforeAll(async () => {
       })
     ).id;
   ids.emp.mgr = await mk("Mgr", null);
-  for (const n of ["ani", "budi", "cici"] as const) ids.emp[n] = await mk(n, ids.emp.mgr);
+  for (const n of ["ani", "budi", "cici", "dodi"] as const) ids.emp[n] = await mk(n, ids.emp.mgr);
   h = {
     hr1: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
     hr2: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
@@ -163,6 +164,8 @@ afterAll(async () => {
     select: { patterns: { select: { id: true } } },
   });
   const patternIds = templates.flatMap((t) => t.patterns.map((p) => p.id));
+  await prisma.attendancePeriod.deleteMany({ where: { companyId, month: "2025-01" } });
+  await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: employees } } });
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: employees } } });
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: employees } } });
   await prisma.crew.deleteMany({ where: { patternId: { in: patternIds } } });
@@ -381,5 +384,51 @@ describe("perubahan roster karyawan ber-crew wajib disetujui (TM-D24)", () => {
       where: { employeeId: ids.emp.ani, crewId: malam.id },
     });
     expect(aniMembership?.endDate?.toISOString().slice(0, 10)).toBe(plusDays(F, -1));
+  });
+
+  test("mundur (periode terbuka): hari tanpa absen ikut template, hari ber-absen tetap; periode tertutup 422", async () => {
+    const dodi = ids.emp.dodi;
+    const d3 = plusDays(today, -3);
+    const d2 = plusDays(today, -2);
+    for (const date of [d3, d2]) {
+      await prisma.rosterDay.create({
+        data: { employeeId: dodi, workDate: D(date), shiftId: ids.shifts[0], source: "MANUAL" },
+      });
+    }
+    await prisma.attendanceDay.create({
+      data: { employeeId: dodi, companyId, workDate: D(d2), status: "PENDING" },
+    });
+    const malam = await prisma.crew.findFirstOrThrow({
+      where: { name: { contains: `Malam ${RUN}` }, deletedAt: null },
+      include: { pattern: true },
+    });
+    const expected = (date: string) =>
+      patternCodeOn(malam.pattern.steps, malam.cycleStartDate.toISOString().slice(0, 10), date);
+    const alpha = [d3, plusDays(today, -1)].filter((d) => expected(d) !== "OFF").length;
+    const body = { workLocationId: ids.location, employeeIds: [dodi], effectiveDate: d3 };
+    const preview = await data<{
+      newAlphaDays: number;
+      replacedDays: number;
+      approvalCount: number;
+    }>(await call("POST", `/roster-custom-templates/${t2}/assign/preview`, h.hr1, body));
+    expect(preview).toMatchObject({ newAlphaDays: alpha, approvalCount: 0, replacedDays: 1 });
+    expect((await call("POST", `/roster-custom-templates/${t2}/assign`, h.hr1, body)).status).toBe(
+      200,
+    );
+    expect(await dayCode(dodi, d3)).toBe(expected(d3) === "OFF" ? "OFF" : expected(d3));
+    // Hari ber-absen: jadwal lama dipertahankan.
+    expect(await dayCode(dodi, d2)).toBe(code("D"));
+    expect(
+      (await prisma.rosterDay.findFirst({ where: { employeeId: dodi, workDate: D(d2) } }))?.source,
+    ).toBe("MANUAL");
+
+    await prisma.attendancePeriod.create({
+      data: { companyId, month: "2025-01", status: "CLOSED", closedAt: new Date() },
+    });
+    const closed = await call("POST", `/roster-custom-templates/${t2}/assign/preview`, h.hr1, {
+      ...body,
+      effectiveDate: "2025-01-15",
+    });
+    expect(closed.status).toBe(422);
   });
 });

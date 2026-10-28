@@ -153,6 +153,37 @@ export const updateRosterEdit = (
 ) => tx.rosterEditRequest.update({ where: { id }, data });
 export const listRosterEdits = (where: Prisma.RosterEditRequestWhereInput, take = 500) =>
   getPrisma().rosterEditRequest.findMany({ where, orderBy: { createdAt: "desc" }, take });
+/** TM-D24 (mundur): hari absen yang sudah ada pada rentang → jadwalnya tidak diubah. */
+export const attendanceDayKeys = async (
+  employeeIds: string[],
+  from: Date,
+  to: Date,
+  tx?: AttendanceTx,
+) =>
+  (
+    await db(tx).attendanceDay.findMany({
+      where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
+      select: { employeeId: true, workDate: true },
+    })
+  ).map((d) => `${d.employeeId}|${d.workDate.toISOString().slice(0, 10)}`);
+/** Hari pola crew untuk karyawan tertentu pada rentang (mode mundur). */
+export const patternDaysOf = (
+  tx: AttendanceTx,
+  crewId: string,
+  employeeIds: string[],
+  from: Date,
+  to: Date,
+) =>
+  tx.rosterDay.findMany({
+    where: {
+      crewId,
+      source: "PATTERN",
+      employeeId: { in: employeeIds },
+      workDate: { gte: from, lte: to },
+    },
+    select: { id: true, employeeId: true, workDate: true },
+  });
+
 /** Keanggotaan crew aktif yang bersinggungan dengan rentang (crew tidak diarsipkan). */
 export const membershipsBetween = (employeeIds: string[], from: Date, to: Date) =>
   getPrisma().crewMember.findMany({

@@ -25,6 +25,7 @@ import {
   type CrewedCellSplitter,
   configureCrewedCellSplitter,
   dayKey,
+  keepDayKeys,
   lockedDayKeys,
   type RosterCell,
   regenerateCrew,
@@ -324,11 +325,13 @@ async function moveToCrew(
     );
   }
   const today = await settingsToday();
-  const effective = toIso(row.effectiveDate);
-  const from = effective < today ? today : effective;
+  // TM-D24 (mundur): tanggal berlaku apa adanya (periode terbuka dicek saat diajukan); hari ber-absen &
+  // terkunci tidak diubah.
+  const from = toIso(row.effectiveDate);
   const horizon = isoAddDays(today, (await readTimeSettings()).rosterHorizonDays);
+  const keep = await keepDayKeys([row.employeeId], from, horizon, tx);
   if (replaceNonPattern) {
-    const locked = await lockedDayKeys([row.employeeId], from, horizon);
+    const locked = keep;
     const old = await repository.nonPatternDaysBetween(
       [row.employeeId],
       toDate(from),
@@ -362,8 +365,9 @@ async function moveToCrew(
     ]);
   }
   // Crew asal dulu, crew tujuan terakhir (lihat setCrewMembers).
-  for (const id of touched) await regenerateCrew(id, from, true, tx);
-  await regenerateCrew(payload.crewId, from, true, tx);
+  const past = from < today ? { employeeIds: [row.employeeId], from, keep } : undefined;
+  for (const id of touched) await regenerateCrew(id, from, true, tx, past);
+  await regenerateCrew(payload.crewId, from, true, tx, past);
   return from;
 }
 

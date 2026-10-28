@@ -246,6 +246,7 @@ export const rosterTemplateAssignPlanSchema = z
     replacedDays: z.number().int(),
     lockedDays: z.number().int(),
     approvalCount: z.number().int(),
+    newAlphaDays: z.number().int(),
     restWarnings: z.array(z.string()),
   })
   .openapi("RosterTemplateAssignPlan");

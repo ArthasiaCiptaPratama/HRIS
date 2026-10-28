@@ -491,7 +491,7 @@ describe("template roster buatan HR (TM-D23)", () => {
     expect(days.map((d) => d.shift?.code ?? "OFF")).toEqual([code("N"), "OFF", code("N"), "OFF"]);
   });
 
-  test("isi roster: tanggal efektif lampau 422; karyawan 403", async () => {
+  test("isi roster: tanggal lampau di periode terbuka boleh (TM-D24); karyawan 403", async () => {
     const body = {
       workLocationId: people.location2,
       employeeIds: [people.employees[0]],
@@ -503,7 +503,7 @@ describe("template roster buatan HR (TM-D23)", () => {
     const t = list.find((x) => x.name === `Auto ${RUN}`) as Template;
     expect(
       (await call("POST", `/roster-custom-templates/${t.id}/assign/preview`, h.hr, body)).status,
-    ).toBe(422);
+    ).toBe(200);
     expect(
       (
         await call("POST", `/roster-custom-templates/${t.id}/assign`, h.emp, {

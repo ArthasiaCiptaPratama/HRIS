@@ -27,7 +27,14 @@ export async function approvePendingRosterEdits(
   });
   for (const approval of approvals) {
     for (const headers of approvers) {
-      await call("POST", `/approvals/${approval.id}/decision`, headers, { decision: "APPROVED" });
+      const res = await call("POST", `/approvals/${approval.id}/decision`, headers, {
+        decision: "APPROVED",
+      });
+      if (res.status !== 200) {
+        throw new Error(
+          `Keputusan approval ${approval.id} gagal ${res.status}: ${await res.text()}`,
+        );
+      }
     }
   }
   return approvals.length;

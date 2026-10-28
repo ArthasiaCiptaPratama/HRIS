@@ -232,6 +232,7 @@ export const templateAssignPlanSchema = z.object({
   replacedDays: z.number(),
   lockedDays: z.number(),
   approvalCount: z.number(),
+  newAlphaDays: z.number().default(0),
   restWarnings: z.array(z.string()),
 });
 export type TemplateAssignPlan = z.infer<typeof templateAssignPlanSchema>;
