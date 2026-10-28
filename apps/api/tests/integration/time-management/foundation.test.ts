@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { ApprovalSubject } from "@hris/shared";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
@@ -47,11 +48,14 @@ let mgrEmp = "";
 let empEmp = "";
 let h: Record<"sa" | "hr" | "hr2" | "mgr" | "emp" | "otherMgr", Record<string, string>>;
 
-async function newRequest(managerEmployeeId: string | null = mgrEmp) {
+async function newRequest(
+  managerEmployeeId: string | null = mgrEmp,
+  subjectType: ApprovalSubject = "ATTENDANCE_DAY",
+) {
   const subjectId = crypto.randomUUID();
   const row = await prisma.$transaction((tx) =>
     createApprovalRequest(tx, {
-      subjectType: "ATTENDANCE_DAY",
+      subjectType,
       subjectId,
       requesterEmployeeId: empEmp,
       companyId,
@@ -163,6 +167,17 @@ describe("approval paralel (PLAN §5.2, D-068)", () => {
     expect((await decide(h.sa, r.id, { decision: "APPROVED" })).status).toBe(200);
     const res = await decide(h.hr, r.id, { decision: "APPROVED" });
     expect((await data<{ status: string }>(res)).status).toBe("APPROVED");
+  });
+
+  test("tanpa atasan → masuk antrean SA lintas subjek (regresi filter SA `OR: [{}]` → 0 baris)", async () => {
+    await newRequest(null, "ATTENDANCE_CORRECTION");
+    await newRequest(null, "LEAVE");
+    const queue = await data<{ corrections: number; leave: number; total: number }>(
+      await call("GET", "/time/queue", h.sa),
+    );
+    expect(queue.corrections).toBeGreaterThanOrEqual(1);
+    expect(queue.leave).toBeGreaterThanOrEqual(1);
+    expect(queue.total).toBeGreaterThanOrEqual(2);
   });
 
   test("persetujuan massal: hasil per pengajuan, yang tak berhak tidak menggagalkan lainnya", async () => {

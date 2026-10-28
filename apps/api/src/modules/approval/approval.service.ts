@@ -151,13 +151,14 @@ export async function listActionable(
 ): Promise<ApprovalView[]> {
   const or: object[] = [];
   if (actor.employeeId) or.push({ managerEmployeeId: actor.employeeId });
-  if (actor.role === ROLE.SUPER_ADMIN) or.push({}); // semua; disaring stepRight di bawah
   if (actor.role === ROLE.HR_ADMIN) {
     or.push({ companyId: { in: [...(actor.companyIds ?? [])] } });
   }
-  if (or.length === 0) return [];
+  // SA: semua (disaring stepRight di bawah) — tanpa OR, karena `OR: [{}]` tidak cocok dengan baris mana pun.
+  const isSa = actor.role === ROLE.SUPER_ADMIN;
+  if (!isSa && or.length === 0) return [];
   const rows = await repository.listRequests(
-    { subjectType, status: "PENDING", OR: or },
+    { subjectType, status: "PENDING", ...(isSa ? {} : { OR: or }) },
     options.take ?? 1000,
   );
   return rows
