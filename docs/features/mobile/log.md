@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-28 — Kontrak keputusan perubahan jadwal oleh HR + aturan data uji tanpa push (Oatse)
+- **Dikerjakan:** BE app untuk TM-D24 (`GET /roster-edits` & `/roster-edits/{id}`, target notifikasi `ROSTER_EDIT`; detail di log Time Management 2026-10-28), push `HRIS/mobile-app` `4733a26` (CI 40667842380 ✔); spec diekspor tanpa server ke `.handoff/openapi-mobile-4733a26.json` (`createApp` + `app.request`, `NODE_ENV=test`).
+- **Keputusan:** **aturan data uji lokal** (supervisor atas nama pengguna, 2026-10-28): setiap skrip seed / data uji lokal dijalankan dengan `FCM_SERVICE_ACCOUNT_JSON=` dikosongkan atau `NODE_ENV=test`, kecuali skenario uji push yang memang disengaja. Alasannya: `.env` lokal berisi kredensial Firebase sungguhan dan proses non-test (dev:api, skrip) memakai pengirim FCM sungguhan. `bun test` sudah aman (`NODE_ENV=test` → `UNCONFIGURED_PUSH`).
+- **Verifikasi:** `push_devices` DB lokal 0 token → seed uji baterai 28 Okt hanya membuat baris notifikasi, tidak ada push terkirim.
+- **Masalah / catatan:** `FCM_SERVICE_ACCOUNT_JSON` di `.env` HRIS & HRIS-mobile berasal dari project Firebase `arthasia-hris`, bukan `arthasia-akselerasi-stg` seperti yang dicatat di checklist (kunci stg ada di `.secrets/firebase/`). `.env` HRIS-mobile diganti ke kunci `arthasia-akselerasi-stg` (persetujuan supervisor atas nama pengguna; cadangan `.env.bak-2026-10-28`, dicek lewat parse env: project_id & client_email stg). `.env` HRIS diatur terpisah oleh sesi develop.
+- **Berikutnya:** app regenerate klien dari spec `4733a26`; merge develop lagi setelah perbaikan inbox SA.
+
 ### 2026-10-26 — Skema TodayOvertimeOrder + data uji lokal app (Oatse)
 - **Dikerjakan:** `attendance.contract.ts` `todayOvertimeOrderSchema` (`.openapi("TodayOvertimeOrder")`, dirujuk `nullableRef`); ff `HRIS/mobile-app` → develop `dccb1e7` (+2 migrasi lokal `overtime_orders`, `overtime_order_retroactive`); data uji lokal `hris_mobile` untuk app (seed + `db:seed:time --demo`, akun emp/mgr/admin ditautkan dengan Auth hanya dibaca, shift `UJI` + SPL uji alarm lewat service).
 - **Keputusan:** — (MOB-D9/MOB-D17)
