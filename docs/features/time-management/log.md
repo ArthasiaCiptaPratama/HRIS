@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D24 tahap 2–4, isi mundur) ke develop + konfirmasi isi mundur (Oatse)
+- **Dikerjakan:** tinjauan `edb90f8`, `3a6fd23`, `33386e5` (entri Mat di bawah) → merge **fast-forward** `58c9ef5 → 9c94f5d`, tanpa migrasi baru. Kontrak berubah aditif (`RosterCellsResult`/`RosterImportCommit` + `submitted`, `PUT /crews/{id}/members` → `CrewMembersResult`, `RosterTemplateAssignPlan.newAlphaDays`) — hanya dipakai web; app Flutter & `HRIS/mobile-app` tidak terdampak.
+- **Keputusan:** perilaku isi mundur TM-D24 (`33386e5`: hari kerja lampau tanpa absen → Alpha baru yang perlu diverifikasi atasan) **dipertahankan** — pengguna 16:22 WIB: "Setuju: keep Mat's behaviour as it is" (dicatat di sumber TM-D24, README).
+- **Verifikasi:** worktree `9c94f5d` + DB lokal baru: typecheck ✔ · `biome ci` ⚠ 1 warning lama (kode Mat) · boundaries ✔ · test shared 346 · api 1015 · web 331 ✔; push, CI 40662692953 ✔.
+- **Masalah / catatan (diteruskan ke Mat lewat supervisor):** handler `ROSTER_EDIT` memakai beberapa query di luar transaksi & notifikasi terkirim sebelum commit (aman di pool 5, timeout tx approval bawaan 5 dtk — pantau crew besar di staging); `requestCrewMembers` tidak atomik (bagian langsung tersimpan sebelum pengajuan dibuat; anggota masa depan yang dihapus dari daftar keluar tanpa approval).
+- **Berikutnya:** rilis berikutnya membawa TM-D20–D24.
+
 ### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D23, TM-D24 tahap 1) ke develop + test susulan TM-D19 tahan tanggal merah (Oatse)
 - **Dikerjakan:** tinjauan 5 commit Mat (`43eaad9`…`3dd3861`; entri Mat di bawah) → merge **fast-forward** `cc12428 → 3dd3861` (Mat sudah memuat develop `cc12428`), tanpa konflik. Test `overtime-order.test.ts`: `yesterday` → `retroDate` = hari terakhir (kemarin s.d. 7 hari lalu) yang bukan tanggal merah (`holidaysBetween`) — sebelumnya gagal 660 ≠ 120 bila kemarin libur di DB lokal (laporan Mat 28 Okt).
 - **Keputusan:** — (merge & perbaikan test: persetujuan supervisor atas nama pengguna 28 Okt).
