@@ -53,6 +53,8 @@ export interface CreateApprovalInput {
   subjectType: ApprovalSubject;
   subjectId: string;
   requesterEmployeeId: string;
+  /** TM-D24: akun HR yang mengajukan atas nama karyawan (tidak boleh memutus langkahnya). */
+  submittedByAccountId?: string | null;
   companyId: string;
   managerEmployeeId: string | null;
   /** PARALLEL = atasan + HR (bawaan); SINGLE = atasan saja (lembur, PLAN §5.2). */
@@ -67,6 +69,7 @@ export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprova
       subjectType: input.subjectType,
       subjectId: input.subjectId,
       requesterEmployeeId: input.requesterEmployeeId,
+      submittedByAccountId: input.submittedByAccountId ?? null,
       companyId: input.companyId,
       managerEmployeeId: input.managerEmployeeId,
       mode,

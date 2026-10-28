@@ -179,6 +179,87 @@ export const patternSchema = z.object({
 });
 export type Pattern = z.infer<typeof patternSchema>;
 
+/** TM-D23: template roster buatan HR + pemasangannya per lokasi kerja. */
+export const customTemplateSchema = z.object({
+  id: z.string(),
+  companyId: z.string(),
+  name: z.string(),
+  description: z.string().nullable(),
+  steps: z.array(z.string()),
+  crewCount: z.number(),
+  crewOffsetDays: z.number(),
+  startOnMonday: z.boolean(),
+  cycleLength: z.number(),
+  workDays: z.number(),
+  installations: z.array(
+    z.object({
+      patternId: z.string(),
+      patternName: z.string(),
+      workLocationId: z.string().nullable(),
+      workLocationName: z.string().nullable(),
+      crews: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          cycleStartDate: z.string(),
+          memberCount: z.number(),
+        }),
+      ),
+    }),
+  ),
+  updatedAt: z.string(),
+});
+export type CustomTemplate = z.infer<typeof customTemplateSchema>;
+
+export const templateAssignPlanSchema = z.object({
+  installed: z.boolean(),
+  cycleStartDate: z.string(),
+  crews: z.array(z.object({ name: z.string(), existing: z.number(), added: z.number() })),
+  assignments: z.array(
+    z.object({
+      employeeId: z.string(),
+      fullName: z.string(),
+      employeeNumber: z.string().nullable(),
+      crewName: z.string(),
+      fromCrew: z.string().nullable(),
+      stays: z.boolean(),
+      needsApproval: z.boolean(),
+    }),
+  ),
+  skipped: z.array(
+    z.object({ employeeId: z.string(), fullName: z.string().nullable(), reason: z.string() }),
+  ),
+  replacedDays: z.number(),
+  lockedDays: z.number(),
+  approvalCount: z.number(),
+  newAlphaDays: z.number().default(0),
+  restWarnings: z.array(z.string()),
+});
+export type TemplateAssignPlan = z.infer<typeof templateAssignPlanSchema>;
+
+/** TM-D24: perubahan roster karyawan ber-crew oleh HR — berlaku setelah disetujui atasan + HR. */
+export const rosterEditSchema = z.object({
+  id: z.string(),
+  kind: z.enum(["TEMPLATE", "CELLS", "IMPORT", "CREW"]),
+  status: z.enum(["PENDING", "APPLIED", "REJECTED", "CANCELLED"]),
+  employee: z.object({
+    id: z.string(),
+    fullName: z.string(),
+    employeeNumber: z.string().nullable(),
+  }),
+  summary: z.string(),
+  effectiveDate: z.string(),
+  appliedFrom: z.string().nullable(),
+  reason: z.string().nullable(),
+  preview: z.array(
+    z.object({ date: z.string(), from: z.string().nullable(), to: z.string().nullable() }),
+  ),
+  createdAt: z.string(),
+  createdByMe: z.boolean(),
+  approval: approvalSchema.nullable(),
+});
+export type RosterEdit = z.infer<typeof rosterEditSchema>;
+
 export const crewSchema = z.object({
   id: z.string(),
   companyId: z.string(),

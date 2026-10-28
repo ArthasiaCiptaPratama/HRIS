@@ -89,6 +89,7 @@ export const trainingRowSchema = row({
   trainingField: z.string(),
   organizer: z.string().nullable(),
   type: trainingTypeSchema.nullable(),
+  certificateNumber: z.string().nullable(),
   startDate: isoDate.nullable(),
   endDate: isoDate.nullable(),
   hours: z.number().int().nullable(),

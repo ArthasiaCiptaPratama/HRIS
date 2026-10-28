@@ -78,18 +78,43 @@ model Shift {
 }
 
 // Pola siklus: daftar kode shift atau "OFF" berurutan (mis. D×10 + OFF×4).
+/// TM-D23: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
+model RosterTemplate {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  name           String    @db.VarChar(60)
+  description    String?   @db.VarChar(300)
+  steps          String[]  @db.VarChar(10)
+  crewCount      Int       @map("crew_count")
+  crewOffsetDays Int       @map("crew_offset_days")
+  startOnMonday  Boolean   @default(false) @map("start_on_monday")
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patterns RosterPattern[]
+
+  @@unique([companyId, name])
+  @@map("roster_templates")
+  @@schema("attendance")
+}
+
 model RosterPattern {
-  id        String    @id @default(uuid()) @db.Uuid
-  companyId String    @map("company_id") @db.Uuid
-  name      String    @db.VarChar(80)
-  steps     String[]  @db.VarChar(10)
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id         String          @id @default(uuid()) @db.Uuid
+  companyId  String          @map("company_id") @db.Uuid
+  name       String          @db.VarChar(80)
+  steps      String[]        @db.VarChar(10)
+  /// TM-D23: pola hasil pemasangan template (satu per lokasi).
+  templateId String?         @map("template_id") @db.Uuid
+  template   RosterTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  deletedAt  DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   crews Crew[]
 
   @@unique([companyId, name])
+  @@index([templateId])
   @@map("roster_patterns")
   @@schema("attendance")
 }
@@ -145,6 +170,52 @@ model EmployeeLocationSetting {
 
   @@index([workLocationId])
   @@map("employee_location_settings")
+  @@schema("attendance")
+}
+
+/// TM-D24: jenis perubahan roster yang diajukan HR untuk karyawan ber-crew.
+enum RosterEditKind {
+  TEMPLATE
+  CELLS
+  IMPORT
+  CREW
+
+  @@schema("attendance")
+}
+
+enum RosterEditStatus {
+  PENDING
+  APPLIED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+/// TM-D24: perubahan roster karyawan yang sudah anggota crew — berlaku setelah disetujui atasan + HR.
+model RosterEditRequest {
+  id                 String           @id @default(uuid()) @db.Uuid
+  companyId          String           @map("company_id") @db.Uuid
+  employeeId         String           @map("employee_id") @db.Uuid
+  managerEmployeeId  String?          @map("manager_employee_id") @db.Uuid
+  kind               RosterEditKind
+  effectiveDate      DateTime         @map("effective_date") @db.Date
+  /// Data untuk menerapkan perubahan (mis. TEMPLATE: { templateId, workLocationId, crewId }).
+  payload            Json
+  /// Ringkasan jadwal lama → baru per tanggal saat diajukan: [{ date, from, to }].
+  preview            Json
+  reason             String?          @db.VarChar(300)
+  status             RosterEditStatus @default(PENDING)
+  createdByAccountId String           @map("created_by_account_id") @db.Uuid
+  /// Tanggal mulai benar-benar diterapkan (tanggal efektif atau tanggal disetujui bila sudah lewat).
+  appliedFrom        DateTime?        @map("applied_from") @db.Date
+  decidedAt          DateTime?        @map("decided_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, status])
+  @@index([companyId, status])
+  @@map("roster_edit_requests")
   @@schema("attendance")
 }
 

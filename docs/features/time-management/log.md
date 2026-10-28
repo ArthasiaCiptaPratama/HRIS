@@ -13,6 +13,27 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D24 tahap 2–4, isi mundur) ke develop + konfirmasi isi mundur (Oatse)
+- **Dikerjakan:** tinjauan `edb90f8`, `3a6fd23`, `33386e5` (entri Mat di bawah) → merge **fast-forward** `58c9ef5 → 9c94f5d`, tanpa migrasi baru. Kontrak berubah aditif (`RosterCellsResult`/`RosterImportCommit` + `submitted`, `PUT /crews/{id}/members` → `CrewMembersResult`, `RosterTemplateAssignPlan.newAlphaDays`) — hanya dipakai web; app Flutter & `HRIS/mobile-app` tidak terdampak.
+- **Keputusan:** perilaku isi mundur TM-D24 (`33386e5`: hari kerja lampau tanpa absen → Alpha baru yang perlu diverifikasi atasan) **dipertahankan** — pengguna 16:22 WIB: "Setuju: keep Mat's behaviour as it is" (dicatat di sumber TM-D24, README).
+- **Verifikasi:** worktree `9c94f5d` + DB lokal baru: typecheck ✔ · `biome ci` ⚠ 1 warning lama (kode Mat) · boundaries ✔ · test shared 346 · api 1015 · web 331 ✔; push, CI 40662692953 ✔.
+- **Masalah / catatan (diteruskan ke Mat lewat supervisor):** handler `ROSTER_EDIT` memakai beberapa query di luar transaksi & notifikasi terkirim sebelum commit (aman di pool 5, timeout tx approval bawaan 5 dtk — pantau crew besar di staging); `requestCrewMembers` tidak atomik (bagian langsung tersimpan sebelum pengajuan dibuat; anggota masa depan yang dihapus dari daftar keluar tanpa approval).
+- **Berikutnya:** rilis berikutnya membawa TM-D20–D24.
+
+### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D23, TM-D24 tahap 1) ke develop + test susulan TM-D19 tahan tanggal merah (Oatse)
+- **Dikerjakan:** tinjauan 5 commit Mat (`43eaad9`…`3dd3861`; entri Mat di bawah) → merge **fast-forward** `cc12428 → 3dd3861` (Mat sudah memuat develop `cc12428`), tanpa konflik. Test `overtime-order.test.ts`: `yesterday` → `retroDate` = hari terakhir (kemarin s.d. 7 hari lalu) yang bukan tanggal merah (`holidaysBetween`) — sebelumnya gagal 660 ≠ 120 bila kemarin libur di DB lokal (laporan Mat 28 Okt).
+- **Keputusan:** — (merge & perbaikan test: persetujuan supervisor atas nama pengguna 28 Okt).
+- **Verifikasi (tinjauan, worktree `3dd3861` + DB lokal baru):** `db:deploy` 50 migrasi, `db:check` tanpa drift; typecheck ✔ · `biome ci` ⚠ 1 warning `useOptionalChain` (`roster-edit.service.ts:212`, kode Mat, dibiarkan) · boundaries ✔ · test shared 346 · api 1011 · web 331 ✔. Test susulan: libur uji sementara 27 Okt di DB lokal → versi lama 7 lulus/1 gagal (`Expected 120, Received 660`), versi baru 8/8 ✔; baris libur dihapus lagi.
+- **Masalah / catatan:** migrasi `roster_templates` & `roster_edit_requests` aditif (staging +2 saat rilis). `submitted_by_account_id` NULL → perilaku approval lama identik. ROSTER_EDIT belum bisa diputus dari app Flutter & tanpa push → Backlog PROGRESS.
+- **Berikutnya:** TM-D24 tahap 2–4 (Mat); rilis berikutnya membawa TM-D20–D24.
+
+### 2026-10-27 — Batas hari roster, periode & cuti ikut zona pengaturan TM-D20–D22 (Oatse)
+- **Dikerjakan:** temuan uji M3 staging (staging WITA karena `time_settings` kosong) → sub-item "(tambahan 2026-10-27)" di checklist zona waktu. Helper `settingsToday(now)` di `calendar.service.ts` (diekspor `index.ts`) menggantikan `todayIso` (roster.service), `todayJakarta` (period.service, leave.service); `regenerateCrew(from?)` mulai dari hari ini zona pengaturan; `assertClosable` jadi async.
+- **Keputusan:** TM-D20 (zona global), TM-D21 (cuti ikut zona pengaturan), TM-D22 (bawaan WITA, PROMPT §4 diperjelas) — diputuskan supervisor atas nama pengguna 27 Okt; bisa diubah pengguna.
+- **Verifikasi:** `tests/integration/time-management/timezone.test.ts` (4 test, `setSystemTime` 00:30 WITA, zona dipaksa WITA lalu dikembalikan) merah dulu (koreksi 422, pratinjau 422, horizon kurang 1 hari) lalu hijau; typecheck ✔ · `biome ci` ✔ · boundaries ✔ · test shared 340 · api 996 · web 327 ✔.
+- **Masalah / catatan:** file milik Mat (TM, `82a5dce`); Mat/Mac belum memuat develop → dikabari lewat kabar gabungan. Staging tetap campur WIB/WITA sampai rilis berikutnya; zona staging diisi eksplisit di tugas rilis.
+- **Berikutnya:** rilis; isi zona staging.
+
 ### 2026-10-26 — Perintah lembur susulan TM-D19 (Oatse)
 - **Dikerjakan:** SPL untuk tanggal lampau / hari yang sudah Clock Out hanya HR PT & SA, periode belum ditutup (`isDateClosed`), kolom `retroactive` (migrasi `20261026070605_overtime_order_retroactive`), usulan lembur dihitung ulang (`syncOvertime`) saat SPL disimpan/dibatalkan; web badge Susulan + tanggal lampau untuk HR/SA.
 - **Keputusan:** TM-D19 (Q1 opsi B, pengguna lewat supervisor).
@@ -238,3 +259,59 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
   - Dicari per file: bocoran approval lembur PENDING berasal dari cleanup `shift-instance.test` (menghapus usulan lembur tanpa approval-nya; tersalin ke midnight). Approval absen CANCELLED tanpa absen dari `cancelOwnPunch` = jejak pembatalan, disengaja (bukan bocor).
 - **Label istirahat:** `computeOvertimeDay` (@hris/shared) tidak memasang `NO_BREAK_PUNCH` di hari tanpa jadwal (OFF / tanpa roster), karena tidak ada jatah istirahat shift. Hari kerja bershift tetap seperti TM-D7. Test shared baru.
 - Verifikasi Alpha Izin/Sakit/Tugas luar tetap dicatat + karyawan mengajukan sendiri (dikonfirmasi Mat).
+
+## 2026-10-26 — Cari karyawan di Data Absen Harian — Mat
+
+- Permintaan Mat: "Buatkan filter search juga di Data Absen Harian".
+- API: `GET /attendance/days` menerima `q` (nama / NIK, sebagian, tidak peka huruf). Disaring di query **sebelum** batas 500 baris (tab Semua) dan di antrean (tab Perlu keputusan), tetap dalam cakupan aktor. Fasad `directory.employeeIdsMatching(q)` (karyawan aktif & tidak aktif).
+- Web: kotak cari (`SearchField`, `useDeferredValue`) di bilah filter; pesan kosong khusus pencarian.
+- Test: API `attendance.test.ts` (inbox & semua: NIK huruf kecil, nama lain, tidak ada); web `attendance-days-search.test.tsx`; browser lokal: "joko" → 21 hari Joko Jetty, "TMDEMO-EMP" → 17 hari Rina. QA TC-TM-059.
+- Kontrak: parameter opsional baru `q` (tidak memecah klien lama).
+- **Tanggal dirapikan** (permintaan Mat, screenshot "masih berantakan"): `listDays` mengurutkan tanggal kerja terbaru dulu di kedua tab (antrean sebelumnya acak karena diambil per approval); kolom Tanggal memakai `scheduleLabel` TM-D14 dari develop ("00.00–07.00 (mulai Kam, 15 Okt)") — versi `scheduleText` buatan sendiri dibuang saat merge develop `dccb1e7`.
+- Data uji lokal hari ini: absen penuh roster Joko (JTM, 14 Okt–5 Nov) & Rina (JTMV2 tanpa centang "mulai setelah tengah malam", 28–29 Okt dilewati karena cuti menunggu). Cadangan absen lama di `~/Documents/QA/2026-10-26-{joko,rina}-roster/backup/`.
+
+## 2026-10-27 — TM-D23 Fase 1–2: template roster buatan HR & isi roster dengan template — Mat
+
+- Permintaan Mat: "untuk roster tolong adakan setup template dan auto template setup untuk karyawan"; pilihan: HR menyusun template sendiri, pilih banyak → bagi rata ke crew, perubahan hanya ke depan. Saat dikerjakan: "Buatkan automationnya di sini (Roster Bulanan), jadi tidak dengan kuas saja".
+- Kode:
+  - Shared `roster-template.ts`: `rosterTemplateDefInputSchema`, `rosterTemplateInstallInputSchema`, `rosterTemplateAssignInputSchema`, `rosterTemplatePreview` (kode crew per tanggal, cakupan per hari, jeda/bentrok via `patternRestWarnings`).
+  - Prisma `RosterTemplate` + `RosterPattern.templateId` (migrasi `20261027063355_roster_templates`, hanya menambah; lokal).
+  - `roster-template.service.ts`: CRUD template, `installCustomTemplate`, `previewTemplateAssignment`/`applyTemplateAssignment`; routes di `roster.routes.ts`; contract `roster.contract.ts` (assertExact).
+  - Web: `components/roster-template-tab.tsx` (tab Template), `components/template-assign-dialog.tsx` (Roster Bulanan › Isi dengan template), `components/pattern-chips.tsx` (dipindah dari halaman pengaturan).
+- **Bug lama diperbaiki** (`setCrewMembers`): saat karyawan dipindah ke crew lain, crew tujuan dibangkitkan lebih dulu → hari polanya dilewati karena tanggal masih terisi crew asal, lalu crew asal menghapus harinya → roster kosong mulai tanggal efektif. Urutan kini: crew asal dulu, crew tujuan terakhir. Ketahuan saat uji browser (Super Admin Lokal pindah dari Crew Demo).
+- Test: API `roster-custom-template.test.ts` (7: buat/validasi/akses, pasang + geser crew, kunci pola setelah dipasang, bentrok shift dini hari tanpa centang, bagi rata 2/2/1 + pasang otomatis + manual dipertahankan/ditimpa, pindah crew tidak kosong, tanggal lampau & akses); shared `roster-template.test.ts` (5); web `template-assign.test.tsx`; browser lokal (HR: buat "Rotasi D-N", isi Dimas & Super Admin Lokal). QA TC-TM-060..064.
+- Kontrak baru (web HR, bukan app HP): `/roster-custom-templates*`.
+
+## 2026-10-27 — TM-D23: paksa tempel penuh & template cepat 5/6 hari kerja — Mat
+
+- Mat mencoba Isi dengan template untuk Joko (akun hr.absensi, 15.16) — sel kuas tetap dipakai sehingga template "tidak menempel". Permintaan: "paksa tempel full, jadikan templatenya 5/6 hari kerja yang dapat di-loop hingga minggu-minggu ke depan; jika sudah ada roster untuk user tersebut, langsung tempel".
+- Perubahan: pilihan `replaceManual` dihapus — sel non-pola (MANUAL / IMPORT / CHANGE) mulai tanggal efektif selalu ditimpa; hari terkunci (absen disetujui / periode tertutup) dilewati. Pratinjau menampilkan `replacedDays` & `lockedDays`. Builder: template cepat `weeklyWorkSteps` 5 / 6 hari kerja (mulai Senin).
+- Test: API `roster-custom-template.test.ts` 8 (+ hari terkunci tidak ditimpa); shared 6; web `template-assign.test.tsx`. Browser lokal: "5 hari kerja QA" untuk Dimas → mulai 27 Okt QA Sen–Jum, OFF Sab–Min, berulang; 8 sel kuas lama tertimpa.
+
+## 2026-10-27 — TM-D24 tahap 1: perubahan roster karyawan ber-crew lewat template wajib disetujui — Mat
+
+- Permintaan Mat: "jika template dari user tersebut sudah termasuk pada crew, maka … perubahan diharuskan untuk konfirmasi, berlaku bagi atasan atau HR … karyawan juga dapat mengajukan perubahan … (development Oatse, ignore)". Pilihan: disetujui pihak lain dulu; berlaku untuk template, kuas, import, anggota crew. Nomor TM-D21/22 sudah dipakai Oatse → TM-D24.
+- Desain: lihat TM-D24 (README). Approval module ditambah `submittedByAccountId` (aditif): akun pengaju = pengaju (tidak berhak di langkah mana pun), dipakai `stepRight`/`canViewApproval`.
+- Kode: Prisma (approval + attendance) migrasi `20261027091913_roster_edit_requests`; `roster-edit.service.ts`; `roster-template.service.ts` (plan `needsApproval`/`approvalCount`, pengajuan dilewati bila masih ada yang menunggu); `regenerateCrew` bisa memakai transaksi pemanggil; `time-notify` queue; web `components/roster-edit-list.tsx`, `roster-changes-page.tsx`, `mobile-pages.tsx`, `template-assign-dialog.tsx`.
+- Test: API `roster-edit.test.ts` (5: langsung vs diajukan, pengajuan menunggu menahan, pengaju tidak bisa setuju + atasan & HR lain setuju → diterapkan, batal & tolak → roster tetap, akses); `roster-custom-template.test.ts` disesuaikan (8); policy approval +1; web `roster-edit.test.tsx` (2), `template-assign.test.tsx`. Browser lokal: hr.lokal ajukan Rotasi D-N untuk Dimas mulai 3 Nov → manager.lokal setuju di HP (tab Jadwal) → hr.biaya setuju di web → Diterapkan, roster Dimas mulai 3 Nov D N N OFF OFF.
+- Catatan lingkungan: server API dev lokal crash EMFILE saat watch reload; dijalankan ulang dengan nilai LOCAL_* eksplisit (`.env` Mat sedang mode Supabase) + `ulimit -n 10240`. Dua pengajuan yatim dari run test yang gagal (sebelum cleanup diperbarui) dihapus dari DB lokal.
+- Kontrak baru: `GET /roster-edits`, `POST /roster-edits/{id}/cancel`; `RosterTemplateAssignPlan` + `needsApproval`/`approvalCount`; subjek approval `ROSTER_EDIT`. Kabari Oatse & tim mobile (inbox approval).
+
+## 2026-10-27 — TM-D24 tahap 2–3: kuas grid & import Excel untuk karyawan ber-crew wajib disetujui — Mat
+
+- Kode: `roster.service` hook `configureCrewedCellSplitter` (dipasang `roster-edit.service`, hindari import melingkar) dipakai `setRosterCells` & `commitRosterImport`; pengajuan `CELLS` / `IMPORT` per karyawan (payload sel, ringkasan lama → baru per tanggal sel); `applyCellEdit` di handler approval (upsert/hapus sel, hari terkunci dilewati, shift diarsipkan → keputusan ditolak, notifikasi Fase C); `repository.membershipsBetween`. Kontrak: `RosterCellsResult` + `submitted`, `RosterImportCommit` + `submitted` (aditif). Web: toast Simpan / Import menyebut jumlah yang diajukan.
+- Test: API `roster-edit.test.ts` +2 (kuas: langsung vs diajukan, menunggu → 422, disetujui → MANUAL; import → IMPORT); `roster.test.ts` disesuaikan (helper `tests/helpers/roster-edits.ts` `approvePendingRosterEdits` — atasan + HR kedua); browser lokal: kuas JTS sel Dimas 20 Nov → pengajuan CELLS D → JTS (dibiarkan menunggu sebagai contoh).
+
+## 2026-10-27 — TM-D24 tahap 4: atur anggota crew — Mat
+
+- `roster-edit.service.requestCrewMembers` (dipakai route `PUT /crews/{id}/members`; `setCrewMembers` internal tetap langsung): anggota baru tanpa crew → langsung; pindah dari crew lain / dikeluarkan → pengajuan `CREW` (`join` / `leave`, ringkasan 14 hari); disetujui → `moveToCrew` (tanpa menimpa sel manual) / `leaveCrew` (keanggotaan diakhiri sehari sebelum, hari pola crew dihapus). Kontrak `CrewMembersResult` (`CrewDto` + `submitted`). Web: toast dialog anggota crew menyebut jumlah yang diajukan.
+- Test: API `roster-edit.test.ts` +1 (Mgr tanpa crew langsung N; Cici pindah & Ani keluar diajukan → disetujui → Cici N, Ani tanpa hari pola + keanggotaan berakhir); `roster-custom-template.test.ts` pindah crew kini lewat pengajuan (atasan = SA karena tanpa atasan, HR lain).
+- TM-D24 lengkap (template, kuas, import, anggota crew).
+
+## 2026-10-28 — TM-D24: isi template boleh mundur (periode terbuka) — Mat
+
+- Mat: "setelah diubah masih tetap mengikuti roster acak yang dibuat sebelumnya" — template hanya berlaku mulai tanggal berlaku (Rina 28 Okt, Joko 27 Okt), hari sebelumnya roster kuas lama. Pilihan: boleh mundur dalam periode terbuka; hari ber-absen tidak diubah; Alpha baru ditampilkan di pratinjau.
+- Kode: `regenerateCrew(..., past)` / `setCrewMembers(..., past)` membangkitkan hari lalu hanya untuk karyawan yang dipindah, kecuali `keepDayKeys` (terkunci + ber-absen); `planAssignment` cek periode tertutup per bulan (422), `newAlphaDays`; `moveToCrew` memakai tanggal berlaku apa adanya. Web: tanggal berlaku tanpa batas minimum, peringatan Alpha.
+- Bug ditemukan saat test: `keepDayKeys` paralel di luar transaksi keputusan → pool koneksi habis ("Can't reach database server") → kini berurutan & lewat transaksi pemanggil. Helper `approvePendingRosterEdits` kini gagal bila keputusan tidak 200.
+- Lingkungan: ENFILE (file handle macOS habis) — dua server API `--watch` masing-masing ~10 rb file (satu milik sesi ini sejak 23 Okt, dihentikan); server API lokal dijalankan ulang tanpa watch. Test lembur susulan TM-D19 lulus hari ini ("kemarin" = 27 Okt bukan tanggal merah) → memastikan kegagalan sebelumnya hanya karena tanggal merah uji.
+- Test: API `roster-edit.test.ts` +1 (mundur: hari tanpa absen ikut pola, hari ber-absen tetap, `newAlphaDays`, periode tertutup 422); TM integrasi 148/148.

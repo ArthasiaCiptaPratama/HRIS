@@ -212,6 +212,7 @@ export async function listArchive(
                 { employee: { OR: employeeText(q) } },
                 { trainingField: contains(q) },
                 { organizer: contains(q) },
+                { certificateNumber: contains(q) },
               ],
             }
           : {}),
@@ -229,6 +230,7 @@ export async function listArchive(
           trainingField: row.trainingField,
           organizer: row.organizer,
           type: row.type,
+          certificateNumber: row.certificateNumber,
           startDate: row.startDate ? toIso(row.startDate) : null,
           endDate: row.endDate ? toIso(row.endDate) : null,
           hours: row.hours,
@@ -377,6 +379,10 @@ function trainingData(input: z.infer<typeof trainingInputSchema>) {
     endDate: input.endDate ? toDate(input.endDate) : null,
     hours: input.hours,
     cost: input.cost === null ? null : new Prisma.Decimal(input.cost.toFixed(2)),
+    // Tidak dikirim → kolom tidak diubah (nomor dari Import tetap) & tidak tercatat di audit.
+    ...(input.certificateNumber !== undefined
+      ? { certificateNumber: input.certificateNumber }
+      : {}),
     trainingYear: input.trainingYear,
     duration: input.duration,
   };

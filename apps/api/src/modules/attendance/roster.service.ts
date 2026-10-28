@@ -22,6 +22,7 @@ import {
   holidaysBetween,
   type RequestContext,
   readTimeSettings,
+  settingsToday,
   toDate,
   toIso,
 } from "./calendar.service.ts";
@@ -32,14 +33,11 @@ import { notifyRosterChanges, type RosterChange, rosterCodes } from "./roster-no
 
 // Tahap B — roster tambang (D-069): shift, pola, crew, pembangkit hari roster, grid bulanan, import.
 
-const todayIso = (now = new Date()) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
-
 const isUnique = (error: unknown) =>
   typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
 
 type Snapshot = Record<string, unknown> | null;
-async function audit(
+export async function audit(
   ctx: RequestContext,
   action: string,
   entityType: string,
@@ -206,7 +204,7 @@ export async function archiveShift(ctx: RequestContext, id: string): Promise<Shi
   const before = await repository.findShift(id);
   if (!before) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
-  const used = await repository.countShiftUsage(id, toDate(todayIso()));
+  const used = await repository.countShiftUsage(id, toDate(await settingsToday()));
   if (used > 0) {
     throw new BusinessRuleError(
       `Shift masih dipakai ${used} hari roster mendatang; ubah roster dulu.`,
@@ -256,7 +254,7 @@ export async function listPatterns(ctx: RequestContext, companyId: string): Prom
   return (await repository.listPatterns(companyId)).map(patternDto);
 }
 
-async function validateSteps(companyId: string, steps: string[]) {
+export async function validateSteps(companyId: string, steps: string[]) {
   const codes = await shiftCodeMap(companyId);
   const unknown = [...new Set(steps.filter((step) => step !== OFF_CODE && !codes.has(step)))];
   if (unknown.length > 0) {
@@ -386,7 +384,7 @@ async function crewDtos(rows: repository.CrewRow[], onDate: string): Promise<Cre
 
 export async function listCrews(ctx: RequestContext, companyId: string): Promise<CrewDto[]> {
   if (!policy.canViewRosterSetup(ctx.actor, companyId)) throw new ForbiddenError();
-  return crewDtos(await repository.listCrews({ companyId }), todayIso());
+  return crewDtos(await repository.listCrews({ companyId }), await settingsToday());
 }
 
 async function validateCrew(input: CrewInput) {
@@ -409,7 +407,7 @@ export async function createCrew(ctx: RequestContext, input: CrewInput): Promise
       cycleStartDate: toDate(input.cycleStartDate),
     });
     await audit(ctx, "attendance.crew.create", "attendance.crew", row.id, null, { ...input });
-    return (await crewDtos([row], todayIso()))[0] as CrewDto;
+    return (await crewDtos([row], await settingsToday()))[0] as CrewDto;
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Crew "${input.name}" sudah ada.`);
     throw error;
@@ -447,7 +445,7 @@ export async function updateCrew(
       { ...input },
     );
     await regenerateCrew(id);
-    return (await crewDtos([row], todayIso()))[0] as CrewDto;
+    return (await crewDtos([row], await settingsToday()))[0] as CrewDto;
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Crew "${input.name}" sudah ada.`);
     throw error;
@@ -458,7 +456,7 @@ export async function archiveCrew(ctx: RequestContext, id: string): Promise<{ id
   const before = await repository.findCrew(id);
   if (!before || before.deletedAt) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
-  const today = todayIso();
+  const today = await settingsToday();
   await repository.withTransaction(async (tx) => {
     for (const m of before.members) {
       if (m.endDate === null || toIso(m.endDate) >= today)
@@ -480,6 +478,8 @@ export async function setCrewMembers(
   ctx: RequestContext,
   crewId: string,
   input: CrewMembersInput,
+  /** TM-D24: tanggal efektif di masa lalu (periode terbuka) — bangkitkan mundur untuk karyawan ini. */
+  past?: PastRegeneration,
 ): Promise<CrewDto> {
   const crew = await repository.findCrew(crewId);
   if (!crew || crew.deletedAt) throw new NotFoundError();
@@ -527,7 +527,12 @@ export async function setCrewMembers(
     employeeIds: input.employeeIds,
     effectiveDate: input.effectiveDate,
   });
-  for (const id of touchedCrews) await regenerateCrew(id, input.effectiveDate);
+  // Crew asal dulu (hari polanya dihapus mulai tanggal efektif), crew tujuan terakhir — kalau terbalik,
+  // hari pola crew tujuan dilewati karena tanggal itu masih terisi crew asal, lalu kosong.
+  for (const id of [...touchedCrews].filter((c) => c !== crewId)) {
+    await regenerateCrew(id, input.effectiveDate, true, undefined, past);
+  }
+  await regenerateCrew(crewId, input.effectiveDate, true, undefined, past);
   return (
     await crewDtos([(await repository.findCrew(crewId)) as repository.CrewRow], input.effectiveDate)
   )[0] as CrewDto;
@@ -540,23 +545,36 @@ export async function setCrewMembers(
  * Bangkitkan ulang hari pola crew. `notify` (TM-D13 Fase C): beri tahu anggota yang jadwalnya berubah —
  * dimatikan untuk cron perpanjangan horizon (hari baru di ujung bukan perubahan).
  */
+/**
+ * TM-D24 (mundur, periode terbuka): bangkitkan juga hari yang sudah lewat — HANYA untuk karyawan yang dipindah
+ * (riwayat anggota lain tidak disentuh), kecuali `keep` (hari ber-absen / terkunci).
+ */
+export interface PastRegeneration {
+  employeeIds: string[];
+  from: string;
+  keep: Set<string>;
+}
+
 export async function regenerateCrew(
   crewId: string,
-  from = todayIso(),
+  from?: string,
   notify = true,
+  /** TM-D24: jalankan di transaksi pemanggil (keputusan approval) — gagal = semuanya batal. */
+  outerTx?: repository.AttendanceTx,
+  past?: PastRegeneration,
 ): Promise<number> {
-  const crew = await repository.findCrew(crewId);
+  const crew = await repository.findCrew(crewId, outerTx);
   if (!crew) return 0;
   const settings = await readTimeSettings();
-  const start = from < todayIso() ? todayIso() : from;
-  const end = isoAddDays(todayIso(), settings.rosterHorizonDays);
+  const today = await settingsToday();
+  const start = !from || from < today ? today : from;
+  const end = isoAddDays(today, settings.rosterHorizonDays);
   const memberIds = [...new Set(crew.members.map((m) => m.employeeId))];
   const snapshot = async () =>
     new Map(
-      (await repository.rosterDaysBetween(memberIds, toDate(start), toDate(end))).map((r) => [
-        `${r.employeeId}|${toIso(r.workDate)}`,
-        r.shift?.code ?? null,
-      ]),
+      (await repository.rosterDaysBetween(memberIds, toDate(start), toDate(end), outerTx)).map(
+        (r) => [`${r.employeeId}|${toIso(r.workDate)}`, r.shift?.code ?? null],
+      ),
     );
   const before = notify && memberIds.length > 0 ? await snapshot() : null;
   const codes = await shiftCodeMap(crew.companyId);
@@ -573,7 +591,46 @@ export async function regenerateCrew(
         start,
         end,
       );
-  const count = await repository.withTransaction(async (tx) => {
+  const write = async (tx: repository.AttendanceTx) => {
+    if (past && past.from < today && !crew.deletedAt) {
+      const yesterday = isoAddDays(today, -1);
+      const old = await repository.patternDaysOf(
+        tx,
+        crewId,
+        past.employeeIds,
+        toDate(past.from),
+        toDate(yesterday),
+      );
+      const stale = old.filter((d) => !past.keep.has(dayKey(d.employeeId, toIso(d.workDate))));
+      if (stale.length > 0)
+        await repository.deleteRosterDays(
+          stale.map((d) => d.id),
+          tx,
+        );
+      const backfill = generateCrewDays(
+        crew.pattern.steps,
+        toIso(crew.cycleStartDate),
+        crew.members
+          .filter((m) => past.employeeIds.includes(m.employeeId))
+          .map((m) => ({
+            employeeId: m.employeeId,
+            startDate: toIso(m.startDate),
+            endDate: m.endDate ? toIso(m.endDate) : null,
+          })),
+        past.from,
+        yesterday,
+      ).filter((d) => !past.keep.has(dayKey(d.employeeId, d.date)));
+      await repository.insertDays(
+        tx,
+        backfill.map((day) => ({
+          employeeId: day.employeeId,
+          workDate: toDate(day.date),
+          shiftId: day.code === OFF_CODE ? null : (codes.get(day.code)?.id ?? null),
+          crewId,
+          source: "PATTERN" as const,
+        })),
+      );
+    }
     await repository.deletePatternDays(tx, crewId, toDate(start), toDate(end));
     const result = await repository.insertDays(
       tx,
@@ -586,7 +643,8 @@ export async function regenerateCrew(
       })),
     );
     return result.count;
-  });
+  };
+  const count = outerTx ? await write(outerTx) : await repository.withTransaction(write);
   if (before) {
     const after = await snapshot();
     const changes: RosterChange[] = [];
@@ -603,7 +661,7 @@ export async function regenerateCrew(
 export async function extendAllRosters(): Promise<{ crews: number; days: number }> {
   let days = 0;
   const crews = await repository.allActiveCrews();
-  for (const crew of crews) days += await regenerateCrew(crew.id, todayIso(), false);
+  for (const crew of crews) days += await regenerateCrew(crew.id, undefined, false);
   return { crews: crews.length, days };
 }
 
@@ -744,6 +802,23 @@ export function configureRosterLocks(check: LockedDayCheck) {
 }
 const dayKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
 
+/** Kunci `employeeId|tanggal` yang terkunci (hari absen disetujui / periode tertutup) pada rentang. */
+export const lockedDayKeys = (employeeIds: string[], from: string, to: string) =>
+  lockedDays(employeeIds, from, to);
+
+/** TM-D24: hari yang tidak boleh ditimpa saat isi template mundur — terkunci + sudah ada absennya. */
+export async function keepDayKeys(
+  employeeIds: string[],
+  from: string,
+  to: string,
+  tx?: repository.AttendanceTx,
+) {
+  // Berurutan & lewat transaksi pemanggil bila ada: di handler approval pool koneksi sudah dipakai transaksi.
+  const locked = await lockedDays(employeeIds, from, to);
+  const attended = await repository.attendanceDayKeys(employeeIds, toDate(from), toDate(to), tx);
+  return new Set([...locked, ...attended]);
+}
+
 /** Karyawan dari daftar yang tanggal `date`-nya terkunci (dipakai juga oleh perubahan/tukar shift). */
 export async function lockedEmployeesOn(employeeIds: string[], date: string): Promise<string[]> {
   const locked = await lockedDays(employeeIds, date, date);
@@ -843,15 +918,41 @@ async function applyCells(
   );
 }
 
+export type RosterCell = { employeeId: string; date: string; code: string | null };
+
+/**
+ * TM-D24: pemisah sel untuk karyawan yang sedang ber-crew pada tanggal sel → diajukan (persetujuan atasan + HR),
+ * sisanya langsung disimpan. Dipasang oleh roster-edit.service (hindari import melingkar).
+ */
+export type CrewedCellSplitter = (
+  ctx: RequestContext,
+  companyId: string,
+  kind: "CELLS" | "IMPORT",
+  cells: RosterCell[],
+) => Promise<{ direct: RosterCell[]; submitted: number; blocked: CellIssue[] }>;
+let splitCrewedCells: CrewedCellSplitter = async (_ctx, _companyId, _kind, cells) => ({
+  direct: cells,
+  submitted: 0,
+  blocked: [],
+});
+export function configureCrewedCellSplitter(splitter: CrewedCellSplitter) {
+  splitCrewedCells = splitter;
+}
+
 export async function setRosterCells(
   ctx: RequestContext,
   input: RosterCellsInput,
-): Promise<{ updated: number }> {
+): Promise<{ updated: number; submitted: number }> {
   assertManage(ctx.actor, input.companyId);
   const { issues, codes } = await validateCells(input.companyId, input.cells);
   if (issues.length > 0) throw new BusinessRuleError("Sebagian sel tidak bisa disimpan.", issues);
-  await applyCells(ctx, input.companyId, input.cells, "MANUAL", codes);
-  return { updated: input.cells.length };
+  const split = await splitCrewedCells(ctx, input.companyId, "CELLS", input.cells);
+  if (split.blocked.length > 0) {
+    throw new BusinessRuleError("Sebagian sel tidak bisa disimpan.", split.blocked);
+  }
+  if (split.direct.length > 0)
+    await applyCells(ctx, input.companyId, split.direct, "MANUAL", codes);
+  return { updated: split.direct.length, submitted: split.submitted };
 }
 
 export interface ImportPreview {
@@ -906,7 +1007,7 @@ export async function previewRosterImport(
 export async function commitRosterImport(
   ctx: RequestContext,
   input: RosterImportInput,
-): Promise<{ saved: number }> {
+): Promise<{ saved: number; submitted: number }> {
   assertManage(ctx.actor, input.companyId);
   const { cells, issues, codes } = await resolveImport(input);
   if (issues.length > 0)
@@ -914,8 +1015,13 @@ export async function commitRosterImport(
       "Masih ada baris bermasalah; perbaiki lalu pratinjau ulang.",
       issues.slice(0, 500),
     );
-  await applyCells(ctx, input.companyId, cells, "IMPORT", codes);
-  return { saved: cells.length };
+  const split = await splitCrewedCells(ctx, input.companyId, "IMPORT", cells);
+  if (split.blocked.length > 0) {
+    throw new BusinessRuleError("Sebagian baris tidak bisa disimpan.", split.blocked.slice(0, 500));
+  }
+  if (split.direct.length > 0)
+    await applyCells(ctx, input.companyId, split.direct, "IMPORT", codes);
+  return { saved: split.direct.length, submitted: split.submitted };
 }
 
 export { dayKey };

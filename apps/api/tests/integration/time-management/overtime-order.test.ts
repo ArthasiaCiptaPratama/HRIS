@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
-import { readTimeSettings } from "../../../src/modules/attendance/index.ts";
+import { holidaysBetween, readTimeSettings } from "../../../src/modules/attendance/index.ts";
 import { overtimeOrderViewSchema } from "../../../src/modules/attendance/overtime.contract.ts";
 import { deleteAttendanceData } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
@@ -43,9 +43,12 @@ const hhmm = (min: number) => {
   const m = ((min % 1440) + 1440) % 1440;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 };
-const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000)
-  .toISOString()
-  .slice(0, 10);
+const daysAgo = (n: number) =>
+  new Date(Date.parse(`${today}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
+// Tanggal lampau susulan: hari terakhir (kemarin s.d. 7 hari lalu) yang bukan tanggal merah. Di tanggal merah
+// seluruh jam dihitung lembur (660 mnt, bukan 120), jadi test tidak boleh bergantung pada kalender DB lokal.
+const holidays = await holidaysBetween(daysAgo(7), daysAgo(1));
+const retroDate = [1, 2, 3, 4, 5, 6, 7].map(daysAgo).find((d) => !holidays.has(d)) ?? daysAgo(1);
 
 const ids = { status: "", department: "", position: "", company2: "", employees: [] as string[] };
 let companyId = "";
@@ -103,7 +106,7 @@ beforeAll(async () => {
   await prisma.rosterDay.create({
     data: { employeeId: emp.a, workDate: D(today), shiftId, source: "MANUAL" },
   });
-  // Susulan (Q1 opsi B): kemarin shift kantor 08–17, karyawan pulang 20.00 tanpa SPL.
+  // Susulan (Q1 opsi B): tanggal lampau (retroDate) shift kantor 08–17, karyawan pulang 20.00 tanpa SPL.
   officeId = (
     await prisma.shift.create({
       data: {
@@ -116,18 +119,18 @@ beforeAll(async () => {
     })
   ).id;
   await prisma.rosterDay.create({
-    data: { employeeId: emp.a, workDate: D(yesterday), shiftId: officeId, source: "MANUAL" },
+    data: { employeeId: emp.a, workDate: D(retroDate), shiftId: officeId, source: "MANUAL" },
   });
   const past = await prisma.attendanceDay.create({
     data: {
       employeeId: emp.a,
       companyId,
       managerEmployeeId: emp.mgr,
-      workDate: D(yesterday),
+      workDate: D(retroDate),
       shiftId: officeId,
-      scheduledStart: atLocal(yesterday, "08:00"),
-      scheduledEnd: atLocal(yesterday, "17:00"),
-      checkOutDeadline: atLocal(yesterday, "17:30"),
+      scheduledStart: atLocal(retroDate, "08:00"),
+      scheduledEnd: atLocal(retroDate, "17:00"),
+      checkOutDeadline: atLocal(retroDate, "17:30"),
       status: "PENDING",
       labels: [],
     },
@@ -140,7 +143,7 @@ beforeAll(async () => {
       data: {
         dayId: past.id,
         kind,
-        at: atLocal(yesterday, hhmm),
+        at: atLocal(retroDate, hhmm),
         insideGeofence: true,
         labels: [],
       },
@@ -214,7 +217,7 @@ describe("perintah lembur (TM-D17)", () => {
 
   test("422: tanggal lampau; selesai lebih lambat sebelum jam pulang; mulai lebih awal sesudah jam masuk", async () => {
     expect(
-      (await call("PUT", "/overtime-orders", h.mgr, order({ workDate: yesterday }))).status,
+      (await call("PUT", "/overtime-orders", h.mgr, order({ workDate: retroDate }))).status,
     ).toBe(422);
     expect(
       (await call("PUT", "/overtime-orders", h.mgr, order({ endTime: hhmm(minuteNow + 300) })))
@@ -315,21 +318,21 @@ describe("perintah lembur (TM-D17)", () => {
   });
 
   test("susulan (Q1 opsi B): atasan 422; HR PT tanggal lampau → 200 bertanda susulan + usulan lembur dihitung ulang", async () => {
-    const body = order({ workDate: yesterday, startTime: null, endTime: "19:00" });
+    const body = order({ workDate: retroDate, startTime: null, endTime: "19:00" });
     const mgr = await call("PUT", "/overtime-orders", h.mgr, body);
     expect(mgr.status).toBe(422);
     const res = await call("PUT", "/overtime-orders", h.hr, body);
     expect(res.status).toBe(200);
     expect((await data<{ retroactive: boolean }>(res)).retroactive).toBe(true);
     const day = await prisma.attendanceDay.findFirstOrThrow({
-      where: { employeeId: emp.a, workDate: D(yesterday) },
+      where: { employeeId: emp.a, workDate: D(retroDate) },
     });
     const proposal = await prisma.overtimeRequest.findUnique({ where: { dayId: day.id } });
     expect(proposal?.proposedMin).toBe(120);
 
     // Batal susulan → usulan lembur hilang lagi.
     const row = await prisma.overtimeOrder.findFirstOrThrow({
-      where: { employeeId: emp.a, workDate: D(yesterday) },
+      where: { employeeId: emp.a, workDate: D(retroDate) },
     });
     expect((await call("POST", `/overtime-orders/${row.id}/cancel`, h.hr)).status).toBe(200);
     expect(await prisma.overtimeRequest.findUnique({ where: { dayId: day.id } })).toBeNull();

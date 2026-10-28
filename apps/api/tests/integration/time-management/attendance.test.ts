@@ -337,6 +337,31 @@ describe("approval per absen & data harian", () => {
     expect((await call("GET", `/attendance/days/${dayId}`, h.a)).status).toBe(200);
   });
 
+  test("cari nama / NIK di Data Absen Harian (inbox & semua)", async () => {
+    const range = `from=${addDays(todayWita, -2)}&to=${addDays(todayWita, 2)}`;
+    const ids = async (path: string) =>
+      (await data<{ id: string }[]>(await call("GET", path, h.hr))).map((d) => d.id);
+    for (const scope of ["inbox", "all"]) {
+      // NIK sebagian, huruf kecil.
+      expect(
+        await ids(`/attendance/days?scope=${scope}&${range}&q=at-${RUN.toLowerCase()}-a`),
+      ).toContain(dayId);
+      expect(
+        await ids(`/attendance/days?scope=${scope}&${range}&q=Absen%20${RUN}%20B`),
+      ).not.toContain(dayId);
+      expect(await ids(`/attendance/days?scope=${scope}&${range}&q=zzz-tidak-ada-${RUN}`)).toEqual(
+        [],
+      );
+      // Urutan tetap: tanggal kerja terbaru dulu (antrean diambil per approval → sebelumnya acak).
+      const dates = (
+        await data<{ workDate: string }[]>(
+          await call("GET", `/attendance/days?scope=${scope}&${range}`, h.hr),
+        )
+      ).map((d) => d.workDate);
+      expect(dates).toEqual([...dates].sort().reverse());
+    }
+  });
+
   test("masuk disetujui → hari tetap menunggu; pulang disetujui → APPROVED; roster terkunci", async () => {
     const approvalOf = async (kind: string) =>
       (

@@ -6,6 +6,9 @@ import {
   rosterChangeInputSchema,
   rosterImportInputSchema,
   rosterPatternInputSchema,
+  rosterTemplateAssignInputSchema,
+  rosterTemplateDefInputSchema,
+  rosterTemplateInstallInputSchema,
   shiftInputSchema,
 } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
@@ -16,21 +19,30 @@ import { shiftSchema } from "./attendance.contract.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import {
   crewListSchema,
+  crewMembersResultSchema,
   crewSchema,
   employeeRosterSchema,
   rosterArchivedSchema,
   rosterCellsResultSchema,
   rosterChangeListSchema,
   rosterChangeSchema,
+  rosterCustomTemplateListSchema,
+  rosterCustomTemplateSchema,
+  rosterEditListSchema,
+  rosterEditSchema,
   rosterGridSchema,
   rosterImportCommitSchema,
   rosterImportPreviewSchema,
   rosterPatternListSchema,
   rosterPatternSchema,
+  rosterTemplateAssignPlanSchema,
+  rosterTemplateInstallResultSchema,
   shiftListSchema,
 } from "./roster.contract.ts";
 import * as service from "./roster.service.ts";
 import * as change from "./roster-change.service.ts";
+import * as edits from "./roster-edit.service.ts";
+import * as templates from "./roster-template.service.ts";
 
 // Tahap B — roster tambang (D-069). Body divalidasi skema @hris/shared di handler lewat `strict` (aturan
 // lintas field → 400 VALIDATION_ERROR); skema yang sama dicatat di OpenAPI (MOB-D7 #1).
@@ -149,6 +161,127 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     }),
     (c) => service.archivePattern(ctxOf(c), param(c)),
   ],
+  // TM-D23: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
+  [
+    route("get", "/roster-custom-templates", "Daftar template roster buatan HR + pemasangannya", {
+      query: companyQuery,
+      response: rosterCustomTemplateListSchema,
+    }),
+    (c) => templates.listCustomTemplates(ctxOf(c), query(c, "companyId")),
+  ],
+  [
+    route("post", "/roster-custom-templates", "Buat template roster (SA, HR PT)", {
+      body: rosterTemplateDefInputSchema,
+      response: rosterCustomTemplateSchema,
+    }),
+    async (c) =>
+      templates.createCustomTemplate(ctxOf(c), strict(rosterTemplateDefInputSchema, await body(c))),
+  ],
+  [
+    route("put", "/roster-custom-templates/{id}", "Ubah template roster", {
+      params: idParam,
+      body: rosterTemplateDefInputSchema,
+      response: rosterCustomTemplateSchema,
+    }),
+    async (c) =>
+      templates.updateCustomTemplate(
+        ctxOf(c),
+        param(c),
+        strict(rosterTemplateDefInputSchema, await body(c)),
+      ),
+  ],
+  [
+    route(
+      "delete",
+      "/roster-custom-templates/{id}",
+      "Arsipkan template (pola & crew tetap berjalan)",
+      {
+        params: idParam,
+        response: rosterArchivedSchema,
+      },
+    ),
+    (c) => templates.archiveCustomTemplate(ctxOf(c), param(c)),
+  ],
+  [
+    route(
+      "post",
+      "/roster-custom-templates/{id}/install",
+      "Pasang template ke lokasi kerja (membuat pola + crew A/B/C…)",
+      {
+        params: idParam,
+        body: rosterTemplateInstallInputSchema,
+        response: rosterTemplateInstallResultSchema,
+      },
+    ),
+    async (c) =>
+      templates.installCustomTemplate(
+        ctxOf(c),
+        param(c),
+        strict(rosterTemplateInstallInputSchema, await body(c)),
+      ),
+  ],
+  [
+    route(
+      "post",
+      "/roster-custom-templates/{id}/assign/preview",
+      "Pratinjau isi roster karyawan dengan template (pembagian ke crew)",
+      {
+        params: idParam,
+        body: rosterTemplateAssignInputSchema,
+        response: rosterTemplateAssignPlanSchema,
+      },
+    ),
+    async (c) =>
+      templates.previewTemplateAssignment(
+        ctxOf(c),
+        param(c),
+        strict(rosterTemplateAssignInputSchema, await body(c)),
+      ),
+  ],
+  [
+    route(
+      "post",
+      "/roster-custom-templates/{id}/assign",
+      "Isi roster karyawan dengan template: dibagi rata ke crew mulai tanggal efektif",
+      {
+        params: idParam,
+        body: rosterTemplateAssignInputSchema,
+        response: rosterTemplateAssignPlanSchema,
+      },
+    ),
+    async (c) =>
+      templates.applyTemplateAssignment(
+        ctxOf(c),
+        param(c),
+        strict(rosterTemplateAssignInputSchema, await body(c)),
+      ),
+  ],
+  [
+    route(
+      "get",
+      "/roster-edits",
+      "Perubahan roster oleh HR (TM-D24): inbox keputusan / diajukan saya / semua di PT",
+      {
+        query: z.object({
+          scope: z.enum(["inbox", "mine", "all"]).optional(),
+          companyId: z.uuid().optional(),
+        }),
+        response: rosterEditListSchema,
+      },
+    ),
+    (c) =>
+      edits.listRosterEdits(ctxOf(c), {
+        scope: (c.req.query("scope") as "inbox" | "mine" | "all" | undefined) ?? "inbox",
+        companyId: c.req.query("companyId"),
+      }),
+  ],
+  [
+    route("post", "/roster-edits/{id}/cancel", "Batalkan pengajuan perubahan roster (pengaju)", {
+      params: idParam,
+      response: rosterEditSchema,
+    }),
+    (c) => edits.cancelRosterEdit(ctxOf(c), param(c)),
+  ],
   [
     route("get", "/crews", "Daftar crew PT + anggota aktif", {
       query: companyQuery,
@@ -179,10 +312,11 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     route("put", "/crews/{id}/members", "Atur anggota crew mulai tanggal efektif", {
       params: idParam,
       body: crewMembersInputSchema,
-      response: crewSchema,
+      response: crewMembersResultSchema,
     }),
+    // TM-D24: anggota yang pindah / keluar diajukan ke atasan + HR; anggota baru tanpa crew langsung.
     async (c) =>
-      service.setCrewMembers(ctxOf(c), param(c), strict(crewMembersInputSchema, await body(c))),
+      edits.requestCrewMembers(ctxOf(c), param(c), strict(crewMembersInputSchema, await body(c))),
   ],
   [
     route("get", "/roster", "Grid roster bulanan (SA/HR: PT; MANAGER: tim; karyawan: sendiri)", {

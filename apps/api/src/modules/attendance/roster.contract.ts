@@ -5,6 +5,8 @@ import { approvalViewSchema } from "../approval/index.ts";
 import { shiftSchema } from "./attendance.contract.ts";
 import type * as service from "./roster.service.ts";
 import type { RosterChangeDto } from "./roster-change.service.ts";
+import type * as edits from "./roster-edit.service.ts";
+import type * as templates from "./roster-template.service.ts";
 
 // MOB-D7 #1: skema respons OpenAPI roster (D-069) untuk codegen app mobile (MOB-D9).
 // Setiap skema dikunci ke tipe service dengan assertExact → typecheck gagal bila tidak sama.
@@ -109,7 +111,11 @@ assertExact<
 >(true);
 
 export const rosterCellsResultSchema = z
-  .object({ updated: z.number().int() })
+  .object({
+    updated: z.number().int(),
+    /** TM-D24: jumlah karyawan ber-crew yang perubahannya diajukan (belum berlaku). */
+    submitted: z.number().int(),
+  })
   .openapi("RosterCellsResult");
 assertExact<
   z.infer<typeof rosterCellsResultSchema>,
@@ -136,7 +142,7 @@ export const rosterImportPreviewSchema = z
 assertExact<z.infer<typeof rosterImportPreviewSchema>, service.ImportPreview>(true);
 
 export const rosterImportCommitSchema = z
-  .object({ saved: z.number().int() })
+  .object({ saved: z.number().int(), submitted: z.number().int() })
   .openapi("RosterImportCommit");
 assertExact<
   z.infer<typeof rosterImportCommitSchema>,
@@ -161,3 +167,120 @@ export const rosterChangeSchema = z
   .openapi("RosterChange");
 assertExact<z.infer<typeof rosterChangeSchema>, RosterChangeDto>(true);
 export const rosterChangeListSchema = z.array(rosterChangeSchema).openapi("RosterChangeList");
+
+// ── TM-D23: template roster buatan HR ──
+export const rosterCustomTemplateSchema = z
+  .object({
+    id: z.uuid(),
+    companyId: z.uuid(),
+    name: z.string(),
+    description: z.string().nullable(),
+    steps: z.array(z.string()),
+    crewCount: z.number().int(),
+    crewOffsetDays: z.number().int(),
+    startOnMonday: z.boolean(),
+    cycleLength: z.number().int(),
+    workDays: z.number().int(),
+    installations: z.array(
+      z.object({
+        patternId: z.uuid(),
+        patternName: z.string(),
+        workLocationId: z.uuid().nullable(),
+        workLocationName: z.string().nullable(),
+        crews: z.array(
+          z.object({
+            id: z.uuid(),
+            name: z.string(),
+            cycleStartDate: z.iso.date(),
+            memberCount: z.number().int(),
+          }),
+        ),
+      }),
+    ),
+    updatedAt: z.string(),
+  })
+  .openapi("RosterCustomTemplate");
+assertExact<z.infer<typeof rosterCustomTemplateSchema>, templates.RosterTemplateDto>(true);
+export const rosterCustomTemplateListSchema = z
+  .array(rosterCustomTemplateSchema)
+  .openapi("RosterCustomTemplateList");
+export const rosterTemplateInstallResultSchema = z
+  .object({
+    template: rosterCustomTemplateSchema,
+    pattern: rosterPatternSchema,
+    crews: z.array(crewSchema),
+    restWarnings: z.array(z.string()),
+  })
+  .openapi("RosterTemplateInstallResult");
+assertExact<
+  z.infer<typeof rosterTemplateInstallResultSchema>,
+  templates.RosterTemplateInstallResult
+>(true);
+assertExact<
+  z.infer<typeof rosterArchivedSchema>,
+  Awaited<ReturnType<typeof templates.archiveCustomTemplate>>
+>(true);
+
+// TM-D23 Fase 2: isi roster karyawan dengan template (bagi rata ke crew).
+export const rosterTemplateAssignPlanSchema = z
+  .object({
+    installed: z.boolean(),
+    cycleStartDate: z.iso.date(),
+    crews: z.array(
+      z.object({ name: z.string(), existing: z.number().int(), added: z.number().int() }),
+    ),
+    assignments: z.array(
+      z.object({
+        employeeId: z.uuid(),
+        fullName: z.string(),
+        employeeNumber: z.string().nullable(),
+        crewName: z.string(),
+        fromCrew: z.string().nullable(),
+        stays: z.boolean(),
+        needsApproval: z.boolean(),
+      }),
+    ),
+    skipped: z.array(
+      z.object({ employeeId: z.uuid(), fullName: z.string().nullable(), reason: z.string() }),
+    ),
+    replacedDays: z.number().int(),
+    lockedDays: z.number().int(),
+    approvalCount: z.number().int(),
+    newAlphaDays: z.number().int(),
+    restWarnings: z.array(z.string()),
+  })
+  .openapi("RosterTemplateAssignPlan");
+assertExact<z.infer<typeof rosterTemplateAssignPlanSchema>, templates.RosterTemplateAssignPlan>(
+  true,
+);
+
+// TM-D24: perubahan roster karyawan ber-crew oleh HR — berlaku setelah disetujui atasan + HR.
+export const rosterEditSchema = z
+  .object({
+    id: z.uuid(),
+    kind: z.enum(["TEMPLATE", "CELLS", "IMPORT", "CREW"]),
+    status: z.enum(["PENDING", "APPLIED", "REJECTED", "CANCELLED"]),
+    employee: employeeRef,
+    summary: z.string(),
+    effectiveDate: z.iso.date(),
+    appliedFrom: z.iso.date().nullable(),
+    reason: z.string().nullable(),
+    preview: z.array(
+      z.object({ date: z.iso.date(), from: z.string().nullable(), to: z.string().nullable() }),
+    ),
+    createdAt: z.string(),
+    createdByMe: z.boolean(),
+    approval: nullableRef(approvalViewSchema),
+  })
+  .openapi("RosterEdit");
+assertExact<z.infer<typeof rosterEditSchema>, edits.RosterEditDto>(true);
+export const rosterEditListSchema = z.array(rosterEditSchema).openapi("RosterEditList");
+
+/** TM-D24: hasil atur anggota crew — crew (perubahan langsung) + jumlah pengajuan pindah / keluar. */
+export const crewMembersResultSchema = crewSchema
+  .extend({ submitted: z.number().int() })
+  .openapi("CrewMembersResult");
+assertExact<
+  z.infer<typeof crewMembersResultSchema>,
+  Awaited<ReturnType<typeof edits.requestCrewMembers>>
+>(true);
