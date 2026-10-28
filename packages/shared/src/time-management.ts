@@ -372,6 +372,8 @@ export const TM_NOTIFICATION_TARGETS = [
   "APPROVAL_QUEUE",
   // TM-D13 Fase C: jadwal berubah → layar Roster Saya (id = tanggal YYYY-MM-DD pertama yang berubah).
   "ROSTER",
+  // TM-D24 (app): pengajuan perubahan jadwal oleh HR menunggu keputusan → detail (id = id pengajuan).
+  "ROSTER_EDIT",
 ] as const;
 export type TmNotificationTarget = (typeof TM_NOTIFICATION_TARGETS)[number];
 

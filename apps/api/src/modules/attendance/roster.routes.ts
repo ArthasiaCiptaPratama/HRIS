@@ -276,6 +276,13 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       }),
   ],
   [
+    route("get", "/roster-edits/{id}", "Detail perubahan roster (pemutus, pengaju, HR PT)", {
+      params: idParam,
+      response: rosterEditSchema,
+    }),
+    (c) => edits.getRosterEdit(ctxOf(c), param(c)),
+  ],
+  [
     route("post", "/roster-edits/{id}/cancel", "Batalkan pengajuan perubahan roster (pengaju)", {
       params: idParam,
       response: rosterEditSchema,

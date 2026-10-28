@@ -39,6 +39,9 @@ export const APP_OPERATION_IDS: Record<string, string> = {
   "POST /api/v1/roster-changes": "createRosterChange",
   "POST /api/v1/roster-changes/{id}/cancel": "cancelRosterChange",
   "POST /api/v1/roster-changes/{id}/peer-response": "respondRosterChange",
+  // TM-D24: keputusan perubahan jadwal oleh HR dari app (memutus lewat /approvals/{id}/decision).
+  "GET /api/v1/roster-edits": "listRosterEdits",
+  "GET /api/v1/roster-edits/{id}": "getRosterEdit",
   "GET /api/v1/holidays": "listHolidays",
   "GET /api/v1/leave-types": "listLeaveTypes",
   "GET /api/v1/leave/me": "getMyLeave",

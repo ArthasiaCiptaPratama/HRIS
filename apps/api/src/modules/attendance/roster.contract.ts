@@ -254,6 +254,26 @@ assertExact<z.infer<typeof rosterTemplateAssignPlanSchema>, templates.RosterTemp
   true,
 );
 
+const rosterEditCrewSchema = z
+  .object({
+    action: z.enum(["join", "leave"]),
+    fromCrewName: z.string().nullable(),
+    toCrewName: z.string().nullable(),
+  })
+  .openapi("RosterEditCrew");
+const rosterEditShiftSchema = z
+  .object({
+    code: z.string(),
+    name: z.string(),
+    startMinute: z.number().int(),
+    endMinute: z.number().int(),
+    startsNextDay: z.boolean(),
+  })
+  .openapi("RosterEditShift");
+const rosterEditBackdatedSchema = z
+  .object({ alphaDays: z.number().int(), keptDays: z.number().int() })
+  .openapi("RosterEditBackdated");
+
 // TM-D24: perubahan roster karyawan ber-crew oleh HR — berlaku setelah disetujui atasan + HR.
 export const rosterEditSchema = z
   .object({
@@ -271,6 +291,12 @@ export const rosterEditSchema = z
     createdAt: z.string(),
     createdByMe: z.boolean(),
     approval: nullableRef(approvalViewSchema),
+    // App mobile (K4): crew asal/tujuan (TEMPLATE & CREW), shift yang muncul di preview (menit), nama pengaju,
+    // dan hari mundur (hanya di GET /roster-edits/{id}; daftar selalu null).
+    crew: nullableRef(rosterEditCrewSchema),
+    shifts: z.array(rosterEditShiftSchema),
+    submittedBy: z.object({ name: z.string() }),
+    backdated: nullableRef(rosterEditBackdatedSchema),
   })
   .openapi("RosterEdit");
 assertExact<z.infer<typeof rosterEditSchema>, edits.RosterEditDto>(true);

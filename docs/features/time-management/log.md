@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-28 — TM-D24: keputusan perubahan jadwal oleh HR dari app mobile (Oatse, HRIS/mobile-app)
+- **Dikerjakan:** merge develop `37c52a8` ke `HRIS/mobile-app` (tanpa konflik). Checklist TM-D24 "(tambahan 2026-10-28) BE untuk app": `roster-edit-app.service.ts` (data tambahan, akses detail, notifikasi pengajuan baru); `roster-edit.service.ts` hanya disentuh di 4 titik (DTO extends, `toDtos`, `createEdits` → notifikasi sesudah commit, `getRosterEdit`); kontrak `RosterEditCrew`/`RosterEditShift`/`RosterEditBackdated`; route `GET /roster-edits/{id}`; target `ROSTER_EDIT`; operationId app `listRosterEdits`, `getRosterEdit`. Tanggapan kontrak app K1–K6 disetujui supervisor (K4a pakai `preview`; tanpa notifikasi override).
+- **Keputusan:** tidak ada keputusan TM baru; notifikasi hasil ke HR pengaju ditunda (checklist).
+- **Verifikasi:** `roster-edit-app.test.ts` 6 pass (akses detail, data tambahan, keputusan dari sisi app 400/403/200/409, notifikasi per penerima & batch, hari mundur); penutup lihat laporan commit.
+- **Masalah / catatan:** (1) **temuan di luar cakupan:** `listActionable` untuk SUPER_ADMIN memakai `OR: [{}]`, yang di Prisma tidak cocok dengan baris apa pun (dicek: 33 PENDING → 0) → inbox & `/time/queue` SA selalu kosong untuk semua subjek, termasuk langkah atasan karyawan tanpa atasan. Belum diperbaiki (modul approval bersama). (2) Notifikasi pengajuan baru ikut terkirim ke akun HR/SA asli di DB lokal saat test lain (roster-edit, template) membuat pengajuan; test baru membersihkan miliknya sendiri.
+- **Berikutnya:** app regenerate klien; gabung ke develop lewat rencana merge; perbaiki temuan SA bila disetujui.
+
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
 ### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D24 tahap 2–4, isi mundur) ke develop + konfirmasi isi mundur (Oatse)

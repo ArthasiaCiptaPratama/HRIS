@@ -31,6 +31,13 @@ import {
   regenerateCrew,
   setCrewMembers,
 } from "./roster.service.ts";
+import {
+  backdatedOf,
+  canViewRosterEdit,
+  notifyNewRosterEdits,
+  type RosterEditExtras,
+  rosterEditExtras,
+} from "./roster-edit-app.service.ts";
 import { isoAddDays, patternCodeOn } from "./roster-engine.ts";
 import { notifyRosterChanges, rosterCodes } from "./roster-notify.service.ts";
 
@@ -54,7 +61,7 @@ export interface TemplateEditPayload {
   crewName: string;
 }
 
-export interface RosterEditDto {
+export interface RosterEditDto extends RosterEditExtras {
   id: string;
   kind: "TEMPLATE" | "CELLS" | "IMPORT" | "CREW";
   status: "PENDING" | "APPLIED" | "REJECTED" | "CANCELLED";
@@ -143,6 +150,14 @@ async function createEdits(
     }
     return created;
   });
+  await notifyNewRosterEdits(
+    ctx,
+    companyId,
+    ids.map((id, i) => {
+      const employeeId = edits[i]?.employeeId as string;
+      return { id, employeeId, managerEmployeeId: people.get(employeeId)?.managerId ?? null };
+    }),
+  );
   for (const [i, id] of ids.entries()) {
     await writeAudit({
       actorAccountId: ctx.actor.accountId,
@@ -541,13 +556,14 @@ async function toDtos(
   ctx: RequestContext,
   rows: repository.RosterEditRow[],
 ): Promise<RosterEditDto[]> {
-  const [people, approvals] = await Promise.all([
+  const [people, approvals, extras] = await Promise.all([
     directory.employeesByIds([...new Set(rows.map((r) => r.employeeId))]),
     getApprovalViews(
       ctx.actor,
       "ROSTER_EDIT",
       rows.map((r) => r.id),
     ),
+    rosterEditExtras(rows),
   ]);
   return rows.map((row) => {
     const person = people.get(row.employeeId);
@@ -568,8 +584,17 @@ async function toDtos(
       createdAt: row.createdAt.toISOString(),
       createdByMe: row.createdByAccountId === ctx.actor.accountId,
       approval: approvals.get(row.id) ?? null,
+      ...(extras.get(row.id) as RosterEditExtras),
     };
   });
+}
+
+/** Detail satu pengajuan (deep link app); `backdated` hanya dihitung di sini. Tanpa hak → 404. */
+export async function getRosterEdit(ctx: RequestContext, id: string): Promise<RosterEditDto> {
+  const row = await repository.findRosterEdit(id);
+  if (!row || !canViewRosterEdit(ctx.actor, row)) throw new NotFoundError();
+  const [dto] = await toDtos(ctx, [row]);
+  return { ...(dto as RosterEditDto), backdated: await backdatedOf(row) };
 }
 
 /** inbox = menunggu keputusan aktor; mine = diajukan aktor; all = semua di PT (SA / HR PT). */
