@@ -149,6 +149,17 @@ describe("approval paralel (PLAN §5.2, D-068)", () => {
     expect((await call("GET", `/approvals/${r.id}`, h.otherMgr)).status).toBe(404);
   });
 
+  test("HR yang sudah memutus langkah HR tidak ditawari override langkah atasan (selaras 403 keputusan)", async () => {
+    const r = await newRequest();
+    expect((await decide(h.hr, r.id, { decision: "APPROVED" })).status).toBe(200);
+    const view = await data<{ canDecide: boolean; canOverride: boolean }>(
+      await call("GET", `/approvals/${r.id}`, h.hr),
+    );
+    expect(view).toMatchObject({ canDecide: false, canOverride: false });
+    const res = await decide(h.hr, r.id, { decision: "APPROVED", note: "Atasan cuti" });
+    expect(res.status).toBe(403);
+  });
+
   test("override langkah atasan oleh HR wajib alasan & tercatat", async () => {
     const r = await newRequest();
     expect((await decide(h.hr, r.id, { decision: "APPROVED" })).status).toBe(200);

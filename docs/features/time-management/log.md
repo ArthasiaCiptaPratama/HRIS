@@ -13,6 +13,11 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-28 — Perbaikan: HR yang sudah memutus langkah HR masih ditawari override langkah atasan (Oatse)
+- **Dikerjakan:** temuan uji HP M5a (lewat supervisor): `toView` hanya menerapkan pemisahan tugas ke `canDecide`, sehingga `canOverride` tetap `true` dan item masuk inbox (`listActionable` + `includeOverride`), padahal `decideInTx` menolak 403 "Langkah lain harus diputuskan orang yang berbeda". Kini satu helper `decidedAnyStep` dipakai `toView` (`canDecide` & `canOverride`) dan `decideInTx`. `myRight` per langkah tidak diubah (web/app menyaring lewat `canDecide`/`canOverride`).
+- **Keputusan:** — (perbaikan bug; aturan pemisahan tugas sudah ada; persetujuan supervisor atas nama pengguna).
+- **Verifikasi:** test regresi `foundation.test.ts` merah dulu (`canOverride: true`) lalu hijau; typecheck ✔ · `biome ci` ⚠ 1 warning lama (kode Mat) · boundaries ✔ · test shared 346 · api 1017 · web 331 ✔.
+
 ### 2026-10-28 — Perbaikan: inbox approval & antrean `/time/queue` Super Admin selalu kosong (Oatse)
 - **Dikerjakan:** temuan hris-mobile-4e (lewat supervisor): `listActionable` (modul approval) memasang `OR: [{}]` untuk SA → Prisma tidak mencocokkan baris mana pun (33 PENDING → 0), sehingga inbox semua subjek & `/time/queue` SA kosong, termasuk langkah atasan untuk karyawan tanpa atasan. Kini SA tanpa filter `OR` (tetap disaring `stepRight`). Pola `OR` lain dicek: `crewDaysOf` (`OR: keys` kosong → memang tidak ada) & `discipline.repository` (selalu berisi) aman.
 - **Keputusan:** — (perbaikan bug; maksud kode "SA: semua"; persetujuan supervisor atas nama pengguna).
