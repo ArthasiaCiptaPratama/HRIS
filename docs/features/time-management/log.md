@@ -20,6 +20,11 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-10-28 — Perbaikan: inbox approval & antrean `/time/queue` Super Admin selalu kosong (Oatse)
+- **Dikerjakan:** temuan hris-mobile-4e (lewat supervisor): `listActionable` (modul approval) memasang `OR: [{}]` untuk SA → Prisma tidak mencocokkan baris mana pun (33 PENDING → 0), sehingga inbox semua subjek & `/time/queue` SA kosong, termasuk langkah atasan untuk karyawan tanpa atasan. Kini SA tanpa filter `OR` (tetap disaring `stepRight`). Pola `OR` lain dicek: `crewDaysOf` (`OR: keys` kosong → memang tidak ada) & `discipline.repository` (selalu berisi) aman.
+- **Keputusan:** — (perbaikan bug; maksud kode "SA: semua"; persetujuan supervisor atas nama pengguna).
+- **Verifikasi:** test regresi `foundation.test.ts` ("tanpa atasan → masuk antrean SA lintas subjek") merah dulu (`Received: 0`) lalu hijau; typecheck ✔ · `biome ci` ⚠ 1 warning lama (kode Mat) · boundaries ✔ · test shared 346 · api 1016 · web 331 ✔.
+
 ### 2026-10-28 — Gabung `HRIS/Mat/Mac` (TM-D24 tahap 2–4, isi mundur) ke develop + konfirmasi isi mundur (Oatse)
 - **Dikerjakan:** tinjauan `edb90f8`, `3a6fd23`, `33386e5` (entri Mat di bawah) → merge **fast-forward** `58c9ef5 → 9c94f5d`, tanpa migrasi baru. Kontrak berubah aditif (`RosterCellsResult`/`RosterImportCommit` + `submitted`, `PUT /crews/{id}/members` → `CrewMembersResult`, `RosterTemplateAssignPlan.newAlphaDays`) — hanya dipakai web; app Flutter & `HRIS/mobile-app` tidak terdampak.
 - **Keputusan:** perilaku isi mundur TM-D24 (`33386e5`: hari kerja lampau tanpa absen → Alpha baru yang perlu diverifikasi atasan) **dipertahankan** — pengguna 16:22 WIB: "Setuju: keep Mat's behaviour as it is" (dicatat di sumber TM-D24, README).
