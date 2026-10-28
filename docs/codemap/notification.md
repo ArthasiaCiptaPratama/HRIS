@@ -19,7 +19,7 @@
 ### `notification`
 | Tabel | Isi penting |
 |---|---|
-| `notifications` | `recipient_account_id` (tanpa FK), `type`, `title`, `body?`, `link?`, `dedupe_key?` (unik per penerima), `target_type?` + `target_id?` (MOB-D6: layar tujuan app mobile), `read_at?` |
+| `notifications` | `recipient_account_id` (tanpa FK), `type`, `title`, `body?`, `link?`, `dedupe_key?` (unik per penerima), `target_type?` + `target_id?` (MOB-D6: layar tujuan app mobile; nilai TM di `TM_NOTIFICATION_TARGETS`, + `ROSTER_EDIT` 2026-10-28 untuk pengajuan perubahan jadwal oleh HR), `read_at?` |
 | `push_devices` | MOB-D6: token FCM app mobile — `account_id` (tanpa FK), `token` (unik), `platform` (enum `PushPlatform`: ANDROID), `app_version?`, `last_seen_at`; dihapus saat logout, saat FCM menjawab 404, dan oleh `forgetRecipient` |
 | `email_outbox` | Email gagal kirim: `to_email`, `subject`, `text_body`, `status` (PENDING/SENT/FAILED), `attempts` (maks 5), `last_error`, `next_attempt_at` (30 menit, lalu +1 jam × percobaan) |
 

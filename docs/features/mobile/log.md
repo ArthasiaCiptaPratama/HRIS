@@ -16,7 +16,7 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Keputusan:** —
 - **Verifikasi:** menurut app, U5/U8/U9/U10/U11 dan push foreground lulus; kasus "app mati" ditunda (HyperOS tidak bisa `am kill`). Setelah bersih-bersih: pengajuan 0, notifikasi `roster_edit_new` 0, karyawan `M5A-*` 0, `push_devices` 0.
 - **Masalah / catatan (backlog, belum diubah):** (1) `bun test` memakai DB yang sama dengan dev (`--env-file=../../.env` → `DATABASE_URL` = `hris_mobile`); `db-guard-preload` hanya menolak DB non-lokal. Akibatnya test membuat data & notifikasi untuk akun asli di DB dev (mis. ±15 notifikasi ke admin.arthasia). Usul: DB test terpisah (`hris_test`) untuk `bun test` lokal, seperti CI. (2) Temuan app: inbox HR (`listActionable(includeOverride)`) tetap memuat pengajuan yang langkah HR-nya sudah diputus HR itu, karena HR masih punya hak override di langkah Atasan, padahal pemisahan tugas menolaknya (403 "Langkah lain harus diputuskan orang yang berbeda"). Item tampil tetapi tidak bisa diputus; perbaikan di modul approval bersama (develop).
-- **Berikutnya:** uji "app mati" besok; temuan (2) ke develop lewat supervisor.
+- **Berikutnya:** uji "app mati" besok; temuan (2) sudah diperbaiki di develop `96b026d` → **menunggu** digabung ke `HRIS/mobile-app`; notifikasi hasil ke HR pengaju ditunda (checklist README).
 
 ### 2026-10-28 — Kontrak keputusan perubahan jadwal oleh HR + aturan data uji tanpa push (Oatse)
 - **Dikerjakan:** BE app untuk TM-D24 (`GET /roster-edits` & `/roster-edits/{id}`, target notifikasi `ROSTER_EDIT`; detail di log Time Management 2026-10-28), push `HRIS/mobile-app` `4733a26` (CI 40667842380 ✔); spec diekspor tanpa server ke `.handoff/openapi-mobile-4733a26.json` (`createApp` + `app.request`, `NODE_ENV=test`).
