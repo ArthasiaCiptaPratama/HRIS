@@ -103,6 +103,7 @@ beforeAll(async () => {
         trainingField: `K3 ${RUN}`,
         type: id === ids.team ? "INTERNAL" : "EXTERNAL",
         cost: "2500000.00",
+        certificateNumber: `SRT-${RUN}`,
       },
     });
     await prisma.workExperience.create({
@@ -286,6 +287,44 @@ describe("kelola item per karyawan", () => {
     ).toBe(400);
   });
 
+  test("pelatihan: no. sertifikat disimpan, tetap bila tidak dikirim, bisa dikosongkan, dicari & tampil di tabel", async () => {
+    const certificate = `POP-${RUN}`;
+    const created = await call("POST", `/employees/${ids.outsider}/trainings`, sa.headers, {
+      trainingField: "POP Sertifikat",
+      certificateNumber: certificate,
+    });
+    expect(created.status).toBe(201);
+    const id = (await body(created)).data.id;
+    const stored = () => prisma.training.findUniqueOrThrow({ where: { id } });
+    expect((await stored()).certificateNumber).toBe(certificate);
+
+    // Klien lama tanpa field → nomor (mis. dari Import) tidak terhapus.
+    const path = `/employees/${ids.outsider}/trainings/${id}`;
+    expect((await call("PATCH", path, sa.headers, { trainingField: "POP Ubah" })).status).toBe(200);
+    expect((await stored()).certificateNumber).toBe(certificate);
+
+    const found = await body(
+      await call("GET", `/archive/trainings?q=${encodeURIComponent(certificate)}`, sa.headers),
+    );
+    expect(found.data.map((r: { certificateNumber: string }) => r.certificateNumber)).toEqual([
+      certificate,
+    ]);
+
+    expect(
+      (await call("PATCH", path, sa.headers, { trainingField: "POP Ubah", certificateNumber: "" }))
+        .status,
+    ).toBe(200);
+    expect((await stored()).certificateNumber).toBeNull();
+    expect(
+      (
+        await call("POST", `/employees/${ids.outsider}/trainings`, sa.headers, {
+          trainingField: "X",
+          certificateNumber: "x".repeat(61),
+        })
+      ).status,
+    ).toBe(400);
+  });
+
   test("riwayat kerja & detail karyawan memuat riwayat kerja + biaya (SA)", async () => {
     expect(
       (
@@ -423,6 +462,8 @@ describe("ekspor Excel (D-058, Arsip 1d)", () => {
     const trainings = sheetText((await body(await exportOf("trainings", hr))).data);
     expect(trainings).toContain("Biaya (Rp)");
     expect(trainings).toContain("<v>2500000</v>");
+    expect(trainings).toContain("No. sertifikat");
+    expect(trainings).toContain(`SRT-${RUN}`);
   });
 
   test("MANAGER & EMPLOYEE 403; Keluarga tanpa grant 403; kategori tak dikenal 400", async () => {

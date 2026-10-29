@@ -47,6 +47,7 @@ import {
   workDateLabel,
 } from "../components/display";
 import { RefreshButton } from "../components/refresh-button";
+import { RosterEditList, useRosterEditInbox } from "../components/roster-edit-list";
 import { RosterWeek } from "../components/roster-week";
 import { SelfieThumb } from "../components/selfie-thumb";
 import { type LeaveRequest, useLeaveRequests } from "../leave-api";
@@ -400,8 +401,10 @@ export function MobileApprovalsPage() {
   const canDays = tmAccess.reviewDays(me);
   const canLeave = tmAccess.decideLeave(me);
   const canAlpha = tmAccess.verifyAlpha(me);
-  const [tab, setTab] = useState<"absen" | "cuti" | "alpha">(canDays ? "absen" : "cuti");
+  const canEdits = tmAccess.decideRosterChanges(me);
+  const [tab, setTab] = useState<"absen" | "cuti" | "alpha" | "jadwal">(canDays ? "absen" : "cuti");
   const alphaCount = useAlphaInbox(canAlpha).data?.length ?? 0;
+  const editCount = useRosterEditInbox(canEdits).data?.length ?? 0;
   const today = todayIn(tz);
   const days = useAttendanceDays({ scope: "inbox", from: addDays(today, -60), to: today }, canDays);
   const leave = useLeaveRequests({ scope: "inbox" }, canLeave);
@@ -412,7 +415,7 @@ export function MobileApprovalsPage() {
       <div className="flex items-center gap-2">
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v as "absen" | "cuti" | "alpha")}
+          onValueChange={(v) => setTab(v as "absen" | "cuti" | "alpha" | "jadwal")}
           className="flex-1"
         >
           <TabsList className="w-full">
@@ -431,11 +434,18 @@ export function MobileApprovalsPage() {
                 Alpha {alphaCount ? `(${alphaCount})` : ""}
               </TabsTrigger>
             ) : null}
+            {canEdits ? (
+              <TabsTrigger value="jadwal" className="flex-1">
+                Jadwal {editCount ? `(${editCount})` : ""}
+              </TabsTrigger>
+            ) : null}
           </TabsList>
         </Tabs>
         <RefreshButton compact />
       </div>
-      {tab === "alpha" ? (
+      {tab === "jadwal" ? (
+        <RosterEditList scope="inbox" enabled={canEdits} />
+      ) : tab === "alpha" ? (
         <AlphaVerificationList enabled={canAlpha} />
       ) : tab === "absen" ? (
         days.isPending ? (

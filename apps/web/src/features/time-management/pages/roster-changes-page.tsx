@@ -38,6 +38,7 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
+import { RosterEditList, useRosterEditInbox } from "../components/roster-edit-list";
 import type { RosterChange } from "../schemas";
 import { useRosterCompany } from "./roster-page";
 
@@ -48,13 +49,21 @@ export function RosterChangesPage() {
   const me = useMe().data as Me;
   const canRequest = me.employeeId !== null;
   const canDecide = tmAccess.decideRosterChanges(me);
+  const canSubmitEdits = tmAccess.manageRoster(me);
+  const edits = useRosterEditInbox(canDecide);
   const mine = useRosterChanges("mine", canRequest);
   const inbox = useRosterChanges("inbox", canDecide);
   const [createOpen, setCreateOpen] = useState(false);
   const consents = (mine.data ?? []).filter((c) => c.awaitingMyConsent);
   const own = (mine.data ?? []).filter((c) => !c.awaitingMyConsent);
   const defaultTab =
-    canDecide && (inbox.data?.length ?? 0) > 0 ? "inbox" : canRequest ? "mine" : "inbox";
+    canDecide && (inbox.data?.length ?? 0) > 0
+      ? "inbox"
+      : canDecide && (edits.data?.length ?? 0) > 0
+        ? "hr-edits"
+        : canRequest
+          ? "mine"
+          : "inbox";
 
   return (
     <div>
@@ -82,6 +91,12 @@ export function RosterChangesPage() {
               Perlu keputusan{inbox.data?.length ? ` (${inbox.data.length})` : ""}
             </TabsTrigger>
           ) : null}
+          {canDecide ? (
+            <TabsTrigger value="hr-edits">
+              Perubahan dari HR{edits.data?.length ? ` (${edits.data.length})` : ""}
+            </TabsTrigger>
+          ) : null}
+          {canSubmitEdits ? <TabsTrigger value="my-edits">Diajukan saya (HR)</TabsTrigger> : null}
         </TabsList>
         <TabsContent value="mine" className="mt-4">
           <ChangeList query={mine} rows={own} empty="Belum ada pengajuan." mode="mine" />
@@ -101,6 +116,12 @@ export function RosterChangesPage() {
             empty="Tidak ada yang perlu diputuskan."
             mode="inbox"
           />
+        </TabsContent>
+        <TabsContent value="hr-edits" className="mt-4">
+          <RosterEditList scope="inbox" enabled={canDecide} />
+        </TabsContent>
+        <TabsContent value="my-edits" className="mt-4">
+          <RosterEditList scope="mine" enabled={canSubmitEdits} />
         </TabsContent>
       </Tabs>
       {createOpen ? <CreateDialog me={me} onClose={() => setCreateOpen(false)} /> : null}

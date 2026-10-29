@@ -25,6 +25,7 @@ const trainingRow = (cost: boolean) => ({
   trainingField: "Ahli K3 Umum",
   organizer: "Lembaga Uji",
   type: "EXTERNAL",
+  certificateNumber: "POP-0042",
   startDate: "2025-03-01",
   endDate: "2025-03-05",
   hours: 40,
@@ -64,7 +65,20 @@ const detail = {
     photo: false,
   },
   educations: [],
-  trainings: [],
+  trainings: [
+    {
+      id: "t1",
+      trainingField: "Ahli K3 Umum",
+      organizer: "Lembaga Uji",
+      duration: null,
+      trainingYear: 2025,
+      type: "EXTERNAL",
+      startDate: null,
+      endDate: null,
+      hours: null,
+      certificateNumber: "POP-0042",
+    },
+  ],
   workExperiences: [],
   histories: [
     {
@@ -172,6 +186,7 @@ describe.skipIf(!FEATURES.archive)("Arsip › Data Pelatihan (D-054)", () => {
     expect(await within(table).findByText("Ahli K3 Umum")).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "Biaya" })).toBeInTheDocument();
     expect(within(table).getByText(/Rp 2\.500\.000/)).toBeInTheDocument();
+    expect(within(table).getByText(/No\. POP-0042/)).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Jenis" })).toBeInTheDocument();
     expect(calls.find((c) => c.path === "/archive/trainings")?.search).toContain(
       "employees=active",
@@ -247,6 +262,27 @@ describe.skipIf(!FEATURES.archive)("Detail karyawan: kelola item Arsip (SA/HR)",
         major: null,
         graduationYear: 2020,
       }),
+    );
+  });
+
+  it("ubah pelatihan: No. sertifikat terisi dari data & ikut dikirim di PATCH", async () => {
+    const calls = mockFetch(me("SUPER_ADMIN", true));
+    renderAt("/personal/arsip/pelatihan?pegawai=e1&tab=education");
+    const region = await screen.findByRole("tabpanel");
+    await userEvent.click(
+      await within(region).findByRole("button", { name: "Aksi untuk Ahli K3 Umum" }),
+    );
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Ubah/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ubah pelatihan" });
+    const field = within(dialog).getByLabelText(/No\. sertifikat/);
+    expect(field).toHaveValue("POP-0042");
+    await userEvent.clear(field);
+    await userEvent.type(field, "POP-0099");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.method === "PATCH" && c.path === "/employees/e1/trainings/t1")?.body,
+      ).toMatchObject({ trainingField: "Ahli K3 Umum", certificateNumber: "POP-0099" }),
     );
   });
 

@@ -36,6 +36,33 @@ export const createPattern = (data: Prisma.RosterPatternUncheckedCreateInput) =>
 export const updatePattern = (id: string, data: Prisma.RosterPatternUncheckedUpdateInput) =>
   getPrisma().rosterPattern.update({ where: { id }, data });
 
+// ── Template buatan HR (TM-D23) ──
+const templateInclude = {
+  patterns: {
+    where: { deletedAt: null },
+    include: {
+      crews: {
+        where: { deletedAt: null },
+        orderBy: { name: "asc" as const },
+        include: { members: { select: { employeeId: true, startDate: true, endDate: true } } },
+      },
+    },
+  },
+} satisfies Prisma.RosterTemplateInclude;
+export const listTemplates = (companyId: string) =>
+  getPrisma().rosterTemplate.findMany({
+    where: { companyId, deletedAt: null },
+    orderBy: { name: "asc" },
+    include: templateInclude,
+  });
+export const findTemplate = (id: string) =>
+  getPrisma().rosterTemplate.findUnique({ where: { id }, include: templateInclude });
+export type TemplateRow = NonNullable<Awaited<ReturnType<typeof findTemplate>>>;
+export const createTemplate = (data: Prisma.RosterTemplateUncheckedCreateInput) =>
+  getPrisma().rosterTemplate.create({ data, include: templateInclude });
+export const updateTemplate = (id: string, data: Prisma.RosterTemplateUncheckedUpdateInput) =>
+  getPrisma().rosterTemplate.update({ where: { id }, data, include: templateInclude });
+
 // ── Crew ──
 const crewInclude = {
   pattern: true,
@@ -91,6 +118,101 @@ export const rosterDaysBetween = (employeeIds: string[], from: Date, to: Date, t
   db(tx).rosterDay.findMany({
     where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
     include: { shift: true },
+  });
+
+/** TM-D23: sel non-pola (kuas / import / tukar shift disetujui) pada rentang — ditimpa saat isi template. */
+export const nonPatternDaysBetween = (
+  employeeIds: string[],
+  from: Date,
+  to: Date,
+  tx?: AttendanceTx,
+) =>
+  db(tx).rosterDay.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      workDate: { gte: from, lte: to },
+      source: { in: ["MANUAL", "IMPORT", "CHANGE"] },
+    },
+    select: { id: true, employeeId: true, workDate: true },
+  });
+export const deleteRosterDays = (ids: string[], tx?: AttendanceTx) =>
+  db(tx).rosterDay.deleteMany({ where: { id: { in: ids } } });
+
+// ── Pengajuan perubahan roster oleh HR (TM-D24) ──
+export const createRosterEdit = (
+  tx: AttendanceTx,
+  data: Prisma.RosterEditRequestUncheckedCreateInput,
+) => tx.rosterEditRequest.create({ data });
+export const findRosterEdit = (id: string, tx?: AttendanceTx) =>
+  db(tx).rosterEditRequest.findUnique({ where: { id } });
+export type RosterEditRow = NonNullable<Awaited<ReturnType<typeof findRosterEdit>>>;
+export const updateRosterEdit = (
+  tx: AttendanceTx,
+  id: string,
+  data: Prisma.RosterEditRequestUncheckedUpdateInput,
+) => tx.rosterEditRequest.update({ where: { id }, data });
+export const listRosterEdits = (where: Prisma.RosterEditRequestWhereInput, take = 500) =>
+  getPrisma().rosterEditRequest.findMany({ where, orderBy: { createdAt: "desc" }, take });
+/** TM-D24 (mundur): hari absen yang sudah ada pada rentang → jadwalnya tidak diubah. */
+export const attendanceDayKeys = async (
+  employeeIds: string[],
+  from: Date,
+  to: Date,
+  tx?: AttendanceTx,
+) =>
+  (
+    await db(tx).attendanceDay.findMany({
+      where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
+      select: { employeeId: true, workDate: true },
+    })
+  ).map((d) => `${d.employeeId}|${d.workDate.toISOString().slice(0, 10)}`);
+/** Hari pola crew untuk karyawan tertentu pada rentang (mode mundur). */
+export const patternDaysOf = (
+  tx: AttendanceTx,
+  crewId: string,
+  employeeIds: string[],
+  from: Date,
+  to: Date,
+) =>
+  tx.rosterDay.findMany({
+    where: {
+      crewId,
+      source: "PATTERN",
+      employeeId: { in: employeeIds },
+      workDate: { gte: from, lte: to },
+    },
+    select: { id: true, employeeId: true, workDate: true },
+  });
+
+/** Keanggotaan crew aktif yang bersinggungan dengan rentang (crew tidak diarsipkan). */
+export const membershipsBetween = (employeeIds: string[], from: Date, to: Date) =>
+  getPrisma().crewMember.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      startDate: { lte: to },
+      OR: [{ endDate: null }, { endDate: { gte: from } }],
+      crew: { deletedAt: null },
+    },
+    select: { employeeId: true, startDate: true, endDate: true },
+  });
+export const pendingRosterEditEmployees = async (employeeIds: string[]) =>
+  new Set(
+    (
+      await getPrisma().rosterEditRequest.findMany({
+        where: { employeeId: { in: employeeIds }, status: "PENDING" },
+        select: { employeeId: true },
+      })
+    ).map((r) => r.employeeId),
+  );
+export const membershipsOn = (employeeIds: string[], onDate: Date) =>
+  getPrisma().crewMember.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      startDate: { lte: onDate },
+      OR: [{ endDate: null }, { endDate: { gte: onDate } }],
+      crew: { deletedAt: null },
+    },
+    include: { crew: { select: { id: true, name: true } } },
   });
 
 export const rosterDay = (employeeId: string, workDate: Date, tx?: AttendanceTx) =>

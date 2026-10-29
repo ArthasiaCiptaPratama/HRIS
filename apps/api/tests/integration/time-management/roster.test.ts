@@ -5,6 +5,7 @@ import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
+import { approvePendingRosterEdits } from "../../helpers/roster-edits.ts";
 
 // Time Management Tahap B — roster tambang (D-069).
 const RUN = crypto.randomUUID().slice(0, 6).toUpperCase();
@@ -37,7 +38,7 @@ const ids = {
 };
 let companyId = "";
 const emp: Record<"mgr" | "a" | "b" | "c", string> = { mgr: "", a: "", b: "", c: "" };
-let h: Record<"sa" | "hr" | "hrOther" | "mgr" | "a" | "b", Record<string, string>>;
+let h: Record<"sa" | "hr" | "hr2" | "hrOther" | "mgr" | "a" | "b", Record<string, string>>;
 let shiftD = ""; // id shift siang uji (dipakai untuk memastikan pembuatan berhasil)
 let crewId = "";
 
@@ -82,6 +83,7 @@ beforeAll(async () => {
   h = {
     sa: (await auth.loginAs("SUPER_ADMIN")).headers,
     hr: (await auth.loginAs("HR_ADMIN")).headers,
+    hr2: (await auth.loginAs("HR_ADMIN")).headers,
     hrOther: (await auth.loginAs("HR_ADMIN", { companies: [ids.otherCompany] })).headers,
     mgr: (await auth.loginAs("MANAGER", { employeeId: emp.mgr, companies: [companyId] })).headers,
     a: (await auth.loginAs("EMPLOYEE", { employeeId: emp.a, companies: [companyId] })).headers,
@@ -94,6 +96,7 @@ afterAll(async () => {
     where: { requesterEmployeeId: { in: ids.employees } },
   });
   await prisma.rosterChangeRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
+  await prisma.rosterEditRequest.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.attendanceDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: ids.employees } } });
@@ -109,6 +112,9 @@ afterAll(async () => {
   await prisma.company.delete({ where: { id: ids.otherCompany } });
   await disconnectPrisma();
 });
+
+// TM-D24: edit sel karyawan ber-crew diajukan dulu → disetujui atasan + HR lain.
+const approveEdits = () => approvePendingRosterEdits(call, [emp.a, emp.b, emp.c], [h.mgr, h.hr2]);
 
 const shift = (code: string, start: number, end: number) => ({
   companyId,
@@ -215,14 +221,17 @@ describe("grid & akses", () => {
   test("edit sel manual tidak ditimpa pembangkitan ulang pola", async () => {
     const date = addDays(today, 2); // OFF di pola
     const code = `N${RUN.slice(0, 4)}`;
-    expect(
-      (
-        await call("PUT", "/roster/cells", h.hr, {
-          companyId,
-          cells: [{ employeeId: emp.a, date, code }],
-        })
-      ).status,
-    ).toBe(200);
+    const edited = await call("PUT", "/roster/cells", h.hr, {
+      companyId,
+      cells: [{ employeeId: emp.a, date, code }],
+    });
+    expect(edited.status).toBe(200);
+    // TM-D24: A anggota crew → diajukan dulu, belum tersimpan.
+    expect(await data<{ updated: number; submitted: number }>(edited)).toEqual({
+      updated: 0,
+      submitted: 1,
+    });
+    expect(await approveEdits()).toBe(1);
     // Pembangkitan ulang (ubah crew tanpa mengubah isi) tidak menimpa sel manual.
     await call("PUT", `/crews/${crewId}/members`, h.hr, {
       employeeIds: [emp.a, emp.b],
@@ -256,7 +265,11 @@ describe("grid & akses", () => {
       422,
     );
     const ok = await call("POST", "/roster/import/commit", h.hr, { companyId, rows: [rows[0]] });
-    expect(await data<{ saved: number }>(ok)).toEqual({ saved: 1 });
+    // C tidak punya crew → langsung tersimpan (TM-D24).
+    expect(await data<{ saved: number; submitted: number }>(ok)).toEqual({
+      saved: 1,
+      submitted: 0,
+    });
   });
 });
 
@@ -293,6 +306,7 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
       companyId,
       cells: [{ employeeId: emp.b, date, code: "OFF" }],
     });
+    await approveEdits();
     const created = await data<{ id: string; status: string }>(
       await call("POST", "/roster-changes", h.a, {
         date,
@@ -347,11 +361,14 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
         labels: [],
       },
     });
-  const setCell = (employeeId: string, date: string) =>
-    call("PUT", "/roster/cells", h.hr, {
+  const setCell = async (employeeId: string, date: string) => {
+    const res = await call("PUT", "/roster/cells", h.hr, {
       companyId,
       cells: [{ employeeId, date, code: `D${RUN.slice(0, 4)}` }],
     });
+    await approveEdits();
+    return res;
+  };
 
   test("hari terkunci (absen disetujui) → ajuan ditolak 422, termasuk hari rekan", async () => {
     const date = addDays(today, 6);
@@ -374,6 +391,7 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
       companyId,
       cells: [{ employeeId: emp.b, date: date2, code: "OFF" }],
     });
+    await approveEdits();
     await lockDay(emp.b, date2);
     const swap = await call("POST", "/roster-changes", h.a, {
       date: date2,

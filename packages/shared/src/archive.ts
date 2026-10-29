@@ -125,6 +125,14 @@ export const trainingInputSchema = z
       .nullable()
       .optional()
       .transform((value) => value ?? null),
+    /** Tidak dikirim (klien lama) = tetap undefined → nomor lama (mis. dari Import) tidak terhapus. */
+    certificateNumber: z
+      .string()
+      .trim()
+      .max(60, "Maksimal 60 karakter.")
+      .transform((value) => (value === "" ? null : value))
+      .nullable()
+      .optional(),
     trainingYear: optionalYear,
     /** Teks durasi lama (data import/onboarding); diganti tanggal & jam. */
     duration: text(50),

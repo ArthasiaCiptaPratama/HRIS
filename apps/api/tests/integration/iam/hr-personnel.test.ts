@@ -166,7 +166,12 @@ const ALLOWED = new Set<string>([
   "GET /api/v1/leave-types",
 ]);
 // Kotak masuk keputusan: role ini bukan pemutus → wajib kosong.
-const EMPTY_INBOXES = ["/roster-changes", "/attendance/corrections", "/leave-requests"];
+const EMPTY_INBOXES = [
+  "/roster-changes",
+  "/roster-edits",
+  "/attendance/corrections",
+  "/leave-requests",
+];
 
 describe("HR Kepegawaian: modul lain tertutup (sweep OpenAPI)", () => {
   test("tidak ada endpoint di luar allowlist yang membalas 2xx", async () => {

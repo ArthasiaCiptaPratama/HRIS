@@ -1,5 +1,14 @@
 import { OFF_CODE, ROSTER_SOURCE_LABELS, type RosterSource } from "@hris/shared";
-import { CalendarRange, Eraser, FileUp, Paintbrush, Save, Settings2, Undo2 } from "lucide-react";
+import {
+  CalendarRange,
+  Eraser,
+  FileUp,
+  LayoutTemplate,
+  Paintbrush,
+  Save,
+  Settings2,
+  Undo2,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -26,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useCrews, useRosterGrid, useRosterImport, useSetRosterCells } from "../api";
 import { hhmm, todayIn } from "../components/display";
+import { TemplateAssignDialog } from "../components/template-assign-dialog";
 import { RosterFileError, type RosterFileRow, readRosterFile, rowsFromGrid } from "../roster-file";
 import type { CellIssue, RosterGrid } from "../schemas";
 
@@ -52,6 +62,7 @@ export function RosterPage() {
   const crews = useCrews(companyId || undefined);
   const grid = useRosterGrid(companyId || undefined, month, crewId);
   const [importOpen, setImportOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const manage = tmAccess.manageRoster(me);
 
   return (
@@ -66,6 +77,13 @@ export function RosterPage() {
                 <Link to="/time/roster/pengaturan">
                   <Settings2 /> Shift, pola & crew
                 </Link>
+              </Button>
+              <Button
+                variant="brand"
+                onClick={() => setAssignOpen(true)}
+                disabled={!companyId || !grid.data}
+              >
+                <LayoutTemplate /> Isi dengan template
               </Button>
               <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!companyId}>
                 <FileUp /> Import
@@ -118,6 +136,13 @@ export function RosterPage() {
       ) : (
         <RosterGridView key={`${companyId}-${month}-${crewId}`} grid={grid.data} />
       )}
+      {manage && companyId && assignOpen && grid.data ? (
+        <TemplateAssignDialog
+          companyId={companyId}
+          grid={grid.data}
+          onClose={() => setAssignOpen(false)}
+        />
+      ) : null}
       {manage && companyId ? (
         <ImportDialog
           open={importOpen}
@@ -175,7 +200,17 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
     });
     try {
       const result = await save.mutateAsync({ companyId: grid.companyId, cells: list });
-      toast.success(`${result.updated} sel roster disimpan.`);
+      toast.success(
+        [
+          result.updated > 0 ? `${result.updated} sel roster disimpan.` : null,
+          // TM-D24: karyawan ber-crew → diajukan ke atasan + HR, berlaku setelah disetujui.
+          result.submitted > 0
+            ? `${result.submitted} karyawan ber-crew: perubahan diajukan ke atasan + HR (Perubahan Roster › Diajukan saya).`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       setPending(new Map());
       setIssues(new Map());
     } catch (error) {
@@ -456,7 +491,16 @@ function ImportDialog({
   const save = async () => {
     try {
       const saved = await commit.mutateAsync({ companyId, rows });
-      toast.success(`${saved.saved} hari roster diimport.`);
+      toast.success(
+        [
+          saved.saved > 0 ? `${saved.saved} hari roster diimport.` : null,
+          saved.submitted > 0
+            ? `${saved.submitted} karyawan ber-crew: perubahan diajukan ke atasan + HR.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
       reset();
       onClose();
     } catch (e) {
