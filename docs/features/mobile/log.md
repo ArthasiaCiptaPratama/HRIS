@@ -11,6 +11,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-29 — Catatan persiapan uji HP M4: unggah lampiran dari API lokal (Oatse)
+- **Dikerjakan:** belum ada kode; hanya penelusuran untuk uji M4 besok. `dev:api` dinyalakan untuk uji Kalender Libur M3 (akun emp, baca saja, FCM kosong), lalu dimatikan.
+- **Masalah / catatan:** `POST /leave/attachment-upload`, `POST /attendance/statements/upload` (dan `selfie-upload`) membuat signed upload URL lewat `createSupabaseStorage` (`apps/api/src/core/storage.ts`). Tidak ada storage lokal: API lokal pun memakai `SUPABASE_URL` dari `.env` = project staging `iwgzuwcxsxnbjibhbqgh`, hanya path-nya diberi prefix `dev/oatse/`. Akibatnya:
+  - URL unggah mengarah langsung ke `https://iwgzuw….supabase.co`, **tidak lewat** `adb reverse`; HP cukup punya internet. `adb reverse` hanya untuk panggilan ke API lokal (minta URL lalu kirim pengajuan dengan path).
+  - Setiap unggahan saat uji = **menulis objek ke bucket Storage staging**, termasuk berkas `dev/oatse/…`. Menurut aturan, itu butuh kata pengguna sendiri sebelum uji. Pembersihannya (hapus objek) juga butuh kata pengguna.
+  - Belum diverifikasi: bucket lampiran cuti dan surat pernyataan sudah ada di staging (`ensurePrivateBucket`), dan batas ukuran/MIME cocok dengan berkas dari kamera atau galeri HP.
+- **Berikutnya:** sebelum uji M4, minta kata pengguna untuk unggahan uji ke Storage staging (dengan prefix `dev/oatse/`), atau putuskan pakai storage palsu dan lewati unggahan.
+
 ### 2026-10-29 — Uji ulang HP M5a + gabung ke develop (Oatse)
 - **Dikerjakan:** merge develop `41e7f94` (fix override HR `96b026d` + docs) ke `HRIS/mobile-app` → `bc4b9f3`. Data demo M5a di DB lokal `hris_mobile`, pola 28 Okt: seed tanpa FCM; pemicu U9 dan batch dengan FCM stg (disengaja). Pengajuan dibuat lewat service asli (`setRosterCells`, `requestCrewMembers`, `applyTemplateAssignment`), pengajunya admin.arthasia. Setelah uji, data dihapus dalam 1 transaksi (kutipan pengguna 09:47): 8 pengajuan + approval, 28 notifikasi `roster_edit_new` (termasuk sisa test gate), 1 token push, 7 karyawan `M5A-*`, template demo, akun lokal hr; role mgr → EMPLOYEE. `dev:api` dimatikan. `HRIS/mobile-app` di-FF ke develop.
 - **Keputusan:** —
