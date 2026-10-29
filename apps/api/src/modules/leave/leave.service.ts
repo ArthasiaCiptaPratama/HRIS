@@ -23,6 +23,7 @@ import {
 } from "../../core/errors.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import {
+  type AfterCommit,
   type ApprovalView,
   cancelApprovalRequest,
   createApprovalRequest,
@@ -820,7 +821,12 @@ export async function cancelLeaveRequest(
 export function registerLeaveIntegrations() {
   const handler = async (
     tx: repository.LeaveTx,
-    event: { subjectId: string; status: "APPROVED" | "REJECTED" | "CANCELLED"; decidedAt: Date },
+    event: {
+      subjectId: string;
+      status: "APPROVED" | "REJECTED" | "CANCELLED";
+      decidedAt: Date;
+      afterCommit: AfterCommit;
+    },
   ) => {
     const row = await repository.findRequest(event.subjectId, tx);
     if (row?.status !== "PENDING") return;
@@ -838,22 +844,25 @@ export function registerLeaveIntegrations() {
       decidedAt: event.decidedAt,
     });
     if (event.status === "APPROVED" || event.status === "REJECTED") {
-      await notifyEmployees([
-        {
-          employeeId: row.employeeId,
-          type: "leave.request_decided",
-          title: `${row.type.name} ${dateLabel(toIso(row.startDate))} ${
-            event.status === "APPROVED" ? "disetujui" : "ditolak"
-          }`,
-          body:
-            event.status === "APPROVED"
+      const approved = event.status === "APPROVED";
+      // Setelah commit: keputusan yang batal tidak mengirim notifikasi.
+      event.afterCommit(() =>
+        notifyEmployees([
+          {
+            employeeId: row.employeeId,
+            type: "leave.request_decided",
+            title: `${row.type.name} ${dateLabel(toIso(row.startDate))} ${
+              approved ? "disetujui" : "ditolak"
+            }`,
+            body: approved
               ? `${row.days} hari tercatat sebagai cuti/izin.`
               : "Tahanan saldo dikembalikan. Lihat catatan penolakan di halaman Cuti.",
-          link: "/absen/cuti",
-          dedupeKey: `tm-leave-decided:${row.id}`,
-          target: { type: "LEAVE_REQUEST", id: row.id },
-        },
-      ]);
+            link: "/absen/cuti",
+            dedupeKey: `tm-leave-decided:${row.id}`,
+            target: { type: "LEAVE_REQUEST", id: row.id },
+          },
+        ]),
+      );
     }
   };
   registerApprovalHandler("LEAVE", handler);

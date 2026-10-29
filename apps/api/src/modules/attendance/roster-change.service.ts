@@ -27,10 +27,16 @@ import { notifyRosterChangeRejected, notifyRosterChanges } from "./roster-notify
 const todayIso = async () => localDate(new Date(), (await readTimeSettings()).timezone);
 
 /** Hari absen disetujui / periode tertutup tidak boleh diubah — sama dengan edit grid & impor roster. */
-async function assertDayUnlocked(employeeId: string, peerEmployeeId: string | null, date: string) {
+async function assertDayUnlocked(
+  employeeId: string,
+  peerEmployeeId: string | null,
+  date: string,
+  tx?: repository.AttendanceTx,
+) {
   const locked = await lockedEmployeesOn(
     peerEmployeeId ? [employeeId, peerEmployeeId] : [employeeId],
     date,
+    tx,
   );
   if (locked.length === 0) return;
   throw new BusinessRuleError(
@@ -247,7 +253,10 @@ export async function listRosterChanges(
   return toDtos(ctx, rows);
 }
 
-/** Status final dari mesin approval → terapkan ke roster (dipanggil di transaksi keputusan). */
+/**
+ * Status final dari mesin approval → terapkan ke roster (dipanggil di transaksi keputusan; semua baca lewat `tx`,
+ * notifikasi setelah commit).
+ */
 export function registerRosterChangeHandler() {
   registerApprovalHandler("ROSTER_CHANGE", async (tx, event) => {
     const row = await repository.findChange(event.subjectId, tx);
@@ -255,11 +264,13 @@ export function registerRosterChangeHandler() {
     if (event.status !== "APPROVED") {
       const status = event.status === "CANCELLED" ? "CANCELLED" : "REJECTED";
       await repository.updateChange(tx, row.id, { status });
-      await notifyRosterChangeRejected(row.employeeId, toIso(row.workDate), status);
+      event.afterCommit(() =>
+        notifyRosterChangeRejected(row.employeeId, toIso(row.workDate), status),
+      );
       return;
     }
     // Absen bisa disetujui / periode ditutup selama pengajuan menunggu → keputusan ditolak (rollback).
-    await assertDayUnlocked(row.employeeId, row.peerEmployeeId, toIso(row.workDate));
+    await assertDayUnlocked(row.employeeId, row.peerEmployeeId, toIso(row.workDate), tx);
     await repository.upsertDay(tx, row.employeeId, row.workDate, {
       shiftId: row.toShiftId,
       source: "CHANGE",
@@ -273,24 +284,22 @@ export function registerRosterChangeHandler() {
     await repository.updateChange(tx, row.id, { status: "APPROVED" });
     // TM-D13 Fase C: pengaju & rekan diberi tahu jadwal barunya.
     const shiftIds = [row.fromShiftId, row.toShiftId].filter((id): id is string => id !== null);
-    const codeOf = new Map((await repository.shiftsByIds(shiftIds)).map((s) => [s.id, s.code]));
+    const codeOf = new Map((await repository.shiftsByIds(shiftIds, tx)).map((s) => [s.id, s.code]));
     const code = (id: string | null) => (id === null ? null : (codeOf.get(id) ?? null));
     const date = toIso(row.workDate);
-    await notifyRosterChanges(
-      [
-        { employeeId: row.employeeId, date, from: code(row.fromShiftId), to: code(row.toShiftId) },
-        ...(row.peerEmployeeId
-          ? [
-              {
-                employeeId: row.peerEmployeeId,
-                date,
-                from: code(row.toShiftId),
-                to: code(row.fromShiftId),
-              },
-            ]
-          : []),
-      ],
-      "swap",
-    );
+    const changes = [
+      { employeeId: row.employeeId, date, from: code(row.fromShiftId), to: code(row.toShiftId) },
+      ...(row.peerEmployeeId
+        ? [
+            {
+              employeeId: row.peerEmployeeId,
+              date,
+              from: code(row.toShiftId),
+              to: code(row.fromShiftId),
+            },
+          ]
+        : []),
+    ];
+    event.afterCommit(() => notifyRosterChanges(changes, "swap"));
   });
 }

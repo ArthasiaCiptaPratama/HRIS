@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-29 — Approval: notifikasi semua handler setelah commit (Oatse, `fix/approval-after-commit`)
+- **Dikerjakan:** checklist TM-D24 "(tambahan 2026-10-29: temuan sesudah perbaikan review)". Audit 7 handler: 5 mengirim notifikasi di dalam transaksi keputusan → `event.afterCommit` (`overtime.service.ts`, `roster-change.service.ts`, `period.service.ts`, `attendance.service.ts`, `leave/leave.service.ts`); `ROSTER_CHANGE` juga membaca hari terkunci (`lockedEmployeesOn(..., tx)`) & kode shift (`shiftsByIds(..., tx)`) lewat `tx`. `ATTENDANCE_DAY` bersih, `ROSTER_EDIT` sudah (`a21f9f6`).
+- **Keputusan:** tidak ada — perbaikan bug, isi/penerima notifikasi tidak berubah.
+- **Verifikasi:** test rollback baru (koreksi di `time-notify.test.ts`, tolak cuti di `leave.test.ts`, ubah shift di `roster.test.ts`): `writeAudit` dipaksa gagal sekali setelah handler → 500, data tetap, tanpa notifikasi; ulang → sekali. Ketiganya gagal di kode lama. Gate: lihat laporan commit.
+- **Masalah / catatan:** lembur & punch tidak diberi test rollback tersendiri (pola sama; test notifikasinya tetap lulus).
+- **Berikutnya:** kabari Mat (file TM miliknya berubah).
+
 ### 2026-10-29 — TM-D24: perbaikan catatan review (transaksi keputusan, anggota crew atomik) + notifikasi hasil ke HR pengaju (Oatse, `fix/roster-edit-tx`)
 - **Dikerjakan:** checklist TM-D24 "(tambahan 2026-10-29) perbaikan bug" dan "notifikasi hasil keputusan ke HR pengaju". Approval: event handler membawa `afterCommit(task)` → `decide()` menjalankannya setelah commit (gagal diabaikan); `withTransaction` approval timeout 30 dtk. Handler `ROSTER_EDIT`: semua baca/tulis lewat `tx` (parameter `tx` opsional di `findSetting`/`readTimeSettings`/`settingsToday`, `listShifts`, `lockingDays`, `closedMonths`, `LockedDayCheck`/`lockedDayKeys`; `regenerateCrew` + `afterCommit`). `requestCrewMembers` ditulis ulang: satu `withTransaction` (anggota baru + `regenerateCrew` + `insertEdits`), notifikasi/audit setelah commit; `createEdits` dipecah `insertEdits` + `announceEdits`; `assertCrewEmployees` & `crewDtoById` diekspor dari `roster.service.ts`; query baru `employeesInOtherCrewsFrom`.
 - **Keputusan:** tidak ada keputusan produk baru — perubahan cakupan "keluar"/"pindah" adalah **perbaikan bug** agar sesuai TM-D24 (pengeluaran/pemindahan anggota ber-crew selalu lewat approval).

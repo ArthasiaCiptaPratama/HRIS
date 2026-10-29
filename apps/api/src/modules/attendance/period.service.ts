@@ -746,21 +746,25 @@ export function registerPeriodIntegrations() {
     });
     if (event.status === "APPROVED" || event.status === "REJECTED") {
       const date = toIso(row.workDate);
-      await notifyEmployees([
-        {
-          employeeId: row.employeeId,
-          type: "attendance.correction_decided",
-          title: `Koreksi absen ${dateLabel(date)} ${event.status === "APPROVED" ? "disetujui" : "ditolak"}`,
-          ...(event.status === "REJECTED"
-            ? {
-                body: "Hari itu tetap sesuai data absen; cek catatan penolakan di halaman Koreksi.",
-              }
-            : {}),
-          link: "/time/pernyataan",
-          dedupeKey: `tm-correction-decided:${row.id}`,
-          target: { type: "CORRECTION", id: row.id },
-        },
-      ]);
+      const status = event.status;
+      // Setelah commit: sebelumnya terkirim sebelum hari absen ditulis (gagal = notifikasi tetap terkirim).
+      event.afterCommit(() =>
+        notifyEmployees([
+          {
+            employeeId: row.employeeId,
+            type: "attendance.correction_decided",
+            title: `Koreksi absen ${dateLabel(date)} ${status === "APPROVED" ? "disetujui" : "ditolak"}`,
+            ...(status === "REJECTED"
+              ? {
+                  body: "Hari itu tetap sesuai data absen; cek catatan penolakan di halaman Koreksi.",
+                }
+              : {}),
+            link: "/time/pernyataan",
+            dedupeKey: `tm-correction-decided:${row.id}`,
+            target: { type: "CORRECTION", id: row.id },
+          },
+        ]),
+      );
     }
     if (event.status !== "APPROVED") return;
     const day = await tx.attendanceDay.findUnique({

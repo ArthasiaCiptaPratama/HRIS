@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
+import * as audit from "../../../src/core/audit.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { leaveExitSettlementSchema as exitSettlementSchema } from "../../../src/modules/leave/leave.contract.ts";
@@ -294,10 +295,25 @@ describe("pengajuan cuti tahunan", () => {
     const decide = (body: unknown) =>
       call("POST", `/approvals/${req.approval.id}/decision`, h.mgr, body);
     expect((await decide({ decision: "REJECTED" })).status).toBe(400);
+    const decided = () =>
+      prisma.notification.count({
+        where: { type: "leave.request_decided", targetId: created.id },
+      });
+    // Keputusan gagal setelah handler (audit di transaksi yang sama) → rollback, tanpa notifikasi.
+    const spy = spyOn(audit, "writeAudit").mockImplementationOnce(() => {
+      throw new Error("gagal uji");
+    });
+    expect((await decide({ decision: "REJECTED", note: "Jadwal produksi padat" })).status).toBe(
+      500,
+    );
+    spy.mockRestore();
+    expect(await balance(emp.a, 2098)).toBe(9);
+    expect(await decided()).toBe(0);
     expect((await decide({ decision: "REJECTED", note: "Jadwal produksi padat" })).status).toBe(
       200,
     );
     expect(await balance(emp.a, 2098)).toBe(10);
+    expect(await decided()).toBe(1);
   });
 });
 

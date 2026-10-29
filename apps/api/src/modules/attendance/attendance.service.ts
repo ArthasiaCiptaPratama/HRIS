@@ -1267,17 +1267,19 @@ export function registerAttendanceIntegrations() {
       });
       if (day) {
         const date = toIso(day.workDate);
-        await notifyEmployees([
-          {
-            employeeId: day.employeeId,
-            type: "attendance.punch_rejected",
-            title: `${PUNCH_KIND_LABELS[punch.kind]} ${dateLabel(date)} ditolak`,
-            body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
-            link: "/time/pernyataan",
-            dedupeKey: `tm-punch-rejected:${punch.id}`,
-            target: { type: "ATTENDANCE_DAY", id: punch.dayId },
-          },
-        ]);
+        event.afterCommit(() =>
+          notifyEmployees([
+            {
+              employeeId: day.employeeId,
+              type: "attendance.punch_rejected",
+              title: `${PUNCH_KIND_LABELS[punch.kind]} ${dateLabel(date)} ditolak`,
+              body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
+              link: "/time/pernyataan",
+              dedupeKey: `tm-punch-rejected:${punch.id}`,
+              target: { type: "ATTENDANCE_DAY", id: punch.dayId },
+            },
+          ]),
+        );
       }
     }
   });
