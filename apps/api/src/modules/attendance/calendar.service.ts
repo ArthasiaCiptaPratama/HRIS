@@ -9,6 +9,7 @@ import type { Actor } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
+import { localDate } from "./attendance-engine.ts";
 import * as repository from "./calendar.repository.ts";
 
 // Tahap A: kalender libur (D-072) & pengaturan Time Management.
@@ -147,6 +148,11 @@ export async function readTimeSettings(): Promise<TimeSettings> {
   const merged = { ...DEFAULT_TIME_SETTINGS, ...((row?.value as object | null) ?? {}) };
   const parsed = timeSettingsSchema.safeParse(merged);
   return parsed.success ? parsed.data : DEFAULT_TIME_SETTINGS;
+}
+
+/** Tanggal "hari ini" (YYYY-MM-DD) di zona pengaturan TM — batas hari roster, periode, koreksi & cuti. */
+export async function settingsToday(now = new Date()): Promise<string> {
+  return localDate(now, (await readTimeSettings()).timezone);
 }
 
 export async function getTimeSettings(ctx: RequestContext): Promise<TimeSettings> {

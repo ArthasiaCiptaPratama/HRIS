@@ -53,6 +53,8 @@ export interface CreateApprovalInput {
   subjectType: ApprovalSubject;
   subjectId: string;
   requesterEmployeeId: string;
+  /** TM-D24: akun HR yang mengajukan atas nama karyawan (tidak boleh memutus langkahnya). */
+  submittedByAccountId?: string | null;
   companyId: string;
   managerEmployeeId: string | null;
   /** PARALLEL = atasan + HR (bawaan); SINGLE = atasan saja (lembur, PLAN §5.2). */
@@ -67,6 +69,7 @@ export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprova
       subjectType: input.subjectType,
       subjectId: input.subjectId,
       requesterEmployeeId: input.requesterEmployeeId,
+      submittedByAccountId: input.submittedByAccountId ?? null,
       companyId: input.companyId,
       managerEmployeeId: input.managerEmployeeId,
       mode,
@@ -101,6 +104,10 @@ export interface ApprovalView {
   canOverride: boolean;
 }
 
+/** Pemisahan tugas: akun yang sudah memutuskan satu langkah tidak memutuskan langkah lain (view & keputusan). */
+const decidedAnyStep = (actor: Actor, row: repository.ApprovalRow) =>
+  row.steps.some((step) => step.decidedByAccountId === actor.accountId);
+
 export function toView(actor: Actor, row: repository.ApprovalRow): ApprovalView {
   const steps = row.steps.map((step) => ({
     kind: step.kind,
@@ -113,10 +120,8 @@ export function toView(actor: Actor, row: repository.ApprovalRow): ApprovalView 
         ? policy.stepRight(actor, row, step.kind)
         : null,
   }));
-  const decidedByMe = new Set(
-    row.steps.filter((s) => s.decidedByAccountId === actor.accountId).map((s) => s.kind),
-  );
-  const regular = steps.some((s) => s.myRight === "regular") && decidedByMe.size === 0;
+  const decided = decidedAnyStep(actor, row);
+  const regular = !decided && steps.some((s) => s.myRight === "regular");
   return {
     id: row.id,
     subjectType: row.subjectType,
@@ -126,7 +131,7 @@ export function toView(actor: Actor, row: repository.ApprovalRow): ApprovalView 
     decidedAt: row.decidedAt?.toISOString() ?? null,
     steps,
     canDecide: regular,
-    canOverride: !regular && steps.some((s) => s.myRight === "override"),
+    canOverride: !decided && !regular && steps.some((s) => s.myRight === "override"),
   };
 }
 
@@ -148,13 +153,14 @@ export async function listActionable(
 ): Promise<ApprovalView[]> {
   const or: object[] = [];
   if (actor.employeeId) or.push({ managerEmployeeId: actor.employeeId });
-  if (actor.role === ROLE.SUPER_ADMIN) or.push({}); // semua; disaring stepRight di bawah
   if (actor.role === ROLE.HR_ADMIN) {
     or.push({ companyId: { in: [...(actor.companyIds ?? [])] } });
   }
-  if (or.length === 0) return [];
+  // SA: semua (disaring stepRight di bawah) — tanpa OR, karena `OR: [{}]` tidak cocok dengan baris mana pun.
+  const isSa = actor.role === ROLE.SUPER_ADMIN;
+  if (!isSa && or.length === 0) return [];
   const rows = await repository.listRequests(
-    { subjectType, status: "PENDING", OR: or },
+    { subjectType, status: "PENDING", ...(isSa ? {} : { OR: or }) },
     options.take ?? 1000,
   );
   return rows
@@ -188,8 +194,7 @@ async function decideInTx(
     note: body.note ?? null,
   });
 
-  // Pemisahan tugas: akun yang sudah memutuskan satu langkah tidak memutuskan langkah lain.
-  if (row.steps.some((step) => step.decidedByAccountId === ctx.actor.accountId)) {
+  if (decidedAnyStep(ctx.actor, row)) {
     throw new ForbiddenError("Langkah lain harus diputuskan orang yang berbeda.");
   }
   const pending = row.steps.filter((step) => step.decision === "PENDING");

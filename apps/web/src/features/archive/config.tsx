@@ -297,7 +297,14 @@ export const ARCHIVE_PAGES: ArchiveSectionConfig[] = [
         cell: ({ row }) => (
           <div className="min-w-0">
             <p className="truncate">{row.original.trainingField}</p>
-            <p className="text-muted-foreground truncate text-xs">{row.original.organizer ?? ""}</p>
+            <p className="text-muted-foreground truncate text-xs">
+              {[
+                row.original.certificateNumber ? `No. ${row.original.certificateNumber}` : null,
+                row.original.organizer,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           </div>
         ),
       }),

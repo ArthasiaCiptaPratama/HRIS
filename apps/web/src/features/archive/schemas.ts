@@ -41,6 +41,7 @@ export const archiveRowSchema = z
     // Pelatihan
     trainingField: z.string().optional(),
     organizer: z.string().nullable().optional(),
+    certificateNumber: z.string().nullable().optional(),
     type: trainingTypeSchema.nullable().optional(),
     startDate: z.string().nullable().optional(),
     endDate: z.string().nullable().optional(),

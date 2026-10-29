@@ -70,3 +70,16 @@ describe("canViewApproval", () => {
     expect(canViewApproval(actor("EMPLOYEE", "x"), target)).toBe(false);
   });
 });
+
+describe("TM-D24: pengajuan atas nama karyawan oleh HR", () => {
+  const hr = actor("HR_ADMIN", null, ["co-A"]);
+  const submitted: ApprovalTarget = { ...target, submittedByAccountId: hr.accountId };
+  test("akun pengaju tidak berhak di langkah mana pun; HR lain & atasan tetap bisa", () => {
+    expect(stepRight(hr, submitted, "HR")).toBeNull();
+    expect(stepRight(hr, submitted, "MANAGER")).toBeNull();
+    const otherHr = { ...actor("HR_ADMIN", null, ["co-A"]), accountId: "acc-hr-2" };
+    expect(stepRight(otherHr, submitted, "HR")).toBe("regular");
+    expect(stepRight(actor("MANAGER", "mgr"), submitted, "MANAGER")).toBe("regular");
+    expect(canViewApproval(hr, submitted)).toBe(true);
+  });
+});

@@ -10,6 +10,7 @@ import { registerPeriodRoutes } from "./period.routes.ts";
 import { configurePeriod, registerPeriodIntegrations } from "./period.service.ts";
 import { registerRosterRoutes } from "./roster.routes.ts";
 import { registerRosterChangeHandler } from "./roster-change.service.ts";
+import { registerRosterEditHandler } from "./roster-edit.service.ts";
 import { registerTimeNotifyRoutes } from "./time-notify.routes.ts";
 
 // Pintu masuk route modul attendance (Time Management, D-067–D-072). Tahap berikutnya menambah grup route di sini.
@@ -25,6 +26,7 @@ export function registerAttendanceRoutes(app: OpenAPIHono, deps: AttendanceRoute
   registerRosterRoutes(app, deps.protect);
   // Status final approval → diterapkan ke roster (D-069).
   registerRosterChangeHandler();
+  registerRosterEditHandler();
   configureAttendance({ storage: deps.storage, storagePathPrefix: deps.storagePathPrefix ?? "" });
   registerAttendanceDayRoutes(app, deps.protect);
   // Approval hari absen (D-068) & kunci roster untuk hari yang sudah disetujui.

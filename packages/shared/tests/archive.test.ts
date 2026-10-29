@@ -64,6 +64,18 @@ describe("trainingInputSchema", () => {
       expect(trainingInputSchema.safeParse({ trainingField: "K3", ...bad }).success).toBe(false);
     }
   });
+
+  test("no. sertifikat opsional maks 60; kosong = null; tidak dikirim = tetap undefined (nilai lama dipertahankan)", () => {
+    const parse = (extra: object) => trainingInputSchema.parse({ trainingField: "K3", ...extra });
+    expect(parse({ certificateNumber: " POP-123 " }).certificateNumber).toBe("POP-123");
+    expect(parse({ certificateNumber: "" }).certificateNumber).toBeNull();
+    expect(parse({ certificateNumber: null }).certificateNumber).toBeNull();
+    expect(parse({}).certificateNumber).toBeUndefined();
+    expect(
+      trainingInputSchema.safeParse({ trainingField: "K3", certificateNumber: "x".repeat(61) })
+        .success,
+    ).toBe(false);
+  });
 });
 
 describe("workExperienceInputSchema", () => {

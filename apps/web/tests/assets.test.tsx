@@ -287,6 +287,26 @@ describe.skipIf(!FEATURES.assets)("Arsip › Data Assets (ARS-D3)", () => {
       }),
     );
   });
+
+  it("dialog aset: judul & tombol di luar area scroll, pemilih karyawan tanpa tinggi minimum 420px", async () => {
+    // Backlog 2026-10-19: pola dialog lama men-scroll seluruh form → tombol terpotong di layar pendek.
+    mockFetch(me("SUPER_ADMIN", true));
+    const view = renderAt("/personal/arsip/aset");
+    await userEvent.click(await screen.findByRole("button", { name: /Tambah aset/ }));
+    const dialog = await screen.findByRole("dialog");
+    const scroll = dialog.querySelector(".overflow-y-auto") as HTMLElement;
+    expect(within(scroll).getByLabelText("Nama aset")).toBeInTheDocument();
+    expect(within(scroll).queryByRole("heading", { name: "Tambah aset" })).not.toBeInTheDocument();
+    expect(within(scroll).queryByRole("button", { name: "Tambah aset" })).not.toBeInTheDocument();
+    view.unmount();
+
+    mockFetch(me("SUPER_ADMIN", true));
+    renderAt("/personal/arsip/aset?tab=apd");
+    await userEvent.click(await screen.findByRole("button", { name: /Catat pembagian APD/ }));
+    const ppe = await screen.findByRole("dialog");
+    expect(within(ppe).getByText("Karyawan penerima")).toBeInTheDocument();
+    expect(ppe.querySelector(".min-h-\\[420px\\]")).toBeNull();
+  });
 });
 
 describe.skipIf(!FEATURES.assets || !FEATURES.selfService)(

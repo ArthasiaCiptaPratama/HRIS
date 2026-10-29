@@ -8,6 +8,8 @@ export interface ApprovalTarget {
   companyId: string;
   /** Snapshot atasan saat pengajuan; null = tanpa atasan → langkah atasan diambil SUPER_ADMIN. */
   managerEmployeeId: string | null;
+  /** TM-D24: akun yang mengajukan atas nama karyawan (HR) — diperlakukan sebagai pengaju. */
+  submittedByAccountId?: string | null;
 }
 
 export type StepKind = "MANAGER" | "HR";
@@ -15,7 +17,8 @@ export type StepKind = "MANAGER" | "HR";
 export type StepRight = "regular" | "override" | null;
 
 const isSelfRequest = (actor: Actor, target: ApprovalTarget) =>
-  actor.employeeId !== null && actor.employeeId === target.requesterEmployeeId;
+  (actor.employeeId !== null && actor.employeeId === target.requesterEmployeeId) ||
+  (target.submittedByAccountId != null && actor.accountId === target.submittedByAccountId);
 const isHrInScope = (actor: Actor, target: ApprovalTarget) =>
   actor.role === ROLE.HR_ADMIN && isInCompanyScope(actor, target);
 

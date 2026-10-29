@@ -1,6 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach } from "vitest";
+
+// Test merender app utuh (router + halaman); saat suite penuh berjalan paralel dan CPU jenuh,
+// satu langkah bisa > 1 dtk bawaan findBy*/waitFor. Gagal acak lintas file, bukan state bocor.
+configure({ asyncUtilTimeout: 5000 });
 
 afterEach(() => {
   cleanup();

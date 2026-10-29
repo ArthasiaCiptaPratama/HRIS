@@ -12,6 +12,7 @@ export const APPROVAL_SUBJECTS = [
   "ATTENDANCE_DAY",
   "ROSTER_CHANGE",
   "ATTENDANCE_PUNCH",
+  "ROSTER_EDIT",
 ] as const;
 export const approvalSubjectSchema = z.enum(APPROVAL_SUBJECTS);
 export type ApprovalSubject = z.infer<typeof approvalSubjectSchema>;
@@ -23,6 +24,7 @@ export const APPROVAL_SUBJECT_LABELS: Record<ApprovalSubject, string> = {
   ATTENDANCE_DAY: "Hari absen",
   ROSTER_CHANGE: "Perubahan roster",
   ATTENDANCE_PUNCH: "Absen masuk/pulang",
+  ROSTER_EDIT: "Perubahan jadwal oleh HR",
 };
 
 export const APPROVAL_STEP_DECISIONS = ["PENDING", "APPROVED", "REJECTED"] as const;
@@ -370,6 +372,8 @@ export const TM_NOTIFICATION_TARGETS = [
   "APPROVAL_QUEUE",
   // TM-D13 Fase C: jadwal berubah → layar Roster Saya (id = tanggal YYYY-MM-DD pertama yang berubah).
   "ROSTER",
+  // TM-D24 (app): pengajuan perubahan jadwal oleh HR menunggu keputusan → detail (id = id pengajuan).
+  "ROSTER_EDIT",
 ] as const;
 export type TmNotificationTarget = (typeof TM_NOTIFICATION_TARGETS)[number];
 

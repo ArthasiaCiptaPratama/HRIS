@@ -1,7 +1,7 @@
 # IAM — akun, role, grant, audit, notifikasi
 
 > **Kode prefix:** `IAM` · **Fase:** 2 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** –
-> **Status:** Review — fitur selesai & teruji di staging; role HR Kepegawaian IAM-D1 ✔ develop 2026-10-26 (belum staging); sisa: captcha Turnstile ditunda, OD-5
+> **Status:** Review — fitur selesai & teruji di staging; role HR Kepegawaian IAM-D1 ✔ develop 2026-10-26, ✔ staging gel. 14 (2026-10-26); sisa: captcha Turnstile ditunda, OD-5
 
 Login Supabase Auth, role tetap satu akun satu role (D-028), grant berbatas waktu, Super Admin Utama, cakupan PT per akun (D-040), audit log, notifikasi in-app + email SMTP.
 
