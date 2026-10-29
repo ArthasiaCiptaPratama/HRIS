@@ -104,6 +104,10 @@ export interface ApprovalView {
   canOverride: boolean;
 }
 
+/** Pemisahan tugas: akun yang sudah memutuskan satu langkah tidak memutuskan langkah lain (view & keputusan). */
+const decidedAnyStep = (actor: Actor, row: repository.ApprovalRow) =>
+  row.steps.some((step) => step.decidedByAccountId === actor.accountId);
+
 export function toView(actor: Actor, row: repository.ApprovalRow): ApprovalView {
   const steps = row.steps.map((step) => ({
     kind: step.kind,
@@ -116,10 +120,8 @@ export function toView(actor: Actor, row: repository.ApprovalRow): ApprovalView 
         ? policy.stepRight(actor, row, step.kind)
         : null,
   }));
-  const decidedByMe = new Set(
-    row.steps.filter((s) => s.decidedByAccountId === actor.accountId).map((s) => s.kind),
-  );
-  const regular = steps.some((s) => s.myRight === "regular") && decidedByMe.size === 0;
+  const decided = decidedAnyStep(actor, row);
+  const regular = !decided && steps.some((s) => s.myRight === "regular");
   return {
     id: row.id,
     subjectType: row.subjectType,
@@ -129,7 +131,7 @@ export function toView(actor: Actor, row: repository.ApprovalRow): ApprovalView 
     decidedAt: row.decidedAt?.toISOString() ?? null,
     steps,
     canDecide: regular,
-    canOverride: !regular && steps.some((s) => s.myRight === "override"),
+    canOverride: !decided && !regular && steps.some((s) => s.myRight === "override"),
   };
 }
 
@@ -192,8 +194,7 @@ async function decideInTx(
     note: body.note ?? null,
   });
 
-  // Pemisahan tugas: akun yang sudah memutuskan satu langkah tidak memutuskan langkah lain.
-  if (row.steps.some((step) => step.decidedByAccountId === ctx.actor.accountId)) {
+  if (decidedAnyStep(ctx.actor, row)) {
     throw new ForbiddenError("Langkah lain harus diputuskan orang yang berbeda.");
   }
   const pending = row.steps.filter((step) => step.decision === "PENDING");

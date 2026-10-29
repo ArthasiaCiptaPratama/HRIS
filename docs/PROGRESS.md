@@ -73,6 +73,9 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-10-28, TM-D24, review gabung `9c94f5d`)** Handler approval `ROSTER_EDIT` memakai beberapa query di luar transaksi keputusan (`lockedDays`, `listShifts`, `rosterCodes`, pengaturan) dan notifikasi roster terkirim sebelum commit; transaksi approval memakai timeout bawaan Prisma 5 dtk → pantau crew besar di staging, pertimbangkan semua lewat `tx` + timeout eksplisit. Mat sudah dikabari (16:21).
+- **(2026-10-28, TM-D24, review gabung `9c94f5d`)** `requestCrewMembers` tidak atomik: anggota langsung tersimpan sebelum pengajuan dibuat (gagal di tengah → sebagian berlaku); anggota yang masuk setelah tanggal efektif lalu dihapus dari daftar keluar tanpa approval. Mat sudah dikabari (16:21).
+- **(2026-10-28)** `bun test` (api) memakai DB dev lokal dari `.env` (`hris`) — data uji dibuat/dihapus di DB yang sama dengan server dev & data uji manual (mis. tanggal merah lokal memengaruhi test). Pertimbangkan DB test terpisah (mis. `hris_test`) untuk `test:api`.
 - **(2026-10-28, TM-D24)** Persetujuan **ROSTER_EDIT** (perubahan roster karyawan ber-crew oleh HR) belum bisa diputus dari **app Flutter** (hanya web / Approval HP web) dan belum ada **notifikasi push** ke atasan/HR — atasan yang hanya memakai app tidak melihat pengajuannya. Perlu endpoint/operasi app + notifikasi (BE) dan layar di `Arthasia-Mobile`.
 - **(2026-10-27, TM-D20)** Zona waktu TM **per PT** (sekarang satu pengaturan global) — dibuka bila ada PT di zona berbeda.
 - **(2026-10-19, pertanyaan pemilik projek)** **Aturan waktu status kepegawaian & grade** belum ada (master hanya nama/kategori): masa percobaan ≤ 3 bulan + pengingat, tanggal akhir & total PKWT ≤ 5 tahun (Fase 7 Kontrak), syarat masa kerja/jenjang grade (Payroll Fase 8). Perlu keputusan HR: durasi standar kontrak per jabatan, kebijakan perpanjangan, penyetuju.
@@ -114,6 +117,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-10-28** — Approval (modul bersama): inbox & `/time/queue` Super Admin tidak lagi selalu kosong (`d609d2b`); HR yang sudah memutus satu langkah tidak lagi ditawari override langkah lain (`96b026d`). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-28** — Gabung `HRIS/Mat/Mac` (FF `9c94f5d`): TM-D24 tahap 2–4 (kuas, import, anggota crew lewat persetujuan) + isi template mundur dalam periode terbuka (dikonfirmasi pengguna: Alpha baru tetap). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-28** — Gabung `HRIS/Mat/Mac` (FF `3dd3861`): template roster HR TM-D23, perubahan roster ber-crew wajib disetujui TM-D24 tahap 1, cari nama/NIK Data Absen Harian; test susulan TM-D19 tahan tanggal merah. (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-10-27** — Perapihan PROGRESS sesuai rilis gel. 14 (EMP-D1, IAM-D1, TM-D13–D19, M3). (Oatse)
