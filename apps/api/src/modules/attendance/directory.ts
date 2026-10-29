@@ -89,6 +89,12 @@ export async function employeesByNumbers(
   return new Map(rows.map((row) => [row.employeeNumber ?? row.id, toDirectory(row)]));
 }
 
+/** Id karyawan (aktif & tidak aktif) yang nama atau NIK-nya memuat `q` — filter cari Data Absen Harian. */
+export async function employeeIdsMatching(q: string): Promise<string[]> {
+  const rows = await listEmployeeBriefs({ q });
+  return rows.map((row) => row.id);
+}
+
 /** Tim MANAGER = bawahan langsung (D-009). */
 export async function teamIds(managerEmployeeId: string): Promise<string[]> {
   const rows = await listEmployeeBriefs({ managerId: managerEmployeeId });

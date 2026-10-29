@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCompanyScope, useMasterData } from "@/features/employee/api";
 import { EmployeePicker } from "@/features/employee/components/employee-picker";
 import { errorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 import { fetchNextAssetCode, useAssetCategories, useAssetMutations, usePpeTypes } from "../api";
 import type { Asset } from "../schemas";
 import { Field } from "./asset-actions";
@@ -61,14 +62,22 @@ function FormDialog({
   };
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? null : onClose())}>
-      <DialogContent className={wide ? "sm:max-w-2xl" : "sm:max-w-lg"}>
-        <form onSubmit={submit} className="grid max-h-[80dvh] gap-5 overflow-y-auto pr-1">
-          <DialogHeader>
+      <DialogContent
+        className={cn(
+          "flex max-h-[min(90dvh,860px)] flex-col gap-0 overflow-hidden p-0",
+          wide ? "sm:max-w-2xl" : "sm:max-w-lg",
+        )}
+      >
+        {/* Judul & tombol tetap terlihat; hanya isi yang di-scroll (pola dialog SP, 2026-10-19). */}
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b px-6 pt-6 pr-12 pb-4">
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
-          {children}
-          <DialogFooter>
+          <div className="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto px-6 py-5">
+            {children}
+          </div>
+          <DialogFooter className="border-t px-6 py-4">
             <Button type="button" variant="ghost" onClick={onClose}>
               Batal
             </Button>
@@ -383,7 +392,7 @@ export function AssignAssetDialog({
         selectedId={employeeId}
         onSelect={setEmployeeId}
         title="Karyawan penerima"
-        className="h-64"
+        className="h-64 min-h-0"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Field label="Tanggal serah" htmlFor={`${id}-date`}>
@@ -480,7 +489,7 @@ export function PpeIssueDialog({ open, onClose }: { open: boolean; onClose: () =
         selectedId={employeeId}
         onSelect={setEmployeeId}
         title="Karyawan penerima"
-        className="h-56"
+        className="h-56 min-h-0"
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div className="sm:col-span-2">

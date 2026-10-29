@@ -474,6 +474,12 @@ const TRAINING_FIELDS: FieldDef[] = [
   { name: "trainingField", label: "Nama pelatihan / sertifikasi" },
   { name: "organizer", label: "Penyelenggara", optional: true },
   {
+    name: "certificateNumber",
+    label: "No. sertifikat",
+    optional: true,
+    placeholder: "Mis. POP-12345",
+  },
+  {
     name: "type",
     label: "Jenis",
     kind: "select",
@@ -561,6 +567,7 @@ export function TrainingSection({
         initial={{
           trainingField: s(current?.trainingField),
           organizer: s(current?.organizer),
+          certificateNumber: s(current?.certificateNumber),
           type: s(current?.type),
           hours: s(current?.hours),
           startDate: s(current?.startDate),
@@ -570,6 +577,7 @@ export function TrainingSection({
         validate={check(trainingInputSchema, (v) => ({
           trainingField: v.trainingField ?? "",
           organizer: textOrNull(v.organizer),
+          certificateNumber: textOrNull(v.certificateNumber),
           type: v.type || null,
           hours: numberOrNull(v.hours),
           startDate: v.startDate || null,

@@ -19,4 +19,6 @@
 | `leave_balance_adjustments` | Penyesuaian manual + alasan |
 | `leave_requests` | `employee_id`, `leave_type_id`, `start_date`, `end_date`, `working_days`, `document_path?`, `status`, referensi approval |
 
+**2026-10-27 (TM-D21):** `leave.service.ts` tidak lagi punya `todayJakarta`; batas hari memakai `settingsToday()` dari `attendance/index.ts` (zona pengaturan TM).
+
 **Kontrak OpenAPI (MOB-D7 #1, 2026-10-21):** `leave.contract.ts` (LeaveType, LeaveYear, LeaveMe, LeavePreview, LeaveRequest, LeaveBalance, LeaveLedger, LeaveExitSettlement, LeaveJobResult, …), `LeaveDailyResult` diekspor dari `leave.service.ts`; notifikasi cuti membawa target `LEAVE_REQUEST`.

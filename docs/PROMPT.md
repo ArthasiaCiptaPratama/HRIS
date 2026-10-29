@@ -72,7 +72,7 @@ Sesi tidak dianggap selesai sebelum langkah 5 dilakukan.
 - **Tipe dari Zod:** `type X = z.infer<typeof xSchema>`. Jangan menulis tipe yang sama dua kali.
 - **Error:** lempar turunan `AppError` (mis. `NotFoundError`, `ForbiddenError`, `ConflictError`, `BusinessRuleError`), jangan `throw new Error("...")` mentah di logika bisnis.
 - **Uang:** jangan pernah memakai `number` JS untuk nominal. Pakai `Prisma.Decimal` untuk perhitungan dan tulis aturan pembulatan secara eksplisit.
-- **Tanggal & waktu:** simpan `timestamptz` UTC. Logika bisnis harian (telat, hari kerja, periode) memakai zona `Asia/Jakarta` dari pengaturan sistem. Kolom tanggal murni (tanggal cuti, hari libur) memakai tipe `date`.
+- **Tanggal & waktu:** simpan `timestamptz` UTC. Logika bisnis harian Time Management & cuti (telat, hari kerja, roster, periode) memakai zona dari pengaturan TM (`time_settings.timezone`, bawaan `Asia/Makassar`; helper `settingsToday()`, TM-D21/D22); modul lain memakai `Asia/Jakarta`. Kolom tanggal murni (tanggal cuti, hari libur) memakai tipe `date`.
 - **Komentar** hanya untuk menjelaskan *kenapa*, bukan *apa*. Aturan bisnis yang tidak jelas dari kode diberi rujukan ke PLAN (mis. `// PLAN §5.2: satu penolakan = REJECTED final`).
 - **Format & lint:** Biome. Jangan menonaktifkan aturan tanpa komentar alasan.
 

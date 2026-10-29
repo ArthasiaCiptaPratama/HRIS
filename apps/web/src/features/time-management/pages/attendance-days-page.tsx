@@ -24,6 +24,7 @@ import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components
 import { FormSelect } from "@/components/form-select";
 import { ListPanel } from "@/components/list-panel";
 import { PageHeader } from "@/components/page-header";
+import { SearchField } from "@/components/search-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,6 +103,8 @@ export function AttendanceDaysPage() {
   const [to, setTo] = useState(today);
   const [labeledOnly, setLabeledOnly] = useState(false);
   const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const q = useDeferredValue(search.trim());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<"APPROVED" | "REJECTED" | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
@@ -114,6 +117,7 @@ export function AttendanceDaysPage() {
     companyId: scope.selectedId,
     labeledOnly,
     status: tab === "all" ? status || undefined : undefined,
+    q: q || undefined,
   });
   const rows = list.data ?? [];
   const selectable = rows.filter((d) => decidableApprovals(d).length > 0);
@@ -292,6 +296,15 @@ export function AttendanceDaysPage() {
       <ListPanel
         toolbar={
           <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-center">
+            <SearchField
+              value={search}
+              onChange={(value) => {
+                setSearch(value);
+                setSelected(new Set());
+              }}
+              placeholder="Cari nama atau NIK…"
+              aria-label="Cari karyawan"
+            />
             <div className="flex items-center gap-2">
               <Input
                 type="date"
@@ -364,11 +377,17 @@ export function AttendanceDaysPage() {
                   title: "Gagal memuat data absen",
                   description: errorMessage(list.error),
                 }
-              : {
-                  icon: ClipboardCheck,
-                  title:
-                    tab === "inbox" ? "Tidak ada yang perlu diputuskan" : "Belum ada data absen",
-                }
+              : q
+                ? {
+                    icon: SearchX,
+                    title: `Tidak ada absen untuk "${q}"`,
+                    description: "Periksa ejaan nama / NIK, atau perluas rentang tanggal.",
+                  }
+                : {
+                    icon: ClipboardCheck,
+                    title:
+                      tab === "inbox" ? "Tidak ada yang perlu diputuskan" : "Belum ada data absen",
+                  }
           }
         />
       </ListPanel>

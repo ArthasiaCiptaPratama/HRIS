@@ -19,6 +19,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./tests/setup.ts"],
+    // Bawaan 5 dtk terlalu ketat untuk test app utuh saat suite penuh paralel (lihat tests/setup.ts).
+    testTimeout: 20_000,
     // Nilai palsu: supabase-js di-mock di test, tidak ada panggilan jaringan.
     env: {
       VITE_API_BASE_URL: "http://api.test/api/v1",

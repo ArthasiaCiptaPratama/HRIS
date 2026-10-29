@@ -18,15 +18,18 @@ import { supabase } from "@/lib/supabase";
 import {
   bulkResultSchema,
   crewSchema,
+  customTemplateSchema,
   daySchema,
   holidaySchema,
   importPreviewSchema,
   patternSchema,
   precheckSchema,
   rosterChangeSchema,
+  rosterEditSchema,
   rosterGridSchema,
   selfieUploadSchema,
   shiftSchema,
+  templateAssignPlanSchema,
   todaySchema,
 } from "./schemas";
 
@@ -45,6 +48,8 @@ export const tmKeys = {
   shifts: (companyId: string) => ["time-management", "shifts", companyId] as const,
   patterns: (companyId: string) => ["time-management", "patterns", companyId] as const,
   crews: (companyId: string) => ["time-management", "crews", companyId] as const,
+  customTemplates: (companyId: string) =>
+    ["time-management", "custom-templates", companyId] as const,
   grid: (companyId: string, month: string, crewId: string) =>
     ["time-management", "grid", companyId, month, crewId] as const,
   changes: (scope: string) => ["time-management", "changes", scope] as const,
@@ -166,6 +171,8 @@ export interface DayListParams {
   labeledOnly?: boolean;
   status?: string | undefined;
   employeeId?: string | undefined;
+  /** Cari nama / NIK karyawan. */
+  q?: string | undefined;
 }
 
 export function useAttendanceDays(params: DayListParams, enabled = true) {
@@ -174,6 +181,7 @@ export function useAttendanceDays(params: DayListParams, enabled = true) {
   if (params.labeledOnly) search.set("labeledOnly", "true");
   if (params.status) search.set("status", params.status);
   if (params.employeeId) search.set("employeeId", params.employeeId);
+  if (params.q) search.set("q", params.q);
   return useQuery({
     queryKey: tmKeys.days(params),
     queryFn: ({ signal }) =>
@@ -203,6 +211,29 @@ export function useDecideApproval() {
         body,
         schema: one(z.object({ requestId: z.string(), status: z.string() })),
       }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+}
+
+/** TM-D24: pengajuan perubahan roster oleh HR — inbox keputusan / diajukan saya. */
+export function useRosterEdits(scope: "inbox" | "mine", enabled = true) {
+  return useQuery({
+    queryKey: ["time-management", "roster-edits", scope] as const,
+    queryFn: ({ signal }) =>
+      api(`/roster-edits?scope=${scope}`, { schema: many(rosterEditSchema), signal }).then(
+        (r) => r.data,
+      ),
+    enabled,
+  });
+}
+
+export function useCancelRosterEdit() {
+  const refresh = useRefreshAll();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/roster-edits/${id}/cancel`, { method: "POST", schema: one(rosterEditSchema) }).then(
+        (r) => r.data,
+      ),
     onSuccess: refresh,
   });
 }
@@ -306,6 +337,91 @@ export function useRosterMaster(resource: "shifts" | "roster-patterns" | "crews"
   return { save, archive };
 }
 
+/** TM-D23: template roster buatan HR. */
+export function useCustomTemplates(companyId: string | undefined) {
+  return useQuery({
+    queryKey: tmKeys.customTemplates(companyId ?? ""),
+    queryFn: ({ signal }) =>
+      api(`/roster-custom-templates?companyId=${companyId}`, {
+        schema: many(customTemplateSchema),
+        signal,
+      }).then((r) => r.data),
+    enabled: Boolean(companyId),
+  });
+}
+
+export function useCustomTemplateMutations() {
+  const refresh = useRefreshAll();
+  const save = useMutation({
+    mutationFn: ({ id, body }: { id?: string | undefined; body: Record<string, unknown> }) =>
+      api(id ? `/roster-custom-templates/${id}` : "/roster-custom-templates", {
+        method: id ? "PUT" : "POST",
+        body,
+        schema: one(customTemplateSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+  const archive = useMutation({
+    mutationFn: (id: string) =>
+      api(`/roster-custom-templates/${id}`, { method: "DELETE", schema: one(z.unknown()) }),
+    onSuccess: refresh,
+  });
+  const install = useMutation({
+    mutationFn: ({
+      id,
+      workLocationId,
+      cycleStartDate,
+    }: {
+      id: string;
+      workLocationId: string;
+      cycleStartDate: string;
+    }) =>
+      api(`/roster-custom-templates/${id}/install`, {
+        method: "POST",
+        body: { workLocationId, cycleStartDate },
+        schema: one(
+          z.object({
+            crews: z.array(z.object({ id: z.string(), name: z.string() })),
+            restWarnings: z.array(z.string()),
+          }),
+        ),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+  const assign = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: TemplateAssignBody }) =>
+      api(`/roster-custom-templates/${id}/assign`, {
+        method: "POST",
+        body,
+        schema: one(templateAssignPlanSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+  return { save, archive, install, assign };
+}
+
+export interface TemplateAssignBody {
+  workLocationId: string;
+  employeeIds: string[];
+  effectiveDate: string;
+}
+
+/** TM-D23 Fase 2: pratinjau pembagian karyawan ke crew template (belum menyimpan apa pun). */
+export function useTemplateAssignPreview(id: string, body: TemplateAssignBody, enabled: boolean) {
+  return useQuery({
+    queryKey: ["time-management", "template-assign", id, body] as const,
+    queryFn: ({ signal }) =>
+      api(`/roster-custom-templates/${id}/assign/preview`, {
+        method: "POST",
+        body,
+        schema: one(templateAssignPlanSchema),
+        signal,
+      }).then((r) => r.data),
+    enabled,
+    placeholderData: (previous) => previous,
+  });
+}
+
 export function useSetCrewMembers() {
   const refresh = useRefreshAll();
   return useMutation({
@@ -321,8 +437,8 @@ export function useSetCrewMembers() {
       api(`/crews/${crewId}/members`, {
         method: "PUT",
         body: { employeeIds, effectiveDate },
-        schema: one(z.unknown()),
-      }),
+        schema: one(z.object({ submitted: z.number().default(0) }).passthrough()),
+      }).then((r) => r.data),
     onSuccess: refresh,
   });
 }
@@ -334,7 +450,7 @@ export function useSetRosterCells() {
       api("/roster/cells", {
         method: "PUT",
         body: input,
-        schema: one(z.object({ updated: z.number() })),
+        schema: one(z.object({ updated: z.number(), submitted: z.number().default(0) })),
       }).then((r) => r.data),
     onSuccess: refresh,
   });
@@ -355,7 +471,7 @@ export function useRosterImport() {
       api("/roster/import/commit", {
         method: "POST",
         body: input,
-        schema: one(z.object({ saved: z.number() })),
+        schema: one(z.object({ saved: z.number(), submitted: z.number().default(0) })),
       }).then((r) => r.data),
     onSuccess: refresh,
   });

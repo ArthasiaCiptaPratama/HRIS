@@ -30,7 +30,13 @@ import {
 import { markNoAttendanceAlpha, pendingAlphaVerifications } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
 import { localDate, offsetMinutes } from "./attendance-engine.ts";
-import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
+import {
+  type RequestContext,
+  readTimeSettings,
+  settingsToday,
+  toDate,
+  toIso,
+} from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import { isoAddDays } from "./roster-engine.ts";
 import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
@@ -40,8 +46,6 @@ import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
 const db = () => getPrisma();
 export const STATEMENT_BUCKET = "attendance-statements";
 const URL_TTL_SECONDS = 10 * 60;
-const todayJakarta = (now = new Date()) =>
-  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
 const monthRange = (month: string) => {
   const from = `${month}-01`;
   const to = isoAddDays(`${isoAddDays(from, 31).slice(0, 7)}-01`, -1);
@@ -208,7 +212,7 @@ async function scopedEmployees(actor: Actor, companyId: string) {
 export async function monthlyRecap(ctx: RequestContext, companyId: string, month: string) {
   const employees = await scopedEmployees(ctx.actor, companyId);
   const { from, to } = monthRange(month);
-  const today = todayJakarta();
+  const today = await settingsToday();
   const ids = employees.map((e) => e.id);
   await markNoAttendanceAlpha(new Date(), ids);
   const shiftToday = localDate(new Date(), (await readTimeSettings()).timezone);
@@ -281,16 +285,16 @@ async function alphaCandidates(companyId: string, month: string) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function assertClosable(ctx: RequestContext, input: PeriodCloseInput) {
+async function assertClosable(ctx: RequestContext, input: PeriodCloseInput) {
   if (!canClosePeriod(ctx.actor, input.companyId)) throw new ForbiddenError();
   const { to } = monthRange(input.month);
-  if (to >= todayJakarta()) {
+  if (to >= (await settingsToday())) {
     throw new BusinessRuleError("Periode hanya bisa ditutup setelah bulannya berakhir.");
   }
 }
 
 export async function previewClose(ctx: RequestContext, input: PeriodCloseInput) {
-  assertClosable(ctx, input);
+  await assertClosable(ctx, input);
   const period = await db().attendancePeriod.findUnique({
     where: { companyId_month: { companyId: input.companyId, month: input.month } },
   });
@@ -317,7 +321,7 @@ export async function previewClose(ctx: RequestContext, input: PeriodCloseInput)
 }
 
 export async function closePeriod(ctx: RequestContext, input: PeriodCloseInput, now = new Date()) {
-  assertClosable(ctx, input);
+  await assertClosable(ctx, input);
   const existing = await db().attendancePeriod.findUnique({
     where: { companyId_month: { companyId: input.companyId, month: input.month } },
   });
@@ -611,7 +615,7 @@ export async function createCorrection(ctx: RequestContext, input: CorrectionInp
   if (!employeeId) throw new ForbiddenError("Akun tidak terhubung ke data karyawan.");
   const employee = await directory.employeeById(employeeId);
   if (!employee) throw new NotFoundError();
-  if (input.workDate >= todayJakarta()) {
+  if (input.workDate >= (await settingsToday())) {
     throw new BusinessRuleError("Koreksi hanya untuk hari yang sudah lewat.");
   }
   // TM-D3: semua koreksi hanya s.d. tanggal kerja + 3 hari (zona waktu jam shift).
