@@ -1288,8 +1288,8 @@ export function registerAttendanceIntegrations() {
     if (day?.status !== "PENDING") return;
     await repository.updateDay(tx, event.subjectId, { status: event.status });
   });
-  configureRosterLocks(async (employeeIds, from, to) => {
-    const rows = await repository.lockingDays(employeeIds, toDate(from), toDate(to));
+  configureRosterLocks(async (employeeIds, from, to, tx) => {
+    const rows = await repository.lockingDays(employeeIds, toDate(from), toDate(to), tx);
     const locked = new Set(rows.map((r) => dayKey(r.employeeId, toIso(r.workDate))));
     // Periode tertutup (D-071) mengunci seluruh tanggal bulan itu untuk karyawan PT tersebut.
     const people = await directory.employeesByIds(employeeIds);
@@ -1297,6 +1297,7 @@ export function registerAttendanceIntegrations() {
       [...people.values()].map((p) => p.companyId),
       from,
       to,
+      tx,
     );
     if (closed.size > 0) {
       for (const person of people.values()) {

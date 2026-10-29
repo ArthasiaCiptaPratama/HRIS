@@ -1,8 +1,9 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { settingsToday } from "../../../src/modules/attendance/calendar.service.ts";
+import * as rosterRepository from "../../../src/modules/attendance/roster.repository.ts";
 import { patternCodeOn } from "../../../src/modules/attendance/roster-engine.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
@@ -44,7 +45,10 @@ const ids = {
   position: "",
   location: "",
   shifts: [] as string[],
-  emp: {} as Record<"mgr" | "ani" | "budi" | "cici" | "dodi", string>,
+  emp: {} as Record<
+    "mgr" | "ani" | "budi" | "cici" | "dodi" | "eko" | "fani" | "gita" | "hani",
+    string
+  >,
 };
 let companyId = "";
 let today = "";
@@ -120,7 +124,9 @@ beforeAll(async () => {
       })
     ).id;
   ids.emp.mgr = await mk("Mgr", null);
-  for (const n of ["ani", "budi", "cici", "dodi"] as const) ids.emp[n] = await mk(n, ids.emp.mgr);
+  for (const n of ["ani", "budi", "cici", "dodi", "eko", "fani", "gita", "hani"] as const) {
+    ids.emp[n] = await mk(n, ids.emp.mgr);
+  }
   h = {
     hr1: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
     hr2: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
@@ -158,7 +164,7 @@ afterAll(async () => {
   });
   await prisma.approvalRequest.deleteMany({ where: { subjectId: { in: edits.map((e) => e.id) } } });
   await prisma.rosterEditRequest.deleteMany({ where: { employeeId: { in: employees } } });
-  await prisma.notification.deleteMany({ where: { recipientAccountId: { in: [] } } });
+  await prisma.notification.deleteMany({ where: { targetId: { in: edits.map((e) => e.id) } } });
   const templates = await prisma.rosterTemplate.findMany({
     where: { name: { contains: RUN } },
     select: { patterns: { select: { id: true } } },
@@ -430,5 +436,139 @@ describe("perubahan roster karyawan ber-crew wajib disetujui (TM-D24)", () => {
       effectiveDate: "2025-01-15",
     });
     expect(closed.status).toBe(422);
+  });
+  // Review gabung 9c94f5d (2026-10-28): atur anggota crew satu transaksi; anggota yang mulai setelah tanggal
+  // efektif tetap lewat approval; notifikasi keputusan dikirim setelah commit.
+  const G = () => plusDays(today, 30);
+  const atomCrew = () => prisma.crew.findFirstOrThrow({ where: { name: `Uji Atomik ${RUN}` } });
+  const editOf = async (employeeId: string) =>
+    (await mine()).find((e) => e.employee.id === employeeId && e.status === "PENDING") as Edit & {
+      summary: string;
+    };
+
+  test("atur anggota crew atomik: gagal di tengah → anggota baru & pengajuan tidak ada yang berlaku", async () => {
+    const malam = await prisma.crew.findFirstOrThrow({
+      where: { name: { contains: `Malam ${RUN}` }, deletedAt: null },
+    });
+    const crew = await prisma.crew.create({
+      data: {
+        companyId,
+        workLocationId: ids.location,
+        name: `Uji Atomik ${RUN}`,
+        patternId: malam.patternId,
+        cycleStartDate: malam.cycleStartDate,
+      },
+    });
+    await prisma.crewMember.create({
+      data: { crewId: crew.id, employeeId: ids.emp.eko, startDate: D(today) },
+    });
+    // Fani (tanpa crew) masuk langsung + Eko dikeluarkan (diajukan); penyimpanan pengajuan gagal.
+    const body = { employeeIds: [ids.emp.fani], effectiveDate: G() };
+    const spy = spyOn(rosterRepository, "createRosterEdit").mockImplementationOnce(() => {
+      throw new Error("gagal uji");
+    });
+    const failed = await call("PUT", `/crews/${crew.id}/members`, h.hr1, body);
+    spy.mockRestore();
+    expect(failed.status).toBe(500);
+    expect(await prisma.crewMember.count({ where: { employeeId: ids.emp.fani } })).toBe(0);
+    expect(await prisma.rosterDay.count({ where: { employeeId: ids.emp.fani } })).toBe(0);
+    expect(await prisma.rosterEditRequest.count({ where: { employeeId: ids.emp.eko } })).toBe(0);
+
+    const ok = await call("PUT", `/crews/${crew.id}/members`, h.hr1, body);
+    expect(ok.status).toBe(200);
+    expect((await data<{ submitted: number }>(ok)).submitted).toBe(1);
+    expect(await prisma.rosterDay.count({ where: { employeeId: ids.emp.fani } })).toBeGreaterThan(
+      0,
+    );
+    expect((await editOf(ids.emp.eko)).summary).toBe(`Keluar dari crew ${crew.name}`);
+  });
+
+  test("anggota yang mulai setelah tanggal efektif: dikeluarkan / dipindah tetap lewat approval", async () => {
+    const crew = await atomCrew();
+    const siang = await prisma.crew.findFirstOrThrow({
+      where: { name: { contains: `Siang ${RUN}` }, deletedAt: null },
+    });
+    const later = D(plusDays(G(), 5));
+    await prisma.crewMember.create({
+      data: { crewId: crew.id, employeeId: ids.emp.gita, startDate: later },
+    });
+    await prisma.crewMember.create({
+      data: { crewId: siang.id, employeeId: ids.emp.hani, startDate: later },
+    });
+    // Gita (mulai F+5) tidak ada di daftar; Hani (crew Siang mulai F+5) masuk.
+    const res = await call("PUT", `/crews/${crew.id}/members`, h.hr1, {
+      employeeIds: [ids.emp.eko, ids.emp.fani, ids.emp.hani],
+      effectiveDate: G(),
+    });
+    expect(res.status).toBe(200);
+    expect((await data<{ submitted: number }>(res)).submitted).toBe(2);
+    expect(
+      await prisma.crewMember.count({ where: { employeeId: ids.emp.gita, crewId: crew.id } }),
+    ).toBe(1);
+    expect(
+      await prisma.crewMember.count({ where: { employeeId: ids.emp.hani, crewId: crew.id } }),
+    ).toBe(0);
+    expect(
+      await prisma.crewMember.count({ where: { employeeId: ids.emp.hani, crewId: siang.id } }),
+    ).toBe(1);
+    expect((await editOf(ids.emp.gita)).summary).toBe(`Keluar dari crew ${crew.name}`);
+    expect((await editOf(ids.emp.hani)).summary).toBe(`Pindah ke crew ${crew.name}`);
+  });
+
+  test("keputusan final → notifikasi hasil ke HR pengaju setelah commit; keputusan gagal tidak mengirim", async () => {
+    const crew = await atomCrew();
+    const decided = (id: string) =>
+      prisma.notification.findMany({
+        where: { type: "attendance.roster_edit_decided", targetType: "ROSTER_EDIT", targetId: id },
+      });
+    const gita = await editOf(ids.emp.gita);
+    for (const headers of [h.mgr, h.hr2]) {
+      const r = await call("POST", `/approvals/${gita.approval?.id}/decision`, headers, {
+        decision: "APPROVED",
+      });
+      expect(r.status).toBe(200);
+    }
+    expect(
+      await prisma.crewMember.count({ where: { employeeId: ids.emp.gita, crewId: crew.id } }),
+    ).toBe(0);
+    const applied = await decided(gita.id);
+    expect(applied).toHaveLength(1);
+    expect(applied[0]?.title).toContain("disetujui");
+
+    // Crew tujuan diarsipkan → keputusan gagal (transaksi batal): status tetap, tanpa notifikasi.
+    const hani = await editOf(ids.emp.hani);
+    await prisma.crew.update({ where: { id: crew.id }, data: { deletedAt: new Date() } });
+    expect(
+      (
+        await call("POST", `/approvals/${hani.approval?.id}/decision`, h.mgr, {
+          decision: "APPROVED",
+        })
+      ).status,
+    ).toBe(200);
+    const fail = await call("POST", `/approvals/${hani.approval?.id}/decision`, h.hr2, {
+      decision: "APPROVED",
+    });
+    expect(fail.status).toBe(422);
+    expect(await decided(hani.id)).toHaveLength(0);
+    expect((await editOf(ids.emp.hani))?.id).toBe(hani.id);
+    await prisma.crew.update({ where: { id: crew.id }, data: { deletedAt: null } });
+
+    const rejected = await call("POST", `/approvals/${hani.approval?.id}/decision`, h.hr2, {
+      decision: "REJECTED",
+      note: "uji",
+    });
+    expect(rejected.status).toBe(200);
+    const notes = await decided(hani.id);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.title).toContain("ditolak");
+    // Target notifikasi (deep link app): HR pengaju tetap boleh membuka detail yang sudah final.
+    for (const [id, status] of [
+      [gita.id, "APPLIED"],
+      [hani.id, "REJECTED"],
+    ] as const) {
+      const detail = await call("GET", `/roster-edits/${id}`, h.hr1);
+      expect(detail.status).toBe(200);
+      expect((await data<Edit>(detail)).status).toBe(status);
+    }
   });
 });

@@ -10,8 +10,8 @@ export async function withTransaction<T>(run: (tx: AttendanceTx) => Promise<T>):
 }
 
 // ── Shift ──
-export const listShifts = (companyId: string, includeArchived = false) =>
-  getPrisma().shift.findMany({
+export const listShifts = (companyId: string, includeArchived = false, tx?: AttendanceTx) =>
+  db(tx).shift.findMany({
     where: { companyId, ...(includeArchived ? {} : { deletedAt: null }) },
     orderBy: [{ startMinute: "asc" }, { code: "asc" }],
   });
@@ -203,6 +203,25 @@ export const pendingRosterEditEmployees = async (employeeIds: string[]) =>
         select: { employeeId: true },
       })
     ).map((r) => r.employeeId),
+  );
+/** TM-D24: karyawan yang punya keanggotaan crew lain (aktif) yang masih berjalan pada/setelah tanggal. */
+export const employeesInOtherCrewsFrom = async (
+  employeeIds: string[],
+  crewId: string,
+  fromDate: Date,
+) =>
+  new Set(
+    (
+      await getPrisma().crewMember.findMany({
+        where: {
+          employeeId: { in: employeeIds },
+          crewId: { not: crewId },
+          OR: [{ endDate: null }, { endDate: { gte: fromDate } }],
+          crew: { deletedAt: null },
+        },
+        select: { employeeId: true },
+      })
+    ).map((m) => m.employeeId),
   );
 export const membershipsOn = (employeeIds: string[], onDate: Date) =>
   getPrisma().crewMember.findMany({
