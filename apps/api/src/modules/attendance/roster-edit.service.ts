@@ -2,6 +2,7 @@ import { OFF_CODE } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import {
+  type AfterCommit,
   type ApprovalView,
   cancelApprovalRequest,
   createApprovalRequest,
@@ -20,21 +21,24 @@ import {
 import * as directory from "./directory.ts";
 import * as repository from "./roster.repository.ts";
 import {
+  assertCrewEmployees,
+  audit,
   type CellIssue,
   type CrewDto,
   type CrewedCellSplitter,
   configureCrewedCellSplitter,
+  crewDtoById,
   dayKey,
   keepDayKeys,
   lockedDayKeys,
   type RosterCell,
   regenerateCrew,
-  setCrewMembers,
 } from "./roster.service.ts";
 import {
   backdatedOf,
   canViewRosterEdit,
   notifyNewRosterEdits,
+  notifyRosterEditDecided,
   type RosterEditExtras,
   rosterEditExtras,
 } from "./roster-edit-app.service.ts";
@@ -115,41 +119,70 @@ interface NewEdit {
   preview: RosterEditPreviewDay[];
 }
 
+type EditKind = "TEMPLATE" | "CELLS" | "IMPORT" | "CREW";
+type People = Awaited<ReturnType<typeof directory.employeesByIds>>;
+
 /** Buat pengajuan per karyawan + approval atasan & HR (pengaju = akun HR, tidak memutus langkahnya). */
 async function createEdits(
   ctx: RequestContext,
   companyId: string,
-  kind: "TEMPLATE" | "CELLS" | "IMPORT" | "CREW",
+  kind: EditKind,
   edits: NewEdit[],
 ): Promise<string[]> {
   if (edits.length === 0) return [];
   const people = await directory.employeesByIds(edits.map((e) => e.employeeId));
-  const ids = await repository.withTransaction(async (tx) => {
-    const created: string[] = [];
-    for (const e of edits) {
-      const managerEmployeeId = people.get(e.employeeId)?.managerId ?? null;
-      const row = await repository.createRosterEdit(tx, {
-        companyId,
-        employeeId: e.employeeId,
-        managerEmployeeId,
-        kind,
-        effectiveDate: toDate(e.effectiveDate),
-        payload: e.payload as never,
-        preview: e.preview as never,
-        createdByAccountId: ctx.actor.accountId,
-      });
-      await createApprovalRequest(tx, {
-        subjectType: "ROSTER_EDIT",
-        subjectId: row.id,
-        requesterEmployeeId: e.employeeId,
-        companyId,
-        managerEmployeeId,
-        submittedByAccountId: ctx.actor.accountId,
-      });
-      created.push(row.id);
-    }
-    return created;
-  });
+  const ids = await repository.withTransaction((tx) =>
+    insertEdits(tx, ctx, companyId, kind, edits, people),
+  );
+  await announceEdits(ctx, companyId, kind, edits, ids, people);
+  return ids;
+}
+
+/** Simpan pengajuan + approval di transaksi pemanggil (tanpa efek luar). */
+async function insertEdits(
+  tx: repository.AttendanceTx,
+  ctx: RequestContext,
+  companyId: string,
+  kind: EditKind,
+  edits: NewEdit[],
+  people: People,
+): Promise<string[]> {
+  const created: string[] = [];
+  for (const e of edits) {
+    const managerEmployeeId = people.get(e.employeeId)?.managerId ?? null;
+    const row = await repository.createRosterEdit(tx, {
+      companyId,
+      employeeId: e.employeeId,
+      managerEmployeeId,
+      kind,
+      effectiveDate: toDate(e.effectiveDate),
+      payload: e.payload as never,
+      preview: e.preview as never,
+      createdByAccountId: ctx.actor.accountId,
+    });
+    await createApprovalRequest(tx, {
+      subjectType: "ROSTER_EDIT",
+      subjectId: row.id,
+      requesterEmployeeId: e.employeeId,
+      companyId,
+      managerEmployeeId,
+      submittedByAccountId: ctx.actor.accountId,
+    });
+    created.push(row.id);
+  }
+  return created;
+}
+
+/** Setelah commit: notifikasi ke pemutus + audit per pengajuan. */
+async function announceEdits(
+  ctx: RequestContext,
+  companyId: string,
+  kind: EditKind,
+  edits: NewEdit[],
+  ids: string[],
+  people: People,
+) {
+  if (ids.length === 0) return;
   await notifyNewRosterEdits(
     ctx,
     companyId,
@@ -175,7 +208,6 @@ async function createEdits(
       ip: ctx.ip ?? null,
     });
   }
-  return ids;
 }
 
 /** Buat pengajuan TEMPLATE per karyawan (pindah / tetap di crew pemasangan template). */
@@ -272,6 +304,7 @@ const splitCrewedCells: CrewedCellSplitter = async (ctx, companyId, kind, cells)
 async function applyCellEdit(
   tx: repository.AttendanceTx,
   row: repository.RosterEditRow,
+  afterCommit: AfterCommit,
 ): Promise<string> {
   const payload = row.payload as unknown as CellEditPayload;
   const dates = payload.cells.map((c) => c.date).sort();
@@ -279,10 +312,14 @@ async function applyCellEdit(
     [row.employeeId],
     dates[0] as string,
     dates[dates.length - 1] as string,
+    tx,
   );
-  const shifts = new Map((await repository.listShifts(row.companyId)).map((s) => [s.code, s.id]));
+  const shifts = new Map(
+    (await repository.listShifts(row.companyId, false, tx)).map((s) => [s.code, s.id]),
+  );
   const before = await rosterCodes(
     payload.cells.map((c) => ({ employeeId: row.employeeId, date: c.date })),
+    tx,
   );
   const applied: { date: string; code: string | null }[] = [];
   for (const cell of payload.cells) {
@@ -303,18 +340,16 @@ async function applyCellEdit(
     }
     applied.push(cell);
   }
-  await notifyRosterChanges(
-    applied.map((c) => {
-      const key = `${row.employeeId}|${c.date}`;
-      return {
-        employeeId: row.employeeId,
-        date: c.date,
-        from: before.has(key) ? before.get(key) : undefined,
-        to: c.code === null ? undefined : c.code === OFF_CODE ? null : c.code,
-      };
-    }),
-    row.kind === "IMPORT" ? "import" : "edit",
-  );
+  const changes = applied.map((c) => {
+    const key = `${row.employeeId}|${c.date}`;
+    return {
+      employeeId: row.employeeId,
+      date: c.date,
+      from: before.has(key) ? before.get(key) : undefined,
+      to: c.code === null ? undefined : c.code === OFF_CODE ? null : c.code,
+    };
+  });
+  afterCommit(() => notifyRosterChanges(changes, row.kind === "IMPORT" ? "import" : "edit"));
   return dates[0] as string;
 }
 
@@ -322,8 +357,9 @@ async function applyCellEdit(
 async function applyTemplateEdit(
   tx: repository.AttendanceTx,
   row: repository.RosterEditRow,
+  afterCommit: AfterCommit,
 ): Promise<string> {
-  return moveToCrew(tx, row, row.payload as unknown as TemplateEditPayload, true);
+  return moveToCrew(tx, row, row.payload as unknown as TemplateEditPayload, true, afterCommit);
 }
 
 /** Pindahkan karyawan ke crew mulai tanggal efektif (atau hari ini bila sudah lewat). */
@@ -332,6 +368,7 @@ async function moveToCrew(
   row: repository.RosterEditRow,
   payload: { crewId: string; crewName: string },
   replaceNonPattern: boolean,
+  afterCommit: AfterCommit,
 ): Promise<string> {
   const crew = await repository.findCrew(payload.crewId, tx);
   if (!crew || crew.deletedAt) {
@@ -339,11 +376,11 @@ async function moveToCrew(
       `Crew ${payload.crewName} sudah diarsipkan; ajukan ulang perubahan ini.`,
     );
   }
-  const today = await settingsToday();
+  const today = await settingsToday(undefined, tx);
   // TM-D24 (mundur): tanggal berlaku apa adanya (periode terbuka dicek saat diajukan); hari ber-absen &
   // terkunci tidak diubah.
   const from = toIso(row.effectiveDate);
-  const horizon = isoAddDays(today, (await readTimeSettings()).rosterHorizonDays);
+  const horizon = isoAddDays(today, (await readTimeSettings(tx)).rosterHorizonDays);
   const keep = await keepDayKeys([row.employeeId], from, horizon, tx);
   if (replaceNonPattern) {
     const locked = keep;
@@ -381,8 +418,8 @@ async function moveToCrew(
   }
   // Crew asal dulu, crew tujuan terakhir (lihat setCrewMembers).
   const past = from < today ? { employeeIds: [row.employeeId], from, keep } : undefined;
-  for (const id of touched) await regenerateCrew(id, from, true, tx, past);
-  await regenerateCrew(payload.crewId, from, true, tx, past);
+  for (const id of touched) await regenerateCrew(id, from, true, tx, past, afterCommit);
+  await regenerateCrew(payload.crewId, from, true, tx, past, afterCommit);
   return from;
 }
 
@@ -398,8 +435,9 @@ async function leaveCrew(
   tx: repository.AttendanceTx,
   row: repository.RosterEditRow,
   payload: CrewEditPayload,
+  afterCommit: AfterCommit,
 ): Promise<string> {
-  const today = await settingsToday();
+  const today = await settingsToday(undefined, tx);
   const effective = toIso(row.effectiveDate);
   const from = effective < today ? today : effective;
   const fromDate = toDate(from);
@@ -408,18 +446,19 @@ async function leaveCrew(
     if (m.startDate >= fromDate) await repository.deleteMembership(tx, m.id);
     else await repository.endMembership(tx, m.id, toDate(isoAddDays(from, -1)));
   }
-  await regenerateCrew(payload.crewId, from, true, tx);
+  await regenerateCrew(payload.crewId, from, true, tx, undefined, afterCommit);
   return from;
 }
 
 async function applyCrewEdit(
   tx: repository.AttendanceTx,
   row: repository.RosterEditRow,
+  afterCommit: AfterCommit,
 ): Promise<string> {
   const payload = row.payload as unknown as CrewEditPayload;
   return payload.action === "join"
-    ? moveToCrew(tx, row, payload, false)
-    : leaveCrew(tx, row, payload);
+    ? moveToCrew(tx, row, payload, false, afterCommit)
+    : leaveCrew(tx, row, payload, afterCommit);
 }
 
 /** Ringkasan 14 hari bila karyawan dikeluarkan dari crew: hari pola crew itu menjadi kosong. */
@@ -448,6 +487,8 @@ export interface CrewMembersResult extends CrewDto {
 /**
  * TM-D24 tahap 4 (Crew › atur anggota): anggota baru tanpa crew → langsung; anggota yang pindah dari crew lain
  * atau dikeluarkan → pengajuan CREW per karyawan. Karyawan dengan pengajuan menunggu → ditolak.
+ * Satu transaksi (review 2026-10-28): anggota langsung + pengajuan berlaku bersama atau tidak sama sekali;
+ * notifikasi & audit setelah commit.
  */
 export async function requestCrewMembers(
   ctx: RequestContext,
@@ -457,22 +498,20 @@ export async function requestCrewMembers(
   const crew = await repository.findCrew(crewId);
   if (!crew || crew.deletedAt) throw new NotFoundError();
   if (!policy.canManageRoster(ctx.actor, crew.companyId)) throw new ForbiddenError();
+  await assertCrewEmployees(crew.companyId, input.employeeIds);
   const effective = toDate(input.effectiveDate);
-  const activeHere = new Set(
-    crew.members
-      .filter((m) => m.startDate <= effective && (!m.endDate || m.endDate >= effective))
-      .map((m) => m.employeeId),
+  // Anggota yang keanggotaannya masih berjalan pada/setelah tanggal efektif — termasuk yang baru mulai
+  // sesudahnya (sebelumnya terlewat lalu terhapus tanpa approval bila tidak ada di daftar).
+  const current = new Set(
+    crew.members.filter((m) => !m.endDate || m.endDate >= effective).map((m) => m.employeeId),
   );
   const wanted = new Set(input.employeeIds);
-  const elsewhere = new Map(
-    (await repository.membershipsOn([...wanted], effective))
-      .filter((m) => m.crew.id !== crewId)
-      .map((m) => [m.employeeId, m.crew]),
-  );
-  const joiners = [...wanted].filter((id) => !activeHere.has(id));
+  const joiners = [...wanted].filter((id) => !current.has(id));
+  // Ber-crew lain pada/setelah tanggal efektif → pindah (diajukan), termasuk keanggotaan yang mulai sesudahnya.
+  const elsewhere = await repository.employeesInOtherCrewsFrom(joiners, crewId, effective);
   const moving = joiners.filter((id) => elsewhere.has(id));
   const fresh = joiners.filter((id) => !elsewhere.has(id));
-  const leaving = [...activeHere].filter((id) => !wanted.has(id));
+  const leaving = [...current].filter((id) => !wanted.has(id));
   const affected = [...moving, ...leaving];
   const pending = await repository.pendingRosterEditEmployees(affected);
   if (pending.size > 0) {
@@ -483,11 +522,6 @@ export async function requestCrewMembers(
         .join(", ")}.`,
     );
   }
-  // Langsung: anggota tetap + anggota baru tanpa crew (anggota yang keluar tetap sampai disetujui).
-  const direct = await setCrewMembers(ctx, crewId, {
-    employeeIds: [...activeHere, ...fresh],
-    effectiveDate: input.effectiveDate,
-  });
   const edits: NewEdit[] = [];
   for (const employeeId of moving) {
     edits.push({
@@ -505,8 +539,34 @@ export async function requestCrewMembers(
       preview: await leavePreview(employeeId, crewId, input.effectiveDate),
     });
   }
-  const ids = await createEdits(ctx, crew.companyId, "CREW", edits);
-  return { ...direct, submitted: ids.length };
+  const people = await directory.employeesByIds(edits.map((e) => e.employeeId));
+  const tasks: (() => Promise<unknown>)[] = [];
+  const ids = await repository.withTransaction(async (tx) => {
+    // Langsung: anggota baru tanpa crew (anggota yang keluar tetap sampai disetujui).
+    if (fresh.length > 0) {
+      await repository.addMembers(
+        tx,
+        fresh.map((employeeId) => ({ crewId, employeeId, startDate: effective })),
+      );
+      await regenerateCrew(crewId, input.effectiveDate, true, tx, undefined, (task) =>
+        tasks.push(task),
+      );
+    }
+    return insertEdits(tx, ctx, crew.companyId, "CREW", edits, people);
+  });
+  await audit(ctx, "attendance.crew.members", "attendance.crew", crewId, null, {
+    employeeIds: input.employeeIds,
+    effectiveDate: input.effectiveDate,
+  });
+  for (const task of tasks) {
+    try {
+      await task();
+    } catch {
+      // Notifikasi bersifat tambahan: anggota & pengajuan sudah tersimpan.
+    }
+  }
+  await announceEdits(ctx, crew.companyId, "CREW", edits, ids, people);
+  return { ...(await crewDtoById(crewId, input.effectiveDate)), submitted: ids.length };
 }
 
 /** Status final approval `ROSTER_EDIT` → terapkan / tandai ditolak / dibatalkan. */
@@ -516,19 +576,23 @@ export function registerRosterEditHandler() {
     const row = await repository.findRosterEdit(event.subjectId, tx);
     if (!row || row.status !== "PENDING") return;
     if (event.status !== "APPROVED") {
-      await repository.updateRosterEdit(tx, row.id, {
-        status: event.status === "CANCELLED" ? "CANCELLED" : "REJECTED",
-        decidedAt: event.decidedAt,
-      });
+      const status = event.status === "CANCELLED" ? "CANCELLED" : "REJECTED";
+      await repository.updateRosterEdit(tx, row.id, { status, decidedAt: event.decidedAt });
+      if (status === "REJECTED") {
+        event.afterCommit(() =>
+          notifyRosterEditDecided(row, { status, appliedFrom: null }, event.decidedAt),
+        );
+      }
       return;
     }
+    // Semua baca/tulis lewat `tx`; notifikasi (roster karyawan, hasil ke HR pengaju) setelah commit.
     const appliedFrom =
       row.kind === "TEMPLATE"
-        ? await applyTemplateEdit(tx, row)
+        ? await applyTemplateEdit(tx, row, event.afterCommit)
         : row.kind === "CELLS" || row.kind === "IMPORT"
-          ? await applyCellEdit(tx, row)
+          ? await applyCellEdit(tx, row, event.afterCommit)
           : row.kind === "CREW"
-            ? await applyCrewEdit(tx, row)
+            ? await applyCrewEdit(tx, row, event.afterCommit)
             : null;
     if (!appliedFrom) throw new BusinessRuleError("Jenis perubahan roster ini belum didukung.");
     await repository.updateRosterEdit(tx, row.id, {
@@ -536,6 +600,9 @@ export function registerRosterEditHandler() {
       appliedFrom: toDate(appliedFrom),
       decidedAt: event.decidedAt,
     });
+    event.afterCommit(() =>
+      notifyRosterEditDecided(row, { status: "APPLIED", appliedFrom }, event.decidedAt),
+    );
   });
 }
 

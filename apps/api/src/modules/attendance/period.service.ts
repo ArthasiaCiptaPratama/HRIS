@@ -110,9 +110,14 @@ export function canClosePeriod(actor: Actor, companyId: string): boolean {
 }
 
 /** Bulan tertutup per PT pada rentang (kunci roster, cuti, koreksi). */
-export async function closedMonths(companyIds: string[], from: string, to: string) {
+export async function closedMonths(
+  companyIds: string[],
+  from: string,
+  to: string,
+  tx?: Prisma.TransactionClient,
+) {
   if (companyIds.length === 0) return new Set<string>();
-  const rows = await db().attendancePeriod.findMany({
+  const rows = await (tx ?? db()).attendancePeriod.findMany({
     where: {
       companyId: { in: [...new Set(companyIds)] },
       status: "CLOSED",

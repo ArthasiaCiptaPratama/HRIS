@@ -14,6 +14,7 @@ import * as repository from "./approval.repository.ts";
 // Mesin approval (PLAN §5.2, D-010, D-068, D-069). Modul pemilik subjek (attendance, leave):
 //   1. membuat permintaan lewat createApprovalRequest (di transaksinya sendiri),
 //   2. mendaftarkan handler status final lewat registerApprovalHandler (dipanggil di transaksi keputusan).
+//      Efek luar (notifikasi, FCM) didaftarkan lewat `afterCommit` → dijalankan setelah transaksi commit.
 // Aturan paralel: kedua langkah setuju → APPROVED; salah satu menolak → REJECTED final.
 
 export interface RequestContext {
@@ -24,9 +25,17 @@ export interface RequestContext {
 
 export type ApprovalTx = repository.ApprovalTx;
 export type FinalStatus = "APPROVED" | "REJECTED" | "CANCELLED";
+/** Tugas setelah keputusan final ter-commit (gagal = diabaikan; keputusan sudah berlaku). */
+export type AfterCommit = (task: () => Promise<unknown>) => void;
 export type ApprovalHandler = (
   tx: ApprovalTx,
-  event: { requestId: string; subjectId: string; status: FinalStatus; decidedAt: Date },
+  event: {
+    requestId: string;
+    subjectId: string;
+    status: FinalStatus;
+    decidedAt: Date;
+    afterCommit: AfterCommit;
+  },
 ) => Promise<void>;
 
 const handlers = new Map<ApprovalSubject, ApprovalHandler>();
@@ -181,6 +190,7 @@ async function decideInTx(
   requestId: string,
   body: ApprovalDecisionBody,
   now: Date,
+  afterCommit: AfterCommit,
 ): Promise<DecisionResult> {
   const row = await repository.findRequest(tx, requestId);
   if (!row) throw new NotFoundError();
@@ -241,7 +251,13 @@ async function decideInTx(
     await repository.setStatus(tx, row.id, status, now);
     const handler = handlers.get(row.subjectType);
     if (handler)
-      await handler(tx, { requestId: row.id, subjectId: row.subjectId, status, decidedAt: now });
+      await handler(tx, {
+        requestId: row.id,
+        subjectId: row.subjectId,
+        status,
+        decidedAt: now,
+        afterCommit,
+      });
   }
 
   await writeAudit(
@@ -267,7 +283,18 @@ export async function decide(
   body: ApprovalDecisionBody,
   now = new Date(),
 ): Promise<DecisionResult> {
-  return repository.withTransaction((tx) => decideInTx(tx, ctx, requestId, body, now));
+  const tasks: (() => Promise<unknown>)[] = [];
+  const result = await repository.withTransaction((tx) =>
+    decideInTx(tx, ctx, requestId, body, now, (task) => tasks.push(task)),
+  );
+  for (const task of tasks) {
+    try {
+      await task();
+    } catch {
+      // Efek setelah commit bersifat tambahan (notifikasi): keputusan tetap berlaku.
+    }
+  }
+  return result;
 }
 
 export interface BulkResultItem {

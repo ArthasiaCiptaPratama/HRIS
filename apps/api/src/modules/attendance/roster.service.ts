@@ -216,8 +216,8 @@ export async function archiveShift(ctx: RequestContext, id: string): Promise<Shi
 }
 
 /** Peta kode → shift aktif PT (OFF tidak termasuk). */
-async function shiftCodeMap(companyId: string) {
-  const shifts = await repository.listShifts(companyId);
+async function shiftCodeMap(companyId: string, tx?: repository.AttendanceTx) {
+  const shifts = await repository.listShifts(companyId, false, tx);
   return new Map(shifts.map((shift) => [shift.code, shift]));
 }
 
@@ -470,6 +470,27 @@ export async function archiveCrew(ctx: RequestContext, id: string): Promise<{ id
   return { id };
 }
 
+/** Calon anggota crew wajib karyawan aktif PT crew itu. */
+export async function assertCrewEmployees(companyId: string, employeeIds: string[]) {
+  const employees = await directory.employeesByIds(employeeIds);
+  const invalid = employeeIds.filter((id) => {
+    const e = employees.get(id);
+    return !e || e.companyId !== companyId || !e.isActive;
+  });
+  if (invalid.length > 0) {
+    throw new BusinessRuleError(
+      `${invalid.length} karyawan tidak aktif atau bukan karyawan perusahaan crew ini.`,
+    );
+  }
+}
+
+/** DTO crew terbaru (anggota pada `onDate`). */
+export async function crewDtoById(crewId: string, onDate: string): Promise<CrewDto> {
+  return (
+    await crewDtos([(await repository.findCrew(crewId)) as repository.CrewRow], onDate)
+  )[0] as CrewDto;
+}
+
 /**
  * Atur anggota crew mulai `effectiveDate`: karyawan baru ditambahkan (keanggotaan crew lain diakhiri sehari
  * sebelumnya), anggota yang tidak ada di daftar diakhiri. Crew yang terdampak dibangkitkan ulang.
@@ -484,16 +505,7 @@ export async function setCrewMembers(
   const crew = await repository.findCrew(crewId);
   if (!crew || crew.deletedAt) throw new NotFoundError();
   assertManage(ctx.actor, crew.companyId);
-  const employees = await directory.employeesByIds(input.employeeIds);
-  const invalid = input.employeeIds.filter((id) => {
-    const e = employees.get(id);
-    return !e || e.companyId !== crew.companyId || !e.isActive;
-  });
-  if (invalid.length > 0) {
-    throw new BusinessRuleError(
-      `${invalid.length} karyawan tidak aktif atau bukan karyawan perusahaan crew ini.`,
-    );
-  }
+  await assertCrewEmployees(crew.companyId, input.employeeIds);
   const effective = toDate(input.effectiveDate);
   const dayBefore = toDate(isoAddDays(input.effectiveDate, -1));
   const wanted = new Set(input.employeeIds);
@@ -533,9 +545,7 @@ export async function setCrewMembers(
     await regenerateCrew(id, input.effectiveDate, true, undefined, past);
   }
   await regenerateCrew(crewId, input.effectiveDate, true, undefined, past);
-  return (
-    await crewDtos([(await repository.findCrew(crewId)) as repository.CrewRow], input.effectiveDate)
-  )[0] as CrewDto;
+  return crewDtoById(crewId, input.effectiveDate);
 }
 
 // ── Pembangkit hari roster ─────────────────────────────────────────────────────
@@ -562,11 +572,13 @@ export async function regenerateCrew(
   /** TM-D24: jalankan di transaksi pemanggil (keputusan approval) — gagal = semuanya batal. */
   outerTx?: repository.AttendanceTx,
   past?: PastRegeneration,
+  /** Bersama `outerTx`: notifikasi dikirim setelah transaksi pemanggil commit, bukan di dalamnya. */
+  afterCommit?: (task: () => Promise<unknown>) => void,
 ): Promise<number> {
   const crew = await repository.findCrew(crewId, outerTx);
   if (!crew) return 0;
-  const settings = await readTimeSettings();
-  const today = await settingsToday();
+  const settings = await readTimeSettings(outerTx);
+  const today = await settingsToday(undefined, outerTx);
   const start = !from || from < today ? today : from;
   const end = isoAddDays(today, settings.rosterHorizonDays);
   const memberIds = [...new Set(crew.members.map((m) => m.employeeId))];
@@ -577,7 +589,7 @@ export async function regenerateCrew(
       ),
     );
   const before = notify && memberIds.length > 0 ? await snapshot() : null;
-  const codes = await shiftCodeMap(crew.companyId);
+  const codes = await shiftCodeMap(crew.companyId, outerTx);
   const generated = crew.deletedAt
     ? []
     : generateCrewDays(
@@ -652,7 +664,8 @@ export async function regenerateCrew(
       const [employeeId, date] = key.split("|") as [string, string];
       changes.push({ employeeId, date, from: before.get(key), to: after.get(key) });
     }
-    await notifyRosterChanges(changes, "pattern");
+    if (afterCommit) afterCommit(() => notifyRosterChanges(changes, "pattern"));
+    else await notifyRosterChanges(changes, "pattern");
   }
   return count;
 }
@@ -795,6 +808,7 @@ export type LockedDayCheck = (
   employeeIds: string[],
   from: string,
   to: string,
+  tx?: repository.AttendanceTx,
 ) => Promise<Set<string>>;
 let lockedDays: LockedDayCheck = async () => new Set();
 export function configureRosterLocks(check: LockedDayCheck) {
@@ -803,8 +817,12 @@ export function configureRosterLocks(check: LockedDayCheck) {
 const dayKey = (employeeId: string, date: string) => `${employeeId}|${date}`;
 
 /** Kunci `employeeId|tanggal` yang terkunci (hari absen disetujui / periode tertutup) pada rentang. */
-export const lockedDayKeys = (employeeIds: string[], from: string, to: string) =>
-  lockedDays(employeeIds, from, to);
+export const lockedDayKeys = (
+  employeeIds: string[],
+  from: string,
+  to: string,
+  tx?: repository.AttendanceTx,
+) => lockedDays(employeeIds, from, to, tx);
 
 /** TM-D24: hari yang tidak boleh ditimpa saat isi template mundur — terkunci + sudah ada absennya. */
 export async function keepDayKeys(
@@ -814,7 +832,7 @@ export async function keepDayKeys(
   tx?: repository.AttendanceTx,
 ) {
   // Berurutan & lewat transaksi pemanggil bila ada: di handler approval pool koneksi sudah dipakai transaksi.
-  const locked = await lockedDays(employeeIds, from, to);
+  const locked = await lockedDays(employeeIds, from, to, tx);
   const attended = await repository.attendanceDayKeys(employeeIds, toDate(from), toDate(to), tx);
   return new Set([...locked, ...attended]);
 }
