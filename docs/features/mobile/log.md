@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-10-29 — Uji ulang HP M5a + gabung ke develop (Oatse)
+- **Dikerjakan:** merge develop `41e7f94` (fix override HR `96b026d` + docs) ke `HRIS/mobile-app` → `bc4b9f3`. Data demo M5a di DB lokal `hris_mobile`, pola 28 Okt: seed tanpa FCM; pemicu U9 dan batch dengan FCM stg (disengaja). Pengajuan dibuat lewat service asli (`setRosterCells`, `requestCrewMembers`, `applyTemplateAssignment`), pengajunya admin.arthasia. Setelah uji, data dihapus dalam 1 transaksi (kutipan pengguna 09:47): 8 pengajuan + approval, 28 notifikasi `roster_edit_new` (termasuk sisa test gate), 1 token push, 7 karyawan `M5A-*`, template demo, akun lokal hr; role mgr → EMPLOYEE. `dev:api` dimatikan. `HRIS/mobile-app` di-FF ke develop.
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ · shared 346 · api 1023 · web ✔; CI `bc4b9f3` 40806733264 ✔. Uji HP (app): U7 (langkah HR APPROVED `is_override=false`, item hilang dari inbox HR), getToken, U9 saat app mati (notif ROSTER_EDIT diterima), batch (APPROVAL_QUEUE) ✔ 4/4. Setelah bersih-bersih: karyawan `M5A-*` 0, pengajuan 0, notif `roster_edit_new` 0, `push_devices` 0, akun hr lokal 0.
+- **Masalah / catatan:** Seed pertama gagal karena Super Admin Lokal (Demo) juga anggota Crew Demo tetapi tidak masuk daftar anggota, sehingga service mengajukan "keluar crew" untuknya. Pengajuan itu dibatalkan dan ikut dihapus. Daftar anggota crew harus lengkap saat seed. Backlog `bun test` memakai DB dev masih berlaku.
+- **Berikutnya:** kabari Mat (develop berisi perubahan roster-edit.service/roster.routes); rilis BE ke staging lewat `HRIS-rilis` lalu APK staging. Keduanya diputuskan pengguna.
+
 ### 2026-10-28 — Data demo & uji HP M5a (keputusan jadwal dari app) (Oatse)
 - **Dikerjakan:** data demo di DB lokal `hris_mobile` (tanpa user Auth baru): 4 karyawan demo bawahan Budi di Crew Demo + "Hana HR" untuk akun lokal `hr.arthasia`; `mgr.arthasia` sementara MANAGER; 4 pengajuan (CELLS ×2, CREW leave, TEMPLATE mundur) + pengajuan U9/U9b/U9c untuk Rina dibuat lewat service dengan FCM aktif (disengaja). API lokal :3000 di `59e7454`. Sesudah uji, semuanya dibersihkan dalam 1 transaksi (7 pengajuan + approval, 50 notifikasi `roster_edit_new` basi termasuk sisa test gate, 372 hari roster demo, template/pola/crew demo, 5 karyawan, akun lokal hr, `push_devices`, role mgr → EMPLOYEE, sel Rina 30–31 Okt → N/PATTERN) dan API dimatikan.
 - **Keputusan:** —
