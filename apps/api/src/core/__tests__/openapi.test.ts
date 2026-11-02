@@ -101,9 +101,15 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     expect(doc.components.schemas.MasterData?.properties).toHaveProperty("companies");
   });
 
-  test("punch mendeklarasikan header Idempotency-Key opsional", async () => {
+  test.each([
+    "/api/v1/attendance/punch",
+    // MOB-D22: pengajuan dari app juga aman di-retry.
+    "/api/v1/leave-requests",
+    "/api/v1/attendance/corrections",
+    "/api/v1/attendance/statements",
+  ])("%s mendeklarasikan header Idempotency-Key opsional", async (path) => {
     const doc = (await spec()) as unknown as Doc;
-    const parameters = doc.paths["/api/v1/attendance/punch"]?.post?.parameters as {
+    const parameters = doc.paths[path]?.post?.parameters as {
       name: string;
       in: string;
       required?: boolean;
@@ -112,6 +118,22 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     expect(parameters).toContainEqual(
       expect.objectContaining({ name: "Idempotency-Key", in: "header", required: false }),
     );
+  });
+
+  test("LeaveRequest.type = skema bernama LeaveRequestType (bukan objek inline yang bentrok nama di codegen)", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const schemas = doc.components.schemas as Record<
+      string,
+      { properties?: Record<string, { $ref?: string; enum?: string[] }> }
+    >;
+    expect(schemas.LeaveRequest?.properties?.type?.$ref).toBe(
+      "#/components/schemas/LeaveRequestType",
+    );
+    expect(schemas.LeaveRequestType?.properties?.category?.enum).toEqual([
+      "ANNUAL",
+      "PERMIT",
+      "SICK",
+    ]);
   });
 
   test("tanggal input = string + pola tanpa format date; respons tetap format date", async () => {

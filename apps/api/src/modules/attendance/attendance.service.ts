@@ -22,6 +22,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
+import { isIdempotencyConflict } from "../../core/idempotency.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { Shift } from "../../generated/prisma/client.ts";
 import {
@@ -862,11 +863,6 @@ async function replayPunch(ctx: RequestContext, employeeId: string, key: string)
   }
   const day = (await repository.findDayById(existing.day.id)) as repository.DayRow;
   return (await toDayViews(ctx, [day], true))[0] as DayView;
-}
-
-function isIdempotencyConflict(error: unknown) {
-  const e = error as { code?: string; meta?: { target?: unknown } };
-  return e?.code === "P2002" && JSON.stringify(e.meta?.target ?? "").includes("idempotency");
 }
 
 export async function punch(

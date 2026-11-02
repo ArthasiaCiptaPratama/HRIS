@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-02 — Retry aman pengajuan app (Idempotency-Key), batas 5 MB pernyataan, skema LeaveRequestType (Oatse)
+- **Dikerjakan:** serah-terima supervisor `2026-11-02-1425` langkah 4a (push docs `d249d8a`) dan 3 + butir 5 (lihat README, dua item 2026-11-02). Migrasi `20261102080000_app_create_idempotency` dibuat lewat `prisma migrate diff` (`migrate dev` menolak berjalan non-interaktif karena peringatan indeks unik) lalu `db:deploy` ke `hris_mobile`.
+- **Keputusan:** MOB-D22 (usul; ditulis sesi app di `Arthasia-Mobile/docs/decisions.md`): `Idempotency-Key` untuk tiga POST pengajuan, perilaku = punch MOB-D7, isi body tidak dibandingkan (risiko dicatat).
+- **Verifikasi:** `db:check` "No difference detected"; typecheck ✔ · biome ✔ · boundaries ✔ (540 modul) · test di DB lokal terpisah `hris_mobile_test` (bukan `hris_mobile` yang dipakai app): shared 346 · api 1031 · web 331, 0 gagal; test balapan cuti 3× lulus. swagger_parser app (salinan sementara, spec baru) → tidak ada bentrok enum/objek inline; cek yang sama pada spec app lama menemukan `Type` (cara cek tervalidasi).
+- **Masalah / catatan:** `bun test` lokal bawaan tetap memakai `hris_mobile` (backlog 2026-10-28); kali ini dijalankan dengan `DATABASE_URL`/`DIRECT_URL` mengarah ke `hris_mobile_test`. Migrasi baru tidak ikut gel. 17, antre gel. 18.
+- **Berikutnya:** app regenerate klien dari spec baru; kabar ke Mat lewat supervisor; langkah 5 (bersihkan baris uji lokal).
+
 ### YYYY-MM-DD — <judul singkat> (<PIC>)
 - **Dikerjakan:** … (rujuk item checklist README)
 - **Keputusan:** <PREFIX>-Dn baru / OD terjawab

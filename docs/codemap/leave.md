@@ -21,4 +21,6 @@
 
 **2026-10-27 (TM-D21):** `leave.service.ts` tidak lagi punya `todayJakarta`; batas hari memakai `settingsToday()` dari `attendance/index.ts` (zona pengaturan TM).
 
+**2026-11-02 (MOB-D22, `HRIS/mobile-app`):** `createLeaveRequest(ctx, input, key?)` → `replayLeaveRequest` (`repository.findRequestByIdempotencyKey`) + `submitLeaveRequest`; kolom `leave_requests.idempotency_key` (unik); helper `route` di `leave.routes.ts` menerima `headers`. Skema bernama `LeaveRequestType` (`leaveRequestTypeSchema`, `category` enum) untuk `LeaveRequest.type`; `LeaveRequestDto.type.category` bertipe `LeaveTypeDto["category"]`.
+
 **Kontrak OpenAPI (MOB-D7 #1, 2026-10-21):** `leave.contract.ts` (LeaveType, LeaveYear, LeaveMe, LeavePreview, LeaveRequest, LeaveBalance, LeaveLedger, LeaveExitSettlement, LeaveJobResult, …), `LeaveDailyResult` diekspor dari `leave.service.ts`; notifikasi cuti membawa target `LEAVE_REQUEST`.

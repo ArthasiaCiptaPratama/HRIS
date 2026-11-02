@@ -181,8 +181,8 @@ export function registerOpenApi(app: OpenAPIHono): void {
               description:
                 "REST API Akselerasi Arthasia (HRIS PT Arthasia Cipta Pratama). App mobile mengirim header " +
                 "`X-App-Version: MAJOR.MINOR.PATCH`; versi di bawah minimum dibalas 426 APP_UPDATE_REQUIRED " +
-                "dengan `details[0] = { minVersion, downloadUrl }`. Punch absen menerima header " +
-                "`Idempotency-Key` (retry aman).",
+                "dengan `details[0] = { minVersion, downloadUrl }`. Punch absen, pengajuan cuti, koreksi " +
+                "absensi, dan surat pernyataan menerima header `Idempotency-Key` (retry aman).",
             },
             servers: [{ url: "/" }],
           }),

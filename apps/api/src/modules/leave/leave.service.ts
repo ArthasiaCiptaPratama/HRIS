@@ -449,7 +449,7 @@ export async function createAttachmentUpload(
 export interface LeaveRequestDto {
   id: string;
   employee: { id: string; fullName: string; employeeNumber: string | null };
-  type: { id: string; code: string; name: string; category: string };
+  type: { id: string; code: string; name: string; category: LeaveTypeDto["category"] };
   startDate: string;
   endDate: string;
   workDates: string[];
@@ -583,11 +583,45 @@ async function toDtos(
   });
 }
 
+/** MOB-D22: retry dengan kunci sama → pengajuan yang sudah tercatat (bukan 409); milik orang lain → 409. */
+async function replayLeaveRequest(ctx: RequestContext, employeeId: string, key: string) {
+  const existing = await repository.findRequestByIdempotencyKey(key);
+  if (!existing) return null;
+  if (existing.employeeId !== employeeId) {
+    throw new ConflictError("Kunci permintaan sudah dipakai. Ajukan ulang.");
+  }
+  return (await toDtos(ctx, [existing]))[0] as LeaveRequestDto;
+}
+
 export async function createLeaveRequest(
   ctx: RequestContext,
   input: LeaveRequestInput,
+  idempotencyKey?: string,
 ): Promise<LeaveRequestDto> {
   const employeeId = selfEmployee(ctx);
+  if (idempotencyKey) {
+    const replay = await replayLeaveRequest(ctx, employeeId, idempotencyKey);
+    if (replay) return replay;
+  }
+  try {
+    return await submitLeaveRequest(ctx, employeeId, input, idempotencyKey);
+  } catch (error) {
+    // Dua permintaan dengan kunci sama bersamaan: yang kalah (indeks unik / cek tumpang-tindih)
+    // mengembalikan hasil yang menang.
+    if (idempotencyKey) {
+      const replay = await replayLeaveRequest(ctx, employeeId, idempotencyKey);
+      if (replay) return replay;
+    }
+    throw error;
+  }
+}
+
+async function submitLeaveRequest(
+  ctx: RequestContext,
+  employeeId: string,
+  input: LeaveRequestInput,
+  idempotencyKey: string | undefined,
+): Promise<LeaveRequestDto> {
   if (!policy.canRequestLeave(ctx.actor, employeeId)) throw new ForbiddenError();
   const employee = await employeeDirectory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
@@ -694,6 +728,7 @@ export async function createLeaveRequest(
       attachmentPath: input.attachmentPath ?? null,
       createdByEmployeeId: employeeId,
       resubmittedFromId: resubmitOf?.id ?? null,
+      idempotencyKey: idempotencyKey ?? null,
     });
     if (resubmitOf) await repository.lockRequest(tx, resubmitOf.id);
     if (

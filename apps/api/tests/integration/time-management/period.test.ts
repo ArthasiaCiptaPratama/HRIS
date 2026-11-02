@@ -281,6 +281,51 @@ describe("rekap & tutup periode", () => {
   });
 });
 
+describe("koreksi absensi: Idempotency-Key (MOB-D22)", () => {
+  test("retry kunci sama → koreksi yang sama (200, satu baris); kunci orang lain 409; format salah 400", async () => {
+    const yesterday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(
+      new Date(Date.now() - 86_400_000),
+    );
+    const key = `corr-${RUN}-0001`;
+    const body = { workDate: yesterday, checkIn: "07:00", reason: "Lupa absen, sinyal hilang" };
+    const first = await call(
+      "POST",
+      "/attendance/corrections",
+      { ...h.a, "Idempotency-Key": key },
+      body,
+    );
+    expect(first.status).toBe(200);
+    const created = await data<{ id: string; status: string }>(first);
+    // Respons pertama hilang → app mengulang dengan kunci sama: bukan 409 "sudah ada koreksi menunggu".
+    const retry = await call(
+      "POST",
+      "/attendance/corrections",
+      { ...h.a, "Idempotency-Key": key },
+      body,
+    );
+    expect(retry.status).toBe(200);
+    expect((await data<{ id: string }>(retry)).id).toBe(created.id);
+    expect(
+      await prisma.attendanceCorrection.count({
+        where: { employeeId: emp.a, workDate: D(yesterday) },
+      }),
+    ).toBe(1);
+    // Tanpa kunci: perilaku lama (409 untuk koreksi dobel).
+    expect((await call("POST", "/attendance/corrections", h.a, body)).status).toBe(409);
+    expect(
+      (await call("POST", "/attendance/corrections", { ...h.b, "Idempotency-Key": key }, body))
+        .status,
+    ).toBe(409);
+    expect(
+      (await call("POST", "/attendance/corrections", { ...h.a, "Idempotency-Key": "pendek" }, body))
+        .status,
+    ).toBe(400);
+    expect((await call("POST", `/attendance/corrections/${created.id}/cancel`, h.a)).status).toBe(
+      200,
+    );
+  });
+});
+
 describe("surat pernyataan absensi", () => {
   test("karyawan membuat pernyataan untuk hari ALPHA sendiri; sekali saja; HR & atasan melihat", async () => {
     const mine = await data<{ dayId: string; workDate: string; statement: unknown }[]>(
@@ -302,5 +347,62 @@ describe("surat pernyataan absensi", () => {
       );
       expect(list.find((r) => r.dayId === alphaDayId)?.statement?.reason).toContain("Anak sakit");
     }
+  });
+});
+
+describe("surat pernyataan: Idempotency-Key & batas lampiran (MOB-D22)", () => {
+  test("lampiran > 5 MB ditolak; retry kunci sama → pernyataan yang sama; kunci orang lain 409", async () => {
+    const mine = await data<{ dayId: string; workDate: string; statement: unknown }[]>(
+      await call("GET", "/attendance/statements/me", h.a),
+    );
+    const day = mine.find((m) => m.workDate === "2001-01-10");
+    expect(day?.statement).toBeNull();
+    const dayId = day?.dayId as string;
+
+    const big = await data<{ path: string; maxBytes: number }>(
+      await call("POST", "/attendance/statements/upload", h.a, { contentType: "application/pdf" }),
+    );
+    fake.putObject("attendance-statements", big.path, {
+      size: big.maxBytes + 1,
+      contentType: "application/pdf",
+    });
+    const reason = "Sakit mendadak, tidak sempat memberi kabar ke atasan.";
+    const tooBig = await call("POST", "/attendance/statements", h.a, {
+      dayId,
+      reason,
+      attachmentPath: big.path,
+    });
+    expect(tooBig.status).toBe(422);
+    expect(((await tooBig.json()) as { error: { message: string } }).error.message).toContain(
+      "terlalu besar",
+    );
+
+    const key = `stmt-${RUN}-0001`;
+    const body = { dayId, reason };
+    const first = await call(
+      "POST",
+      "/attendance/statements",
+      { ...h.a, "Idempotency-Key": key },
+      body,
+    );
+    expect(first.status).toBe(200);
+    const created = await data<{ statement: { id: string } }>(first);
+    const retry = await call(
+      "POST",
+      "/attendance/statements",
+      { ...h.a, "Idempotency-Key": key },
+      body,
+    );
+    expect(retry.status).toBe(200);
+    expect((await data<{ statement: { id: string } }>(retry)).statement.id).toBe(
+      created.statement.id,
+    );
+    // Tanpa kunci: perilaku lama (409, pernyataan sudah dibuat).
+    expect((await call("POST", "/attendance/statements", h.a, body)).status).toBe(409);
+    expect(
+      (await call("POST", "/attendance/statements", { ...h.b, "Idempotency-Key": key }, body))
+        .status,
+    ).toBe(409);
+    expect(await prisma.attendanceStatement.count({ where: { dayId } })).toBe(1);
   });
 });
