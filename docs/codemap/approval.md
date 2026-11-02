@@ -13,4 +13,4 @@
 | `approval_requests` | `subject_type` (`LEAVE`, `PERMIT`, `ATTENDANCE_CORRECTION`, `OVERTIME`), `subject_id`, `requester_id`, `mode` (`PARALLEL`/`SINGLE`), `status` |
 | `approval_steps` | `request_id`, `step` (`MANAGER`/`HR`), `assignee_id?`, `decision`, `decided_by?`, `decided_at?`, `note?`, `is_override` |
 
-Modul pemilik subjek (leave/attendance) dipanggil kembali lewat interface-nya saat status final berubah. **2026-10-29:** event handler membawa `afterCommit(task)` (tipe `AfterCommit` diekspor `index.ts`) — efek luar (notifikasi/FCM) dijalankan `decide()` setelah commit, gagal diabaikan; transaksi keputusan timeout 30 dtk.
+Modul pemilik subjek (leave/attendance) dipanggil kembali lewat interface-nya saat status final berubah. **2026-10-29:** event handler membawa `afterCommit(task)` (tipe `AfterCommit` diekspor `index.ts`) — efek luar (notifikasi/FCM) dijalankan `decide()` setelah commit, gagal diabaikan; transaksi keputusan timeout 30 dtk. Semua handler terdaftar (OVERTIME, ROSTER_CHANGE, ATTENDANCE_CORRECTION, ATTENDANCE_PUNCH, ATTENDANCE_DAY, ROSTER_EDIT, LEAVE/PERMIT) mengirim notifikasi lewat `afterCommit`.

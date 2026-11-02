@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
+import * as audit from "../../../src/core/audit.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import {
@@ -301,11 +302,17 @@ describe("notifikasi Time Management", () => {
     expect(digest[0]?.title).toContain("menunggu keputusan");
     expect(digest[0]?.targetType).toBe("APPROVAL_QUEUE");
 
-    for (const who of [h.mgr, h.hr]) {
-      await call("POST", `/approvals/${created.approval.id}/decision`, who, {
-        decision: "APPROVED",
-      });
-    }
+    const approve = (who: Record<string, string>) =>
+      call("POST", `/approvals/${created.approval.id}/decision`, who, { decision: "APPROVED" });
+    expect((await approve(h.mgr)).status).toBe(200);
+    // Keputusan final gagal setelah handler (audit di transaksi yang sama) → rollback, tanpa notifikasi.
+    const spy = spyOn(audit, "writeAudit").mockImplementationOnce(() => {
+      throw new Error("gagal uji");
+    });
+    expect((await approve(h.hr)).status).toBe(500);
+    spy.mockRestore();
+    expect(await notesOf(accounts.a, "attendance.correction_decided")).toHaveLength(0);
+    expect((await approve(h.hr)).status).toBe(200);
     const decided = await notesOf(accounts.a, "attendance.correction_decided");
     expect(decided).toHaveLength(1);
     expect(decided[0]?.title).toContain("disetujui");
