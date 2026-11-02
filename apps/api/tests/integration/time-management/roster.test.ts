@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
+import * as audit from "../../../src/core/audit.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
@@ -291,6 +292,26 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
     await call("POST", `/approvals/${created.approval.id}/decision`, h.mgr, {
       decision: "APPROVED",
     });
+    const since = new Date();
+    const changed = () =>
+      prisma.notification.count({
+        where: {
+          type: "attendance.roster_changed",
+          targetId: date,
+          title: { contains: "Tukar shift" },
+          createdAt: { gte: since },
+        },
+      });
+    // Keputusan final gagal setelah handler (audit di transaksi yang sama) → rollback, tanpa notifikasi.
+    const spy = spyOn(audit, "writeAudit").mockImplementationOnce(() => {
+      throw new Error("gagal uji");
+    });
+    const failed = await call("POST", `/approvals/${created.approval.id}/decision`, h.hr, {
+      decision: "APPROVED",
+    });
+    spy.mockRestore();
+    expect(failed.status).toBe(500);
+    expect(await changed()).toBe(0);
     await call("POST", `/approvals/${created.approval.id}/decision`, h.hr, {
       decision: "APPROVED",
     });
@@ -298,6 +319,7 @@ describe("perubahan & tukar shift (rekan → atasan + HR)", () => {
       await call("GET", `/roster/employees/${emp.a}?from=${date}&to=${date}`, h.a),
     );
     expect(day[0]).toMatchObject({ code: "OFF", source: "CHANGE" });
+    expect(await changed()).toBe(1);
   });
 
   test("tukar: rekan setuju dulu, lalu approval; kedua roster bertukar", async () => {

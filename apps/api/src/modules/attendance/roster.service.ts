@@ -838,8 +838,12 @@ export async function keepDayKeys(
 }
 
 /** Karyawan dari daftar yang tanggal `date`-nya terkunci (dipakai juga oleh perubahan/tukar shift). */
-export async function lockedEmployeesOn(employeeIds: string[], date: string): Promise<string[]> {
-  const locked = await lockedDays(employeeIds, date, date);
+export async function lockedEmployeesOn(
+  employeeIds: string[],
+  date: string,
+  tx?: repository.AttendanceTx,
+): Promise<string[]> {
+  const locked = await lockedDays(employeeIds, date, date, tx);
   return employeeIds.filter((id) => locked.has(dayKey(id, date)));
 }
 

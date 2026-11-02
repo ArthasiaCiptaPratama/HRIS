@@ -294,5 +294,5 @@ export const listChanges = (where: Prisma.RosterChangeRequestWhereInput, take = 
   getPrisma().rosterChangeRequest.findMany({ where, orderBy: { createdAt: "desc" }, take });
 export const changesByIds = (ids: string[]) =>
   getPrisma().rosterChangeRequest.findMany({ where: { id: { in: ids } } });
-export const shiftsByIds = (ids: string[]) =>
-  getPrisma().shift.findMany({ where: { id: { in: ids } } });
+export const shiftsByIds = (ids: string[], tx?: AttendanceTx) =>
+  db(tx).shift.findMany({ where: { id: { in: ids } } });
