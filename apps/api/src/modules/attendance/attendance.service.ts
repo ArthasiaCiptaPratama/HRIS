@@ -1263,17 +1263,19 @@ export function registerAttendanceIntegrations() {
       });
       if (day) {
         const date = toIso(day.workDate);
-        await notifyEmployees([
-          {
-            employeeId: day.employeeId,
-            type: "attendance.punch_rejected",
-            title: `${PUNCH_KIND_LABELS[punch.kind]} ${dateLabel(date)} ditolak`,
-            body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
-            link: "/time/pernyataan",
-            dedupeKey: `tm-punch-rejected:${punch.id}`,
-            target: { type: "ATTENDANCE_DAY", id: punch.dayId },
-          },
-        ]);
+        event.afterCommit(() =>
+          notifyEmployees([
+            {
+              employeeId: day.employeeId,
+              type: "attendance.punch_rejected",
+              title: `${PUNCH_KIND_LABELS[punch.kind]} ${dateLabel(date)} ditolak`,
+              body: `Ajukan koreksi paling lambat ${dateLabel(correctionDeadline(date))} agar hari itu tidak menjadi Alpha.`,
+              link: "/time/pernyataan",
+              dedupeKey: `tm-punch-rejected:${punch.id}`,
+              target: { type: "ATTENDANCE_DAY", id: punch.dayId },
+            },
+          ]),
+        );
       }
     }
   });
@@ -1284,8 +1286,8 @@ export function registerAttendanceIntegrations() {
     if (day?.status !== "PENDING") return;
     await repository.updateDay(tx, event.subjectId, { status: event.status });
   });
-  configureRosterLocks(async (employeeIds, from, to) => {
-    const rows = await repository.lockingDays(employeeIds, toDate(from), toDate(to));
+  configureRosterLocks(async (employeeIds, from, to, tx) => {
+    const rows = await repository.lockingDays(employeeIds, toDate(from), toDate(to), tx);
     const locked = new Set(rows.map((r) => dayKey(r.employeeId, toIso(r.workDate))));
     // Periode tertutup (D-071) mengunci seluruh tanggal bulan itu untuk karyawan PT tersebut.
     const people = await directory.employeesByIds(employeeIds);
@@ -1293,6 +1295,7 @@ export function registerAttendanceIntegrations() {
       [...people.values()].map((p) => p.companyId),
       from,
       to,
+      tx,
     );
     if (closed.size > 0) {
       for (const person of people.values()) {

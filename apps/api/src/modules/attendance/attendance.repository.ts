@@ -85,8 +85,8 @@ export const overdueOpenDays = (now: Date, employeeIds?: string[]) =>
   });
 
 /** Hari absen yang mengunci roster (sudah disetujui) pada rentang. */
-export const lockingDays = (employeeIds: string[], from: Date, to: Date) =>
-  getPrisma().attendanceDay.findMany({
+export const lockingDays = (employeeIds: string[], from: Date, to: Date, tx?: AttendanceTx) =>
+  db(tx).attendanceDay.findMany({
     where: {
       employeeId: { in: employeeIds },
       workDate: { gte: from, lte: to },

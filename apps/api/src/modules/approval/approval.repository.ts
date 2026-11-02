@@ -8,8 +8,10 @@ export type ApprovalSubjectType = Prisma.ApprovalRequestCreateInput["subjectType
 const withSteps = { steps: { orderBy: { kind: "asc" } } } satisfies Prisma.ApprovalRequestInclude;
 export type ApprovalRow = Prisma.ApprovalRequestGetPayload<{ include: typeof withSteps }>;
 
+// Timeout eksplisit: handler keputusan (mis. ROSTER_EDIT) membangkitkan ulang roster seluruh crew di
+// transaksi ini; bawaan Prisma 5 dtk tidak cukup untuk crew besar (sama dengan roster.repository).
 export async function withTransaction<T>(run: (tx: ApprovalTx) => Promise<T>): Promise<T> {
-  return getPrisma().$transaction(run);
+  return getPrisma().$transaction(run, { timeout: 30_000 });
 }
 
 export async function createRequest(

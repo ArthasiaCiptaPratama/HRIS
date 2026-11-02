@@ -491,17 +491,21 @@ export function registerOvertimeIntegrations() {
     });
     if (event.status === "CANCELLED") return;
     const date = toIso(row.workDate);
-    await notifyEmployees([
-      {
-        employeeId: row.employeeId,
-        type: "attendance.overtime_decided",
-        title: `Lembur ${dateLabel(date)} ${event.status === "APPROVED" ? "disetujui" : "ditolak"}`,
-        body: `${formatMinutes(row.proposedMin)} (setara ${Number(row.equivalentHours)} jam).`,
-        link: "/time/lembur",
-        dedupeKey: `tm-overtime-decided:${row.id}`,
-        target: { type: "OVERTIME", id: row.id },
-      },
-    ]);
+    const title = `Lembur ${dateLabel(date)} ${event.status === "APPROVED" ? "disetujui" : "ditolak"}`;
+    // Setelah commit: keputusan yang batal tidak mengirim notifikasi.
+    event.afterCommit(() =>
+      notifyEmployees([
+        {
+          employeeId: row.employeeId,
+          type: "attendance.overtime_decided",
+          title,
+          body: `${formatMinutes(row.proposedMin)} (setara ${Number(row.equivalentHours)} jam).`,
+          link: "/time/lembur",
+          dedupeKey: `tm-overtime-decided:${row.id}`,
+          target: { type: "OVERTIME", id: row.id },
+        },
+      ]),
+    );
   });
 }
 

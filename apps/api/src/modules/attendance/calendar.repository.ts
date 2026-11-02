@@ -2,6 +2,7 @@ import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 
 // Query kalender libur & pengaturan Time Management (skema attendance).
+export type CalendarTx = Prisma.TransactionClient;
 
 export async function listHolidays(from: Date, to: Date) {
   return getPrisma().holiday.findMany({
@@ -31,8 +32,8 @@ export async function deleteHoliday(id: string) {
   return getPrisma().holiday.delete({ where: { id } });
 }
 
-export async function findSetting(key: string) {
-  return getPrisma().timeSetting.findUnique({ where: { key } });
+export async function findSetting(key: string, tx?: CalendarTx) {
+  return (tx ?? getPrisma()).timeSetting.findUnique({ where: { key } });
 }
 
 export async function upsertSetting(key: string, value: Prisma.InputJsonValue, accountId: string) {

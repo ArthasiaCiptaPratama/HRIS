@@ -143,16 +143,16 @@ export async function deleteHoliday(ctx: RequestContext, id: string): Promise<{ 
 const SETTINGS_KEY = "attendance";
 
 /** Pengaturan efektif (bawaan + yang tersimpan). Nilai tersimpan yang tidak valid diabaikan per kunci. */
-export async function readTimeSettings(): Promise<TimeSettings> {
-  const row = await repository.findSetting(SETTINGS_KEY);
+export async function readTimeSettings(tx?: repository.CalendarTx): Promise<TimeSettings> {
+  const row = await repository.findSetting(SETTINGS_KEY, tx);
   const merged = { ...DEFAULT_TIME_SETTINGS, ...((row?.value as object | null) ?? {}) };
   const parsed = timeSettingsSchema.safeParse(merged);
   return parsed.success ? parsed.data : DEFAULT_TIME_SETTINGS;
 }
 
 /** Tanggal "hari ini" (YYYY-MM-DD) di zona pengaturan TM — batas hari roster, periode, koreksi & cuti. */
-export async function settingsToday(now = new Date()): Promise<string> {
-  return localDate(now, (await readTimeSettings()).timezone);
+export async function settingsToday(now = new Date(), tx?: repository.CalendarTx): Promise<string> {
+  return localDate(now, (await readTimeSettings(tx)).timezone);
 }
 
 export async function getTimeSettings(ctx: RequestContext): Promise<TimeSettings> {

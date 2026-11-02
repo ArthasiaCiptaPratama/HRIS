@@ -227,3 +227,35 @@ export async function notifyNewRosterEdits(
   }
   return sent;
 }
+
+/**
+ * Keputusan final pengajuan → akun HR pengaju diberi tahu (dikirim setelah transaksi keputusan commit).
+ * Target `ROSTER_EDIT` + id sama dengan `attendance.roster_edit_new` (detail boleh dilihat pengaju).
+ */
+export async function notifyRosterEditDecided(
+  row: Pick<Row, "id" | "employeeId" | "createdByAccountId">,
+  result: { status: "APPLIED" | "REJECTED"; appliedFrom: string | null },
+  now = new Date(),
+): Promise<number> {
+  const account = (await getAccountSummaries([row.createdByAccountId])).get(row.createdByAccountId);
+  if (!account) return 0;
+  const name = (await directory.employeesByIds([row.employeeId])).get(row.employeeId)?.fullName;
+  const applied = result.status === "APPLIED";
+  const r = await notify(
+    {
+      recipients: [{ accountId: account.accountId, email: account.email }],
+      type: "attendance.roster_edit_decided",
+      title: `Perubahan jadwal${name ? ` ${name}` : ""} ${applied ? "disetujui" : "ditolak"}`,
+      body:
+        applied && result.appliedFrom
+          ? `Berlaku mulai ${dateLabel(result.appliedFrom)}.`
+          : "Jadwal lama tetap berlaku.",
+      link: "/time/perubahan-roster",
+      dedupeKey: `tm-roster-edit-decided:${row.id}`,
+      target: { type: "ROSTER_EDIT", id: row.id },
+      email: false,
+    },
+    now,
+  );
+  return r.created;
+}

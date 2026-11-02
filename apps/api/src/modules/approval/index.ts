@@ -2,6 +2,7 @@
 export { type ApprovalRouteDeps, registerApprovalRoutes } from "./approval.routes.ts";
 export { approvalViewSchema } from "./approval.schema.ts";
 export {
+  type AfterCommit,
   type ApprovalGuard,
   type ApprovalHandler,
   type ApprovalTx,
