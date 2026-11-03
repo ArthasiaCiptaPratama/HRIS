@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-02 — Retry aman pengajuan app (Idempotency-Key), batas 5 MB pernyataan, skema LeaveRequestType (Oatse)
+- **Dikerjakan:** serah-terima supervisor `2026-11-02-1425` langkah 4a (push docs `d249d8a`) dan 3 + butir 5 (lihat README, dua item 2026-11-02). Migrasi `20261102080000_app_create_idempotency` dibuat lewat `prisma migrate diff` (`migrate dev` menolak berjalan non-interaktif karena peringatan indeks unik) lalu `db:deploy` ke `hris_mobile`.
+- **Keputusan:** MOB-D22 (usul; ditulis sesi app di `Arthasia-Mobile/docs/decisions.md`): `Idempotency-Key` untuk tiga POST pengajuan, perilaku = punch MOB-D7, isi body tidak dibandingkan (risiko dicatat).
+- **Verifikasi:** `db:check` "No difference detected"; typecheck ✔ · biome ✔ · boundaries ✔ (540 modul) · test di DB lokal terpisah `hris_mobile_test` (bukan `hris_mobile` yang dipakai app): shared 346 · api 1031 · web 331, 0 gagal; test balapan cuti 3× lulus. Develop ternyata maju 3 commit (`a21f9f6`, `22a02c6`, `2b9d923`: TM-D24 transaksi & notifikasi `afterCommit`) → digabung ke `HRIS/mobile-app` (konflik hanya baris RELEASE, baris ini jadi #72); ulang: typecheck ✔ · biome ✔ · boundaries ✔ · `db:check` ✔ · shared 346 · api 1034 · web 331. swagger_parser app (salinan sementara, spec baru) → tidak ada bentrok enum/objek inline; cek yang sama pada spec app lama menemukan `Type` (cara cek tervalidasi).
+- **Masalah / catatan:** `bun test` lokal bawaan tetap memakai `hris_mobile` (backlog 2026-10-28); kali ini dijalankan dengan `DATABASE_URL`/`DIRECT_URL` mengarah ke `hris_mobile_test`. Migrasi baru tidak ikut gel. 17, antre gel. 18.
+- **Berikutnya:** app regenerate klien dari spec baru; kabar ke Mat lewat supervisor; langkah 5 (bersihkan baris uji lokal).
+
 ### YYYY-MM-DD — <judul singkat> (<PIC>)
 - **Dikerjakan:** … (rujuk item checklist README)
 - **Keputusan:** <PREFIX>-Dn baru / OD terjawab
@@ -10,6 +17,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Masalah / catatan:** …
 - **Berikutnya:** …
 ```
+
+### 2026-10-29 — Catatan persiapan uji HP M4: unggah lampiran dari API lokal (Oatse)
+- **Dikerjakan:** belum ada kode; hanya penelusuran untuk uji M4 besok. `dev:api` dinyalakan untuk uji Kalender Libur M3 (akun emp, baca saja, FCM kosong), lalu dimatikan.
+- **Masalah / catatan:** `POST /leave/attachment-upload`, `POST /attendance/statements/upload` (dan `selfie-upload`) membuat signed upload URL lewat `createSupabaseStorage` (`apps/api/src/core/storage.ts`). Tidak ada storage lokal: API lokal pun memakai `SUPABASE_URL` dari `.env` = project staging `iwgzuwcxsxnbjibhbqgh`, hanya path-nya diberi prefix `dev/oatse/`. Akibatnya:
+  - URL unggah mengarah langsung ke `https://iwgzuw….supabase.co`, **tidak lewat** `adb reverse`; HP cukup punya internet. `adb reverse` hanya untuk panggilan ke API lokal (minta URL lalu kirim pengajuan dengan path).
+  - Setiap unggahan saat uji = **menulis objek ke bucket Storage staging**, termasuk berkas `dev/oatse/…`. Menurut aturan, itu butuh kata pengguna sendiri sebelum uji. Pembersihannya (hapus objek) juga butuh kata pengguna.
+  - Belum diverifikasi: bucket lampiran cuti dan surat pernyataan sudah ada di staging (`ensurePrivateBucket`), dan batas ukuran/MIME cocok dengan berkas dari kamera atau galeri HP.
+- **Berikutnya:** sebelum uji M4, minta kata pengguna untuk unggahan uji ke Storage staging (dengan prefix `dev/oatse/`), atau putuskan pakai storage palsu dan lewati unggahan.
 
 ### 2026-10-29 — Uji ulang HP M5a + gabung ke develop (Oatse)
 - **Dikerjakan:** merge develop `41e7f94` (fix override HR `96b026d` + docs) ke `HRIS/mobile-app` → `bc4b9f3`. Data demo M5a di DB lokal `hris_mobile`, pola 28 Okt: seed tanpa FCM; pemicu U9 dan batch dengan FCM stg (disengaja). Pengajuan dibuat lewat service asli (`setRosterCells`, `requestCrewMembers`, `applyTemplateAssignment`), pengajunya admin.arthasia. Setelah uji, data dihapus dalam 1 transaksi (kutipan pengguna 09:47): 8 pengajuan + approval, 28 notifikasi `roster_edit_new` (termasuk sisa test gate), 1 token push, 7 karyawan `M5A-*`, template demo, akun lokal hr; role mgr → EMPLOYEE. `dev:api` dimatikan. `HRIS/mobile-app` di-FF ke develop.

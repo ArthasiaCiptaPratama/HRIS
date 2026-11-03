@@ -149,6 +149,21 @@ function mockFetch(role: ReturnType<typeof me>, cost = true) {
             inactive: 0,
           },
         });
+      if (path === "/archive/contacts")
+        return json(200, {
+          data: [
+            {
+              id: "e1",
+              employee: employeeRef,
+              workEmail: "kantor@example.test",
+              phoneNumber: null,
+              emergencyContactName: null,
+              emergencyContactRelationship: null,
+              emergencyPhone: null,
+            },
+          ],
+          meta: { page: 1, pageSize: 20, total: 1 },
+        });
       if (path === "/archive/trainings")
         return json(200, { data: [trainingRow(cost)], meta: { page: 1, pageSize: 20, total: 1 } });
       if (path === "/archive/trainings/export")
@@ -327,5 +342,15 @@ describe.skipIf(!FEATURES.archive)("Detail karyawan: kelola item Arsip (SA/HR)",
     await userEvent.click(screen.getByRole("button", { name: "Aksi untuk Mulai bekerja" }));
     expect(await screen.findByRole("menuitem", { name: "Ubah" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Hapus" })).toBeNull();
+  });
+});
+
+describe("Arsip › Data Kontak", () => {
+  it("HR tanpa grant tetap menampilkan kontak saat key email pribadi & alamat tidak dikirim", async () => {
+    mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/arsip/kontak");
+    const table = await screen.findByRole("table", { name: "Daftar data kontak" });
+    expect(await within(table).findByText("kantor@example.test")).toBeInTheDocument();
+    expect(within(table).getByText("Agus Pratama")).toBeInTheDocument();
   });
 });

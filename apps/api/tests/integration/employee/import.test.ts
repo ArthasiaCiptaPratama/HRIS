@@ -136,7 +136,12 @@ afterAll(async () => {
     select: { id: true },
   });
   const employeeIds = employees.map((e) => e.id);
-  const accountIds = [sa, hr, hrGranted, mgr].map((l) => l.account.id);
+  const accountIds = (
+    await prisma.account.findMany({
+      where: { email: { startsWith: `auth-${RUN.toLowerCase()}-` } },
+      select: { id: true },
+    })
+  ).map((a) => a.id);
   const jobs = await prisma.importJob.findMany({
     where: { actorAccountId: { in: accountIds } },
     select: { id: true },
@@ -146,6 +151,7 @@ afterAll(async () => {
   });
   await prisma.importJob.deleteMany({ where: { id: { in: jobs.map((j) => j.id) } } });
   await prisma.importMapping.deleteMany({ where: { updatedBy: { in: accountIds } } });
+  await auth.cleanup();
   await prisma.employee.deleteMany({ where: { id: { in: employeeIds } } });
   // Master data yang dibuat import (nama berpenanda RUN) + auditnya.
   const createdDepts = await prisma.department.findMany({
@@ -177,7 +183,6 @@ afterAll(async () => {
       },
     },
   });
-  await auth.cleanup();
   await prisma.position.deleteMany({ where: { departmentId: { in: deptIds } } });
   // D-064: unit baru bisa berjenjang (induk juga dari import) → lepas induk dulu.
   await prisma.department.updateMany({ where: { id: { in: deptIds } }, data: { parentId: null } });
@@ -1214,4 +1219,162 @@ describe("Data Form asli (D-063/D-064)", () => {
     const old = await data(await call("GET", `/employee-imports/mappings/${legacy}`, sa.headers));
     expect(old).toMatchObject({ mapping: { nama: "fullName" }, unitChoices: {} });
   });
+});
+
+describe("perlindungan email pribadi akun lewat import", () => {
+  const targets = new Map<string, string>();
+  const contactNumber = (key: string) =>
+    NUM(
+      key
+        .replace("SUPER_ADMIN", "SA")
+        .replace("HR_ADMIN", "HR")
+        .replace("HR_PERSONNEL", "HP")
+        .replace("EMPLOYEE", "EMP")
+        .replace("MANAGER", "MGR"),
+    );
+  const original = (key: string) => `imp-${RUN.toLowerCase()}-${key.toLowerCase()}@example.test`;
+  beforeAll(async () => {
+    for (const role of [
+      "SUPER_ADMIN",
+      "HR_ADMIN",
+      "HR_PERSONNEL",
+      "EMPLOYEE",
+      "MANAGER",
+    ] as const) {
+      const e = await prisma.employee.create({
+        data: {
+          companyId: ids.acp,
+          employeeNumber: contactNumber(role),
+          fullName: `Impor ${RUN} ${role}`,
+          personalEmail: original(role),
+          joinDate: new Date("2024-01-02"),
+          employmentStatusId: ids.pkwt,
+          positionId: ids.position,
+        },
+      });
+      targets.set(role, e.id);
+      await auth.loginAs(role, { employeeId: e.id, isActive: role !== "HR_PERSONNEL" });
+    }
+  });
+  const payload = (key: string, personalEmail: string) =>
+    body([
+      row(6, {
+        employeeNumber: contactNumber(key),
+        personalEmail,
+      }),
+    ]);
+  const previewAs = async (who: Login, input: ReturnType<typeof body>) => {
+    const res = await call("POST", "/employee-imports/preview", who.headers, input);
+    expect(res.status).toBe(200);
+    return data(res);
+  };
+
+  for (const role of ["SUPER_ADMIN", "HR_ADMIN", "HR_PERSONNEL"]) {
+    test(`HR tidak mengubah email pribadi target ${role}, termasuk akun nonaktif`, async () => {
+      const input = payload(
+        role,
+        `imp-${RUN.toLowerCase()}-hijack-${role.toLowerCase()}@example.test`,
+      );
+      const p = await previewAs(hr, input);
+      const res = await call("POST", "/employee-imports", hr.headers, {
+        ...input,
+        previewHash: p.previewHash,
+      });
+      expect(res.status).toBe(201);
+      expect(
+        (await prisma.employee.findUniqueOrThrow({ where: { id: targets.get(role) } }))
+          .personalEmail,
+      ).toBe(original(role));
+      expect(p.rows[0]).toMatchObject({ action: "ERROR" });
+      expect(p.rows[0].issues).toContainEqual({
+        field: "personalEmail",
+        code: "PERSONAL_EMAIL_PROTECTED_ACCOUNT",
+        severity: "ERROR",
+      });
+      expect((await data(res)).counts.error).toBe(1);
+    });
+  }
+  for (const role of ["EMPLOYEE", "MANAGER"]) {
+    test(`HR tanpa grant boleh mengubah email pribadi ${role}`, async () => {
+      const address = `imp-${RUN.toLowerCase()}-new-${role.toLowerCase()}@example.test`;
+      const input = payload(role, address);
+      const p = await previewAs(hr, input);
+      expect(p.rows[0].action).toBe("UPDATE");
+      expect(
+        (
+          await call("POST", "/employee-imports", hr.headers, {
+            ...input,
+            previewHash: p.previewHash,
+          })
+        ).status,
+      ).toBe(201);
+      expect(
+        (await prisma.employee.findUniqueOrThrow({ where: { id: targets.get(role) } }))
+          .personalEmail,
+      ).toBe(address);
+    });
+  }
+  test("email sama pada akun terlindungi tetap boleh; SA boleh mengubah target SA lain", async () => {
+    const unchanged = await previewAs(hr, payload("SUPER_ADMIN", original("SUPER_ADMIN")));
+    expect(unchanged.rows[0].action).toBe("SKIP");
+    expect(unchanged.rows[0].issues).toEqual([]);
+    const address = `imp-${RUN.toLowerCase()}-sa-new@example.test`;
+    const input = payload("SUPER_ADMIN", address);
+    const p = await previewAs(sa, input);
+    expect(p.rows[0].action).toBe("UPDATE");
+    expect(
+      (
+        await call("POST", "/employee-imports", sa.headers, {
+          ...input,
+          previewHash: p.previewHash,
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (await prisma.employee.findUniqueOrThrow({ where: { id: targets.get("SUPER_ADMIN") } }))
+        .personalEmail,
+    ).toBe(address);
+  });
+  for (const role of ["SUPER_ADMIN", "HR_ADMIN"] as const) {
+    test(`${role} tidak mengubah email pribadi baris dirinya sendiri`, async () => {
+      const key = `SELF-${role}`;
+      const e = await prisma.employee.create({
+        data: {
+          companyId: ids.acp,
+          employeeNumber: contactNumber(key),
+          fullName: `Impor ${RUN} Diri`,
+          personalEmail: original(key),
+          joinDate: new Date("2024-01-02"),
+          employmentStatusId: ids.pkwt,
+          positionId: ids.position,
+        },
+      });
+      const own = await auth.loginAs(role, { employeeId: e.id });
+      const input = body([
+        row(6, {
+          employeeNumber: e.employeeNumber,
+          personalEmail: `imp-${RUN.toLowerCase()}-self-new-${role.toLowerCase()}@example.test`,
+          phoneNumber: "081233334444",
+        }),
+      ]);
+      const p = await previewAs(own, input);
+      expect(
+        (
+          await call("POST", "/employee-imports", own.headers, {
+            ...input,
+            previewHash: p.previewHash,
+          })
+        ).status,
+      ).toBe(201);
+      const saved = await prisma.employee.findUniqueOrThrow({ where: { id: e.id } });
+      expect(saved.personalEmail).toBe(original(key));
+      expect(saved.phoneNumber).toBe("081233334444");
+      expect(p.rows[0].issues).toContainEqual({
+        field: null,
+        code: "SENSITIVE_OWN_ROW",
+        severity: "WARNING",
+      });
+      expect(p.rows[0].changes).not.toContain("personalEmail");
+    });
+  }
 });

@@ -114,6 +114,8 @@ model LeaveRequest {
   decidedAt           DateTime?          @map("decided_at") @db.Timestamptz(6)
   /// TM-D9: pengajuan ulang dari pengajuan yang ditolak (≤ 6 bulan sejak penolakan pertama).
   resubmittedFromId   String?            @map("resubmitted_from_id") @db.Uuid
+  /// MOB-D22: kunci idempotensi dari klien; retry dengan kunci sama mengembalikan pengajuan yang sudah ada.
+  idempotencyKey      String?            @unique @map("idempotency_key") @db.VarChar(64)
   createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 

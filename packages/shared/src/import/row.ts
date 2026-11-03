@@ -547,6 +547,8 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   TOO_MANY_FILES: "Lebih dari 10 file dalam satu kolom (lampiran dilewati)",
   DUPLICATE_PERSONAL_EMAIL_IN_FILE: "Email pribadi ganda di dalam file",
   PERSONAL_EMAIL_TAKEN: "Email pribadi sudah dipakai karyawan lain",
+  PERSONAL_EMAIL_PROTECTED_ACCOUNT:
+    "Email pribadi akun berprivilege (Super Admin/HR) hanya bisa diubah Super Admin.",
   UNKNOWN_PTKP: "Status PTKP tidak dikenali (TK/0–K/3)",
   UNKNOWN_EMPLOYMENT_STATUS: "Status karyawan tidak dikenali",
   INVALID_COMPANY_CODE: "Kode perusahaan tidak valid",

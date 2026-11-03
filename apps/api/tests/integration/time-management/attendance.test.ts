@@ -179,7 +179,9 @@ describe("absen PWA", () => {
     );
     expect(pre).toMatchObject({ labels: [], insideGeofence: true, reasonRequired: false });
 
-    const notUploaded = `attendance/${emp.a}/${crypto.randomUUID()}.jpg`;
+    const { path: notUploaded } = await data<{ path: string }>(
+      await call("POST", "/attendance/selfie-upload", h.a, { contentType: "image/jpeg" }),
+    );
     expect(
       (
         await call("POST", "/attendance/punch", h.a, {

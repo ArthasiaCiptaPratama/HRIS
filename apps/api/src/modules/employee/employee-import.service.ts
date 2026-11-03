@@ -15,6 +15,7 @@ import {
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
+import { getAccountLinksForEmployees } from "../iam/index.ts";
 import {
   archivedMasterIndex,
   createMissingMasterData,
@@ -306,6 +307,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       .concat(existingList)
       .map((e) => [e.id, e]),
   );
+  const accountLinks = await getAccountLinksForEmployees([...existingById.keys()]);
   const emailOwners = await importRepo.findEmailOwners(
     normalized.flatMap((n) => (n.row.workEmail ? [n.row.workEmail] : [])),
   );
@@ -422,15 +424,24 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
         // OD-6 (belum diputuskan): data sensitif milik akun sendiri tidak diubah lewat import.
         if (ctx.actor.employeeId === existing.id) {
           const hadSensitive =
+            row.personalEmail !== undefined ||
             Object.keys(row.personal).length > 0 ||
             Object.keys(row.bank).length > 0 ||
             (row.family?.length ?? 0) > 0 ||
             (row.attachments?.length ?? 0) > 0;
           row.personal = {};
           row.bank = {};
+          delete row.personalEmail;
           delete row.family;
           delete row.attachments;
           if (hadSensitive) plan.issues.push(issue(null, "SENSITIVE_OWN_ROW", "WARNING"));
+        }
+        if (
+          row.personalEmail !== undefined &&
+          row.personalEmail !== existing.personalEmail &&
+          !policy.canChangeLoginContact(ctx.actor, accountLinks.get(existing.id)?.role ?? null)
+        ) {
+          plan.issues.push(issue("personalEmail", "PERSONAL_EMAIL_PROTECTED_ACCOUNT"));
         }
         plan.departmentName =
           row.departmentName ??

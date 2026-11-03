@@ -8,7 +8,7 @@ import {
 import type { Context, MiddlewareHandler } from "hono";
 import { APP_VERSION_HEADER } from "../../core/app-version.ts";
 import { assertExact } from "../../core/contract.ts";
-import { ValidationError } from "../../core/errors.ts";
+import { idempotencyHeaders, idempotencyKeyOf } from "../../core/idempotency.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import {
@@ -76,30 +76,11 @@ assertExact<z.infer<typeof punchCancelSchema>, Awaited<ReturnType<typeof service
 
 type Handler = (c: Context) => Promise<unknown>;
 
-// MOB-D7: kunci idempotensi punch dari klien (UUID / string aman, 8–64 karakter).
-const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,64}$/;
-// Dideklarasikan di OpenAPI supaya klien generate punya parameternya; validasi tetap `idempotencyKeyOf`.
-const punchHeaders = z.object({
-  "Idempotency-Key": z
-    .string()
-    .regex(IDEMPOTENCY_KEY)
-    .optional()
-    .openapi({
-      description:
-        "Opsional, satu kunci per tindakan absen (MOB-D7 #5). Kunci sama → hari yang sudah tercatat (200); " +
-        "kunci milik orang lain → 409.",
-    }),
-});
-function idempotencyKeyOf(c: Context): string | undefined {
-  const key = c.req.header("Idempotency-Key");
-  if (key === undefined) return undefined;
-  if (!IDEMPOTENCY_KEY.test(key)) {
-    throw new ValidationError([
-      { path: "Idempotency-Key", code: "invalid_format", message: "Expected 8-64 [A-Za-z0-9_-]" },
-    ]);
-  }
-  return key;
-}
+// MOB-D7: kunci idempotensi punch dari klien (helper bersama `core/idempotency.ts`).
+const punchHeaders = idempotencyHeaders(
+  "Opsional, satu kunci per tindakan absen (MOB-D7 #5). Kunci sama → hari yang sudah tercatat (200); " +
+    "kunci milik orang lain → 409.",
+);
 const body = (c: Context) => c.req.json().catch(() => ({}));
 const range = z.object({ from: z.iso.date(), to: z.iso.date() });
 

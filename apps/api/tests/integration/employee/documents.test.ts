@@ -109,6 +109,19 @@ const typeId = async (code: string) =>
 const isoIn = (days: number) =>
   new Date(Date.now() + days * 86_400_000 + 7 * 3_600_000).toISOString().slice(0, 10);
 
+for (const suffix of ["../other.pdf", "%2e%2e/other.pdf", "nested/file.pdf", "..\\other.pdf"]) {
+  test(`path dokumen menolak traversal: ${suffix}`, async () => {
+    const path = `employees/${ids.team}/documents/${suffix}`;
+    fake.putObject(BUCKET, path, { size: 0, contentType: "text/html" });
+    const res = await call("POST", `/employees/${ids.team}/documents`, sa.headers, {
+      documentTypeId: types.ktp,
+      path,
+    });
+    expect(res.status).toBe(422);
+    expect(fake.removed).not.toContain(`${BUCKET}/${path}`);
+  });
+}
+
 beforeAll(async () => {
   ids.acp = await acpCompanyId();
   ids.other = await createTestCompany(`D${RUN}`, `PT Dokumen ${RUN}`);

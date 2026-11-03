@@ -46,3 +46,14 @@ export const canRequestLeave = (actor: Actor, employeeId: string) =>
 
 /** Menjalankan pekerjaan harian cuti secara manual (jatah, pelunasan, hangus, cuti bersama). */
 export const canRunLeaveJobs = (actor: Actor) => isSa(actor);
+
+/** Audit 4: saldo sendiri tidak boleh diubah lewat jalur HR, SA dikecualikan. */
+export function canAdjustBalance(
+  actor: Actor,
+  target: Pick<LeaveTarget, "employeeId" | "companyId">,
+): boolean {
+  return (
+    canManageBalances(actor, target.companyId) &&
+    !(isHr(actor) && actor.employeeId === target.employeeId)
+  );
+}

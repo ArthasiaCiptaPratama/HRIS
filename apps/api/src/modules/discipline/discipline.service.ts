@@ -771,6 +771,9 @@ export async function revokeLetter(
   now = new Date(),
 ) {
   const { letter, employee } = await loadWritable(ctx, id);
+  if (!policy.canRevokeLetter(ctx.actor, { ...target(employee), companyId: letter.companyId })) {
+    throw new ForbiddenError("Anda tidak boleh mencabut SP milik sendiri.");
+  }
   if (letter.status !== "ISSUED") {
     throw new BusinessRuleError("Hanya SP yang masih berlaku yang bisa dicabut.");
   }

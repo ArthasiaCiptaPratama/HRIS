@@ -7,6 +7,7 @@ import {
   statementUploadSchema,
 } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
+import { idempotencyHeaders, idempotencyKeyOf } from "../../core/idempotency.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import * as alpha from "./alpha.service.ts";
@@ -45,6 +46,7 @@ const route = (
     body?: z.ZodType;
     params?: z.ZodObject;
     query?: z.ZodObject;
+    headers?: z.ZodObject;
   },
 ) =>
   createRoute({
@@ -56,6 +58,7 @@ const route = (
     request: {
       ...(spec.params ? { params: spec.params } : {}),
       ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.headers ? { headers: spec.headers } : {}),
       ...(spec.body
         ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
         : {}),
@@ -141,11 +144,25 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       ),
   ],
   [
-    route("post", "/attendance/statements", "Buat surat pernyataan absensi untuk hari ALPHA", {
-      body: statementInputSchema,
-      response: statementRowSchema,
-    }),
-    async (c) => service.createStatement(ctxOf(c), strict(statementInputSchema, await body(c))),
+    route(
+      "post",
+      "/attendance/statements",
+      "Buat surat pernyataan absensi untuk hari ALPHA. Header opsional: Idempotency-Key",
+      {
+        body: statementInputSchema,
+        headers: idempotencyHeaders(
+          "Opsional, satu kunci per kiriman pernyataan (MOB-D22). Kunci sama → pernyataan yang sudah " +
+            "tercatat (200); kunci milik orang lain → 409.",
+        ),
+        response: statementRowSchema,
+      },
+    ),
+    async (c) =>
+      service.createStatement(
+        ctxOf(c),
+        strict(statementInputSchema, await body(c)),
+        idempotencyKeyOf(c),
+      ),
   ],
   [
     route("get", "/attendance/corrections", "Koreksi absensi: milik saya / inbox keputusan", {
@@ -155,11 +172,25 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     (c) => service.listCorrections(ctxOf(c), c.req.query("scope") === "inbox" ? "inbox" : "mine"),
   ],
   [
-    route("post", "/attendance/corrections", "Ajukan koreksi absensi (paralel Atasan + HR)", {
-      body: correctionInputSchema,
-      response: correctionSchema,
-    }),
-    async (c) => service.createCorrection(ctxOf(c), strict(correctionInputSchema, await body(c))),
+    route(
+      "post",
+      "/attendance/corrections",
+      "Ajukan koreksi absensi (paralel Atasan + HR). Header opsional: Idempotency-Key",
+      {
+        body: correctionInputSchema,
+        headers: idempotencyHeaders(
+          "Opsional, satu kunci per pengajuan koreksi (MOB-D22). Kunci sama → koreksi yang sudah " +
+            "tercatat (200); kunci milik orang lain → 409.",
+        ),
+        response: correctionSchema,
+      },
+    ),
+    async (c) =>
+      service.createCorrection(
+        ctxOf(c),
+        strict(correctionInputSchema, await body(c)),
+        idempotencyKeyOf(c),
+      ),
   ],
   [
     route("post", "/attendance/corrections/{id}/cancel", "Batalkan koreksi yang menunggu", {
