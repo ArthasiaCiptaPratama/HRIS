@@ -162,6 +162,11 @@ export async function setLocationSettings(
     if (!policy.canManageAttendanceLocation(ctx.actor, employee.companyId)) {
       throw new ForbiddenError();
     }
+    if (
+      !policy.canSetEmployeeAttendanceLocation(ctx.actor, { ...employee, employeeId: employee.id })
+    ) {
+      throw new ForbiddenError("Anda tidak boleh mengubah pengaturan lokasi absen milik sendiri.");
+    }
   }
 
   let value: { workLocationId: string | null; anywhere: boolean } | null = null;

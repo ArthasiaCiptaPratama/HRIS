@@ -2,6 +2,8 @@
 
 > Detail modul `attendance`, dipindah utuh dari `CODEMAP.md` §2/§3/§6 pada 2026-10-13. Struktur standar modul: [CODEMAP §4](../CODEMAP.md#4-struktur-standar-modul-appsapisrcmodulesmodul) · peta modul: [CODEMAP §5](../CODEMAP.md#5-peta-modul). Fitur pemakai: [time-management](../features/time-management/README.md).
 
+**2026-11-03 — Audit keamanan 3–4:** `attendance.policy.ts` menambahkan `canListAttendanceDays`/`canListEmployeeAttendanceDays` (scope HR/SA/tim), `canSetEmployeeAttendanceLocation` dan `canApplyRosterCell`. `attendance.service.listDays` hanya menandai Alpha untuk `employeeId` yang sudah diperiksa; daftar tanpa target tidak marking. `setLocationSettings` menolak seluruh batch berisi HR self. `roster.service.selfDirectCellIssues` memeriksa keanggotaan crew per tanggal sebelum splitter agar penolakan sel HR self tidak telanjur membuat pengajuan lain; preview/commit import mengembalikan issue indeks asal. Sel ber-crew tetap memakai ROSTER_EDIT, cron tidak berubah. Regresi: unit `attendance/__tests__/self-management.policy.test.ts` dan integration `tests/integration/security/hr-self-management.test.ts`.
+
 ## Web (`apps/web/src/features/`)
 
 ```

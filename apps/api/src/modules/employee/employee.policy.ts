@@ -304,3 +304,13 @@ export function seesFamilyArchive(actor: Actor): boolean {
 export function seesBankArchive(actor: Actor): boolean {
   return actor.role === ROLE.SUPER_ADMIN || hasPermission(actor, "employee.bank.read");
 }
+
+/** Audit 4: HR mengubah data kepegawaian orang lain; SA tetap boleh mengubah miliknya sendiri. */
+export function canUpdateEmployee(actor: Actor, target: EmployeeTarget): boolean {
+  return (
+    canManageEmployees(actor) &&
+    canViewEmployee(actor, target) &&
+    isInCompanyScope(actor, target) &&
+    !(actor.role === ROLE.HR_ADMIN && isSelf(actor, target))
+  );
+}

@@ -1095,6 +1095,11 @@ export async function updateEmployee(
   await repository
     .withTransaction(async (tx) => {
       const before = await loadInScope(ctx, id, tx);
+      if (!policy.canUpdateEmployee(ctx.actor, targetOf(before))) {
+        throw new ForbiddenError(
+          "Anda tidak boleh mengubah data kepegawaian milik sendiri lewat jalur HR.",
+        );
+      }
       // D-063: NIP boleh belum ada, tetapi sekali terisi tidak dikosongkan (login NIP & dokumen bergantung padanya).
       if (input.employeeNumber === null && before.employeeNumber) {
         throw new BusinessRuleError("NIP yang sudah terisi tidak bisa dikosongkan.");

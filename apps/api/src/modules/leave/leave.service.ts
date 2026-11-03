@@ -1037,6 +1037,11 @@ export async function adjustBalance(ctx: RequestContext, input: LeaveAdjustInput
   const employee = await employeeDirectory.employeeById(input.employeeId);
   if (!employee) throw new NotFoundError();
   if (!policy.canManageBalances(ctx.actor, employee.companyId)) throw new ForbiddenError();
+  if (
+    !policy.canAdjustBalance(ctx.actor, { employeeId: employee.id, companyId: employee.companyId })
+  ) {
+    throw new ForbiddenError("Anda tidak boleh mengubah saldo cuti milik sendiri.");
+  }
   await repository.withTransaction((tx) =>
     repository.addEntries(tx, [
       {
@@ -1065,19 +1070,38 @@ export async function importBalances(
     input.rows.map((r) => r.employeeNumber),
   );
   const issues: { index: number; employeeNumber: string; message: string }[] = [];
+  const rejectedSelf = new Set<number>();
+  let hasBlockingIssues = false;
   const seen = new Set<string>();
   input.rows.forEach((row, index) => {
     if (!employees.has(row.employeeNumber)) {
+      hasBlockingIssues = true;
       issues.push({
         index,
         employeeNumber: row.employeeNumber,
         message: "NIP tidak ditemukan di perusahaan ini.",
       });
     } else if (seen.has(row.employeeNumber)) {
+      hasBlockingIssues = true;
       issues.push({
         index,
         employeeNumber: row.employeeNumber,
         message: "NIP muncul lebih dari sekali.",
+      });
+    }
+    const employee = employees.get(row.employeeNumber);
+    if (
+      employee &&
+      !policy.canAdjustBalance(ctx.actor, {
+        employeeId: employee.id,
+        companyId: employee.companyId,
+      })
+    ) {
+      rejectedSelf.add(index);
+      issues.push({
+        index,
+        employeeNumber: row.employeeNumber,
+        message: "Anda tidak boleh mengubah saldo cuti milik sendiri.",
       });
     }
     seen.add(row.employeeNumber);
@@ -1085,14 +1109,15 @@ export async function importBalances(
   const ids = [...employees.values()].map((e) => e.id);
   const current = await repository.balances(ids, [input.year]);
   const changes = input.rows
-    .map((row) => {
+    .map((row, index) => {
       const employee = employees.get(row.employeeNumber);
-      if (!employee) return null;
+      if (!employee || rejectedSelf.has(index)) return null;
       const before = current.get(`${employee.id}|${input.year}`) ?? 0;
       return { employee, before, after: row.balance, diff: row.balance - before };
     })
     .filter((c): c is NonNullable<typeof c> => c !== null);
-  if (!commit || issues.length > 0) {
+  // Kesalahan umum tetap semua-atau-tidak; baris diri sendiri ditolak tanpa menghalangi baris lain.
+  if (!commit || hasBlockingIssues) {
     if (commit)
       throw new BusinessRuleError(
         "Masih ada baris bermasalah; perbaiki lalu pratinjau ulang.",
@@ -1123,7 +1148,7 @@ export async function importBalances(
     rows: input.rows.length,
     changed: entries.length,
   });
-  return { total: input.rows.length, changed: entries.length, issues: [], saved: entries.length };
+  return { total: input.rows.length, changed: entries.length, issues, saved: entries.length };
 }
 
 // ── Pekerjaan harian (cron `leave-daily`) ──────────────────────────────────────

@@ -2,6 +2,8 @@
 
 > Detail modul `employee`, dipindah utuh dari `CODEMAP.md` §2/§3/§6 pada 2026-10-13. Struktur standar modul: [CODEMAP §4](../CODEMAP.md#4-struktur-standar-modul-appsapisrcmodulesmodul) · peta modul: [CODEMAP §5](../CODEMAP.md#5-peta-modul). Fitur pemakai: [karyawan](../features/karyawan/README.md) · [import-karyawan](../features/import-karyawan/README.md) · [onboarding](../features/onboarding/README.md) · [arsip](../features/arsip/README.md) · [dashboard](../features/dashboard/README.md).
 
+**2026-11-03 — Audit keamanan 3–4:** `employee.policy.canUpdateEmployee` menolak HR_ADMIN self, SA dikecualikan. `employee.service.updateEmployee` memanggil policy setelah loadInScope dan sebelum mutasi kepegawaian dalam transaksi. Jalur profil layanan diri/import tetap di luar perubahan ini. Regresi: unit `employee/__tests__/self-management.policy.test.ts` dan integration `tests/integration/security/hr-self-management.test.ts`.
+
 ## API (`apps/api/src/modules/`)
 
 ```
