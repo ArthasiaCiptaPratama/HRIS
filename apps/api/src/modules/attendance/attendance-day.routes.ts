@@ -12,6 +12,7 @@ import { idempotencyHeaders, idempotencyKeyOf } from "../../core/idempotency.ts"
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import {
+  attendancePunchKindSchema,
   dayViewSchema,
   precheckResultSchema,
   punchCancelSchema,
@@ -21,6 +22,15 @@ import {
 import * as service from "./attendance.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import { strict } from "./roster.routes.ts";
+
+// Dokumentasi saja (validasi tetap `strict(...)` dengan skema @hris/shared): enum bernama untuk klien Dart
+// (MOB-D9) — enum inline di body/query jadi `Kind`/`Scope3`/`Status` yang nomornya bergeser antar-spec.
+const punchPrecheckBodySchema = punchPrecheckSchema.extend({ kind: attendancePunchKindSchema });
+const punchBodySchema = punchInputSchema.extend({ kind: attendancePunchKindSchema });
+const attendanceDayScopeSchema = z.enum(["inbox", "all"]).openapi("AttendanceDayScope");
+const attendanceDayStatusSchema = z
+  .enum(["OPEN", "PENDING", "APPROVED", "REJECTED", "ALPHA", "LEAVE"])
+  .openapi("AttendanceDayStatusFilter");
 
 // Tahap C/D — absen PWA (D-067, D-070) & Data Absen Harian (D-068).
 const P = API_BASE_PATH;
@@ -96,7 +106,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/precheck",
       "Pra-cek absen: tanggal kerja, label, jarak (alasan wajib bila ada label)",
-      { body: punchPrecheckSchema, response: precheckResultSchema },
+      { body: punchPrecheckBodySchema, response: precheckResultSchema },
     ),
     async (c) => service.precheck(ctxOf(c), strict(punchPrecheckSchema, await body(c))),
   ],
@@ -116,7 +126,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/punch",
       "Absen masuk/pulang/istirahat (waktu server, selfie + GPS). Header opsional: Idempotency-Key, X-App-Version",
-      { body: punchInputSchema, headers: punchHeaders, response: dayViewSchema },
+      { body: punchBodySchema, headers: punchHeaders, response: dayViewSchema },
     ),
     async (c) =>
       service.punch(
@@ -158,10 +168,10 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
     route("get", "/attendance/days", "Data Absen Harian (inbox keputusan / semua dalam cakupan)", {
       response: z.array(dayViewSchema),
       query: range.extend({
-        scope: z.enum(["inbox", "all"]).optional(),
+        scope: attendanceDayScopeSchema.optional(),
         companyId: z.uuid().optional(),
-        labeledOnly: z.enum(["true", "false"]).optional(),
-        status: z.enum(["OPEN", "PENDING", "APPROVED", "REJECTED", "ALPHA", "LEAVE"]).optional(),
+        labeledOnly: z.enum(["true", "false"]).openapi("AttendanceDayLabeledOnly").optional(),
+        status: attendanceDayStatusSchema.optional(),
         employeeId: z.uuid().optional(),
         q: z
           .string()

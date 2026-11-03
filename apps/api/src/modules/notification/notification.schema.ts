@@ -19,8 +19,10 @@ export type NotificationDto = z.infer<typeof notificationSchema>;
 export const listNotificationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT),
+  // Enum bernama (MOB-D9): enum query inline jadi nama polos di klien Dart (bisa bentrok/tidak dibuat).
   unreadOnly: z
     .enum(["true", "false"])
+    .openapi("NotificationUnreadOnly")
     .transform((value) => value === "true")
     .optional(),
 });
