@@ -19,11 +19,11 @@ import {
   roleSchema,
   trainingTypeSchema,
 } from "@hris/shared";
+import { nullableRef } from "../../core/contract.ts";
 
 // Tanggal murni (PROMPT §4): "YYYY-MM-DD".
 const isoDate = z.iso.date();
 const ref = z.object({ id: z.uuid(), name: z.string() });
-const booleanQuery = z.enum(["true", "false"]).transform((value) => value === "true");
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 
 export const idParamSchema = z.object({ id: z.uuid() });
@@ -36,16 +36,32 @@ export const detailQuerySchema = z.object({ view: detailViewSchema.default("full
 
 // ── Daftar ──────────────────────────────────────────────────────────────────
 
+// Enum bernama (MOB-D9): query inline `category` jadi `Category2` di klien Dart dan enum kembarnya tidak
+// dibuat (klien `listEmployees` gagal kompilasi). Dipakai juga `EmployeeListStatus.category`.
+const employmentCategoryRefSchema = z
+  .enum(employmentCategorySchema.options)
+  .openapi("EmploymentCategory");
+
 const SORTS = EMPLOYEE_SORT_FIELDS.flatMap((field) => [`${field}:asc`, `${field}:desc`] as const);
 
 export const listEmployeesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT),
   q: z.string().trim().min(1).max(100).optional(),
-  active: booleanQuery.default(true),
-  category: employmentCategorySchema.optional(),
+  // Default ditulis sebagai string sebelum transform supaya spec konsisten (`enum` string + `default: "true"`)
+  // untuk klien hasil generate (app mobile, MOB-D9); hasil parse tetap boolean. Semua enum query di sini
+  // bernama: enum query inline jadi nama polos di klien Dart (`Active` tidak dibuat sama sekali di f5ffc98).
+  active: z
+    .enum(["true", "false"])
+    .openapi("EmployeeActiveFilter")
+    .default("true")
+    .transform((value) => value === "true"),
+  category: employmentCategoryRefSchema.optional(),
   // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
-  group: employmentCategoryGroupSchema.optional(),
+  group: z
+    .enum(employmentCategoryGroupSchema.options)
+    .openapi("EmploymentCategoryGroup")
+    .optional(),
   // D-040: filter perusahaan (tetap dibatasi cakupan PT aktor).
   companyId: z.uuid().optional(),
   statusId: z.uuid().optional(),
@@ -53,10 +69,25 @@ export const listEmployeesQuerySchema = z.object({
   positionId: z.uuid().optional(),
   workLocationId: z.uuid().optional(),
   // D-063: true = hanya karyawan yang NIP-nya belum ada.
-  missingNumber: booleanQuery.optional(),
-  sort: z.enum(SORTS as [string, ...string[]]).default("fullName:asc"),
+  missingNumber: z
+    .enum(["true", "false"])
+    .openapi("EmployeeMissingNumberFilter")
+    .transform((value) => value === "true")
+    .optional(),
+  sort: z
+    .enum(SORTS as [string, ...string[]])
+    .openapi("EmployeeSort")
+    .default("fullName:asc"),
 });
 export type ListEmployeesQuery = z.infer<typeof listEmployeesQuerySchema>;
+
+// M5d (MOB-D9): sub-objek item daftar diberi nama tetap; objek inline jadi kelas Dart bernomor
+// (`Company12`, `Position11`, …) yang nomornya bergeser setiap spec berubah. Bentuk JSON tidak berubah.
+const listRefSchema = ref.openapi("EmployeeListRef");
+const listStatusSchema = ref
+  .extend({ category: nullableRef(employmentCategoryRefSchema) })
+  .openapi("EmployeeListStatus");
+const listCompanySchema = ref.extend({ code: z.string() }).openapi("EmployeeListCompany");
 
 export const employeeListItemSchema = z
   .object({
@@ -71,14 +102,14 @@ export const employeeListItemSchema = z
     endDate: isoDate.nullable(),
     isActive: z.boolean(),
     exitReason: exitReasonSchema.nullable(),
-    employmentStatus: ref.extend({ category: employmentCategorySchema.nullable() }),
+    employmentStatus: listStatusSchema,
     // D-039: perusahaan dalam grup.
-    company: ref.extend({ code: z.string() }),
-    position: ref,
-    department: ref.nullable(),
-    workLocation: ref.nullable(),
-    grade: ref.nullable(),
-    manager: ref.nullable(),
+    company: listCompanySchema,
+    position: listRefSchema,
+    department: nullableRef(listRefSchema),
+    workLocation: nullableRef(listRefSchema),
+    grade: nullableRef(listRefSchema),
+    manager: nullableRef(listRefSchema),
     // D-051/D-053: pos jabatan di bagan; atasan diatur manual (bukan otomatis dari pos).
     orgPostId: z.uuid().nullable(),
     managerOverride: z.boolean(),

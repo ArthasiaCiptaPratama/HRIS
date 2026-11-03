@@ -166,7 +166,10 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   ],
   [
     route("get", "/attendance/corrections", "Koreksi absensi: milik saya / inbox keputusan", {
-      query: z.object({ scope: z.enum(["mine", "inbox"]).optional() }),
+      // Enum bernama (MOB-D9): query inline jadi `Scope2` bernomor di klien Dart.
+      query: z.object({
+        scope: z.enum(["mine", "inbox"]).openapi("AttendanceCorrectionScope").optional(),
+      }),
       response: z.array(correctionSchema),
     }),
     (c) => service.listCorrections(ctxOf(c), c.req.query("scope") === "inbox" ? "inbox" : "mine"),

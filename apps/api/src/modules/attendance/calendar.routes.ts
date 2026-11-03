@@ -2,6 +2,7 @@ import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
+import { holidayKindSchema } from "./attendance.contract.ts";
 import * as service from "./calendar.service.ts";
 
 // Tahap A: kalender libur & pengaturan Time Management.
@@ -25,7 +26,7 @@ export const ctxOf = (c: Context): service.RequestContext => ({
 });
 
 // Skema OpenAPI didefinisikan dengan z milik zod-openapi (pola D-065); isi sama dengan @hris/shared.
-const holidayKind = z.enum(["NATIONAL", "COLLECTIVE_LEAVE"]);
+const holidayKind = holidayKindSchema;
 const holidaySchema = z
   .object({ id: z.uuid(), date: z.iso.date(), name: z.string(), kind: holidayKind })
   .openapi("Holiday");

@@ -77,7 +77,10 @@ describe("kontrak OpenAPI untuk app mobile", () => {
       enum: ["AWAITING_PEER", "PENDING", "APPROVED", "REJECTED", "CANCELLED"],
     });
     const grid = props("RosterGrid");
-    expect(grid.holidays?.items?.properties.kind).toMatchObject({
+    expect(grid.holidays?.items?.properties.kind).toEqual({
+      $ref: "#/components/schemas/HolidayKind",
+    });
+    expect(doc.components.schemas.HolidayKind).toMatchObject({
       enum: ["NATIONAL", "COLLECTIVE_LEAVE"],
     });
     expect(grid.days?.items?.properties.source).toMatchObject({
@@ -164,6 +167,149 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     expect(doc.components.schemas.AttendanceDay?.properties?.workDate).toMatchObject({
       format: "date",
     });
+  });
+
+  test("GET /employees (pemilih karyawan SPL, M5d): item bertipe dengan sub-objek bernama", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const op = doc.paths["/api/v1/employees"]?.get as {
+      operationId: string;
+      parameters: { name: string; schema: Record<string, unknown> }[];
+    };
+    expect(op.operationId).toBe("listEmployees");
+    // Default konsisten dengan enum string → klien Dart tidak memakai default boolean untuk tipe enum.
+    const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+    expect(op.parameters.find((p) => p.name === "active")?.schema).toEqual(
+      ref("EmployeeActiveFilter"),
+    );
+    expect(doc.components.schemas.EmployeeActiveFilter).toMatchObject({
+      enum: ["true", "false"],
+      default: "true",
+    });
+    const props = doc.components.schemas.EmployeeListItem?.properties as Record<string, unknown>;
+    expect(props.employmentStatus).toEqual(ref("EmployeeListStatus"));
+    expect(props.company).toEqual(ref("EmployeeListCompany"));
+    expect(props.position).toEqual(ref("EmployeeListRef"));
+    for (const field of ["department", "workLocation", "grade", "manager"]) {
+      expect(props[field]).toEqual({ anyOf: [ref("EmployeeListRef"), { type: "null" }] });
+    }
+  });
+
+  // swagger_parser memberi enum inline yang tidak berada langsung di skema bernama (item array inline, body,
+  // query) nama polos + nomor (`Kind`, `Kind3`, `Scope2`, …). Nomornya bergeser antar-spec dan enum kembar
+  // bisa tidak dibuat sama sekali (Kind4/Category2 di f5ffc98 → app gagal kompilasi). Enum bernama generik
+  // di operasi app wajib skema bernama, kecuali properti langsung skema bernama (nama `<Induk><Prop>`).
+  // Enum query param selalu bernama polos (`Active` tidak dibuat di f5ffc98) → semuanya wajib bernama.
+  test("operasi app tanpa enum inline bernama generik (kind/type/status/category/scope) atau di query", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const schemas = doc.components.schemas as Record<string, unknown>;
+    const generic = new Set(["kind", "type", "status", "category", "scope"]);
+    const visited = new Set<string>();
+    const offenders: string[] = [];
+    type Node = Record<string, unknown>;
+    const walk = (
+      node: unknown,
+      where: string,
+      prop: string | null,
+      direct: boolean,
+      query = false,
+    ): void => {
+      if (Array.isArray(node)) {
+        for (const n of node) walk(n, where, prop, direct, query);
+        return;
+      }
+      if (!node || typeof node !== "object") return;
+      const n = node as Node;
+      if (typeof n.$ref === "string") {
+        const name = n.$ref.split("/").pop() as string;
+        if (!visited.has(name)) {
+          visited.add(name);
+          walk(schemas[name], `#${name}`, null, true);
+        }
+        return;
+      }
+      if (Array.isArray(n.enum)) {
+        if (query || (prop && generic.has(prop) && !direct)) offenders.push(where);
+        return;
+      }
+      for (const key of ["anyOf", "oneOf", "allOf"]) {
+        if (key in n) walk(n[key], where, prop, direct, query);
+      }
+      if (n.items) walk(n.items, `${where}[]`, prop, false);
+      const props = (n.properties ?? {}) as Record<string, unknown>;
+      // Properti langsung skema bernama → `direct`; di objek inline mana pun → tidak.
+      const isNamedRoot = direct && prop === null;
+      for (const [key, value] of Object.entries(props)) {
+        walk(value, `${where}.${key}`, key, isNamedRoot);
+      }
+    };
+    // Generator app memfilter per path (`include_paths`) → semua method pada path app ikut di-generate.
+    const appPaths = new Set(Object.keys(APP_OPERATION_IDS).map((k) => k.split(" ")[1] as string));
+    const operations = [...appPaths].flatMap((path) =>
+      Object.entries(doc.paths[path] ?? {}).map(([method, op]) => ({
+        key: `${method.toUpperCase()} ${path}`,
+        op: op as Node,
+      })),
+    );
+    for (const { key, op } of operations) {
+      for (const p of (op.parameters ?? []) as { name: string; schema: unknown }[]) {
+        walk(p.schema, `${key} ?${p.name}`, p.name, false, true);
+      }
+      const body = (op.requestBody as { content?: Record<string, { schema: unknown }> })?.content;
+      for (const c of Object.values(body ?? {})) walk(c.schema, `${key} body`, null, false);
+      const responses = (op.responses ?? {}) as Record<
+        string,
+        { content?: Record<string, { schema: unknown }> }
+      >;
+      for (const [code, r] of Object.entries(responses)) {
+        for (const c of Object.values(r.content ?? {}))
+          walk(c.schema, `${key} ${code}`, null, false);
+      }
+    }
+    // Skema bernama di luar operasi app yang ikut memengaruhi penamaan (spec diparse utuh oleh generator).
+    walk({ $ref: "#/components/schemas/LeaveLedger" }, "LeaveLedger", null, false);
+    expect([...new Set(offenders)].sort()).toEqual([]);
+  });
+
+  // MOB-D18: app tidak mengirim key bernilai null (`include_if_null: false`) → field body nullable tidak boleh
+  // wajib (`.nullable()` → `.nullish()`), atau request dari app ditolak 400 (temuan PUT /overtime-orders M5d).
+  test("body operasi app: field nullable tidak wajib ada", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    type Node = {
+      $ref?: string;
+      type?: string | string[];
+      anyOf?: Node[];
+      properties?: Record<string, Node>;
+      required?: string[];
+      items?: Node;
+    };
+    const schemas = doc.components.schemas as Record<string, Node>;
+    const resolve = (n: Node): Node =>
+      n.$ref ? resolve(schemas[n.$ref.split("/").pop() as string] as Node) : n;
+    const isNullable = (n: Node) => {
+      const r = resolve(n);
+      return (
+        (Array.isArray(r.type) && r.type.includes("null")) ||
+        (r.anyOf ?? []).some((x) => resolve(x).type === "null")
+      );
+    };
+    const offenders: string[] = [];
+    const walk = (node: Node, where: string): void => {
+      const n = resolve(node);
+      for (const [key, value] of Object.entries(n.properties ?? {})) {
+        if (n.required?.includes(key) && isNullable(value)) offenders.push(`${where}.${key}`);
+        const v = resolve(value);
+        if (v.properties) walk(v, `${where}.${key}`);
+        if (v.items) walk(v.items, `${where}.${key}[]`);
+      }
+    };
+    for (const key of Object.keys(APP_OPERATION_IDS)) {
+      const [method, path] = key.split(" ") as [string, string];
+      const op = doc.paths[path]?.[method.toLowerCase()] as {
+        requestBody?: { content?: Record<string, { schema: Node }> };
+      };
+      for (const c of Object.values(op.requestBody?.content ?? {})) walk(c.schema, key);
+    }
+    expect(offenders).toEqual([]);
   });
 
   test("Me memuat employeeCompanyId nullable (filter roster/shift/crew di app)", async () => {

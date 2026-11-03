@@ -263,7 +263,8 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "Perubahan roster oleh HR (TM-D24): inbox keputusan / diajukan saya / semua di PT",
       {
         query: z.object({
-          scope: z.enum(["inbox", "mine", "all"]).optional(),
+          // Enum bernama (MOB-D9): query inline jadi `Scope` bernomor di klien Dart.
+          scope: z.enum(["inbox", "mine", "all"]).openapi("RosterEditScope").optional(),
           companyId: z.uuid().optional(),
         }),
         response: rosterEditListSchema,
@@ -375,7 +376,9 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   ],
   [
     route("get", "/roster-changes", "Pengajuan perubahan roster: milik saya / inbox keputusan", {
-      query: z.object({ scope: z.enum(["mine", "inbox"]).optional() }),
+      query: z.object({
+        scope: z.enum(["mine", "inbox"]).openapi("RosterChangeScope").optional(),
+      }),
       response: rosterChangeListSchema,
     }),
     (c) => change.listRosterChanges(ctxOf(c), c.req.query("scope") === "inbox" ? "inbox" : "mine"),

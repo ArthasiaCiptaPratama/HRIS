@@ -54,6 +54,8 @@ export const APP_OPERATION_IDS: Record<string, string> = {
   "GET /api/v1/overtime": "listOvertime",
   // TM-D17: perintah lembur (SPL) — karyawan melihat miliknya; atasan membuat/membatalkan dari app.
   "GET /api/v1/overtime-orders": "listOvertimeOrders",
+  // M5d: atasan memilih karyawan untuk SPL (MANAGER → bawahan langsung saja, D-009/D-035).
+  "GET /api/v1/employees": "listEmployees",
   "PUT /api/v1/overtime-orders": "setOvertimeOrder",
   "POST /api/v1/overtime-orders/{id}/cancel": "cancelOvertimeOrder",
   "GET /api/v1/time/queue": "getTimeQueue",
