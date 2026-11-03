@@ -1,7 +1,7 @@
 # Hardening
 
 > **Kode prefix:** `HRD` · **Fase:** 9 · **PIC:** – · **Branch:** – · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — perbaikan audit keamanan 2026-11-02 (A–D) di 4 branch fitur, belum digabung ke develop/rilis
+> **Status:** Berjalan — perbaikan audit keamanan 2026-11-02 (A–D) ✔ develop 2026-11-03 `eb82348`, belum rilis
 
 E2E Playwright alur utama, review keamanan, uji performa, runbook.
 
