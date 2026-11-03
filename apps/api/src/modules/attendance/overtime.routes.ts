@@ -73,7 +73,8 @@ type Handler = (c: Context) => Promise<unknown>;
 const body = (c: Context) => c.req.json().catch(() => ({}));
 
 const listQuery = z.object({
-  scope: z.enum(["inbox", "all", "me"]),
+  // Enum bernama (MOB-D9): query inline jadi `Scope4` bernomor di klien Dart.
+  scope: z.enum(["inbox", "all", "me"]).openapi("OvertimeScope"),
   from: isoDate,
   to: isoDate,
   companyId: z.uuid().optional(),

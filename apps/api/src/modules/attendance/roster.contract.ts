@@ -1,8 +1,8 @@
 import { z } from "@hono/zod-openapi";
-import { HOLIDAY_KINDS, ROSTER_CHANGE_STATUSES, ROSTER_SOURCES } from "@hris/shared";
+import { ROSTER_CHANGE_STATUSES, ROSTER_SOURCES } from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import { approvalViewSchema } from "../approval/index.ts";
-import { shiftSchema } from "./attendance.contract.ts";
+import { holidayKindSchema, shiftSchema } from "./attendance.contract.ts";
 import type * as service from "./roster.service.ts";
 import type { RosterChangeDto } from "./roster-change.service.ts";
 import type * as edits from "./roster-edit.service.ts";
@@ -70,9 +70,7 @@ export const rosterGridSchema = z
     month: z.string(),
     companyId: z.uuid(),
     dates: z.array(z.iso.date()),
-    holidays: z.array(
-      z.object({ date: z.iso.date(), name: z.string(), kind: z.enum(HOLIDAY_KINDS) }),
-    ),
+    holidays: z.array(z.object({ date: z.iso.date(), name: z.string(), kind: holidayKindSchema })),
     shifts: z.array(shiftSchema),
     employees: z.array(
       z.object({

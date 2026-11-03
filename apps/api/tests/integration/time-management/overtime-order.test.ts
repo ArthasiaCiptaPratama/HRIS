@@ -258,6 +258,16 @@ describe("perintah lembur (TM-D17)", () => {
     expect(again.startsAt).not.toBeNull();
   });
 
+  test("key tidak dikirim = null (app, MOB-D18): satu jam saja → 200; tanpa keduanya → 400", async () => {
+    const { startTime: _start, ...onlyEnd } = order({ endTime: hhmm(minuteNow + 540) });
+    const res = await call("PUT", "/overtime-orders", h.mgr, onlyEnd);
+    expect(res.status).toBe(200);
+    expect((await data<{ startsAt: string | null }>(res)).startsAt).toBeNull();
+
+    const { startTime: _s, endTime: _e, ...neither } = order();
+    expect((await call("PUT", "/overtime-orders", h.mgr, neither)).status).toBe(400);
+  });
+
   test("daftar: karyawan melihat miliknya (tanpa kelola), atasan lain tidak melihat", async () => {
     const mine = await data<{ id: string; canManage: boolean }[]>(
       await call("GET", `/overtime-orders?from=${today}&to=${today}`, h.a),

@@ -1,5 +1,10 @@
 import { z } from "@hono/zod-openapi";
-import { LEAVE_EXIT_STATUSES, LEAVE_LEDGER_KINDS, OVERTIME_FORMULAS } from "@hris/shared";
+import {
+  LEAVE_CATEGORIES,
+  LEAVE_EXIT_STATUSES,
+  LEAVE_LEDGER_KINDS,
+  OVERTIME_FORMULAS,
+} from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import { approvalViewSchema } from "../approval/index.ts";
 import type * as service from "./leave.service.ts";
@@ -18,6 +23,16 @@ import type { ExitSettlementView } from "./leave-exit.service.ts";
 // MOB-D7 #1: skema respons OpenAPI modul leave (dipakai codegen app mobile, MOB-D9).
 // Setiap skema dikunci ke tipe service dengan assertExact → typecheck gagal bila tidak sama.
 
+// Enum bernama (MOB-D9): enum inline di objek tanpa nama / body / query jadi `Kind4`/`Category` di klien
+// Dart; nomornya bergeser antar-spec dan enum kembar bisa tidak dibuat (layar Cuti app gagal kompilasi).
+// `LeaveTypeCategory` = nama yang sudah dipakai app untuk `LeaveType.category`.
+export const leaveTypeCategorySchema = z.enum(LEAVE_CATEGORIES).openapi("LeaveTypeCategory");
+const leaveLedgerKindSchema = z.enum(LEAVE_LEDGER_KINDS).openapi("LeaveLedgerKind");
+export const leaveRequestScopeSchema = z.enum(["inbox", "all"]).openapi("LeaveRequestScope");
+export const leaveRequestStatusSchema = z
+  .enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"])
+  .openapi("LeaveRequestStatus");
+
 const employeeRef = z.object({
   id: z.uuid(),
   fullName: z.string(),
@@ -29,7 +44,7 @@ export const leaveTypeSchema = z
     id: z.uuid(),
     code: z.string(),
     name: z.string(),
-    category: z.enum(["ANNUAL", "PERMIT", "SICK"]),
+    category: leaveTypeCategorySchema,
     maxDaysPerRequest: z.number().int().nullable(),
     documentRequiredAfterDays: z.number().int().nullable(),
     description: z.string().nullable(),
@@ -148,7 +163,7 @@ export const leaveMeSchema = z
       z.object({
         id: z.uuid(),
         year: z.number().int(),
-        kind: z.enum(LEAVE_LEDGER_KINDS),
+        kind: leaveLedgerKindSchema,
         days: z.number(),
         workDate: z.iso.date().nullable(),
         note: z.string().nullable(),
@@ -171,7 +186,7 @@ export const leaveLedgerSchema = z
     entries: z.array(
       z.object({
         id: z.uuid(),
-        kind: z.enum(LEAVE_LEDGER_KINDS),
+        kind: leaveLedgerKindSchema,
         days: z.number(),
         workDate: z.iso.date().nullable(),
         requestId: z.uuid().nullable(),

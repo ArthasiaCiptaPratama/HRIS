@@ -310,8 +310,9 @@ export const overtimeOrderInputSchema = z
   .object({
     employeeId: z.uuid(),
     workDate: z.iso.date(),
-    startTime: clockTime.nullable(),
-    endTime: clockTime.nullable(),
+    // MOB-D18: app tidak mengirim key bernilai null → key yang tidak ada = null (PWA mengirim null eksplisit).
+    startTime: clockTime.nullish().transform((v) => v ?? null),
+    endTime: clockTime.nullish().transform((v) => v ?? null),
     reason: z.string().trim().min(3).max(300),
   })
   .refine((v) => v.startTime !== null || v.endTime !== null, {
