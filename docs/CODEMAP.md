@@ -75,9 +75,9 @@ apps/api/
 ├── prisma.config.ts                  [done] Memuat `.env` root (dotenv), skema folder, `datasource.url = DIRECT_URL` (dipakai CLI migrate)
 ├── src/
 │   ├── index.ts                      [done] Entry: `export default app` (Vercel; function Hono)
-│   ├── server.ts                     [done] Entry Bun.serve lokal (`dev`/`start`) & Docker: `port` dari env, `idleTimeout` 60 dtk (Bun default 10 dtk memutus request lambat seperti lampiran Drive; 2026-10-12)
+│   ├── server.ts                     [done] Entry Bun.serve lokal (`dev`/`start`) & Docker: `port` dari env, bind `127.0.0.1` saat development, `idleTimeout` 60 dtk (Bun default 10 dtk memutus request lambat seperti lampiran Drive; 2026-10-12)
 │   ├── app.ts                        [done] `createApp(deps?)`: request-id → logger → secure headers → CORS → OpenAPI/health → route modul (dilindungi `protect` = authenticate + loadActor); deps bisa diganti di test (`tokenVerifier`, `actorLoader`); `defaultHook` Zod → 400; `onError`/`notFound` → envelope error; semua respons `/api/*` diberi `Cache-Control: private, no-store` (data per akun/PII tidak di-cache browser/proxy); `selectEmailSender(env, logger)` (NODE_ENV=test selalu log; SMTP hanya bila lengkap); `storagePathPrefix` dari `STORAGE_PATH_PREFIX` diteruskan ke modul employee; D-040: `actorLoader` = iam `loadActor` + employee `withEmployeeCompanyScope`, `configureIam({ employeeScope })`; CORS mengizinkan PUT
-│   ├── env.ts                        [done] Validasi env dengan Zod (`getEnv()` lazy, `parseEnv()`); `SUPABASE_URL` wajib kecuali NODE_ENV=test; pesan error tanpa nilai env
+│   ├── env.ts                        [done] Validasi env dengan Zod (`getEnv()` lazy, `parseEnv()`), default `NODE_ENV=production`; `SUPABASE_URL` wajib kecuali NODE_ENV=test; pesan error tanpa nilai env
 │   ├── generated/                    # Client Prisma hasil generate (TIDAK di-commit, tidak diedit; dibuat oleh postinstall)
 │   ├── core/                         [wip] Hal lintas modul (bukan logika bisnis domain)
 │   │   ├── db.ts                     [done] `getPrisma()` (PrismaPg, pool max 5), `disconnectPrisma()`, `pingDatabase()`
@@ -94,6 +94,7 @@ apps/api/
 │   │   ├── logger.ts                 [done] Log JSON satu baris ke stdout, `redact()` field sensitif (jaring pengaman), `requestLogger()` (tanpa query string)
 │   │   ├── audit.ts                  [done] `writeAudit(entry, client?)`: bisa ikut transaksi; before/after diredaksi (jaring pengaman); `listAuditLogs(filter)`
 │   │   ├── brand-logo.ts             [done] Logo Arthasia PNG base64 (sama dengan email) untuk kop PDF server: BAST aset & surat peringatan (dipindah dari `asset/bast-logo.ts`, 2026-10-15)
+│   │   ├── dev.ts                    [done] Route DB dev dan middleware `/api/v1/dev/*`: development + peer socket loopback Bun wajib; header proxy tidak dipercaya, metadata kosong → 403. Melindungi juga route akun uji yang didaftarkan sesudahnya
 │   │   ├── storage.ts                [done] D-037: antarmuka `StorageAdmin` (signed upload URL, signed URL baca, info objek, hapus, `ensurePrivateBucket`) + `createSupabaseStorage()` (service role) + `UNCONFIGURED_STORAGE`; konstanta bucket `employee-photos` (2 MB, jpeg/png/webp). Test memakai `tests/helpers/storage.ts` (palsu); `NODE_ENV=test` tidak pernah memakai Storage sungguhan
 │   │   ├── supabase-admin.ts         [done] antarmuka `AuthAdmin` (`findUserByEmail`, `inviteUser`, `createConfirmedUser`, `setBanned`) + `createSupabaseAdmin()` (service role; server/script saja) + `UNCONFIGURED_AUTH_ADMIN` (kunci kosong → 422 jelas)
 │   │   ├── openapi.ts                [done] Skema keamanan Bearer, `/api/v1/openapi.json` (OAS 3.1, `getOpenAPI31Document` + `withInputDates` (MOB-D19: tanggal input = string + pola, respons tetap `format: date`) + `withOperationIds`: `APP_OPERATION_IDS` untuk endpoint app, sisanya `operationIdFor`), `/api/v1/docs` (Swagger UI)
@@ -117,7 +118,8 @@ apps/api/
 │   ├── migrate-login-nik.ts          [done] D-048: `bun run auth:migrate-login-nik` — pindahkan akun tertaut karyawan APPROVED ke login NIK; dry-run default, `--apply --domain=<LOGIN_EMAIL_DOMAIN>` (+ `--only=`). **Belum pernah dijalankan** (Auth staging dipakai bersama — izin per lingkungan)
 │   ├── import-org-local.ts           [done] D-051: `bun run org:import-local -- --file=<JSON di luar repo> [--apply]` — isi bagan dengan nama asli di DB lokal, atau staging dengan `--remote=<ref staging>` (D-066), karyawan `ASLI-<kode>-<n>`, hapus dummy `DMY-` di pos yang sama; seed ulang mengembalikan dummy · **D-066:** juga staging dengan `--remote=<ref staging>` (penjaga `realDataTarget` di `db-target.ts`; project lain ditolak), transaksi `timeout` 120 dtk
 │   ├── bootstrap-super-admin.ts      [done] `--email <e> [--dry-run]`: cari/buat user Auth (password diketik tersembunyi), lalu `bootstrapPrimarySuperAdmin` di DB target. Jalan nyata ✔ (Utama `admin.arthasia@gmail.com` di DB lokal & DB staging)
-│   ├── create-dev-account.ts         [done] Akun UJI (bukan produksi): `DEV_ACCOUNT_PASSWORD=... --email --role HR_ADMIN|MANAGER|EMPLOYEE [--employee-number]` → user Auth terkonfirmasi + akun HRIS tertaut karyawan dummy (`provisionAccount`, audit, idempoten)
+│   ├── create-dev-account.ts         [done] Akun UJI lokal (guard ketat development + DATABASE_URL/SUPABASE_URL/DIRECT_URL lokal): `DEV_ACCOUNT_PASSWORD=... --email --role HR_ADMIN|MANAGER|EMPLOYEE [--employee-number]` → user Auth terkonfirmasi + akun HRIS tertaut karyawan dummy (`provisionAccount`, audit, idempoten)
+│   ├── dev-account-guard.ts          [done] `assertLocalDevAccountTargets`: NODE_ENV development eksplisit, URL DB/Auth wajib valid dan loopback/localhost, DIRECT_URL juga diperiksa bila diisi; tanpa override remote
 │   └── recover-primary-admin.ts      [done] `--to-email <e> --reason "..." [--dry-run]`: pindahkan status Utama ke SUPER_ADMIN aktif + audit (PLAN §4.4)
 ├── tests/
 │   ├── helpers/auth.ts               [done] `testVerifier` (token `test-token:<uuid>[:stale]`, `passwordAuthAt`), `bearer()`, `createAuthFixture(run)` → `loginAs(role, {grants, employeeId, isActive, primary})` → `{account, headers, staleHeaders}` + `cleanup()`
@@ -187,7 +189,7 @@ apps/web/
 ├── public/template/Template-import-karyawan.xlsx [done] D-042 Tahap 0: template import **dummy** (struktur = file master data kantor: judul, baris Control, header baris 5, formula, baris RESIGN tersembunyi, variasi penulisan); dibuat ulang `bun run --filter @hris/web template:import` (`scripts/generate-import-template.ts`, fflate). File asli TIDAK di repo
 ├── (Print data)                     [done 2026-10-19] PDF "Formulir Data Karyawan" dibuat **api** dari template PDF HR (`apps/api/templates/formulir-data-karyawan.pdf`, lihat codemap/employee.md); web `components/print-employee-button.tsx` mengubah foto profil WebP → JPEG lalu `POST /employees/{id}/print`. Template Excel & `xlsx-template.ts` dihapus.
 ├── vite.config.ts                    [done] React + Tailwind, alias `@` → src, envDir = root, port 5173, konfigurasi Vitest
-├── vercel.json                       [done] Rewrite SPA, install dari root (`--frozen-lockfile`). Project `hris-staging-web` (D-036)
+├── vercel.json                       [done] Rewrite SPA, install dari root (`--frozen-lockfile`); nosniff, Referrer-Policy, X-Frame-Options DENY, Permissions-Policy (kamera/geolocation self, mikrofon ditolak), CSP **Report-Only**. Project `hris-staging-web` (D-036)
 └── package.json                      # name: @hris/web
 ```
 
@@ -325,13 +327,13 @@ Daftar lengkap disimpan di `.env.example`. **Satu file `.env` di root** dipakai 
 
 **Dua database dapat ditukar lewat perintah (lokal ⇄ Supabase).** `DATABASE_URL`/`DIRECT_URL`/`STORAGE_PATH_PREFIX` = **profil aktif**; isi profil `LOCAL_*`/`SUPABASE_*` sekali, tukar dengan `bun run db:use local|supabase`, cek `bun run db:which`. Pilihan per-developer hidup di `.env` (gitignored) → aman-merge. Guard menolak `db:reset`/`db:seed`/test ke DB non-lokal (`HRIS_ALLOW_REMOTE_DB=1` untuk override). Panduan & konvensi: skill `.claude/skills/hris-db-switch`.
 
-**Env Vercel staging (D-036, target *production* project staging; nilai rahasia hanya di Vercel):** `hris-staging-api`: `DATABASE_URL` (transaction pooler 6543), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGINS`=`APP_URL`=`https://hris-staging-web.vercel.app`, `CRON_SECRET`, `SMTP_*`, `EMAIL_FROM`, `LOG_LEVEL`. `NODE_ENV` sengaja tidak diisi (Vercel mengisinya sendiri; `production` saat build membuat `bun install` melewati devDependencies seperti `prisma`). `hris-staging-web`: `VITE_API_BASE_URL`=`https://hris-staging-api.vercel.app/api/v1`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+**Env Vercel staging (D-036, target *production* project staging; nilai rahasia hanya di Vercel):** `hris-staging-api`: `DATABASE_URL` (transaction pooler 6543), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGINS`=`APP_URL`=`https://hris-staging-web.vercel.app`, `CRON_SECRET`, `SMTP_*`, `EMAIL_FROM`, `LOG_LEVEL`. `NODE_ENV` sengaja tidak diisi (runtime API default `production` bila platform tidak mengisinya; `production` saat build membuat `bun install` melewati devDependencies seperti `prisma`). `hris-staging-web`: `VITE_API_BASE_URL`=`https://hris-staging-api.vercel.app/api/v1`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
 
 Validasi: api di `apps/api/src/env.ts`, web di `apps/web/src/lib/env.ts`. Variabel Supabase/SMTP/cron masih **opsional** di Fase 1 dan dijadikan wajib di fase yang memakainya.
 
 | Variabel | Dipakai | Keterangan |
 |---|---|---|
-| `NODE_ENV` | api | `development` (default) · `test` · `production` |
+| `NODE_ENV` | api | `production` (default, fail-closed) · `development` · `test`; skrip dev/test mengisi eksplisit |
 | `PORT` | api | Port HTTP lokal, default `3000` |
 | `LOG_LEVEL` | api | `debug` · `info` (default) · `warn` · `error` |
 | `DATABASE_URL` | api (runtime) | **Profil aktif** (ditulis `db:use`). Lokal: PostgreSQL Docker (`localhost:5432`). Staging/produksi: **transaction pooler** (port 6543; staging: `aws-0-ap-northeast-2.pooler.supabase.com:6543`, user `postgres.iwgzuwcxsxnbjibhbqgh`) |

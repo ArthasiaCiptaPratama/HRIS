@@ -7,6 +7,7 @@ import app from "./index.ts";
 // server masih bekerja. 60 dtk = di bawah batas Bun (255) dan setara timeout proxy umum.
 export default {
   port: getEnv().PORT,
+  ...(getEnv().NODE_ENV === "development" ? { hostname: "127.0.0.1" } : {}),
   fetch: app.fetch,
   idleTimeout: 60,
 };

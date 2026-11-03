@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --env-file=../../.env --watch src/server.ts",
+    "dev": "NODE_ENV=development bun --env-file=../../.env --watch src/server.ts",
     "start": "bun src/server.ts",
     "build": "bun build src/index.ts --target=bun --outdir=dist",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "bun --env-file=../../.env test",
+    "test": "NODE_ENV=test bun --env-file=../../.env test",
     "db:generate": "prisma generate",
     "db:migrate": "bun --env-file=../../.env scripts/guard-local-db.ts && prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -19,7 +19,7 @@
     "db:which": "bun --env-file=../../.env scripts/use-db.ts",
     "bootstrap:super-admin": "bun --env-file=../../.env scripts/bootstrap-super-admin.ts",
     "recover:primary-admin": "bun --env-file=../../.env scripts/recover-primary-admin.ts",
-    "dev:account": "bun --env-file=../../.env scripts/create-dev-account.ts",
+    "dev:account": "NODE_ENV=development bun --env-file=../../.env scripts/create-dev-account.ts",
     "db:seed:time": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-time-management-local.ts",
     "db:seed:qa": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-qa-time.ts",
     "db:seed:acceptance": "bun --env-file=../../.env scripts/guard-local-db.ts && bun --env-file=../../.env scripts/seed-qa-acceptance.ts",
@@ -39,10 +39,10 @@
     "hono": "4.13.9",
     "jimp": "1.6.1",
     "jose": "6.2.12",
-    "nodemailer": "10.0.11",
+    "nodemailer": "10.3.1",
     "pdf-lib": "1.17.1",
     "pg": "8.23.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
+import { escapeCsvCell } from "@/lib/csv";
 import { errorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -466,12 +467,11 @@ const RECAP_COLUMNS: { key: keyof Omit<RecapRow, "employee">; label: string }[] 
 ];
 
 function downloadCsv(month: string, rows: RecapRow[]) {
-  const quote = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
   const lines = [
-    ["NIP", "Nama", ...RECAP_COLUMNS.map((c) => c.label)].map(quote).join(";"),
+    ["NIP", "Nama", ...RECAP_COLUMNS.map((c) => c.label)].map(escapeCsvCell).join(";"),
     ...rows.map((r) =>
       [r.employee.employeeNumber ?? "", r.employee.fullName, ...RECAP_COLUMNS.map((c) => r[c.key])]
-        .map(quote)
+        .map(escapeCsvCell)
         .join(";"),
     ),
   ];
@@ -801,7 +801,6 @@ function EmployeeRecapDialog({
   const today = todayIn();
 
   const download = () => {
-    const quote = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
     const header = [
       "Tanggal",
       "Shift",
@@ -841,12 +840,15 @@ function EmployeeRecapDialog({
         day?.status ?? (r?.shift && date < today ? "TANPA ABSEN" : ""),
         day?.labels.join(" ") ?? "",
       ]
-        .map(quote)
+        .map(escapeCsvCell)
         .join(";");
     });
-    const blob = new Blob([`\uFEFF${[header.map(quote).join(";"), ...lines].join("\r\n")}`], {
-      type: "text/csv;charset=utf-8",
-    });
+    const blob = new Blob(
+      [`\uFEFF${[header.map(escapeCsvCell).join(";"), ...lines].join("\r\n")}`],
+      {
+        type: "text/csv;charset=utf-8",
+      },
+    );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
