@@ -2,6 +2,7 @@ import { z } from "@hono/zod-openapi";
 import {
   ATTENDANCE_LABELS,
   ATTENDANCE_LOCATION_SOURCES,
+  HOLIDAY_KINDS,
   PUNCH_CHANNELS,
   PUNCH_KINDS,
   PUNCH_SUSPICIONS,
@@ -47,10 +48,15 @@ export const shiftSchema = z
   .openapi("Shift");
 assertExact<z.infer<typeof shiftSchema>, ShiftDto>(true);
 
+// Enum bernama (MOB-D9): enum inline di body / item array tanpa nama jadi `Kind`/`Kind3` di klien Dart dan
+// nomornya bergeser antar-spec. Nama = nama yang sudah dipakai app (`AttendancePunch.kind`, `Holiday.kind`).
+export const attendancePunchKindSchema = z.enum(PUNCH_KINDS).openapi("AttendancePunchKind");
+export const holidayKindSchema = z.enum(HOLIDAY_KINDS).openapi("HolidayKind");
+
 export const punchViewSchema = z
   .object({
     id: z.uuid(),
-    kind: z.enum(PUNCH_KINDS),
+    kind: attendancePunchKindSchema,
     at: z.iso.datetime(),
     latitude: z.number().nullable(),
     longitude: z.number().nullable(),

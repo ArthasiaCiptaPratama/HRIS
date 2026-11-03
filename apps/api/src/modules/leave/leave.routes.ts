@@ -25,11 +25,17 @@ import {
   leaveMeSchema,
   leavePreviewSchema,
   leaveRequestSchema,
+  leaveRequestScopeSchema,
+  leaveRequestStatusSchema,
+  leaveTypeCategorySchema,
   leaveTypeSchema,
   leaveYearSchema,
 } from "./leave.contract.ts";
 import * as service from "./leave.service.ts";
 import * as exits from "./leave-exit.service.ts";
+
+// Dokumentasi body saja (validasi tetap `strict(leaveTypeInputSchema)`): kategori = enum bernama (MOB-D9).
+const leaveTypeBodySchema = leaveTypeInputSchema.extend({ category: leaveTypeCategorySchema });
 
 // Tahap E — cuti, izin, sakit (D-072). Body divalidasi skema @hris/shared di handler (400 VALIDATION_ERROR).
 const P = API_BASE_PATH;
@@ -110,7 +116,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   ],
   [
     route("post", "/leave-types", "Tambah jenis cuti/izin/sakit (SA)", {
-      body: leaveTypeInputSchema,
+      body: leaveTypeBodySchema,
       response: leaveTypeSchema,
     }),
     async (c) => service.saveType(ctxOf(c), null, strict(leaveTypeInputSchema, await body(c))),
@@ -118,7 +124,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   [
     route("put", "/leave-types/{id}", "Ubah jenis cuti/izin/sakit (SA)", {
       params: idParam,
-      body: leaveTypeInputSchema,
+      body: leaveTypeBodySchema,
       response: leaveTypeSchema,
     }),
     async (c) => service.saveType(ctxOf(c), param(c), strict(leaveTypeInputSchema, await body(c))),
@@ -163,9 +169,9 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "Pengajuan cuti/izin/sakit: inbox keputusan / semua dalam cakupan",
       {
         query: z.object({
-          scope: z.enum(["inbox", "all"]).optional(),
+          scope: leaveRequestScopeSchema.optional(),
           companyId: z.uuid().optional(),
-          status: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]).optional(),
+          status: leaveRequestStatusSchema.optional(),
         }),
         response: z.array(leaveRequestSchema),
       },
