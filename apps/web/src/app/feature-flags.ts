@@ -28,7 +28,7 @@ export const FEATURES = {
   tmAttendanceDays: true, // Data Absen Harian + tab Absensi di detail karyawan (D-068, D-073, TM-D3)
   tmCorrections: true, // Koreksi & Pernyataan (D-071, TM-D3)
   tmRecap: false, // Rekap & Tutup Periode (D-071) — rilis: belum tampil (bukan fitur app v1)
-  tmOvertime: true, // Lembur: usulan otomatis, persetujuan, rekap (TM-D6)
+  tmOvertime: false, // Lembur: usulan otomatis, persetujuan, rekap (TM-D6) — rilis: menu web belum tampil (API tetap aktif untuk app)
   tmRoster: true, // Roster Bulanan (D-069)
   tmRosterChanges: true, // Perubahan / tukar shift (D-069)
   tmRosterSetup: true, // Shift, Pola & Crew + template JT (D-069, TM-D8)
