@@ -68,7 +68,7 @@ const row = <T extends z.ZodRawShape>(shape: T) =>
 
 export const contactRowSchema = row({
   workEmail: z.string().nullable(),
-  personalEmail: z.string().nullable(),
+  personalEmail: z.string().nullable().optional(),
   phoneNumber: z.string().nullable(),
   emergencyContactName: z.string().nullable(),
   emergencyContactRelationship: z.string().nullable(),

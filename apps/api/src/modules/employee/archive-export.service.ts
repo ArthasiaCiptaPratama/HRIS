@@ -86,7 +86,7 @@ async function sheetRows(
         employee: EmployeeRef;
         phoneNumber: string | null;
         workEmail: string | null;
-        personalEmail: string | null;
+        personalEmail?: string | null;
         emergencyContactName: string | null;
         emergencyContactRelationship: string | null;
         emergencyPhone: string | null;
@@ -94,6 +94,7 @@ async function sheetRows(
       }[];
       // Kolom alamat hanya bila aktor boleh membaca data pribadi minimal satu baris.
       const address = rows.some((r) => "domicileAddress" in r);
+      const personalEmail = rows.some((r) => "personalEmail" in r);
       return {
         total: meta.total,
         rows: [
@@ -101,7 +102,7 @@ async function sheetRows(
             ...BASE_HEADERS,
             "No. HP",
             "Email kantor",
-            "Email pribadi",
+            ...(personalEmail ? ["Email pribadi"] : []),
             "Kontak darurat",
             "Hubungan",
             "No. HP darurat",
@@ -111,7 +112,7 @@ async function sheetRows(
             ...base(r.employee),
             r.phoneNumber,
             r.workEmail,
-            r.personalEmail,
+            ...(personalEmail ? [r.personalEmail ?? null] : []),
             r.emergencyContactName,
             r.emergencyContactRelationship,
             r.emergencyPhone,

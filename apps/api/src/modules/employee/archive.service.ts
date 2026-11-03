@@ -138,7 +138,7 @@ export async function listArchive(
         : employeeWhere;
       const { rows, total } = await archive.listContacts(where, skip, take);
       const ref = await employeeRefs(ctx, lookup, rows);
-      // Alamat domisili = data pribadi (PLAN §4.2): hanya baris yang boleh dibaca; audit tanpa nilai.
+      // Alamat domisili & email pribadi (PLAN §4.2): hanya baris yang boleh dibaca; audit tanpa nilai.
       const allowed = rows
         .filter((row) => policy.canReadPersonal(ctx.actor, employeeTargetOf(row)))
         .map((row) => row.id);
@@ -151,7 +151,7 @@ export async function listArchive(
           action: "employee.sensitive.read",
           entityType: "employee.archive",
           entityId: "contacts",
-          after: { fields: ["domicileAddress"], employees: allowed.length },
+          after: { fields: ["domicileAddress", "personalEmail"], employees: allowed.length },
         });
       }
       return {
@@ -159,12 +159,13 @@ export async function listArchive(
           id: row.id,
           employee: ref(row),
           workEmail: row.workEmail,
-          personalEmail: row.personalEmail,
           phoneNumber: row.phoneNumber,
           emergencyContactName: row.emergencyContactName,
           emergencyContactRelationship: row.emergencyContactRelationship,
           emergencyPhone: row.emergencyPhone,
-          ...(allowed.includes(row.id) ? { domicileAddress: domiciles.get(row.id) ?? null } : {}),
+          ...(allowed.includes(row.id)
+            ? { domicileAddress: domiciles.get(row.id) ?? null, personalEmail: row.personalEmail }
+            : {}),
         })),
         meta: meta(query, total),
       };
