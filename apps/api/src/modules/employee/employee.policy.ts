@@ -1,4 +1,4 @@
-import { type Permission, ROLE } from "@hris/shared";
+import { type Permission, ROLE, type Role } from "@hris/shared";
 import {
   type Actor,
   type EmployeeTarget,
@@ -41,6 +41,17 @@ export function canViewEmployee(actor: Actor, target: EmployeeTarget): boolean {
 // "Tambah/ubah/nonaktifkan karyawan, tempatkan jabatan, isi manager_id": SA ✅ HR ✅.
 export function canManageEmployees(actor: Actor): boolean {
   return isAdmin(actor);
+}
+
+// Email pribadi dipakai untuk pemulihan login; HR tidak boleh mengambil alih akun berprivilege.
+export function canChangeLoginContact(actor: Actor, targetAccountRole: Role | null): boolean {
+  if (actor.role === ROLE.SUPER_ADMIN) return true;
+  return (
+    actor.role === ROLE.HR_ADMIN &&
+    (targetAccountRole === null ||
+      targetAccountRole === ROLE.EMPLOYEE ||
+      targetAccountRole === ROLE.MANAGER)
+  );
 }
 
 // Foto profil (D-037): SA/HR untuk pegawai yang boleh mereka lihat; setiap akun untuk fotonya

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Permission, Role } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../../core/access/index.ts";
 import {
+  canChangeLoginContact,
   canChangePhoto,
   canCreateInCompany,
   canDeactivateEmployee,
@@ -547,6 +548,33 @@ describe("Pengajuan perubahan data (OD-6)", () => {
       expect(
         canReviewDataChange(actor(who, grants), target(who, rel, company), section, sensitive),
       ).toBe(allowed);
+    });
+  }
+});
+
+describe("canChangeLoginContact", () => {
+  const targets: (Role | null)[] = [
+    "SUPER_ADMIN",
+    "HR_ADMIN",
+    "HR_PERSONNEL",
+    "MANAGER",
+    "EMPLOYEE",
+    null,
+  ];
+  const allowedTargets: Record<Role, (Role | null)[]> = {
+    SUPER_ADMIN: targets,
+    HR_ADMIN: ["MANAGER", "EMPLOYEE", null],
+    HR_PERSONNEL: [],
+    MANAGER: [],
+    EMPLOYEE: [],
+  };
+  for (const role of Object.keys(allowedTargets) as Role[]) {
+    targets.forEach((targetRole) => {
+      test(`${role} → ${targetRole ?? "tanpa akun"}`, () => {
+        expect(
+          canChangeLoginContact({ ...actor("HR", ["employee.personal.write"]), role }, targetRole),
+        ).toBe(allowedTargets[role].includes(targetRole));
+      });
     });
   }
 });

@@ -651,6 +651,42 @@ describe("EMP-D4 PATCH /employees/:id/profile (HR ubah data sensitif langsung)",
     ).toBe(before);
   });
 
+  test("HR ber-grant tidak mengubah atau menghapus email pribadi SA; email tetap boleh untuk EMPLOYEE", async () => {
+    const target = await makeEmployee("CONTACT-SA");
+    await auth.loginAs("SUPER_ADMIN", { employeeId: target });
+    const original = `sa-contact-${RUN}@example.test`;
+    await prisma.employee.update({ where: { id: target }, data: { personalEmail: original } });
+    for (const personalEmail of [`hijack-${RUN}@example.test`, ""]) {
+      const res = await call("PATCH", `/employees/${target}/profile`, writer.headers, {
+        personal: { personalEmail, birthPlace: "Tidak Disimpan" },
+      });
+      expect(res.status).toBe(403);
+      expect(await code(res)).toBe("FORBIDDEN");
+      expect(
+        (await prisma.employee.findUniqueOrThrow({ where: { id: target } })).personalEmail,
+      ).toBe(original);
+      expect(
+        (await prisma.employeePersonal.findUniqueOrThrow({ where: { employeeId: target } }))
+          .birthPlace,
+      ).not.toBe("Tidak Disimpan");
+    }
+    expect(
+      (
+        await call("PATCH", `/employees/${target}/profile`, writer.headers, {
+          personal: { personalEmail: original, birthPlace: "Bandung" },
+        })
+      ).status,
+    ).toBe(200);
+    const address = `emp-contact-${RUN}@example.test`;
+    expect(
+      (await call("PATCH", path(), writer.headers, { personal: { personalEmail: address } }))
+        .status,
+    ).toBe(200);
+    expect(
+      (await prisma.employee.findUniqueOrThrow({ where: { id: ids.teamEmp } })).personalEmail,
+    ).toBe(address);
+  });
+
   test("NIK dipakai karyawan lain → 409; PATCH /employees mengabaikan profile", async () => {
     const used = nik();
     await prisma.employeePersonal.upsert({

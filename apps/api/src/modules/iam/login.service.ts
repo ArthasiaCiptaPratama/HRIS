@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { loginEmailFor } from "@hris/shared";
+import { loginEmailFor, ROLE } from "@hris/shared";
 import type { EmailSender } from "../../core/email.ts";
 import { BusinessRuleError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -98,11 +98,21 @@ export async function requestPasswordReset(
   }
   if (!account?.isActive) return "unknown";
 
-  // Tujuan: email pribadi karyawan; akun tanpa data karyawan → email akun (bila nyata).
-  const personal = account.employeeId
-    ? await deps.directory.personalEmailOf(account.employeeId)
-    : null;
-  const to = personal ?? (account.loginEmail ? null : account.email);
+  // Akun berprivilege hanya pulih lewat email akun, yang tidak bisa diubah dari profil karyawan.
+  const protectedAccount =
+    account.role === ROLE.SUPER_ADMIN ||
+    account.role === ROLE.HR_ADMIN ||
+    account.role === ROLE.HR_PERSONNEL;
+  const personal =
+    !protectedAccount && account.employeeId
+      ? await deps.directory.personalEmailOf(account.employeeId)
+      : null;
+  // Alamat login NIK saja bukan email kontak tujuan pemulihan.
+  const to = protectedAccount
+    ? account.email !== account.loginEmail
+      ? account.email
+      : null
+    : (personal ?? (account.loginEmail ? null : account.email));
   if (!to) return "no_contact";
   try {
     const link = await deps.authAdmin.generateRecoveryLink(
