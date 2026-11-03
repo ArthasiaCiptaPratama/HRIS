@@ -17,11 +17,13 @@ import type { Actor } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
+  ConflictError,
   ForbiddenError,
   NotFoundError,
   ValidationError,
 } from "../../core/errors.ts";
 import {
+  assertOwnedPath,
   EMPLOYEE_DOCUMENT_BUCKET,
   EMPLOYEE_DOCUMENT_MAX_BYTES,
   EMPLOYEE_DOCUMENT_MIME_TYPES,
@@ -31,6 +33,11 @@ import {
 } from "../../core/storage.ts";
 import { listOnboardingReviewers } from "../iam/index.ts";
 import { notify } from "../notification/index.ts";
+import {
+  assertUnusedDocumentPath,
+  discardDocumentUpload,
+  isDocumentPathConflict,
+} from "./document-storage.ts";
 import * as employeeRepo from "./employee.repository.ts";
 import * as onboardingRepo from "./onboarding.repository.ts";
 import * as repo from "./onboarding-wizard.repository.ts";
@@ -287,11 +294,11 @@ export async function describeOnboarding(
       mimeType: d.mimeType,
       sizeBytes: d.sizeBytes,
       url: docUrls.get(d.storagePath) ?? null,
-      // Mode lengkapi: dokumen lama (bukan unggahan sendiri) tidak bisa dihapus sendiri.
+      // Dokumen unggahan HR tidak bisa dihapus sendiri, termasuk saat masih calon.
       removable:
         editable &&
         (!revision || Boolean(revision.notes.documents)) &&
-        (mode === "candidate" || d.uploadedBy === viewerAccountId),
+        d.uploadedBy === viewerAccountId,
     })),
     photoUrl: row.photoPath ? (photoUrls.get(row.photoPath) ?? null) : null,
     missing,
@@ -444,11 +451,10 @@ export async function confirmDocument(
 ) {
   const state = await loadMine(ctx);
   assertEditable(state, "documents");
-  const { row, mode } = state;
+  const { row } = state;
   // Path wajib milik karyawan ini di lingkungan ini (pola D-037).
-  if (!input.path.startsWith(documentDir(ctx, row.id))) {
-    throw new BusinessRuleError("Dokumen tidak valid untuk karyawan ini.");
-  }
+  assertOwnedPath(input.path, documentDir(ctx, row.id), "Dokumen tidak valid untuk karyawan ini.");
+  await assertUnusedDocumentPath(input.path);
   const storage = storageOf(ctx);
   const info = await storage.getObjectInfo(EMPLOYEE_DOCUMENT_BUCKET, input.path);
   if (!info) throw new BusinessRuleError("Dokumen belum terunggah. Coba unggah ulang.");
@@ -456,42 +462,49 @@ export async function confirmDocument(
     info.contentType ?? "",
   );
   if (!allowed || info.size <= 0 || info.size > EMPLOYEE_DOCUMENT_MAX_BYTES) {
-    await storage.removeObjects(EMPLOYEE_DOCUMENT_BUCKET, [input.path]);
+    await discardDocumentUpload(storage, input.path);
     throw new BusinessRuleError("Dokumen harus PDF, JPG, atau PNG maksimal 5 MB.");
   }
   const replaced = SINGLE_DOCUMENT.includes(input.type)
     ? await repo.findActiveDocuments(row.id, input.type)
     : [];
-  if (mode === "completion" && replaced.some((d) => d.uploadedBy !== ctx.actor.accountId)) {
-    await storage.removeObjects(EMPLOYEE_DOCUMENT_BUCKET, [input.path]);
+  if (replaced.some((d) => d.uploadedBy !== ctx.actor.accountId)) {
+    await discardDocumentUpload(storage, input.path);
     throw new BusinessRuleError(
       `${DOCUMENT_TYPE_LABELS[input.type]} sudah ada; penggantian dilakukan lewat HR.`,
     );
   }
-  const created = await employeeRepo.withTransaction(async (tx) => {
-    await repo.archiveDocuments(
-      tx,
-      replaced.map((d) => d.id),
-      now,
-    );
-    const doc = await repo.createDocument(tx, {
-      employeeId: row.id,
-      type: input.type,
-      storagePath: input.path,
-      mimeType: info.contentType ?? "application/octet-stream",
-      sizeBytes: info.size,
-      uploadedBy: ctx.actor.accountId,
+  const created = await employeeRepo
+    .withTransaction(async (tx) => {
+      await repo.archiveDocuments(
+        tx,
+        replaced.map((d) => d.id),
+        now,
+      );
+      const doc = await repo.createDocument(tx, {
+        employeeId: row.id,
+        type: input.type,
+        storagePath: input.path,
+        mimeType: info.contentType ?? "application/octet-stream",
+        sizeBytes: info.size,
+        uploadedBy: ctx.actor.accountId,
+      });
+      await writeAudit(
+        {
+          ...auditBase(ctx, row.id),
+          action: "employee.document.upload",
+          after: { type: input.type, replaced: replaced.length },
+        },
+        tx,
+      );
+      return doc;
+    })
+    .catch(async (error: unknown) => {
+      if (await isDocumentPathConflict(error, input.path)) {
+        throw new ConflictError("File sudah digunakan oleh dokumen lain. Unggah file baru.");
+      }
+      throw error;
     });
-    await writeAudit(
-      {
-        ...auditBase(ctx, row.id),
-        action: "employee.document.upload",
-        after: { type: input.type, replaced: replaced.length },
-      },
-      tx,
-    );
-    return doc;
-  });
   if (replaced.length > 0) {
     await storage.removeObjects(
       EMPLOYEE_DOCUMENT_BUCKET,
@@ -508,7 +521,7 @@ export async function deleteDocument(ctx: WizardContext, documentId: string, now
   if (!doc || doc.employeeId !== state.row.id || doc.deletedAt) {
     throw new NotFoundError("Dokumen tidak ditemukan.");
   }
-  if (state.mode === "completion" && doc.uploadedBy !== ctx.actor.accountId) {
+  if (doc.uploadedBy !== ctx.actor.accountId) {
     throw new BusinessRuleError("Dokumen lama hanya bisa dihapus lewat HR.");
   }
   await employeeRepo.withTransaction(async (tx) => {

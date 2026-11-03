@@ -1,5 +1,7 @@
 # Codemap — `employee`
 
+**Audit keamanan 6/R2 bagian C (2026-11-03):** `core/storage.ts` mengekspor `assertOwnedPath` (prefix literal + satu nama UUID dan ekstensi; 400 untuk traversal/encoding/subdirektori), dipakai konfirmasi dokumen, data-change, wizard, selfie, lampiran surat pernyataan, dan cuti. `document.repository.ts` `findDocumentByStoragePath` mencakup soft-deleted; `document-storage.ts` memeriksa path belum dirujuk dan memeriksa ulang sebelum cleanup, serta mengenali P2002 saat path sudah diklaim agar objek tidak dihapus. Wizard `removable`, hapus, dan penggantian dokumen tunggal memerlukan pengunggah = akun pemilik. Regresi: `core/__tests__/storage-path.test.ts`, integration `employee/{data-changes,onboarding-wizard,documents}.test.ts`.
+
 > Detail modul `employee`, dipindah utuh dari `CODEMAP.md` §2/§3/§6 pada 2026-10-13. Struktur standar modul: [CODEMAP §4](../CODEMAP.md#4-struktur-standar-modul-appsapisrcmodulesmodul) · peta modul: [CODEMAP §5](../CODEMAP.md#5-peta-modul). Fitur pemakai: [karyawan](../features/karyawan/README.md) · [import-karyawan](../features/import-karyawan/README.md) · [onboarding](../features/onboarding/README.md) · [arsip](../features/arsip/README.md) · [dashboard](../features/dashboard/README.md).
 
 ## API (`apps/api/src/modules/`)

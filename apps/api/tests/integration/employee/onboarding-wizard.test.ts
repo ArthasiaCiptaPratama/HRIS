@@ -136,6 +136,138 @@ describe("kunci akses (design §12)", () => {
 });
 
 describe("calon: draf, dokumen, kirim", () => {
+  for (const valid of [false, true]) {
+    test(`referensi yang muncul saat konfirmasi tetap aman (valid=${valid})`, async () => {
+      const path = `${PREFIX}employees/${ids.candidate}/documents/${crypto.randomUUID()}.pdf`;
+      const documentTypeId = (
+        await prisma.documentType.findUniqueOrThrow({ where: { code: "OTHER" } })
+      ).id;
+      storage.putObject(EMPLOYEE_DOCUMENT_BUCKET, path, {
+        size: valid ? 1000 : 0,
+        contentType: "application/pdf",
+      });
+      const raceApp = createApp({
+        logger: createLogger("error", () => {}),
+        tokenVerifier: testVerifier,
+        storage: {
+          ...storage.storage,
+          async getObjectInfo(bucket, key) {
+            await prisma.employeeDocument.create({
+              data: {
+                employeeId: ids.candidate,
+                type: "OTHER",
+                documentTypeId,
+                storagePath: key,
+                mimeType: "application/pdf",
+                sizeBytes: 1000,
+                uploadedBy: sa.account.id,
+              },
+            });
+            return storage.storage.getObjectInfo(bucket, key);
+          },
+        },
+        storagePathPrefix: PREFIX,
+      });
+      const res = await raceApp.request("/api/v1/onboarding/me/documents", {
+        method: "POST",
+        headers: { ...candidate.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "OTHER", path }),
+      });
+      expect(res.status).toBe(valid ? 409 : 422);
+      expect(storage.removed).not.toContain(`${EMPLOYEE_DOCUMENT_BUCKET}/${path}`);
+      expect(storage.has(EMPLOYEE_DOCUMENT_BUCKET, path)).toBe(true);
+    });
+  }
+
+  test("calon tetap bisa menghapus unggahannya sendiri", async () => {
+    const res = await uploadDoc(candidate, "OTHER");
+    expect(res.status).toBe(201);
+    const { id } = await data(res);
+    const doc = await prisma.employeeDocument.findUniqueOrThrow({ where: { id } });
+    const me = await data(await call("GET", "/onboarding/me", candidate.headers));
+    expect(me.documents.find((d: { id: string }) => d.id === id)?.removable).toBe(true);
+    expect((await call("DELETE", `/onboarding/me/documents/${id}`, candidate.headers)).status).toBe(
+      200,
+    );
+    expect(storage.removed).toContain(`${EMPLOYEE_DOCUMENT_BUCKET}/${doc.storagePath}`);
+  });
+
+  for (const deleted of [false, true]) {
+    for (const valid of [false, true]) {
+      test(`konfirmasi path HR ditolak tanpa menghapus objek (deleted=${deleted}, valid=${valid})`, async () => {
+        const path = `${PREFIX}employees/${ids.candidate}/documents/${crypto.randomUUID()}.pdf`;
+        await prisma.employeeDocument.create({
+          data: {
+            employeeId: ids.candidate,
+            type: "OTHER",
+            documentTypeId: (
+              await prisma.documentType.findUniqueOrThrow({ where: { code: "OTHER" } })
+            ).id,
+            storagePath: path,
+            mimeType: "application/pdf",
+            sizeBytes: 1000,
+            uploadedBy: sa.account.id,
+            deletedAt: deleted ? new Date() : null,
+          },
+        });
+        storage.putObject(EMPLOYEE_DOCUMENT_BUCKET, path, {
+          size: valid ? 1000 : 0,
+          contentType: valid ? "application/pdf" : "text/html",
+        });
+        const res = await call("POST", "/onboarding/me/documents", candidate.headers, {
+          type: "OTHER",
+          path,
+        });
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+        expect(storage.removed).not.toContain(`${EMPLOYEE_DOCUMENT_BUCKET}/${path}`);
+        expect(storage.has(EMPLOYEE_DOCUMENT_BUCKET, path)).toBe(true);
+      });
+    }
+  }
+
+  test("calon tidak boleh menghapus atau mengganti dokumen unggahan HR", async () => {
+    const path = `${PREFIX}employees/${ids.candidate}/documents/${crypto.randomUUID()}.pdf`;
+    const doc = await prisma.employeeDocument.create({
+      data: {
+        employeeId: ids.candidate,
+        type: "NPWP",
+        storagePath: path,
+        documentTypeId: (await prisma.documentType.findUniqueOrThrow({ where: { code: "NPWP" } }))
+          .id,
+        mimeType: "application/pdf",
+        sizeBytes: 1000,
+        uploadedBy: sa.account.id,
+      },
+    });
+    storage.putObject(EMPLOYEE_DOCUMENT_BUCKET, path, {
+      size: 1000,
+      contentType: "application/pdf",
+    });
+    const me = await data(await call("GET", "/onboarding/me", candidate.headers));
+    expect(me.documents.find((d: { id: string }) => d.id === doc.id)?.removable).toBe(false);
+    expect(
+      (await call("DELETE", `/onboarding/me/documents/${doc.id}`, candidate.headers)).status,
+    ).toBe(422);
+    expect((await uploadDoc(candidate, "NPWP")).status).toBe(422);
+    expect(storage.removed).not.toContain(`${EMPLOYEE_DOCUMENT_BUCKET}/${path}`);
+    expect(
+      (await prisma.employeeDocument.findUniqueOrThrow({ where: { id: doc.id } })).deletedAt,
+    ).toBeNull();
+  });
+
+  for (const suffix of ["../other.pdf", "%2e%2e/other.pdf", "nested/file.pdf", "..\\other.pdf"]) {
+    test(`path wizard menolak traversal: ${suffix}`, async () => {
+      const path = `${PREFIX}employees/${ids.candidate}/documents/${suffix}`;
+      storage.putObject(EMPLOYEE_DOCUMENT_BUCKET, path, { size: 0, contentType: "text/html" });
+      expect(
+        (await call("POST", "/onboarding/me/documents", candidate.headers, { type: "OTHER", path }))
+          .status,
+      ).toBe(422);
+      expect(storage.removed).not.toContain(`${EMPLOYEE_DOCUMENT_BUCKET}/${path}`);
+    });
+  }
+
   test("simpan draf: format divalidasi (400), tersimpan, kekurangan berkurang", async () => {
     const before = await data(await call("GET", "/onboarding/me", candidate.headers));
     expect(before).toMatchObject({ mode: "candidate", editable: true });
