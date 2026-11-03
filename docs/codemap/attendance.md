@@ -55,3 +55,7 @@
 **2026-10-27 (TM-D21):** `calendar.service.ts` `settingsToday(now)` (hari ini di zona `time_settings.timezone`, diekspor `index.ts`) dipakai `roster.service` (pengganti `todayIso` WIB; `regenerateCrew(from?)`), `period.service` (pengganti `todayJakarta`; `assertClosable` async) dan modul leave. Test `time-management/timezone.test.ts`.
 
 **App M3 Jadwal (2026-10-26, `HRIS/mobile-app`):** `roster.contract.ts` item `EmployeeRosterDay` bernama (`EmployeeRoster` = array `$ref`), enum `RosterChange.status` / `RosterGrid.holidays[].kind` / `days[].source` dari shared (`ROSTER_CHANGE_STATUSES`, `HOLIDAY_KINDS`, `ROSTER_SOURCES`; tipe DTO ikut menyempit). `roster.service.ts` `lockedEmployeesOn(ids, date)` (cek kunci yang sama dengan edit grid/impor); `roster-change.service.ts` `assertDayUnlocked` saat ajukan & di handler APPROVED (422, keputusan di-rollback) + batas "hari ini" dari `time_settings.timezone`. Test `roster.test.ts` (+2). `attendance.contract.ts` `todayOvertimeOrderSchema` (`TodayOvertimeOrder`, bukan inline → tidak bentrok dengan `OvertimeOrder`).
+
+### Hardening CSV (audit R1, 2026-11-03)
+
+Kedua unduhan CSV di `apps/web/src/features/time-management/pages/period-pages.tsx` (rekap bulanan dan rincian karyawan) memakai `apps/web/src/lib/csv.ts` → `escapeCsvCell`: awalan `=`, `+`, `-`, `@`, tab, CR dinetralkan dengan apostrof sebelum quoting/doubling kutip. Test: `apps/web/tests/csv.test.ts`. Tidak ditemukan generator CSV dinamis lain di web/API.
