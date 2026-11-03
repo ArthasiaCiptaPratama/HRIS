@@ -249,10 +249,15 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       service.importBalances(ctxOf(c), strict(leaveBalanceImportSchema, await body(c)), false),
   ],
   [
-    route("post", "/leave-balances/import/commit", "Simpan import saldo awal (semua atau tidak)", {
-      body: leaveBalanceImportSchema,
-      response: leaveBalanceImportResultSchema,
-    }),
+    route(
+      "post",
+      "/leave-balances/import/commit",
+      "Simpan import saldo awal (baris diri sendiri HR ditolak)",
+      {
+        body: leaveBalanceImportSchema,
+        response: leaveBalanceImportResultSchema,
+      },
+    ),
     async (c) =>
       service.importBalances(ctxOf(c), strict(leaveBalanceImportSchema, await body(c)), true),
   ],
