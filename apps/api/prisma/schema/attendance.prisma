@@ -444,6 +444,8 @@ model AttendanceStatement {
   workDate          DateTime @map("work_date") @db.Date
   reason            String   @db.VarChar(1000)
   attachmentPath    String?  @map("attachment_path") @db.VarChar(300)
+  /// MOB-D22: kunci idempotensi dari klien; retry dengan kunci sama mengembalikan pernyataan yang sudah ada.
+  idempotencyKey    String?  @unique @map("idempotency_key") @db.VarChar(64)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([companyId, workDate])
@@ -473,6 +475,8 @@ model AttendanceCorrection {
   reason            String                     @db.VarChar(500)
   status            AttendanceCorrectionStatus @default(PENDING)
   decidedAt         DateTime?                  @map("decided_at") @db.Timestamptz(6)
+  /// MOB-D22: kunci idempotensi dari klien; retry dengan kunci sama mengembalikan koreksi yang sudah ada.
+  idempotencyKey    String?                    @unique @map("idempotency_key") @db.VarChar(64)
   createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
 

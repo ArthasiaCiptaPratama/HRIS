@@ -43,7 +43,7 @@ let sa: Login;
 const owners: Record<string, Login> = {};
 const ids = { department: "", position: "", status: "" } as Record<string, string>;
 const number = (key: string) => `NK.${RUN}.${key.toUpperCase()}`;
-const personal = (key: string) => `nk-${RUN.toLowerCase()}-${key}@example.test`;
+const personal = (key: string) => `nk-${RUN.toLowerCase()}-${key.toLowerCase()}@example.test`;
 
 beforeAll(async () => {
   const company = await acpCompanyId();
@@ -156,6 +156,71 @@ describe("lupa password (publik)", () => {
     await reset(personal("ok"));
     expect(email.sent.some((m) => m.to === personal("ok"))).toBe(true);
     expect(fakeAuth.recoveryLinks).toContain(`nk.${RUN.toLowerCase()}.baru@${DOMAIN}`);
+  });
+
+  for (const role of ["SUPER_ADMIN", "HR_ADMIN", "HR_PERSONNEL"] as const) {
+    test(`${role}: reset melalui NIP/email pribadi/email akun hanya dikirim ke email akun`, async () => {
+      const e = await prisma.employee.create({
+        data: {
+          companyId: await acpCompanyId(),
+          employeeNumber: number(role),
+          fullName: `Reset ${role} ${RUN}`,
+          personalEmail: personal(role),
+          joinDate: new Date("2024-01-02"),
+          employmentStatusId: ids.status as string,
+          positionId: ids.position as string,
+        },
+      });
+      const owner = await auth.loginAs(role, { employeeId: e.id });
+      const loginEmail = `${number(role).toLowerCase()}@${DOMAIN}`;
+      await prisma.account.update({ where: { id: owner.account.id }, data: { loginEmail } });
+      const unknown = await reset(`UNKNOWN-${role}-${RUN}`);
+      const generic = await unknown.json();
+      for (const identifier of [number(role), personal(role), owner.account.email]) {
+        const before = email.sent.length;
+        const res = await reset(identifier);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual(generic);
+        expect(email.sent.slice(before).map((m) => m.to)).toEqual([owner.account.email]);
+        expect(fakeAuth.recoveryLinks).toContain(loginEmail);
+      }
+      expect(email.sent.some((m) => m.to === personal(role))).toBe(false);
+    });
+  }
+
+  test("akun berprivilege tanpa email kontak nyata tidak mengirim reset, respons tetap sama", async () => {
+    const e = await prisma.employee.create({
+      data: {
+        companyId: await acpCompanyId(),
+        employeeNumber: number("no-contact"),
+        fullName: `Reset Tanpa Email ${RUN}`,
+        personalEmail: personal("no-contact"),
+        joinDate: new Date("2024-01-02"),
+        employmentStatusId: ids.status as string,
+        positionId: ids.position as string,
+      },
+    });
+    const owner = await auth.loginAs("HR_ADMIN", { employeeId: e.id });
+    const loginEmail = `${number("no-contact").toLowerCase()}@${DOMAIN}`;
+    try {
+      await prisma.account.update({
+        where: { id: owner.account.id },
+        data: { email: loginEmail, loginEmail },
+      });
+      const before = email.sent.length;
+      const links = fakeAuth.recoveryLinks.length;
+      const res = await reset(number("no-contact"));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(await (await reset(`UNKNOWN-NO-CONTACT-${RUN}`)).json());
+      expect(email.sent).toHaveLength(before);
+      expect(fakeAuth.recoveryLinks).toHaveLength(links);
+    } finally {
+      // Fixture cleanup mengenali akun lewat prefix email aslinya.
+      await prisma.account.update({
+        where: { id: owner.account.id },
+        data: { email: owner.account.email },
+      });
+    }
   });
 
   test("maks 3 permintaan per masukan per jam; masukan disimpan sebagai hash", async () => {

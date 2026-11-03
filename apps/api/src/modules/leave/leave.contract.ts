@@ -95,11 +95,22 @@ assertExact<
   Awaited<ReturnType<typeof service.createAttachmentUpload>>
 >(true);
 
+// Skema bernama (bukan objek inline): codegen app menamai objek inline dari nama properti (`Type`) dan
+// bentrok dengan enum inline `Type` lain di spec. Bentuk JSON sama dengan sebelumnya.
+export const leaveRequestTypeSchema = z
+  .object({
+    id: z.uuid(),
+    code: z.string(),
+    name: z.string(),
+    category: z.enum(["ANNUAL", "PERMIT", "SICK"]),
+  })
+  .openapi("LeaveRequestType");
+
 export const leaveRequestSchema = z
   .object({
     id: z.uuid(),
     employee: employeeRef,
-    type: z.object({ id: z.uuid(), code: z.string(), name: z.string(), category: z.string() }),
+    type: leaveRequestTypeSchema,
     startDate: z.iso.date(),
     endDate: z.iso.date(),
     workDates: z.array(z.iso.date()),

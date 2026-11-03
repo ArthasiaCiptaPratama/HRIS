@@ -961,6 +961,42 @@ export function configureCrewedCellSplitter(splitter: CrewedCellSplitter) {
   splitCrewedCells = splitter;
 }
 
+/** Periksa sebelum splitter: splitter dapat membuat pengajuan untuk sel lain dalam batch. */
+async function selfDirectCellIssues(
+  ctx: RequestContext,
+  companyId: string,
+  cells: RosterCell[],
+): Promise<CellIssue[]> {
+  const selfCells = cells.filter(
+    (cell) => !policy.canApplyRosterCell(ctx.actor, companyId, cell.employeeId, false),
+  );
+  if (selfCells.length === 0) return [];
+  const dates = selfCells.map((cell) => cell.date).sort();
+  const memberships = await repository.membershipsBetween(
+    [...new Set(selfCells.map((cell) => cell.employeeId))],
+    toDate(dates[0] as string),
+    toDate(dates[dates.length - 1] as string),
+  );
+  return cells.flatMap((cell, index) => {
+    const hasCrew = memberships.some(
+      (m) =>
+        m.employeeId === cell.employeeId &&
+        toIso(m.startDate) <= cell.date &&
+        (!m.endDate || toIso(m.endDate) >= cell.date),
+    );
+    return policy.canApplyRosterCell(ctx.actor, companyId, cell.employeeId, hasCrew)
+      ? []
+      : [
+          {
+            index,
+            employeeId: cell.employeeId,
+            date: cell.date,
+            message: "Anda tidak boleh mengubah roster milik sendiri tanpa persetujuan.",
+          },
+        ];
+  });
+}
+
 export async function setRosterCells(
   ctx: RequestContext,
   input: RosterCellsInput,
@@ -968,6 +1004,8 @@ export async function setRosterCells(
   assertManage(ctx.actor, input.companyId);
   const { issues, codes } = await validateCells(input.companyId, input.cells);
   if (issues.length > 0) throw new BusinessRuleError("Sebagian sel tidak bisa disimpan.", issues);
+  const selfIssues = await selfDirectCellIssues(ctx, input.companyId, input.cells);
+  if (selfIssues.length > 0) throw new ForbiddenError(selfIssues[0]?.message);
   const split = await splitCrewedCells(ctx, input.companyId, "CELLS", input.cells);
   if (split.blocked.length > 0) {
     throw new BusinessRuleError("Sebagian sel tidak bisa disimpan.", split.blocked);
@@ -983,7 +1021,7 @@ export interface ImportPreview {
   issues: CellIssue[];
 }
 
-async function resolveImport(input: RosterImportInput) {
+async function resolveImport(ctx: RequestContext, input: RosterImportInput) {
   const employees = await directory.employeesByNumbers(
     input.companyId,
     input.rows.map((r) => r.employeeNumber),
@@ -1002,7 +1040,8 @@ async function resolveImport(input: RosterImportInput) {
     else cells.push({ employeeId: employee.id, date: row.date, code: row.code });
   });
   const validation = await validateCells(input.companyId, cells);
-  for (const issue of validation.issues) {
+  const selfIssues = await selfDirectCellIssues(ctx, input.companyId, cells);
+  for (const issue of [...validation.issues, ...selfIssues]) {
     const cell = cells[issue.index];
     const original = input.rows.findIndex(
       (r) => employees.get(r.employeeNumber)?.id === cell?.employeeId && r.date === cell?.date,
@@ -1017,7 +1056,7 @@ export async function previewRosterImport(
   input: RosterImportInput,
 ): Promise<ImportPreview> {
   assertManage(ctx.actor, input.companyId);
-  const { issues } = await resolveImport(input);
+  const { issues } = await resolveImport(ctx, input);
   return {
     total: input.rows.length,
     valid: input.rows.length - issues.length,
@@ -1031,7 +1070,7 @@ export async function commitRosterImport(
   input: RosterImportInput,
 ): Promise<{ saved: number; submitted: number }> {
   assertManage(ctx.actor, input.companyId);
-  const { cells, issues, codes } = await resolveImport(input);
+  const { cells, issues, codes } = await resolveImport(ctx, input);
   if (issues.length > 0)
     throw new BusinessRuleError(
       "Masih ada baris bermasalah; perbaiki lalu pratinjau ulang.",

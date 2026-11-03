@@ -9,6 +9,7 @@ const BASE = {
 describe("parseEnv", () => {
   test("mengisi default dan memecah CORS_ORIGINS", () => {
     const env = parseEnv({ ...BASE, CORS_ORIGINS: "http://a.test, http://b.test" });
+    expect(env.NODE_ENV).toBe("production");
     expect(env.PORT).toBe(3000);
     expect(env.CORS_ORIGINS).toEqual(["http://a.test", "http://b.test"]);
     expect(env.SUPABASE_URL).toBe("https://project.supabase.co");
@@ -32,6 +33,7 @@ describe("parseEnv", () => {
 
   test("SUPABASE_URL wajib di luar NODE_ENV=test", () => {
     const { SUPABASE_URL: _omit, ...withoutSupabase } = BASE;
+    expect(() => parseEnv(withoutSupabase)).toThrow(/SUPABASE_URL/);
     expect(() => parseEnv({ ...withoutSupabase, NODE_ENV: "development" })).toThrow(/SUPABASE_URL/);
     expect(parseEnv({ ...withoutSupabase, NODE_ENV: "test" }).SUPABASE_URL).toBeUndefined();
   });

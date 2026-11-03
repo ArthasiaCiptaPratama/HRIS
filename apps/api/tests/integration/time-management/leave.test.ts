@@ -358,6 +358,68 @@ describe("sakit & pembatalan", () => {
   });
 });
 
+describe("pengajuan dari app: Idempotency-Key (MOB-D22)", () => {
+  test("retry kunci sama → pengajuan yang sama (200, satu baris); kunci orang lain 409; format salah 400", async () => {
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.a, workDate: D("2098-06-03"), shiftId, source: "MANUAL" },
+    });
+    const key = `leave-${RUN}-0001`;
+    const body = {
+      leaveTypeId: types.SAKIT,
+      startDate: "2098-06-03",
+      endDate: "2098-06-03",
+      reason: "Demam",
+    };
+    const first = await call("POST", "/leave-requests", { ...h.a, "Idempotency-Key": key }, body);
+    expect(first.status).toBe(200);
+    const created = await data<{ id: string; type: { category: string } }>(first);
+    expect(created.type.category).toBe("SICK");
+    // Respons pertama hilang → app mengulang dengan kunci sama: bukan 409 "sudah ada pengajuan".
+    const retry = await call("POST", "/leave-requests", { ...h.a, "Idempotency-Key": key }, body);
+    expect(retry.status).toBe(200);
+    expect((await data<{ id: string }>(retry)).id).toBe(created.id);
+    expect(
+      await prisma.leaveRequest.count({ where: { employeeId: emp.a, startDate: D("2098-06-03") } }),
+    ).toBe(1);
+    // Tanpa kunci: perilaku lama (409 rentang bentrok).
+    expect((await call("POST", "/leave-requests", h.a, body)).status).toBe(409);
+    expect(
+      (await call("POST", "/leave-requests", { ...h.b, "Idempotency-Key": key }, body)).status,
+    ).toBe(409);
+    expect(
+      (await call("POST", "/leave-requests", { ...h.a, "Idempotency-Key": "bad key!" }, body))
+        .status,
+    ).toBe(400);
+    expect((await call("POST", `/leave-requests/${created.id}/cancel`, h.a)).status).toBe(200);
+  });
+});
+
+describe("pengajuan dari app: dua retry bersamaan (MOB-D22)", () => {
+  test("dua permintaan kunci sama sekaligus → keduanya 200 dengan pengajuan yang sama", async () => {
+    await prisma.rosterDay.create({
+      data: { employeeId: emp.a, workDate: D("2098-06-04"), shiftId, source: "MANUAL" },
+    });
+    const headers = { ...h.a, "Idempotency-Key": `leave-${RUN}-race` };
+    const body = {
+      leaveTypeId: types.SAKIT,
+      startDate: "2098-06-04",
+      endDate: "2098-06-04",
+      reason: "Demam",
+    };
+    const [x, y] = await Promise.all([
+      call("POST", "/leave-requests", headers, body),
+      call("POST", "/leave-requests", headers, body),
+    ]);
+    expect([x.status, y.status]).toEqual([200, 200]);
+    const [rx, ry] = [await data<{ id: string }>(x), await data<{ id: string }>(y)];
+    expect(rx.id).toBe(ry.id);
+    expect(
+      await prisma.leaveRequest.count({ where: { employeeId: emp.a, startDate: D("2098-06-04") } }),
+    ).toBe(1);
+    expect((await call("POST", `/leave-requests/${rx.id}/cancel`, h.a)).status).toBe(200);
+  });
+});
+
 describe("pekerjaan cuti", () => {
   test("cuti bersama di hari kerja roster tanpa absen → −1 cuti, sekali saja", async () => {
     expect(

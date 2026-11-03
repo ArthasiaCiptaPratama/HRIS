@@ -428,6 +428,7 @@ export async function findAccountForReset(where: { email: string } | { employeeI
       id: true,
       email: true,
       loginEmail: true,
+      role: true,
       employeeId: true,
       isActive: true,
     },

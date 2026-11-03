@@ -21,7 +21,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
-import type { StorageAdmin } from "../../core/storage.ts";
+import { assertOwnedPath, type StorageAdmin } from "../../core/storage.ts";
 import {
   type AfterCommit,
   type ApprovalView,
@@ -450,7 +450,7 @@ export async function createAttachmentUpload(
 export interface LeaveRequestDto {
   id: string;
   employee: { id: string; fullName: string; employeeNumber: string | null };
-  type: { id: string; code: string; name: string; category: string };
+  type: { id: string; code: string; name: string; category: LeaveTypeDto["category"] };
   startDate: string;
   endDate: string;
   workDates: string[];
@@ -584,11 +584,45 @@ async function toDtos(
   });
 }
 
+/** MOB-D22: retry dengan kunci sama → pengajuan yang sudah tercatat (bukan 409); milik orang lain → 409. */
+async function replayLeaveRequest(ctx: RequestContext, employeeId: string, key: string) {
+  const existing = await repository.findRequestByIdempotencyKey(key);
+  if (!existing) return null;
+  if (existing.employeeId !== employeeId) {
+    throw new ConflictError("Kunci permintaan sudah dipakai. Ajukan ulang.");
+  }
+  return (await toDtos(ctx, [existing]))[0] as LeaveRequestDto;
+}
+
 export async function createLeaveRequest(
   ctx: RequestContext,
   input: LeaveRequestInput,
+  idempotencyKey?: string,
 ): Promise<LeaveRequestDto> {
   const employeeId = selfEmployee(ctx);
+  if (idempotencyKey) {
+    const replay = await replayLeaveRequest(ctx, employeeId, idempotencyKey);
+    if (replay) return replay;
+  }
+  try {
+    return await submitLeaveRequest(ctx, employeeId, input, idempotencyKey);
+  } catch (error) {
+    // Dua permintaan dengan kunci sama bersamaan: yang kalah (indeks unik / cek tumpang-tindih)
+    // mengembalikan hasil yang menang.
+    if (idempotencyKey) {
+      const replay = await replayLeaveRequest(ctx, employeeId, idempotencyKey);
+      if (replay) return replay;
+    }
+    throw error;
+  }
+}
+
+async function submitLeaveRequest(
+  ctx: RequestContext,
+  employeeId: string,
+  input: LeaveRequestInput,
+  idempotencyKey: string | undefined,
+): Promise<LeaveRequestDto> {
   if (!policy.canRequestLeave(ctx.actor, employeeId)) throw new ForbiddenError();
   const employee = await employeeDirectory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
@@ -651,9 +685,11 @@ export async function createLeaveRequest(
     throw new BusinessRuleError(`${type.name} ${dates.length} hari wajib melampirkan dokumen.`);
   }
   if (input.attachmentPath) {
-    if (!input.attachmentPath.startsWith(`${storage().storagePathPrefix}leave/${employeeId}/`)) {
-      throw new BusinessRuleError("Lampiran tidak valid. Unggah ulang.");
-    }
+    assertOwnedPath(
+      input.attachmentPath,
+      `${storage().storagePathPrefix}leave/${employeeId}/`,
+      "Lampiran tidak valid. Unggah ulang.",
+    );
     const info = await storage().storage.getObjectInfo(
       LEAVE_ATTACHMENT_BUCKET,
       input.attachmentPath,
@@ -695,6 +731,7 @@ export async function createLeaveRequest(
       attachmentPath: input.attachmentPath ?? null,
       createdByEmployeeId: employeeId,
       resubmittedFromId: resubmitOf?.id ?? null,
+      idempotencyKey: idempotencyKey ?? null,
     });
     if (resubmitOf) await repository.lockRequest(tx, resubmitOf.id);
     if (
@@ -1002,6 +1039,11 @@ export async function adjustBalance(ctx: RequestContext, input: LeaveAdjustInput
   const employee = await employeeDirectory.employeeById(input.employeeId);
   if (!employee) throw new NotFoundError();
   if (!policy.canManageBalances(ctx.actor, employee.companyId)) throw new ForbiddenError();
+  if (
+    !policy.canAdjustBalance(ctx.actor, { employeeId: employee.id, companyId: employee.companyId })
+  ) {
+    throw new ForbiddenError("Anda tidak boleh mengubah saldo cuti milik sendiri.");
+  }
   await repository.withTransaction((tx) =>
     repository.addEntries(tx, [
       {
@@ -1030,19 +1072,38 @@ export async function importBalances(
     input.rows.map((r) => r.employeeNumber),
   );
   const issues: { index: number; employeeNumber: string; message: string }[] = [];
+  const rejectedSelf = new Set<number>();
+  let hasBlockingIssues = false;
   const seen = new Set<string>();
   input.rows.forEach((row, index) => {
     if (!employees.has(row.employeeNumber)) {
+      hasBlockingIssues = true;
       issues.push({
         index,
         employeeNumber: row.employeeNumber,
         message: "NIP tidak ditemukan di perusahaan ini.",
       });
     } else if (seen.has(row.employeeNumber)) {
+      hasBlockingIssues = true;
       issues.push({
         index,
         employeeNumber: row.employeeNumber,
         message: "NIP muncul lebih dari sekali.",
+      });
+    }
+    const employee = employees.get(row.employeeNumber);
+    if (
+      employee &&
+      !policy.canAdjustBalance(ctx.actor, {
+        employeeId: employee.id,
+        companyId: employee.companyId,
+      })
+    ) {
+      rejectedSelf.add(index);
+      issues.push({
+        index,
+        employeeNumber: row.employeeNumber,
+        message: "Anda tidak boleh mengubah saldo cuti milik sendiri.",
       });
     }
     seen.add(row.employeeNumber);
@@ -1050,14 +1111,15 @@ export async function importBalances(
   const ids = [...employees.values()].map((e) => e.id);
   const current = await repository.balances(ids, [input.year]);
   const changes = input.rows
-    .map((row) => {
+    .map((row, index) => {
       const employee = employees.get(row.employeeNumber);
-      if (!employee) return null;
+      if (!employee || rejectedSelf.has(index)) return null;
       const before = current.get(`${employee.id}|${input.year}`) ?? 0;
       return { employee, before, after: row.balance, diff: row.balance - before };
     })
     .filter((c): c is NonNullable<typeof c> => c !== null);
-  if (!commit || issues.length > 0) {
+  // Kesalahan umum tetap semua-atau-tidak; baris diri sendiri ditolak tanpa menghalangi baris lain.
+  if (!commit || hasBlockingIssues) {
     if (commit)
       throw new BusinessRuleError(
         "Masih ada baris bermasalah; perbaiki lalu pratinjau ulang.",
@@ -1088,7 +1150,7 @@ export async function importBalances(
     rows: input.rows.length,
     changed: entries.length,
   });
-  return { total: input.rows.length, changed: entries.length, issues: [], saved: entries.length };
+  return { total: input.rows.length, changed: entries.length, issues, saved: entries.length };
 }
 
 // ── Pekerjaan harian (cron `leave-daily`) ──────────────────────────────────────

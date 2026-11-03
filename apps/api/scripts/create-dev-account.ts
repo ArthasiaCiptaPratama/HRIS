@@ -1,13 +1,15 @@
-// Membuat akun UJI (staging/lokal) untuk verifikasi tampilan per role. BUKAN untuk produksi.
+// Membuat akun UJI lokal untuk verifikasi tampilan per role. BUKAN untuk produksi.
 // Pakai (password lewat env, bukan argumen):
 //   DEV_ACCOUNT_PASSWORD='...' bun run dev:account -- --email hr@x --role HR_ADMIN [--employee-number ACP-2022-0006]
 // 1. Cari/buat user Supabase Auth (terkonfirmasi, tanpa email) dengan password tersebut.
 // 2. Buat/perbarui akun HRIS di DB target (DATABASE_URL) + tautan karyawan + audit. Idempoten.
+
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { disconnectPrisma, getPrisma } from "../src/core/db.ts";
 import { createSupabaseAdmin } from "../src/core/supabase-admin.ts";
 import { provisionAccount } from "../src/modules/iam/index.ts";
+import { assertLocalDevAccountTargets } from "./dev-account-guard.ts";
 
 const out = (line: string) => process.stdout.write(`${line}\n`);
 const { values } = parseArgs({
@@ -53,7 +55,7 @@ async function main() {
     supabaseUrl: string;
     serviceRoleKey: string;
   };
-  if (process.env.NODE_ENV === "production") throw new Error("Tidak untuk produksi");
+  assertLocalDevAccountTargets(process.env);
   // Script dev (seperti seed): membaca karyawan dummy langsung untuk menautkan akun.
   const employee = employeeNumber
     ? await getPrisma().employee.findUnique({

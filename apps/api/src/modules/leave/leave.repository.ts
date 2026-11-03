@@ -111,6 +111,9 @@ export type RequestRow = Prisma.LeaveRequestGetPayload<{ include: typeof withTyp
 
 export const findRequest = (id: string, tx?: LeaveTx) =>
   db(tx).leaveRequest.findUnique({ where: { id }, include: withType });
+/** MOB-D22: pengajuan dengan kunci idempotensi dari klien (retry setelah respons hilang). */
+export const findRequestByIdempotencyKey = (key: string) =>
+  getPrisma().leaveRequest.findUnique({ where: { idempotencyKey: key }, include: withType });
 export const requestsByIds = (ids: string[]) =>
   getPrisma().leaveRequest.findMany({
     where: { id: { in: ids } },

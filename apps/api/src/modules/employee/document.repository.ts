@@ -93,6 +93,14 @@ export async function findDocument(tx: EmployeeTx | undefined, id: string) {
   });
 }
 
+/** Include archived documents: their objects must never be treated as unused uploads. */
+export async function findDocumentByStoragePath(storagePath: string) {
+  return getPrisma().employeeDocument.findUnique({
+    where: { storagePath },
+    select: { id: true },
+  });
+}
+
 /** Versi aktif sejenis milik karyawan (jenis tunggal: diganti versi baru). */
 export async function findCurrentOfType(
   tx: EmployeeTx,

@@ -1023,6 +1023,15 @@ export async function updateEmployeeProfile(ctx: RequestContext, id: string, raw
   if (input.bank && !policy.canWriteSensitive(ctx.actor, target, "bank")) {
     throw new ForbiddenError("Ubah rekening butuh izin employee.bank.write.");
   }
+  if (
+    input.personal &&
+    (input.personal.personalEmail ?? null) !== (await repository.findPersonalEmail(id))
+  ) {
+    const links = await getAccountLinksForEmployees([id]);
+    if (!policy.canChangeLoginContact(ctx.actor, links.get(id)?.role ?? null)) {
+      throw new ForbiddenError("Email pribadi akun berprivilege hanya bisa diubah Super Admin.");
+    }
+  }
   const bankChanged = await repository
     .withTransaction(async (tx) => {
       if (input.personal) {
@@ -1086,6 +1095,11 @@ export async function updateEmployee(
   await repository
     .withTransaction(async (tx) => {
       const before = await loadInScope(ctx, id, tx);
+      if (!policy.canUpdateEmployee(ctx.actor, targetOf(before))) {
+        throw new ForbiddenError(
+          "Anda tidak boleh mengubah data kepegawaian milik sendiri lewat jalur HR.",
+        );
+      }
       // D-063: NIP boleh belum ada, tetapi sekali terisi tidak dikosongkan (login NIP & dokumen bergantung padanya).
       if (input.employeeNumber === null && before.employeeNumber) {
         throw new BusinessRuleError("NIP yang sudah terisi tidak bisa dikosongkan.");
