@@ -26,3 +26,5 @@
 | `dashboard_layouts` | [done] D-065: `account_id` (unik, FK cascade), `layout` (jsonb, divalidasi `dashboardLayoutSchema` @hris/shared) — susunan widget Dashboard per akun SA/HR |
 
 Endpoint: `GET /me` · `GET /accounts` (SA, HR; filter role/isActive/q) · `GET /accounts/:id` (SA, HR, sendiri) · `POST /accounts/invite` (SA; HR hanya EMPLOYEE; SUPER_ADMIN hanya Utama) · `PATCH /accounts/:id/role` (SA; SUPER_ADMIN hanya Utama) · `POST /accounts/:id/deactivate|reactivate` (SA; HR hanya EMPLOYEE/MANAGER; ban Supabase) · `POST /accounts/primary-super-admin/transfer` (Utama, login ulang ≤ 5 menit, D-033) · `GET|POST /grants`, `POST /grants/:id/revoke` (SA) · `GET /audit-logs` (SA). Aturan lengkap: D-034.
+
+**Audit keamanan A (HRD-D1, 2026-11-03, `fix/keamanan-email-pribadi`):** `login.service.ts` `requestPasswordReset` — akun SUPER_ADMIN/HR_ADMIN/HR_PERSONNEL hanya dikirim ke `Account.email` (tidak ke email pribadi; email = `loginEmail` → `no_contact`, respons publik tetap generik); `iam.repository.ts` `findAccountForReset` menyertakan `role`. Test: `tests/integration/iam/login-nik.test.ts`.
