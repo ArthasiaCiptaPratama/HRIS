@@ -162,7 +162,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe.skipIf(!FEATURES.timeManagement)("Time Management › Lembur (TM-D6)", () => {
+describe.skipIf(!tmOn("tmOvertime"))("Time Management › Lembur (TM-D6)", () => {
   it("HR ber-grant Biaya melihat rupiah; lembur lewat batas wajib alasan sebelum disetujui", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(withCost(me("HR_ADMIN")), [
@@ -385,33 +385,38 @@ describe.skipIf(!FEATURES.timeManagement)("Absen HP — istirahat (TM-D7)", () =
     expect(screen.queryByRole("button", { name: /istirahat/i })).not.toBeInTheDocument();
   });
 
-  it("TM-D17: atasan mengubah & membatalkan perintah lembur dari tab Perintah lembur", async () => {
-    const user = userEvent.setup();
-    const calls = mockFetch(me("MANAGER", false, "emp-mgr"), []);
-    renderAt("/time/lembur");
-    await user.click(await screen.findByRole("tab", { name: "Perintah lembur" }));
-    const row = (await screen.findByText("Agus Pratama")).closest("tr") as HTMLElement;
-    expect(within(row).getByText("Bongkar muat kapal")).toBeInTheDocument();
+  it.skipIf(!tmOn("tmOvertime"))(
+    "TM-D17: atasan mengubah & membatalkan perintah lembur dari tab Perintah lembur",
+    async () => {
+      const user = userEvent.setup();
+      const calls = mockFetch(me("MANAGER", false, "emp-mgr"), []);
+      renderAt("/time/lembur");
+      await user.click(await screen.findByRole("tab", { name: "Perintah lembur" }));
+      const row = (await screen.findByText("Agus Pratama")).closest("tr") as HTMLElement;
+      expect(within(row).getByText("Bongkar muat kapal")).toBeInTheDocument();
 
-    await user.click(within(row).getByRole("button", { name: /Ubah perintah lembur/ }));
-    const dialog = await screen.findByRole("dialog");
-    const end = within(dialog).getByLabelText("Selesai lebih lambat (opsional)");
-    await user.clear(end);
-    await user.type(end, "21:00");
-    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
-    await waitFor(() =>
-      expect(calls.find((c) => c.method === "PUT" && c.path === "/overtime-orders")?.body).toEqual({
-        employeeId: "emp-1",
-        workDate: "2026-10-27",
-        startTime: null,
-        endTime: "21:00",
-        reason: "Bongkar muat kapal",
-      }),
-    );
+      await user.click(within(row).getByRole("button", { name: /Ubah perintah lembur/ }));
+      const dialog = await screen.findByRole("dialog");
+      const end = within(dialog).getByLabelText("Selesai lebih lambat (opsional)");
+      await user.clear(end);
+      await user.type(end, "21:00");
+      await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+      await waitFor(() =>
+        expect(
+          calls.find((c) => c.method === "PUT" && c.path === "/overtime-orders")?.body,
+        ).toEqual({
+          employeeId: "emp-1",
+          workDate: "2026-10-27",
+          startTime: null,
+          endTime: "21:00",
+          reason: "Bongkar muat kapal",
+        }),
+      );
 
-    await user.click(within(row).getByRole("button", { name: /Batalkan perintah lembur/ }));
-    await waitFor(() =>
-      expect(calls.some((c) => c.path === "/overtime-orders/spl-1/cancel")).toBe(true),
-    );
-  });
+      await user.click(within(row).getByRole("button", { name: /Batalkan perintah lembur/ }));
+      await waitFor(() =>
+        expect(calls.some((c) => c.path === "/overtime-orders/spl-1/cancel")).toBe(true),
+      );
+    },
+  );
 });
