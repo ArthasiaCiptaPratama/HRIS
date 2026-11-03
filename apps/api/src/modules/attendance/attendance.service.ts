@@ -1116,9 +1116,23 @@ export interface DayListQuery {
 
 /** Data Absen Harian: inbox = menunggu keputusan aktor; all = semua hari dalam cakupan aktor. */
 export async function listDays(ctx: RequestContext, query: DayListQuery): Promise<DayView[]> {
-  // TM-D3: Data Absen Harian ikut menampilkan Alpha karena tidak absen tanpa menunggu cron.
-  await markNoAttendanceAlpha();
   const actor = ctx.actor;
+  if (!policy.canListAttendanceDays(actor)) throw new ForbiddenError();
+  if (actor.role === "HR_ADMIN" && query.companyId && !actor.companyIds?.has(query.companyId)) {
+    throw new ForbiddenError();
+  }
+  if (query.employeeId) {
+    const employee = await directory.employeeById(query.employeeId);
+    if (
+      !employee ||
+      !policy.canListEmployeeAttendanceDays(actor, { ...employee, employeeId: employee.id })
+    ) {
+      throw new ForbiddenError("Karyawan berada di luar cakupan akses Anda.");
+    }
+    if (query.companyId && employee.companyId !== query.companyId) throw new ForbiddenError();
+    // Marking global hanya oleh cron; rekap satu karyawan memakai target yang telah diperiksa.
+    await markNoAttendanceAlpha(new Date(), [query.employeeId]);
+  }
   const q = query.q?.trim();
   const matching = q ? new Set(await directory.employeeIdsMatching(q)) : null;
   if (matching?.size === 0) return [];
@@ -1156,6 +1170,7 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
   }
   rows = rows.filter((r) => toIso(r.workDate) >= query.from && toIso(r.workDate) <= query.to);
   if (query.companyId) rows = rows.filter((r) => r.companyId === query.companyId);
+  if (query.employeeId) rows = rows.filter((r) => r.employeeId === query.employeeId);
   if (matching) rows = rows.filter((r) => matching.has(r.employeeId));
   if (query.labeledOnly) rows = rows.filter((r) => r.labels.length > 0);
   // Permintaan pemilik projek 2026-10-21: Data Absen Harian hanya hari yang punya absen (sudah absen, telat,
