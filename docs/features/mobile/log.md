@@ -3,6 +3,12 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-03 — Titik lanjut: ringkasan BE M4/M5, staging gel. 18–19, MOB-OD1, rencana BE M6 (Oatse)
+- **Dikerjakan:** permintaan pengguna lewat supervisor (17:01 WIB): docs diperbarui supaya sesi berikutnya cukup "lanjut". README: status, bagian baru §Titik lanjut (BE M4/M5 selesai, staging gel. 18/18.1/19, backlog BE, MOB-OD1, Berikutnya BE M6), 2 backlog baru di checklist, indeks MOB-D20–D22 & MOB-OD1. PROGRESS induk tidak diubah (dikerjakan sesi HRIS setelah FF).
+- **Keputusan:** MOB-OD1 terjawab — APK rilis lewat Google Drive (kutipan pengguna 16:59 WIB via supervisor); sumber kebenaran tetap `Arthasia-Mobile/docs/decisions.md`.
+- **Verifikasi:** docs saja.
+- **Berikutnya:** BE M6 — `MOBILE_MIN_VERSION` + `MOBILE_APK_URL` (Drive) di staging (butuh kata pengguna), cek kebutuhan endpoint profil/ganti password, backlog.
+
 ### 2026-11-03 — Jam SPL boleh tidak dikirim dari app (MOB-D18) (Oatse)
 - **Dikerjakan:** permintaan supervisor (atas nama pengguna): `overtimeOrderInputSchema.startTime/endTime` `nullable()` → `nullish().transform(v => v ?? null)` (tipe hasil tetap `string | null`). Sapu body semua operasi app di spec: hanya field ini yang nullable-wajib.
 - **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ · shared 346 · `openapi.test` 17 (baru: body app tanpa field nullable wajib) · `overtime-order` + `punch-window` 19 (baru: satu jam tanpa key lain → 200 `startsAt` null; tanpa keduanya → 400) di `hris_mobile_test`.

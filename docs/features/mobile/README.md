@@ -1,7 +1,7 @@
 # Aplikasi mobile (Flutter)
 
 > **Kode prefix:** `MOB` · **Fase:** – (di luar PLAN §7; backlog "Aplikasi mobile") · **PIC:** Oatse · **Branch BE:** `HRIS/mobile-app` (folder `/mnt/winD/WORK/Magang/HRIS-mobile`, DB `hris_mobile`, MOB-D16; tahap 1 terlanjur di develop) · **Repo app:** `/mnt/winD/WORK/Magang/Arthasia-Mobile` → `ArthasiaCiptaPratama/Arthasia-Mobile` (private, belum dibuat; MOB-D8) · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — BE tahap 1–3 + `operationId` ✔ develop (CI ✔ 2026-10-21); app M0 & M1 ✔; **berikutnya app M2 Absen (2026-10-22)** — status app: `Arthasia-Mobile/docs/PROGRESS.md`
+> **Status:** Berjalan — sisi BE M4 (Cuti/Koreksi/Pernyataan) & M5 (approval, SPL atasan) ✔ develop `1dd69ed` + staging gel. 19 (2026-11-03); **berikutnya BE M6** (lihat §Titik lanjut) — status app: `Arthasia-Mobile/docs/PROGRESS.md`
 
 Aplikasi Flutter untuk **karyawan** (layanan mandiri: absen, roster, cuti/izin, koreksi, approval atasan, notifikasi, profil & pengajuan data, aset, SP, dokumen) di **repo & folder terpisah**, memakai API HRIS yang sama (`/api/v1`). **Dokumen ini hanya sisi BE** (kesiapan BE, checklist celah BE, status). **Keputusan `MOB-D*`, roadmap app (M0–M6), dan dokumen app ada di repo app** — `Arthasia-Mobile/docs/decisions.md` adalah sumber kebenaran keputusan (MOB-D13); tabel di bawah hanya indeks.
 
@@ -36,6 +36,30 @@ Dokumen fitur ini: **README** (status BE, checklist, indeks keputusan) · [log.m
 8. **P3** — Saklar/kill switch modul di sisi server bila rilis mobile perlu dipisah dari web.
 
 **Lingkungan build (Windows, dicek 2026-10-21):** Flutter 3.38.9 (scoop, `C:\Users\ASUS\scoop\apps\flutter`) ✔ · Android Studio 2025.3.3 (`D:\Program Files\Android\Android Studio`, JDK `jbr`) ✔ · **Android SDK ✘** (tercatat `C:\Users\ASUS\AppData\Local\Android\Sdk` tetapi folder tidak ada) → pasang lewat SDK Manager (Platform 35/36, Build-Tools, Platform-Tools, Command-line Tools) lalu `flutter doctor --android-licenses`. Linux: tidak ada flutter/adb. C: ter-mount read-only di Linux.
+
+## Titik lanjut (2026-11-03) — baca ini dulu saat disuruh "lanjut"
+
+**Sisi BE M4/M5 selesai** (develop & `HRIS/mobile-app` = `1dd69ed`, CI ✔; detail di checklist & [log](log.md) 2026-11-02–03):
+- `Idempotency-Key` opsional di `POST /leave-requests`, `/attendance/corrections`, `/attendance/statements` (MOB-D22) + migrasi `20261102080000_app_create_idempotency`; lampiran pernyataan ≤ 5 MB.
+- Skema bernama `LeaveRequestType` untuk `LeaveRequest.type`.
+- M5d pemilih karyawan SPL: `operationId` `listEmployees` (`GET /employees`, MANAGER = bawahan langsung), sub-objek `EmployeeListRef`/`EmployeeListStatus`/`EmployeeListCompany`.
+- Enum bernama untuk klien Dart (`LeaveLedgerKind`, `HolidayKind`, `AttendancePunchKind`, …) + test kontrak penjaga di `core/__tests__/openapi.test.ts`: enum generik inline & enum query tanpa nama ditolak; body app tanpa field nullable-wajib.
+- Jam SPL `startTime`/`endTime` boleh tidak dikirim (= null, MOB-D18).
+
+**Staging** (`HRIS-rilis`, rinci di `HRIS-rilis/docs/RELEASE.md`): gel. 18 (TM tampil, audit keamanan A–D, Idempotency-Key; 51 migrasi) → gel. 18.1 (menu Lembur web disembunyikan, API lembur/SPL tetap aktif untuk app) → **gel. 19** (SPL satu jam, `listEmployees`, enum bernama; tanpa migrasi). Saklar staging: `timeManagement` true; `tmOvertime`/`tmRecap`/`tmGradeWages` false.
+
+**Backlog BE (belum dikerjakan):**
+- Langkah approval pada pengajuan yang dibatalkan tetap `PENDING` (sama di PWA).
+- Log info "push sent" di `pushToAccount` (`notification.service.ts`) — kini hanya push gagal yang dicatat, jadi push sukses tak terlihat saat diagnosis.
+- Roster uji di staging: karyawan uji Rizky (PT ACP) belum punya roster November → SPL hari kerja di staging jatuh ke aturan hari libur (422). Perlu roster uji (lewat web/API staging, kata pengguna) sebelum uji SPL hari kerja di staging.
+- `bun test` lokal memakai DB dev (lihat checklist).
+
+**Keputusan:** MOB-OD1 terjawab (kutipan pengguna 2026-11-03 16:59 WIB, via supervisor) — APK rilis didistribusikan lewat **Google Drive** (tautan), tanpa Play Store, selaras MOB-D4; dicatat juga di `Arthasia-Mobile/docs/decisions.md`.
+
+**Berikutnya — BE M6 (rilis v1):**
+1. Isi env `MOBILE_MIN_VERSION` + `MOBILE_APK_URL` (= tautan unduh Google Drive, MOB-OD1) di staging (`hris-staging-api`) — header `X-App-Version` → 426 `APP_UPDATE_REQUIRED` sudah ada (tahap 1). Menulis env Vercel butuh kata pengguna.
+2. Profil / ganti password dari app: cek kebutuhan layar app; bila butuh endpoint baru (MOB-D5: set/lupa password tetap di browser), rencanakan dulu.
+3. Kerjakan backlog di atas sesuai prioritas pengguna.
 
 ## Checklist
 
@@ -73,6 +97,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Enum bernama untuk klien app (tambahan 2026-11-03: temuan app M5d, disetujui supervisor atas nama pengguna) — spec `f5ffc98` membuat swagger_parser 1.45 merujuk enum yang tidak dibuat (`Kind4` di `LeaveMe.ledger[]`, `Category2` & `Active` di `listEmployees`) → app gagal kompilasi. Skema bernama baru: `LeaveLedgerKind`, `HolidayKind`, `AttendancePunchKind` (body punch/precheck), `ApprovalStepKind`, `ApprovalStatus` (juga item bulk), `LeaveTypeCategory` (juga body jenis cuti), `LeaveRequestScope`/`LeaveRequestStatus`, `AttendanceDayScope`/`AttendanceDayStatusFilter`/`AttendanceDayLabeledOnly`, `AttendanceCorrectionScope`, `RosterChangeScope`, `RosterEditScope`, `OvertimeScope`, `NotificationUnreadOnly`, `EmploymentCategory`, `EmploymentCategoryGroup`, `EmployeeActiveFilter`, `EmployeeMissingNumberFilter`, `EmployeeSort`. Nama yang sudah dipakai app dipertahankan; JSON respons tetap. Test kontrak baru menolak enum generik inline & enum query tanpa nama
   - [x] Body app tanpa key null (MOB-D18) (tambahan 2026-11-03: temuan app M5d, disetujui supervisor atas nama pengguna) — `PUT /overtime-orders` dengan satu jam saja dari app ditolak 400 karena `startTime`/`endTime` `nullable()` (key wajib). Kini `nullish()` → `null` (`packages/shared/src/overtime.ts`); sapu body operasi app lain: tidak ada field nullable-wajib lain. Test integrasi `overtime-order.test.ts` (key tidak dikirim) + test kontrak `openapi.test.ts` (body app tanpa field nullable wajib)
   - [ ] Backlog: langkah approval pada pengajuan yang dibatalkan tetap `PENDING` (sama di PWA) (tambahan 2026-11-03, catatan supervisor)
+  - [ ] Backlog: log info "push sent" di `pushToAccount` supaya push yang berhasil terlihat saat diagnosis (tambahan 2026-11-03, temuan uji M4a)
+  - [ ] Backlog: roster uji November untuk karyawan uji Rizky di staging (SPL hari kerja di staging kini jatuh ke aturan hari libur) (tambahan 2026-11-03)
   - [ ] Backlog: `bun test` lokal memakai DB dev yang sama (`--env-file=../../.env` → `hris_mobile`; `db-guard-preload` hanya menolak DB non-lokal) → test membuat data & notifikasi untuk akun asli; usul DB test terpisah seperti CI (tambahan 2026-10-28)
 - [ ] Penyesuaian induk saat digabung ke develop: D-067, PLAN §1/§10, indeks PLAN §8
 
@@ -99,3 +125,6 @@ Sumber kebenaran: **`Arthasia-Mobile/docs/decisions.md`** (MOB-D13). Keputusan b
 | MOB-D17 | Kontrak respons OpenAPI dikunci ke tipe service (`assertExact`), nullable ref lewat `nullableRef`, rute TM baru wajib ikut pola ini | Semua rute TM/Leave |
 | MOB-D18 | JSON permintaan tanpa `null` untuk field opsional (`include_if_null: false` di app) | Tidak ada (keputusan app) |
 | MOB-D19 | Tanggal murni pada input di OpenAPI = `string` + pola (tanpa `format: date`) supaya klien Dart mengirim `YYYY-MM-DD`; respons tetap `format: date` | `withInputDates` (`core/openapi.ts`), berlaku otomatis untuk semua rute |
+| MOB-D20–D21 | Keputusan sisi app (lihat repo app) | — |
+| MOB-D22 | `Idempotency-Key` untuk tiga POST pengajuan, perilaku = punch MOB-D7 | ✔ (gel. 18) |
+| MOB-OD1 | Hosting APK rilis → **Google Drive** (tautan), tanpa Play Store (pengguna 2026-11-03) | `MOBILE_APK_URL` = tautan Drive (M6) |
