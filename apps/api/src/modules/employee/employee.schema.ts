@@ -19,6 +19,7 @@ import {
   roleSchema,
   trainingTypeSchema,
 } from "@hris/shared";
+import { nullableRef } from "../../core/contract.ts";
 
 // Tanggal murni (PROMPT §4): "YYYY-MM-DD".
 const isoDate = z.iso.date();
@@ -42,7 +43,12 @@ export const listEmployeesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT),
   q: z.string().trim().min(1).max(100).optional(),
-  active: booleanQuery.default(true),
+  // Default ditulis sebagai string sebelum transform supaya spec konsisten (`enum` string + `default: "true"`)
+  // untuk klien hasil generate (app mobile, MOB-D9); hasil parse tetap boolean.
+  active: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   category: employmentCategorySchema.optional(),
   // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
   group: employmentCategoryGroupSchema.optional(),
@@ -58,6 +64,14 @@ export const listEmployeesQuerySchema = z.object({
 });
 export type ListEmployeesQuery = z.infer<typeof listEmployeesQuerySchema>;
 
+// M5d (MOB-D9): sub-objek item daftar diberi nama tetap; objek inline jadi kelas Dart bernomor
+// (`Company12`, `Position11`, …) yang nomornya bergeser setiap spec berubah. Bentuk JSON tidak berubah.
+const listRefSchema = ref.openapi("EmployeeListRef");
+const listStatusSchema = ref
+  .extend({ category: employmentCategorySchema.nullable() })
+  .openapi("EmployeeListStatus");
+const listCompanySchema = ref.extend({ code: z.string() }).openapi("EmployeeListCompany");
+
 export const employeeListItemSchema = z
   .object({
     id: z.uuid(),
@@ -71,14 +85,14 @@ export const employeeListItemSchema = z
     endDate: isoDate.nullable(),
     isActive: z.boolean(),
     exitReason: exitReasonSchema.nullable(),
-    employmentStatus: ref.extend({ category: employmentCategorySchema.nullable() }),
+    employmentStatus: listStatusSchema,
     // D-039: perusahaan dalam grup.
-    company: ref.extend({ code: z.string() }),
-    position: ref,
-    department: ref.nullable(),
-    workLocation: ref.nullable(),
-    grade: ref.nullable(),
-    manager: ref.nullable(),
+    company: listCompanySchema,
+    position: listRefSchema,
+    department: nullableRef(listRefSchema),
+    workLocation: nullableRef(listRefSchema),
+    grade: nullableRef(listRefSchema),
+    manager: nullableRef(listRefSchema),
     // D-051/D-053: pos jabatan di bagan; atasan diatur manual (bukan otomatis dari pos).
     orgPostId: z.uuid().nullable(),
     managerOverride: z.boolean(),

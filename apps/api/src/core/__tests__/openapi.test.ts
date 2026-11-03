@@ -166,6 +166,28 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     });
   });
 
+  test("GET /employees (pemilih karyawan SPL, M5d): item bertipe dengan sub-objek bernama", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    const op = doc.paths["/api/v1/employees"]?.get as {
+      operationId: string;
+      parameters: { name: string; schema: Record<string, unknown> }[];
+    };
+    expect(op.operationId).toBe("listEmployees");
+    // Default konsisten dengan enum string → klien Dart tidak memakai default boolean untuk tipe enum.
+    expect(op.parameters.find((p) => p.name === "active")?.schema).toMatchObject({
+      enum: ["true", "false"],
+      default: "true",
+    });
+    const props = doc.components.schemas.EmployeeListItem?.properties as Record<string, unknown>;
+    const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
+    expect(props.employmentStatus).toEqual(ref("EmployeeListStatus"));
+    expect(props.company).toEqual(ref("EmployeeListCompany"));
+    expect(props.position).toEqual(ref("EmployeeListRef"));
+    for (const field of ["department", "workLocation", "grade", "manager"]) {
+      expect(props[field]).toEqual({ anyOf: [ref("EmployeeListRef"), { type: "null" }] });
+    }
+  });
+
   test("Me memuat employeeCompanyId nullable (filter roster/shift/crew di app)", async () => {
     const doc = (await spec()) as unknown as Doc;
     const me = doc.components.schemas.Me as {

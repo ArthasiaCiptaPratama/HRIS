@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-03 — Pemilih karyawan SPL atasan (M5d): `listEmployees` + skema bernama; dukungan uji HP M4a/M4b (Oatse)
+- **Dikerjakan:** serah-terima supervisor `2026-11-03-0920` (API lokal untuk uji HP) + permintaan lanjutan supervisor: data uji di `hris_mobile` lewat API/service (tolak izin Rina 5 Nov `34999e54…`; koreksi 31 Okt `e00404db…` disetujui MANAGER lalu HR; `mgr.arthasia` → MANAGER lewat UPDATE `iam.accounts.role` karena ganti role API khusus SA dan DB lokal tanpa SA). FF `HRIS/mobile-app` ke develop `5ceda7b` (perbaikan audit keamanan, tanpa migrasi). M5d opsi (a): `APP_OPERATION_IDS` `GET /api/v1/employees` → `listEmployees`; `employee.schema.ts` sub-objek item daftar bernama + default `active` string.
+- **Keputusan:** opsi (a) `/employees` alih-alih `GET /me/subordinates` (supervisor atas nama pengguna): cakupan MANAGER sudah bawahan langsung, field = data kerja tanpa bagian sensitif, otorisasi SPL di `canOrderOvertime`.
+- **Verifikasi:** typecheck ✔ 3 workspace · biome ✔ (1 peringatan lama `roster-edit.service.ts:577` dari develop) · boundaries ✔ 549 modul · test di `hris_mobile_test`: `openapi.test` 15 · `employee` 442, 0 gagal. swagger_parser app (salinan sementara): dibanding spec develop tanpa perubahan ini, yang berubah hanya model daftar karyawan (`EmployeeListItem` + 3 skema baru; kelas bernomor lama hilang dan tidak dipakai kode app); klien `listEmployees(..., active = Active.valueTrue)`.
+- **Masalah / catatan:** push `leave.request_decided` ke HP Rina tidak muncul padahal kredensial FCM & token valid (`validate_only` 200) dan tidak ada log gagal; BE hanya mencatat log push yang gagal, jadi push sukses tak terlihat. Diduga sisi HP/app; diperiksa sesi app lewat logcat. `dev:api` sempat dihentikan Claude Code karena memori rendah, lalu dinyalakan ulang.
+- **Berikutnya:** app regenerate klien dari spec `.handoff/openapi-mobile-<sha>.json`; kabar ke Mat digabung supervisor dengan kabar berikutnya.
+
 ### 2026-11-02 — Retry aman pengajuan app (Idempotency-Key), batas 5 MB pernyataan, skema LeaveRequestType (Oatse)
 - **Dikerjakan:** serah-terima supervisor `2026-11-02-1425` langkah 4a (push docs `d249d8a`) dan 3 + butir 5 (lihat README, dua item 2026-11-02). Migrasi `20261102080000_app_create_idempotency` dibuat lewat `prisma migrate diff` (`migrate dev` menolak berjalan non-interaktif karena peringatan indeks unik) lalu `db:deploy` ke `hris_mobile`.
 - **Keputusan:** MOB-D22 (usul; ditulis sesi app di `Arthasia-Mobile/docs/decisions.md`): `Idempotency-Key` untuk tiga POST pengajuan, perilaku = punch MOB-D7, isi body tidak dibandingkan (risiko dicatat).
