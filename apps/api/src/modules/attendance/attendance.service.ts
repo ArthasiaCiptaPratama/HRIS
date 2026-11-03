@@ -23,7 +23,7 @@ import {
   NotFoundError,
 } from "../../core/errors.ts";
 import { isIdempotencyConflict } from "../../core/idempotency.ts";
-import type { StorageAdmin } from "../../core/storage.ts";
+import { assertOwnedPath, type StorageAdmin } from "../../core/storage.ts";
 import type { Shift } from "../../generated/prisma/client.ts";
 import {
   type ApprovalView,
@@ -896,9 +896,11 @@ async function recordPunch(
   const employee = await directory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
   // Selfie wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah.
-  if (!input.selfiePath.startsWith(`${storage().storagePathPrefix}attendance/${employeeId}/`)) {
-    throw new BusinessRuleError("Foto tidak valid. Ambil ulang selfie.");
-  }
+  assertOwnedPath(
+    input.selfiePath,
+    `${storage().storagePathPrefix}attendance/${employeeId}/`,
+    "Foto tidak valid. Ambil ulang selfie.",
+  );
   const info = await storage().storage.getObjectInfo(ATTENDANCE_SELFIE_BUCKET, input.selfiePath);
   if (
     !info ||

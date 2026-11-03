@@ -21,7 +21,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
-import type { StorageAdmin } from "../../core/storage.ts";
+import { assertOwnedPath, type StorageAdmin } from "../../core/storage.ts";
 import {
   type AfterCommit,
   type ApprovalView,
@@ -685,9 +685,11 @@ async function submitLeaveRequest(
     throw new BusinessRuleError(`${type.name} ${dates.length} hari wajib melampirkan dokumen.`);
   }
   if (input.attachmentPath) {
-    if (!input.attachmentPath.startsWith(`${storage().storagePathPrefix}leave/${employeeId}/`)) {
-      throw new BusinessRuleError("Lampiran tidak valid. Unggah ulang.");
-    }
+    assertOwnedPath(
+      input.attachmentPath,
+      `${storage().storagePathPrefix}leave/${employeeId}/`,
+      "Lampiran tidak valid. Unggah ulang.",
+    );
     const info = await storage().storage.getObjectInfo(
       LEAVE_ATTACHMENT_BUCKET,
       input.attachmentPath,
