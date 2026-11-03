@@ -17,7 +17,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
-import type { StorageAdmin } from "../../core/storage.ts";
+import { assertOwnedPath, type StorageAdmin } from "../../core/storage.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 import {
   type ApprovalView,
@@ -514,22 +514,42 @@ export async function listStatements(ctx: RequestContext, companyId: string, mon
   return statementRows(days, true);
 }
 
-export async function createStatement(ctx: RequestContext, input: StatementInput) {
+/** MOB-D22: retry dengan kunci sama → pernyataan yang sudah tercatat (bukan 409); milik orang lain → 409. */
+async function replayStatement(employeeId: string, key: string) {
+  const existing = await db().attendanceStatement.findUnique({ where: { idempotencyKey: key } });
+  if (!existing) return null;
+  if (existing.employeeId !== employeeId) {
+    throw new ConflictError("Kunci permintaan sudah dipakai. Kirim ulang.");
+  }
+  const day = await db().attendanceDay.findUnique({ where: { id: existing.dayId } });
+  if (!day) return null;
+  return (await statementRows([day], true))[0] as StatementRow;
+}
+
+export async function createStatement(
+  ctx: RequestContext,
+  input: StatementInput,
+  idempotencyKey?: string,
+) {
   const employeeId = ctx.actor.employeeId;
   if (!employeeId) throw new ForbiddenError("Akun tidak terhubung ke data karyawan.");
+  if (idempotencyKey) {
+    const replay = await replayStatement(employeeId, idempotencyKey);
+    if (replay) return replay;
+  }
   const day = await db().attendanceDay.findUnique({ where: { id: input.dayId } });
   if (!day || day.employeeId !== employeeId) throw new NotFoundError();
   if (day.status !== "ALPHA")
     throw new BusinessRuleError("Surat pernyataan hanya untuk hari berstatus Alpha.");
   if (input.attachmentPath) {
-    if (
-      !input.attachmentPath.startsWith(`${storage().storagePathPrefix}statements/${employeeId}/`)
-    ) {
-      throw new BusinessRuleError("Lampiran tidak valid. Unggah ulang.");
-    }
+    assertOwnedPath(
+      input.attachmentPath,
+      `${storage().storagePathPrefix}statements/${employeeId}/`,
+      "Lampiran tidak valid. Unggah ulang.",
+    );
     const info = await storage().storage.getObjectInfo(STATEMENT_BUCKET, input.attachmentPath);
-    if (!info || info.size <= 0)
-      throw new BusinessRuleError("Lampiran belum terunggah. Unggah ulang.");
+    if (!info || info.size <= 0 || info.size > STATEMENT_ATTACHMENT_MAX_BYTES)
+      throw new BusinessRuleError("Lampiran belum terunggah atau terlalu besar. Unggah ulang.");
   }
   try {
     const row = await db().attendanceStatement.create({
@@ -541,12 +561,18 @@ export async function createStatement(ctx: RequestContext, input: StatementInput
         workDate: day.workDate,
         reason: input.reason,
         attachmentPath: input.attachmentPath ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       },
     });
     await audit(ctx, "attendance.statement.create", row.id, { dayId: day.id });
     return (await statementRows([day], true))[0] as StatementRow;
   } catch (error) {
     if ((error as { code?: string }).code === "P2002") {
+      // Dua permintaan dengan kunci sama bersamaan: yang kalah mengembalikan hasil yang menang.
+      if (idempotencyKey) {
+        const replay = await replayStatement(employeeId, idempotencyKey);
+        if (replay) return replay;
+      }
       throw new ConflictError("Surat pernyataan untuk hari ini sudah dibuat.");
     }
     throw error;
@@ -615,9 +641,46 @@ export function correctionInstant(
   return new Date(at);
 }
 
-export async function createCorrection(ctx: RequestContext, input: CorrectionInput) {
+/** MOB-D22: retry dengan kunci sama → koreksi yang sudah tercatat (bukan 409); milik orang lain → 409. */
+async function replayCorrection(ctx: RequestContext, employeeId: string, key: string) {
+  const existing = await db().attendanceCorrection.findUnique({ where: { idempotencyKey: key } });
+  if (!existing) return null;
+  if (existing.employeeId !== employeeId) {
+    throw new ConflictError("Kunci permintaan sudah dipakai. Ajukan ulang.");
+  }
+  return (await correctionDtos(ctx, [existing]))[0] as CorrectionDto;
+}
+
+export async function createCorrection(
+  ctx: RequestContext,
+  input: CorrectionInput,
+  idempotencyKey?: string,
+): Promise<CorrectionDto> {
   const employeeId = ctx.actor.employeeId;
   if (!employeeId) throw new ForbiddenError("Akun tidak terhubung ke data karyawan.");
+  if (idempotencyKey) {
+    const replay = await replayCorrection(ctx, employeeId, idempotencyKey);
+    if (replay) return replay;
+  }
+  try {
+    return await submitCorrection(ctx, employeeId, input, idempotencyKey);
+  } catch (error) {
+    // Dua permintaan dengan kunci sama bersamaan: yang kalah (indeks unik / cek koreksi menunggu)
+    // mengembalikan hasil yang menang.
+    if (idempotencyKey) {
+      const replay = await replayCorrection(ctx, employeeId, idempotencyKey);
+      if (replay) return replay;
+    }
+    throw error;
+  }
+}
+
+async function submitCorrection(
+  ctx: RequestContext,
+  employeeId: string,
+  input: CorrectionInput,
+  idempotencyKey: string | undefined,
+): Promise<CorrectionDto> {
   const employee = await directory.employeeById(employeeId);
   if (!employee) throw new NotFoundError();
   if (input.workDate >= (await settingsToday())) {
@@ -673,6 +736,7 @@ export async function createCorrection(ctx: RequestContext, input: CorrectionInp
         checkInAt,
         checkOutAt,
         reason: input.reason,
+        idempotencyKey: idempotencyKey ?? null,
       },
     });
     await createApprovalRequest(tx, {

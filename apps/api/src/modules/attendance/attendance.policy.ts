@@ -103,3 +103,39 @@ export const canManageBreakLocations = (actor: Actor) => isSa(actor) || isHr(act
 /** Atasan melihat TOTAL rupiah lembur timnya per bulan (bukan per orang). */
 export const canSeeTeamCostTotal = (actor: Actor) =>
   actor.role === ROLE.MANAGER && actor.employeeId !== null;
+
+/** Audit 4: HR tidak boleh mengubah lokasi absennya sendiri; SA dikecualikan. */
+export function canSetEmployeeAttendanceLocation(actor: Actor, target: RosterTarget): boolean {
+  return (
+    canManageAttendanceLocation(actor, target.companyId) &&
+    !(isHr(actor) && actor.employeeId === target.employeeId)
+  );
+}
+
+/** Sel ber-crew tetap melalui ROSTER_EDIT; larangan diri sendiri hanya untuk penerapan langsung. */
+export function canApplyRosterCell(
+  actor: Actor,
+  companyId: string,
+  employeeId: string,
+  hasCrew: boolean,
+): boolean {
+  return (
+    canManageRoster(actor, companyId) &&
+    (hasCrew || !(isHr(actor) && actor.employeeId === employeeId))
+  );
+}
+
+/** Data Absen Harian hanya untuk operator HR/SA dan atasan yang terhubung ke karyawan. */
+export const canListAttendanceDays = (actor: Actor) =>
+  isSa(actor) || isHr(actor) || (actor.role === ROLE.MANAGER && actor.employeeId !== null);
+
+/** Cakupan rekap HR/atasan, tanpa pengecualian layanan diri dari canViewEmployeeRoster. */
+export function canListEmployeeAttendanceDays(actor: Actor, target: RosterTarget): boolean {
+  if (isSa(actor)) return true;
+  if (isHr(actor)) return actor.companyIds?.has(target.companyId) ?? false;
+  return (
+    actor.role === ROLE.MANAGER &&
+    actor.employeeId !== null &&
+    target.managerId === actor.employeeId
+  );
+}

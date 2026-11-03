@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { OpenAPIHono } from "@hono/zod-openapi";
+import { getConnInfo } from "hono/bun";
 import { z } from "zod";
+import { type Env, getEnv } from "../env.ts";
 import { currentDatabaseHost, overrideDatabaseUrl } from "./db.ts";
 import { parseEnvText, setSupabaseTarget } from "./dev-runtime.ts";
 import type { Logger } from "./logger.ts";
@@ -71,7 +73,26 @@ function snapshot() {
 
 const errorBody = (code: string, message: string) => ({ error: { code, message } });
 
-export function registerDevRoutes(app: OpenAPIHono, deps: { logger: Logger }): void {
+export function registerDevRoutes(
+  app: OpenAPIHono,
+  deps: { logger: Logger; nodeEnv?: Env["NODE_ENV"] },
+): void {
+  // Alamat peer dari Bun, bukan Host/X-Forwarded-For yang bisa dipalsukan klien.
+  // Middleware juga melindungi route akun uji yang didaftarkan sesudah route DB.
+  app.use("/api/v1/dev/*", async (c, next) => {
+    if ((deps.nodeEnv ?? getEnv().NODE_ENV) !== "development") return c.notFound();
+    let address: string | undefined;
+    try {
+      address = getConnInfo(c).remote.address;
+    } catch {
+      // Tanpa metadata socket (termasuk adapter selain Bun): tolak.
+    }
+    const ipv4 = address?.replace(/^::ffff:/, "");
+    if (address !== "::1" && !/^127(?:\.(?:[0-9]{1,3})){3}$/.test(ipv4 ?? "")) {
+      return c.json(errorBody("FORBIDDEN", "Route dev hanya untuk koneksi loopback."), 403);
+    }
+    await next();
+  });
   app.get("/api/v1/dev/db", (c) => c.json({ data: snapshot() }));
 
   app.post("/api/v1/dev/db", async (c) => {

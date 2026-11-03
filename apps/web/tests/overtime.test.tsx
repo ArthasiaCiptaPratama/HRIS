@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FEATURES } from "@/app/feature-flags";
+import { FEATURES, tmOn } from "@/app/feature-flags";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -235,7 +235,7 @@ describe.skipIf(!FEATURES.timeManagement)("Time Management › Lembur (TM-D6)", 
   });
 });
 
-describe.skipIf(!FEATURES.timeManagement)("Time Management › Upah Grade (TM-D6)", () => {
+describe.skipIf(!tmOn("tmGradeWages"))("Time Management › Upah Grade (TM-D6)", () => {
   it("SA mengubah upah grade; upah sejam = (pokok + tunjangan) ÷ 173", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(me("SUPER_ADMIN"), []);

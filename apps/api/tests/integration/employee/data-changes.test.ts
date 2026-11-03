@@ -343,6 +343,102 @@ describe("kontak darurat, keluarga, batal", () => {
 });
 
 describe("rekening & dokumen", () => {
+  for (const valid of [false, true]) {
+    test(`referensi yang muncul saat verifikasi tidak dibersihkan (valid=${valid})`, async () => {
+      const path = `employees/${ids.self}/documents/${crypto.randomUUID()}.pdf`;
+      const documentTypeId = await typeId("KTP");
+      fake.putObject(BUCKET, path, { size: valid ? 1000 : 0, contentType: "application/pdf" });
+      const raceApp = createApp({
+        logger: createLogger("error", () => {}),
+        tokenVerifier: testVerifier,
+        storage: {
+          ...fake.storage,
+          async getObjectInfo(bucket, key) {
+            await prisma.employeeDocument.create({
+              data: {
+                employeeId: ids.self,
+                type: "KTP",
+                documentTypeId,
+                storagePath: key,
+                mimeType: "application/pdf",
+                sizeBytes: 1000,
+                uploadedBy: hrPlain.account.id,
+              },
+            });
+            return fake.storage.getObjectInfo(bucket, key);
+          },
+        },
+        storagePathPrefix: "",
+      });
+      const res = await raceApp.request("/api/v1/data-changes", {
+        method: "POST",
+        headers: { ...emp.headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ section: "DOCUMENT", data: { documentTypeId, path } }),
+      });
+      expect(res.status).toBe(valid ? 409 : 422);
+      expect(fake.removed).not.toContain(`${BUCKET}/${path}`);
+      expect(fake.has(BUCKET, path)).toBe(true);
+    });
+  }
+
+  test("pengajuan ganda membersihkan unggahan baru, bukan dokumen pengajuan pertama", async () => {
+    const first = await uploadMine(emp, "BANK");
+    const bank = { bankName: "Bank Uji", accountNumber: "1234567890" };
+    const submitted = await submit(emp, "BANK", { ...bank, bankBookPath: first.path });
+    expect(submitted.status).toBe(201);
+    const second = await uploadMine(emp, "BANK");
+    expect((await submit(emp, "BANK", { ...bank, bankBookPath: second.path })).status).toBe(409);
+    expect(fake.removed).toContain(`${BUCKET}/${second.path}`);
+    expect(fake.removed).not.toContain(`${BUCKET}/${first.path}`);
+    const id = (await body(submitted)).data.id;
+    expect((await call("POST", `/data-changes/${id}/cancel`, emp.headers)).status).toBe(200);
+  });
+
+  for (const deleted of [false, true]) {
+    for (const valid of [false, true]) {
+      test(`path dokumen HR ditolak tanpa menghapus objek (deleted=${deleted}, valid=${valid})`, async () => {
+        const path = `employees/${ids.self}/documents/${crypto.randomUUID()}.pdf`;
+        const documentTypeId = await typeId("KTP");
+        await prisma.employeeDocument.create({
+          data: {
+            employeeId: ids.self,
+            type: "KTP",
+            documentTypeId,
+            storagePath: path,
+            mimeType: "application/pdf",
+            sizeBytes: 1000,
+            uploadedBy: hrPlain.account.id,
+            status: "VERIFIED",
+            deletedAt: deleted ? new Date() : null,
+          },
+        });
+        fake.putObject(BUCKET, path, {
+          size: valid ? 1000 : 0,
+          contentType: valid ? "application/pdf" : "text/html",
+        });
+        const res = await submit(emp, "DOCUMENT", { documentTypeId, path });
+        expect(res.status).toBeGreaterThanOrEqual(400);
+        expect(res.status).toBeLessThan(500);
+        expect(fake.removed).not.toContain(`${BUCKET}/${path}`);
+        expect(fake.has(BUCKET, path)).toBe(true);
+        expect(
+          await prisma.dataChangeRequest.count({ where: { document: { storagePath: path } } }),
+        ).toBe(0);
+      });
+    }
+  }
+
+  for (const suffix of ["../other.pdf", "%2e%2e/other.pdf", "nested/file.pdf", "..\\other.pdf"]) {
+    test(`path pengajuan menolak traversal: ${suffix}`, async () => {
+      const path = `employees/${ids.self}/documents/${suffix}`;
+      fake.putObject(BUCKET, path, { size: 0, contentType: "text/html" });
+      expect(
+        (await submit(emp, "DOCUMENT", { documentTypeId: await typeId("KTP"), path })).status,
+      ).toBe(422);
+      expect(fake.removed).not.toContain(`${BUCKET}/${path}`);
+    });
+  }
+
   test("rekening: buku tabungan wajib; menunggu = dokumen belum berlaku; setujui → rekening & dokumen aktif", async () => {
     expect(
       (

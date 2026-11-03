@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-03 — Audit keamanan dokumen, temuan 6/R2 bagian C (Oatse + Codex)
+- **Dikerjakan:** validasi path storage bersama (prefix literal + UUID + ekstensi), penolakan path dokumen aktif/soft-deleted sebelum verifikasi, cleanup yang memeriksa ulang referensi, dan P2002 `storagePath` tanpa penghapusan objek. Diterapkan juga pada endpoint dokumen HR agar pola cleanup sama; tanpa perubahan skema/dependency.
+- **Keputusan:** mengikuti brief supervisor bagian C; tidak ada keputusan domain baru.
+- **Verifikasi:** reproduksi sebelum perbaikan: 21 test gagal; test terarah setelah perbaikan 71/71 lulus (dokumen, data-change, wizard, helper path, absensi). Typecheck workspace, Biome (33 warning di luar perubahan), dan boundaries lulus. Suite penuh pada DB bersama terganggu test paralel; `bun run test:api` pada DB lokal sementara terisolasi (migrasi lama + seed dummy) 1109/1109 lulus, DB sementara sudah dihapus.
+- **Masalah / catatan:** path yang tidak sesuai tetap 422 dengan pesan lama (koreksi review: kontrak app mobile tidak berubah); dokumen yang sudah memakai path ditolak 409. Belum dirilis.
+- **Berikutnya:** review supervisor dan integrasi ke develop.
+
 ### 2026-10-27 — No. sertifikat di Arsip › Pelatihan (Oatse)
 - **Dikerjakan:** item Backlog PROGRESS "No. Sertifikasi" → sub-item "(tambahan 2026-10-27)" di Gel. 1a. Koreksi: Print data PDF sudah mengisi nomor sertifikat sejak `e25101b` (2026-10-19), catatan Backlog basi. Celah yang diperbaiki: shared `trainingInputSchema` + `certificateNumber` (maks 60, kosong → null, tidak dikirim → undefined); api `archive.service.ts` `trainingData` (kolom hanya diubah bila dikirim, tidak tercatat di audit bila tidak), daftar `GET /archive/trainings` + `certificateNumber` & pencarian `q`, `archive.schema.ts` `trainingRowSchema`, ekspor Excel kolom "No. sertifikat"; web field "No. sertifikat" di dialog pelatihan + nomor di baris daftar.
 - **Keputusan:** – (A2-Q1 form onboarding mandiri tidak diubah; A2-Q2 pengajuan perubahan data karyawan tetap tanpa pelatihan — supervisor atas nama pengguna)

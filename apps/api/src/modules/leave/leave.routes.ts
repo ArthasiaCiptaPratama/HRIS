@@ -10,6 +10,7 @@ import {
 } from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import { ValidationError } from "../../core/errors.ts";
+import { idempotencyHeaders, idempotencyKeyOf } from "../../core/idempotency.ts";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
@@ -66,6 +67,7 @@ const route = (
     body?: z.ZodType;
     params?: z.ZodObject;
     query?: z.ZodObject;
+    headers?: z.ZodObject;
   },
 ) =>
   createRoute({
@@ -77,6 +79,7 @@ const route = (
     request: {
       ...(spec.params ? { params: spec.params } : {}),
       ...(spec.query ? { query: spec.query } : {}),
+      ...(spec.headers ? { headers: spec.headers } : {}),
       ...(spec.body
         ? { body: { content: { "application/json": { schema: spec.body } }, required: true } }
         : {}),
@@ -175,12 +178,25 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       }),
   ],
   [
-    route("post", "/leave-requests", "Ajukan cuti/izin/sakit (paralel Atasan + HR)", {
-      body: leaveRequestInputSchema,
-      response: leaveRequestSchema,
-    }),
+    route(
+      "post",
+      "/leave-requests",
+      "Ajukan cuti/izin/sakit (paralel Atasan + HR). Header opsional: Idempotency-Key",
+      {
+        body: leaveRequestInputSchema,
+        headers: idempotencyHeaders(
+          "Opsional, satu kunci per pengajuan (MOB-D22). Kunci sama → pengajuan yang sudah tercatat " +
+            "(200); kunci milik orang lain → 409.",
+        ),
+        response: leaveRequestSchema,
+      },
+    ),
     async (c) =>
-      service.createLeaveRequest(ctxOf(c), strict(leaveRequestInputSchema, await body(c))),
+      service.createLeaveRequest(
+        ctxOf(c),
+        strict(leaveRequestInputSchema, await body(c)),
+        idempotencyKeyOf(c),
+      ),
   ],
   [
     route("get", "/leave-requests/{id}", "Detail pengajuan (lampiran, approval)", {
@@ -233,10 +249,15 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       service.importBalances(ctxOf(c), strict(leaveBalanceImportSchema, await body(c)), false),
   ],
   [
-    route("post", "/leave-balances/import/commit", "Simpan import saldo awal (semua atau tidak)", {
-      body: leaveBalanceImportSchema,
-      response: leaveBalanceImportResultSchema,
-    }),
+    route(
+      "post",
+      "/leave-balances/import/commit",
+      "Simpan import saldo awal (baris diri sendiri HR ditolak)",
+      {
+        body: leaveBalanceImportSchema,
+        response: leaveBalanceImportResultSchema,
+      },
+    ),
     async (c) =>
       service.importBalances(ctxOf(c), strict(leaveBalanceImportSchema, await body(c)), true),
   ],

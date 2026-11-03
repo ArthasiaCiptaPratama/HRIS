@@ -62,6 +62,7 @@ async function employee(n: string, extra: Record<string, unknown> = {}) {
       employmentStatusId: ids.status,
       positionId: ids.position,
       phoneNumber: "081234567890",
+      personalEmail: `ar-${RUN.toLowerCase()}-${n.toLowerCase()}@example.test`,
       emergencyContactName: `Kontak ${n}`,
       ...extra,
     },
@@ -193,15 +194,34 @@ describe("tabel lintas karyawan — cakupan (D-054 §8)", () => {
     const saRow = (await body(await list("contacts", sa))).data.find(
       (r: { id: string }) => r.id === ids.outsider,
     );
-    expect(saRow).toMatchObject({ domicileAddress: "Jl. Arsip O", phoneNumber: "081234567890" });
+    expect(saRow).toMatchObject({
+      domicileAddress: "Jl. Arsip O",
+      phoneNumber: "081234567890",
+      personalEmail: `ar-${RUN.toLowerCase()}-o@example.test`,
+    });
     const hrRow = (await body(await list("contacts", hr))).data.find(
       (r: { id: string }) => r.id === ids.outsider,
     );
     expect("domicileAddress" in hrRow).toBe(false);
+    expect(hrRow).not.toHaveProperty("personalEmail");
     const grantRow = (await body(await list("contacts", hrGrant))).data.find(
       (r: { id: string }) => r.id === ids.outsider,
     );
     expect(grantRow.domicileAddress).toBe("Jl. Arsip O");
+    expect(grantRow.personalEmail).toBe(`ar-${RUN.toLowerCase()}-o@example.test`);
+    const mgrRows = (await body(await list("contacts", mgr))).data as Record<string, unknown>[];
+    expect(mgrRows).toHaveLength(1);
+    expect(mgrRows[0]).not.toHaveProperty("personalEmail");
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        actorAccountId: hrGrant.account.id,
+        entityId: "contacts",
+        action: "employee.sensitive.read",
+      },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(audit.after).toMatchObject({ fields: ["domicileAddress", "personalEmail"] });
+    expect(JSON.stringify(audit.after)).not.toContain(grantRow.personalEmail);
   });
 
   test("biaya pelatihan hanya SA/HR; MANAGER tanpa key", async () => {
@@ -455,9 +475,13 @@ describe("ekspor Excel (D-058, Arsip 1d)", () => {
   test("HR: cakupan PT; alamat domisili hanya dengan grant data pribadi; biaya pelatihan SA/HR", async () => {
     const plain = sheetText((await body(await exportOf("contacts", hr))).data);
     expect(plain).not.toContain("Alamat domisili");
+    expect(plain).not.toContain("Email pribadi");
+    expect(plain).not.toContain(`ar-${RUN.toLowerCase()}-o@example.test`);
     expect(plain).not.toContain(NUM("P"));
     const granted = sheetText((await body(await exportOf("contacts", hrGrant))).data);
     expect(granted).toContain("Alamat domisili");
+    expect(granted).toContain("Email pribadi");
+    expect(granted).toContain(`ar-${RUN.toLowerCase()}-o@example.test`);
     expect(granted).toContain(`Jl. Arsip M`);
     const trainings = sheetText((await body(await exportOf("trainings", hr))).data);
     expect(trainings).toContain("Biaya (Rp)");

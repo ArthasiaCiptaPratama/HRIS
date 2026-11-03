@@ -550,6 +550,9 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
 | [EMP-D3](features/karyawan/README.md#keputusan) | Print data = PDF dari template PDF HR "Formulir Data Karyawan" (pdf-lib, posisi tetap); Excel & Formulir Aplikasi Word (EMP-D1, Gotenberg) dihapus | [EMP](features/karyawan/README.md) |
 | [EMP-D4](features/karyawan/README.md#keputusan) | HR ber-grant ubah data pribadi/keluarga/rekening karyawan lain langsung dari detail; data diri sendiri tetap lewat pengajuan; rekening berubah → karyawan diberi tahu | [EMP](features/karyawan/README.md) |
+| [HRD-D1](features/hardening/README.md#keputusan) | Lupa password akun SUPER_ADMIN/HR_ADMIN/HR_PERSONNEL hanya ke email akun, bukan email pribadi | [HRD](features/hardening/README.md) |
+| [HRD-D2](features/hardening/README.md#keputusan) | Larangan ubah data diri sendiri lewat jalur HR berlaku untuk HR_ADMIN; SUPER_ADMIN dikecualikan | [HRD](features/hardening/README.md) |
+| [HRD-D3](features/hardening/README.md#keputusan) | CSP web mulai Report-Only, enforce setelah dicek di staging | [HRD](features/hardening/README.md) |
 
 ## 9. Keputusan Terbuka
 

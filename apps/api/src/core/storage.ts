@@ -13,6 +13,18 @@ export const EMPLOYEE_DOCUMENT_BUCKET = "employee-documents";
 export const EMPLOYEE_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024;
 export const EMPLOYEE_DOCUMENT_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
 
+/** Only accept the single UUID filename issued by the upload URL endpoint. */
+export function assertOwnedPath(path: string, prefix: string, message: string): void {
+  const filename = path.slice(prefix.length);
+  if (
+    !path.startsWith(prefix) ||
+    filename.trim() !== filename ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]+$/i.test(filename)
+  ) {
+    throw new BusinessRuleError(message);
+  }
+}
+
 export interface BucketConfig {
   id: string;
   fileSizeLimit: number;

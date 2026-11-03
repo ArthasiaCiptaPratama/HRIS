@@ -21,13 +21,13 @@ export const FEATURES = {
   // (ARS-D16/D17) — tampil di rilis gel. 9 (2026-10-19).
   reports: true,
   // Time Management — saklar INDUK: `false` = seluruh menu Time Management menjadi Maintenance.
-  // Rilis: disembunyikan (kode & migrasi terpasang sejak gel. 7; API tetap dipakai app mobile).
-  timeManagement: false, // absen PWA, Data Absen Harian, roster, cuti (D-067–D-073, TM-D1–TM-D8)
+  // Rilis: tampil di staging sejak gel. 18 (2026-11-03), bertahap sesuai fitur app v1.
+  timeManagement: true, // absen PWA, Data Absen Harian, roster, cuti (D-067–D-073, TM-D1–TM-D8)
   // Sub-saklar Time Management per fitur (hanya berlaku bila `timeManagement` juga `true`; pakai `tmOn`).
   tmAbsen: true, // Absen (HP) /absen/* + absen istirahat (D-067, D-073, TM-D2, TM-D7)
   tmAttendanceDays: true, // Data Absen Harian + tab Absensi di detail karyawan (D-068, D-073, TM-D3)
   tmCorrections: true, // Koreksi & Pernyataan (D-071, TM-D3)
-  tmRecap: true, // Rekap & Tutup Periode (D-071)
+  tmRecap: false, // Rekap & Tutup Periode (D-071) — rilis: belum tampil (bukan fitur app v1)
   tmOvertime: true, // Lembur: usulan otomatis, persetujuan, rekap (TM-D6)
   tmRoster: true, // Roster Bulanan (D-069)
   tmRosterChanges: true, // Perubahan / tukar shift (D-069)
@@ -39,7 +39,7 @@ export const FEATURES = {
   tmLeaveMaster: true, // Master Cuti (D-072, TM-D5)
   tmHolidays: true, // Kalender Libur
   tmSettings: true, // Pengaturan Time Management
-  tmGradeWages: true, // Upah Grade (TM-D6)
+  tmGradeWages: false, // Upah Grade (TM-D6) — rilis: belum tampil (bukan fitur app v1)
 } as const;
 
 export type TimeFeature = Extract<keyof typeof FEATURES, `tm${string}`>;

@@ -126,3 +126,11 @@ export function letterListScope(actor: Actor): LetterListScope | null {
   }
   return null;
 }
+
+/** Audit 4: HR tidak mencabut SP miliknya sendiri; SA dikecualikan. */
+export function canRevokeLetter(actor: Actor, target: EmployeeTarget): boolean {
+  return (
+    canWriteLetters(actor, target.companyId) &&
+    !(actor.role === ROLE.HR_ADMIN && isSelf(actor, target))
+  );
+}

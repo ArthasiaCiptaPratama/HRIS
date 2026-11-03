@@ -2,6 +2,8 @@
 
 > Modul surat peringatan (Arsip gelombang 2b, D-057 + ARS-D7–D14, 2026-10-15). Struktur standar modul: [CODEMAP §4](../CODEMAP.md#4-struktur-standar-modul-appsapisrcmodulesmodul) · peta modul: [CODEMAP §5](../CODEMAP.md#5-peta-modul). Fitur pemakai: [arsip](../features/arsip/README.md). Skema Postgres `discipline`; FK hanya ke `employee` & `organization` (PLAN §3.2). Dependensi satu arah: `discipline → attendance/index.ts, employee/index.ts, iam/index.ts, notification/index.ts, organization/index.ts` (tidak ada modul yang mengimpor `discipline` selain `app.ts`).
 
+**2026-11-03 — Audit keamanan 3–4:** `discipline.policy.canRevokeLetter` menolak HR_ADMIN self, SA dikecualikan. `discipline.service.revokeLetter` mengecek policy sebelum perubahan status/audit/notifikasi; scope memakai PT pada surat, konsisten dengan loadWritable. Regresi: unit `discipline/__tests__/self-management.policy.test.ts` dan integration `tests/integration/security/hr-self-management.test.ts`.
+
 ## API (`apps/api/src/modules/discipline/`)
 
 ```

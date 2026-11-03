@@ -21,6 +21,7 @@ import {
   ValidationError,
 } from "../../core/errors.ts";
 import {
+  assertOwnedPath,
   EMPLOYEE_DOCUMENT_BUCKET,
   type StorageAdmin,
   UNCONFIGURED_STORAGE,
@@ -42,6 +43,11 @@ import {
 } from "./archive.service.ts";
 import * as repo from "./document.repository.ts";
 import type { DocumentListQuery } from "./document.schema.ts";
+import {
+  assertUnusedDocumentPath,
+  discardDocumentUpload,
+  isDocumentPathConflict,
+} from "./document-storage.ts";
 import * as policy from "./employee.policy.ts";
 import * as employees from "./employee.repository.ts";
 import { employeeTargetOf, type RequestContext, todayInJakarta } from "./employee.service.ts";
@@ -365,13 +371,16 @@ export async function createDocument(ctx: RequestContext, employeeId: string, bo
   const target = await loadEmployee(ctx, employeeId);
   const type = await writableType(ctx, target, input.documentTypeId);
   // Path wajib milik karyawan ini di lingkungan ini (pola D-037).
-  if (!link.path.startsWith(documentDir(ctx, employeeId))) {
-    throw new BusinessRuleError("Dokumen tidak valid untuk karyawan ini.");
-  }
+  assertOwnedPath(
+    link.path,
+    documentDir(ctx, employeeId),
+    "Dokumen tidak valid untuk karyawan ini.",
+  );
+  await assertUnusedDocumentPath(link.path);
   const storage = storageOf(ctx);
   const info = await storage.getObjectInfo(EMPLOYEE_DOCUMENT_BUCKET, link.path);
   if (!info) throw new BusinessRuleError("Dokumen belum terunggah. Coba unggah ulang.");
-  const discard = () => storage.removeObjects(EMPLOYEE_DOCUMENT_BUCKET, [link.path]);
+  const discard = () => discardDocumentUpload(storage, link.path);
   if (
     !type.allowedMimeTypes.includes(info.contentType ?? "") ||
     info.size <= 0 ||
@@ -445,6 +454,9 @@ export async function createDocument(ctx: RequestContext, employeeId: string, bo
       return created;
     });
   } catch (error) {
+    if (await isDocumentPathConflict(error, link.path)) {
+      throw new ConflictError("File sudah digunakan oleh dokumen lain. Unggah file baru.");
+    }
     await discard();
     throw error;
   }
