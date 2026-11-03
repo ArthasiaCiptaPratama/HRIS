@@ -3,6 +3,11 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-03 — Jam SPL boleh tidak dikirim dari app (MOB-D18) (Oatse)
+- **Dikerjakan:** permintaan supervisor (atas nama pengguna): `overtimeOrderInputSchema.startTime/endTime` `nullable()` → `nullish().transform(v => v ?? null)` (tipe hasil tetap `string | null`). Sapu body semua operasi app di spec: hanya field ini yang nullable-wajib.
+- **Verifikasi:** typecheck ✔ · biome ✔ · boundaries ✔ · shared 346 · `openapi.test` 17 (baru: body app tanpa field nullable wajib) · `overtime-order` + `punch-window` 19 (baru: satu jam tanpa key lain → 200 `startsAt` null; tanpa keduanya → 400) di `hris_mobile_test`.
+- **Berikutnya:** app regenerate (body SPL: `startTime`/`endTime` opsional).
+
 ### 2026-11-03 — Enum bernama untuk klien Dart app (perbaikan kontrak M5d) (Oatse)
 - **Dikerjakan:** permintaan supervisor (atas nama pengguna): app gagal kompilasi pada spec `f5ffc98` karena swagger_parser 1.45 merujuk enum yang tidak dibuat (`Kind4` = `LeaveMe.ledger[].kind`, kembar `LeaveLedger.entries[].kind`; juga `Category2` & `Active` di `listEmployees`). Enum generik inline + semua enum query di path app diberi nama (daftar di README). Body `POST /leave-types`, `/attendance/punch`, `/attendance/precheck` didokumentasikan lewat `.extend` dengan enum bernama; validasi tetap `strict` skema @hris/shared. Test kontrak baru di `openapi.test.ts` (memeriksa semua method pada path app, karena generator memfilter per path, plus `LeaveLedger`).
 - **Keputusan:** nama skema = nama kelas Dart yang sudah dipakai app bila ada (`AttendancePunchKind`, `HolidayKind`, `ApprovalStatus`, `LeaveTypeCategory`) supaya kode app tidak berubah untuk kelas itu.

@@ -270,6 +270,48 @@ describe("kontrak OpenAPI untuk app mobile", () => {
     expect([...new Set(offenders)].sort()).toEqual([]);
   });
 
+  // MOB-D18: app tidak mengirim key bernilai null (`include_if_null: false`) → field body nullable tidak boleh
+  // wajib (`.nullable()` → `.nullish()`), atau request dari app ditolak 400 (temuan PUT /overtime-orders M5d).
+  test("body operasi app: field nullable tidak wajib ada", async () => {
+    const doc = (await spec()) as unknown as Doc;
+    type Node = {
+      $ref?: string;
+      type?: string | string[];
+      anyOf?: Node[];
+      properties?: Record<string, Node>;
+      required?: string[];
+      items?: Node;
+    };
+    const schemas = doc.components.schemas as Record<string, Node>;
+    const resolve = (n: Node): Node =>
+      n.$ref ? resolve(schemas[n.$ref.split("/").pop() as string] as Node) : n;
+    const isNullable = (n: Node) => {
+      const r = resolve(n);
+      return (
+        (Array.isArray(r.type) && r.type.includes("null")) ||
+        (r.anyOf ?? []).some((x) => resolve(x).type === "null")
+      );
+    };
+    const offenders: string[] = [];
+    const walk = (node: Node, where: string): void => {
+      const n = resolve(node);
+      for (const [key, value] of Object.entries(n.properties ?? {})) {
+        if (n.required?.includes(key) && isNullable(value)) offenders.push(`${where}.${key}`);
+        const v = resolve(value);
+        if (v.properties) walk(v, `${where}.${key}`);
+        if (v.items) walk(v.items, `${where}.${key}[]`);
+      }
+    };
+    for (const key of Object.keys(APP_OPERATION_IDS)) {
+      const [method, path] = key.split(" ") as [string, string];
+      const op = doc.paths[path]?.[method.toLowerCase()] as {
+        requestBody?: { content?: Record<string, { schema: Node }> };
+      };
+      for (const c of Object.values(op.requestBody?.content ?? {})) walk(c.schema, key);
+    }
+    expect(offenders).toEqual([]);
+  });
+
   test("Me memuat employeeCompanyId nullable (filter roster/shift/crew di app)", async () => {
     const doc = (await spec()) as unknown as Doc;
     const me = doc.components.schemas.Me as {
