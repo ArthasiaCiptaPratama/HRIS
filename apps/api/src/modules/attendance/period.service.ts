@@ -17,7 +17,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
-import type { StorageAdmin } from "../../core/storage.ts";
+import { assertOwnedPath, type StorageAdmin } from "../../core/storage.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 import {
   type ApprovalView,
@@ -542,11 +542,11 @@ export async function createStatement(
   if (day.status !== "ALPHA")
     throw new BusinessRuleError("Surat pernyataan hanya untuk hari berstatus Alpha.");
   if (input.attachmentPath) {
-    if (
-      !input.attachmentPath.startsWith(`${storage().storagePathPrefix}statements/${employeeId}/`)
-    ) {
-      throw new BusinessRuleError("Lampiran tidak valid. Unggah ulang.");
-    }
+    assertOwnedPath(
+      input.attachmentPath,
+      `${storage().storagePathPrefix}statements/${employeeId}/`,
+      "Lampiran tidak valid. Unggah ulang.",
+    );
     const info = await storage().storage.getObjectInfo(STATEMENT_BUCKET, input.attachmentPath);
     if (!info || info.size <= 0 || info.size > STATEMENT_ATTACHMENT_MAX_BYTES)
       throw new BusinessRuleError("Lampiran belum terunggah atau terlalu besar. Unggah ulang.");
