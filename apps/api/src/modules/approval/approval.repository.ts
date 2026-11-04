@@ -72,6 +72,14 @@ export async function decideStep(
   return tx.approvalStep.updateMany({ where: { id: stepId, decision: "PENDING" }, data });
 }
 
+/** Langkah yang masih menunggu ikut ditutup saat pengajuannya dibatalkan pemilik. */
+export async function cancelPendingSteps(tx: ApprovalTx, requestId: string, decidedAt: Date) {
+  return tx.approvalStep.updateMany({
+    where: { requestId, decision: "PENDING" },
+    data: { decision: "CANCELLED", decidedAt },
+  });
+}
+
 export async function setStatus(
   tx: ApprovalTx,
   id: string,

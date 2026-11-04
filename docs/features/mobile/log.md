@@ -3,6 +3,12 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-04 — Backlog BE: langkah approval pengajuan batal & log push sent (Oatse)
+- **Dikerjakan:** serah-terima supervisor `2026-11-04-1317` (rencana disetujui supervisor atas nama pengguna). Orientasi: `cancelApprovalRequest` sudah membuat request `CANCELLED`, inbox (`listActionable`) & `decide()` sudah menolaknya; yang tertinggal `ApprovalStep.decision` tetap `PENDING` → web/app menampilkan "Menunggu". Enum `ApprovalDecision` + `CANCELLED` (2 migrasi: ADD VALUE, lalu backfill langkah menunggu milik request batal); `repository.cancelPendingSteps` dipanggil `cancelApprovalRequest` (semua subjek); kontrak `steps[].decision` + `CANCELLED` (tetap inline → kelas Dart `Decision2`); web `schemas.ts` + label/ikon "Dibatalkan" (`display.tsx`, `attendance-days-page.tsx`). `pushToAccount`: log info `push sent` {accountId, type, sent, devices}.
+- **Verifikasi:** typecheck ✔ 3 workspace · biome ✔ (1 peringatan lama `roster-edit.service.ts:577`) · boundaries ✔ 549 modul · `db:migrate` `hris_mobile` 53 migrasi, `db:check` tanpa selisih · test (DB `hris_mobile`, sesuai backlog DB test): `notification` + `leave` 34 pass (baru: batal → semua langkah `CANCELLED` + `decidedAt`, tidak di inbox atasan, keputusan 409; log `push sent` tanpa token/judul) · `openapi`, approval policy, `period`, `overtime-order`, `roster`, `roster-edit`, `attendance` 82 pass. Suite penuh → CI.
+- **Masalah / catatan:** APK lama aman (enum Dart `$unknown`). Migrasi ikut rilis staging berikutnya (butuh kata pengguna). Web/PWA berubah → kabari Mat setelah develop (butuh kata pengguna).
+- **Berikutnya:** app regenerate dari spec `.handoff/openapi-mobile-<sha>.json`, chip "Dibatalkan".
+
 ### 2026-11-03 — Titik lanjut: ringkasan BE M4/M5, staging gel. 18–19, MOB-OD1, rencana BE M6 (Oatse)
 - **Dikerjakan:** permintaan pengguna lewat supervisor (17:01 WIB): docs diperbarui supaya sesi berikutnya cukup "lanjut". README: status, bagian baru §Titik lanjut (BE M4/M5 selesai, staging gel. 18/18.1/19, backlog BE, MOB-OD1, Berikutnya BE M6), 2 backlog baru di checklist, indeks MOB-D20–D22 & MOB-OD1. PROGRESS induk tidak diubah (dikerjakan sesi HRIS setelah FF).
 - **Keputusan:** MOB-OD1 terjawab — APK rilis lewat Google Drive (kutipan pengguna 16:59 WIB via supervisor); sumber kebenaran tetap `Arthasia-Mobile/docs/decisions.md`.

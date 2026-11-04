@@ -6,6 +6,7 @@ import {
 } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
+  Ban,
   Check,
   ClipboardCheck,
   Clock,
@@ -433,6 +434,7 @@ const STEP_LOOK = {
     text: "disetujui",
   },
   REJECTED: { icon: X, className: "bg-destructive/10 text-destructive", text: "ditolak" },
+  CANCELLED: { icon: Ban, className: "bg-muted text-muted-foreground", text: "dibatalkan" },
 } as const;
 
 /** Langkah Atasan/HR dalam satu pil kecil (ikon = keputusan). */
