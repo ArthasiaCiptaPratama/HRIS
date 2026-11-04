@@ -31,6 +31,8 @@ export const APP_OPERATION_IDS: Record<string, string> = {
   "GET /api/v1/attendance/corrections": "listCorrections",
   "POST /api/v1/attendance/corrections": "createCorrection",
   "POST /api/v1/attendance/corrections/{id}/cancel": "cancelCorrection",
+  "GET /api/v1/attendance/alpha-verifications": "listAlphaVerifications",
+  "POST /api/v1/attendance/alpha-verifications/{id}": "verifyAlpha",
   "GET /api/v1/roster": "getRoster",
   "GET /api/v1/roster/employees/{id}": "getEmployeeRoster",
   "GET /api/v1/shifts": "listShifts",

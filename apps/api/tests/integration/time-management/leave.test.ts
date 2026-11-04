@@ -355,6 +355,28 @@ describe("sakit & pembatalan", () => {
       await call("POST", `/leave-requests/${created.id}/cancel`, h.a),
     );
     expect(cancelled.status).toBe("CANCELLED");
+    // Backlog BE mobile 2026-11-04: langkah approval yang masih menunggu ikut ditutup.
+    const after = await data<{
+      approval: {
+        id: string;
+        status: string;
+        steps: { decision: string; decidedAt: string | null }[];
+      };
+    }>(await call("GET", `/leave-requests/${created.id}`, h.mgr));
+    expect(after.approval.status).toBe("CANCELLED");
+    expect(after.approval.steps.length).toBeGreaterThan(0);
+    for (const step of after.approval.steps) {
+      expect(step.decision).toBe("CANCELLED");
+      expect(step.decidedAt).not.toBeNull();
+    }
+    const inbox = await data<{ id: string }[]>(
+      await call("GET", "/leave-requests?scope=inbox", h.mgr),
+    );
+    expect(inbox.map((r) => r.id)).not.toContain(created.id);
+    const decide = await call("POST", `/approvals/${after.approval.id}/decision`, h.mgr, {
+      decision: "APPROVED",
+    });
+    expect(decide.status).toBe(409);
   });
 });
 

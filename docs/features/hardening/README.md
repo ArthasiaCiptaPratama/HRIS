@@ -1,7 +1,7 @@
 # Hardening
 
 > **Kode prefix:** `HRD` · **Fase:** 9 · **PIC:** – · **Branch:** – · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — perbaikan audit keamanan 2026-11-02 (A–D) ✔ develop 2026-11-03 `eb82348`, belum rilis
+> **Status:** Berjalan — perbaikan audit keamanan 2026-11-02 (A–D) ✔ develop 2026-11-03 `eb82348`, ✔ staging gel. 18 (2026-11-03)
 
 E2E Playwright alur utama, review keamanan, uji performa, runbook.
 
@@ -18,7 +18,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] (tambahan 2026-11-03) **B** `fix/keamanan-absen-dan-diri-sendiri` — temuan 3: GET `/attendance/days` tanpa marking Alpha global (hanya `employeeId` dalam scope; EMPLOYEE → 403). Temuan 4: HR_ADMIN ditolak mengubah SP, saldo cuti (adjust/import), lokasi absen, roster langsung tanpa crew, dan data kepegawaian miliknya sendiri; SA dikecualikan (HRD-D2). Commit `365f31c`, `db330e1`
   - [x] (tambahan 2026-11-03) **C** `fix/keamanan-dokumen-karyawan` — temuan 6: path yang sudah dirujuk dokumen (termasuk terhapus) ditolak sebelum cleanup, P2002 `storagePath` tidak menghapus objek, calon hanya hapus/ganti unggahan sendiri. R2: `assertOwnedPath` (prefix + nama UUID) di 6 titik, kode & pesan error lama dipertahankan. Commit `8d16fa4`, `225aaa8`
   - [x] (tambahan 2026-11-03) **D** `chore/keamanan-dependency-env-header` — temuan 2: `NODE_ENV` default `production`, route dev hanya development + peer loopback, server dev bind 127.0.0.1, guard akun uji layanan lokal. Temuan 7: header keamanan web + CSP Report-Only (HRD-D3). R1: escape formula CSV rekap absen. Temuan 8: zod 4.6.7, nodemailer 10.3.1
-  - [ ] Validasi header/CSP aktual di staging setelah rilis; evaluasi pelanggaran CSP sebelum enforce
+  - [~] Validasi header/CSP aktual di staging: header + CSP Report-Only terpasang ✔ (cek 2026-11-03, gel. 18); evaluasi pelanggaran CSP sebelum enforce belum
   - [-] Ditunda (gelombang E, butuh keputusan terpisah): R3 lokasi istirahat per PT, R4 rate limit per IP/akun, R5 Swagger di balik auth, R7 pin SHA action + `--ignore-scripts`, R8 sisanya, sesi web di localStorage; Q4 grant `employee.personal.write` untuk import email pribadi → Backlog
 - [ ] Uji performa dasar
 - [ ] Runbook: deploy, rollback, pemulihan Super Admin Utama

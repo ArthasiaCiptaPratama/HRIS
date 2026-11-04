@@ -1,5 +1,10 @@
 import { z } from "@hono/zod-openapi";
-import { ALPHA_VERIFICATION_STATES, ATTENDANCE_RECORD_OUTCOMES } from "@hris/shared";
+import {
+  ALPHA_VERIFICATION_OUTCOMES,
+  ALPHA_VERIFICATION_STATES,
+  ATTENDANCE_RECORD_OUTCOMES,
+  alphaVerificationInputSchema,
+} from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import { approvalViewSchema } from "../approval/index.ts";
 import type {
@@ -155,7 +160,17 @@ export const attendanceRecordSchema = z
   .openapi("AttendanceRecord");
 assertExact<z.infer<typeof attendanceRecordSchema>, AttendanceRecord>(true);
 
-// TM-D13 Fase B: verifikasi atasan atas Alpha.
+// TM-D13 Fase B: verifikasi atasan atas Alpha. Enum bernama (MOB-D9) karena dipakai app (tab verifikasi Alpha).
+export const alphaVerificationScopeSchema = z
+  .enum(["inbox", "all"])
+  .openapi("AlphaVerificationScope");
+const alphaVerificationStateSchema = z
+  .enum(ALPHA_VERIFICATION_STATES)
+  .openapi("AlphaVerificationState");
+/** Body `POST /attendance/alpha-verifications/{id}` untuk dokumentasi; validasi tetap skema @hris/shared. */
+export const alphaVerificationBodySchema = alphaVerificationInputSchema
+  .extend({ outcome: z.enum(ALPHA_VERIFICATION_OUTCOMES).openapi("AlphaVerificationOutcome") })
+  .openapi("AlphaVerificationInput");
 export const alphaVerificationSchema = z
   .object({
     dayId: z.uuid(),
@@ -163,7 +178,7 @@ export const alphaVerificationSchema = z
     workDate: z.iso.date(),
     shiftCode: z.string().nullable(),
     scheduledStart: z.iso.datetime().nullable(),
-    verification: z.enum(ALPHA_VERIFICATION_STATES),
+    verification: alphaVerificationStateSchema,
     note: z.string().nullable(),
     verifiedAt: z.iso.datetime().nullable(),
     deadline: z.iso.date(),
