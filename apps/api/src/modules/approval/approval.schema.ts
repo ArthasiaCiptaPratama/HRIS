@@ -11,7 +11,8 @@ const approvalStatusSchema = z
 
 const stepSchema = z.object({
   kind: approvalStepKindSchema,
-  decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+  // CANCELLED = langkah yang masih menunggu saat pengajuan dibatalkan pemilik.
+  decision: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]),
   decidedAt: z.iso.datetime().nullable(),
   note: z.string().nullable(),
   isOverride: z.boolean(),

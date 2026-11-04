@@ -8,7 +8,7 @@ import {
   ROSTER_CHANGE_STATUS_LABELS,
   type RosterChangeStatus,
 } from "@hris/shared";
-import { Check, Clock, X } from "lucide-react";
+import { Ban, Check, Clock, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -67,7 +67,7 @@ export function LabelChips({ labels, className }: { labels: string[]; className?
   );
 }
 
-const STEP_ICON = { PENDING: Clock, APPROVED: Check, REJECTED: X } as const;
+const STEP_ICON = { PENDING: Clock, APPROVED: Check, REJECTED: X, CANCELLED: Ban } as const;
 
 /** Langkah approval paralel (D-068): Atasan & HR, masing-masing dengan keputusan & catatan. */
 export function ApprovalSteps({ approval }: { approval: Approval | null }) {
@@ -100,7 +100,11 @@ export function ApprovalSteps({ approval }: { approval: Approval | null }) {
                 ) : null}
               </p>
               <p className="text-muted-foreground mt-1">
-                {step.decision === "PENDING" ? "Menunggu" : formatDateTime(step.decidedAt)}
+                {step.decision === "PENDING"
+                  ? "Menunggu"
+                  : step.decision === "CANCELLED"
+                    ? "Dibatalkan"
+                    : formatDateTime(step.decidedAt)}
               </p>
               {step.note ? <p className="mt-1">“{step.note}”</p> : null}
             </li>
@@ -181,6 +185,7 @@ const STEP_BADGE = {
   PENDING: { variant: "warning", text: "Menunggu" },
   APPROVED: { variant: "success", text: "Disetujui" },
   REJECTED: { variant: "destructive", text: "Ditolak" },
+  CANCELLED: { variant: "muted", text: "Dibatalkan" },
 } as const;
 
 /** Badge satu langkah approval (kolom "Atasan" / "HR" di tabel persetujuan). */

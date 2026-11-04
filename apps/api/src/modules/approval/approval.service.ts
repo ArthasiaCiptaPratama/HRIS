@@ -91,7 +91,7 @@ export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprova
 
 export interface ApprovalStepView {
   kind: "MANAGER" | "HR";
-  decision: "PENDING" | "APPROVED" | "REJECTED";
+  decision: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
   decidedAt: string | null;
   note: string | null;
   isOverride: boolean;
@@ -339,7 +339,10 @@ export async function cancelApprovalRequest(
   const row = await repository.findBySubject(tx, subjectType, subjectId);
   if (!row) return false;
   const updated = await repository.setStatus(tx, row.id, "CANCELLED", now);
-  return updated.count === 1;
+  if (updated.count !== 1) return false;
+  // Langkah yang masih menunggu ikut ditutup → tidak tampil "Menunggu" di web/app.
+  await repository.cancelPendingSteps(tx, row.id, now);
+  return true;
 }
 
 export async function getApproval(ctx: RequestContext, requestId: string): Promise<ApprovalView> {

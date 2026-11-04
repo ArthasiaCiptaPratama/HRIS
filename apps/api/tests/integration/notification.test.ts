@@ -312,10 +312,11 @@ describe("perangkat push app mobile (MOB-D6)", () => {
 
   test("notify() mengirim push + target terstruktur; token kedaluwarsa dihapus", async () => {
     const push = createFakePush();
+    const lines: string[] = [];
     configureNotification({
       sender: email.sender,
       appUrl: "http://localhost:5173",
-      logger,
+      logger: createLogger("info", (line) => lines.push(line)),
       push: push.sender,
     });
     for (const suffix of ["live", "gone"]) {
@@ -342,6 +343,17 @@ describe("perangkat push app mobile (MOB-D6)", () => {
       targetId: `leave-${RUN}`,
     });
     expect(await prisma.pushDevice.count({ where: { token: pushToken("target-gone") } })).toBe(0);
+    // Push sukses tercatat (diagnosis) tanpa token maupun isi pesan.
+    const sentLog = lines.map((l) => JSON.parse(l)).find((e) => e.msg === "push sent");
+    expect(sentLog).toMatchObject({
+      level: "info",
+      accountId: a.account.id,
+      type: "test.push",
+      sent: 1,
+      devices: 2,
+    });
+    expect(lines.join("\n")).not.toContain(pushToken(""));
+    expect(lines.join("\n")).not.toContain("Pengajuan cuti disetujui");
 
     const list = (await (await call("GET", "/notifications", a.headers)).json()) as {
       data: { id: string; type: string; target: { type: string; id: string } | null }[];

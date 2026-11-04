@@ -13,7 +13,9 @@ import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import * as alpha from "./alpha.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import {
+  alphaVerificationBodySchema,
   alphaVerificationSchema,
+  alphaVerificationScopeSchema,
   attendanceRecordSchema,
   correctionSchema,
   monthlyRecapSchema,
@@ -208,7 +210,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "/attendance/alpha-verifications",
       "Verifikasi Alpha: inbox atasan / semua dalam cakupan (TM-D13)",
       {
-        query: z.object({ scope: z.enum(["inbox", "all"]).optional() }),
+        query: z.object({ scope: alphaVerificationScopeSchema.optional() }),
         response: z.array(alphaVerificationSchema),
       },
     ),
@@ -219,7 +221,7 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       "post",
       "/attendance/alpha-verifications/{id}",
       "Atasan memverifikasi Alpha: Alpha / izin / sakit / tugas luar (TM-D13)",
-      { params: idParam, body: alphaVerificationInputSchema, response: alphaVerificationSchema },
+      { params: idParam, body: alphaVerificationBodySchema, response: alphaVerificationSchema },
     ),
     async (c) =>
       alpha.verifyAlpha(

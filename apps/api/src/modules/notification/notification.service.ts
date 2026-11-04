@@ -197,7 +197,17 @@ async function pushToAccount(
     if (stale.length > 0) await repository.deletePushTokens(stale);
     const failed = outcomes.filter((outcome) => outcome === "failed").length;
     if (failed > 0) logger.warn("push send failed", { accountId, failed });
-    return outcomes.filter((outcome) => outcome === "sent").length;
+    const sent = outcomes.filter((outcome) => outcome === "sent").length;
+    // Diagnosis push yang berhasil: hanya akun, jenis notifikasi & jumlah — tanpa token/isi pesan.
+    if (sent > 0) {
+      logger.info("push sent", {
+        accountId,
+        type: message.data.type,
+        sent,
+        devices: tokens.length,
+      });
+    }
+    return sent;
   } catch (error) {
     logger.error("push dispatch failed", { accountId, error: safeError(error) });
     return 0;
