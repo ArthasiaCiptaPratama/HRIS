@@ -3,6 +3,9 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-04 — Penutup: gel. 20 di staging, Mat dikabari (Oatse)
+- **Dikerjakan:** gel. 20 di staging (rilis `6e43117`, PR #77/#78, Deploy #41789249030 ✔, 53 migrasi, backfill 8 langkah/4 pengajuan → `CANCELLED`); Mat dikabari develop `7ccae28` (14:09 WIB, via supervisor); docs penutup (RELEASE #76, README: temuan `alpha_verified`, tab Alpha app `d5d41d2`, PROGRESS).
+
 ### 2026-11-04 — Backlog BE: langkah approval pengajuan batal & log push sent (Oatse)
 - **Dikerjakan:** serah-terima supervisor `2026-11-04-1317` (rencana disetujui supervisor atas nama pengguna). Orientasi: `cancelApprovalRequest` sudah membuat request `CANCELLED`, inbox (`listActionable`) & `decide()` sudah menolaknya; yang tertinggal `ApprovalStep.decision` tetap `PENDING` → web/app menampilkan "Menunggu". Enum `ApprovalDecision` + `CANCELLED` (2 migrasi: ADD VALUE, lalu backfill langkah menunggu milik request batal); `repository.cancelPendingSteps` dipanggil `cancelApprovalRequest` (semua subjek); kontrak `steps[].decision` + `CANCELLED` (tetap inline → kelas Dart `Decision2`); web `schemas.ts` + label/ikon "Dibatalkan" (`display.tsx`, `attendance-days-page.tsx`). `pushToAccount`: log info `push sent` {accountId, type, sent, devices}.
 - **Verifikasi:** typecheck ✔ 3 workspace · biome ✔ (1 peringatan lama `roster-edit.service.ts:577`) · boundaries ✔ 549 modul · `db:migrate` `hris_mobile` 53 migrasi, `db:check` tanpa selisih · test (DB `hris_mobile`, sesuai backlog DB test): `notification` + `leave` 34 pass (baru: batal → semua langkah `CANCELLED` + `decidedAt`, tidak di inbox atasan, keputusan 409; log `push sent` tanpa token/judul) · `openapi`, approval policy, `period`, `overtime-order`, `roster`, `roster-edit`, `attendance` 82 pass. Suite penuh → CI.
