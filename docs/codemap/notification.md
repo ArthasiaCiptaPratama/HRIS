@@ -5,7 +5,7 @@
 ## API (`apps/api/src/modules/`)
 
 ```
-│   │   ├── notification/             [done] `notify()` (in-app + email, tidak pernah melempar, gagal → outbox), `retryEmailOutbox()`, `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`; `configureNotification()` dipanggil app (+ `push: PushSender`, MOB-D6); `notify({ target? })` juga mengirim push FCM ke perangkat penerima (`pushToAccount`, token 404 dihapus, tidak pernah melempar); `POST /me/devices` (daftar/perbarui token, token pindah ke akun terakhir) & `DELETE /me/devices/{token}` (idempoten, hanya milik sendiri) — MOB 2026-10-21
+│   │   ├── notification/             [done] `notify()` (in-app + email, tidak pernah melempar, gagal → outbox), `retryEmailOutbox()`, `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`; `configureNotification()` dipanggil app (+ `push: PushSender`, MOB-D6); `notify({ target? })` juga mengirim push FCM ke perangkat penerima (`pushToAccount`, token 404 dihapus, tidak pernah melempar; log info `push sent` {accountId, type, sent, devices} tanpa token/isi — 2026-11-04); `POST /me/devices` (daftar/perbarui token, token pindah ke akun terakhir) & `DELETE /me/devices/{token}` (idempoten, hanya milik sendiri) — MOB 2026-10-21
 ```
 
 ## Web (`apps/web/src/features/`)

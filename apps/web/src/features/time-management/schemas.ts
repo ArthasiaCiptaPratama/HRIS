@@ -12,7 +12,7 @@ const person = z.object({
 
 export const approvalStepSchema = z.object({
   kind: z.enum(["MANAGER", "HR"]),
-  decision: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+  decision: z.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]),
   decidedAt: z.string().nullable(),
   note: z.string().nullable(),
   isOverride: z.boolean(),

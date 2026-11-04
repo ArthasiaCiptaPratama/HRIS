@@ -45,6 +45,8 @@ enum ApprovalDecision {
   PENDING
   APPROVED
   REJECTED
+  // Langkah yang masih menunggu saat pengajuannya dibatalkan pemilik (cancelApprovalRequest).
+  CANCELLED
 
   @@schema("approval")
 }
