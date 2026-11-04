@@ -142,6 +142,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-04** — TM-D25: alasan absen opsional untuk Akurasi GPS rendah & Lembur hari libur ber-SPL, develop `6b1d428` (tanpa migrasi; kontrak tetap). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-04** — Rilis staging gel. 20 (`7ccae28`, 53 migrasi, Deploy #41789249030 ✔); Mat dikabari develop `7ccae28`; tab verifikasi Alpha app ✔ (`d5d41d2`). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-11-04** — Gabung `HRIS/mobile-app` (FF) ke develop: langkah approval pengajuan yang dibatalkan → `CANCELLED` (2 migrasi: enum + backfill; web/app "Dibatalkan"), log info `push sent`, operasi app verifikasi Alpha (`listAlphaVerifications`/`verifyAlpha`, tanpa logika baru). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-11-03** — Rilis staging gel. 18 (TM tampil, audit A–D, Idempotency-Key), 18.1 (Lembur/Rekap/Upah Grade disembunyikan), 19 (SPL satu jam, `listEmployees` M5d); app M4–M5 teruji staging; QA TM web ber-login 11/13 ✔ (2 butuh akun karyawan); arah MVP Rilis 1 + §Langkah berikutnya. (Oatse)
