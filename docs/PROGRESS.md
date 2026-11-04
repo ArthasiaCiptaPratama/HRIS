@@ -141,6 +141,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-04** — Gabung `HRIS/mobile-app` (FF) ke develop: langkah approval pengajuan yang dibatalkan → `CANCELLED` (2 migrasi: enum + backfill; web/app "Dibatalkan"), log info `push sent`, operasi app verifikasi Alpha (`listAlphaVerifications`/`verifyAlpha`, tanpa logika baru). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-11-03** — Rilis staging gel. 18 (TM tampil, audit A–D, Idempotency-Key), 18.1 (Lembur/Rekap/Upah Grade disembunyikan), 19 (SPL satu jam, `listEmployees` M5d); app M4–M5 teruji staging; QA TM web ber-login 11/13 ✔ (2 butuh akun karyawan); arah MVP Rilis 1 + §Langkah berikutnya. (Oatse)
 - **2026-11-03** — Hardening: perbaikan audit keamanan A–D (temuan 1–8, R1, R2) digabung ke develop `eb82348`; HRD-D1–D3; 4 branch fitur, test shared 346 / api 1257 / web 339 ✔. (Oatse)
 - **2026-11-02** — PROGRESS: rilis staging gel. 15–17 (TM-D20–D24 + `/roster-edits`, perbaikan review TM-D24, efek approval setelah commit; staging 50 migrasi), app M5a teruji di staging (S3 ✔ 2026-10-29). (Oatse)
