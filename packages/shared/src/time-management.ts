@@ -355,8 +355,11 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   SHORT_REST: "Jeda antarshift kurang",
 };
 
-/** Label yang tidak mewajibkan alasan dari karyawan (penanda untuk approver saja). */
-export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = ["MOCK_LOCATION"];
+/**
+ * Label yang tidak mewajibkan alasan dari karyawan (penanda untuk approver saja). TM-D25: + Akurasi GPS rendah.
+ * Lembur hari libur ber-SPL tidak berlabel Di luar jadwal roster (`applyOrder`), jadi juga tanpa wajib alasan.
+ */
+export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = ["MOCK_LOCATION", "LOW_ACCURACY"];
 
 /**
  * MOB-D6: target notifikasi Time Management untuk app mobile (layar yang dibuka saat notifikasi diketuk).

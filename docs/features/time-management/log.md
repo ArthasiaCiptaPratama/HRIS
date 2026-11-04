@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-04 — TM-D25: alasan absen opsional untuk Akurasi GPS rendah & Lembur hari libur ber-SPL (Oatse, `HRIS/mobile-app`)
+- **Dikerjakan:** permintaan supervisor (kutipan pengguna 17:05 WIB "Opsional untuk 2 kasus (Recommended)"). `LABELS_WITHOUT_REASON` = `MOCK_LOCATION` + `LOW_ACCURACY` → `needsReason` (precheck `reasonRequired` & penolakan punch) ikut. Lembur hari libur ber-SPL: SPL hari OFF selalu berjam mulai+selesai dan `applyOrder` membuang `OUTSIDE_ROSTER` → sudah tanpa wajib alasan; `OUTSIDE_ROSTER`/`NO_ROSTER` di kasus lain tidak dilonggarkan. Web: tombol "Clock In lembur ber-SPL" (sebelumnya "· wajib alasan"), komentar & contoh placeholder.
+- **Keputusan:** TM-D25 (mengubah TM-D12, D-070).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 peringatan lama `roster-edit.service.ts:577`) · boundaries ✔ 549 modul · shared 346 · api `attendance` + `punch-window` + `overtime-order` 31 pass (DB `hris_mobile`) · web `overtime.test` 7.
+- **Masalah / catatan:** kontrak tidak berubah (`reasonRequired` sudah ada); app cukup mengikuti `reasonRequired` dari precheck.
+- **Berikutnya:** rilis staging + kabari Mat (butuh kata pengguna).
+
 ### 2026-10-29 — Approval: notifikasi semua handler setelah commit (Oatse, `fix/approval-after-commit`)
 - **Dikerjakan:** checklist TM-D24 "(tambahan 2026-10-29: temuan sesudah perbaikan review)". Audit 7 handler: 5 mengirim notifikasi di dalam transaksi keputusan → `event.afterCommit` (`overtime.service.ts`, `roster-change.service.ts`, `period.service.ts`, `attendance.service.ts`, `leave/leave.service.ts`); `ROSTER_CHANGE` juga membaca hari terkunci (`lockedEmployeesOn(..., tx)`) & kode shift (`shiftsByIds(..., tx)`) lewat `tx`. `ATTENDANCE_DAY` bersih, `ROSTER_EDIT` sudah (`a21f9f6`).
 - **Keputusan:** tidak ada — perbaikan bug, isi/penerima notifikasi tidak berubah.

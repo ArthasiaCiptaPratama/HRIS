@@ -69,7 +69,8 @@ import type { Precheck, Today } from "../schemas";
 
 // D-067: absen lewat PWA (tata letak HP, wajib online). Login sama dengan web. Selfie kamera langsung +
 // GPS + waktu server; foto diberi cap waktu, lat/long/alt, & lokasi geofence. Label D-070 tidak
-// memblokir tetapi alasan wajib. Setiap hari absen disetujui Atasan + HR (D-068).
+// memblokir tetapi alasan wajib, kecuali Lokasi palsu & Akurasi GPS rendah (TM-D25; ikut `reasonRequired`
+// dari pra-cek). Setiap hari absen disetujui Atasan + HR (D-068).
 
 /** Pasang manifest & service worker absen supaya bisa "Tambahkan ke layar utama". */
 function usePwaInstall() {
@@ -447,7 +448,7 @@ function TodayCard({
             <span className="flex items-center gap-2 text-base font-semibold">
               <LogIn className="size-5" /> Lembur hari libur
             </span>
-            <span className="text-[10px] opacity-80">Clock In lembur · wajib alasan</span>
+            <span className="text-[10px] opacity-80">Clock In lembur ber-SPL</span>
           </button>
         ) : (
           <button
@@ -1246,7 +1247,7 @@ function PunchFlow({
                 lateMinutes !== null
                   ? "Contoh: bus jemputan terlambat, ban kendaraan bocor…"
                   : check.reasonRequired
-                    ? "Contoh: menunggu bus jemputan, sinyal GPS lemah di pit…"
+                    ? "Contoh: menunggu bus jemputan, absen dari lokasi proyek lain…"
                     : "Catatan tambahan (boleh dikosongkan)"
               }
               aria-invalid={Boolean(reasonError)}
