@@ -53,6 +53,8 @@ Dokumen fitur ini: **README** (status BE, checklist, indeks keputusan) · [log.m
 - `bun test` lokal memakai DB dev (lihat checklist).
 - Notifikasi `attendance.alpha_verified` (hasil SICK/PERMIT/DUTY) menyebut "paling lambat <tgl>" walau batas koreksi sudah lewat (temuan app 2026-11-04, prioritas rendah).
 
+**TM-D25 (2026-11-04):** alasan absen opsional untuk Akurasi GPS rendah & Lembur hari libur ber-SPL — kontrak tetap; app mengikuti `precheck.reasonRequired` (jangan memaksa alasan di sisi app).
+
 **App 2026-11-04:** tab verifikasi Alpha atasan/HR ✔ (develop app `d5d41d2`, uji HP dev ✔) memakai `listAlphaVerifications`/`verifyAlpha`.
 
 **Keputusan:** MOB-OD1 terjawab (kutipan pengguna 2026-11-03 16:59 WIB, via supervisor) — APK rilis didistribusikan lewat **Google Drive** (tautan), tanpa Play Store, selaras MOB-D4; dicatat juga di `Arthasia-Mobile/docs/decisions.md`.
