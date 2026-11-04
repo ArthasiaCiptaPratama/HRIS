@@ -178,6 +178,17 @@ describe("absen PWA", () => {
       await call("POST", "/attendance/precheck", h.a, { kind: "IN", ...SITE, accuracyM: 15 }),
     );
     expect(pre).toMatchObject({ labels: [], insideGeofence: true, reasonRequired: false });
+    // TM-D25: Akurasi GPS rendah tetap berlabel tetapi tanpa wajib alasan; di luar radius tetap wajib.
+    const lowAcc = await data<{ labels: string[]; reasonRequired: boolean }>(
+      await call("POST", "/attendance/precheck", h.a, { kind: "IN", ...SITE, accuracyM: 5000 }),
+    );
+    expect(lowAcc.labels).toContain("LOW_ACCURACY");
+    expect(lowAcc.reasonRequired).toBe(false);
+    const farLowAcc = await data<{ labels: string[]; reasonRequired: boolean }>(
+      await call("POST", "/attendance/precheck", h.a, { kind: "IN", ...FAR, accuracyM: 5000 }),
+    );
+    expect(farLowAcc.labels).toContain("LOW_ACCURACY");
+    expect(farLowAcc.reasonRequired).toBe(true);
 
     const { path: notUploaded } = await data<{ path: string }>(
       await call("POST", "/attendance/selfie-upload", h.a, { contentType: "image/jpeg" }),

@@ -200,11 +200,13 @@ describe("hari OFF (TM-D12)", () => {
       await call("GET", "/attendance/me/today", h.off),
     );
     expect(before.overtimeOrder?.endsAt).not.toBeNull();
-    const res = await punch(h.off, "IN", {
-      offDayOvertime: true,
-      reason: "Lembur bongkar muat",
-      confirmed: true,
-    });
+    // TM-D25: Lembur hari libur ber-SPL tanpa wajib alasan (SPL sudah jadi dasar).
+    const pre = await data<{ labels: string[]; reasonRequired: boolean }>(
+      await call("POST", "/attendance/precheck", h.off, { kind: "IN", ...SITE, accuracyM: 10 }),
+    );
+    expect(pre.labels).not.toContain("OUTSIDE_ROSTER");
+    expect(pre.reasonRequired).toBe(false);
+    const res = await punch(h.off, "IN", { offDayOvertime: true, confirmed: true });
     expect(res.status).toBe(200);
     expect((await data<{ labels: string[] }>(res)).labels).not.toContain("OUTSIDE_ROSTER");
     const after = await data<{ offDay: boolean; next: string }>(
