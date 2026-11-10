@@ -1,7 +1,7 @@
 # Import data karyawan
 
 > **Kode prefix:** `IMP` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** –
-> **Status:** ✔ staging (rilis gel. 2–4.1); arsip QA Drive lengkap
+> **Status:** ✔ staging (rilis gel. 2–4.1); arsip QA Drive lengkap; IMP-D1 (lengkapi pemegang bagan ASLI-) ✔ develop 2026-11-10
 
 Import CSV/Excel (D-042) dengan pratinjau & laporan error, pendataan dari Google Form (D-059, 171 kolom D-061), lampiran Google Drive (D-060), NIP opsional & penyesuaian nilai Form (D-062–D-064).
 
@@ -58,7 +58,7 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| <a id="imp-d1"></a>IMP-D1 | **Import melengkapi pemegang bagan bernomor sementara `ASLI-` (2026-11-10, menutup catatan risiko D-066 "hapus/isi NIP-nya dulu agar tidak dobel"):** (1) baris yang **tidak cocok lewat NIP/NIK** (D-063) dicocokkan di Pratinjau dengan karyawan aktif ber-NIP `ASLI-` di **PT baris yang sama** & cakupan aktor: nama sama setelah dinormalisasi (NFKC, huruf kecil, titik/koma & spasi diabaikan, **gelar akademik/profesi/haji diabaikan** — daftar `NAME_TITLES` di shared; "H."/"Hj." hanya di depan nama) = saran **NAME**; nama pemegang bagan yang disingkat ("M. Isnaini", "Rahmat H.") cocok dengan nama lengkap berjumlah kata sama = saran **INITIALS**; (2) baris bersaran **wajib dipilih HR** (`CHART_HOLDER_CHOICE_REQUIRED`, tanpa gabung diam-diam): gabungkan ke salah satu kandidat (kandidat ganda ditampilkan semua) atau "Buat karyawan baru"; baris tanpa saran tetap bisa **dipilih manual** dari pemegang bagan PT-nya (bawaan: karyawan baru, tanpa error); satu pemegang bagan hanya untuk satu baris (`CHART_HOLDER_TAKEN`); (3) digabung = UPDATE karyawan itu: NIP sementara diganti NIP file (file tanpa NIP → **NIP dikosongkan**, NIK wajib lewat NO_IDENTITY), data file mengisi field; **pos, atasan, riwayat tetap**; **jabatan pos dipertahankan** bila jabatan file berbeda (WARNING `CHART_POSITION_KEPT`); berlaku juga pada mode "tambah saja"; audit `employee.import.chart_holder_merged`; (4) Pratinjau menampilkan "Pemegang bagan yang belum dilengkapi: N" + daftarnya. | Kutipan pengguna 2026-11-10 ±15:40 WIB "Cocokkan nama di Pratinjau", ±15:50 WIB (jabatan pos, kosongkan NIP, abaikan gelar & tanda baca); pilihan manual, daftar belum dilengkapi, saran inisial = tambahan supervisor atas nama pengguna. |
 
 ## Keputusan terbuka
 

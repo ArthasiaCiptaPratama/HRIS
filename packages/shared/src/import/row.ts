@@ -592,4 +592,13 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
     "Departemen & Divisi tidak segaris di Struktur Organisasi — karyawan ditempatkan di unit paling bawah",
   EXIT_EXISTING_IGNORED:
     "Status keluar karyawan yang sudah ada tidak diubah lewat import (pakai Ubah Status)",
+  // IMP-D1: melengkapi pemegang bagan bernomor sementara ASLI-.
+  CHART_HOLDER_CHOICE_REQUIRED:
+    "Mirip pemegang bagan yang sudah ada — pilih gabungkan dengan pemegang bagan atau buat karyawan baru",
+  CHART_HOLDER_TAKEN: "Pemegang bagan ini sudah dipilih baris lain",
+  CHART_HOLDER_INVALID:
+    "Pemegang bagan yang dipilih tidak ditemukan, sudah dilengkapi, atau di luar cakupan — pilih ulang",
+  CHART_HOLDER_OTHER_COMPANY: "Pemegang bagan yang dipilih ada di perusahaan lain",
+  CHART_POSITION_KEPT:
+    "Jabatan di file berbeda dari jabatan pos bagan — jabatan pos dipertahankan (ubah lewat bagan)",
 };
