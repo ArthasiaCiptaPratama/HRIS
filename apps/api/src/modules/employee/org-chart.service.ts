@@ -40,11 +40,24 @@ export async function getOrgChart(
     companies[0];
   if (!company) throw new ForbiddenError();
 
-  const [snapshot, holders, unplacedCount] = await Promise.all([
+  const [snapshot, primaryHolders, secondaryHolders, unplacedCount] = await Promise.all([
     getOrgChartPostsSnapshot(),
     repository.listPostHolders(),
+    repository.listSecondaryHolders(),
     repository.countUnplaced([company.id]),
   ]);
+  // ORG-D3: pemegang utama dulu, lalu pemegang rangkap (ditandai "Rangkap" di kartu).
+  const holders = [
+    ...primaryHolders.map((h) => ({ ...h, secondary: false })),
+    ...secondaryHolders.map((h) => ({
+      id: h.employeeId,
+      fullName: h.employee.fullName,
+      companyId: h.employee.companyId,
+      photoPath: h.employee.photoPath,
+      orgPostId: h.orgPostId as string | null,
+      secondary: true,
+    })),
+  ];
   const included = snapshot.posts.filter(
     (post) => !post.archived && (post.companyId === company.id || post.companyId === null),
   );
@@ -68,6 +81,7 @@ export async function getOrgChart(
       id: holder.id,
       fullName: holder.fullName,
       photoUrl: holder.photoPath ? (photos.get(holder.photoPath) ?? null) : null,
+      secondary: holder.secondary,
     });
     holdersOf.set(holder.orgPostId as string, list);
   }

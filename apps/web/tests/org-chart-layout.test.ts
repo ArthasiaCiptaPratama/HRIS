@@ -34,7 +34,9 @@ const chart: OrgChart = {
     { id: "u2", name: "Corporate", unitType: "DIRECTORATE", parentId: null, corporate: true },
   ],
   posts: [
-    post("dir", { holders: [{ id: "p1", fullName: "Budi Contoh", photoUrl: null }] }),
+    post("dir", {
+      holders: [{ id: "p1", fullName: "Budi Contoh", photoUrl: null, secondary: false }],
+    }),
     post("ops", { reportsToId: "dir", sortOrder: 2 }),
     post("adm", { reportsToId: "dir", sortOrder: 1, positionName: "Admin Generalist" }),
     post("ktt", { reportsToId: "ops", functionalReportsToId: "hc" }),
@@ -42,8 +44,8 @@ const chart: OrgChart = {
       reportsToId: "ktt",
       headcount: 6,
       holders: [
-        { id: "p2", fullName: "Sari Uji", photoUrl: null },
-        { id: "p3", fullName: "Adi Uji", photoUrl: null },
+        { id: "p2", fullName: "Sari Uji", photoUrl: null, secondary: false },
+        { id: "p3", fullName: "Adi Uji", photoUrl: null, secondary: false },
       ],
     }),
     post("hc", { corporate: true, departmentId: "u2", positionName: "HC Senior Manager" }),

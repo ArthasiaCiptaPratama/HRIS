@@ -38,7 +38,10 @@ const chart: OrgChart = {
   ],
   posts: [
     post("ktt", { level: "L5" }),
-    post("se", { reportsToId: "ktt", holders: [{ id: "e1", fullName: "Andi", photoUrl: null }] }),
+    post("se", {
+      reportsToId: "ktt",
+      holders: [{ id: "e1", fullName: "Andi", photoUrl: null, secondary: false }],
+    }),
     post("fm", { reportsToId: "se", sortOrder: 0 }),
     post("fm2", { reportsToId: "se", sortOrder: 10 }),
     post("corp", { departmentId: "unit-corp", corporate: true }),
@@ -169,5 +172,65 @@ describe("reorderChanges", () => {
       { op: "updatePost", postId: "fm", sortOrder: 10 },
     ]);
     expect(reorderChanges(siblings, "fm", 0)).toEqual([]);
+  });
+});
+
+describe("jabatan rangkap di draf (ORG-D3)", () => {
+  const andi = { id: "e1", fullName: "Andi", photoUrl: null };
+  it("tambah/lepas rangkap; pos utama tetap; slot & duplikat dicek; pindah utama tidak menghapus rangkap", () => {
+    const added = applyDraft(
+      chart,
+      [act([{ op: "addSecondaryPost", employeeId: "e1", postId: "fm" }])],
+      lookup,
+    ).chart;
+    expect(added.posts.find((p) => p.id === "fm")?.holders).toEqual([{ ...andi, secondary: true }]);
+    expect(added.posts.find((p) => p.id === "se")?.holders).toEqual([
+      { ...andi, secondary: false },
+    ]);
+    // Slot fm (1) sudah terisi rangkap; duplikat & pos utama sendiri ditolak.
+    expect(
+      tryAction(
+        chart,
+        [act([{ op: "addSecondaryPost", employeeId: "e1", postId: "fm" }])],
+        lookup,
+        act([{ op: "addSecondaryPost", employeeId: "e1", postId: "fm" }]),
+      ),
+    ).toMatch(/sudah memegang/);
+    expect(
+      tryAction(
+        chart,
+        [],
+        lookup,
+        act([{ op: "addSecondaryPost", employeeId: "e1", postId: "se" }]),
+      ),
+    ).toMatch(/sudah memegang/);
+    // Pindah pos utama ke fm2 → rangkap di fm tetap ada.
+    const moved = applyDraft(
+      chart,
+      [
+        act([{ op: "addSecondaryPost", employeeId: "e1", postId: "fm" }]),
+        act([{ op: "placeEmployee", employeeId: "e1", postId: "fm2" }]),
+      ],
+      lookup,
+    ).chart;
+    expect(moved.posts.find((p) => p.id === "fm")?.holders[0]?.secondary).toBe(true);
+    expect(moved.posts.find((p) => p.id === "fm2")?.holders[0]?.secondary).toBe(false);
+    const removed = applyDraft(
+      chart,
+      [
+        act([{ op: "addSecondaryPost", employeeId: "e1", postId: "fm" }]),
+        act([{ op: "removeSecondaryPost", employeeId: "e1", postId: "fm" }]),
+      ],
+      lookup,
+    ).chart;
+    expect(removed.posts.find((p) => p.id === "fm")?.holders).toEqual([]);
+    expect(
+      tryAction(
+        chart,
+        [],
+        lookup,
+        act([{ op: "removeSecondaryPost", employeeId: "e1", postId: "fm" }]),
+      ),
+    ).toMatch(/tidak merangkap/);
   });
 });

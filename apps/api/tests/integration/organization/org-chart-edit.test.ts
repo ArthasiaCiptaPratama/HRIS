@@ -675,3 +675,99 @@ describe("ORG-D2 cakupan sinkron atasan untuk HR", () => {
     );
   });
 });
+
+describe("ORG-D3 jabatan rangkap", () => {
+  test("rangkap: atasan bawahan pos rangkap, slot, PT, pos utama, batas 5, arsip, bagan & lepas", async () => {
+    // Pos tengah tanpa pemegang utama di antara bossPostA dan pos bawahan baru.
+    const mid = (await prisma.orgPost.create({ data: { positionId, reportsToId: bossPostA } })).id;
+    const subPost = (await prisma.orgPost.create({ data: { positionId, reportsToId: mid } })).id;
+    const sub = await employee("rangkap-sub", { orgPostId: subPost, managerId: bossA });
+    const add = (employeeId: string, postId: string): OrgChartChange => ({
+      op: "addSecondaryPost",
+      employeeId,
+      postId,
+    });
+
+    // Pratinjau memuat perubahan rangkap & atasan; tidak menulis.
+    const preview = await batch([add(bossB, mid)], { preview: true });
+    expect(preview.status).toBe(200);
+    const summary = (await data(preview)) as {
+      secondaryChanges: { action: string }[];
+      managerChanges: { employee: { id: string }; toManager: { id: string } | null }[];
+    };
+    expect(summary.secondaryChanges).toEqual([expect.objectContaining({ action: "ADDED" })]);
+    expect(summary.managerChanges.find((m) => m.employee.id === sub)?.toManager?.id).toBe(bossB);
+    expect(await prisma.employeeSecondaryPost.count({ where: { employeeId: bossB } })).toBe(0);
+
+    // Terapkan: bossB merangkap pos tengah → atasan sub = bossB; atasan bossB sendiri tidak berubah.
+    const bossBManagerBefore = (await prisma.employee.findUniqueOrThrow({ where: { id: bossB } }))
+      .managerId;
+    expect((await batch([add(bossB, mid)])).status).toBe(200);
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: sub } })).managerId).toBe(bossB);
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: bossB } })).managerId).toBe(
+      bossBManagerBefore,
+    );
+
+    // Bagan menandai pemegang rangkap.
+    const chart = (await data(
+      await call("GET", `/org-chart?companyId=${companyId}`, sa.headers),
+    )) as { posts: { id: string; holders: { id: string; secondary: boolean }[] }[] };
+    expect(chart.posts.find((p) => p.id === mid)?.holders).toEqual([
+      expect.objectContaining({ id: bossB, secondary: true }),
+    ]);
+
+    // Slot penuh (headcount 1 terisi rangkap), duplikat, pos utama sendiri, PT lain → ditolak.
+    await expectRejected([add(bossA, mid)]);
+    await expectRejected([add(bossB, mid)]);
+    await expectRejected([add(bossB, bossPostB)]);
+    const otherPost = (await prisma.orgPost.create({ data: { positionId: otherPositionId } })).id;
+    await expectRejected([add(bossA, otherPost)]);
+    // HR tanpa cakupan PT → 403.
+    expect((await batch([add(bossA, staffPost)], { headers: hrOther.headers })).status).toBe(403);
+
+    // Batas 5 pos rangkap per orang.
+    const extra: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      extra.push(
+        (
+          await prisma.orgPost.create({
+            data: { positionId, headcount: 2, reportsToId: bossPostB },
+          })
+        ).id,
+      );
+    }
+    expect((await batch(extra.slice(0, 4).map((p) => add(bossB, p)))).status).toBe(200);
+    await expectRejected([add(bossB, extra[4] as string)]);
+
+    // Pos berisi pemegang rangkap tidak bisa diarsipkan.
+    await expectRejected([{ op: "archivePost", postId: extra[0] as string }]);
+
+    // Lepas rangkap pos tengah → atasan sub kembali naik ke bossA.
+    expect(
+      (await batch([{ op: "removeSecondaryPost", employeeId: bossB, postId: mid }])).status,
+    ).toBe(200);
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: sub } })).managerId).toBe(bossA);
+    await expectRejected([{ op: "removeSecondaryPost", employeeId: bossB, postId: mid }]);
+
+    // Detail karyawan menampilkan pos rangkap (baca saja).
+    const detail = (await data(await call("GET", `/employees/${bossB}`, sa.headers))) as {
+      secondaryPosts: { id: string }[];
+    };
+    expect(detail.secondaryPosts.map((p) => p.id).sort()).toEqual(extra.slice(0, 4).sort());
+
+    // Menjadi pemegang utama pos yang sedang dirangkap → baris rangkap dilepas otomatis.
+    const freePost = extra[1] as string;
+    await prisma.employee.update({ where: { id: sub }, data: { orgPostId: null } });
+    expect(
+      (await batch([{ op: "placeEmployee", employeeId: bossB, postId: freePost }])).status,
+    ).toBe(200);
+    expect(
+      await prisma.employeeSecondaryPost.count({
+        where: { employeeId: bossB, orgPostId: freePost },
+      }),
+    ).toBe(0);
+
+    await prisma.employeeSecondaryPost.deleteMany({ where: { employeeId: { in: employeeIds } } });
+    await prisma.employee.update({ where: { id: bossB }, data: { orgPostId: bossPostB } });
+  });
+});

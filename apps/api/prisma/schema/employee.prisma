@@ -186,14 +186,15 @@ model Employee {
   // (bukan URL; URL bertanda tangan dibuat API saat dibaca). Null = belum ada foto.
   photoPath                    String?                @map("photo_path") @db.VarChar(255)
 
-  employmentStatus  EmploymentStatus      @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
-  company           Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  position          Position              @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  workLocation      WorkLocation?         @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
-  grade             Grade?                @relation(fields: [gradeId], references: [id], onDelete: Restrict)
-  manager           Employee?             @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
-  orgPost           OrgPost?              @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
-  subordinates      Employee[]            @relation("EmployeeManager")
+  employmentStatus  EmploymentStatus        @relation(fields: [employmentStatusId], references: [id], onDelete: Restrict)
+  company           Company                 @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  position          Position                @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  workLocation      WorkLocation?           @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
+  grade             Grade?                  @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  manager           Employee?               @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
+  orgPost           OrgPost?                @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
+  secondaryPosts    EmployeeSecondaryPost[]
+  subordinates      Employee[]              @relation("EmployeeManager")
   personal          EmployeePersonal?
   bankAccount       EmployeeBankAccount?
   familyMembers     FamilyMember[]
@@ -837,5 +838,24 @@ enum DrivingLicenseType {
   D
   D1
 
+  @@schema("employee")
+}
+
+// ORG-D3: jabatan rangkap — pos tambahan selain pos utama (`employees.org_post_id`). Jabatan resmi,
+// laporan, dan atasan dirinya tetap dari pos utama; pemegang rangkap ikut menjadi kandidat atasan bagi
+// bawahan pos ini (D-053). Maks 5 per karyawan, PT sama (dijaga service).
+model EmployeeSecondaryPost {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @map("employee_id") @db.Uuid
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  orgPostId  String   @map("org_post_id") @db.Uuid
+  orgPost    OrgPost  @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
+  // Akun yang menambahkan (audit ringan; null = seed/import).
+  createdBy  String?  @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([employeeId, orgPostId])
+  @@index([orgPostId])
+  @@map("employee_secondary_posts")
   @@schema("employee")
 }

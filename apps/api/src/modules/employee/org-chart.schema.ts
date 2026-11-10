@@ -39,7 +39,13 @@ export const orgChartSchema = z
         headcount: z.number().int(),
         sortOrder: z.number().int(),
         holders: z.array(
-          z.object({ id: z.uuid(), fullName: z.string(), photoUrl: z.string().nullable() }),
+          z.object({
+            id: z.uuid(),
+            fullName: z.string(),
+            photoUrl: z.string().nullable(),
+            /** ORG-D3: true = pemegang rangkap (pos utamanya di tempat lain). */
+            secondary: z.boolean(),
+          }),
         ),
       }),
     ),
