@@ -52,11 +52,11 @@ describe("masa kerja & usia (ARS-D21)", () => {
 
 describe("jenis perpindahan (ARS-D21)", () => {
   test("level naik = promosi, turun = demosi, sama = mutasi, kosong = belum diisi", () => {
-    expect(movementKind("STAFF", "SUPERVISOR")).toBe("PROMOTION");
-    expect(movementKind("MANAGER", "FOREMAN")).toBe("DEMOTION");
-    expect(movementKind("STAFF", "STAFF")).toBe("TRANSFER");
-    expect(movementKind(null, "STAFF")).toBe("UNRANKED");
-    expect(movementKind("STAFF", null)).toBe("UNRANKED");
+    expect(movementKind("L1A", "L3")).toBe("PROMOTION");
+    expect(movementKind("L3", "L2")).toBe("DEMOTION");
+    expect(movementKind("L1A", "L1A")).toBe("TRANSFER");
+    expect(movementKind(null, "L1A")).toBe("UNRANKED");
+    expect(movementKind("L1A", null)).toBe("UNRANKED");
   });
 });
 

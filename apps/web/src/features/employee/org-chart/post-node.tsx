@@ -10,15 +10,16 @@ import { MAX_VISIBLE_SLOTS, NODE_WIDTH, nodeHeight } from "./layout";
 // D-051: kartu pos di kanvas. Aksen warna per level jabatan; slot kosong ditandai jelas ("Kosong").
 // Tombol orang & tombol lipat diberi kelas `nodrag nopan` supaya klik tidak dianggap menggeser kanvas.
 
+// ORG-D1: token warna per level (legenda bagan site ACP, index.css).
 export const LEVEL_TOKEN: Record<PositionLevel, string> = {
-  DIRECTOR: "--org-director",
-  GENERAL_MANAGER: "--org-gm",
-  MANAGER: "--org-manager",
-  SUPERINTENDENT: "--org-superintendent",
-  SUPERVISOR: "--org-supervisor",
-  FOREMAN: "--org-foreman",
-  STAFF: "--org-staff",
-  NON_STAFF: "--org-crew",
+  L7: "--org-l7",
+  L6: "--org-l6",
+  L5: "--org-l5",
+  L4: "--org-l4",
+  L3: "--org-l3",
+  L2: "--org-l2",
+  L1A: "--org-l1a",
+  L1B: "--org-l1b",
 };
 
 export const levelColor = (level: PositionLevel | null) =>
@@ -64,7 +65,10 @@ function PostNodeView({ data }: NodeProps<PostNodeType>) {
         className="!border-0 !bg-transparent"
       />
       <span aria-hidden className="h-1.5 w-full shrink-0" style={{ background: color }} />
-      <div className="flex min-h-0 items-start gap-2 px-3 pt-2">
+      <div
+        className="flex min-h-0 items-start gap-2 px-3 pt-2 pb-1"
+        style={{ background: `color-mix(in oklch, ${color} 10%, transparent)` }}
+      >
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] leading-tight font-semibold" title={post.positionName}>
             {post.positionName}
@@ -83,7 +87,7 @@ function PostNodeView({ data }: NodeProps<PostNodeType>) {
           </span>
         ) : null}
       </div>
-      <ul className="mt-1.5 flex flex-col gap-0.5 px-1.5">
+      <ul className="mt-1 flex flex-col gap-0.5 px-1.5">
         {visibleHolders.map((holder) => (
           <li key={holder.id}>
             <button

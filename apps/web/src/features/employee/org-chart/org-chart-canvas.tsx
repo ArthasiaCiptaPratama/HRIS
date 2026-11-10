@@ -528,7 +528,7 @@ function Legend() {
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 text-sm">
         <p className="mb-2 font-semibold">Keterangan</p>
-        <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+        <ul className="grid grid-cols-1 gap-y-1.5">
           {POSITION_LEVELS.map((level) => (
             <li key={level} className="flex items-center gap-2 text-xs">
               <span

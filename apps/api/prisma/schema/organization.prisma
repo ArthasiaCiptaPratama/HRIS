@@ -125,16 +125,17 @@ enum OrgUnitType {
   @@schema("organization")
 }
 
-// D-050: level jabatan untuk urutan bagan & laporan (bukan golongan gaji).
+// D-050 (4) diubah ORG-D1: 8 level jabatan bernomor (legenda warna bagan site ACP), dari puncak ke bawah
+// L7 Direktur Utama … L1B Helper. Untuk urutan bagan & laporan (bukan golongan gaji).
 enum PositionLevel {
-  DIRECTOR
-  GENERAL_MANAGER
-  MANAGER
-  SUPERINTENDENT
-  SUPERVISOR
-  FOREMAN
-  STAFF
-  NON_STAFF
+  L7
+  L6
+  L5
+  L4
+  L3
+  L2
+  L1A
+  L1B
 
   @@schema("organization")
 }

@@ -48,7 +48,7 @@ function chart(overrides: Record<string, unknown> = {}) {
       {
         id: ID(4),
         positionName: "Direktur Utama",
-        level: "DIRECTOR",
+        level: "L5",
         departmentId: ID(3),
         corporate: false,
         reportsToId: null,

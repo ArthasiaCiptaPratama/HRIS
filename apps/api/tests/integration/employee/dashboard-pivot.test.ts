@@ -66,7 +66,7 @@ beforeAll(async () => {
   ).id;
   ids.position = (
     await prisma.position.create({
-      data: { name: `Jab Pivot ${RUN}`, departmentId: ids.department, level: "STAFF" },
+      data: { name: `Jab Pivot ${RUN}`, departmentId: ids.department, level: "L1A" },
     })
   ).id;
   ids.location = (
@@ -179,7 +179,7 @@ describe("GET /dashboard/pivot", () => {
     const city = await read(
       await get(`rows=city&cols=positionLevel&${onlyTestRows()}`, headers.HR_ADMIN),
     );
-    expect(cell(city, "Sampit", "STAFF")).toBe(3);
+    expect(cell(city, "Sampit", "L1A")).toBe(3);
   });
 
   test("D-040: HR PT lain tidak melihat karyawan ACP", async () => {

@@ -5,6 +5,7 @@ import {
   geofenceIncomplete,
   gradeInputSchema,
   ORG_UNIT_TYPES,
+  POSITION_LEVEL_LABELS,
   POSITION_LEVELS,
   workLocationInputSchema,
 } from "../src/organization.ts";
@@ -108,8 +109,9 @@ describe("canBeChildOf", () => {
     for (const type of ORG_UNIT_TYPES) expect(canBeChildOf(type, null)).toBe(true);
   });
 
-  test("level jabatan berurutan dari Direksi ke Helper", () => {
-    expect(POSITION_LEVELS[0]).toBe("DIRECTOR");
-    expect(POSITION_LEVELS.at(-1)).toBe("NON_STAFF");
+  test("level jabatan berurutan dari Direktur Utama (L7) ke Helper (L1b) — ORG-D1", () => {
+    expect(POSITION_LEVELS).toEqual(["L7", "L6", "L5", "L4", "L3", "L2", "L1A", "L1B"]);
+    expect(POSITION_LEVEL_LABELS.L4).toBe("L4 · Superintendent");
+    expect(POSITION_LEVEL_LABELS.L1B).toBe("L1b · Helper");
   });
 });

@@ -26,6 +26,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Policy + test — `canReadMasterData`, `canViewMasterDataAdmin`, `canManageMasterData` (11 test, TDD) ✔; integration `organization/master-data.test.ts` 17 ✔
 - [x] Web: halaman master data (Administrasi → Master Data: perusahaan, departemen, jabatan, status, grade, site/lokasi; Tahap 3) — `features/organization/`, web test 5 ✔; uji browser belum (butuh password akun uji)
  - [x] Web: Struktur Organisasi (per departemen + bagan atasan, pencarian) (tambahan 2026-09-29: D-035 menu e)
+ - [x] Level jabatan bernomor 1b–7 + warna bagan sesuai legenda (ORG-D1) ✔ lokal 2026-11-10 — migrasi enum + pemetaan data lama, shared/report/dashboard/master data/seed/test (tambahan 2026-11-10: handoff supervisor 10:12, bagan site 06.11.2026)
  - [x] **Bagan organisasi interaktif berbasis pos jabatan** (D-051–D-053, desain `docs/features/organisasi/design.md`) ✔ lokal 2026-10-05 · ✔ staging 2026-10-08 (rilis gel. 2, seed replika bagan) (tambahan 2026-10-05: permintaan pemilik projek, dari org chart site ACP)
   - [x] Skema: `org_posts`, `departments.company_id`, `employees.org_post_id/manager_override` (migrasi `20261005032136`, hanya menambah) + aturan shared (siklus, PT, atasan otomatis — TDD)
   - [x] API `/org-posts` (+ sinkron atasan), `/org-chart`, `/org-chart/people/:id`, penempatan pos di `/employees` + integration 9
@@ -50,7 +51,7 @@ Isi lengkap di [decisions.md](../../decisions.md).
 
 | ID | Keputusan | Alasan / sumber |
 |---|---|---|
-| – | – | – |
+| <a id="org-d1"></a>ORG-D1 | **Level jabatan bernomor 1b–7 + warna bagan (2026-11-10, mengubah [D-050](../../decisions.md#d-050) (4)):** enum `PositionLevel` = `L7` Direktur Utama · `L6` Direksi · `L5` KTT · `L4` Superintendent · `L3` Supervisor/Manager · `L2` Foreman · `L1A` Staff/Officer · `L1B` Helper (label "L4 · Superintendent"; urutan bagan & laporan dari L7 ke L1B). Warna kartu bagan: abu L7, merah L6, hijau L5, oranye L4, biru muda L3, ungu L2, cokelat L1a, biru tua L1b (token `--org-l*`, terang & gelap; warna hanya strip & latar tipis, teks tetap foreground). Data lama dipetakan migrasi `20261110040000_position_level_numbered`: NON_STAFF→L1B, STAFF→L1A, FOREMAN→L2, SUPERVISOR & MANAGER→L3, SUPERINTENDENT→L4, GENERAL_MANAGER→L5 (GM hijau di PDF = setara KTT), DIRECTOR→L6 (Direktur Utama diisi L7 lewat data). | Legenda pengguna (kutipan 2026-11-10 10:05 WIB via supervisor `supervisor-e0`, otoritatif bila PDF beda) + bagan `ACP - Orgchart Site 06.11.2026`; pemetaan GM→L5 = keputusan supervisor. |
 
 ## Keputusan terbuka
 
