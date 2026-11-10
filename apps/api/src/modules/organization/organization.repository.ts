@@ -79,46 +79,47 @@ export async function createWorkLocation(tx: OrganizationTx, name: string) {
 // ── D-049: kelola master data (SUPER_ADMIN) ─────────────────────────────────────
 
 export function withTransaction<T>(fn: (tx: OrganizationTx) => Promise<T>): Promise<T> {
-  return getPrisma().$transaction(fn);
+  return getPrisma().$transaction(fn, { timeout: 30_000 });
 }
 
 const ADMIN_SELECT = { id: true, name: true, deletedAt: true, createdAt: true } as const;
 
 /** Semua baris (aktif & arsip) untuk halaman admin; tabel kecil → tanpa paginasi. */
-export async function listAdminRows() {
-  const prisma = getPrisma();
-  const [companies, departments, positions, statuses, grades, locations] =
-    await prisma.$transaction([
-      prisma.company.findMany({
-        select: { ...ADMIN_SELECT, code: true, npwpNumber: true, address: true },
-        orderBy: { code: "asc" },
-      }),
-      prisma.department.findMany({
-        select: { ...ADMIN_SELECT, parentId: true, unitType: true, companyId: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.position.findMany({
-        select: { ...ADMIN_SELECT, departmentId: true, level: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.employmentStatus.findMany({
-        select: { ...ADMIN_SELECT, category: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.grade.findMany({ select: ADMIN_SELECT, orderBy: { name: "asc" } }),
-      prisma.workLocation.findMany({
-        select: {
-          ...ADMIN_SELECT,
-          city: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-          radiusM: true,
-        },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+async function loadAdminRows(prisma: OrganizationTx) {
+  const [companies, departments, positions, statuses, grades, locations] = await Promise.all([
+    prisma.company.findMany({
+      select: { ...ADMIN_SELECT, code: true, npwpNumber: true, address: true },
+      orderBy: { code: "asc" },
+    }),
+    prisma.department.findMany({
+      select: { ...ADMIN_SELECT, parentId: true, unitType: true, companyId: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.position.findMany({
+      select: { ...ADMIN_SELECT, departmentId: true, level: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.employmentStatus.findMany({
+      select: { ...ADMIN_SELECT, category: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.grade.findMany({ select: ADMIN_SELECT, orderBy: { name: "asc" } }),
+    prisma.workLocation.findMany({
+      select: {
+        ...ADMIN_SELECT,
+        city: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+        radiusM: true,
+      },
+      orderBy: { name: "asc" },
+    }),
+  ]);
   return { companies, departments, positions, statuses, grades, locations };
+}
+export function listAdminRows(tx?: OrganizationTx) {
+  return tx ? loadAdminRows(tx) : withTransaction(loadAdminRows);
 }
 export type AdminRows = Awaited<ReturnType<typeof listAdminRows>>;
 
@@ -367,3 +368,31 @@ export const postRepo = {
   delete: (tx: OrganizationTx, id: string) =>
     tx.orgPost.delete({ where: { id }, select: { id: true } }),
 };
+
+export async function getOrgChartRevision(tx?: OrganizationTx): Promise<number> {
+  const state = await (tx ?? getPrisma()).orgChartState.findUniqueOrThrow({ where: { id: 1 } });
+  return state.revision;
+}
+
+export async function readOrgChartRevision(tx: OrganizationTx): Promise<number> {
+  const [state] = await tx.$queryRaw<{ revision: number }[]>`
+    SELECT revision FROM organization.org_chart_state WHERE id = 1 FOR SHARE
+  `;
+  if (!state) throw new Error("organization: missing org-chart singleton");
+  return state.revision;
+}
+
+/** UPDATE locks the singleton until commit; preview locks without increasing the revision. */
+export async function lockOrgChartRevision(
+  tx: OrganizationTx,
+  baseRevision?: number,
+  preview = false,
+): Promise<number | null> {
+  const rows = await tx.$queryRaw<{ revision: number }[]>`
+    UPDATE organization.org_chart_state
+    SET revision = revision + ${preview ? 0 : 1}, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1 AND (${baseRevision ?? null}::integer IS NULL OR revision = ${baseRevision ?? null})
+    RETURNING revision
+  `;
+  return rows[0]?.revision ?? null;
+}

@@ -23,7 +23,7 @@ import * as repository from "./organization.repository.ts";
 import { masterKey } from "./organization.service.ts";
 import { employeeSupport, type RequestContext } from "./organization-support.ts";
 
-// D-051: pos jabatan (kursi di bagan). SA kelola, HR lihat (D-049). Setiap perubahan struktur memicu
+// D-051/ORG-D2: pos jabatan (kursi di bagan). SA / HR berizin kelola sesuai PT. Perubahan memicu
 // sinkron atasan otomatis (D-053) lewat modul employee (disuntikkan di app.ts; organization tidak
 // membaca tabel employee, PLAN §3.2.4).
 
@@ -69,11 +69,22 @@ export async function listOrgPosts(tx?: repository.OrganizationTx): Promise<OrgP
   return (await repository.listPostRows(tx)).map(toNode);
 }
 
+/** Revision and structure must come from the same committed chart, even during another edit. */
+export function getOrgChartPostsSnapshot(): Promise<{ revision: number; posts: OrgPostNode[] }> {
+  return repository.withTransaction(async (tx) => {
+    const revision = await repository.readOrgChartRevision(tx);
+    return { revision, posts: await listOrgPosts(tx) };
+  });
+}
+
 function assertCanView(ctx: RequestContext) {
   if (!policy.canViewMasterDataAdmin(ctx.actor)) throw new ForbiddenError();
 }
-function assertCanManage(ctx: RequestContext) {
-  if (!policy.canManageMasterData(ctx.actor)) throw new ForbiddenError();
+function assertCanManage(
+  ctx: RequestContext,
+  post: { companyId: string | null; level: PositionLevel | null },
+) {
+  if (!policy.canManageOrgPost(ctx.actor, post)) throw new ForbiddenError();
 }
 
 const label = (node: OrgPostNode | undefined) =>
@@ -156,12 +167,13 @@ interface Placement {
 
 /** Aturan struktur pos (D-051/D-052): jabatan aktif, atasan aktif, aturan PT, tanpa siklus. */
 async function assertPlacement(
+  ctx: RequestContext,
   tx: repository.OrganizationTx,
   nodes: OrgPostNode[],
   id: string | null,
   next: Placement,
 ) {
-  const rows = await repository.listAdminRows();
+  const rows = await repository.listAdminRows(tx);
   const position = rows.positions.find((p) => p.id === next.positionId);
   if (!position || position.deletedAt !== null) {
     throw new BusinessRuleError("Jabatan tidak ditemukan atau sudah diarsipkan.");
@@ -170,6 +182,7 @@ async function assertPlacement(
   if (!unit || unit.deletedAt !== null) {
     throw new BusinessRuleError("Unit organisasi jabatan ini sudah diarsipkan.");
   }
+  assertCanManage(ctx, { companyId: unit.companyId, level: position.level });
   const self = { companyId: unit.companyId };
   const byId = new Map(nodes.map((node) => [node.id, node]));
   if (next.reportsToId && next.reportsToId === next.functionalReportsToId) {
@@ -212,7 +225,6 @@ async function assertPlacement(
       }
     }
   }
-  void tx;
 }
 
 async function audit(
@@ -262,27 +274,94 @@ async function findNode(nodes: OrgPostNode[], id: string) {
   return node;
 }
 
+/** Shared mutation path for legacy endpoints and ORG-D2 batches (no audit/sync here). */
+export async function createPostInTransaction(
+  ctx: RequestContext,
+  tx: repository.OrganizationTx,
+  input: OrgPostInput,
+): Promise<{ id: string }> {
+  const nodes = await listOrgPosts(tx);
+  const placement = {
+    positionId: input.positionId,
+    reportsToId: input.reportsToId ?? null,
+    functionalReportsToId: input.functionalReportsToId ?? null,
+  };
+  await assertPlacement(ctx, tx, nodes, null, placement);
+  return repository.postRepo.create(tx, { ...input, ...placement, code: input.code ?? null });
+}
+
+export async function updatePostInTransaction(
+  ctx: RequestContext,
+  tx: repository.OrganizationTx,
+  id: string,
+  input: OrgPostUpdate,
+): Promise<OrgPostNode> {
+  const nodes = await listOrgPosts(tx);
+  const current = await findNode(nodes, id);
+  assertCanManage(ctx, current);
+  if (current.archived)
+    throw new BusinessRuleError("Pos diarsipkan. Pulihkan dulu untuk mengubah.");
+  const next = {
+    positionId: input.positionId ?? current.positionId,
+    reportsToId: input.reportsToId !== undefined ? input.reportsToId : current.reportsToId,
+    functionalReportsToId:
+      input.functionalReportsToId !== undefined
+        ? input.functionalReportsToId
+        : current.functionalReportsToId,
+  };
+  await assertPlacement(ctx, tx, nodes, id, next);
+  const holders = (await employeeSupport().countPostHolders(tx)).get(id) ?? 0;
+  if (input.positionId && input.positionId !== current.positionId && holders > 0) {
+    throw new BusinessRuleError(
+      "Pos masih ditempati karyawan. Pindahkan pemegangnya dulu sebelum mengganti jabatan.",
+    );
+  }
+  if (input.headcount !== undefined && input.headcount < holders) {
+    throw new BusinessRuleError(
+      `Jumlah slot tidak boleh kurang dari pemegang saat ini (${holders}).`,
+    );
+  }
+  await repository.postRepo.update(tx, id, input);
+  return current;
+}
+
+export async function archivePostInTransaction(
+  ctx: RequestContext,
+  tx: repository.OrganizationTx,
+  id: string,
+  archived: boolean,
+): Promise<void> {
+  const nodes = await listOrgPosts(tx);
+  const current = await findNode(nodes, id);
+  assertCanManage(ctx, current);
+  if (archived) {
+    const holders = (await employeeSupport().countPostHolders(tx)).get(id) ?? 0;
+    if (holders > 0) {
+      throw new BusinessRuleError(
+        `Pos masih ditempati ${holders} karyawan. Pindahkan pemegangnya dulu.`,
+      );
+    }
+    const child = nodes.find(
+      (node) => !node.archived && (node.reportsToId === id || node.functionalReportsToId === id),
+    );
+    if (child) {
+      throw new BusinessRuleError(
+        `Pos "${child.positionName}" masih melapor ke pos ini. Pindahkan bawahannya dulu.`,
+      );
+    }
+  } else {
+    await assertPlacement(ctx, tx, nodes, id, current);
+  }
+  await repository.postRepo.setArchived(tx, id, archived ? new Date() : null);
+}
+
 export async function createPost(ctx: RequestContext, body: unknown): Promise<{ id: string }> {
-  assertCanManage(ctx);
-  const input: OrgPostInput = parse(orgPostInputSchema, body);
+  const input = parse(orgPostInputSchema, body);
   return mapDbErrors(() =>
     repository.withTransaction(async (tx) => {
-      const nodes = await listOrgPosts(tx);
-      const placement = {
-        positionId: input.positionId,
-        reportsToId: input.reportsToId ?? null,
-        functionalReportsToId: input.functionalReportsToId ?? null,
-      };
-      await assertPlacement(tx, nodes, null, placement);
-      const created = await repository.postRepo.create(tx, {
-        ...placement,
-        code: input.code ?? null,
-        headcount: input.headcount,
-        sortOrder: input.sortOrder,
-      });
-      await audit(ctx, tx, "create", created.id, {
-        after: { ...placement, code: input.code ?? null, headcount: input.headcount },
-      });
+      await repository.lockOrgChartRevision(tx);
+      const created = await createPostInTransaction(ctx, tx, input);
+      await audit(ctx, tx, "create", created.id, { after: input });
       return created;
     }),
   );
@@ -293,36 +372,11 @@ export async function updatePost(
   id: string,
   body: unknown,
 ): Promise<{ id: string }> {
-  assertCanManage(ctx);
-  const input: OrgPostUpdate = parse(orgPostUpdateSchema, body);
+  const input = parse(orgPostUpdateSchema, body);
   return mapDbErrors(() =>
     repository.withTransaction(async (tx) => {
-      const nodes = await listOrgPosts(tx);
-      const current = await findNode(nodes, id);
-      if (current.archived) {
-        throw new BusinessRuleError("Pos diarsipkan. Pulihkan dulu untuk mengubah.");
-      }
-      const holders = (await employeeSupport().countPostHolders(tx)).get(id) ?? 0;
-      if (input.positionId && input.positionId !== current.positionId && holders > 0) {
-        throw new BusinessRuleError(
-          "Pos masih ditempati karyawan. Pindahkan pemegangnya dulu sebelum mengganti jabatan.",
-        );
-      }
-      if (input.headcount !== undefined && input.headcount < holders) {
-        throw new BusinessRuleError(
-          `Jumlah slot tidak boleh kurang dari pemegang saat ini (${holders}).`,
-        );
-      }
-      const next = {
-        positionId: input.positionId ?? current.positionId,
-        reportsToId: input.reportsToId !== undefined ? input.reportsToId : current.reportsToId,
-        functionalReportsToId:
-          input.functionalReportsToId !== undefined
-            ? input.functionalReportsToId
-            : current.functionalReportsToId,
-      };
-      await assertPlacement(tx, nodes, id, next);
-      await repository.postRepo.update(tx, id, input);
+      await repository.lockOrgChartRevision(tx);
+      const current = await updatePostInTransaction(ctx, tx, id, input);
       await audit(ctx, tx, "update", id, {
         before: {
           positionId: current.positionId,
@@ -332,7 +386,6 @@ export async function updatePost(
         },
         after: input,
       });
-      // D-053: struktur berubah → atasan otomatis pemegang pos ikut disesuaikan.
       if (input.reportsToId !== undefined) await employeeSupport().syncPostManagers(tx);
       return { id };
     }),
@@ -340,40 +393,20 @@ export async function updatePost(
 }
 
 export async function archivePost(ctx: RequestContext, id: string, archived: boolean) {
-  assertCanManage(ctx);
   return repository.withTransaction(async (tx) => {
-    const nodes = await listOrgPosts(tx);
-    const current = await findNode(nodes, id);
-    if (archived) {
-      const holders = (await employeeSupport().countPostHolders(tx)).get(id) ?? 0;
-      if (holders > 0) {
-        throw new BusinessRuleError(
-          `Pos masih ditempati ${holders} karyawan. Pindahkan pemegangnya dulu.`,
-        );
-      }
-      const child = nodes.find(
-        (node) => !node.archived && (node.reportsToId === id || node.functionalReportsToId === id),
-      );
-      if (child) {
-        throw new BusinessRuleError(
-          `Pos "${child.positionName}" masih melapor ke pos ini. Pindahkan bawahannya dulu.`,
-        );
-      }
-    } else {
-      await assertPlacement(tx, nodes, id, current);
-    }
-    await repository.postRepo.setArchived(tx, id, archived ? new Date() : null);
+    await repository.lockOrgChartRevision(tx);
+    await archivePostInTransaction(ctx, tx, id, archived);
     await audit(ctx, tx, archived ? "archive" : "restore", id, {});
     return { id };
   });
 }
 
 export async function deletePost(ctx: RequestContext, id: string) {
-  assertCanManage(ctx);
   return mapDbErrors(() =>
     repository.withTransaction(async (tx) => {
-      const nodes = await listOrgPosts(tx);
-      const current = await findNode(nodes, id);
+      await repository.lockOrgChartRevision(tx);
+      const current = await findNode(await listOrgPosts(tx), id);
+      assertCanManage(ctx, current);
       await repository.postRepo.delete(tx, id);
       await audit(ctx, tx, "delete", id, {
         before: { positionId: current.positionId, code: current.code },
@@ -384,9 +417,16 @@ export async function deletePost(ctx: RequestContext, id: string) {
 }
 
 export async function syncManagers(ctx: RequestContext): Promise<{ updated: number }> {
-  assertCanManage(ctx);
   return repository.withTransaction(async (tx) => {
-    const updated = await employeeSupport().syncPostManagers(tx);
+    await repository.lockOrgChartRevision(tx);
+    // Legacy endpoint has no PT parameter. HR only syncs holders of its permitted PT posts.
+    const posts = await listOrgPosts(tx);
+    const allowedPosts = posts.filter((post) => policy.canManageOrgPost(ctx.actor, post));
+    if (ctx.actor.role !== "SUPER_ADMIN" && allowedPosts.length === 0) throw new ForbiddenError();
+    const updated = await employeeSupport().syncPostManagers(
+      tx,
+      new Set(allowedPosts.map((p) => p.id)),
+    );
     await audit(ctx, tx, "sync_managers", ctx.actor.accountId, { after: { updated } });
     return { updated };
   });

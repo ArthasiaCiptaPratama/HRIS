@@ -112,6 +112,17 @@ model OrgPost {
   @@schema("organization")
 }
 
+// ORG-D2: satu baris revisi bagan. Setiap penulisan struktur menaikkan revisi; batch mode edit membawa
+// baseRevision dan ditolak 409 bila sudah berubah (konkurensi optimistis).
+model OrgChartState {
+  id        Int      @id @default(1) @db.SmallInt
+  revision  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("org_chart_state")
+  @@schema("organization")
+}
+
 // D-035/D-038: kategori tetap untuk navigasi "Data Karyawan Aktif" (grup Internal: Tetap, Percobaan, PKWT,
 // Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.

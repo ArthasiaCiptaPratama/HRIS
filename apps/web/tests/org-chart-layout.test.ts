@@ -13,6 +13,7 @@ import type { OrgChart, OrgChartPost } from "@/features/employee/schemas";
 // D-051: tata letak bagan (pohon rapi, tanpa DOM) & bantuan lipat/cari.
 const post = (id: string, extra: Partial<OrgChartPost> = {}): OrgChartPost => ({
   id,
+  positionId: `pos-${id}`,
   positionName: `Jabatan ${id}`,
   level: null,
   departmentId: "u1",
@@ -50,6 +51,9 @@ const chart: OrgChart = {
   unplacedCount: 0,
   canOpenDetail: true,
   canManage: true,
+  canEdit: false,
+  canEditCorporate: false,
+  revision: 0,
 };
 
 describe("indeks & lipat", () => {

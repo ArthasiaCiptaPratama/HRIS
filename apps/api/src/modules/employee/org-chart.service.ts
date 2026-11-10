@@ -1,6 +1,11 @@
 import { ROLE } from "@hris/shared";
 import { ForbiddenError, NotFoundError } from "../../core/errors.ts";
-import { getMasterLookup, listOrgPosts } from "../organization/index.ts";
+import {
+  canManageOrgStructure,
+  getMasterLookup,
+  getOrgChartPostsSnapshot,
+  listOrgPosts,
+} from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import { type RequestContext, signPhotoUrls } from "./employee.service.ts";
 import * as repository from "./org-chart.repository.ts";
@@ -35,12 +40,12 @@ export async function getOrgChart(
     companies[0];
   if (!company) throw new ForbiddenError();
 
-  const [posts, holders, unplacedCount] = await Promise.all([
-    listOrgPosts(),
+  const [snapshot, holders, unplacedCount] = await Promise.all([
+    getOrgChartPostsSnapshot(),
     repository.listPostHolders(),
     repository.countUnplaced([company.id]),
   ]);
-  const included = posts.filter(
+  const included = snapshot.posts.filter(
     (post) => !post.archived && (post.companyId === company.id || post.companyId === null),
   );
   const ids = new Set(included.map((post) => post.id));
@@ -76,6 +81,9 @@ export async function getOrgChart(
     }
   }
   return {
+    revision: snapshot.revision,
+    canEdit: canManageOrgStructure(ctx.actor, company.id),
+    canEditCorporate: ctx.actor.role === ROLE.SUPER_ADMIN,
     company,
     companies,
     units: [...unitIds].flatMap((id) => {
@@ -95,6 +103,7 @@ export async function getOrgChart(
     posts: included.map((post) => ({
       id: post.id,
       positionName: post.positionName,
+      positionId: post.positionId,
       level: post.level,
       departmentId: post.departmentId,
       corporate: post.companyId === null,

@@ -1,15 +1,17 @@
 import "@xyflow/react/dist/style.css";
-import { POSITION_LEVEL_LABELS, POSITION_LEVELS } from "@hris/shared";
+import { type OrgChartChange, POSITION_LEVEL_LABELS, POSITION_LEVELS } from "@hris/shared";
 import {
   Background,
   BackgroundVariant,
   type BuiltInEdge,
   type ColorMode,
+  ConnectionMode,
   Controls,
   getNodesBounds,
   getViewportForBounds,
   MarkerType,
   MiniMap,
+  type OnConnectEnd,
   Panel,
   ReactFlow,
   ReactFlowProvider,
@@ -28,13 +30,37 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ApiError } from "@/lib/api-client";
+import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-import type { OrgChart } from "../schemas";
+import { useApplyOrgChartChanges, useMasterData, useOrgChartPreview } from "../api";
+import type { OrgChart, OrgChartPost } from "../schemas";
+import {
+  applyDraft,
+  type DraftAction,
+  type DraftLookup,
+  draftChanges,
+  draftReducer,
+  EMPTY_DRAFT,
+  reorderChanges,
+  tryAction,
+} from "./edit/draft";
+import { EditBar } from "./edit/edit-bar";
+import {
+  DeleteDialog,
+  DiscardDialog,
+  type MasterOptions,
+  ParentDialog,
+  type ParentDialogState,
+  PostDialog,
+  type PostDialogState,
+  SaveDialog,
+} from "./edit/edit-dialogs";
 import {
   ancestorsOf,
   type ChartLayout,
@@ -49,6 +75,7 @@ import {
   CorporateGroup,
   type CorporateGroupType,
   levelColor,
+  type PostEditAction,
   PostNode,
   type PostNodeType,
 } from "./post-node";
@@ -80,6 +107,8 @@ function useColorMode(): ColorMode {
 export interface OrgChartCanvasProps {
   chart: OrgChart;
   onOpenPerson: (personId: string) => void;
+  /** ORG-D2: halaman mengunci pemilih PT selama mode edit. */
+  onEditingChange?: (editing: boolean) => void;
 }
 
 export function OrgChartCanvas(props: OrgChartCanvasProps) {
@@ -90,10 +119,52 @@ export function OrgChartCanvas(props: OrgChartCanvasProps) {
   );
 }
 
-function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
+function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartCanvasProps) {
   const flow = useReactFlow<ChartNode>();
   const colorMode = useColorMode();
   const wrapper = useRef<HTMLDivElement>(null);
+
+  // ── ORG-D2: mode edit (draf klien + undo/redo; bagan server dibekukan selama mengedit) ──
+  const [editing, setEditing] = useState(false);
+  const [base, setBase] = useState<OrgChart | null>(null);
+  const [draft, dispatch] = useReducer(draftReducer, EMPTY_DRAFT);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{ id: string; x: number; y: number } | null>(null);
+  const master = useMasterData(serverChart.canEdit);
+  const masterOptions = useMemo<MasterOptions>(
+    () => ({
+      positions: (master.data?.positions ?? []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        departmentId: p.departmentId,
+        level: p.level,
+      })),
+      units: (master.data?.departments ?? []).map((d) => ({
+        id: d.id,
+        name: d.name,
+        companyId: d.companyId ?? null,
+      })),
+    }),
+    [master.data],
+  );
+  const lookup = useMemo<DraftLookup>(
+    () => ({
+      positions: new Map(masterOptions.positions.map((p) => [p.id, p])),
+      unitCompany: new Map(masterOptions.units.map((u) => [u.id, u.companyId])),
+      unitName: new Map(masterOptions.units.map((u) => [u.id, u.name])),
+    }),
+    [masterOptions],
+  );
+  const applied = useMemo(() => {
+    if (!editing || !base) return null;
+    try {
+      return applyDraft(base, draft.actions, lookup);
+    } catch {
+      // Tidak seharusnya terjadi (setiap aksi diuji sebelum masuk draf); tampilkan bagan awal.
+      return { chart: base, touched: new Set<string>() };
+    }
+  }, [editing, base, draft.actions, lookup]);
+  const chart = applied?.chart ?? serverChart;
   const index = useMemo(() => indexChart(chart), [chart]);
   // Tampilan awal ringkas sampai tingkat ke-3 (seperti halaman Direksi di dokumen kantor; cabang site
   // terbuka dengan klik). "Buka semua" menampilkan bagan utuh.
@@ -137,6 +208,263 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
     [chart, index],
   );
 
+  // ── ORG-D2: aksi mode edit ──
+  const [postDialog, setPostDialog] = useState<
+    (PostDialogState & { insertAt?: { parentId: string | null; index: number } }) | null
+  >(null);
+  const [parentDialog, setParentDialog] = useState<ParentDialogState | null>(null);
+  const [deletePost, setDeletePost] = useState<OrgChartPost | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveError, setSaveError] = useState<{ message: string; conflict: boolean } | null>(null);
+  const preview = useOrgChartPreview();
+  const save = useApplyOrgChartChanges();
+  const canEditPost = useCallback(
+    (post: OrgChartPost) => !post.corporate || serverChart.canEditCorporate,
+    [serverChart.canEditCorporate],
+  );
+
+  const expand = useCallback((postId: string | null) => {
+    if (!postId) return;
+    setCollapsed((current) => {
+      if (!current.has(postId)) return current;
+      const next = new Set(current);
+      next.delete(postId);
+      return next;
+    });
+  }, []);
+
+  /** Masukkan aksi ke draf bila sah; mengembalikan pesan error (juga ditampilkan sebagai toast). */
+  const push = useCallback(
+    (action: DraftAction, quiet = false): string | null => {
+      if (!base) return "Mode edit belum aktif.";
+      const error = tryAction(base, draft.actions, lookup, action);
+      if (error) {
+        if (!quiet) toast.error(error);
+        return error;
+      }
+      dispatch({ type: "push", action });
+      return null;
+    },
+    [base, draft.actions, lookup],
+  );
+
+  /** Saudara (garis tegas) sebuah pos menurut urutan tampil. */
+  const siblingsOf = useCallback(
+    (parentId: string | null, corporate: boolean) =>
+      parentId
+        ? (index.children.get(parentId) ?? [])
+        : chart.posts
+            .filter((p) => !p.reportsToId && p.corporate === corporate)
+            .sort((a, b) => a.sortOrder - b.sortOrder),
+    [chart.posts, index],
+  );
+
+  const addChild = useCallback(
+    (postId: string) => {
+      const post = index.byId.get(postId);
+      if (!post) return;
+      expand(postId);
+      setPostDialog({
+        mode: "create",
+        reportsToId: postId,
+        sortOrder: 0,
+        title: `Tambah bawahan ${post.positionName}`,
+        insertAt: { parentId: postId, index: siblingsOf(postId, post.corporate).length },
+      });
+    },
+    [index, expand, siblingsOf],
+  );
+
+  const addSibling = useCallback(
+    (postId: string, side: "left" | "right") => {
+      const post = index.byId.get(postId);
+      if (!post) return;
+      const siblings = siblingsOf(post.reportsToId, post.corporate);
+      const at = siblings.findIndex((s) => s.id === postId);
+      setPostDialog({
+        mode: "create",
+        reportsToId: post.reportsToId,
+        sortOrder: 0,
+        title: `Tambah pos setingkat ${post.positionName}`,
+        insertAt: { parentId: post.reportsToId, index: side === "left" ? at : at + 1 },
+      });
+    },
+    [index, siblingsOf],
+  );
+
+  /** Pos baru disisipkan di urutan yang dipilih: sortOrder saudara dinomori ulang (kelipatan 10). */
+  const submitPost = useCallback(
+    (action: DraftAction): string | null => {
+      const insertAt = postDialog?.insertAt;
+      const created = action.changes.find((c) => c.op === "createPost");
+      if (!insertAt || !created || created.op !== "createPost") return push(action, true);
+      const parent = insertAt.parentId ? index.byId.get(insertAt.parentId) : null;
+      const siblings = siblingsOf(insertAt.parentId, parent?.corporate ?? false);
+      const ordered: string[] = siblings.map((s) => s.id);
+      ordered.splice(insertAt.index, 0, created.tempId);
+      const renumber: OrgChartChange[] = [];
+      ordered.forEach((id, i) => {
+        const sortOrder = Math.min(i * 10, 999);
+        if (id === created.tempId) created.sortOrder = sortOrder;
+        else if (index.byId.get(id)?.sortOrder !== sortOrder) {
+          renumber.push({ op: "updatePost", postId: id, sortOrder });
+        }
+      });
+      return push({ ...action, changes: [...action.changes, ...renumber] }, true);
+    },
+    [postDialog, push, index, siblingsOf],
+  );
+
+  const reparent = useCallback(
+    (postId: string, targetId: string) => {
+      const post = index.byId.get(postId);
+      const target = index.byId.get(targetId);
+      if (!post || !target || post.reportsToId === targetId || postId === targetId) return;
+      const count = (index.children.get(targetId) ?? []).length;
+      if (
+        push({
+          label: `Pindah ${post.positionName} ke bawah ${target.positionName}`,
+          changes: [
+            {
+              op: "updatePost",
+              postId,
+              reportsToId: targetId,
+              sortOrder: Math.min(count * 10, 999),
+            },
+          ],
+        }) === null
+      ) {
+        expand(targetId);
+      }
+    },
+    [index, push, expand],
+  );
+
+  const dropPerson = useCallback(
+    (employeeId: string, postId: string) => {
+      const target = index.byId.get(postId);
+      const person = chart.posts.flatMap((p) => p.holders).find((h) => h.id === employeeId);
+      if (!target || !person || target.holders.some((h) => h.id === employeeId)) return;
+      push({
+        label: `Pindah ${person.fullName} ke ${target.positionName}`,
+        changes: [{ op: "placeEmployee", employeeId, postId }],
+      });
+    },
+    [index, chart.posts, push],
+  );
+
+  const postAction = useCallback(
+    (postId: string, action: PostEditAction) => {
+      const post = index.byId.get(postId);
+      if (!post) return;
+      if (action === "add") addChild(postId);
+      else if (action === "parent") setParentDialog({ post, line: "solid" });
+      else if (action === "functional") setParentDialog({ post, line: "functional" });
+      else if (action === "edit") setPostDialog({ mode: "edit", post });
+      else setDeletePost(post);
+    },
+    [index, addChild],
+  );
+
+  const startEdit = () => {
+    setBase(serverChart);
+    dispatch({ type: "reset" });
+    setEditing(true);
+    onEditingChange?.(true);
+  };
+  const exitEdit = useCallback(() => {
+    dispatch({ type: "reset" });
+    setEditing(false);
+    setBase(null);
+    setSelected(null);
+    setSaveOpen(false);
+    setSaveError(null);
+    setDiscardOpen(false);
+    onEditingChange?.(false);
+  }, [onEditingChange]);
+
+  const batch = () => ({
+    companyId: (base ?? serverChart).company.id,
+    baseRevision: (base ?? serverChart).revision,
+    changes: draftChanges(draft),
+  });
+  const failSave = (error: unknown) =>
+    setSaveError({
+      message:
+        error instanceof ApiError && error.status === 409
+          ? "Bagan sudah diubah pengguna lain sejak Anda mulai mengedit. Muat ulang bagan; draf ini akan dibuang."
+          : errorMessage(error),
+      conflict: error instanceof ApiError && error.status === 409,
+    });
+  const openSave = () => {
+    setSaveError(null);
+    setSaveOpen(true);
+    preview.mutate(batch(), { onError: failSave });
+  };
+  const confirmSave = () => {
+    save.mutate(batch(), {
+      onSuccess: (result) => {
+        toast.success(
+          result.managersUpdated > 0
+            ? `Bagan tersimpan. Atasan langsung ${result.managersUpdated} karyawan diperbarui.`
+            : "Bagan tersimpan.",
+        );
+        exitEdit();
+      },
+      onError: failSave,
+    });
+  };
+
+  // Peringatan saat menutup/memuat ulang tab dengan draf yang belum disimpan.
+  const dirty = editing && draft.actions.length > 0;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  const onConnectEnd = useCallback<OnConnectEnd>(
+    (event, state) => {
+      if (!state.fromNode || state.fromHandle?.id !== "reparent") return;
+      const point = "changedTouches" in event ? event.changedTouches[0] : event;
+      const element = point ? document.elementFromPoint(point.clientX, point.clientY) : null;
+      const targetId =
+        state.toNode?.id ?? element?.closest<HTMLElement>(".react-flow__node")?.dataset.id ?? null;
+      if (targetId && index.byId.has(targetId)) reparent(state.fromNode.id, targetId);
+    },
+    [index, reparent],
+  );
+
+  const onNodeDragStop = useCallback(
+    (node: ChartNode) => {
+      setDragging(null);
+      if (node.type !== "post") return;
+      const post = index.byId.get(node.id);
+      if (!post) return;
+      const hit = flow
+        .getIntersectingNodes(node)
+        .find((other) => other.type === "post" && other.id !== node.id);
+      if (hit) {
+        reparent(node.id, hit.id);
+        return;
+      }
+      // Dilepas di antara saudara → urutan kiri-kanan berubah (tata letak tetap otomatis).
+      const siblings = siblingsOf(post.reportsToId, post.corporate);
+      const center = node.position.x + (node.width ?? 0) / 2;
+      const placed = new Map(layout.nodes.map((n) => [n.post.id, n.x + n.width / 2]));
+      const target = siblings.filter(
+        (s) => s.id !== post.id && (placed.get(s.id) ?? Number.POSITIVE_INFINITY) < center,
+      ).length;
+      const changes = reorderChanges(siblings, post.id, target);
+      if (changes.length > 0) push({ label: `Urutan ${post.positionName}`, changes });
+    },
+    [flow, index, layout, siblingsOf, reparent, push],
+  );
+
   const nodes = useMemo<ChartNode[]>(() => {
     const result: ChartNode[] = [];
     if (layout.corporate) {
@@ -157,13 +485,18 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
     for (const item of layout.nodes) {
       const holders = item.post.holders.map((h) => h.fullName).join(", ");
       const vacant = Math.max(item.post.headcount - item.post.holders.length, 0);
+      const editable = editing && canEditPost(item.post);
       result.push({
         id: item.post.id,
         type: "post",
-        position: { x: item.x, y: item.y },
+        position:
+          dragging?.id === item.post.id
+            ? { x: dragging.x, y: dragging.y }
+            : { x: item.x, y: item.y },
         width: item.width,
         height: item.height,
-        draggable: false,
+        draggable: editable,
+        zIndex: dragging?.id === item.post.id ? 10 : 0,
         // React Flow memberi pointer-events: none pada node yang tidak bisa dipilih/digeser/diklik;
         // tombol orang & lipat di dalam kartu harus tetap bisa diklik.
         style: { pointerEvents: "all" },
@@ -179,11 +512,41 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
           dimmed: false,
           onToggle: toggle,
           onOpenPerson,
+          ...(editing
+            ? {
+                edit: {
+                  canEdit: editable,
+                  selected: selected === item.post.id,
+                  touched: applied?.touched.has(item.post.id) ?? false,
+                  onAddChild: addChild,
+                  onAddSibling: addSibling,
+                  onAction: postAction,
+                  onDropPerson: dropPerson,
+                },
+              }
+            : {}),
         },
       });
     }
     return result;
-  }, [layout, index, descendantCounts, collapsed, highlight, toggle, onOpenPerson]);
+  }, [
+    layout,
+    index,
+    descendantCounts,
+    collapsed,
+    highlight,
+    toggle,
+    onOpenPerson,
+    editing,
+    canEditPost,
+    dragging,
+    selected,
+    applied,
+    addChild,
+    addSibling,
+    postAction,
+    dropPerson,
+  ]);
 
   const edges = useMemo<BuiltInEdge[]>(() => {
     const visible = new Set(layout.nodes.map((node) => node.post.id));
@@ -194,8 +557,9 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
           id: `s-${post.id}`,
           source: post.reportsToId,
           target: post.id,
+          // ORG-D2: garis siku (elbow) seperti bagan kantor.
           type: "smoothstep",
-          pathOptions: { borderRadius: 10 },
+          pathOptions: { borderRadius: 4 },
           style: { stroke: "var(--muted-foreground)", strokeOpacity: 0.55, strokeWidth: 1.4 },
           focusable: false,
         });
@@ -207,7 +571,8 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
           sourceHandle: "fn-out",
           target: post.id,
           targetHandle: "fn-in",
-          type: "default",
+          type: "smoothstep",
+          pathOptions: { borderRadius: 4 },
           style: {
             stroke: "var(--org-functional)",
             strokeWidth: 1.4,
@@ -312,6 +677,7 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
   );
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: pintasan keyboard mode edit (undo/redo, Enter pilih kartu) untuk seluruh kanvas
     <div
       ref={wrapper}
       className={cn(
@@ -321,14 +687,44 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
           : "h-[calc(100dvh-21rem)] min-h-[480px]",
       )}
       style={{ background: "var(--org-canvas)" }}
+      onKeyDown={(event) => {
+        if (!editing) return;
+        const target = event.target as HTMLElement;
+        if (target.closest("input, textarea, [role=dialog], [contenteditable=true]")) return;
+        const mod = event.ctrlKey || event.metaKey;
+        if (mod && event.key.toLowerCase() === "z") {
+          event.preventDefault();
+          dispatch({ type: event.shiftKey ? "redo" : "undo" });
+        } else if (mod && event.key.toLowerCase() === "y") {
+          event.preventDefault();
+          dispatch({ type: "redo" });
+        } else if (event.key === "Escape") {
+          setSelected(null);
+        } else if (event.key === "Enter") {
+          const id = target.closest<HTMLElement>(".react-flow__node")?.dataset.id;
+          if (id && index.byId.has(id)) {
+            event.preventDefault();
+            setSelected(id);
+          }
+        }
+      }}
     >
       <ReactFlow<ChartNode>
         nodes={nodes}
         edges={edges}
         nodeTypes={NODE_TYPES}
         colorMode={colorMode}
-        nodesDraggable={false}
-        nodesConnectable={false}
+        nodesDraggable={editing}
+        nodesConnectable={editing}
+        connectionMode={ConnectionMode.Loose}
+        isValidConnection={() => false}
+        onConnectEnd={onConnectEnd}
+        connectionLineStyle={{ stroke: "rgb(14 165 233)", strokeWidth: 2 }}
+        nodeDragThreshold={6}
+        onNodeDrag={(_, node) => setDragging({ id: node.id, ...node.position })}
+        onNodeDragStop={(_, node) => onNodeDragStop(node)}
+        onNodeClick={(_, node) => editing && node.type === "post" && setSelected(node.id)}
+        onPaneClick={() => setSelected(null)}
         elementsSelectable={false}
         minZoom={0.08}
         maxZoom={2}
@@ -412,7 +808,71 @@ function Canvas({ chart, onOpenPerson }: OrgChartCanvasProps) {
             <Legend />
           </div>
         </Panel>
+        {serverChart.canEdit ? (
+          <Panel position="top-right" className="!m-3">
+            <EditBar
+              editing={editing}
+              draft={draft}
+              onStart={startEdit}
+              onUndo={() => dispatch({ type: "undo" })}
+              onRedo={() => dispatch({ type: "redo" })}
+              onExit={() => (draft.actions.length > 0 ? setDiscardOpen(true) : exitEdit())}
+              onSave={openSave}
+            />
+          </Panel>
+        ) : null}
+        {editing ? (
+          <Panel position="bottom-center" className="!mb-3 hidden xl:block">
+            <p className="bg-card/90 text-muted-foreground rounded-md border px-3 py-1.5 text-[11px] shadow-xs">
+              Arahkan ke kartu: <strong>+</strong> bawah = bawahan, samping = setingkat, titik atas
+              diseret ke kartu lain = ganti atasan. Seret kartu ke kartu lain atau ke celah saudara;
+              seret avatar untuk memindah orang. Klik kartu untuk aksi lain.
+            </p>
+          </Panel>
+        ) : null}
       </ReactFlow>
+      {editing && base ? (
+        <>
+          <PostDialog
+            state={postDialog}
+            chart={chart}
+            master={masterOptions}
+            canEditCorporate={serverChart.canEditCorporate}
+            onClose={() => setPostDialog(null)}
+            onSubmit={submitPost}
+          />
+          <ParentDialog
+            state={parentDialog}
+            chart={chart}
+            descendants={(postId) => descendantsOf(index, postId)}
+            onClose={() => setParentDialog(null)}
+            onSubmit={(action) => push(action, true)}
+          />
+          <DeleteDialog
+            post={deletePost}
+            chart={chart}
+            onClose={() => setDeletePost(null)}
+            onSubmit={(action) => push(action, true)}
+          />
+          <SaveDialog
+            open={saveOpen}
+            preview={preview.data}
+            loading={preview.isPending}
+            saving={save.isPending}
+            error={saveError?.message ?? null}
+            conflict={saveError?.conflict ?? false}
+            onClose={() => setSaveOpen(false)}
+            onConfirm={confirmSave}
+            onReload={exitEdit}
+          />
+          <DiscardDialog
+            open={discardOpen}
+            count={draft.actions.length}
+            onClose={() => setDiscardOpen(false)}
+            onDiscard={exitEdit}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -74,6 +74,7 @@ import {
   resolvePostPlacement,
   syncPostManagers,
 } from "./org-post-assignment.ts";
+import { recordPositionChange } from "./position-history.ts";
 
 export interface RequestContext {
   actor: Actor;
@@ -1187,16 +1188,14 @@ export async function updateEmployee(
           changedBy: ctx.actor.accountId,
         });
       }
-      if (nextPositionId && nextPositionId !== before.positionId) {
-        await repository.createHistory(tx, {
-          employeeId: id,
-          changeType: "POSITION_CHANGED",
-          effectiveDate: toDate(todayInJakarta(now)),
-          fromPositionId: before.positionId,
-          toPositionId: nextPositionId,
-          changedBy: ctx.actor.accountId,
-        });
-      }
+      await recordPositionChange(
+        tx,
+        id,
+        before.positionId,
+        nextPositionId,
+        ctx.actor.accountId,
+        now,
+      );
       // Audit hanya nama field yang berubah + id referensi (tanpa kontak pribadi).
       await writeAudit(
         {

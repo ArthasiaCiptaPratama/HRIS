@@ -453,12 +453,7 @@ export async function createItem(
         }
         case "positions": {
           const input = parseInput(positionInputSchema, body);
-          activeDepartment(rows, input.departmentId, "Unit organisasi");
-          created = await repository.positionRepo.create(tx, {
-            name: input.name,
-            departmentId: input.departmentId,
-            level: input.level ?? null,
-          });
+          created = await createPositionInTransaction(tx, input);
           after = {
             name: input.name,
             departmentId: input.departmentId,
@@ -826,6 +821,26 @@ export async function mergeItem(
         after: { targetId, movedEmployees, movedHistories, movedPositions },
       });
       return { id, targetId, movedEmployees, movedHistories, movedPositions };
+    }),
+  );
+}
+
+/** Shared master-data validation and uniqueness mapping for ORG-D2 inline positions. */
+export async function createPositionInTransaction(
+  tx: repository.OrganizationTx,
+  input: {
+    name: string;
+    departmentId: string;
+    level?: import("@hris/shared").PositionLevel | null;
+  },
+): Promise<{ id: string }> {
+  const rows = await repository.listAdminRows(tx);
+  activeDepartment(rows, input.departmentId, "Unit organisasi");
+  return mapDbErrors("positions", () =>
+    repository.positionRepo.create(tx, {
+      name: input.name,
+      departmentId: input.departmentId,
+      level: input.level ?? null,
     }),
   );
 }
