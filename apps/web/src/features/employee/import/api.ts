@@ -82,9 +82,29 @@ export const previewSchema = z.object({
       changes: z.array(z.string()),
       issues: z.array(issueSchema),
       attachments: z.number(),
+      /** IMP-D1: null = cocok lewat NIP/NIK; selain itu saran & pilihan pemegang bagan. */
+      chartHolder: z
+        .object({
+          candidates: z.array(z.object({ id: z.string(), match: z.enum(["NAME", "INITIALS"]) })),
+          choice: z.string().nullable(),
+        })
+        .nullable()
+        .default(null),
     }),
   ),
   units: z.array(unitPreviewSchema).default([]),
+  /** IMP-D1: pemegang bagan yang masih ber-NIP sementara (ASLI-) di cakupan akun. */
+  chartHolders: z
+    .array(
+      z.object({
+        id: z.string(),
+        fullName: z.string(),
+        employeeNumber: z.string(),
+        companyId: z.string(),
+        postLabel: z.string().nullable(),
+      }),
+    )
+    .default([]),
   masterData: z.object({
     departments: z.array(z.string()),
     positions: z.array(z.object({ department: z.string(), name: z.string() })),
@@ -116,6 +136,8 @@ export interface ImportRequest {
   /** D-064: PT per baris (nomor baris → id PT) & pilihan unit organisasi. */
   companyOverrides?: Record<string, string> | undefined;
   unitMapping?: Record<string, UnitChoice> | undefined;
+  /** IMP-D1: nomor baris → id pemegang bagan yang dilengkapi, atau "NEW". */
+  chartHolderChoices?: Record<string, string> | undefined;
   rows: { sourceRow: number; raw: Partial<Record<ImportFieldKey, ImportCell>> }[];
   masterDataMapping?: {
     departments?: Record<string, string>;
