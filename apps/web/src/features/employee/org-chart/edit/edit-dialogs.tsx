@@ -32,7 +32,7 @@ import { type DraftAction, type DraftPerson, newTempId } from "./draft";
 
 export interface MasterOptions {
   positions: { id: string; name: string; departmentId: string; level: PositionLevel | null }[];
-  units: { id: string; name: string; companyId: string | null }[];
+  units: { id: string; name: string; companyId: string | null; parentId: string | null }[];
 }
 
 const NEW_POSITION = "__new__";

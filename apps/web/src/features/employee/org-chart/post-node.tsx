@@ -65,6 +65,8 @@ export interface PostNodeData extends Record<string, unknown> {
   dimmed: boolean;
   onToggle: (postId: string) => void;
   onOpenPerson: (personId: string) => void;
+  /** ORG-D4: zona pos (null = fungsi korporat grup). */
+  zone?: "HO" | "SITE" | null;
   /** Ada hanya saat mode edit. */
   edit?: PostEditProps;
 }
@@ -140,6 +142,19 @@ function PostNodeView({ data }: NodeProps<PostNodeType>) {
             {unitName}
           </p>
         </div>
+        {data.zone ? (
+          <span
+            className={cn(
+              "shrink-0 rounded-sm px-1 py-0.5 text-[10px] leading-none font-semibold",
+              data.zone === "SITE"
+                ? "bg-amber-500/15 text-amber-800 dark:text-amber-300"
+                : "bg-slate-500/15 text-slate-700 dark:text-slate-300",
+            )}
+            title={data.zone === "SITE" ? "Site" : "Head Office"}
+          >
+            {data.zone === "SITE" ? "Site" : "HO"}
+          </span>
+        ) : null}
         {post.headcount > 1 ? (
           <span
             className="bg-muted text-muted-foreground shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums"

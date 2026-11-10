@@ -15,9 +15,9 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 
 ### 2026-11-10 — Pembatalan jabatan rangkap ORG-D3 + koreksi data bagan (Oatse)
 - **Dikerjakan:** ralat pengguna 11:30 WIB (via supervisor): tidak ada sistem rangkap. `git revert` kode ORG-D3 (shared `resolvePostManagers` kembali satu pos, operasi batch rangkap, badge "Rangkap", dialog & profil "Pos rangkap", import `secondary`); migrasi baru `20261110070000_drop_employee_secondary_posts` (file migrasi pembuat tetap, sudah di develop/CI). Data: Superintendent HR & GA & Assistant Manager F A T Vacant, Seifal hanya HR Operational & IR Manager, Anggi hanya Finance Site (tegas → Supervisor F&T, fungsional → KTT), pos Foreman Finance dihapus dari seed, DATA-ASLI, dan DB lokal.
-- **Keputusan:** ORG-D3 dibatalkan. Hlm 4 PDF = HO, hlm 1–3 = Site (penanda di bagan menunggu keputusan supervisor/pengguna).
-- **Verifikasi:** lihat entri laporan sesi (typecheck, biome, boundaries, db:check, test, Zen).
-- **Berikutnya:** penanda HO/Site di bagan; kabar Mat (tanpa rangkap).
+- **Keputusan:** ORG-D3 dibatalkan; ORG-D4 penanda HO/Site (akar = unit bernama "Site …"), chip + filter Semua/HO/Site, pos zona lain yang tersambung garis tampil redup.
+- **Verifikasi:** `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔; `db:check` ✔ (migrasi DROP); test shared 349 · api 1291 · web 347 ✔; Zen headless: filter Site & HO (screenshot 13–14 di `QA/2026-11-10-org-chart-edit/`), Superintendent HR & GA & Assistant Manager F A T tampil Kosong.
+- **Berikutnya:** kabar Mat (tanpa rangkap); kolom resmi zona HO/Site di unit (Backlog).
 
 ### 2026-11-10 — Mode edit bagan (ORG-D2), jabatan rangkap (ORG-D3), reset DB lokal + bagan PDF 06.11 (Oatse)
 - **Dikerjakan:** 2a API (izin `org.structure.manage`, `org_chart_state` revisi + 409, `POST /org-chart/changes` + `/preview`, `/org-posts` tulis per PT; implementasi awal Codex sol-high, direview penuh lalu diterapkan); 2b–2c web mode edit (draf + undo/redo, titik biru, seret titik/kartu/avatar, toolbar, dialog pos/atasan/hapus, pratinjau dampak, 409 → muat ulang, beforeunload, PT terkunci); 2d jabatan rangkap; seed bagan bentuk "Orgchart Site 06.11.2026" (90 pos ACP + CD2 dummy, level dari judul jabatan, ambigu A1–A14 dijawab pengguna); `org:import-local` + kunci `secondary`; reset DB lokal (kutipan 10:57 "ya, reset DB lokal"), 4 akun uji dipulihkan dari cadangan, dummy lain + pos CD2 dihapus (kutipan 11:02 "ya, hapus dummy lokal").

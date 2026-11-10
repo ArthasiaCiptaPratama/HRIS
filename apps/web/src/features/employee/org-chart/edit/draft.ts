@@ -75,6 +75,8 @@ export interface DraftLookup {
   /** Unit → PT (null = fungsi korporat grup). */
   unitCompany: ReadonlyMap<string, string | null>;
   unitName: ReadonlyMap<string, string>;
+  /** Induk unit (ORG-D4: zona HO/Site pos baru diturunkan dari leluhur unitnya). */
+  unitParent?: ReadonlyMap<string, string | null>;
 }
 
 export class DraftError extends Error {}
@@ -262,17 +264,24 @@ function applyChange(
 }
 
 function ensureUnit(work: Working, lookup: DraftLookup, unitId: string, corporate: boolean) {
-  if (work.units.some((u) => u.id === unitId)) return;
-  work.units = [
-    ...work.units,
-    {
-      id: unitId,
-      name: lookup.unitName.get(unitId) ?? "Unit",
-      unitType: "DEPARTMENT",
-      parentId: null,
-      corporate,
-    },
-  ];
+  // Unit beserta leluhurnya (supaya zona HO/Site & label unit tetap benar untuk pos baru).
+  let cursor: string | null = unitId;
+  for (let depth = 0; cursor && depth < 50; depth += 1) {
+    const id: string = cursor;
+    if (work.units.some((u) => u.id === id)) return;
+    const parentId = lookup.unitParent?.get(id) ?? null;
+    work.units = [
+      ...work.units,
+      {
+        id,
+        name: lookup.unitName.get(id) ?? "Unit",
+        unitType: "DEPARTMENT",
+        parentId,
+        corporate,
+      },
+    ];
+    cursor = parentId;
+  }
 }
 
 export interface AppliedDraft {

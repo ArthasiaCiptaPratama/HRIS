@@ -171,3 +171,49 @@ describe("reorderChanges", () => {
     expect(reorderChanges(siblings, "fm", 0)).toEqual([]);
   });
 });
+
+describe("zona HO/Site pos baru di draf (ORG-D4)", () => {
+  it("unit jabatan baru membawa leluhurnya sehingga zona Site terbaca", async () => {
+    const { unitZones } = await import("@hris/shared");
+    const siteLookup: DraftLookup = {
+      ...lookup,
+      unitCompany: new Map([...lookup.unitCompany, ["u-site", C], ["u-eng", C]]),
+      unitName: new Map([
+        ...lookup.unitName,
+        ["u-site", "Site Operasional (ACP)"],
+        ["u-eng", "Engineering (ACP)"],
+      ]),
+      unitParent: new Map([
+        ["u-eng", "u-site"],
+        ["u-site", null],
+      ]),
+    };
+    const next = applyDraft(
+      chart,
+      [
+        act([
+          {
+            op: "createPosition",
+            tempId: "tmp:j",
+            name: "Driller",
+            departmentId: "u-eng",
+            level: null,
+          },
+          {
+            op: "createPost",
+            tempId: "tmp:p",
+            positionId: "tmp:j",
+            reportsToId: "ktt",
+            functionalReportsToId: null,
+            headcount: 1,
+            sortOrder: 0,
+          },
+        ]),
+      ],
+      siteLookup,
+    ).chart;
+    const zones = unitZones(next.units);
+    expect(zones.get("u-eng")).toBe("SITE");
+    expect(zones.get("unit-corp")).toBe("HO");
+  });
+});

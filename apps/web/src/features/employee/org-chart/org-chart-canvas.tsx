@@ -1,5 +1,10 @@
 import "@xyflow/react/dist/style.css";
-import { type OrgChartChange, POSITION_LEVEL_LABELS, POSITION_LEVELS } from "@hris/shared";
+import {
+  type OrgChartChange,
+  POSITION_LEVEL_LABELS,
+  POSITION_LEVELS,
+  unitZones,
+} from "@hris/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Background,
@@ -67,10 +72,12 @@ import {
   type ChartLayout,
   collapseBelowDepth,
   descendantsOf,
+  filterByZone,
   indexChart,
   layoutChart,
   type SearchHit,
   searchChart,
+  type ZoneFilter,
 } from "./layout";
 import {
   CorporateGroup,
@@ -144,6 +151,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
         id: d.id,
         name: d.name,
         companyId: d.companyId ?? null,
+        parentId: d.parentId,
       })),
     }),
     [master.data],
@@ -153,6 +161,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
       positions: new Map(masterOptions.positions.map((p) => [p.id, p])),
       unitCompany: new Map(masterOptions.units.map((u) => [u.id, u.companyId])),
       unitName: new Map(masterOptions.units.map((u) => [u.id, u.name])),
+      unitParent: new Map(masterOptions.units.map((u) => [u.id, u.parentId])),
     }),
     [masterOptions],
   );
@@ -172,10 +181,33 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
   const [collapsed, setCollapsed] = useState<Set<string>>(() =>
     collapseBelowDepth(chart, index, INITIAL_DEPTH),
   );
+  // ORG-D4: zona HO/Site per pos (dari pohon unit; ikut berubah saat draf memindah pos/jabatan).
+  const zones = useMemo(() => unitZones(chart.units), [chart.units]);
+  const zoneOf = useCallback(
+    (post: OrgChartPost) => (post.corporate ? null : (zones.get(post.departmentId) ?? "HO")),
+    [zones],
+  );
+  const hasBothZones = useMemo(() => {
+    const found = new Set(chart.posts.map(zoneOf));
+    return found.has("HO") && found.has("SITE");
+  }, [chart.posts, zoneOf]);
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>("ALL");
+  const view = useMemo(
+    () => filterByZone(chart, zoneOf, hasBothZones ? zoneFilter : "ALL"),
+    [chart, zoneOf, zoneFilter, hasBothZones],
+  );
+  const viewIndex = useMemo(() => indexChart(view.chart), [view.chart]);
+  // Ganti filter zona → tampilan ringkas dihitung ulang dari bagan yang tersaring (akar baru).
+  const lastFilter = useRef(zoneFilter);
+  useEffect(() => {
+    if (lastFilter.current === zoneFilter) return;
+    lastFilter.current = zoneFilter;
+    setCollapsed(collapseBelowDepth(view.chart, viewIndex, INITIAL_DEPTH));
+  }, [zoneFilter, view.chart, viewIndex]);
   // Tata letak sinkron & ringan (pohon ~100 pos) → dihitung langsung dari data.
   const layout = useMemo<ChartLayout>(
-    () => layoutChart(chart, index, collapsed),
-    [chart, index, collapsed],
+    () => layoutChart(view.chart, viewIndex, collapsed),
+    [view.chart, viewIndex, collapsed],
   );
   const [highlight, setHighlight] = useState<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<string | null>(null);
@@ -520,7 +552,8 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
           descendantCount: descendantCounts.get(item.post.id) ?? 0,
           collapsed: collapsed.has(item.post.id),
           highlighted: highlight === item.post.id,
-          dimmed: false,
+          dimmed: view.dimmed.has(item.post.id),
+          zone: zoneOf(item.post),
           onToggle: toggle,
           onOpenPerson,
           ...(editing
@@ -548,6 +581,8 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
     highlight,
     toggle,
     onOpenPerson,
+    view.dimmed,
+    zoneOf,
     editing,
     canEditPost,
     dragging,
@@ -561,9 +596,12 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
 
   const edges = useMemo<BuiltInEdge[]>(() => {
     const visible = new Set(layout.nodes.map((node) => node.post.id));
+    // ORG-D4: garis yang melintas ke pos zona lain (redup) ikut diredupkan, tidak dihilangkan.
+    const faded = (a: string, b: string) => view.dimmed.has(a) || view.dimmed.has(b);
     const result: BuiltInEdge[] = [];
     for (const { post } of layout.nodes) {
       if (post.reportsToId && visible.has(post.reportsToId)) {
+        const dim = faded(post.id, post.reportsToId);
         result.push({
           id: `s-${post.id}`,
           source: post.reportsToId,
@@ -571,11 +609,16 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
           // ORG-D2: garis siku (elbow) seperti bagan kantor.
           type: "smoothstep",
           pathOptions: { borderRadius: 4 },
-          style: { stroke: "var(--muted-foreground)", strokeOpacity: 0.55, strokeWidth: 1.4 },
+          style: {
+            stroke: "var(--muted-foreground)",
+            strokeOpacity: dim ? 0.25 : 0.55,
+            strokeWidth: 1.4,
+          },
           focusable: false,
         });
       }
       if (post.functionalReportsToId && visible.has(post.functionalReportsToId)) {
+        const dim = faded(post.id, post.functionalReportsToId);
         result.push({
           id: `f-${post.id}`,
           source: post.functionalReportsToId,
@@ -588,6 +631,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
             stroke: "var(--org-functional)",
             strokeWidth: 1.4,
             strokeDasharray: "6 5",
+            strokeOpacity: dim ? 0.35 : 1,
           },
           markerEnd: { type: MarkerType.ArrowClosed, color: "var(--org-functional)" },
           focusable: false,
@@ -595,7 +639,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
       }
     }
     return result;
-  }, [layout]);
+  }, [layout, view.dimmed]);
 
   // Pas ke layar setelah tata letak baru dirender (muat pertama, ganti PT, "Ringkas", "Buka semua").
   // Ukuran node sudah diberikan eksplisit (width/height), jadi tidak perlu menunggu pengukuran DOM.
@@ -632,9 +676,11 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
         for (const id of ancestors) next.delete(id);
         return next;
       });
+      // Hasil cari di zona yang sedang disaring → tampilkan semua dulu.
+      if (!viewIndex.byId.has(postId)) setZoneFilter("ALL");
       setPendingFocus(postId);
     },
-    [index],
+    [index, viewIndex],
   );
 
   useEffect(() => {
@@ -818,6 +864,39 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
             </Button>
             <Legend />
           </div>
+          {hasBothZones ? (
+            <fieldset
+              aria-label="Saring zona bagan"
+              className="bg-card flex items-center gap-0.5 rounded-lg border p-0.5 shadow-xs"
+            >
+              {(
+                [
+                  ["ALL", "Semua"],
+                  ["HO", "HO"],
+                  ["SITE", "Site"],
+                ] as const
+              ).map(([value, text]) => (
+                <Button
+                  key={value}
+                  size="sm"
+                  variant={zoneFilter === value ? "secondary" : "ghost"}
+                  className="h-7 px-2.5 text-xs"
+                  aria-pressed={zoneFilter === value}
+                  title={
+                    value === "ALL"
+                      ? "Tampilkan Head Office dan Site"
+                      : `Hanya ${value === "HO" ? "Head Office" : "Site"} (pos zona lain yang tersambung garis tampil redup)`
+                  }
+                  onClick={() => {
+                    setZoneFilter(value);
+                    fitted.current = false;
+                  }}
+                >
+                  {text}
+                </Button>
+              ))}
+            </fieldset>
+          ) : null}
           {serverChart.canEdit ? (
             <EditBar
               editing={editing}
