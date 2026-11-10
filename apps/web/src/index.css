@@ -285,7 +285,7 @@ input:-webkit-autofill:focus-visible {
 }
 
 /* D-051 + ORG-D1: warna aksen kartu bagan organisasi per level jabatan, mengikuti legenda bagan site ACP:
-   biru tua L1b Helper, cokelat L1a Staff/Officer, ungu L2 Foreman, biru muda L3 Supervisor/Manager,
+   biru tua L1b Helper, teal L0 Magang, cokelat L1a Staff/Officer, ungu L2 Foreman, biru muda L3 Supervisor/Manager,
    oranye L4 Superintendent, hijau L5 KTT, merah L6 Direksi, abu L7 Direktur Utama. Warna hanya untuk
    strip & latar tipis; teks tetap memakai warna foreground supaya terbaca di dua tema. */
 :root {
@@ -297,6 +297,7 @@ input:-webkit-autofill:focus-visible {
   --org-l2: oklch(0.5 0.12 300);
   --org-l1a: oklch(0.5 0.1 50);
   --org-l1b: oklch(0.42 0.13 262);
+  --org-l0: oklch(0.64 0.09 195);
   --org-none: oklch(0.85 0.005 286);
   --org-vacant: oklch(0.577 0.2 27.3);
   --org-functional: oklch(0.6 0.12 250);
@@ -311,6 +312,7 @@ input:-webkit-autofill:focus-visible {
   --org-l2: oklch(0.7 0.12 300);
   --org-l1a: oklch(0.68 0.1 55);
   --org-l1b: oklch(0.62 0.14 262);
+  --org-l0: oklch(0.75 0.09 195);
   --org-none: oklch(0.4 0.005 286);
   --org-vacant: oklch(0.704 0.191 22.2);
   --org-functional: oklch(0.72 0.12 250);

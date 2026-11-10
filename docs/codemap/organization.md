@@ -29,7 +29,7 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 | `company_profile` | [planned] *(digantikan `companies`, D-039)* |
 | `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
 | `departments` | **D-050: semua unit organisasi** — `name` (unik), `unit_type` (enum `OrgUnitType`: DIRECTORATE, DIVISION, DEPARTMENT, SECTION; default DEPARTMENT), `parent_id?` (hierarki, ber-index; induk sah dijaga service + `canBeChildOf` di shared), `deleted_at?`; **D-052** `company_id?` (PT pemilik; kosong = fungsi korporat grup) |
-| `positions` | `name`, `department_id` (FK ke unit jenis apa pun, ERD) — unik per unit, `level?` (enum `PositionLevel`: L7 Direktur Utama … L1B Helper, ORG-D1 mengubah D-050 (4); migrasi `20261110040000_position_level_numbered`; beda dari grade), `deleted_at?` |
+| `positions` | `name`, `department_id` (FK ke unit jenis apa pun, ERD) — unik per unit, `level?` (enum `PositionLevel`: L7 Direktur Utama … L1B Helper, L0 Magang, ORG-D1 mengubah D-050 (4); migrasi `20261110040000_position_level_numbered`; beda dari grade), `deleted_at?` |
 | `employment_statuses` | ERD `employment_status`: `name` (unik), `category?` (enum `EmploymentCategory` unik: PERMANENT, PROBATION, PKWT, DAILY_WORKER, INTERNSHIP, OUTSOURCING, VENDOR — D-035/D-038), `deleted_at?` |
 | `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |
 | `work_locations` | `name` (unik), `city?`, `address?`, `latitude?`, `longitude?` Decimal(9,6), `radius_m?` (geofence wajib di Fase 5), `deleted_at?` |

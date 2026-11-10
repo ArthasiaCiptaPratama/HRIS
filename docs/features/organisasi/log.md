@@ -13,6 +13,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-10 — Level L0 Magang (tambahan ORG-D1) (Oatse)
+- **Dikerjakan:** enum `PositionLevel` + `L0` (migrasi ADD VALUE), shared `POSITION_LEVELS` …L1B, L0 + label "L0 · Magang", token `--org-l0` teal (terang `oklch(0.64 0.09 195)`, gelap `oklch(0.75 0.09 195)`; tidak bentrok dengan abu L7/biru L3/hijau L5), demo dashboard. Legenda kanvas, master data, laporan/pivot mengikuti `POSITION_LEVELS` otomatis.
+- **Keputusan:** tambahan ORG-D1 (kutipan pengguna ±14:58 WIB "Buat level baru L0", untuk jabatan Magang karyawan uji staging tanpa pos).
+- **Verifikasi:** lihat laporan sesi (typecheck, biome, db:check, test shared/organisasi/web).
+- **Berikutnya:** rilis staging oleh `hris-rilis-0d`.
+
 ### 2026-11-10 — Pembatalan jabatan rangkap ORG-D3 + koreksi data bagan (Oatse)
 - **Dikerjakan:** ralat pengguna 11:30 WIB (via supervisor): tidak ada sistem rangkap. `git revert` kode ORG-D3 (shared `resolvePostManagers` kembali satu pos, operasi batch rangkap, badge "Rangkap", dialog & profil "Pos rangkap", import `secondary`); migrasi baru `20261110070000_drop_employee_secondary_posts` (file migrasi pembuat tetap, sudah di develop/CI). Data: Superintendent HR & GA & Assistant Manager F A T Vacant, Seifal hanya HR Operational & IR Manager, Anggi hanya Finance Site (tegas → Supervisor F&T, fungsional → KTT), pos Foreman Finance dihapus dari seed, DATA-ASLI, dan DB lokal.
 - **Keputusan:** ORG-D3 dibatalkan; ORG-D4 penanda HO/Site (akar = unit bernama "Site …"), chip + filter Semua/HO/Site, pos zona lain yang tersambung garis tampil redup.

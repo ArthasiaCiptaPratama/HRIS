@@ -64,9 +64,9 @@ export function canBeChildOf(child: OrgUnitType, parent: OrgUnitType | null): bo
 
 /**
  * ORG-D1 (mengubah D-050 (4)): 8 level jabatan bernomor sesuai legenda warna bagan site ACP.
- * Urutan dari puncak ke bawah (L7 Direktur Utama → L1B Helper) untuk bagan & laporan.
+ * Urutan dari puncak ke bawah (L7 Direktur Utama → L1B Helper → L0 Magang) untuk bagan & laporan.
  */
-export const POSITION_LEVELS = ["L7", "L6", "L5", "L4", "L3", "L2", "L1A", "L1B"] as const;
+export const POSITION_LEVELS = ["L7", "L6", "L5", "L4", "L3", "L2", "L1A", "L1B", "L0"] as const;
 export const positionLevelSchema = z.enum(POSITION_LEVELS);
 export type PositionLevel = z.infer<typeof positionLevelSchema>;
 
@@ -79,6 +79,7 @@ export const POSITION_LEVEL_LABELS: Record<PositionLevel, string> = {
   L2: "L2 · Foreman",
   L1A: "L1a · Staff / Officer",
   L1B: "L1b · Helper",
+  L0: "L0 · Magang",
 };
 
 export const MASTER_DATA_VIEWS = ["active", "archived", "all"] as const;

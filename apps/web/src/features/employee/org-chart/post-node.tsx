@@ -50,6 +50,7 @@ export const LEVEL_TOKEN: Record<PositionLevel, string> = {
   L2: "--org-l2",
   L1A: "--org-l1a",
   L1B: "--org-l1b",
+  L0: "--org-l0",
 };
 
 export const levelColor = (level: PositionLevel | null) =>

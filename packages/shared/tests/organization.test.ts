@@ -110,7 +110,8 @@ describe("canBeChildOf", () => {
   });
 
   test("level jabatan berurutan dari Direktur Utama (L7) ke Helper (L1b) — ORG-D1", () => {
-    expect(POSITION_LEVELS).toEqual(["L7", "L6", "L5", "L4", "L3", "L2", "L1A", "L1B"]);
+    expect(POSITION_LEVELS).toEqual(["L7", "L6", "L5", "L4", "L3", "L2", "L1A", "L1B", "L0"]);
+    expect(POSITION_LEVEL_LABELS.L0).toBe("L0 · Magang");
     expect(POSITION_LEVEL_LABELS.L4).toBe("L4 · Superintendent");
     expect(POSITION_LEVEL_LABELS.L1B).toBe("L1b · Helper");
   });

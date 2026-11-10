@@ -147,6 +147,8 @@ enum PositionLevel {
   L2
   L1A
   L1B
+  // ORG-D1 tambahan 2026-11-10: L0 Magang (di bawah Helper).
+  L0
 
   @@schema("organization")
 }

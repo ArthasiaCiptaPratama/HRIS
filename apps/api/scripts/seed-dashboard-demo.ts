@@ -154,6 +154,7 @@ const OFFICE_LOCATIONS = [{ name: "Kantor Perwakilan Banjarmasin", city: "Banjar
 // ── Profil per level jabatan ────────────────────────────────────────────────
 type Level = PositionLevel | "NONE";
 const LEVEL_WEIGHT: Record<Level, number> = {
+  L0: 0,
   L1B: 26,
   L1A: 34,
   L2: 10,
@@ -165,6 +166,7 @@ const LEVEL_WEIGHT: Record<Level, number> = {
   NONE: 0,
 };
 const GRADE: Record<Level, string> = {
+  L0: "Staf",
   L1B: "Staf",
   L1A: "Staf",
   L2: "Staf Senior",
@@ -177,6 +179,7 @@ const GRADE: Record<Level, string> = {
 };
 type Edu = EducationLevel | "NONE";
 const EDUCATION: Record<Level, Partial<Record<Edu, number>>> = {
+  L0: { SMA: 60, D3: 20, S1: 20 },
   L1B: { SD: 28, SMP: 34, SMA: 30, OTHER: 2, NONE: 6 },
   L1A: { SMA: 38, D1: 3, D3: 22, D4: 5, S1: 28, NONE: 4 },
   L2: { SMP: 12, SMA: 58, D3: 24, NONE: 6 },
@@ -188,6 +191,7 @@ const EDUCATION: Record<Level, Partial<Record<Edu, number>>> = {
   NONE: { SMA: 50, S1: 50 },
 };
 const CATEGORY: Record<Level, Record<string, number>> = {
+  L0: { Magang: 100 },
   L1B: { "Pekerja Harian": 30, Outsourcing: 28, PKWT: 26, Vendor: 8, "Karyawan Tetap": 8 },
   L1A: {
     "Karyawan Tetap": 34,
@@ -206,6 +210,7 @@ const CATEGORY: Record<Level, Record<string, number>> = {
   NONE: { PKWT: 100 },
 };
 const AGE: Record<Level, [number, number]> = {
+  L0: [18, 25],
   L1B: [19, 52],
   L1A: [21, 45],
   L2: [28, 50],
