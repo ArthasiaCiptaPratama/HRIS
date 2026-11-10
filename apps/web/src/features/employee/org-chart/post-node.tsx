@@ -262,7 +262,7 @@ function EditControls({
       />
       <button
         type="button"
-        className={cn(DOT, "-bottom-3 left-1/2 size-6 -translate-x-1/2")}
+        className={cn(DOT, "-bottom-9 left-1/2 size-6 -translate-x-1/2")}
         aria-label={`Tambah bawahan ${label}`}
         title="Tambah bawahan"
         onClick={(event) => {

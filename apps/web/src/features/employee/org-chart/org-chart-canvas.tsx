@@ -1,5 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import { type OrgChartChange, POSITION_LEVEL_LABELS, POSITION_LEVELS } from "@hris/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Background,
   BackgroundVariant,
@@ -38,7 +39,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-import { useApplyOrgChartChanges, useMasterData, useOrgChartPreview } from "../api";
+import { employeeKeys, useApplyOrgChartChanges, useMasterData, useOrgChartPreview } from "../api";
 import type { OrgChart, OrgChartPost } from "../schemas";
 import {
   applyDraft,
@@ -217,6 +218,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
   const [discardOpen, setDiscardOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveError, setSaveError] = useState<{ message: string; conflict: boolean } | null>(null);
+  const queryClient = useQueryClient();
   const preview = useOrgChartPreview();
   const save = useApplyOrgChartChanges();
   const canEditPost = useCallback(
@@ -301,6 +303,15 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
       if (!insertAt || !created || created.op !== "createPost") return push(action, true);
       const parent = insertAt.parentId ? index.byId.get(insertAt.parentId) : null;
       const siblings = siblingsOf(insertAt.parentId, parent?.corporate ?? false);
+      // Cukup satu nilai bila ada celah (mis. sisip di ujung); penomoran ulang hanya bila perlu.
+      const prev = siblings[insertAt.index - 1];
+      const next = siblings[insertAt.index];
+      const low = prev ? prev.sortOrder + 1 : 0;
+      const high = next ? next.sortOrder - 1 : 999;
+      if (low <= high) {
+        created.sortOrder = next && !prev ? high : low;
+        return push(action, true);
+      }
       const ordered: string[] = siblings.map((s) => s.id);
       ordered.splice(insertAt.index, 0, created.tempId);
       const renumber: OrgChartChange[] = [];
@@ -321,7 +332,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
       const post = index.byId.get(postId);
       const target = index.byId.get(targetId);
       if (!post || !target || post.reportsToId === targetId || postId === targetId) return;
-      const count = (index.children.get(targetId) ?? []).length;
+      const last = (index.children.get(targetId) ?? []).at(-1);
       if (
         push({
           label: `Pindah ${post.positionName} ke bawah ${target.positionName}`,
@@ -330,7 +341,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
               op: "updatePost",
               postId,
               reportsToId: targetId,
-              sortOrder: Math.min(count * 10, 999),
+              sortOrder: Math.min((last?.sortOrder ?? -1) + 1, 999),
             },
           ],
         }) === null
@@ -807,9 +818,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
             </Button>
             <Legend />
           </div>
-        </Panel>
-        {serverChart.canEdit ? (
-          <Panel position="top-right" className="!m-3">
+          {serverChart.canEdit ? (
             <EditBar
               editing={editing}
               draft={draft}
@@ -819,8 +828,8 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
               onExit={() => (draft.actions.length > 0 ? setDiscardOpen(true) : exitEdit())}
               onSave={openSave}
             />
-          </Panel>
-        ) : null}
+          ) : null}
+        </Panel>
         {editing ? (
           <Panel position="bottom-center" className="!mb-3 hidden xl:block">
             <p className="bg-card/90 text-muted-foreground rounded-md border px-3 py-1.5 text-[11px] shadow-xs">
@@ -863,7 +872,11 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
             conflict={saveError?.conflict ?? false}
             onClose={() => setSaveOpen(false)}
             onConfirm={confirmSave}
-            onReload={exitEdit}
+            onReload={() => {
+              // 409: buang draf lalu ambil bagan & revisi terbaru dari server.
+              exitEdit();
+              void queryClient.invalidateQueries({ queryKey: employeeKeys.all });
+            }}
           />
           <DiscardDialog
             open={discardOpen}
