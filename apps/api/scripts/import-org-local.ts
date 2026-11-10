@@ -7,7 +7,6 @@
 //   bun run org:import-local -- --file=... --apply
 //   DATABASE_URL=<url staging> bun run org:import-local -- --file=... --remote=<ref staging> [--apply]
 //
-// Kunci opsional "secondary": { "<kode pos>": ["Nama"] } = jabatan rangkap (ORG-D3).
 // Efek --apply: karyawan berawalan "ASLI-" dibuat/diperbarui & ditempatkan di posnya; pemegang
 // dummy seed ("DMY-") di pos yang sama dihapus. Seed ulang mengembalikan dummy → jalankan script ini lagi.
 // Data kepegawaian lain (tanggal masuk, status, lokasi) hanya pengisi; lengkapi lewat aplikasi bila perlu.
@@ -46,8 +45,6 @@ const source = z
   .object({
     company: z.string().min(2),
     posts: z.record(z.string(), z.array(z.string().trim().min(1).max(150))),
-    // ORG-D3: jabatan rangkap — "<kode pos>": ["Nama persis pemegang di posts"] (pos utama tetap di posts).
-    secondary: z.record(z.string(), z.array(z.string().trim().min(1).max(150))).default({}),
   })
   .parse(JSON.parse(readFileSync(file, "utf8")));
 
@@ -58,32 +55,17 @@ if (!company) {
   process.exit(1);
 }
 const posts = await prisma.orgPost.findMany({
-  where: {
-    code: { in: [...Object.keys(source.posts), ...Object.keys(source.secondary)] },
-    deletedAt: null,
-  },
+  where: { code: { in: Object.keys(source.posts) }, deletedAt: null },
   select: { id: true, code: true, headcount: true, positionId: true, reportsToId: true },
 });
 const byCode = new Map(posts.map((post) => [post.code as string, post]));
-const missing = [...Object.keys(source.posts), ...Object.keys(source.secondary)].filter(
-  (code) => !byCode.has(code),
-);
-// Pemegang rangkap harus orang yang juga punya pos utama di file ini.
-const primaryNames = new Set(Object.values(source.posts).flat());
-const unknownSecondary = Object.values(source.secondary)
-  .flat()
-  .filter((fullName) => !primaryNames.has(fullName));
-if (unknownSecondary.length > 0) {
-  out(`Pemegang rangkap tanpa pos utama di file: ${unknownSecondary.join(", ")}`);
-  process.exit(1);
-}
+const missing = Object.keys(source.posts).filter((code) => !byCode.has(code));
 if (missing.length > 0) {
   out(`Kode pos tidak ditemukan (jalankan seed dulu?): ${missing.join(", ")}`);
   process.exit(1);
 }
 const over = Object.entries(source.posts).filter(
-  ([code, names]) =>
-    names.length + (source.secondary[code]?.length ?? 0) > (byCode.get(code)?.headcount ?? 0),
+  ([code, names]) => names.length > (byCode.get(code)?.headcount ?? 0),
 );
 if (over.length > 0) {
   out(`Nama melebihi slot pos: ${over.map(([code]) => code).join(", ")}`);
@@ -110,8 +92,6 @@ if (!apply) {
 
 let created = 0;
 let removedDummies = 0;
-let secondaryLinked = 0;
-const idByName = new Map<string, string>();
 await prisma.$transaction(
   async (tx) => {
     for (const [code, names] of Object.entries(source.posts)) {
@@ -141,28 +121,12 @@ await prisma.$transaction(
           managerOverride: false,
           isActive: true,
         };
-        const row = await tx.employee.upsert({
+        await tx.employee.upsert({
           where: { employeeNumber },
           update: data,
           create: { employeeNumber, joinDate: new Date("2020-01-01T00:00:00.000Z"), ...data },
-          select: { id: true },
         });
-        idByName.set(fullName, row.id);
         created += 1;
-      }
-    }
-    // ORG-D3: pos rangkap (ganti seluruh rangkap karyawan ASLI yang disebut di file).
-    for (const [code, names] of Object.entries(source.secondary)) {
-      const post = byCode.get(code);
-      if (!post) continue;
-      for (const fullName of names) {
-        const employeeId = idByName.get(fullName) as string;
-        await tx.employeeSecondaryPost.upsert({
-          where: { employeeId_orgPostId: { employeeId, orgPostId: post.id } },
-          update: {},
-          create: { employeeId, orgPostId: post.id },
-        });
-        secondaryLinked += 1;
       }
     }
     // Staging (jarak jauh) butuh lebih dari batas bawaan 5 dtk untuk ±60 baris; tetap satu transaksi.
@@ -184,27 +148,14 @@ const allPosts = await prisma.orgPost.findMany({
   where: { deletedAt: null },
   select: { id: true, reportsToId: true },
 });
-const secondaryHolders = await prisma.employeeSecondaryPost.findMany({
-  where: { employee: { isActive: true } },
-  select: { employeeId: true, orgPostId: true },
-});
 const desired = resolvePostManagers({
   posts: allPosts,
-  holders: [
-    ...holders.map((h) => ({ employeeId: h.id, postId: h.orgPostId as string })),
-    ...secondaryHolders.map((h) => ({
-      employeeId: h.employeeId,
-      postId: h.orgPostId,
-      secondary: true,
-    })),
-  ],
+  holders: holders.map((h) => ({ employeeId: h.id, postId: h.orgPostId as string })),
   eligibleManagers: new Set(managers.map((m) => m.employeeId as string)),
 });
 for (const [id, managerId] of desired) {
   await prisma.employee.update({ where: { id }, data: { managerId } });
 }
 
-out(
-  `Selesai: ${created} karyawan ASLI ditempatkan, ${secondaryLinked} pos rangkap, ${removedDummies} pemegang dummy dihapus.`,
-);
+out(`Selesai: ${created} karyawan ASLI ditempatkan, ${removedDummies} pemegang dummy dihapus.`);
 await disconnectPrisma();

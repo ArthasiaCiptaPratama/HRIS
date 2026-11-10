@@ -188,7 +188,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `asset.manage`                   | Kelola aset per unit & pembagian APD di PT yang ditugaskan: tambah/ubah aset, serah-terima, pengembalian, tandai hilang, BAST, harga aset (ARS-D3) | HR_ADMIN              |
 | `employee.discipline.read`       | Lihat surat peringatan karyawan di PT yang ditugaskan (aktif + riwayat; tanpa draft) termasuk scan `WARNING_LETTER` (ARS-D13/D14) | HR_ADMIN              |
 | `employee.discipline.write`      | Buat, terbitkan & cabut surat peringatan, unggah scan, kelola jenis pelanggaran di PT yang ditugaskan (ARS-D10/D14) | HR_ADMIN              |
-| `org.structure.manage`           | Ubah bagan organisasi lewat mode edit (pos, atasan, slot, jabatan baru, penempatan & rangkap) di PT yang ditugaskan; pos korporat & Direksi tetap SA (ORG-D2/D3) | HR_ADMIN              |
+| `org.structure.manage`           | Ubah bagan organisasi lewat mode edit (pos, atasan, slot, jabatan baru, penempatan) di PT yang ditugaskan; pos korporat & Direksi tetap SA (ORG-D2/D3) | HR_ADMIN              |
 
 Sifat grant:
 - **Cakupan:** untuk HR_ADMIN berlaku atas **semua karyawan**; untuk MANAGER hanya atas **timnya**.
@@ -241,7 +241,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Setujui pengajuan perubahan data diri (D-054) | ✅ | 🔑 `employee.changes.review` (PT sendiri) + grant bagian sensitif | ❌ | ❌ (mengajukan untuk diri sendiri) |
 | Lihat aset & pembagian APD (ARS-D3) | ✅ | ✅ PT sendiri (harga hanya ber-grant) | 👁 tim, tanpa harga | 👁 milik sendiri, tanpa harga |
 | Kelola aset, serah-terima, pengembalian, APD, BAST (ARS-D3) | ✅ | 🔑 `asset.manage` (PT sendiri) | ❌ | ✅ konfirmasi terima milik sendiri |
-| Ubah bagan organisasi: mode edit, pos, atasan, penempatan, rangkap (ORG-D2/D3) | ✅ | 🔑 `org.structure.manage` (PT sendiri; korporat & Direksi ❌) | 👁 | 👁 |
+| Ubah bagan organisasi: mode edit, pos, atasan, penempatan (ORG-D2) | ✅ | 🔑 `org.structure.manage` (PT sendiri; korporat & Direksi ❌) | 👁 | 👁 |
 | Lihat surat peringatan (aktif + riwayat; draft hanya penulis) (ARS-D13) | ✅ | 🔑 `employee.discipline.read`/`.write` (PT sendiri) | 👁 tim (tanpa alasan eskalasi & bukti) | 👁 milik sendiri |
 | Buat, terbitkan, cabut SP; jenis pelanggaran (ARS-D10/D12) | ✅ (+ masa berlaku bawaan, ARS-D8) | 🔑 `employee.discipline.write` (PT sendiri) | ✅ "Sudah disampaikan" (tim) | ✅ "Sudah menerima" milik sendiri |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
@@ -547,7 +547,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [TM-D25](features/time-management/README.md#keputusan) | Alasan absen opsional untuk Akurasi GPS rendah & Clock In Lembur hari libur ber-SPL (mengubah TM-D12/D-070); label lain tetap wajib alasan | [TM](features/time-management/README.md) |
 | [ORG-D1](features/organisasi/README.md#org-d1) | Level jabatan bernomor L7 Direktur Utama … L1B Helper + warna bagan (mengubah D-050 (4)) | [ORG](features/organisasi/README.md) |
 | [ORG-D2](features/organisasi/README.md#org-d2) | Mode edit bagan: draf + undo/redo, pratinjau dampak, batch satu transaksi, revisi 409, izin `org.structure.manage` per PT (korporat/Direksi SA), jabatan baru dari bagan (pengecualian D-049) | [ORG](features/organisasi/README.md) |
-| [ORG-D3](features/organisasi/README.md#org-d3) | Jabatan rangkap: 1 pos utama + maks 5 pos rangkap PT sama; rangkap mengisi slot & jadi kandidat atasan D-053; profil "Pos rangkap" | [ORG](features/organisasi/README.md) |
+| [ORG-D3](features/organisasi/README.md#org-d3) | ~~Jabatan rangkap~~ **dibatalkan 2026-11-10 (ralat pengguna)**: 1 pos utama + maks 5 pos rangkap PT sama; rangkap mengisi slot & jadi kandidat atasan D-053; profil "Pos rangkap" | [ORG](features/organisasi/README.md) |
 | [IAM-D1](features/iam/README.md#keputusan) | Role kelima `HR_PERSONNEL` "HR Kepegawaian": lihat data kerja karyawan di PT yang ditugaskan saja (mengubah PLAN §4.1 "role tetap 4") | [IAM](features/iam/README.md) |
 | [DSB-D1](features/dashboard/README.md#keputusan) | Dashboard analitik SDM & biaya: aktif awal/akhir bulan, masuk/keluar per alasan, turnover 12 bulan, gender, masa kerja | [DSB](features/dashboard/README.md) |
 | MOB-D1–MOB-D16 | App mobile Flutter (Android, paritas PWA, push FCM, versi minimum, branch BE `HRIS/mobile-app`) — **isi di repo `Arthasia-Mobile/docs/decisions.md`** (MOB-D13) | [MOB](features/mobile/README.md) |

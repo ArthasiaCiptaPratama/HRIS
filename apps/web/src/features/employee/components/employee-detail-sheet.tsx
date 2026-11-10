@@ -211,12 +211,6 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
                 ) : null}
               </ProfileRow>
               <ProfileRow label="Jabatan">{employee.position.name}</ProfileRow>
-              {/* ORG-D3: jabatan rangkap (baca saja; diubah lewat mode edit bagan). */}
-              {employee.secondaryPosts.length > 0 ? (
-                <ProfileRow label="Pos rangkap">
-                  {employee.secondaryPosts.map((post) => post.label).join("; ")}
-                </ProfileRow>
-              ) : null}
               <ProfileRow label="Divisi">{placement.division}</ProfileRow>
               <ProfileRow label="Departemen">{placement.department}</ProfileRow>
             </dl>

@@ -1,6 +1,5 @@
 import {
   isOrgChartTempId,
-  ORG_SECONDARY_POSTS_MAX,
   type OrgChartChange,
   type OrgChartChangeBatch,
   type OrgChartChangePreview,
@@ -69,9 +68,6 @@ async function placeEmployee(
   const next = posts.find((post) => post.id === postId);
   if (previous && !canManageOrgPost(ctx.actor, previous)) throw new ForbiddenError();
   if (next && !canManageOrgPost(ctx.actor, next)) throw new ForbiddenError();
-  // ORG-D3: menjadi pemegang utama pos yang sebelumnya ia rangkap → baris rangkap dilepas dulu
-  // (supaya tidak terhitung dua kali di slot).
-  if (postId) await repository.removeSecondaryPost(tx, employeeId, postId);
   const placement = postId
     ? await resolvePostPlacement(tx, {
         employeeId,
@@ -98,57 +94,6 @@ async function placeEmployee(
   };
 }
 
-/** ORG-D3: tambah/lepas pos rangkap (PT sama, maks 5, bukan pos utama, slot tersedia). */
-async function changeSecondaryPost(
-  ctx: RequestContext,
-  tx: OrgChartEditTx,
-  employeeId: string,
-  postId: string,
-  add: boolean,
-): Promise<OrgChartChangePreview["secondaryChanges"][number]> {
-  const person = await employees.findEmployee(employeeId, tx);
-  if (!person) throw new NotFoundError("Karyawan tidak ditemukan.");
-  if (!canManageOrgStructure(ctx.actor, person.companyId)) throw new ForbiddenError();
-  const post = (await listOrgPosts(tx)).find((p) => p.id === postId);
-  if (!post || post.archived) {
-    throw new BusinessRuleError("Pos jabatan tidak ditemukan atau sudah diarsipkan.");
-  }
-  if (!canManageOrgPost(ctx.actor, post)) throw new ForbiddenError();
-  const label = postLabel(post) ?? post.positionName;
-  const employee = { id: person.id, fullName: person.fullName };
-  if (!add) {
-    if ((await repository.removeSecondaryPost(tx, employeeId, postId)) === 0) {
-      throw new BusinessRuleError(`${person.fullName} tidak merangkap pos "${post.positionName}".`);
-    }
-    return { employee, post: label, action: "REMOVED" };
-  }
-  if (!person.isActive || person.onboardingStatus !== "APPROVED") {
-    throw new BusinessRuleError("Karyawan harus aktif dan sudah disetujui.");
-  }
-  if (post.companyId !== null && post.companyId !== person.companyId) {
-    throw new BusinessRuleError("Pos rangkap harus di perusahaan yang sama dengan karyawan.");
-  }
-  if (person.orgPostId === postId) {
-    throw new BusinessRuleError("Pos ini sudah menjadi pos utama karyawan tersebut.");
-  }
-  const current = await repository.listEmployeeSecondaryPosts(tx, employeeId);
-  if (current.some((row) => row.orgPostId === postId)) {
-    throw new BusinessRuleError(`${person.fullName} sudah merangkap pos ini.`);
-  }
-  if (current.length >= ORG_SECONDARY_POSTS_MAX) {
-    throw new BusinessRuleError(
-      `Maksimal ${ORG_SECONDARY_POSTS_MAX} pos rangkap per karyawan (pos utama tidak dihitung).`,
-    );
-  }
-  if ((await repository.countOtherHolders(tx, postId, employeeId)) >= post.headcount) {
-    throw new BusinessRuleError(
-      `Pos "${post.positionName}" sudah penuh (${post.headcount} slot). Tambah slot dulu.`,
-    );
-  }
-  await repository.addSecondaryPost(tx, employeeId, postId, ctx.actor.accountId);
-  return { employee, post: label, action: "ADDED" };
-}
-
 /** Preview and apply execute this exact path; the preview result escapes only via rollback. */
 async function execute(
   ctx: RequestContext,
@@ -162,7 +107,6 @@ async function execute(
       revision,
       posts: [],
       createdPositions: [],
-      secondaryChanges: [],
       placements: [],
       managerChanges: [],
       pendingRequests: [],
@@ -183,18 +127,6 @@ async function execute(
           const created = await createChartPosition(ctx, tx, change);
           createdIds[change.tempId] = created.id;
           preview.createdPositions.push({ name: change.name, unitName: created.unitName });
-          continue;
-        }
-        if (change.op === "addSecondaryPost" || change.op === "removeSecondaryPost") {
-          preview.secondaryChanges.push(
-            await changeSecondaryPost(
-              ctx,
-              tx,
-              change.employeeId,
-              resolve(change.postId),
-              change.op === "addSecondaryPost",
-            ),
-          );
           continue;
         }
         if (change.op === "placeEmployee") {

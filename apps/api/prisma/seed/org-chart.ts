@@ -225,18 +225,7 @@ export const CHART_POSTS: ChartPost[] = [
     functional: "ACP-KTT",
     filled: 1,
   },
-  // Halaman 3: "Foreman Finance" (garis putus-putus dari cabang KTT). Pemegangnya rangkap dari Finance
-  // Site (tahap 2d); garis tegas ke Supervisor F&T supaya tidak menjadi puncak terpisah.
-  {
-    code: "ACP-FMFIN",
-    unit: FAT,
-    position: "Foreman Finance",
-    level: "L2",
-    reportsTo: "ACP-SPVFT",
-    functional: "ACP-KTT",
-    filled: 0,
-    sort: 1,
-  },
+
   {
     code: "ACP-HRM",
     unit: HRIR,

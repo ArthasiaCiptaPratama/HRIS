@@ -62,20 +62,6 @@ export const orgChartChangeSchema = z.discriminatedUnion("op", [
     employeeId: z.uuid(),
     postId: orgChartRefSchema.nullable(),
   }),
-  /**
-   * ORG-D3: jabatan rangkap — karyawan menempati pos tambahan (PT sama, maks 5, bukan pos utamanya).
-   * Jabatan resmi & atasan dirinya tetap dari pos utama; ia menjadi kandidat atasan bawahan pos ini.
-   */
-  z.object({
-    op: z.literal("addSecondaryPost"),
-    employeeId: z.uuid(),
-    postId: orgChartRefSchema,
-  }),
-  z.object({
-    op: z.literal("removeSecondaryPost"),
-    employeeId: z.uuid(),
-    postId: orgChartRefSchema,
-  }),
 ]);
 export type OrgChartChange = z.infer<typeof orgChartChangeSchema>;
 export type OrgChartChangeOp = OrgChartChange["op"];
@@ -112,10 +98,6 @@ export const orgChartChangePreviewSchema = z.object({
       fromPost: z.string().nullable(),
       toPost: z.string().nullable(),
     }),
-  ),
-  /** ORG-D3: pos rangkap yang ditambah/dilepas. */
-  secondaryChanges: z.array(
-    z.object({ employee: personRef, post: z.string(), action: z.enum(["ADDED", "REMOVED"]) }),
   ),
   /** D-053: karyawan yang atasan langsung otomatisnya berganti (managerOverride tidak disentuh). */
   managerChanges: z.array(

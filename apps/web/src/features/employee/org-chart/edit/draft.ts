@@ -1,7 +1,6 @@
 import {
   canReportTo,
   ORG_POST_HEADCOUNT_MAX,
-  ORG_SECONDARY_POSTS_MAX,
   type OrgChartChange,
   type PositionLevel,
   wouldCreatePostCycle,
@@ -248,78 +247,15 @@ function applyChange(
           );
         }
       }
-      // Pindah pos UTAMA: entri utama lama dilepas; rangkap di pos tujuan (bila ada) ikut dilepas.
       work.posts = work.posts.map((p) => {
-        const holders = p.holders.filter(
-          (h) => h.id !== change.employeeId || (h.secondary && p.id !== change.postId),
-        );
+        const holders = p.holders.filter((h) => h.id !== change.employeeId);
         if (p.id === change.postId) {
-          holders.push({
-            id: person.id,
-            fullName: person.fullName,
-            photoUrl: person.photoUrl,
-            secondary: false,
-          });
+          holders.push({ id: person.id, fullName: person.fullName, photoUrl: person.photoUrl });
         }
         return holders.length === p.holders.length && p.id !== change.postId
           ? p
           : { ...p, holders };
       });
-      return;
-    }
-    case "addSecondaryPost": {
-      const person =
-        people.get(change.employeeId) ??
-        work.posts.flatMap((p) => p.holders).find((h) => h.id === change.employeeId);
-      if (!person) throw new DraftError("Karyawan tidak ditemukan.");
-      const target = findPost(work, change.postId);
-      if (target.holders.some((h) => h.id === change.employeeId)) {
-        throw new DraftError(`${person.fullName} sudah memegang pos "${target.positionName}".`);
-      }
-      if (target.holders.length >= target.headcount) {
-        throw new DraftError(
-          `Pos "${target.positionName}" sudah penuh (${target.headcount} slot). Tambah slot dulu.`,
-        );
-      }
-      const count = work.posts.filter((p) =>
-        p.holders.some((h) => h.id === change.employeeId && h.secondary),
-      ).length;
-      if (count >= ORG_SECONDARY_POSTS_MAX) {
-        throw new DraftError(
-          `Maksimal ${ORG_SECONDARY_POSTS_MAX} pos rangkap per karyawan (pos utama tidak dihitung).`,
-        );
-      }
-      work.posts = work.posts.map((p) =>
-        p.id === target.id
-          ? {
-              ...p,
-              holders: [
-                ...p.holders,
-                {
-                  id: person.id,
-                  fullName: person.fullName,
-                  photoUrl: person.photoUrl,
-                  secondary: true,
-                },
-              ],
-            }
-          : p,
-      );
-      return;
-    }
-    case "removeSecondaryPost": {
-      const target = findPost(work, change.postId);
-      if (!target.holders.some((h) => h.id === change.employeeId && h.secondary)) {
-        throw new DraftError("Karyawan ini tidak merangkap pos tersebut.");
-      }
-      work.posts = work.posts.map((p) =>
-        p.id === target.id
-          ? {
-              ...p,
-              holders: p.holders.filter((h) => !(h.id === change.employeeId && h.secondary)),
-            }
-          : p,
-      );
       return;
     }
   }
@@ -367,9 +303,6 @@ export function applyDraft(
       if (change.op === "createPost") touched.add(change.tempId);
       else if (change.op === "updatePost") touched.add(change.postId);
       else if (change.op === "placeEmployee" && change.postId) touched.add(change.postId);
-      else if (change.op === "addSecondaryPost" || change.op === "removeSecondaryPost") {
-        touched.add(change.postId);
-      }
     }
   }
   return { chart: { ...base, posts: work.posts, units: work.units }, touched };

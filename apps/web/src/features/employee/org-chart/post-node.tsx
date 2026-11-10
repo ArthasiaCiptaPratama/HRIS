@@ -153,13 +153,12 @@ function PostNodeView({ data }: NodeProps<PostNodeType>) {
         {visibleHolders.map((holder) => (
           <li
             key={holder.id}
-            // Rangkap diubah lewat dialog Edit (seret avatar = pindah pos utama).
-            draggable={edit !== undefined && !holder.secondary}
+            draggable={edit !== undefined}
             onDragStart={(event) => {
               event.dataTransfer.setData(PERSON_DRAG_TYPE, holder.id);
               event.dataTransfer.effectAllowed = "move";
             }}
-            className={cn(edit && !holder.secondary && "nodrag cursor-grab")}
+            className={cn(edit && "nodrag cursor-grab")}
           >
             <button
               type="button"
@@ -168,18 +167,10 @@ function PostNodeView({ data }: NodeProps<PostNodeType>) {
                 event.stopPropagation();
                 data.onOpenPerson(holder.id);
               }}
-              aria-label={`Buka profil ${holder.fullName} (${post.positionName}${holder.secondary ? ", rangkap" : ""})`}
+              aria-label={`Buka profil ${holder.fullName} (${post.positionName})`}
             >
               <EmployeeAvatar name={holder.fullName} photoUrl={holder.photoUrl} size="sm" />
               <span className="truncate text-[12.5px]">{holder.fullName}</span>
-              {holder.secondary ? (
-                <span
-                  className="ml-auto shrink-0 rounded-sm bg-sky-500/15 px-1 text-[10px] font-medium text-sky-700 dark:text-sky-300"
-                  title="Jabatan rangkap: pos utamanya di tempat lain"
-                >
-                  Rangkap
-                </span>
-              ) : null}
             </button>
           </li>
         ))}

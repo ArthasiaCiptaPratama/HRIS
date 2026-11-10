@@ -5,8 +5,6 @@ import { z } from "zod";
 // berbeda). Pos menyimpan atasan (garis tegas), atasan fungsional (garis putus-putus) & jumlah slot.
 
 export const ORG_POST_HEADCOUNT_MAX = 50;
-/** ORG-D3: batas pos rangkap per karyawan (pos utama tidak dihitung). */
-export const ORG_SECONDARY_POSTS_MAX = 5;
 
 export const orgPostCodeSchema = z
   .string()
@@ -99,26 +97,18 @@ export function canReportTo(
  */
 export function resolvePostManagers(input: {
   posts: readonly PostLink[];
-  /** ORG-D3: `secondary` = pemegang rangkap (kandidat atasan bagi bawahan pos itu saja). */
-  holders: readonly { employeeId: string; postId: string; secondary?: boolean }[];
+  holders: readonly { employeeId: string; postId: string }[];
   eligibleManagers: ReadonlySet<string>;
 }): Map<string, string | null> {
   const parentOf = new Map(input.posts.map((post) => [post.id, post.reportsToId]));
-  // Pemegang utama didahulukan, lalu pemegang rangkap (urutan masukan dipertahankan di tiap kelompok).
-  const ordered = [
-    ...input.holders.filter((h) => !h.secondary),
-    ...input.holders.filter((h) => h.secondary),
-  ];
   const holdersOf = new Map<string, string[]>();
-  for (const holder of ordered) {
+  for (const holder of input.holders) {
     const list = holdersOf.get(holder.postId) ?? [];
     list.push(holder.employeeId);
     holdersOf.set(holder.postId, list);
   }
   const result = new Map<string, string | null>();
-  // Atasan seseorang dihitung dari pos UTAMA-nya saja.
   for (const holder of input.holders) {
-    if (holder.secondary) continue;
     let manager: string | null = null;
     let cursor = parentOf.get(holder.postId) ?? null;
     for (let depth = 0; cursor && depth < MAX_DEPTH && cursor !== holder.postId; depth += 1) {

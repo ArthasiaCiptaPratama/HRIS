@@ -39,7 +39,6 @@ import {
 import { notify } from "../notification/index.ts";
 import {
   getMasterLookup,
-  listOrgPosts,
   type MasterLookup,
   positionIdsInDepartment,
   statusIdsForCategories,
@@ -69,7 +68,6 @@ import type {
 } from "./employee.schema.ts";
 import * as importRepo from "./employee-import.repository.ts";
 import { markActivatedOnLogin } from "./onboarding.service.ts";
-import { clearSecondaryPosts, listEmployeeSecondaryPostIds } from "./org-chart.repository.ts";
 import {
   assertPositionCompany,
   employeePostSupport,
@@ -666,19 +664,8 @@ export async function getEmployee(
   // IAM-D1: HR Kepegawaian hanya data kerja + riwayat jabatan/status (tanpa kontak darurat, pendidikan,
   // pelatihan, riwayat kerja sebelumnya) — kecuali data dirinya sendiri.
   const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
-  // ORG-D3: pos rangkap tampil di profil (label pos = jabatan · unit, kolom direktori).
-  const secondaryIds = new Set(
-    (await listEmployeeSecondaryPostIds(id)).map((row) => row.orgPostId),
-  );
-  const secondaryPosts =
-    secondaryIds.size === 0
-      ? []
-      : (await listOrgPosts())
-          .filter((post) => secondaryIds.has(post.id) && !post.archived)
-          .map((post) => ({ id: post.id, label: `${post.positionName} · ${post.departmentName}` }));
   const detail: EmployeeDetail = {
     ...toListItem(row, lookup, photoUrls),
-    secondaryPosts,
     emergencyPhone: workOnly ? null : row.emergencyPhone,
     emergencyContactName: workOnly ? null : row.emergencyContactName,
     emergencyContactRelationship: workOnly ? null : row.emergencyContactRelationship,
@@ -1185,9 +1172,7 @@ export async function updateEmployee(
         orgPostId,
         managerOverride,
       });
-      // ORG-D3: pindah PT → pos rangkap di PT lama dilepas.
-      if (companyChanged) await clearSecondaryPosts(tx, id);
-      if (before.orgPostId || orgPostId || companyChanged) await syncPostManagers(tx);
+      if (before.orgPostId || orgPostId) await syncPostManagers(tx);
       // D-048: nomor induk berubah → alamat login NIK ikut (gagal di Supabase → seluruh perubahan batal).
       if (input.employeeNumber && input.employeeNumber !== before.employeeNumber && ctx.nikLogin) {
         await applyNikLogin(id, input.employeeNumber, ctx.nikLogin, tx, "refresh");
@@ -1294,9 +1279,7 @@ export async function deactivateEmployee(
       // D-051: slot pos dilepas (pos menjadi Kosong); bawahan dihitung ulang atasannya (D-053).
       orgPostId: null,
     });
-    // ORG-D3: pos rangkap ikut dilepas.
-    await clearSecondaryPosts(tx, id);
-    await syncPostManagers(tx);
+    if (before.orgPostId) await syncPostManagers(tx);
     await repository.createHistory(tx, {
       employeeId: id,
       changeType: "DEACTIVATED",

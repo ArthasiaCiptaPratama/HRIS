@@ -133,13 +133,7 @@ function PostForm({
   const [newUnit, setNewUnit] = useState("");
   const [newLevel, setNewLevel] = useState<string>("");
   const [headcount, setHeadcount] = useState(String(editing?.headcount ?? 1));
-  const [holders, setHolders] = useState<DraftPerson[]>(
-    editing ? editing.holders.filter((h) => !h.secondary) : [],
-  );
-  // ORG-D3: pemegang rangkap (pos utamanya di tempat lain); mengisi slot yang sama.
-  const [secondary, setSecondary] = useState<DraftPerson[]>(
-    editing ? editing.holders.filter((h) => h.secondary) : [],
-  );
+  const [holders, setHolders] = useState<DraftPerson[]>(editing ? [...editing.holders] : []);
   const [error, setError] = useState<string | null>(null);
   const slots = Number(headcount);
   const placedElsewhere = useMemo(() => {
@@ -157,8 +151,8 @@ function PostForm({
       setError(`Jumlah slot 1–${ORG_POST_HEADCOUNT_MAX}.`);
       return;
     }
-    if (holders.length + secondary.length > slots) {
-      setError(`Pemegang (${holders.length + secondary.length}) melebihi jumlah slot (${slots}).`);
+    if (holders.length > slots) {
+      setError(`Pemegang (${holders.length}) melebihi jumlah slot (${slots}).`);
       return;
     }
     const changes: OrgChartChange[] = [];
@@ -183,14 +177,7 @@ function PostForm({
     let postId: string;
     if (editing) {
       postId = editing.id;
-      const removed = editing.holders.filter(
-        (h) => !h.secondary && !holders.some((x) => x.id === h.id),
-      );
-      for (const person of editing.holders.filter(
-        (h) => h.secondary && !secondary.some((x) => x.id === h.id),
-      )) {
-        changes.push({ op: "removeSecondaryPost", employeeId: person.id, postId: editing.id });
-      }
+      const removed = editing.holders.filter((h) => !holders.some((x) => x.id === h.id));
       for (const person of removed) {
         changes.push({ op: "placeEmployee", employeeId: person.id, postId: null });
       }
@@ -210,18 +197,9 @@ function PostForm({
         sortOrder: state.mode === "create" ? state.sortOrder : 0,
       });
     }
-    const added = holders.filter(
-      (h) => !editing?.holders.some((x) => x.id === h.id && !x.secondary),
-    );
-    for (const person of added) {
+    const added = holders.filter((h) => !editing?.holders.some((x) => x.id === h.id));
+    for (const person of added)
       changes.push({ op: "placeEmployee", employeeId: person.id, postId });
-    }
-    const addedSecondary = secondary.filter(
-      (h) => !editing?.holders.some((x) => x.id === h.id && x.secondary),
-    );
-    for (const person of addedSecondary) {
-      changes.push({ op: "addSecondaryPost", employeeId: person.id, postId });
-    }
     if (changes.length === 0) {
       onClose();
       return;
@@ -233,7 +211,7 @@ function PostForm({
     const message = onSubmit({
       label: editing ? `Ubah pos ${name}` : `Tambah pos ${name}`,
       changes,
-      people: [...added, ...addedSecondary],
+      people: added,
     });
     if (message) setError(message);
     else onClose();
@@ -320,25 +298,11 @@ function PostForm({
           />
         </div>
         <HolderPicker
-          inputId="post-holder-search"
-          label="Pemegang"
           companyId={chart.company.id}
           holders={holders}
-          exclude={secondary}
-          slots={(Number.isInteger(slots) ? slots : 0) - secondary.length}
+          slots={Number.isInteger(slots) ? slots : 0}
           placedElsewhere={placedElsewhere}
           onChange={setHolders}
-        />
-        <HolderPicker
-          inputId="post-secondary-search"
-          label="Pemegang rangkap"
-          hint="Tetap di pos utamanya; menjadi atasan bawahan pos ini."
-          companyId={chart.company.id}
-          holders={secondary}
-          exclude={holders}
-          slots={(Number.isInteger(slots) ? slots : 0) - holders.length}
-          placedElsewhere={new Map()}
-          onChange={setSecondary}
         />
         {error ? (
           <p role="alert" className="text-destructive flex items-start gap-1.5 text-sm">
@@ -359,24 +323,14 @@ function PostForm({
 
 /** Pilih pemegang dari karyawan aktif yang sudah ada (karyawan baru tetap lewat Penerimaan/Import). */
 function HolderPicker({
-  inputId,
-  label,
-  hint,
   companyId,
   holders,
-  exclude,
   slots,
   placedElsewhere,
   onChange,
 }: {
-  inputId: string;
-  label: string;
-  hint?: string;
   companyId: string;
   holders: DraftPerson[];
-  /** Orang yang sudah ada di daftar lain dialog ini (pemegang utama ↔ rangkap). */
-  exclude: DraftPerson[];
-  /** Slot yang tersedia untuk daftar ini. */
   slots: number;
   placedElsewhere: ReadonlyMap<string, string>;
   onChange: (next: DraftPerson[]) => void;
@@ -390,13 +344,12 @@ function HolderPicker({
   const full = holders.length >= slots;
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={inputId}>
-        {label}{" "}
+      <Label htmlFor="post-holder-search">
+        Pemegang{" "}
         <span className="text-muted-foreground font-normal">
-          ({holders.length}/{Math.max(slots, 0)} slot)
+          ({holders.length}/{slots || "–"} slot)
         </span>
       </Label>
-      {hint ? <p className="text-muted-foreground -mt-1 text-xs">{hint}</p> : null}
       {holders.length > 0 ? (
         <ul className="flex flex-wrap gap-1.5">
           {holders.map((person) => (
@@ -419,7 +372,7 @@ function HolderPicker({
         </ul>
       ) : null}
       <Input
-        id={inputId}
+        id="post-holder-search"
         placeholder={full ? "Slot penuh" : "Cari karyawan aktif (min. 2 huruf)…"}
         value={search}
         disabled={full}
@@ -440,9 +393,7 @@ function HolderPicker({
             </li>
           ) : (
             (results.data?.data ?? []).map((employee) => {
-              const chosen =
-                holders.some((h) => h.id === employee.id) ||
-                exclude.some((h) => h.id === employee.id);
+              const chosen = holders.some((h) => h.id === employee.id);
               const elsewhere = placedElsewhere.get(employee.id);
               return (
                 <li key={employee.id}>
@@ -777,16 +728,6 @@ export function SaveDialog({
                   <li key={p.employee.id}>
                     {p.employee.fullName}: {p.fromPost ?? "belum ditempatkan"} →{" "}
                     {p.toPost ?? "dilepas dari pos"}
-                  </li>
-                ))}
-              </ImpactSection>
-            ) : null}
-            {preview.secondaryChanges.length > 0 ? (
-              <ImpactSection title={`Jabatan rangkap (${preview.secondaryChanges.length})`}>
-                {preview.secondaryChanges.map((c) => (
-                  <li key={`${c.employee.id}-${c.post}-${c.action}`}>
-                    {c.employee.fullName}: {c.action === "ADDED" ? "merangkap" : "lepas rangkap"}{" "}
-                    {c.post}
                   </li>
                 ))}
               </ImpactSection>

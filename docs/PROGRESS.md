@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|
 | [fondasi](features/fondasi/README.md) | 0–1 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai (sisa: uji Windows, OD-9, OD-12) | ✔ |
 | [iam](features/iam/README.md) | 2 | Oatse | `HRIS/Oatse/Linux-Windows` | Review — role HR Kepegawaian IAM-D1 (Mat) ✔ develop 2026-10-26 (merge `d3c1ebc`), ✔ staging gel. 14 (ganti role akun `hr.arthasia` ditunda sampai QA IAM-D1); sisa: captcha ditunda, OD-5 | ✔ gel. 14 IAM-D1 |
-| [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — level jabatan 1b–7 (ORG-D1), mode edit bagan (ORG-D2), jabatan rangkap (ORG-D3) ✔ develop 2026-11-10 (antrean #78–#80, belum staging); sisa: profil perusahaan, pengaturan sistem | ✔ (bagan D-051); ORG-D1–D3 belum |
+| [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — level jabatan 1b–7 (ORG-D1), mode edit bagan (ORG-D2) ✔ develop 2026-11-10 (antrean #78–#81, belum staging; jabatan rangkap ORG-D3 dibatalkan); sisa: profil perusahaan, pengaturan sistem | ✔ (bagan D-051); ORG-D1–D3 belum |
 | [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1, `a2ce380`, di-push) digantikan EMP-D3 — Word & Gotenberg dihapus, EMP-OD1 gugur; template Formulir Data Karyawan + Tambah karyawan bertahap (EMP-D2) ✔ staging gel. 9; Print data PDF dari template (EMP-D3) ✔ staging gel. 10; Ubah data lengkap (EMP-D4) ✔ staging gel. 11 (QA LEGIT) | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064) | ✔ gel. 2–4.1 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
@@ -142,7 +142,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
-- **2026-11-10** — Organisasi: level jabatan 1b–7 + warna (ORG-D1), mode edit bagan dengan draf/pratinjau/izin per PT (ORG-D2), jabatan rangkap (ORG-D3); 3 migrasi; DB lokal di-reset ke bagan PDF 06.11 (nama asli lokal). (Oatse) → [organisasi/log](features/organisasi/log.md)
+- **2026-11-10** — Organisasi: level jabatan 1b–7 + warna (ORG-D1), mode edit bagan dengan draf/pratinjau/izin per PT (ORG-D2), jabatan rangkap ORG-D3 lalu dibatalkan atas ralat pengguna (tabel di-drop); 4 migrasi; DB lokal di-reset ke bagan PDF 06.11 (nama asli lokal). (Oatse) → [organisasi/log](features/organisasi/log.md)
 - **2026-11-04** — TM-D25: alasan absen opsional untuk Akurasi GPS rendah & Lembur hari libur ber-SPL, develop `6b1d428` (tanpa migrasi; kontrak tetap). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-04** — Rilis staging gel. 20 (`7ccae28`, 53 migrasi, Deploy #41789249030 ✔); Mat dikabari develop `7ccae28`; tab verifikasi Alpha app ✔ (`d5d41d2`). (Oatse) → [mobile/log](features/mobile/log.md)
 - **2026-11-04** — Gabung `HRIS/mobile-app` (FF) ke develop: langkah approval pengajuan yang dibatalkan → `CANCELLED` (2 migrasi: enum + backfill; web/app "Dibatalkan"), log info `push sent`, operasi app verifikasi Alpha (`listAlphaVerifications`/`verifyAlpha`, tanpa logika baru). (Oatse) → [mobile/log](features/mobile/log.md)

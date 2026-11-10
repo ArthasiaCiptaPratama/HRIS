@@ -239,8 +239,6 @@ const historySchema = z.object({
 
 export const employeeDetailSchema = employeeListItemSchema
   .extend({
-    /** ORG-D3: pos rangkap (baca saja; diubah lewat mode edit bagan). */
-    secondaryPosts: z.array(z.object({ id: z.uuid(), label: z.string() })),
     emergencyPhone: z.string().nullable(),
     // D-041: kontak darurat.
     emergencyContactName: z.string().nullable(),

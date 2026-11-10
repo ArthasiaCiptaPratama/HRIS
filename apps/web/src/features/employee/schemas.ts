@@ -91,8 +91,6 @@ export const dashboardSchema = z.object({
 export type EmployeeDashboard = z.infer<typeof dashboardSchema>;
 
 export const employeeDetailSchema = employeeListItemSchema.extend({
-  /** ORG-D3: pos rangkap (data lama tanpa field ini = kosong). */
-  secondaryPosts: z.array(z.object({ id: z.string(), label: z.string() })).default([]),
   emergencyPhone: z.string().nullable(),
   emergencyContactName: z.string().nullable(),
   emergencyContactRelationship: z.string().nullable(),
@@ -369,13 +367,7 @@ export const orgChartSchema = z.object({
       headcount: z.number(),
       sortOrder: z.number(),
       holders: z.array(
-        z.object({
-          id: z.string(),
-          fullName: z.string(),
-          photoUrl: z.string().nullable(),
-          /** ORG-D3: pemegang rangkap. */
-          secondary: z.boolean().default(false),
-        }),
+        z.object({ id: z.string(), fullName: z.string(), photoUrl: z.string().nullable() }),
       ),
     }),
   ),

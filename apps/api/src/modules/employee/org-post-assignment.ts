@@ -16,20 +16,17 @@ export async function syncPostManagers(
   tx: EmployeeTx,
   postIds?: ReadonlySet<string>,
 ): Promise<number> {
-  const [posts, holders, secondary, eligible] = await Promise.all([
+  const [posts, holders, eligible] = await Promise.all([
     listOrgPosts(tx),
     repository.listPostHolders(tx),
-    repository.listSecondaryHolders(tx),
     listManagerEmployeeIds(),
   ]);
   const active = posts.filter((post) => !post.archived);
   const desired = resolvePostManagers({
     posts: active,
-    holders: [
-      ...holders.flatMap((h) => (h.orgPostId ? [{ employeeId: h.id, postId: h.orgPostId }] : [])),
-      // ORG-D3: pemegang rangkap jadi kandidat atasan bagi bawahan pos rangkapnya.
-      ...secondary.map((h) => ({ employeeId: h.employeeId, postId: h.orgPostId, secondary: true })),
-    ],
+    holders: holders.flatMap((h) =>
+      h.orgPostId ? [{ employeeId: h.id, postId: h.orgPostId }] : [],
+    ),
     eligibleManagers: new Set(eligible),
   });
   let updated = 0;
