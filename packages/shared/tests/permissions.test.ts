@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { isPermissionGrantableTo, PERMISSIONS, permissionSchema } from "../src/index.ts";
 
 describe("permissions (PLAN §4.2)", () => {
-  test("daftar izin persis 14 kode dari PLAN §4.2 (+ D-047 review onboarding, D-054 review pengajuan, ARS-D3 aset, ARS-D10 SP, TM-D6 biaya)", () => {
-    expect(PERMISSIONS).toHaveLength(14);
+  test("daftar izin persis 14 kode dari PLAN §4.2 (+ D-047 review onboarding, D-054 review pengajuan, ARS-D3 aset, ARS-D10 SP, TM-D6 biaya, ORG-D2 bagan)", () => {
+    expect(PERMISSIONS).toHaveLength(15);
   });
 
   test("tidak ada izin gaji yang bisa di-grant", () => {
@@ -27,6 +27,8 @@ describe("permissions (PLAN §4.2)", () => {
     ["asset.manage", "HR_ADMIN", true],
     ["asset.manage", "MANAGER", false],
     ["asset.manage", "EMPLOYEE", false],
+    ["org.structure.manage", "HR_ADMIN", true],
+    ["org.structure.manage", "MANAGER", false],
     ["employee.discipline.read", "HR_ADMIN", true],
     ["employee.discipline.write", "HR_ADMIN", true],
     ["employee.discipline.write", "MANAGER", false],

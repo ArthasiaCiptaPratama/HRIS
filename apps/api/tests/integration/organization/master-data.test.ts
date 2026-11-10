@@ -474,7 +474,7 @@ describe("D-050 unit organisasi berjenjang & level jabatan", () => {
     const dept = await create("/departments", { name: N("Legal"), parentId: dir }, "departments");
     const ceo = await create(
       "/positions",
-      { name: N("Direktur Utama"), departmentId: dir, level: "DIRECTOR" },
+      { name: N("Direktur Utama"), departmentId: dir, level: "L7" },
       "positions",
     );
     const list = await data(await call("GET", `/departments?q=${RUN}`, sa.headers));
@@ -486,7 +486,7 @@ describe("D-050 unit organisasi berjenjang & level jabatan", () => {
     expect(master.departments.find((d: { id: string }) => d.id === dir).unitType).toBe(
       "DIRECTORATE",
     );
-    expect(master.positions.find((p: { id: string }) => p.id === ceo).level).toBe("DIRECTOR");
+    expect(master.positions.find((p: { id: string }) => p.id === ceo).level).toBe("L7");
   });
 
   test("induk tidak sah ditolak: Divisi di bawah Departemen, Departemen di bawah Departemen", async () => {
@@ -543,13 +543,13 @@ describe("D-050 unit organisasi berjenjang & level jabatan", () => {
     );
     const pos = await create(
       "/positions",
-      { name: N("Sekretaris Direksi"), departmentId: dir, level: "STAFF" },
+      { name: N("Sekretaris Direksi"), departmentId: dir, level: "L1A" },
       "positions",
     );
     await makeEmployee("S1", { positionId: pos });
     const structure = await data(await call("GET", "/org-structure", sa.headers));
     const unit = structure.departments.find((d: { id: string }) => d.id === dir);
     expect(unit.unitType).toBe("DIRECTORATE");
-    expect(unit.positions[0]).toMatchObject({ id: pos, level: "STAFF" });
+    expect(unit.positions[0]).toMatchObject({ id: pos, level: "L1A" });
   });
 });

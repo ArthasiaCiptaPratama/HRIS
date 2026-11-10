@@ -78,6 +78,8 @@ export function OrgStructurePage() {
   const chart = useOrgChart(companyId);
   const sheet = useEmployeeSheet();
   const [personCard, setPersonCard] = useState<string | null>(null);
+  // ORG-D2: selama mode edit bagan, PT tidak bisa diganti (draf milik satu PT).
+  const [editingChart, setEditingChart] = useState(false);
   const companies = chart.data?.companies ?? [];
 
   return (
@@ -91,6 +93,7 @@ export function OrgStructurePage() {
               <Select
                 value={chart.data?.company.id ?? ""}
                 onValueChange={(value) => setCompanyId(value)}
+                disabled={editingChart}
               >
                 <SelectTrigger className="h-9 w-56" aria-label="Perusahaan bagan">
                   <SelectValue placeholder="Pilih perusahaan" />
@@ -119,10 +122,10 @@ export function OrgStructurePage() {
           <TabsTrigger value="canvas">
             <Workflow /> Bagan organisasi
           </TabsTrigger>
-          <TabsTrigger value="units">
+          <TabsTrigger value="units" disabled={editingChart}>
             <Building2 /> Per unit
           </TabsTrigger>
-          <TabsTrigger value="managers">
+          <TabsTrigger value="managers" disabled={editingChart}>
             <Network /> Atasan langsung
           </TabsTrigger>
         </TabsList>
@@ -165,6 +168,7 @@ export function OrgStructurePage() {
               >
                 <OrgChartCanvas
                   chart={chart.data}
+                  onEditingChange={setEditingChart}
                   onOpenPerson={(id) =>
                     chart.data.canOpenDetail ? sheet.open(id) : setPersonCard(id)
                   }

@@ -9,6 +9,7 @@ export {
   type ApprovalView,
   type CreateApprovalInput,
   cancelApprovalRequest,
+  countPendingRequestsForEmployees,
   createApprovalRequest,
   decide as decideApproval,
   type FinalStatus,

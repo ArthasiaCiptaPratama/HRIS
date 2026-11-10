@@ -11,7 +11,7 @@ const master = {
     { id: "dep2", name: "Finance", parentId: "dir", unitType: "DEPARTMENT" as const },
   ],
   positions: [
-    { id: "p-mgr", level: "MANAGER" as const },
+    { id: "p-mgr", level: "L3" as const },
     { id: "p-staff", level: null },
   ],
 };
@@ -25,7 +25,7 @@ describe("profilePlacement", () => {
     expect(profilePlacement(emp("dep"), master)).toEqual({
       division: "Divisi HR & GA",
       department: "HR & GA Site",
-      level: "Manager",
+      level: "L3 · Supervisor / Manager",
     });
   });
 

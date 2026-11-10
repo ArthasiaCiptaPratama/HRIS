@@ -98,9 +98,9 @@ beforeAll(async () => {
         data: { name: `RQ ${name} ${RUN}`, departmentId, level: level as never },
       })
     ).id;
-  ids.staff = await position("Staf", ids.unit, "STAFF");
-  ids.spv = await position("Spv", ids.unit, "SUPERVISOR");
-  ids.staff2 = await position("Staf2", ids.otherUnit, "STAFF");
+  ids.staff = await position("Staf", ids.unit, "L1A");
+  ids.spv = await position("Spv", ids.unit, "L3");
+  ids.staff2 = await position("Staf2", ids.otherUnit, "L1A");
   ids.noLevel = await position("Tanpa", ids.unit, null);
   sa = await auth.loginAs("SUPER_ADMIN");
   // A: genap 5 tahun bulan ini (jubilee), laki-laki, S1 + SMA, kota "jakarta", ulang tahun bulan ini.
@@ -320,7 +320,7 @@ describe("mutasi & promosi (ARS-D21)", () => {
     const b = r.rows.find((x: { fullName: string }) => x.fullName === `Laporan2 ${RUN} B`);
     expect(b).toMatchObject({
       kind: "TRANSFER",
-      fromLevel: "Staf / Operator",
+      fromLevel: "L1a · Staff / Officer",
       toUnit: `RQ Lain ${RUN}`,
       fromCompany: `T${RUN}`,
       toCompany: `S${RUN}`,

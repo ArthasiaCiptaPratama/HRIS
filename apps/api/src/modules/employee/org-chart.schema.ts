@@ -10,6 +10,9 @@ export const orgChartQuerySchema = z.object({ companyId: z.uuid().optional() });
 
 export const orgChartSchema = z
   .object({
+    revision: z.number().int(),
+    canEdit: z.boolean(),
+    canEditCorporate: z.boolean(),
     company: companyRef,
     /** PT yang boleh dipilih aktor (pemilih PT). */
     companies: z.array(companyRef),
@@ -27,6 +30,7 @@ export const orgChartSchema = z
       z.object({
         id: z.uuid(),
         positionName: z.string(),
+        positionId: z.uuid(),
         level: positionLevelSchema.nullable(),
         departmentId: z.uuid(),
         corporate: z.boolean(),

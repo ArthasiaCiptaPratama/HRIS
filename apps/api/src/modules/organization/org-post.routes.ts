@@ -12,7 +12,7 @@ import * as service from "./org-post.service.ts";
 import { idParamSchema, mutationResultSchema } from "./organization-admin.schema.ts";
 import type { RequestContext } from "./organization-support.ts";
 
-// D-051: /api/v1/org-posts — pos jabatan untuk bagan organisasi. Baca: SA & HR; tulis: SA.
+// D-051: /api/v1/org-posts — pos jabatan untuk bagan organisasi. Baca: SA & HR; tulis: SA / HR berizin sesuai PT (ORG-D2).
 
 const security = [{ [BEARER_SCHEME]: [] }];
 const TAGS = ["Organization"];
@@ -45,7 +45,7 @@ const routes = {
     method: "post",
     path: base,
     tags: TAGS,
-    summary: "Pos jabatan: tambah (SUPER_ADMIN)",
+    summary: "Pos jabatan: tambah (SA / HR berizin di PT-nya)",
     security,
     request: body(orgPostInputSchema),
     responses: { 201: json("Dibuat", dataEnvelope(mutationResultSchema)), ...write },
@@ -54,7 +54,8 @@ const routes = {
     method: "patch",
     path: `${base}/{id}`,
     tags: TAGS,
-    summary: "Pos jabatan: ubah sebagian — atasan otomatis pemegang ikut disesuaikan (SUPER_ADMIN)",
+    summary:
+      "Pos jabatan: ubah sebagian — atasan otomatis pemegang ikut disesuaikan (SA / HR berizin di PT-nya)",
     security,
     request: { params: idParamSchema, ...body(orgPostUpdateSchema) },
     responses: { 200: json("Diubah", dataEnvelope(mutationResultSchema)), ...write },
@@ -63,7 +64,8 @@ const routes = {
     method: "post",
     path: `${base}/{id}/archive`,
     tags: TAGS,
-    summary: "Pos jabatan: arsipkan — hanya bila kosong & tanpa bawahan (SUPER_ADMIN)",
+    summary:
+      "Pos jabatan: arsipkan — hanya bila kosong & tanpa bawahan (SA / HR berizin di PT-nya)",
     security,
     request: { params: idParamSchema },
     responses: { 200: json("Diarsipkan", dataEnvelope(mutationResultSchema)), ...write },
@@ -72,7 +74,7 @@ const routes = {
     method: "post",
     path: `${base}/{id}/restore`,
     tags: TAGS,
-    summary: "Pos jabatan: pulihkan dari arsip (SUPER_ADMIN)",
+    summary: "Pos jabatan: pulihkan dari arsip (SA / HR berizin di PT-nya)",
     security,
     request: { params: idParamSchema },
     responses: { 200: json("Dipulihkan", dataEnvelope(mutationResultSchema)), ...write },
@@ -81,7 +83,8 @@ const routes = {
     method: "delete",
     path: `${base}/{id}`,
     tags: TAGS,
-    summary: "Pos jabatan: hapus permanen — hanya bila tidak pernah dirujuk (SUPER_ADMIN)",
+    summary:
+      "Pos jabatan: hapus permanen — hanya bila tidak pernah dirujuk (SA / HR berizin di PT-nya)",
     security,
     request: { params: idParamSchema },
     responses: { 200: json("Dihapus", dataEnvelope(mutationResultSchema)), ...write },
@@ -91,7 +94,7 @@ const routes = {
     path: `${base}/sync-managers`,
     tags: TAGS,
     summary:
-      "Hitung ulang atasan langsung otomatis dari pos (D-053), mis. setelah role Manager berubah (SUPER_ADMIN)",
+      "Hitung ulang atasan langsung otomatis dari pos (D-053), mis. setelah role Manager berubah (SA / HR berizin di PT-nya)",
     security,
     responses: {
       200: json("Jumlah karyawan yang atasannya berubah", dataEnvelope(syncManagersResultSchema)),

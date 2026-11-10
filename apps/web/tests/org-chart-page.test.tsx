@@ -47,8 +47,9 @@ function chart(overrides: Record<string, unknown> = {}) {
     posts: [
       {
         id: ID(4),
+        positionId: "pos-x",
         positionName: "Direktur Utama",
-        level: "DIRECTOR",
+        level: "L5",
         departmentId: ID(3),
         corporate: false,
         reportsToId: null,

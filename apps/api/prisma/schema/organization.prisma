@@ -112,6 +112,17 @@ model OrgPost {
   @@schema("organization")
 }
 
+// ORG-D2: satu baris revisi bagan. Setiap penulisan struktur menaikkan revisi; batch mode edit membawa
+// baseRevision dan ditolak 409 bila sudah berubah (konkurensi optimistis).
+model OrgChartState {
+  id        Int      @id @default(1) @db.SmallInt
+  revision  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("org_chart_state")
+  @@schema("organization")
+}
+
 // D-035/D-038: kategori tetap untuk navigasi "Data Karyawan Aktif" (grup Internal: Tetap, Percobaan, PKWT,
 // Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
@@ -125,16 +136,19 @@ enum OrgUnitType {
   @@schema("organization")
 }
 
-// D-050: level jabatan untuk urutan bagan & laporan (bukan golongan gaji).
+// D-050 (4) diubah ORG-D1: 8 level jabatan bernomor (legenda warna bagan site ACP), dari puncak ke bawah
+// L7 Direktur Utama … L1B Helper. Untuk urutan bagan & laporan (bukan golongan gaji).
 enum PositionLevel {
-  DIRECTOR
-  GENERAL_MANAGER
-  MANAGER
-  SUPERINTENDENT
-  SUPERVISOR
-  FOREMAN
-  STAFF
-  NON_STAFF
+  L7
+  L6
+  L5
+  L4
+  L3
+  L2
+  L1A
+  L1B
+  // ORG-D1 tambahan 2026-11-10: L0 Magang (di bawah Helper).
+  L0
 
   @@schema("organization")
 }

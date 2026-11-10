@@ -356,6 +356,8 @@ export const orgChartSchema = z.object({
   posts: z.array(
     z.object({
       id: z.string(),
+      /** ORG-D2: jabatan pos (mode edit: ganti jabatan, cek pemegang). */
+      positionId: z.string(),
       positionName: z.string(),
       level: positionLevelSchema.nullable(),
       departmentId: z.string(),
@@ -372,6 +374,10 @@ export const orgChartSchema = z.object({
   unplacedCount: z.number(),
   canOpenDetail: z.boolean(),
   canManage: z.boolean(),
+  /** ORG-D2: mode edit (SA, atau HR ber-izin org.structure.manage di PT ini) + revisi untuk 409. */
+  canEdit: z.boolean().default(false),
+  canEditCorporate: z.boolean().default(false),
+  revision: z.number().default(0),
 });
 export type OrgChart = z.infer<typeof orgChartSchema>;
 export type OrgChartPost = OrgChart["posts"][number];
