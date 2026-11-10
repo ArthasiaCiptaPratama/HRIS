@@ -52,7 +52,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 
 
 ### 2026-10-16 — Formulir Aplikasi Word/PDF dari template (EMP-D1) (Oatse)
-- **Dikerjakan:** purwarupa dari `Formulir_Aplikasi_PT_CAP_Rev_1.docx` (data asli Sefail Sutanto dari staging + data fiktif; hasil di `/mnt/winD/WORK/Magang/QA/2026-10-16-docx-formulir/`), lalu tahap 1 di repo:
+- **Dikerjakan:** purwarupa dari `Formulir_Aplikasi_PT_CAP_Rev_1.docx` (data asli satu karyawan dari staging + data fiktif; hasil di `/mnt/winD/WORK/Magang/QA/2026-10-16-docx-formulir/`), lalu tahap 1 di repo:
   - `apps/api/templates/formulir-aplikasi.docx` (template bertanda; footer "of 7" → field NUMPAGES; kontak darurat "Nama / Name : …"; foto = gambar mengambang `FOTO_KARYAWAN` di tengah sel, rasio dijaga) + `scripts/embed-templates.ts` → `src/modules/employee/application-form-template.ts` (base64).
   - `application-form.ts` (pemetaan data, isi docxtemplater, foto JPEG/PNG; WebP tidak didukung), `application-form.service.ts`, `core/pdf-convert.ts` (Gotenberg), env `GOTENBERG_URL`, route `GET /employees/{id}/application-form?format=docx|pdf`, `getEmployee(..., printFormat)` untuk audit.
   - `docker/gotenberg/` (font Liberation Sans Narrow, sha256 dicek) + layanan `gotenberg` (profil `pdf`) di `docker-compose.yml`, skrip `pdf:up`; `.env.example` + `.env` lokal `GOTENBERG_URL=http://localhost:3999`.
@@ -66,5 +66,5 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Saklar `FEATURES`:** nilai saklar di salinan kerja develop (saat ini `reports: true`, `timeManagement: false`, `applicationForm: false`) adalah pengaturan lokal pemilik projek → **jangan disentuh/di-commit** sampai ada instruksi; commit hanya membawa saklar baru milik tugas (dibuat dari HEAD).
 - **Push:** `a2ce380` (+ commit lain yang belum di-push) menunggu instruksi.
 - **Layanan PDF (EMP-OD1):** tempat Gotenberg staging/produksi menunggu instruksi tambahan; sementara hanya lokal (`bun run pdf:up`).
-- **Data staging:** database staging akan di-reset pemilik projek (data Sefail Sutanto yang dipakai uji formulir ikut hilang) → tidak perlu tindak lanjut sekarang; rotasi kredensial tetap wajib sebelum data asli (RELEASE §6).
+- **Data staging:** database staging akan di-reset pemilik projek (data karyawan asli yang dipakai uji formulir ikut hilang) → tidak perlu tindak lanjut sekarang; rotasi kredensial tetap wajib sebelum data asli (RELEASE §6).
 - **Berikutnya (setelah instruksi):** tahap 2 halaman Template Dokumen (unggah, cek penanda, pratinjau, versi, audit); bila template baru datang (bagian kontak darurat berubah), ganti `apps/api/templates/formulir-aplikasi.docx` → `bun run templates:embed`.

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  chartHolderMatch,
   fieldPermission,
   IMPORT_FIELD_KEYS,
   type ImportAttachment,
@@ -20,6 +21,7 @@ import {
   archivedMasterIndex,
   createMissingMasterData,
   getMasterLookup,
+  listOrgPosts,
   type MasterDataNames,
   type MasterLookup,
   masterKey,
@@ -64,6 +66,10 @@ interface RowPlan {
   departmentName?: string;
   /** D-059: keluarga/pendidikan/sertifikasi dari file yang belum ada di karyawan (ditambahkan). */
   repeated?: RepeatedRows;
+  /** IMP-D1: baris tidak cocok lewat NIP/NIK → saran & pilihan pemegang bagan ASLI-. */
+  chartHolder?: { candidates: { id: string; match: "NAME" | "INITIALS" }[]; choice: string | null };
+  /** IMP-D1: true = baris ini melengkapi pemegang bagan (existing = karyawan ASLI- terpilih). */
+  mergeChartHolder?: boolean;
 }
 
 interface RepeatedRows {
@@ -315,6 +321,30 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     normalized.flatMap((n) => (n.row.personalEmail ? [n.row.personalEmail] : [])),
   );
 
+  // IMP-D1: pemegang bagan ber-NIP sementara (ASLI-) yang boleh dilihat aktor, dan target pilihan HR.
+  const chartHolderList = (
+    await importRepo.listChartHolders(ctx.actor.role === "SUPER_ADMIN" ? null : scopeCompanies)
+  ).filter((h) =>
+    policy.canViewEmployee(ctx.actor, {
+      employeeId: h.id,
+      managerId: h.managerId,
+      companyId: h.companyId,
+    }),
+  );
+  const chartHolderById = new Map(chartHolderList.map((h) => [h.id, h]));
+  const chosenTargets = new Map(
+    (
+      await importRepo.findExistingByIds([
+        ...new Set(
+          Object.values(body.chartHolderChoices ?? {}).filter(
+            (v) => v !== "NEW" && chartHolderById.has(v),
+          ),
+        ),
+      ])
+    ).map((e) => [e.id, e]),
+  );
+  const chartHolderTaken = new Set<string>();
+
   const seenNumber = new Set<string>();
   const seenKtp = new Set<string>();
   const seenEmail = new Set<string>();
@@ -346,6 +376,22 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     // NIP baris kosong → cocok lewat NIK; NIP baris terisi → hanya bila karyawan itu belum punya NIP
     // (NIP lalu diisi lewat import). NIP berbeda tetap bentrok (KTP_TAKEN di bawah).
     if (!existing && ktpOwner && (!number || !ktpOwner.employeeNumber)) existing = ktpOwner;
+    // IMP-D1: tidak cocok lewat NIP/NIK → HR boleh memilih pemegang bagan ASLI- yang dilengkapi.
+    if (!existing) {
+      const choice = body.chartHolderChoices?.[String(sourceRow)] ?? null;
+      plan.chartHolder = { candidates: [], choice };
+      if (choice && choice !== "NEW") {
+        const target = chosenTargets.get(choice);
+        if (!target) plan.issues.push(issue("fullName", "CHART_HOLDER_INVALID"));
+        else if (chartHolderTaken.has(choice))
+          plan.issues.push(issue("fullName", "CHART_HOLDER_TAKEN"));
+        else {
+          chartHolderTaken.add(choice);
+          existing = target;
+          plan.mergeChartHolder = true;
+        }
+      }
+    }
     if (existing) plan.existing = existing;
 
     // Perusahaan (D-039/D-040): PT per baris di Pratinjau (D-064) > kode di file > PT bawaan >
@@ -372,6 +418,22 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       }
     } else if (!existing && !plan.issues.some((i) => i.field === "companyCode")) {
       plan.issues.push(issue("companyCode", "COMPANY_REQUIRED"));
+    }
+    // IMP-D1: saran kandidat (nama sama tanpa gelar, atau inisial) di PT baris; wajib dipilih HR.
+    if (plan.chartHolder) {
+      const company = plan.mergeChartHolder ? existing?.companyId : companyId;
+      const name = row.fullName;
+      plan.chartHolder.candidates =
+        company && name
+          ? chartHolderList.flatMap((h) => {
+              const match = h.companyId === company ? chartHolderMatch(name, h.fullName) : null;
+              return match ? [{ id: h.id, match }] : [];
+            })
+          : [];
+      if (plan.chartHolder.choice === null && plan.chartHolder.candidates.length > 0)
+        plan.issues.push(issue("fullName", "CHART_HOLDER_CHOICE_REQUIRED"));
+      if (plan.mergeChartHolder && companyId && existing && companyId !== existing.companyId)
+        plan.issues.push(issue("companyCode", "CHART_HOLDER_OTHER_COMPANY"));
     }
 
     // D-062: baris yang belum ada di sistem — status pilihan per baris > kolom status file > status
@@ -415,7 +477,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       } else if (existing.onboardingStatus !== "APPROVED") {
         // D-045: data calon diisi sendiri lewat onboarding; import tidak boleh menimpanya.
         plan.issues.push(issue("employeeNumber", "ONBOARDING_IN_PROGRESS"));
-      } else if (body.mode === "CREATE_ONLY") {
+      } else if (body.mode === "CREATE_ONLY" && !plan.mergeChartHolder) {
         plan.action = "SKIP";
         plan.issues.push(issue("employeeNumber", "EXISTS_SKIPPED", "WARNING"));
       } else {
@@ -448,6 +510,13 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
           (row.positionName ? departmentNameOf(lookup, existing.positionId) : undefined);
         plan.repeated = missingRepeated(row, existing);
         plan.changes = diff(row, existing, lookup, plan);
+        // IMP-D1: pemegang bagan → jabatan pos dipertahankan (pos menentukan jabatan).
+        if (
+          plan.mergeChartHolder &&
+          existing.orgPostId &&
+          positionDiffers(row, existing, lookup, plan)
+        )
+          plan.issues.push(issue("positionName", "CHART_POSITION_KEPT", "WARNING"));
         if (plan.changes.length === 0) plan.action = "SKIP";
       }
     } else {
@@ -568,6 +637,19 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     changes: p.changes,
     issues: p.issues,
     attachments: queuedAttachments(p).length,
+    chartHolder: p.chartHolder ?? null,
+  }));
+  // IMP-D1: daftar pemegang bagan yang masih ber-NIP sementara (pilihan manual & "belum dilengkapi").
+  const posts = chartHolderList.length > 0 ? await listOrgPosts() : [];
+  const postLabel = new Map(
+    posts.map((post) => [post.id, `${post.positionName} · ${post.departmentName}`]),
+  );
+  const chartHolders = chartHolderList.map((h) => ({
+    id: h.id,
+    fullName: h.fullName,
+    employeeNumber: h.employeeNumber as string,
+    companyId: h.companyId,
+    postLabel: h.orgPostId ? (postLabel.get(h.orgPostId) ?? null) : null,
   }));
   const skippedFields = IMPORT_FIELD_KEYS.filter((k) => skipped.has(k));
   // Hash pratinjau: berubah bila hasil analisis ATAU data karyawan terkait berubah sejak pratinjau.
@@ -577,7 +659,9 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
         rows: previewRows,
         missing,
         skippedFields,
-        stamp: existingList.map((e) => `${e.id}:${e.updatedAt.toISOString()}`).sort(),
+        stamp: [...existingList, ...chosenTargets.values()]
+          .map((e) => `${e.id}:${e.updatedAt.toISOString()}`)
+          .sort(),
       }),
     )
     .digest("hex");
@@ -586,6 +670,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       counts,
       rows: previewRows,
       units: unitResult.units,
+      chartHolders,
       masterData: missing,
       skippedFields,
       previewHash,
@@ -614,7 +699,10 @@ function diff(
   const differs = (value: unknown, current: unknown) =>
     value !== undefined && !same(value, current ?? undefined);
   // D-063: NIP hanya bisa diisi (karyawan yang dicocokkan lewat NIK belum punya NIP), tidak diganti.
-  if (row.employeeNumber && !e.employeeNumber) changes.push("employeeNumber");
+  // IMP-D1: NIP sementara pemegang bagan selalu diganti NIP file (atau dikosongkan bila file tanpa NIP).
+  if (plan.mergeChartHolder) {
+    if ((row.employeeNumber ?? null) !== e.employeeNumber) changes.push("employeeNumber");
+  } else if (row.employeeNumber && !e.employeeNumber) changes.push("employeeNumber");
   if (differs(row.fullName, e.fullName)) changes.push("fullName");
   if (differs(row.workEmail, e.workEmail)) changes.push("workEmail");
   if (differs(row.personalEmail, e.personalEmail)) changes.push("personalEmail");
@@ -628,14 +716,7 @@ function diff(
   if (differs(row.joinDate, toIso(e.joinDate))) changes.push("joinDate");
   if (plan.companyId && plan.companyId !== e.companyId) changes.push("companyCode");
   if (plan.statusId && plan.statusId !== e.employmentStatusId) changes.push("employmentStatusText");
-  const currentDept = departmentNameOf(lookup, e.positionId);
-  const currentPosition = lookup.positions.get(e.positionId)?.name;
-  if (
-    row.positionName &&
-    plan.departmentName &&
-    positionKey(plan.departmentName, row.positionName) !==
-      positionKey(currentDept ?? "", currentPosition ?? "")
-  )
+  if (!(plan.mergeChartHolder && e.orgPostId) && positionDiffers(row, e, lookup, plan))
     changes.push("positionName");
   const grade = e.gradeId ? lookup.grades.get(e.gradeId)?.name : undefined;
   if (row.gradeName && masterKey(row.gradeName) !== masterKey(grade ?? ""))
@@ -673,6 +754,22 @@ function diff(
       changes.push(item.source);
   }
   return changes;
+}
+
+function positionDiffers(
+  row: NormalizedImportRow,
+  e: importRepo.ExistingEmployee,
+  lookup: MasterLookup,
+  plan: RowPlan,
+): boolean {
+  const currentDept = departmentNameOf(lookup, e.positionId);
+  const currentPosition = lookup.positions.get(e.positionId)?.name;
+  return Boolean(
+    row.positionName &&
+      plan.departmentName &&
+      positionKey(plan.departmentName, row.positionName) !==
+        positionKey(currentDept ?? "", currentPosition ?? ""),
+  );
 }
 
 export async function preview(ctx: RequestContext, body: ImportBody): Promise<ImportPreview> {
@@ -831,7 +928,7 @@ export async function commit(
             ? positionId(plan.departmentName, row.positionName)
             : undefined;
         await repository.updateEmployee(tx, e.id, {
-          ...(has("employeeNumber") ? { employeeNumber: row.employeeNumber } : {}),
+          ...(has("employeeNumber") ? { employeeNumber: row.employeeNumber ?? null } : {}),
           ...(has("fullName") ? { fullName: row.fullName } : {}),
           ...(has("workEmail") ? { workEmail: row.workEmail } : {}),
           ...(has("personalEmail") ? { personalEmail: row.personalEmail } : {}),
@@ -918,6 +1015,18 @@ export async function commit(
           },
           tx,
         );
+        // IMP-D1: karyawan pemegang bagan dilengkapi dari file (bukan karyawan baru).
+        if (plan.mergeChartHolder)
+          await writeAudit(
+            {
+              ...audit,
+              action: "employee.import.chart_holder_merged",
+              entityType: "employee.employee",
+              entityId: e.id,
+              after: { source: "import", sourceRow: plan.sourceRow },
+            },
+            tx,
+          );
         const sections = [
           personalChanges.length > 0 && "personal",
           (plan.repeated?.family.length ?? 0) > 0 && "family",

@@ -141,6 +141,8 @@ export function PreviewStep({
   companyOptions,
   companyOverrides,
   onCompanyOverride,
+  chartHolderChoices,
+  onChartHolderChoice,
   columnOf,
   onEditSettings,
   onBack,
@@ -161,6 +163,10 @@ export function PreviewStep({
   companyOverrides: Record<string, string>;
   /** id kosong = kembali ikut kolom file / PT bawaan. */
   onCompanyOverride: (sourceRow: number, id: string) => void;
+  /** IMP-D1: pilihan pemegang bagan per baris (id karyawan ASLI- atau "NEW"). */
+  chartHolderChoices: Record<string, string>;
+  /** Nilai kosong = belum memilih (kembali ke saran). */
+  onChartHolderChoice: (sourceRow: number, value: string) => void;
   columnOf: (field: ImportFieldKey) => number | undefined;
   /** Kembali ke langkah Lengkapi data. */
   onEditSettings: () => void;
@@ -191,6 +197,43 @@ export function PreviewStep({
     [companyOptions],
   );
   const companyIdByCode = new Map(companyOptions.map((c) => [c.label, c.value]));
+  // IMP-D1: pemegang bagan ber-NIP sementara — saran per baris + pilihan manual (PT baris sama).
+  const holderById = useMemo(
+    () => new Map(preview.chartHolders.map((h) => [h.id, h])),
+    [preview.chartHolders],
+  );
+  const chosenHolders = new Set(
+    Object.values(chartHolderChoices).filter((v) => v !== "NEW" && holderById.has(v)),
+  );
+  const pendingHolders = preview.chartHolders.filter((h) => !chosenHolders.has(h.id));
+  const holderOptions = (row: ImportPreview["rows"][number]) => {
+    const company = row.companyCode ? companyIdByCode.get(row.companyCode) : undefined;
+    const suggested = new Map(row.chartHolder?.candidates.map((c) => [c.id, c.match]) ?? []);
+    const label = (h: ImportPreview["chartHolders"][number]) =>
+      `${h.fullName} · ${h.employeeNumber}`;
+    const pool = preview.chartHolders.filter(
+      (h) => suggested.has(h.id) || !company || h.companyId === company,
+    );
+    return [
+      { value: CHART_NEW, label: "Buat karyawan baru" },
+      ...pool
+        .filter((h) => suggested.has(h.id))
+        .map((h) => ({
+          value: h.id,
+          label: label(h),
+          hint: h.postLabel ?? undefined,
+          group: suggested.get(h.id) === "NAME" ? "Saran: nama sama" : "Saran: cocok inisial",
+        })),
+      ...pool
+        .filter((h) => !suggested.has(h.id))
+        .map((h) => ({
+          value: h.id,
+          label: label(h),
+          hint: h.postLabel ?? undefined,
+          group: "Pemegang bagan lain",
+        })),
+    ];
+  };
 
   return (
     <div className="space-y-5">
@@ -230,6 +273,28 @@ export function PreviewStep({
           </Button>
         </div>
       </div>
+
+      {preview.chartHolders.length > 0 ? (
+        <details className="bg-card rounded-2xl border px-4 py-3 text-sm">
+          <summary className="cursor-pointer">
+            <span className="font-medium">
+              Pemegang bagan yang belum dilengkapi: {pendingHolders.length}
+            </span>{" "}
+            <span className="text-muted-foreground">
+              (NIP sementara ASLI-; pilih di kolom Karyawan supaya tidak dobel
+              {chosenHolders.size > 0 ? ` · ${chosenHolders.size} dilengkapi import ini` : ""})
+            </span>
+          </summary>
+          <ul className="text-muted-foreground mt-2 grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
+            {pendingHolders.map((h) => (
+              <li key={h.id}>
+                <span className="text-foreground">{h.fullName}</span>
+                {h.postLabel ? ` · ${h.postLabel}` : ""}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
 
       {counts.attachments > 0 ? (
         <Alert>
@@ -339,6 +404,32 @@ export function PreviewStep({
                     <p className="text-muted-foreground font-mono text-xs">
                       {r.employeeNumber ?? "NIP belum ada"}
                     </p>
+                    {r.chartHolder && preview.chartHolders.length > 0 ? (
+                      <div className="mt-1.5 max-w-64">
+                        <LazySelect
+                          aria-label={`Pemegang bagan baris ${r.sourceRow}`}
+                          value={r.chartHolder.choice ?? ""}
+                          onChange={(v) => onChartHolderChoice(r.sourceRow, v)}
+                          placeholder={
+                            r.chartHolder.candidates.length > 0
+                              ? "Pilih: gabungkan atau buat baru"
+                              : "Gabungkan dengan pemegang bagan…"
+                          }
+                          options={holderOptions(r)}
+                          searchable
+                          invalid={r.issues.some((i) => i.code.startsWith("CHART_HOLDER"))}
+                        />
+                        {r.chartHolder.choice && r.chartHolder.choice !== "NEW" ? (
+                          <p className="text-brand mt-1 text-xs">
+                            Melengkapi pemegang bagan (pos tetap, NIP sementara diganti)
+                          </p>
+                        ) : r.chartHolder.candidates.length > 0 && !r.chartHolder.choice ? (
+                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                            Mirip pemegang bagan — pilih dulu
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell className="font-mono text-xs">
                     {choosePt ? (
@@ -423,3 +514,5 @@ export function PreviewStep({
     </div>
   );
 }
+
+const CHART_NEW = "NEW";

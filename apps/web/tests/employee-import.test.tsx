@@ -367,6 +367,53 @@ describe("Import Data Karyawan", () => {
     });
   });
 
+  it("IMP-D1: saran pemegang bagan per baris + daftar belum dilengkapi; pilihan dikirim", async () => {
+    const withHolders = {
+      ...preview,
+      rows: preview.rows.map((r) =>
+        r.sourceRow === 2
+          ? { ...r, chartHolder: { candidates: [{ id: "h-1", match: "NAME" }], choice: null } }
+          : { ...r, chartHolder: { candidates: [], choice: null } },
+      ),
+      chartHolders: [
+        {
+          id: "h-1",
+          fullName: "Ani Contoh",
+          employeeNumber: "ASLI-ACP-X-1",
+          companyId: ACP.id,
+          postLabel: "Staff Uji · Divisi Uji",
+        },
+        {
+          id: "h-2",
+          fullName: "Budi C.",
+          employeeNumber: "ASLI-ACP-Y-1",
+          companyId: ACP.id,
+          postLabel: null,
+        },
+      ],
+    };
+    const requests = mockBackend({ previewData: withHolders });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
+    expect(await screen.findByText("Pemegang bagan yang belum dilengkapi: 2")).toBeInTheDocument();
+    expect(screen.getByText("Mirip pemegang bagan — pilih dulu")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 2" }));
+    await user.click(screen.getByRole("option", { name: /Ani Contoh · ASLI-ACP-X-1/ }));
+    await waitFor(() => {
+      const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
+      expect(last?.body).toMatchObject({ chartHolderChoices: { "2": "h-1" } });
+    });
+    // Baris tanpa saran tetap bisa memilih manual dari pemegang bagan lain.
+    await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 3" }));
+    await user.click(screen.getByRole("option", { name: /Budi C\. · ASLI-ACP-Y-1/ }));
+    await waitFor(() => {
+      const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
+      expect(last?.body).toMatchObject({ chartHolderChoices: { "2": "h-1", "3": "h-2" } });
+    });
+  });
+
   it("panduan '?' menjelaskan urutan & menandai langkah yang sedang dibuka", async () => {
     mockBackend();
     const user = userEvent.setup();

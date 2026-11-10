@@ -88,6 +88,8 @@ type Choices = {
   companyId: string;
   companyOverrides: Record<string, string>;
   unitChoices: Record<string, UnitChoice>;
+  /** IMP-D1: nomor baris → id pemegang bagan ASLI- yang dilengkapi, atau "NEW". */
+  chartHolderChoices: Record<string, string>;
 };
 
 function Stepper({ current, processing }: { current: Step; processing?: boolean }) {
@@ -157,6 +159,7 @@ export function ImportEmployeesPage() {
   const [statusOverrides, setStatusOverrides] = useState<Record<string, string>>({});
   const [companyOverrides, setCompanyOverrides] = useState<Record<string, string>>({});
   const [unitChoices, setUnitChoices] = useState<Record<string, UnitChoice>>({});
+  const [chartHolderChoices, setChartHolderChoices] = useState<Record<string, string>>({});
   // Lengkapi data pernah dibuka → "Kembali" dari Pratinjau ke sana (bukan melompati ke Pemetaan).
   const [visitedComplete, setVisitedComplete] = useState(false);
   const [result, setResult] = useState<ImportPreview["counts"] | null>(null);
@@ -225,6 +228,7 @@ export function ImportEmployeesPage() {
     // Status & PT per baris berkunci nomor baris sheet sebelumnya.
     setStatusOverrides({});
     setCompanyOverrides({});
+    setChartHolderChoices({});
     setUnitChoices(savedUnits);
     return true;
   }
@@ -257,6 +261,7 @@ export function ImportEmployeesPage() {
     companyId,
     companyOverrides,
     unitChoices,
+    chartHolderChoices,
   };
   const companyOptions = useMemo(
     () => scope.companies.map((c) => ({ value: c.id, label: c.code, hint: c.name })),
@@ -272,6 +277,7 @@ export function ImportEmployeesPage() {
     if (patch.companyId !== undefined) setCompanyId(patch.companyId);
     if (patch.companyOverrides) setCompanyOverrides(patch.companyOverrides);
     if (patch.unitChoices) setUnitChoices(patch.unitChoices);
+    if (patch.chartHolderChoices) setChartHolderChoices(patch.chartHolderChoices);
     void runPreview(next, "stay");
   }
 
@@ -292,6 +298,9 @@ export function ImportEmployeesPage() {
         ? { companyOverrides: c.companyOverrides }
         : {}),
       ...(Object.keys(c.unitChoices).length > 0 ? { unitMapping: c.unitChoices } : {}),
+      ...(Object.keys(c.chartHolderChoices).length > 0
+        ? { chartHolderChoices: c.chartHolderChoices }
+        : {}),
       ...(c.defaultStatusId ? { defaultEmploymentStatusId: c.defaultStatusId } : {}),
       ...(Object.keys(c.statusOverrides).length > 0
         ? { employmentStatusOverrides: c.statusOverrides }
@@ -420,6 +429,7 @@ export function ImportEmployeesPage() {
     setMasterMap(EMPTY_MAP);
     setStatusOverrides({});
     setCompanyOverrides({});
+    setChartHolderChoices({});
     setUnitChoices({});
     setVisitedComplete(false);
     if (fileInput.current) fileInput.current.value = "";
@@ -634,6 +644,13 @@ export function ImportEmployeesPage() {
             if (id) next[String(sourceRow)] = id;
             else delete next[String(sourceRow)];
             changeChoices({ companyOverrides: next });
+          }}
+          chartHolderChoices={chartHolderChoices}
+          onChartHolderChoice={(sourceRow, value) => {
+            const next = { ...chartHolderChoices };
+            if (value) next[String(sourceRow)] = value;
+            else delete next[String(sourceRow)];
+            changeChoices({ chartHolderChoices: next });
           }}
           columnOf={columnOf}
           onEditSettings={() => {
