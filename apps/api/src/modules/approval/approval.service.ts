@@ -24,6 +24,9 @@ export interface RequestContext {
 }
 
 export type ApprovalTx = repository.ApprovalTx;
+/** Read-only impact summary; running requests keep their original approvers. */
+export const countPendingRequestsForEmployees = (tx: ApprovalTx, employeeIds: string[]) =>
+  repository.countPendingByRequester(tx, employeeIds);
 export type FinalStatus = "APPROVED" | "REJECTED" | "CANCELLED";
 /** Tugas setelah keputusan final ter-commit (gagal = diabaikan; keputusan sudah berlaku). */
 export type AfterCommit = (task: () => Promise<unknown>) => void;

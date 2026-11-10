@@ -19,7 +19,7 @@ export interface EmployeeMasterDataSupport {
   /** D-051: PT para pemegang pos tertentu (untuk aturan PT unit, D-052). */
   postHolderCompanies(tx: OrganizationTx, postIds: string[]): Promise<string[]>;
   /** D-053: hitung ulang atasan otomatis semua pemegang pos; mengembalikan jumlah yang berubah. */
-  syncPostManagers(tx: OrganizationTx): Promise<number>;
+  syncPostManagers(tx: OrganizationTx, postIds?: ReadonlySet<string>): Promise<number>;
 }
 
 let support: EmployeeMasterDataSupport | undefined;

@@ -17,7 +17,7 @@ const post = {
   code: "ACP-KTT",
   positionId: ID(2),
   positionName: "Kepala Teknik Tambang",
-  level: "MANAGER",
+  level: "L3",
   departmentId: ID(3),
   departmentName: "Site Operasional",
   unitType: "DIVISION",
@@ -39,7 +39,7 @@ const position = {
   employeeCount: 1,
   departmentId: ID(3),
   departmentName: "Site Operasional",
-  level: "MANAGER",
+  level: "L3",
 };
 const unit = {
   id: ID(3),

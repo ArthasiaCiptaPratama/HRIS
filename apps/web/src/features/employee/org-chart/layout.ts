@@ -267,3 +267,41 @@ export function searchChart(chart: OrgChart, index: ChartIndex, query: string): 
   }
   return [...people, ...posts].slice(0, 12);
 }
+
+/** ORG-D4: filter tampilan bagan menurut zona. */
+export type ZoneFilter = "ALL" | "HO" | "SITE";
+
+export interface ZoneView {
+  chart: OrgChart;
+  /** Pos zona lain yang tetap tampil redup karena tersambung garis ke pos yang lolos filter. */
+  dimmed: Set<string>;
+}
+
+/**
+ * Pos yang lolos filter + pos di seberang garis yang melintas zona (atasan langsung, bawahan langsung,
+ * atasan/bawahan fungsional) supaya garis HO↔Site tidak hilang; pos seberang ditampilkan redup.
+ * Pos tanpa zona (fungsi korporat) hanya tampil di "Semua".
+ */
+export function filterByZone(
+  chart: OrgChart,
+  zoneOf: (post: OrgChartPost) => "HO" | "SITE" | null,
+  filter: ZoneFilter,
+): ZoneView {
+  if (filter === "ALL") return { chart, dimmed: new Set() };
+  const keep = new Set(chart.posts.filter((post) => zoneOf(post) === filter).map((p) => p.id));
+  const dimmed = new Set<string>();
+  for (const post of chart.posts) {
+    if (keep.has(post.id)) {
+      for (const link of [post.reportsToId, post.functionalReportsToId]) {
+        if (link && !keep.has(link)) dimmed.add(link);
+      }
+    } else if (
+      (post.reportsToId && keep.has(post.reportsToId)) ||
+      (post.functionalReportsToId && keep.has(post.functionalReportsToId))
+    ) {
+      dimmed.add(post.id);
+    }
+  }
+  const visible = new Set([...keep, ...dimmed]);
+  return { chart: { ...chart, posts: chart.posts.filter((p) => visible.has(p.id)) }, dimmed };
+}

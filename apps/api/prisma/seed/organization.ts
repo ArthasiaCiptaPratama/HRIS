@@ -25,26 +25,26 @@ export const DIRECTORATES: Array<{
     name: "Direktorat Utama",
     parent: null,
     positions: [
-      { name: "Direktur Utama", level: "DIRECTOR" },
-      { name: "Sekretaris Direksi", level: "STAFF" },
+      { name: "Direktur Utama", level: "L7" },
+      { name: "Sekretaris Direksi", level: "L1A" },
     ],
     departments: ["Human Resources & GA", "Keuangan & Akuntansi", "Teknologi Informasi"],
   },
   {
     name: "Direktorat Operasional",
     parent: "Direktorat Utama",
-    positions: [{ name: "Direktur Operasional", level: "DIRECTOR" }],
+    positions: [{ name: "Direktur Operasional", level: "L6" }],
     departments: ["Operasional", "Penjualan & Pemasaran"],
   },
 ];
 
 /** D-050: level jabatan dummy (dipakai hanya saat jabatan baru dibuat). */
 const POSITION_LEVELS_SEED: Record<string, PositionLevel> = {
-  "HR Manager": "MANAGER",
-  "Finance Manager": "MANAGER",
-  "IT Manager": "MANAGER",
-  "Operations Manager": "MANAGER",
-  "Sales Manager": "MANAGER",
+  "HR Manager": "L3",
+  "Finance Manager": "L3",
+  "IT Manager": "L3",
+  "Operations Manager": "L3",
+  "Sales Manager": "L3",
 };
 
 // D-035/D-038: satu status per kategori navigasi. `legacyNames` = nama seed lama yang diganti (DB developer

@@ -3,6 +3,7 @@ import {
   canReportTo,
   orgPostInputSchema,
   resolvePostManagers,
+  unitZones,
   wouldCreatePostCycle,
 } from "../src/org-chart.ts";
 
@@ -138,5 +139,28 @@ describe("resolvePostManagers (D-053)", () => {
       eligibleManagers: new Set(),
     });
     expect(result.get("x")).toBeNull();
+  });
+});
+
+describe("unitZones (ORG-D4)", () => {
+  test("akar bernama 'Site …' beserta turunannya = SITE; lainnya HO", () => {
+    const zones = unitZones([
+      { id: "dir", name: "Direksi (ACP)", parentId: null },
+      { id: "ops", name: "Direktorat Operasional (ACP)", parentId: "dir" },
+      { id: "site", name: "Site Operasional (ACP)", parentId: "ops" },
+      { id: "eng", name: "Engineering (ACP)", parentId: "site" },
+      { id: "drl", name: "Drilling (ACP)", parentId: "eng" },
+      { id: "fat", name: "Finance, Accounting & Tax (ACP)", parentId: "dir" },
+      { id: "hrga", name: "HR & GA Site (ACP)", parentId: null },
+      { id: "s2", name: "site (CD2)", parentId: null },
+    ]);
+    expect(zones.get("dir")).toBe("HO");
+    expect(zones.get("ops")).toBe("HO");
+    expect(zones.get("site")).toBe("SITE");
+    expect(zones.get("drl")).toBe("SITE");
+    expect(zones.get("fat")).toBe("HO");
+    // "Site" di tengah nama bukan akar.
+    expect(zones.get("hrga")).toBe("HO");
+    expect(zones.get("s2")).toBe("SITE");
   });
 });

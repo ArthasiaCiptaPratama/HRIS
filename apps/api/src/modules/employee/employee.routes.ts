@@ -41,6 +41,12 @@ import { registerOnboardingRoutes } from "./onboarding.routes.ts";
 import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
 import { orgChartQuerySchema, orgChartSchema, orgPersonCardSchema } from "./org-chart.schema.ts";
 import * as orgChart from "./org-chart.service.ts";
+import {
+  orgChartChangesBodySchema,
+  orgChartChangesPreviewSchema,
+  orgChartChangesResultSchema,
+} from "./org-chart-edit.contract.ts";
+import * as orgChartEdit from "./org-chart-edit.service.ts";
 
 export interface EmployeeRouteDeps {
   /** authenticate + loadActor, dirakit di app.ts. */
@@ -176,6 +182,42 @@ const routes = {
     responses: {
       200: json("Bagan organisasi", dataEnvelope(orgChartSchema)),
       ...errors(400, 401, 403, 404, 500),
+    },
+  }),
+  orgChartChanges: createRoute({
+    method: "post",
+    path: `${P}/org-chart/changes`,
+    tags: TAGS,
+    summary:
+      "Terapkan perubahan bagan berurutan dan atomik (ORG-D2; izin org.structure.manage per PT)",
+    security,
+    request: {
+      body: {
+        required: true,
+        content: { "application/json": { schema: orgChartChangesBodySchema } },
+      },
+    },
+    responses: {
+      200: json("Perubahan diterapkan", dataEnvelope(orgChartChangesResultSchema)),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  orgChartChangesPreview: createRoute({
+    method: "post",
+    path: `${P}/org-chart/changes/preview`,
+    tags: TAGS,
+    summary:
+      "Pratinjau perubahan bagan, atasan otomatis, dan pengajuan berjalan tanpa menyimpan (ORG-D2)",
+    security,
+    request: {
+      body: {
+        required: true,
+        content: { "application/json": { schema: orgChartChangesBodySchema } },
+      },
+    },
+    responses: {
+      200: json("Ringkasan dampak", dataEnvelope(orgChartChangesPreviewSchema)),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
     },
   }),
   orgPersonCard: createRoute({
@@ -405,6 +447,12 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
   );
   app.openapi(guard(routes.orgChart), async (c) =>
     c.json(ok(await orgChart.getOrgChart(ctx(c), c.req.valid("query"))), 200),
+  );
+  app.openapi(guard(routes.orgChartChanges), async (c) =>
+    c.json(ok(await orgChartEdit.applyOrgChartChanges(ctx(c), c.req.valid("json"))), 200),
+  );
+  app.openapi(guard(routes.orgChartChangesPreview), async (c) =>
+    c.json(ok(await orgChartEdit.previewOrgChartChanges(ctx(c), c.req.valid("json"))), 200),
   );
   app.openapi(guard(routes.orgPersonCard), async (c) =>
     c.json(ok(await orgChart.getPersonCard(ctx(c), c.req.valid("param").id)), 200),

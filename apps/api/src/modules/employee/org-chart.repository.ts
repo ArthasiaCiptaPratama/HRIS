@@ -50,6 +50,19 @@ export async function listPostHolders(tx?: EmployeeTx) {
 }
 export type PostHolderRow = Awaited<ReturnType<typeof listPostHolders>>[number];
 
+/** Directory-only snapshot also includes people detached during an edit. */
+export function listChartPeople(tx: EmployeeTx) {
+  return tx.employee.findMany({
+    where: { isActive: true, onboardingStatus: "APPROVED" },
+    select: { id: true, fullName: true, companyId: true, managerId: true, orgPostId: true },
+    orderBy: { employeeNumber: "asc" },
+  });
+}
+
+export function findChartPersonNames(tx: EmployeeTx, ids: string[]) {
+  return tx.employee.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } });
+}
+
 export async function setManager(tx: EmployeeTx, id: string, managerId: string | null) {
   await tx.employee.update({ where: { id }, data: { managerId }, select: { id: true } });
 }

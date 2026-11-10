@@ -10,7 +10,22 @@ export {
   listGeofencedWorkLocations,
   type WorkLocationBrief,
 } from "./directory.service.ts";
-export { listOrgPosts, type OrgPostNode } from "./org-post.service.ts";
+export {
+  auditOrgChartBatch,
+  createChartPosition,
+  getOrgChartRevision,
+  type OrgChartEditTx,
+  withOrgChartEdit,
+} from "./org-chart-edit.service.ts";
+export {
+  archivePostInTransaction,
+  createPostInTransaction,
+  getOrgChartPostsSnapshot,
+  listOrgPosts,
+  type OrgPostNode,
+  updatePostInTransaction,
+} from "./org-post.service.ts";
+export { canManageOrgPost, canManageOrgStructure } from "./organization.policy.ts";
 export { type OrganizationRouteDeps, registerOrganizationRoutes } from "./organization.routes.ts";
 export type {
   CompanyDto,
