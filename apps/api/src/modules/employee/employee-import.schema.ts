@@ -67,6 +67,14 @@ export const importBodySchema = z
       .optional(),
     /** D-064: pencocokan nilai Departemen/Divisi ke unit organisasi. */
     unitMapping: unitChoicesSchema.optional(),
+    /**
+     * IMP-D1: baris → pemegang bagan bernomor sementara ASLI- yang dilengkapi (id karyawan), atau
+     * "NEW" = tetap buat karyawan baru. Hanya untuk baris yang tidak cocok lewat NIP/NIK.
+     */
+    chartHolderChoices: z
+      .record(rowKey, z.union([z.uuid(), z.literal("NEW")]))
+      .refine((value) => Object.keys(value).length <= IMPORT_MAX_ROWS, "Terlalu banyak baris")
+      .optional(),
     masterDataMapping: z
       .object({
         departments: nameMap.optional(),
@@ -129,6 +137,29 @@ export const previewSchema = z
         changes: z.array(z.string()),
         issues: z.array(issueSchema),
         attachments: z.number().int(),
+        /**
+         * IMP-D1: null = baris cocok lewat NIP/NIK (bukan jalur ini). Selain itu: saran kandidat
+         * pemegang bagan (nama sama tanpa gelar / inisial) + pilihan HR saat ini.
+         */
+        chartHolder: z
+          .object({
+            candidates: z.array(z.object({ id: z.uuid(), match: z.enum(["NAME", "INITIALS"]) })),
+            choice: z.union([z.uuid(), z.literal("NEW")]).nullable(),
+          })
+          .nullable(),
+      }),
+    ),
+    /**
+     * IMP-D1: pemegang bagan yang masih ber-NIP sementara (ASLI-) di cakupan aktor — pilihan manual
+     * di Pratinjau & daftar "belum dilengkapi". Kolom direktori saja.
+     */
+    chartHolders: z.array(
+      z.object({
+        id: z.uuid(),
+        fullName: z.string(),
+        employeeNumber: z.string(),
+        companyId: z.uuid(),
+        postLabel: z.string().nullable(),
       }),
     ),
     /** D-064: nilai unik kolom Departemen/Divisi & hasil pencocokannya (tanpa data karyawan). */

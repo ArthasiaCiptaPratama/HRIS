@@ -40,6 +40,27 @@ export async function findExistingByIds(ids: string[]): Promise<ExistingEmployee
   });
 }
 
+/** IMP-D1: pemegang bagan bernomor sementara ASLI- (aktif & disetujui) di PT tertentu (null = semua). */
+export async function listChartHolders(companyIds: readonly string[] | null) {
+  return getPrisma().employee.findMany({
+    where: {
+      employeeNumber: { startsWith: "ASLI-", mode: "insensitive" },
+      isActive: true,
+      onboardingStatus: "APPROVED",
+      ...(companyIds ? { companyId: { in: [...companyIds] } } : {}),
+    },
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      companyId: true,
+      managerId: true,
+      orgPostId: true,
+    },
+    orderBy: { fullName: "asc" },
+  });
+}
+
 /** Pemilik NIK KTP / email kantor (cek unik terhadap karyawan lain). */
 export async function findKtpOwners(ktpNumbers: string[]) {
   if (ktpNumbers.length === 0) return new Map<string, string>();
