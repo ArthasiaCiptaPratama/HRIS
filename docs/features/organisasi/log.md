@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-10 — Rilis staging gel. 22/23 + pembersihan nama asli di repo (Oatse)
+- **Dikerjakan:** rilis staging oleh sesi `hris-rilis-0d`: gel. 22 develop `33d6c42` (ORG-D1 L0–L7, ORG-D2, ORG-D4; migrasi 53 → 58) dan gel. 23 develop `a95d62d` (IMP-D1). Data staging dibersihkan dan bagan PDF 06.11 diisi ulang (55 `ASLI-`; 8 akun uji = Magang L0 tanpa pos; akun HR & MGR di jabatan lama). Di develop: nama asli di RELEASE #80, catatan ORG-D3/koreksi bagan, contoh IMP-D1, dan dua catatan lama diganti peran/nama fiktif (`a95d62d`). PROGRESS/CODEMAP dirapikan.
+- **Keputusan:** —
+- **Verifikasi:** `Deploy staging` #42780975386 ✔ dan #42796846160 ✔ (rincian `HRIS-rilis/docs/RELEASE.md` §4); `a95d62d`: typecheck ✔, biome ✔, test import-chart-holder shared 11 · api 3 ✔, CI #42793861373 ✔.
+- **Masalah / catatan:** 1 nama depan asli tersisa di pesan commit `02dff2f` (tulis ulang riwayat = kata pengguna); 3 pos CD2 kosong di staging belum diputuskan; mode edit hanya ≥ 1024 px.
+- **Berikutnya:** uji login Karyawan/HR di staging lewat browser; kolom resmi zona HO/Site (Backlog).
+
 ### 2026-11-10 — Level L0 Magang (tambahan ORG-D1) (Oatse)
 - **Dikerjakan:** enum `PositionLevel` + `L0` (migrasi ADD VALUE), shared `POSITION_LEVELS` …L1B, L0 + label "L0 · Magang", token `--org-l0` teal (terang `oklch(0.64 0.09 195)`, gelap `oklch(0.75 0.09 195)`; tidak bentrok dengan abu L7/biru L3/hijau L5), demo dashboard. Legenda kanvas, master data, laporan/pivot mengikuti `POSITION_LEVELS` otomatis.
 - **Keputusan:** tambahan ORG-D1 (kutipan pengguna ±14:58 WIB "Buat level baru L0", untuk jabatan Magang karyawan uji staging tanpa pos).

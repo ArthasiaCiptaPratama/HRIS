@@ -1,7 +1,7 @@
 # Organisasi — master data & bagan
 
 > **Kode prefix:** `ORG` · **Fase:** 3 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — master data, geofence, unit berjenjang, bagan pos jabatan ✔ staging; level 1b–7 (ORG-D1), mode edit bagan (ORG-D2), jabatan rangkap ORG-D3 dibatalkan (ralat pengguna) ✔ develop 2026-11-10 (belum staging); sisa: profil perusahaan & pengaturan sistem
+> **Status:** Berjalan — master data, geofence, unit berjenjang, bagan pos jabatan ✔ staging; level L0–L7 (ORG-D1), mode edit bagan (ORG-D2), penanda HO/Site (ORG-D4) ✔ staging gel. 22 2026-11-10; jabatan rangkap ORG-D3 dibatalkan (ralat pengguna); sisa: profil perusahaan & pengaturan sistem
 
 Multi-PT (D-039), 6 master data (D-049), peta geofence lokasi kerja, unit organisasi berjenjang & level jabatan (D-050), bagan organisasi berbasis pos jabatan + atasan otomatis (D-051–D-053, D-066).
 
@@ -26,7 +26,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] Policy + test — `canReadMasterData`, `canViewMasterDataAdmin`, `canManageMasterData` (11 test, TDD) ✔; integration `organization/master-data.test.ts` 17 ✔
 - [x] Web: halaman master data (Administrasi → Master Data: perusahaan, departemen, jabatan, status, grade, site/lokasi; Tahap 3) — `features/organization/`, web test 5 ✔; uji browser belum (butuh password akun uji)
  - [x] Web: Struktur Organisasi (per departemen + bagan atasan, pencarian) (tambahan 2026-09-29: D-035 menu e)
- - [x] Level jabatan bernomor 1b–7 + warna bagan sesuai legenda (ORG-D1) ✔ lokal 2026-11-10 — migrasi enum + pemetaan data lama, shared/report/dashboard/master data/seed/test (tambahan 2026-11-10: handoff supervisor 10:12, bagan site 06.11.2026)
+ - [x] Level jabatan bernomor 1b–7 + warna bagan sesuai legenda (ORG-D1; + L0 Magang) ✔ lokal 2026-11-10 · ✔ staging gel. 22 — migrasi enum + pemetaan data lama, shared/report/dashboard/master data/seed/test (tambahan 2026-11-10: handoff supervisor 10:12, bagan site 06.11.2026)
  - [x] **Bagan organisasi interaktif berbasis pos jabatan** (D-051–D-053, desain `docs/features/organisasi/design.md`) ✔ lokal 2026-10-05 · ✔ staging 2026-10-08 (rilis gel. 2, seed replika bagan) (tambahan 2026-10-05: permintaan pemilik projek, dari org chart site ACP)
   - [x] Skema: `org_posts`, `departments.company_id`, `employees.org_post_id/manager_override` (migrasi `20261005032136`, hanya menambah) + aturan shared (siklus, PT, atasan otomatis — TDD)
   - [x] API `/org-posts` (+ sinkron atasan), `/org-chart`, `/org-chart/people/:id`, penempatan pos di `/employees` + integration 9
@@ -34,7 +34,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Seed replika bentuk bagan ACP + CD2 (nama fiktif); script `org:import-local` nama asli khusus DB lokal (file di luar repo)
   - [x] **Staging berisi nama asli bagan ACP** (D-066; tambahan 2026-10-12: permintaan pemilik projek — staging dibersihkan, sisa akun + master data; 63 karyawan `ASLI-` di 54 pos; Site = unit + lokasi "Site (ACP)") — `org:import-local --remote`, verifikasi MCP ✔; koordinat Site asli menyusul
   - [x] Rilis ke staging + seed ulang staging (izin)
- - [x] **Mode edit bagan organisasi (ORG-D2)** ✔ develop 2026-11-10 — handoff supervisor 2026-11-10 10:12 (tambahan 2026-11-10: permintaan pengguna, hasil grill)
+ - [x] **Mode edit bagan organisasi (ORG-D2)** ✔ develop 2026-11-10 · ✔ staging gel. 22 2026-11-10 — handoff supervisor 2026-11-10 10:12 (tambahan 2026-11-10: permintaan pengguna, hasil grill)
   - [x] 2a API: izin `org.structure.manage`, revisi bagan, `POST /org-chart/changes` (+ `/preview`), `/org-posts` tulis per PT + revisi — integration 16 (403/409/atomik/D-053/preview) ✔ lokal
   - [x] 2b Web: mode edit (draf, undo/redo, titik biru, seret titik/kartu/avatar, toolbar, dialog pos/atasan/hapus), desktop saja — web test draf ✔
   - [x] 2c Pratinjau dampak + simpan (409 → muat ulang, beforeunload) ✔ lokal
@@ -42,6 +42,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Reset DB lokal + bagan PDF 06.11 (kutipan pengguna 10:57 & 11:02): seed 90 pos ACP nama fiktif, 55 nama asli lewat `org:import-local`, 4 akun uji dipulihkan, dummy lain dihapus; ralat 11:30: Superintendent HR & GA & Assistant Manager F A T Vacant, pemegang HR Operational & IR Manager tidak merangkap, pemegang Finance Site tidak merangkap, Foreman Finance dihapus
   - [x] Penanda HO/Site di bagan (ORG-D4): chip "HO"/"Site" di kartu + filter Semua | HO | Site; pos zona lain yang tersambung garis tampil redup (tambahan 2026-11-10: ralat pengguna 11:30 — hlm 4 PDF = HO, hlm 1–3 = Site; kutipan 11:40 "Chip + filter di bagan")
   - [x] Uji di Zen (headless, akun SA lokal) — 12 screenshot `QA/2026-11-10-org-chart-edit/`; 3 temuan diperbaiki (`089cb78`) — rilis gel. 2 2026-10-08 (PR #35/#36, Deploy #37762327378); seed ulang replika bagan + pembersihan karyawan dummy lain
+  - [x] Rilis staging gel. 22 (Deploy #42780975386) + data staging: karyawan dummy dihapus, bagan PDF 06.11 diisi ulang (55 `ASLI-`), 8 akun uji = Magang L0 tanpa pos (sesi `hris-rilis-0d`; cadangan di luar repo) (tambahan 2026-11-10: kutipan pengguna 14:54)
+  - [x] Nama asli di docs/test diganti nama fiktif (`a95d62d`, D-051/D-066) (tambahan 2026-11-10: temuan sesi rilis)
 
 ## Keputusan
 
