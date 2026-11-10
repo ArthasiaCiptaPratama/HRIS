@@ -37,8 +37,8 @@ const ids = {
   filePosition: "",
   status: "",
   post: "",
-  zul: "",
-  isnaini: "",
+  bdm: "",
+  arif: "",
   twinA: "",
   twinB: "",
   otherHolder: "",
@@ -105,8 +105,8 @@ beforeAll(async () => {
   ids.post = (
     await prisma.orgPost.create({ data: { positionId: ids.postPosition, headcount: 3 } })
   ).id;
-  ids.zul = await holder("ZUL", `Zulkarnaim ${RUN}, S.H., M.H.`, ids.company, ids.post);
-  ids.isnaini = await holder("ISN", `M. Isnaini${RUN}`, ids.company, ids.post);
+  ids.bdm = await holder("BDM", `Budiman ${RUN}, S.H., M.H.`, ids.company, ids.post);
+  ids.arif = await holder("ARF", `M. Arif${RUN}`, ids.company, ids.post);
   ids.twinA = await holder("TWA", `Kembar ${RUN}`);
   ids.twinB = await holder("TWB", `Kembar ${RUN}`);
   ids.otherHolder = await holder("OTH", `Lain ${RUN}`, ids.other);
@@ -158,8 +158,8 @@ describe("IMP-D1 Pratinjau", () => {
   test("saran nama (tanpa gelar) & inisial wajib dipilih; tanpa kandidat tidak error; PT lain tidak", async () => {
     const result = await preview(
       body([
-        fileRow(2, base("Z", `ZULKARNAIM ${RUN}`)),
-        fileRow(3, base("I", `Muhammad Isnaini${RUN}`)),
+        fileRow(2, base("Z", `BUDIMAN ${RUN}`)),
+        fileRow(3, base("I", `Muhammad Arif${RUN}`)),
         fileRow(4, base("K", `Kembar ${RUN}`)),
         fileRow(5, base("N", `Orang Baru ${RUN}`)),
         fileRow(6, base("L", `Lain ${RUN}`)),
@@ -168,12 +168,12 @@ describe("IMP-D1 Pratinjau", () => {
     const byRow = new Map(result.rows.map((r: { sourceRow: number }) => [r.sourceRow, r]));
     // biome-ignore lint/suspicious/noExplicitAny: bentuk baris pratinjau
     const at = (n: number) => byRow.get(n) as any;
-    expect(at(2).chartHolder.candidates).toEqual([{ id: ids.zul, match: "NAME" }]);
+    expect(at(2).chartHolder.candidates).toEqual([{ id: ids.bdm, match: "NAME" }]);
     expect(at(2).action).toBe("ERROR");
     expect(at(2).issues.map((i: { code: string }) => i.code)).toContain(
       "CHART_HOLDER_CHOICE_REQUIRED",
     );
-    expect(at(3).chartHolder.candidates).toEqual([{ id: ids.isnaini, match: "INITIALS" }]);
+    expect(at(3).chartHolder.candidates).toEqual([{ id: ids.arif, match: "INITIALS" }]);
     expect(
       at(4)
         .chartHolder.candidates.map((c: { id: string }) => c.id)
@@ -187,27 +187,27 @@ describe("IMP-D1 Pratinjau", () => {
     // biome-ignore lint/suspicious/noExplicitAny: daftar pemegang
     const holders = result.chartHolders.filter((h: any) => h.companyId === ids.company);
     expect(holders.map((h: { id: string }) => h.id).sort()).toEqual(
-      [ids.zul, ids.isnaini, ids.twinA, ids.twinB].sort(),
+      [ids.bdm, ids.arif, ids.twinA, ids.twinB].sort(),
     );
-    expect(holders.find((h: { id: string }) => h.id === ids.zul).postLabel).toContain("Jab Pos");
+    expect(holders.find((h: { id: string }) => h.id === ids.bdm).postLabel).toContain("Jab Pos");
   });
 
   test("HR PT lain tidak melihat pemegang bagan PT ini; satu pemegang dipilih dua baris → TAKEN", async () => {
     const hrView = await preview(
-      body([fileRow(2, base("Z", `ZULKARNAIM ${RUN}`))], { companyId: ids.other }),
+      body([fileRow(2, base("Z", `BUDIMAN ${RUN}`))], { companyId: ids.other }),
       hrOther.headers,
     );
     expect(hrView.chartHolders.map((h: { id: string }) => h.id)).toEqual([ids.otherHolder]);
     const twice = await preview(
-      body([fileRow(2, base("Z", `ZULKARNAIM ${RUN}`)), fileRow(3, base("Y", `Siapa ${RUN}`))], {
-        chartHolderChoices: { "2": ids.zul, "3": ids.zul },
+      body([fileRow(2, base("Z", `BUDIMAN ${RUN}`)), fileRow(3, base("Y", `Siapa ${RUN}`))], {
+        chartHolderChoices: { "2": ids.bdm, "3": ids.bdm },
       }),
     );
     const codes = twice.rows[1].issues.map((i: { code: string }) => i.code);
     expect(codes).toContain("CHART_HOLDER_TAKEN");
     // Pilihan yang bukan pemegang bagan → INVALID.
     const invalid = await preview(
-      body([fileRow(2, base("Z", `ZULKARNAIM ${RUN}`))], {
+      body([fileRow(2, base("Z", `BUDIMAN ${RUN}`))], {
         chartHolderChoices: { "2": crypto.randomUUID() },
       }),
     );
@@ -222,16 +222,16 @@ describe("IMP-D1 Simpan", () => {
     const before = await prisma.employee.count({ where: { companyId: ids.company } });
     const payload = body(
       [
-        fileRow(2, base("Z", `ZULKARNAIM ${RUN}`, { phoneNumber: "081234567890" })),
+        fileRow(2, base("Z", `BUDIMAN ${RUN}`, { phoneNumber: "081234567890" })),
         // Tanpa NIP: NIP sementara dikosongkan, NIK jadi kunci (manual dipilih tanpa saran).
         fileRow(3, {
-          ...base("I", `Isnaini Lengkap ${RUN}`, { ktpNumber: "6271011205800977" }),
+          ...base("I", `Arif Lengkap ${RUN}`, { ktpNumber: "6271011205800977" }),
           employeeNumber: "",
         }),
         fileRow(4, base("K", `Kembar ${RUN}`)),
       ],
       {
-        chartHolderChoices: { "2": ids.zul, "3": ids.isnaini, "4": "NEW" },
+        chartHolderChoices: { "2": ids.bdm, "3": ids.arif, "4": "NEW" },
         companyId: ids.company,
       },
     );
@@ -244,13 +244,13 @@ describe("IMP-D1 Simpan", () => {
     });
     expect(saved.status).toBe(201);
 
-    const zul = await prisma.employee.findUniqueOrThrow({ where: { id: ids.zul } });
-    expect(zul.employeeNumber).toBe(NUM("Z"));
-    expect(zul.fullName).toBe(`ZULKARNAIM ${RUN}`);
-    expect(zul.phoneNumber).toBe("081234567890");
-    expect(zul.orgPostId).toBe(ids.post);
-    expect(zul.positionId).toBe(ids.postPosition);
-    const isn = await prisma.employee.findUniqueOrThrow({ where: { id: ids.isnaini } });
+    const bdm = await prisma.employee.findUniqueOrThrow({ where: { id: ids.bdm } });
+    expect(bdm.employeeNumber).toBe(NUM("Z"));
+    expect(bdm.fullName).toBe(`BUDIMAN ${RUN}`);
+    expect(bdm.phoneNumber).toBe("081234567890");
+    expect(bdm.orgPostId).toBe(ids.post);
+    expect(bdm.positionId).toBe(ids.postPosition);
+    const isn = await prisma.employee.findUniqueOrThrow({ where: { id: ids.arif } });
     expect(isn.employeeNumber).toBeNull();
     expect(isn.orgPostId).toBe(ids.post);
     // Hanya baris "NEW" yang menambah karyawan.
@@ -258,7 +258,7 @@ describe("IMP-D1 Simpan", () => {
     const audits = await prisma.auditLog.findMany({
       where: {
         action: "employee.import.chart_holder_merged",
-        entityId: { in: [ids.zul, ids.isnaini] },
+        entityId: { in: [ids.bdm, ids.arif] },
       },
     });
     expect(audits).toHaveLength(2);
@@ -266,7 +266,7 @@ describe("IMP-D1 Simpan", () => {
     // Setelah dilengkapi, tidak lagi muncul sebagai pemegang bagan sementara.
     const again = await preview(body([fileRow(2, base("Q", `Siapa Lagi ${RUN}`))]));
     const remaining = again.chartHolders.map((h: { id: string }) => h.id);
-    expect(remaining).not.toContain(ids.zul);
-    expect(remaining).not.toContain(ids.isnaini);
+    expect(remaining).not.toContain(ids.bdm);
+    expect(remaining).not.toContain(ids.arif);
   });
 });

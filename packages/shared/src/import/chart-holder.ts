@@ -74,7 +74,7 @@ export const NAME_TITLES: ReadonlySet<string> = new Set([
 
 /**
  * Kunci nama untuk pencocokan: NFKC, huruf kecil, titik & koma dihapus, gelar dibuang, spasi rapat.
- * Contoh: "Zulkarnaim, S.H., M.H." → "zulkarnaim"; "Ir. Budi  Santoso" → "budi santoso".
+ * Contoh: "Budiman, S.H., M.H." → "budiman"; "Ir. Budi  Santoso" → "budi santoso".
  */
 export function chartHolderNameKey(name: string): string {
   return nameTokens(name).join(" ");
@@ -88,7 +88,7 @@ function nameTokens(name: string): string[] {
       .split(/[\s,]+/)
       .map((token) => token.replace(/\./g, ""))
       .filter((token) => token.length > 0)
-      // "H."/"Hj." = sapaan haji hanya di depan nama; di belakang ("Rahmat H.") = inisial nama.
+      // "H."/"Hj." = sapaan haji hanya di depan nama; di belakang ("Budi S.") = inisial nama.
       .filter((token, i) => !NAME_TITLES.has(token) || (LEADING_ONLY.has(token) && i > 0))
   );
 }
@@ -96,8 +96,8 @@ function nameTokens(name: string): string[] {
 const LEADING_ONLY: ReadonlySet<string> = new Set(["h", "hj"]);
 
 /**
- * Saran inisial (tetap harus dikonfirmasi HR): nama pemegang bagan yang disingkat ("M. Isnaini",
- * "Rahmat H.") cocok dengan nama lengkap di file bila jumlah kata sama, setiap kata satu huruf
+ * Saran inisial (tetap harus dikonfirmasi HR): nama pemegang bagan yang disingkat ("M. Arif",
+ * "Budi S.") cocok dengan nama lengkap di file bila jumlah kata sama, setiap kata satu huruf
  * cocok dengan awal kata pada posisi yang sama, dan kata lainnya sama persis. Minimal satu kata utuh
  * harus sama supaya "A. B." tidak cocok dengan siapa saja.
  */
