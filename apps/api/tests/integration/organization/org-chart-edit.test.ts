@@ -632,3 +632,46 @@ describe("ORG-D2 preview dan D-053", () => {
     expect(await revision()).toBe(baseRevision);
   });
 });
+
+describe("ORG-D2 cakupan sinkron atasan untuk HR", () => {
+  test("batch HR tidak menyentuh atasan karyawan PT lain; pratinjau HR tidak memuat karyawan PT lain", async () => {
+    const otherBossPost = (await prisma.orgPost.create({ data: { positionId: otherPositionId } }))
+      .id;
+    const otherStaffPost = (
+      await prisma.orgPost.create({
+        data: { positionId: otherPositionId, reportsToId: otherBossPost },
+      })
+    ).id;
+    const make = async (label: string, orgPostId: string) => {
+      const row = await prisma.employee.create({
+        data: {
+          employeeNumber: `OCE-${RUN}-${label}`,
+          fullName: name(label),
+          companyId: otherCompanyId,
+          employmentStatusId: statusId,
+          positionId: otherPositionId,
+          joinDate: new Date("2024-01-02"),
+          orgPostId,
+        },
+      });
+      employeeIds.push(row.id);
+      return row.id;
+    };
+    const otherBoss = await make("other-boss", otherBossPost);
+    const otherStaff = await make("other-staff", otherStaffPost);
+    await auth.loginAs("MANAGER", { employeeId: otherBoss });
+    // Atasan basi (kosong) di PT lain: hanya SA yang boleh menyinkronnya.
+    const harmless: OrgChartChange[] = [{ op: "updatePost", postId: staffPost, sortOrder: 7 }];
+    const preview = await batch(harmless, { headers: hr.headers, preview: true });
+    expect(preview.status).toBe(200);
+    expect(JSON.stringify(await data(preview))).not.toContain(name("other-staff"));
+    expect((await batch(harmless, { headers: hr.headers })).status).toBe(200);
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: otherStaff } })).managerId).toBe(
+      null,
+    );
+    expect((await batch([{ op: "updatePost", postId: staffPost, sortOrder: 8 }])).status).toBe(200);
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: otherStaff } })).managerId).toBe(
+      otherBoss,
+    );
+  });
+});

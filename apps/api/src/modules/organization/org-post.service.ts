@@ -386,7 +386,14 @@ export async function updatePost(
         },
         after: input,
       });
-      if (input.reportsToId !== undefined) await employeeSupport().syncPostManagers(tx);
+      if (input.reportsToId !== undefined) {
+        const posts = await listOrgPosts(tx);
+        const scope =
+          ctx.actor.role === "SUPER_ADMIN"
+            ? undefined
+            : new Set(posts.filter((p) => policy.canManageOrgPost(ctx.actor, p)).map((p) => p.id));
+        await employeeSupport().syncPostManagers(tx, scope);
+      }
       return { id };
     }),
   );

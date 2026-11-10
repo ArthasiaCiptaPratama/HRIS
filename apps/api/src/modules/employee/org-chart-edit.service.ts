@@ -32,6 +32,16 @@ import * as repository from "./org-chart.repository.ts";
 import { resolvePostPlacement, syncPostManagers } from "./org-post-assignment.ts";
 import { recordPositionChange } from "./position-history.ts";
 
+/** undefined = SA (seluruh bagan); selain itu pos yang boleh dikelola aktor (ORG-D2). */
+export async function manageablePostIds(
+  ctx: RequestContext,
+  tx: OrgChartEditTx,
+): Promise<ReadonlySet<string> | undefined> {
+  if (ctx.actor.role === "SUPER_ADMIN") return undefined;
+  const posts = await listOrgPosts(tx);
+  return new Set(posts.filter((post) => canManageOrgPost(ctx.actor, post)).map((post) => post.id));
+}
+
 class PreviewRollback extends Error {
   constructor(readonly preview: OrgChartChangePreview) {
     super("org-chart preview rollback");
@@ -195,10 +205,16 @@ async function execute(
         throw error;
       }
     }
-    const managersUpdated = await syncPostManagers(tx);
+    // HR hanya menyinkron pemegang pos yang boleh ia kelola (garis tegas tidak lintas PT, jadi
+    // perubahan di PT-nya tidak mengubah atasan PT lain); SA menyinkron seluruh bagan.
+    const scope = await manageablePostIds(ctx, tx);
+    const managersUpdated = await syncPostManagers(tx, scope);
     const result = { revision, createdIds, managersUpdated };
     if (previewOnly) {
-      const after = await repository.listChartPeople(tx);
+      // Ringkasan hanya memuat karyawan di PT cakupan aktor (SA: semua).
+      const visible = (person: { companyId: string }) =>
+        canManageOrgStructure(ctx.actor, person.companyId);
+      const after = (await repository.listChartPeople(tx)).filter(visible);
       const managerIds = [
         ...new Set(
           [...before, ...after].flatMap((person) => (person.managerId ? [person.managerId] : [])),

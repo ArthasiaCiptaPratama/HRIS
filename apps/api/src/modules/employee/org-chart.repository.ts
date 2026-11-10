@@ -54,7 +54,7 @@ export type PostHolderRow = Awaited<ReturnType<typeof listPostHolders>>[number];
 export function listChartPeople(tx: EmployeeTx) {
   return tx.employee.findMany({
     where: { isActive: true, onboardingStatus: "APPROVED" },
-    select: { id: true, fullName: true, managerId: true, orgPostId: true },
+    select: { id: true, fullName: true, companyId: true, managerId: true, orgPostId: true },
     orderBy: { employeeNumber: "asc" },
   });
 }
