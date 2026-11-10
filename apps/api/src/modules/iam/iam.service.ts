@@ -42,6 +42,7 @@ import type {
 // Enum Prisma memakai nama TS (EMPLOYEE_PERSONAL_READ); kode publik mengikuti PLAN §4.2.
 // Record memaksa pemetaan lengkap: izin baru di skema tanpa entri di sini = error typecheck.
 export const PERMISSION_CODE: Record<DbPermission, Permission> = {
+  ORG_STRUCTURE_MANAGE: "org.structure.manage",
   EMPLOYEE_PERSONAL_READ: "employee.personal.read",
   EMPLOYEE_PERSONAL_WRITE: "employee.personal.write",
   EMPLOYEE_BANK_READ: "employee.bank.read",

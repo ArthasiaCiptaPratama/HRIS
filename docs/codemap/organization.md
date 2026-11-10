@@ -7,6 +7,7 @@
 ```
 │   │   ├── organization/             [done] D-049: `organization-admin.{schema,service,routes}.ts` — kelola 6 master data (daftar admin SA/HR + jumlah karyawan; tambah/ubah/arsip/pulihkan/hapus (FK → 409)/gabungkan; audit; `configureOrganization({ employeeSupport })` dari app.ts), `archivedMasterIndex()` untuk import. D-042: `masterIndex`/`missingMasterData`/`createMissingMasterData` (import; audit `organization.<entity>.create` {source: import}). D-035: `GET /master-data` (perusahaan sesuai cakupan PT — D-040, departemen, jabatan, status+kategori, grade, lokasi aktif; semua role); `getMasterLookup()` + helper `statusIdsForCategories()` (D-038) / departemen untuk modul lain. CRUD master data menyusul Fase 3
 │   │   │                             [done] D-051/D-052: `org-post.{schema,service,routes}.ts` (`/org-posts` CRUD + arsip + `sync-managers`; aturan PT/siklus/slot), `organization-support.ts` (hook ke employee: jumlah pemegang, PT pemegang, sinkron atasan — organization tidak membaca tabel employee), `listOrgPosts` di `index.ts`; unit `company_id` di CRUD departments
+│   │   │                             [done] ORG-D2: `org-chart-edit.service.ts` (`withOrgChartEdit` cek izin + kunci/naikkan revisi, `createChartPosition` jabatan baru di batch, audit batch), `org-post.service.ts` jalur `create/update/archivePostInTransaction` dipakai endpoint lama & batch, `organization.policy.ts` `canManageOrgStructure`/`canManageOrgPost` (HR ber-izin per PT; korporat & Direksi L6/L7 hanya SA); `/org-posts` tulis menaikkan revisi
 │   │   │                             [done] 2026-10-21: `directory.service.ts` (baca-saja untuk modul lain lewat `index.ts`: `getWorkLocationBriefs` termasuk lokasi diarsip, `listGeofencedWorkLocations`, `companyExists`; query di `organization.repository.ts`) — pengganti query langsung di `attendance/directory.ts`
 ```
 
@@ -28,10 +29,11 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 | `company_profile` | [planned] *(digantikan `companies`, D-039)* |
 | `system_settings` | [planned] Key-value terketik: zona waktu (`Asia/Jakarta`), toleransi telat, dll. |
 | `departments` | **D-050: semua unit organisasi** — `name` (unik), `unit_type` (enum `OrgUnitType`: DIRECTORATE, DIVISION, DEPARTMENT, SECTION; default DEPARTMENT), `parent_id?` (hierarki, ber-index; induk sah dijaga service + `canBeChildOf` di shared), `deleted_at?`; **D-052** `company_id?` (PT pemilik; kosong = fungsi korporat grup) |
-| `positions` | `name`, `department_id` (FK ke unit jenis apa pun, ERD) — unik per unit, `level?` (enum `PositionLevel`: DIRECTOR … NON_STAFF, D-050; beda dari grade), `deleted_at?` |
+| `positions` | `name`, `department_id` (FK ke unit jenis apa pun, ERD) — unik per unit, `level?` (enum `PositionLevel`: L7 Direktur Utama … L1B Helper, L0 Magang, ORG-D1 mengubah D-050 (4); migrasi `20261110040000_position_level_numbered`; beda dari grade), `deleted_at?` |
 | `employment_statuses` | ERD `employment_status`: `name` (unik), `category?` (enum `EmploymentCategory` unik: PERMANENT, PROBATION, PKWT, DAILY_WORKER, INTERNSHIP, OUTSOURCING, VENDOR — D-035/D-038), `deleted_at?` |
 | `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |
 | `work_locations` | `name` (unik), `city?`, `address?`, `latitude?`, `longitude?` Decimal(9,6), `radius_m?` (geofence wajib di Fase 5), `deleted_at?` |
+| `org_chart_state` | [done] ORG-D2: satu baris `revision` (konkurensi optimistis bagan, 409); migrasi `20261110050000_org_chart_edit` (+ izin `org.structure.manage`) |
 | `org_posts` | [done] D-051: pos jabatan (kursi bagan) — `code?` (unik), `position_id`, `reports_to_id?` (garis tegas), `functional_reports_to_id?` (garis putus-putus), `headcount` 1–50 (CHECK), `sort_order`, `deleted_at?`; aturan PT/siklus/slot di service (`@hris/shared/org-chart.ts`) |
 | `holidays` | [planned] `date`, `name`, `is_collective_leave` |
 

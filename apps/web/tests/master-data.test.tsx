@@ -236,25 +236,25 @@ describe("Master Data (D-049)", () => {
   it("D-050: jabatan ber-level — kolom Level & level terkirim saat simpan", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(me("SUPER_ADMIN", true), {
-      positions: [{ ...position, level: "STAFF" }],
+      positions: [{ ...position, level: "L1A" }],
       departments: [department],
     });
     renderAt("/master-data/jabatan");
     const table = await screen.findByRole("table", { name: "Daftar jabatan" });
-    expect(await within(table).findByText("Staf / Operator")).toBeInTheDocument();
+    expect(await within(table).findByText("L1a · Staff / Officer")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Tambah jabatan" }));
     const dialog = await screen.findByRole("dialog");
     await user.type(within(dialog).getByLabelText("Nama"), "Supervisor IT");
     await user.click(within(dialog).getByLabelText("Unit organisasi"));
     await user.click(await screen.findByRole("option", { name: /Teknologi Informasi/ }));
     await user.click(within(dialog).getByLabelText(/Level/));
-    await user.click(await screen.findByRole("option", { name: "Supervisor" }));
+    await user.click(await screen.findByRole("option", { name: "L3 · Supervisor / Manager" }));
     await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
     await waitFor(() => expect(writes(calls)).toHaveLength(1));
     expect(writes(calls)[0]?.body).toEqual({
       name: "Supervisor IT",
       departmentId: ID(3),
-      level: "SUPERVISOR",
+      level: "L3",
     });
   });
 

@@ -3,6 +3,8 @@ import type { Role } from "@hris/shared";
 import type { Actor } from "../../../core/access/index.ts";
 import {
   canManageMasterData,
+  canManageOrgPost,
+  canManageOrgStructure,
   canReadMasterData,
   canViewMasterDataAdmin,
 } from "../organization.policy.ts";
@@ -16,6 +18,35 @@ const actor = (role: Role): Actor => ({
   isPrimarySuperAdmin: false,
   grants: new Set(),
   companyIds: null,
+});
+
+describe("ORG-D2 kelola struktur per PT", () => {
+  test.each(["L6", "L7"] as const)("pos %s di unit ber-PT hanya SA", (level) => {
+    const hr: Actor = {
+      ...actor("HR_ADMIN"),
+      grants: new Set(["org.structure.manage"]),
+      companyIds: new Set(["own"]),
+    };
+    expect(canManageOrgPost(hr, { companyId: "own", level })).toBe(false);
+    expect(canManageOrgPost(actor("SUPER_ADMIN"), { companyId: "own", level })).toBe(true);
+  });
+  test.each([
+    ["SUPER_ADMIN", false, null, true],
+    ["SUPER_ADMIN", false, "other", true],
+    ["HR_ADMIN", true, "own", true],
+    ["HR_ADMIN", false, "own", false],
+    ["HR_ADMIN", true, "other", false],
+    ["HR_ADMIN", true, null, false],
+    ["MANAGER", true, "own", false],
+    ["EMPLOYEE", true, "own", false],
+  ] as const)("%s grant=%s PT=%s → %s", (role, granted, companyId, expected) => {
+    const subject: Actor = {
+      ...actor(role),
+      grants: new Set(granted ? ["org.structure.manage"] : []),
+      companyIds: new Set(["own"]),
+    };
+    expect(canManageOrgStructure(subject, companyId)).toBe(expected);
+  });
 });
 
 // PLAN §4.3: struktur organisasi, jabatan, level, lokasi → 👁 semua role.

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collapseBelowDepth,
+  filterByZone,
   hiddenPosts,
   indexChart,
   layoutChart,
@@ -13,6 +14,7 @@ import type { OrgChart, OrgChartPost } from "@/features/employee/schemas";
 // D-051: tata letak bagan (pohon rapi, tanpa DOM) & bantuan lipat/cari.
 const post = (id: string, extra: Partial<OrgChartPost> = {}): OrgChartPost => ({
   id,
+  positionId: `pos-${id}`,
   positionName: `Jabatan ${id}`,
   level: null,
   departmentId: "u1",
@@ -50,6 +52,9 @@ const chart: OrgChart = {
   unplacedCount: 0,
   canOpenDetail: true,
   canManage: true,
+  canEdit: false,
+  canEditCorporate: false,
+  revision: 0,
 };
 
 describe("indeks & lipat", () => {
@@ -110,5 +115,43 @@ describe("layoutChart", () => {
     const noCorp = { ...chart, posts: chart.posts.filter((p) => !p.corporate) };
     const plain = layoutChart(noCorp, indexChart(noCorp), new Set());
     expect(plain.corporate).toBeNull();
+  });
+});
+
+describe("filterByZone (ORG-D4)", () => {
+  // dir (HO) → ops (HO) → ktt (SITE) → crew (SITE); adm (HO) fungsional → ktt.
+  const zones: Record<string, "HO" | "SITE"> = {
+    dir: "HO",
+    ops: "HO",
+    adm: "HO",
+    ktt: "SITE",
+    crew: "SITE",
+  };
+  const zoneOf = (p: OrgChartPost) => zones[p.id] ?? null;
+  const zoneChart: OrgChart = {
+    ...chart,
+    posts: [
+      post("dir"),
+      post("ops", { reportsToId: "dir" }),
+      post("adm", { reportsToId: "dir", functionalReportsToId: "ktt" }),
+      post("ktt", { reportsToId: "ops" }),
+      post("crew", { reportsToId: "ktt" }),
+    ],
+  };
+
+  it("Semua = tanpa perubahan", () => {
+    expect(filterByZone(zoneChart, zoneOf, "ALL").chart.posts).toHaveLength(5);
+  });
+
+  it("Site: pos Site + atasan HO & pos HO bergaris fungsional tampil redup", () => {
+    const view = filterByZone(zoneChart, zoneOf, "SITE");
+    expect(view.chart.posts.map((p) => p.id).sort()).toEqual(["adm", "crew", "ktt", "ops"]);
+    expect([...view.dimmed].sort()).toEqual(["adm", "ops"]);
+  });
+
+  it("HO: pos HO + bawahan langsung Site & tujuan fungsional Site tampil redup", () => {
+    const view = filterByZone(zoneChart, zoneOf, "HO");
+    expect(view.chart.posts.map((p) => p.id).sort()).toEqual(["adm", "dir", "ktt", "ops"]);
+    expect([...view.dimmed]).toEqual(["ktt"]);
   });
 });

@@ -12,7 +12,10 @@ import * as repository from "./org-chart.repository.ts";
  * Atasan otomatis semua pemegang pos dihitung ulang (bagan kecil: ratusan baris). Karyawan dengan
  * `managerOverride` tidak disentuh. Mengembalikan jumlah karyawan yang atasannya berubah.
  */
-export async function syncPostManagers(tx: EmployeeTx): Promise<number> {
+export async function syncPostManagers(
+  tx: EmployeeTx,
+  postIds?: ReadonlySet<string>,
+): Promise<number> {
   const [posts, holders, eligible] = await Promise.all([
     listOrgPosts(tx),
     repository.listPostHolders(tx),
@@ -28,7 +31,11 @@ export async function syncPostManagers(tx: EmployeeTx): Promise<number> {
   });
   let updated = 0;
   for (const holder of holders) {
-    if (holder.managerOverride) continue;
+    if (
+      holder.managerOverride ||
+      (postIds && (!holder.orgPostId || !postIds.has(holder.orgPostId)))
+    )
+      continue;
     const next = desired.get(holder.id) ?? null;
     if (next !== holder.managerId) {
       await repository.setManager(tx, holder.id, next);
@@ -89,5 +96,6 @@ export const employeePostSupport = {
   countPostHolders: (tx?: EmployeeTx) => repository.countPostHolders(tx),
   postHolderCompanies: (tx: EmployeeTx, postIds: string[]) =>
     repository.postHolderCompanies(tx, postIds),
-  syncPostManagers: (tx: EmployeeTx) => syncPostManagers(tx),
+  syncPostManagers: (tx: EmployeeTx, postIds?: ReadonlySet<string>) =>
+    syncPostManagers(tx, postIds),
 };

@@ -6,6 +6,11 @@ import type {
   ExitReason,
 } from "@hris/shared";
 import {
+  type OrgChartChangeBatch,
+  orgChartChangePreviewSchema,
+  orgChartChangeResultSchema,
+} from "@hris/shared";
+import {
   keepPreviousData,
   type QueryClient,
   useMutation,
@@ -207,6 +212,36 @@ export function useOrgChart(companyId: string | null) {
       }).then((r) => r.data),
     placeholderData: (previous) => previous,
     staleTime: 60_000,
+  });
+}
+
+/** ORG-D2: pratinjau dampak draf bagan (dry-run di server, tidak menyimpan). */
+export function useOrgChartPreview() {
+  return useMutation({
+    mutationFn: (body: OrgChartChangeBatch) =>
+      api("/org-chart/changes/preview", {
+        method: "POST",
+        body,
+        schema: one(orgChartChangePreviewSchema),
+      }).then((r) => r.data),
+  });
+}
+
+/** ORG-D2: simpan draf bagan dalam satu transaksi (409 = bagan sudah diubah editor lain). */
+export function useApplyOrgChartChanges() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OrgChartChangeBatch) =>
+      api("/org-chart/changes", {
+        method: "POST",
+        body,
+        schema: one(orgChartChangeResultSchema),
+      }).then((r) => r.data),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: employeeKeys.all }),
+        queryClient.invalidateQueries({ queryKey: employeeKeys.masterData }),
+      ]),
   });
 }
 

@@ -17,7 +17,7 @@ const health = {
 const masterData = {
   companies: [{ id: ID(1), code: "ACP", name: "PT Arthasia Cipta Pratama" }],
   departments: [{ id: ID(2), name: "Operasional", parentId: null, unitType: "DEPARTMENT" }],
-  positions: [{ id: ID(3), name: "Operator", departmentId: ID(2), level: "STAFF" }],
+  positions: [{ id: ID(3), name: "Operator", departmentId: ID(2), level: "L1A" }],
   employmentStatuses: [{ id: ID(4), name: "Magang", category: "INTERNSHIP" }],
   grades: [],
   workLocations: [],

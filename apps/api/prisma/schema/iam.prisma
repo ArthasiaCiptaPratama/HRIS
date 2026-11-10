@@ -32,6 +32,8 @@ enum Permission {
   EMPLOYEE_DISCIPLINE_WRITE  @map("employee.discipline.write")
   // TM-D6: lihat biaya tenaga kerja (upah grade, rupiah lembur, kompensasi, labor cost).
   LABOR_COST_READ            @map("labor.cost.read")
+  // ORG-D2: ubah bagan organisasi (mode edit) di PT yang ditugaskan.
+  ORG_STRUCTURE_MANAGE       @map("org.structure.manage")
 
   @@schema("iam")
 }

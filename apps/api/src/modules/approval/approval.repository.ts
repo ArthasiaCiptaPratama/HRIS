@@ -5,6 +5,21 @@ import type { Prisma } from "../../generated/prisma/client.ts";
 export type ApprovalTx = Prisma.TransactionClient;
 export type ApprovalSubjectType = Prisma.ApprovalRequestCreateInput["subjectType"];
 
+export async function countPendingByRequester(tx: ApprovalTx, employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
+  const rows = await tx.approvalRequest.groupBy({
+    by: ["requesterEmployeeId", "subjectType"],
+    where: { status: "PENDING", requesterEmployeeId: { in: employeeIds } },
+    _count: { _all: true },
+    orderBy: [{ requesterEmployeeId: "asc" }, { subjectType: "asc" }],
+  });
+  return rows.map((row) => ({
+    employeeId: row.requesterEmployeeId,
+    subjectType: row.subjectType,
+    count: row._count._all,
+  }));
+}
+
 const withSteps = { steps: { orderBy: { kind: "asc" } } } satisfies Prisma.ApprovalRequestInclude;
 export type ApprovalRow = Prisma.ApprovalRequestGetPayload<{ include: typeof withSteps }>;
 
