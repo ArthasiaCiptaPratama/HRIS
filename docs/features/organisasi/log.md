@@ -18,6 +18,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Keputusan:** ORG-D5, ORG-D6 (ORG-D4 aturan nama diganti; ORG-D2 (1) "desktop saja" diubah).
 - **Verifikasi:** zona efektif DB lokal sebelum vs sesudah migrasi identik (26 unit, 8 Site, 0 selisih; SQL rekursif); `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔ (560 modul); `db:check` ✔ + rerun "Already in sync"; test shared 362 · api 1307 (baru `unit-zone.test.ts` 6, policy ORG-D5 7) · web 352 (`--maxWorkers=4`; baru `org-chart-compact-edit` 3, master data zona 1) ✔; Zen headless (iframe 390 & 768 px, akun SA lokal) 2 screenshot `QA/2026-11-11-org-chart-mobile/` (01 = sebelum perbaikan).
 - **Masalah / catatan:** Codex kena batas pemakaian (sampai 13:12) → BE dikerjakan sendiri. Temuan uji Zen diperbaiki: toolbar kartu terpotong di 390 px (→ ikon saja + pusatkan kartu), bilah edit di bawah lipatan layar (`position: fixed` terkurung leluhur `animate-fade-up` ber-transform → portal ke `body`), transisi `setCenter` tidak jalan di headless (→ `duration: 0`). Screenshot lokal memuat nama asli (DB lokal) — jangan diunggah.
+- **Push:** develop `fa5aa3a` (CI #42948381566 ✘: `.openapi()` pada skema zod dari shared tidak ada di urutan muat CI) → `7c849f5` perbaikan (CI #42948847941 ✔).
 - **Berikutnya:** rilis staging (kata pengguna; migrasi mengisi zona otomatis), kabari Mat (migrasi), uji di HP/tablet sungguhan.
 
 ### 2026-11-10 — Rilis staging gel. 22/23 + pembersihan nama asli di repo (Oatse)
