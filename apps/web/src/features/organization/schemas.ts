@@ -1,4 +1,9 @@
-import { employmentCategorySchema, orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
+import {
+  employmentCategorySchema,
+  orgUnitTypeSchema,
+  orgUnitZoneSchema,
+  positionLevelSchema,
+} from "@hris/shared";
 import { z } from "zod";
 
 // D-049: bentuk respons daftar admin master data (sama dengan organization-admin.schema.ts API).
@@ -24,6 +29,9 @@ export const departmentAdminSchema = z.object({
   // D-052: PT pemilik; null = fungsi korporat / lintas grup.
   companyId: z.string().nullable().optional(),
   companyCode: z.string().nullable().optional(),
+  // ORG-D5: zona tersimpan (null = ikut induk) + boleh diubah aktor ini.
+  zone: orgUnitZoneSchema.nullable().optional(),
+  canEditZone: z.boolean().optional(),
   positionCount: z.number(),
 });
 export const positionAdminSchema = z.object({
@@ -65,6 +73,8 @@ export const masterDataItemSchema = z.object({
   companyCode: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   parentName: z.string().nullable().optional(),
+  zone: orgUnitZoneSchema.nullable().optional(),
+  canEditZone: z.boolean().optional(),
   positionCount: z.number().optional(),
   departmentId: z.string().optional(),
   departmentName: z.string().optional(),

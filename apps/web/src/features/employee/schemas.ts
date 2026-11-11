@@ -6,6 +6,7 @@ import {
   genderSchema,
   movementTypeSchema,
   orgUnitTypeSchema,
+  orgUnitZoneSchema,
   paginationMetaSchema,
   positionLevelSchema,
   ptkpStatusSchema,
@@ -252,6 +253,8 @@ export const masterDataSchema = z.object({
       unitType: orgUnitTypeSchema,
       // D-052: PT pemilik (null = unit grup); dipakai pencocokan unit per PT di Import (D-064).
       companyId: z.string().nullable().optional(),
+      // ORG-D5: zona tersimpan (null = ikut induk).
+      zone: orgUnitZoneSchema.nullable().optional(),
     }),
   ),
   positions: z.array(
@@ -351,6 +354,8 @@ export const orgChartSchema = z.object({
       unitType: orgUnitTypeSchema,
       parentId: z.string().nullable(),
       corporate: z.boolean(),
+      /** ORG-D5: zona tersimpan; null = ikut induk (akar null = Head Office). */
+      zone: orgUnitZoneSchema.nullable(),
     }),
   ),
   posts: z.array(

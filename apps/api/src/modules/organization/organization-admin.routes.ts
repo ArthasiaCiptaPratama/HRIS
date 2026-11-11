@@ -10,6 +10,7 @@ import {
   MERGEABLE_MASTER_DATA,
   mergeMasterDataInputSchema,
   positionInputSchema,
+  unitZoneInputSchema,
   workLocationBaseSchema,
   workLocationInputSchema,
 } from "@hris/shared";
@@ -195,4 +196,31 @@ export function registerOrganizationAdminRoutes(
       );
     }
   }
+  // ORG-D5: zona HO/Site unit — SA, atau HR ber-izin org.structure.manage untuk unit PT cakupannya.
+  app.openapi(guard(unitZoneRoute), async (c) =>
+    c.json(
+      ok(await service.updateUnitZone(ctxOf(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
+    ),
+  );
 }
+
+const unitZoneRoute = createRoute({
+  method: "put",
+  path: `${API_BASE_PATH}/departments/{id}/zone`,
+  tags: TAGS,
+  summary:
+    "Unit organisasi: ubah zona Head Office/Site (null = ikut induk) — SA, HR ber-izin org.structure.manage untuk PT cakupannya",
+  security,
+  request: {
+    params: idParamSchema,
+    body: {
+      content: { "application/json": { schema: unitZoneInputSchema } },
+      required: true,
+    },
+  },
+  responses: {
+    200: json("Zona diubah", dataEnvelope(mutationResultSchema)),
+    ...errors(400, 401, 403, 404, 422, 500),
+  },
+});

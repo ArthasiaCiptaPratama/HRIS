@@ -1,5 +1,5 @@
 import { z } from "@hono/zod-openapi";
-import { orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
+import { orgUnitTypeSchema, orgUnitZoneSchema, positionLevelSchema } from "@hris/shared";
 
 // D-051: bagan organisasi berbasis pos jabatan. Isi = kolom direktori (PLAN §4.3: nama, jabatan,
 // unit, email kantor) — tanpa data pribadi, sehingga boleh untuk semua role di PT-nya.
@@ -24,6 +24,8 @@ export const orgChartSchema = z
         parentId: z.uuid().nullable(),
         /** true = fungsi korporat grup (unit tanpa PT, D-052). */
         corporate: z.boolean(),
+        /** ORG-D5: zona tersimpan; null = ikut induk (akar null = Head Office). */
+        zone: orgUnitZoneSchema.nullable(),
       }),
     ),
     posts: z.array(

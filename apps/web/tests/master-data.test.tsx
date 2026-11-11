@@ -112,6 +112,28 @@ describe("Master Data (D-049)", () => {
     expect(screen.getAllByRole("link", { name: /Site \/ lokasi kerja/ }).length).toBeGreaterThan(0);
   });
 
+  it("ORG-D5: HR ber-izin mengubah zona unit PT-nya → PUT /departments/:id/zone; unit lain baca saja", async () => {
+    const calls = mockFetch(me("HR_ADMIN"), {
+      departments: [
+        { ...department, zone: null, canEditZone: true },
+        { ...department, id: ID(4), name: "Site Lain", zone: "SITE", canEditZone: false },
+      ],
+    });
+    renderAt("/master-data/unit-organisasi");
+    const table = await screen.findByRole("table", { name: /Daftar unit/i });
+    expect(await within(table).findByText("Site")).toBeInTheDocument();
+    await userEvent.click(
+      within(table).getByRole("combobox", { name: "Zona Teknologi Informasi" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "Site" }));
+    await waitFor(() =>
+      expect(writes(calls)).toEqual([
+        { method: "PUT", path: `/departments/${ID(3)}/zone`, body: { zone: "SITE" } },
+      ]),
+    );
+    expect(within(table).queryByRole("combobox", { name: "Zona Site Lain" })).toBeNull();
+  });
+
   it("HR: hanya melihat — tanpa tombol tambah & aksi, ada penjelasan", async () => {
     mockFetch(me("HR_ADMIN"), { grades: [grade] });
     renderAt("/master-data/grade");

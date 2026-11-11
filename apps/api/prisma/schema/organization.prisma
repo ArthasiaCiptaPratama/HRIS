@@ -47,6 +47,8 @@ model Department {
   // unik di seluruh grup (pencocokan nama import D-042).
   companyId String?      @map("company_id") @db.Uuid
   company   Company?     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  // ORG-D5: zona Head Office/Site; kosong = ikut induk (akar kosong = Head Office).
+  zone      OrgZone?
   positions Position[]
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -127,6 +129,14 @@ model OrgChartState {
 // Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
 // D-050: jenis unit organisasi. Departemen boleh langsung di bawah Direktorat (tanpa Divisi).
+// ORG-D5: zona unit organisasi (chip & filter bagan HO/Site).
+enum OrgZone {
+  HEAD_OFFICE
+  SITE
+
+  @@schema("organization")
+}
+
 enum OrgUnitType {
   DIRECTORATE
   DIVISION
