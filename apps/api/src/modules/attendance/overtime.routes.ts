@@ -2,6 +2,8 @@ import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import {
   breakLocationsInputSchema,
   gradeWageInputSchema,
+  overtimeClaimDecisionSchema,
+  overtimeClaimInputSchema,
   overtimeOrderInputSchema,
   rosterMonthSchema,
   rosterTemplateInputSchema,
@@ -14,6 +16,8 @@ import {
   breakLocationsViewSchema,
   gradeWageListSchema,
   gradeWageViewSchema,
+  overtimeClaimListSchema,
+  overtimeClaimViewSchema,
   overtimeListSchema,
   overtimeOrderCancelSchema,
   overtimeOrderListSchema,
@@ -22,6 +26,7 @@ import {
   rosterTemplateResultSchema,
 } from "./overtime.contract.ts";
 import * as service from "./overtime.service.ts";
+import * as claims from "./overtime-claim.service.ts";
 import * as orders from "./overtime-order.service.ts";
 import { strict } from "./roster.routes.ts";
 import { applyRosterTemplate } from "./roster-template.service.ts";
@@ -87,7 +92,56 @@ const orderQuery = z.object({
   employeeId: z.uuid().optional(),
 });
 
+const claimQuery = z.object({
+  scope: z.enum(["me", "all"]).openapi("OvertimeClaimScope"),
+  from: isoDate,
+  to: isoDate,
+  companyId: z.uuid().optional(),
+});
+
 const ROUTES: [ReturnType<typeof route>, Handler][] = [
+  [
+    route(
+      "get",
+      "/overtime-claims",
+      "Pengajuan lembur karyawan: milik saya / cakupan HR & atasan (TM-D27)",
+      { query: claimQuery, response: overtimeClaimListSchema },
+    ),
+    (c) => claims.listOvertimeClaims(ctxOf(c), strict(claimQuery, c.req.query())),
+  ],
+  [
+    route("post", "/overtime-claims", "Ajukan lembur atas jam yang sudah dijalani (TM-D27)", {
+      body: overtimeClaimInputSchema,
+      response: overtimeClaimViewSchema,
+    }),
+    async (c) =>
+      claims.createOvertimeClaim(ctxOf(c), strict(overtimeClaimInputSchema, await body(c))),
+  ],
+  [
+    route("post", "/overtime-claims/{id}/cancel", "Batalkan pengajuan lembur saya (TM-D27)", {
+      params: z.object({ id: z.uuid() }),
+      response: overtimeClaimViewSchema,
+    }),
+    (c) => claims.cancelOvertimeClaim(ctxOf(c), c.req.param("id") as string),
+  ],
+  [
+    route(
+      "post",
+      "/overtime-claims/{id}/decision",
+      "Putus pengajuan lembur & tetapkan jam yang diakui (HR PT, SA) (TM-D27)",
+      {
+        params: z.object({ id: z.uuid() }),
+        body: overtimeClaimDecisionSchema,
+        response: overtimeClaimViewSchema,
+      },
+    ),
+    async (c) =>
+      claims.decideOvertimeClaim(
+        ctxOf(c),
+        c.req.param("id") as string,
+        strict(overtimeClaimDecisionSchema, await body(c)),
+      ),
+  ],
   [
     route(
       "get",

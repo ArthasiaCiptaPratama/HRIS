@@ -132,7 +132,7 @@ export const myQueue = (ctx: RequestContext) => queueFor(ctx.actor);
  * Setiap pengingat sekali per karyawan per tanggal (dedupeKey).
  */
 export async function runAttendanceReminders(now = new Date(), employeeIds?: string[]) {
-  const { timezone } = await readTimeSettings();
+  const { timezone, requireCheckOut } = await readTimeSettings();
   const today = localDate(now, timezone);
   const scope = employeeIds ? { employeeId: { in: employeeIds } } : {};
   const dates = [isoAddDays(today, -1), today];
@@ -191,7 +191,10 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         employeeId: r.employeeId,
         type: "attendance.reminder_out",
         title: `Belum Clock Out — shift ${r.shift.code} ${dateLabel(date)}`,
-        body: "Jam pulang sudah lewat. Lakukan Clock Out sebelum batas absen pulang agar hari ini bisa disetujui.",
+        // TM-D26: wajib absen pulang → tanpa absen pulang s.d. 24:00 dihitung Alpha.
+        body: requireCheckOut
+          ? "Jam pulang sudah lewat. Wajib Clock Out: tanpa absen pulang s.d. pukul 24:00, hari ini dihitung Alpha. Jam setelah jadwal pulang bukan lembur kecuali ada SPL / pengajuan lembur yang disetujui HR."
+          : "Jam pulang sudah lewat. Lakukan Clock Out sebelum batas absen pulang agar hari ini bisa disetujui.",
         link: "/absen",
         dedupeKey: `tm-remind-out:${r.employeeId}:${date}`,
         target: { type: "ATTENDANCE_TODAY", id: date },
@@ -214,7 +217,9 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
       employeeId: day.employeeId,
       type: "attendance.reminder_out",
       title: `Belum Clock Out — lembur hari libur ${dateLabel(date)}`,
-      body: "Jam selesai perintah lembur sudah lewat. Lakukan Clock Out sebelum batas absen pulang.",
+      body: requireCheckOut
+        ? "Jam selesai perintah lembur sudah lewat. Wajib Clock Out: tanpa absen pulang s.d. pukul 24:00, hari ini dihitung Alpha."
+        : "Jam selesai perintah lembur sudah lewat. Lakukan Clock Out sebelum batas absen pulang.",
       link: "/absen",
       dedupeKey: `tm-remind-out:${day.employeeId}:${date}`,
       target: { type: "ATTENDANCE_TODAY", id: date },

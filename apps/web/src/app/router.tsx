@@ -50,6 +50,7 @@ export const routes: RouteObject[] = [
                   { path: "roster", lazy: pages.mobileRoster },
                   { path: "cuti", lazy: pages.leave },
                   { path: "koreksi", lazy: pages.correctionsStatements },
+                  { path: "lembur", lazy: pages.myOvertimeClaims },
                   { path: "tukar-shift", lazy: pages.rosterChanges },
                   { path: "kalender", lazy: pages.holidays },
                   {

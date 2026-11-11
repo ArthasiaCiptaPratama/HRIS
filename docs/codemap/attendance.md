@@ -28,6 +28,7 @@
 | `attendance_corrections` | Koreksi + referensi approval |
 | `overtime_requests` | Lembur + referensi approval |
 | `overtime_orders` | TM-D17: perintah lembur (SPL) per karyawan & tanggal kerja (`starts_at`/`ends_at`) |
+| `overtime_claims` | TM-D27: pengajuan lembur karyawan (jam HH:mm diajukan & diakui HR, status, `order_id` SPL susulan) |
 | `attendance_periods` | `period` (YYYY-MM), `status` (`OPEN`/`CLOSED`), `closed_by`, `closed_at` |
 
 **Merge Mat 2026-10-21:** `directory.ts` tetap fasad tanpa Prisma; fungsi baru `activeGrades`, `activeLocations`, `exitedEmployees`, `exitStatusOf`, `analyticsEmployees` mendelegasikan ke `employee/index.ts` & `organization/index.ts` (dipakai `overtime.service`, `leave-exit.service`, `analytics.service`).
@@ -61,3 +62,5 @@
 ### Hardening CSV (audit R1, 2026-11-03)
 
 Kedua unduhan CSV di `apps/web/src/features/time-management/pages/period-pages.tsx` (rekap bulanan dan rincian karyawan) memakai `apps/web/src/lib/csv.ts` → `escapeCsvCell`: awalan `=`, `+`, `-`, `@`, tab, CR dinetralkan dengan apostrof sebelum quoting/doubling kutip. Test: `apps/web/tests/csv.test.ts`. Tidak ditemukan generator CSV dinamis lain di web/API.
+
+**2026-11-11 (TM-D26/TM-D27, Mat):** `attendance-engine.ts` — `endOfLocalDay`, `relaxedCheckOutDeadline`. `attendance.service.ts` — `Evaluation.checkOutDeadline/outsideCheckOut`, `outsideCheckOutOf` (repo `countOutsideCheckOuts`), `outsideCheckOutWarning`, `closeOverdueDays` (Alpha `NO_CHECKOUT_ALPHA` + `notifyNoCheckOutAlpha` bila `requireCheckOut`). `overtime-claim.service.ts` — `create/cancel/decide/listOvertimeClaims` (keputusan memanggil `setOvertimeOrder` → SPL susulan); rute di `overtime.routes.ts`, skema `OvertimeClaim*` di `overtime.contract.ts`, repo klaim di `overtime.repository.ts`. Shared: `isCorrectableAlpha`/`CORRECTABLE_ALPHA_LABELS`, `overtimeClaimInputSchema`/`overtimeClaimDecisionSchema`. Web: `components/overtime-claims.tsx`, `pages/overtime-claim-page.tsx` (`/absen/lembur`), tab Pengajuan karyawan, pengaturan wajib pulang.

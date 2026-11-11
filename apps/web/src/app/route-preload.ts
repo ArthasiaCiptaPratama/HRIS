@@ -163,6 +163,10 @@ export const pages = {
     import("@/features/time-management/pages/leave-admin-pages").then((m) => ({
       Component: m.LeaveMasterPage,
     })),
+  myOvertimeClaims: () =>
+    import("@/features/time-management/pages/overtime-claim-page").then((m) => ({
+      Component: m.MyOvertimeClaimsPage,
+    })),
   correctionsStatements: () =>
     import("@/features/time-management/pages/period-pages").then((m) => ({
       Component: m.CorrectionsStatementsPage,

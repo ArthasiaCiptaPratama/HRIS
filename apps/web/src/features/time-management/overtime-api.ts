@@ -1,10 +1,13 @@
 import {
   type BreakLocationsInput,
   type GradeWageInput,
+  OVERTIME_CLAIM_STATUSES,
   OVERTIME_DAY_TYPES,
   OVERTIME_FLAGS,
   OVERTIME_FORMULAS,
   OVERTIME_STATUSES,
+  type OvertimeClaimDecision,
+  type OvertimeClaimInput,
   type OvertimeOrderInput,
   type RosterTemplateInput,
 } from "@hris/shared";
@@ -100,6 +103,7 @@ const keys = {
   wages: [...tmKeys.all, "grade-wages"] as const,
   breaks: [...tmKeys.all, "break-locations"] as const,
   orders: (params: object) => [...tmKeys.all, "overtime-orders", params] as const,
+  claims: (params: object) => [...tmKeys.all, "overtime-claims", params] as const,
 };
 
 function useRefresh() {
@@ -246,6 +250,82 @@ export function useCancelOvertimeOrder() {
       api(`/overtime-orders/${id}/cancel`, {
         method: "POST",
         schema: one(z.object({ id: z.string() })),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+}
+
+// ── TM-D27 pengajuan lembur karyawan ───────────────────────────────────────────
+export const overtimeClaimSchema = z.object({
+  id: z.string(),
+  employee: person,
+  companyId: z.string(),
+  workDate: z.string(),
+  startTime: z.string().nullable(),
+  endTime: z.string().nullable(),
+  reason: z.string(),
+  status: z.enum(OVERTIME_CLAIM_STATUSES),
+  approvedStartTime: z.string().nullable(),
+  approvedEndTime: z.string().nullable(),
+  decisionNote: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+  createdAt: z.string(),
+  checkInAt: z.string().nullable(),
+  checkOutAt: z.string().nullable(),
+  canDecide: z.boolean(),
+  canCancel: z.boolean(),
+});
+export type OvertimeClaim = z.infer<typeof overtimeClaimSchema>;
+
+export function useOvertimeClaims(
+  params: { scope: "me" | "all"; from: string; to: string; companyId?: string },
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: keys.claims(params),
+    queryFn: ({ signal }) => {
+      const search = new URLSearchParams({ scope: params.scope, from: params.from, to: params.to });
+      if (params.companyId) search.set("companyId", params.companyId);
+      return api(`/overtime-claims?${search}`, {
+        schema: one(z.array(overtimeClaimSchema)),
+        signal,
+      }).then((r) => r.data);
+    },
+    enabled,
+  });
+}
+
+export function useCreateOvertimeClaim() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: OvertimeClaimInput) =>
+      api("/overtime-claims", { method: "POST", body, schema: one(overtimeClaimSchema) }).then(
+        (r) => r.data,
+      ),
+    onSuccess: refresh,
+  });
+}
+
+export function useCancelOvertimeClaim() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/overtime-claims/${id}/cancel`, {
+        method: "POST",
+        schema: one(overtimeClaimSchema),
+      }).then((r) => r.data),
+    onSuccess: refresh,
+  });
+}
+
+export function useDecideOvertimeClaim() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: OvertimeClaimDecision }) =>
+      api(`/overtime-claims/${id}/decision`, {
+        method: "POST",
+        body,
+        schema: one(overtimeClaimSchema),
       }).then((r) => r.data),
     onSuccess: refresh,
   });

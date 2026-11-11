@@ -137,6 +137,10 @@ export const todaySchema = z.object({
   checkOutOpensAt: z.string().nullable().optional(),
   breakOpensAt: z.string().nullable().optional(),
   breakClosesAt: z.string().nullable().optional(),
+  /** TM-D26: wajib absen pulang & batasnya (opsional: API lama tidak mengirim). */
+  requireCheckOut: z.boolean().optional(),
+  checkOutDeadline: z.string().nullable().optional(),
+  freeOutsideCheckOutsPerMonth: z.number().optional(),
 });
 export type Today = z.infer<typeof todaySchema>;
 
@@ -157,6 +161,13 @@ export const precheckSchema = z.object({
   openDay: z.object({ workDate: z.string(), checkInAt: z.string().nullable() }).nullable(),
   offDay: z.boolean().optional(),
   checkOutOpensAt: z.string().nullable().optional(),
+  /** TM-D26: Clock Out di luar lokasi kantor (urutan bulan ini & jatah tanpa persetujuan). */
+  outsideCheckOut: z
+    .object({ nth: z.number(), freeQuota: z.number(), free: z.boolean() })
+    .nullable()
+    .optional(),
+  requireCheckOut: z.boolean().optional(),
+  checkOutDeadline: z.string().nullable().optional(),
 });
 export type Precheck = z.infer<typeof precheckSchema>;
 

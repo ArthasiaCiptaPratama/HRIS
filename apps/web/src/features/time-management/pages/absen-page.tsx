@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Repeat,
   ScanFace,
+  Timer,
   UserRound,
   WifiOff,
 } from "lucide-react";
@@ -158,6 +159,7 @@ const MOBILE_TITLES: [prefix: string, title: string][] = [
   ["/absen/roster", "Roster Saya"],
   ["/absen/cuti", "Cuti & Izin"],
   ["/absen/koreksi", "Koreksi & Pernyataan"],
+  ["/absen/lembur", "Pengajuan Lembur"],
   ["/absen/tukar-shift", "Tukar Shift"],
   ["/absen/kalender", "Kalender Libur"],
   ["/absen/approval", "Approval"],
@@ -494,6 +496,15 @@ function TodayCard({
         </button>
       </div>
       <BreakButton data={data} now={now} online={online} onPunch={onPunch} />
+      {data.requireCheckOut && data.next !== "DONE" ? (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-center text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          <b>Wajib absen datang &amp; pulang.</b>{" "}
+          {data.next === "OUT" && data.checkOutDeadline
+            ? `Tanpa absen pulang s.d. ${shortDate(data.checkOutDeadline, tz)} ${timeIn(data.checkOutDeadline, tz)}, hari ini dihitung Alpha.`
+            : "Hanya absen datang tanpa absen pulang s.d. pukul 24:00 dihitung Alpha."}{" "}
+          Pulang lewat jadwal bukan lembur kecuali disetujui HR.
+        </p>
+      ) : null}
       <p className="text-muted-foreground mt-2 text-center text-[11px]">
         {data.next === "DONE"
           ? DONE_TEXT
@@ -637,6 +648,12 @@ function MenuGrid({ me }: { me: Me }) {
           icon={HistoryIcon}
           label="Riwayat"
           tone="bg-emerald-100 text-emerald-700"
+        />
+        <MenuTile
+          to="/absen/lembur"
+          icon={Timer}
+          label="Ajukan Lembur"
+          tone="bg-indigo-100 text-indigo-700"
         />
         <MenuTile
           to="/absen/cuti"
@@ -1205,6 +1222,17 @@ function PunchFlow({
             onConfirm={setConfirmed}
             onSwitch={switchKind}
           />
+        ) : null}
+
+        {check?.outsideCheckOut ? (
+          <Alert variant={check.outsideCheckOut.free ? "default" : "destructive"}>
+            <AlertTriangle />
+            <AlertDescription>
+              {check.outsideCheckOut.free
+                ? `Anda absen pulang di luar lokasi kantor (ke-${check.outsideCheckOut.nth} bulan ini). Kali ini langsung disetujui, tetapi jangan diulangi — sisa ${Math.max(0, check.outsideCheckOut.freeQuota - check.outsideCheckOut.nth)} kali lagi tanpa persetujuan.`
+                : `Absen pulang di luar lokasi kantor (ke-${check.outsideCheckOut.nth} bulan ini) melebihi jatah ${check.outsideCheckOut.freeQuota} kali. Absen ini wajib disetujui Atasan & HR. Jangan diulangi.`}
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         {blocked ? (

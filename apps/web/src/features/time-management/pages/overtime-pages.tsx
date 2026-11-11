@@ -33,6 +33,7 @@ import { formatRupiah } from "@/lib/format";
 import { tmAccess } from "../access";
 import { useDecideApproval, useTimezone } from "../api";
 import { StepBadge, timeIn, todayIn, workDateLabel } from "../components/display";
+import { OvertimeClaimsView } from "../components/overtime-claims";
 import { OvertimeOrdersView } from "../components/overtime-orders";
 import { RefreshButton } from "../components/refresh-button";
 import {
@@ -51,7 +52,7 @@ import { useRosterCompany } from "./roster-page";
 // bulat ke atas per 30 menit), diputuskan Atasan + HR. Rupiah hanya untuk SA / HR ber-grant "Biaya";
 // atasan melihat total rupiah tim di rekap.
 
-type Tab = "inbox" | "all" | "me" | "orders" | "summary";
+type Tab = "inbox" | "all" | "me" | "orders" | "claims" | "summary";
 
 const monthRange = (month: string) => {
   const [y, m] = month.split("-").map(Number) as [number, number];
@@ -69,11 +70,11 @@ export function OvertimePage() {
   const company = companies.length > 1 ? companyId : undefined;
   const list = useOvertimeList(
     {
-      scope: tab === "summary" || tab === "orders" ? "all" : tab,
+      scope: tab === "summary" || tab === "orders" || tab === "claims" ? "all" : tab,
       ...range,
       ...(company ? { companyId: company } : {}),
     },
-    tab !== "summary" && tab !== "orders",
+    tab !== "summary" && tab !== "orders" && tab !== "claims",
   );
   const summary = useOvertimeSummary(month, company ?? "", tab === "summary");
   const [open, setOpen] = useState<Overtime | null>(null);
@@ -106,6 +107,7 @@ export function OvertimePage() {
             {decider ? <TabsTrigger value="all">Semua</TabsTrigger> : null}
             {me.employeeId ? <TabsTrigger value="me">Lembur saya</TabsTrigger> : null}
             <TabsTrigger value="orders">Perintah lembur</TabsTrigger>
+            {decider ? <TabsTrigger value="claims">Pengajuan karyawan</TabsTrigger> : null}
             {decider ? <TabsTrigger value="summary">Rekap bulanan</TabsTrigger> : null}
           </TabsList>
         </Tabs>
@@ -120,7 +122,9 @@ export function OvertimePage() {
         ) : null}
       </div>
 
-      {tab === "orders" ? (
+      {tab === "claims" ? (
+        <OvertimeClaimsView {...range} {...(company ? { companyId: company } : {})} />
+      ) : tab === "orders" ? (
         <OvertimeOrdersView
           {...range}
           {...(company ? { companyId: company } : {})}

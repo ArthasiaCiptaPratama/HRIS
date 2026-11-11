@@ -551,6 +551,47 @@ model OvertimeOrder {
   @@schema("attendance")
 }
 
+enum OvertimeClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+/// TM-D27: pengajuan lembur oleh karyawan atas jam yang sudah dijalani (absen pulang bebas, tidak otomatis
+/// lembur). HR PT / SA menetapkan rentang yang diakui lalu memutus; disetujui → SPL susulan (TM-D19,
+/// `orderId`) sehingga jam aktual di dalam rentang itu dihitung lembur. Satu yang menunggu per karyawan per
+/// tanggal kerja (dicek di service).
+model OvertimeClaim {
+  id                 String              @id @default(uuid()) @db.Uuid
+  employeeId         String              @map("employee_id") @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  managerEmployeeId  String?             @map("manager_employee_id") @db.Uuid
+  workDate           DateTime            @map("work_date") @db.Date
+  /// Jam yang diajukan karyawan (jam lokal HH:mm, sama dengan input SPL).
+  startTime          String?             @map("start_time") @db.VarChar(5)
+  endTime            String?             @map("end_time") @db.VarChar(5)
+  reason             String              @db.VarChar(300)
+  status             OvertimeClaimStatus @default(PENDING)
+  /// Rentang yang diakui HR saat disetujui.
+  approvedStartTime  String?             @map("approved_start_time") @db.VarChar(5)
+  approvedEndTime    String?             @map("approved_end_time") @db.VarChar(5)
+  decisionNote       String?             @map("decision_note") @db.VarChar(300)
+  decidedByAccountId String?             @map("decided_by_account_id") @db.Uuid
+  decidedAt          DateTime?           @map("decided_at") @db.Timestamptz(6)
+  /// SPL susulan yang dibuat saat disetujui.
+  orderId            String?             @map("order_id") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, workDate])
+  @@index([companyId, status, workDate])
+  @@map("overtime_claims")
+  @@schema("attendance")
+}
+
 /// Usulan lembur otomatis per hari absen (TM-D6): kelebihan jam di luar jadwal (termasuk datang awal)
 /// setelah dikurangi utang menit; diputuskan Atasan + HR paralel. Lembur rutin shift tidak di sini (ikut
 /// approval absen harian) tetapi dicatat sebagai snapshot supaya urutan pengali benar.

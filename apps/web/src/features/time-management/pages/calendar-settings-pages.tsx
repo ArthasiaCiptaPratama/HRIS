@@ -456,7 +456,8 @@ function HolidayDialog({
   );
 }
 
-const FIELDS: { key: Exclude<keyof TimeSettings, "timezone">; label: string; hint: string }[] = [
+type NumberSetting = Exclude<keyof TimeSettings, "timezone" | "requireCheckOut">;
+const FIELDS: { key: NumberSetting; label: string; hint: string }[] = [
   {
     key: "gpsAccuracyMaxM",
     label: "Batas akurasi GPS (meter)",
@@ -486,6 +487,11 @@ const FIELDS: { key: Exclude<keyof TimeSettings, "timezone">; label: string; hin
     key: "minRestHours",
     label: "Jeda minimal antarshift (jam)",
     hint: "Clock In kurang dari ini sejak Clock Out sebelumnya ditandai Jeda antarshift kurang (alasan wajib).",
+  },
+  {
+    key: "freeOutsideCheckOutsPerMonth",
+    label: "Absen pulang di luar kantor tanpa persetujuan (kali/bulan)",
+    hint: "TM-D26: dalam jatah ini absen pulang di luar lokasi kantor langsung disetujui (tetap wajib alasan + peringatan); lewat jatah wajib disetujui Atasan & HR. 0 = selalu perlu persetujuan.",
   },
 ];
 
@@ -534,6 +540,24 @@ export function TimeSettingsPage() {
               }))}
             />
           </div>
+          <label className="flex items-start gap-3 rounded-lg border p-3">
+            <input
+              type="checkbox"
+              className="accent-brand mt-0.5 size-4"
+              disabled={!manage}
+              checked={form.requireCheckOut}
+              onChange={(e) => setForm({ ...form, requireCheckOut: e.target.checked })}
+            />
+            <span className="space-y-1">
+              <span className="block text-sm font-medium">Wajib absen datang &amp; pulang</span>
+              <span className="text-muted-foreground block text-xs">
+                Absen pulang bebas sampai pukul 24:00 (shift malam: 24:00 tanggal jam pulang). Hanya
+                absen datang tanpa absen pulang sampai batas itu dihitung <strong>Alpha</strong>{" "}
+                (masih bisa dikoreksi s.d. H+3). Jam setelah jadwal pulang bukan lembur, kecuali ada
+                SPL atau pengajuan lembur yang disetujui HR.
+              </span>
+            </span>
+          </label>
           {FIELDS.map((f) => (
             <div key={f.key} className="space-y-1.5">
               <Label htmlFor={`ts-${f.key}`}>{f.label}</Label>
