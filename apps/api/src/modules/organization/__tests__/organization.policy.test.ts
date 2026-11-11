@@ -5,6 +5,7 @@ import {
   canManageMasterData,
   canManageOrgPost,
   canManageOrgStructure,
+  canManageUnitZone,
   canReadMasterData,
   canViewMasterDataAdmin,
 } from "../organization.policy.ts";
@@ -46,6 +47,25 @@ describe("ORG-D2 kelola struktur per PT", () => {
       companyIds: new Set(["own"]),
     };
     expect(canManageOrgStructure(subject, companyId)).toBe(expected);
+  });
+});
+
+describe("ORG-D5 ubah zona unit", () => {
+  const hr = (grant: boolean, companies: string[]): Actor => ({
+    ...actor("HR_ADMIN"),
+    grants: new Set(grant ? ["org.structure.manage"] : []),
+    companyIds: new Set(companies),
+  });
+  test.each([
+    ["SA unit ber-PT", actor("SUPER_ADMIN"), "own", true],
+    ["SA unit korporat", actor("SUPER_ADMIN"), null, true],
+    ["HR berizin PT sendiri", hr(true, ["own"]), "own", true],
+    ["HR berizin PT lain", hr(true, ["other"]), "own", false],
+    ["HR tanpa izin", hr(false, ["own"]), "own", false],
+    ["HR berizin unit korporat", hr(true, ["own"]), null, false],
+    ["Manager", actor("MANAGER"), "own", false],
+  ] as const)("%s → %p", (_label, subject, companyId, expected) => {
+    expect(canManageUnitZone(subject, { companyId })).toBe(expected);
   });
 });
 

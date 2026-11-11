@@ -12,6 +12,7 @@ import {
   ORG_UNIT_TYPE_LABELS,
   type OrgUnitType,
   positionInputSchema,
+  unitZoneInputSchema,
   workLocationBaseSchema,
   workLocationInputSchema,
 } from "@hris/shared";
@@ -213,6 +214,8 @@ export async function listAdmin(
             parentName: d.parentId ? (names.get(d.parentId) ?? null) : null,
             companyId: d.companyId,
             companyCode: d.companyId ? (codes.get(d.companyId) ?? null) : null,
+            zone: d.zone,
+            canEditZone: policy.canManageUnitZone(ctx.actor, d),
             positionCount: positions.filter((p) => p.deletedAt === null).length,
             archived: d.deletedAt !== null,
             employeeCount: positions.reduce((sum, p) => sum + active(usage, p.id), 0),
@@ -447,8 +450,15 @@ export async function createItem(
             unitType,
             parentId: input.parentId ?? null,
             companyId,
+            zone: input.zone ?? null,
           });
-          after = { name: input.name, unitType, parentId: input.parentId ?? null, companyId };
+          after = {
+            name: input.name,
+            unitType,
+            parentId: input.parentId ?? null,
+            companyId,
+            zone: input.zone ?? null,
+          };
           break;
         }
         case "positions": {
@@ -568,6 +578,7 @@ export async function updateItem(
             unitType: current?.unitType,
             parentId: current?.parentId,
             companyId: current?.companyId,
+            zone: current?.zone,
           };
           after = input;
           break;
@@ -633,6 +644,34 @@ export async function updateItem(
       return { id };
     }),
   );
+}
+
+/**
+ * ORG-D5: ubah zona HO/Site satu unit (null = ikut induk). Jalur sempit untuk HR ber-izin
+ * `org.structure.manage` (unit PT cakupannya); field unit lain tetap SA lewat updateItem (D-049).
+ */
+export async function updateUnitZone(
+  ctx: RequestContext,
+  id: string,
+  body: unknown,
+): Promise<{ id: string }> {
+  assertCanView(ctx.actor);
+  const input = parseInput(unitZoneInputSchema, body);
+  const rows = await repository.listAdminRows();
+  const current = rows.departments.find((d) => d.id === id);
+  if (!current) throw new NotFoundError("Unit organisasi tidak ditemukan.");
+  if (!policy.canManageUnitZone(ctx.actor, current)) throw new ForbiddenError();
+  if (current.deletedAt !== null) {
+    throw new BusinessRuleError("Unit organisasi diarsipkan. Pulihkan dulu sebelum mengubah.");
+  }
+  return repository.withTransaction(async (tx) => {
+    await repository.departmentRepo.update(tx, id, { zone: input.zone });
+    await audit(ctx, tx, "departments", "zone_update", id, {
+      before: { zone: current.zone },
+      after: { zone: input.zone },
+    });
+    return { id };
+  });
 }
 
 // ── Arsip, pulihkan, hapus ─────────────────────────────────────────────────────

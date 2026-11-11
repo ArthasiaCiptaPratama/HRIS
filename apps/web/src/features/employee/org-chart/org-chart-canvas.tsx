@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ import {
   type PostDialogState,
   SaveDialog,
 } from "./edit/edit-dialogs";
+import { useCompactEdit } from "./edit/use-compact-edit";
 import {
   ancestorsOf,
   type ChartLayout,
@@ -134,6 +136,8 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
 
   // ── ORG-D2: mode edit (draf klien + undo/redo; bagan server dibekukan selama mengedit) ──
   const [editing, setEditing] = useState(false);
+  // ORG-D6: layar < 1024 px / sentuh → edit lewat ketuk kartu (tanpa seret).
+  const compact = useCompactEdit();
   const [base, setBase] = useState<OrgChart | null>(null);
   const [draft, dispatch] = useReducer(draftReducer, EMPTY_DRAFT);
   const [selected, setSelected] = useState<string | null>(null);
@@ -152,6 +156,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
         name: d.name,
         companyId: d.companyId ?? null,
         parentId: d.parentId,
+        zone: d.zone ?? null,
       })),
     }),
     [master.data],
@@ -162,6 +167,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
       unitCompany: new Map(masterOptions.units.map((u) => [u.id, u.companyId])),
       unitName: new Map(masterOptions.units.map((u) => [u.id, u.name])),
       unitParent: new Map(masterOptions.units.map((u) => [u.id, u.parentId])),
+      unitZone: new Map(masterOptions.units.map((u) => [u.id, u.zone])),
     }),
     [masterOptions],
   );
@@ -538,7 +544,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
             : { x: item.x, y: item.y },
         width: item.width,
         height: item.height,
-        draggable: editable,
+        draggable: editable && !compact,
         zIndex: dragging?.id === item.post.id ? 10 : 0,
         // React Flow memberi pointer-events: none pada node yang tidak bisa dipilih/digeser/diklik;
         // tombol orang & lipat di dalam kartu harus tetap bisa diklik.
@@ -566,6 +572,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
                   onAddSibling: addSibling,
                   onAction: postAction,
                   onDropPerson: dropPerson,
+                  compact,
                 },
               }
             : {}),
@@ -592,6 +599,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
     addSibling,
     postAction,
     dropPerson,
+    compact,
   ]);
 
   const edges = useMemo<BuiltInEdge[]>(() => {
@@ -733,6 +741,26 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
     [chart, descendantCounts],
   );
 
+  // ORG-D6: bilah edit ringkas (ikon) + petunjuk ketuk untuk layar sempit/sentuh.
+  const compactBar =
+    editing && compact ? (
+      <div className="flex flex-col items-center gap-1.5">
+        <p className="bg-card/90 text-muted-foreground max-w-[min(22rem,calc(100vw-2rem))] rounded-md border px-3 py-1 text-center text-[11px] shadow-xs">
+          Ketuk kartu untuk aksi; <strong>+</strong> di kartu terpilih = tambah bawahan/setingkat.
+        </p>
+        <EditBar
+          compact
+          editing
+          draft={draft}
+          onStart={startEdit}
+          onUndo={() => dispatch({ type: "undo" })}
+          onRedo={() => dispatch({ type: "redo" })}
+          onExit={() => (draft.actions.length > 0 ? setDiscardOpen(true) : exitEdit())}
+          onSave={openSave}
+        />
+      </div>
+    ) : null;
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: pintasan keyboard mode edit (undo/redo, Enter pilih kartu) untuk seluruh kanvas
     <div
@@ -771,8 +799,8 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
         edges={edges}
         nodeTypes={NODE_TYPES}
         colorMode={colorMode}
-        nodesDraggable={editing}
-        nodesConnectable={editing}
+        nodesDraggable={editing && !compact}
+        nodesConnectable={editing && !compact}
         connectionMode={ConnectionMode.Loose}
         isValidConnection={() => false}
         onConnectEnd={onConnectEnd}
@@ -780,7 +808,21 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
         nodeDragThreshold={6}
         onNodeDrag={(_, node) => setDragging({ id: node.id, ...node.position })}
         onNodeDragStop={(_, node) => onNodeDragStop(node)}
-        onNodeClick={(_, node) => editing && node.type === "post" && setSelected(node.id)}
+        onNodeClick={(_, node) => {
+          if (!editing || node.type !== "post") return;
+          setSelected(node.id);
+          // ORG-D6: layar sempit — pusatkan kartu supaya toolbar aksinya tidak tertutup panel atas.
+          if (compact) {
+            const zoom = Math.max(flow.getZoom(), 0.8);
+            // Kartu sedikit di bawah tengah: panel cari/filter di atas kanvas memakan ±⅓ tinggi HP.
+            const shift = ((wrapper.current?.clientHeight ?? 0) * 0.2) / zoom;
+            void flow.setCenter(
+              node.position.x + (node.width ?? 0) / 2,
+              node.position.y + (node.height ?? 0) / 2 - shift,
+              { zoom, duration: 0 },
+            );
+          }
+        }}
         onPaneClick={() => setSelected(null)}
         elementsSelectable={false}
         minZoom={0.08}
@@ -897,7 +939,7 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
               ))}
             </fieldset>
           ) : null}
-          {serverChart.canEdit ? (
+          {serverChart.canEdit && !(editing && compact) ? (
             <EditBar
               editing={editing}
               draft={draft}
@@ -909,7 +951,12 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
             />
           ) : null}
         </Panel>
-        {editing ? (
+        {editing && compact && fullscreen ? (
+          <Panel position="bottom-center" className="!mb-3">
+            {compactBar}
+          </Panel>
+        ) : null}
+        {editing && !compact ? (
           <Panel position="bottom-center" className="!mb-3 hidden xl:block">
             <p className="bg-card/90 text-muted-foreground rounded-md border px-3 py-1.5 text-[11px] shadow-xs">
               Arahkan ke kartu: <strong>+</strong> bawah = bawahan, samping = setingkat, titik atas
@@ -919,6 +966,16 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
           </Panel>
         ) : null}
       </ReactFlow>
+      {compactBar && !fullscreen
+        ? // Menempel di bawah layar HP (kanvas bisa lebih tinggi dari viewport); portal karena leluhur
+          // halaman ber-transform (animasi masuk) mengurung position: fixed.
+          createPortal(
+            <div className="pointer-events-none fixed inset-x-0 bottom-3 z-40 flex justify-center px-4">
+              <div className="pointer-events-auto">{compactBar}</div>
+            </div>,
+            document.body,
+          )
+        : null}
       {editing && base ? (
         <>
           <PostDialog

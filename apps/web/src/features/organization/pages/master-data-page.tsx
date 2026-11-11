@@ -12,7 +12,10 @@ import {
   MERGEABLE_MASTER_DATA,
   ORG_UNIT_TYPE_LABELS,
   ORG_UNIT_TYPES,
+  ORG_UNIT_ZONE_LABELS,
+  ORG_UNIT_ZONES,
   type OrgUnitType,
+  type OrgUnitZone,
   POSITION_LEVEL_LABELS,
   POSITION_LEVELS,
   type PositionLevel,
@@ -70,6 +73,7 @@ import {
   useMasterDataAdmin,
   useMergeMasterData,
   useSaveMasterData,
+  useSetUnitZone,
 } from "../api";
 import type { GeoPoint } from "../components/geofence-map";
 import { GeofencePicker } from "../components/geofence-picker";
@@ -142,6 +146,9 @@ function MasterDataScreen({ config }: { config: MasterDataPageConfig }) {
           <AlertDescription>
             Hanya Super Admin yang dapat mengubah master data. Jabatan, departemen, grade, dan
             lokasi baru juga bisa ditambahkan lewat Import Data Karyawan.
+            {config.kind === "departments"
+              ? " Zona HO/Site unit PT Anda bisa diubah bila akun Anda punya izin kelola struktur organisasi."
+              : null}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -227,6 +234,38 @@ function MasterDataScreen({ config }: { config: MasterDataPageConfig }) {
 
 // ── Kolom ─────────────────────────────────────────────────────────────────────
 
+/** ORG-D5: zona unit; bisa diubah langsung oleh SA / HR ber-izin `org.structure.manage` (PT-nya). */
+function ZoneCell({ item }: { item: MasterDataItem }) {
+  const save = useSetUnitZone();
+  if (!item.canEditZone || item.archived) {
+    return item.zone ? (
+      <Badge variant="outline">{ORG_UNIT_ZONE_LABELS[item.zone]}</Badge>
+    ) : (
+      <span className="text-muted-foreground text-xs">Ikut induk</span>
+    );
+  }
+  return (
+    <FormSelect
+      aria-label={`Zona ${item.name}`}
+      className="h-8 w-36"
+      value={item.zone ?? ""}
+      disabled={save.isPending}
+      onChange={(value) =>
+        save.mutate(
+          { id: item.id, zone: (value || null) as OrgUnitZone | null },
+          {
+            onSuccess: () => toast.success(`Zona ${item.name} diperbarui.`),
+            onError: (error) => toast.error(errorMessage(error)),
+          },
+        )
+      }
+      placeholder="Zona"
+      noneLabel="Ikut induk"
+      options={ORG_UNIT_ZONES.map((z) => ({ value: z, label: ORG_UNIT_ZONE_LABELS[z] }))}
+    />
+  );
+}
+
 function buildColumns(
   kind: MasterDataKind,
   opts: {
@@ -272,6 +311,11 @@ function buildColumns(
         ),
       }),
       col({ id: "parent", header: "Induk", cell: ({ row }) => muted(row.original.parentName) }),
+      col({
+        id: "zone",
+        header: "Zona",
+        cell: ({ row }) => <ZoneCell item={row.original} />,
+      }),
       col({
         id: "company",
         header: "PT",
@@ -406,6 +450,7 @@ function initialValues(item: MasterDataItem | null): Values {
     npwpNumber: s(item?.npwpNumber),
     address: s(item?.address),
     unitType: s(item?.unitType ?? "DEPARTMENT"),
+    zone: s(item?.zone),
     parentId: s(item?.parentId),
     companyId: s(item?.companyId),
     departmentId: s(item?.departmentId),
@@ -442,6 +487,8 @@ function toBody(kind: MasterDataKind, v: Values): Record<string, unknown> {
         parentId: text(v.parentId),
         // D-052: kosong = fungsi korporat / unit lintas grup.
         companyId: text(v.companyId),
+        // ORG-D5: kosong = ikut induk.
+        zone: (text(v.zone) as OrgUnitZone | null) ?? null,
       };
     case "positions":
       return {
@@ -684,6 +731,25 @@ function MasterDataFormDialog({
                 {
                   optional: true,
                   hint: "Unit milik PT tampil di bagan PT itu; unit tanpa PT tampil sebagai Corporate Function di bagan semua PT.",
+                },
+              )}
+              {field(
+                "zone",
+                "Zona",
+                <FormSelect
+                  id="md-zone"
+                  value={values.zone ?? ""}
+                  onChange={set("zone")}
+                  placeholder="Pilih zona"
+                  noneLabel="Ikut unit induk"
+                  options={ORG_UNIT_ZONES.map((z) => ({
+                    value: z,
+                    label: ORG_UNIT_ZONE_LABELS[z],
+                  }))}
+                />,
+                {
+                  optional: true,
+                  hint: "Chip & filter HO/Site di bagan. Kosong = ikut unit induk; unit puncak kosong = Head Office.",
                 },
               )}
             </>

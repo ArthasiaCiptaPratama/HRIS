@@ -13,6 +13,21 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-11 — Zona HO/Site resmi di unit (ORG-D5) + mode edit layar sempit (ORG-D6) (Oatse)
+- **Dikerjakan:** handoff supervisor 09:25 (backlog bagan). ORG-D5: enum `OrgZone` + `departments.zone` (null = ikut induk), migrasi `20261111022710_org_unit_zone` dengan backfill "Site…" → SITE, `unitZones` dari kolom, `zone` di kontrak `/org-chart`, `/master-data`, daftar admin unit (+ `canEditZone`), create/update unit SA, `PUT /departments/{id}/zone` + policy `canManageUnitZone` + audit, seed akar Site; web: field Zona di form unit, kolom Zona (pilihan langsung bila berhak), draf bagan membawa zona unit. ORG-D6: hook `useCompactEdit`, Mode edit di semua lebar, tanpa seret di layar sempit/sentuh, toolbar ikon + pusatkan kartu, titik + 32 px, bilah edit ikon menempel di bawah (portal).
+- **Keputusan:** ORG-D5, ORG-D6 (ORG-D4 aturan nama diganti; ORG-D2 (1) "desktop saja" diubah).
+- **Verifikasi:** zona efektif DB lokal sebelum vs sesudah migrasi identik (26 unit, 8 Site, 0 selisih; SQL rekursif); `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔ (560 modul); `db:check` ✔ + rerun "Already in sync"; test shared 362 · api 1307 (baru `unit-zone.test.ts` 6, policy ORG-D5 7) · web 352 (`--maxWorkers=4`; baru `org-chart-compact-edit` 3, master data zona 1) ✔; Zen headless (iframe 390 & 768 px, akun SA lokal) 2 screenshot `QA/2026-11-11-org-chart-mobile/` (01 = sebelum perbaikan).
+- **Masalah / catatan:** Codex kena batas pemakaian (sampai 13:12) → BE dikerjakan sendiri. Temuan uji Zen diperbaiki: toolbar kartu terpotong di 390 px (→ ikon saja + pusatkan kartu), bilah edit di bawah lipatan layar (`position: fixed` terkurung leluhur `animate-fade-up` ber-transform → portal ke `body`), transisi `setCenter` tidak jalan di headless (→ `duration: 0`). Screenshot lokal memuat nama asli (DB lokal) — jangan diunggah.
+- **Push:** develop `fa5aa3a` (CI #42948381566 ✘: `.openapi()` pada skema zod dari shared tidak ada di urutan muat CI) → `7c849f5` perbaikan (CI #42948847941 ✔).
+- **Berikutnya:** rilis staging (kata pengguna; migrasi mengisi zona otomatis), kabari Mat (migrasi), uji di HP/tablet sungguhan.
+
+### 2026-11-10 — Rilis staging gel. 22/23 + pembersihan nama asli di repo (Oatse)
+- **Dikerjakan:** rilis staging oleh sesi `hris-rilis-0d`: gel. 22 develop `33d6c42` (ORG-D1 L0–L7, ORG-D2, ORG-D4; migrasi 53 → 58) dan gel. 23 develop `a95d62d` (IMP-D1). Data staging dibersihkan dan bagan PDF 06.11 diisi ulang (55 `ASLI-`; 8 akun uji = Magang L0 tanpa pos; akun HR & MGR di jabatan lama). Di develop: nama asli di RELEASE #80, catatan ORG-D3/koreksi bagan, contoh IMP-D1, dan dua catatan lama diganti peran/nama fiktif (`a95d62d`). PROGRESS/CODEMAP dirapikan.
+- **Keputusan:** —
+- **Verifikasi:** `Deploy staging` #42780975386 ✔ dan #42796846160 ✔ (rincian `HRIS-rilis/docs/RELEASE.md` §4); `a95d62d`: typecheck ✔, biome ✔, test import-chart-holder shared 11 · api 3 ✔, CI #42793861373 ✔.
+- **Masalah / catatan:** 1 nama depan asli tersisa di pesan commit `02dff2f` (tulis ulang riwayat = kata pengguna); 3 pos CD2 kosong di staging belum diputuskan; mode edit hanya ≥ 1024 px.
+- **Berikutnya:** uji login Karyawan/HR di staging lewat browser; kolom resmi zona HO/Site (Backlog).
+
 ### 2026-11-10 — Level L0 Magang (tambahan ORG-D1) (Oatse)
 - **Dikerjakan:** enum `PositionLevel` + `L0` (migrasi ADD VALUE), shared `POSITION_LEVELS` …L1B, L0 + label "L0 · Magang", token `--org-l0` teal (terang `oklch(0.64 0.09 195)`, gelap `oklch(0.75 0.09 195)`; tidak bentrok dengan abu L7/biru L3/hijau L5), demo dashboard. Legenda kanvas, master data, laporan/pivot mengikuti `POSITION_LEVELS` otomatis.
 - **Keputusan:** tambahan ORG-D1 (kutipan pengguna ±14:58 WIB "Buat level baru L0", untuk jabatan Magang karyawan uji staging tanpa pos).
