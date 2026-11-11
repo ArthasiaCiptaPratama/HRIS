@@ -215,7 +215,7 @@ const unitZoneRoute = createRoute({
   request: {
     params: idParamSchema,
     body: {
-      content: { "application/json": { schema: unitZoneInputSchema.openapi("UnitZoneInput") } },
+      content: { "application/json": { schema: unitZoneInputSchema } },
       required: true,
     },
   },
