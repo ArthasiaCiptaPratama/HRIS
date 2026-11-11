@@ -1,4 +1,9 @@
-import type { EmploymentCategory, OrgUnitType, PositionLevel } from "@hris/shared";
+import type {
+  EmploymentCategory,
+  OrgUnitType,
+  OrgUnitZone as OrgZone,
+  PositionLevel,
+} from "@hris/shared";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 
@@ -18,6 +23,7 @@ export async function loadMasterData() {
           parentId: true,
           unitType: true,
           companyId: true,
+          zone: true,
           deletedAt: true,
         },
         orderBy: { name: "asc" },
@@ -92,7 +98,7 @@ async function loadAdminRows(prisma: OrganizationTx) {
       orderBy: { code: "asc" },
     }),
     prisma.department.findMany({
-      select: { ...ADMIN_SELECT, parentId: true, unitType: true, companyId: true },
+      select: { ...ADMIN_SELECT, parentId: true, unitType: true, companyId: true, zone: true },
       orderBy: { name: "asc" },
     }),
     prisma.position.findMany({
@@ -153,6 +159,7 @@ export const departmentRepo = {
       parentId: string | null;
       unitType: OrgUnitType;
       companyId: string | null;
+      zone?: OrgZone | null;
     },
   ) => tx.department.create({ data, select: { id: true } }),
   update: (
@@ -163,6 +170,7 @@ export const departmentRepo = {
       parentId?: string | null;
       unitType?: OrgUnitType;
       companyId?: string | null;
+      zone?: OrgZone | null;
     },
   ) => tx.department.update({ where: { id }, data, select: { id: true } }),
   /** Pindahkan sub-departemen ke induk lain (gabungkan departemen). */

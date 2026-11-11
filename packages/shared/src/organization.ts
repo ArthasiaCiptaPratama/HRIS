@@ -127,6 +127,17 @@ export const companyInputSchema = z.object({
 });
 export type CompanyInput = z.infer<typeof companyInputSchema>;
 
+// ORG-D5: zona tersimpan di unit; null = ikut induk (akar null = Head Office).
+export const ORG_UNIT_ZONES = ["HEAD_OFFICE", "SITE"] as const;
+export const orgUnitZoneSchema = z.enum(ORG_UNIT_ZONES);
+export type OrgUnitZone = z.infer<typeof orgUnitZoneSchema>;
+export const ORG_UNIT_ZONE_LABELS: Record<OrgUnitZone, string> = {
+  HEAD_OFFICE: "Head Office",
+  SITE: "Site",
+};
+export const unitZoneInputSchema = z.object({ zone: orgUnitZoneSchema.nullable() });
+export type UnitZoneInput = z.infer<typeof unitZoneInputSchema>;
+
 export const departmentInputSchema = z.object({
   name: name(100),
   /** D-050: jenis unit; tanpa nilai saat tambah = Departemen. */
@@ -134,6 +145,8 @@ export const departmentInputSchema = z.object({
   parentId: z.uuid().nullable().optional(),
   /** D-052: PT pemilik; kosong = fungsi korporat / unit lintas grup. */
   companyId: z.uuid().nullable().optional(),
+  /** ORG-D5: zona HO/Site; null = ikut induk. */
+  zone: orgUnitZoneSchema.nullable().optional(),
 });
 export type DepartmentInput = z.infer<typeof departmentInputSchema>;
 

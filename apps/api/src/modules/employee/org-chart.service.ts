@@ -96,6 +96,7 @@ export async function getOrgChart(
               unitType: unit.unitType,
               parentId: unit.parentId,
               corporate: unit.companyId === null,
+              zone: unit.zone,
             },
           ]
         : [];

@@ -11,7 +11,7 @@
 |---|---|---|---|---|---|
 | [fondasi](features/fondasi/README.md) | 0–1 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai (sisa: uji Windows, OD-9, OD-12) | ✔ |
 | [iam](features/iam/README.md) | 2 | Oatse | `HRIS/Oatse/Linux-Windows` | Review — role HR Kepegawaian IAM-D1 (Mat) ✔ develop 2026-10-26 (merge `d3c1ebc`), ✔ staging gel. 14 (ganti role akun `hr.arthasia` ditunda sampai QA IAM-D1); sisa: captcha ditunda, OD-5 | ✔ gel. 14 IAM-D1 |
-| [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — level jabatan L0–L7 + warna bagan (ORG-D1), mode edit bagan + izin `org.structure.manage` + batch/pratinjau/revisi 409 (ORG-D2), penanda HO/Site (ORG-D4) ✔ staging gel. 22 2026-11-10; jabatan rangkap ORG-D3 dibuat lalu dibatalkan atas ralat pengguna; sisa: profil perusahaan, pengaturan sistem | ✔ gel. 22 (ORG-D1/D2/D4) |
+| [organisasi](features/organisasi/README.md) | 3 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — level jabatan L0–L7 + warna bagan (ORG-D1), mode edit bagan + izin `org.structure.manage` + batch/pratinjau/revisi 409 (ORG-D2), penanda HO/Site (ORG-D4) ✔ staging gel. 22 2026-11-10; zona HO/Site resmi di unit (ORG-D5) + mode edit layar sempit (ORG-D6) ✔ develop 2026-11-11; jabatan rangkap ORG-D3 dibuat lalu dibatalkan atas ralat pengguna; sisa: profil perusahaan, pengaturan sistem | ✔ gel. 22 (ORG-D1/D2/D4) |
 | [karyawan](features/karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Berjalan — Formulir Aplikasi Word/PDF (EMP-D1, `a2ce380`, di-push) digantikan EMP-D3 — Word & Gotenberg dihapus, EMP-OD1 gugur; template Formulir Data Karyawan + Tambah karyawan bertahap (EMP-D2) ✔ staging gel. 9; Print data PDF dari template (EMP-D3) ✔ staging gel. 10; Ubah data lengkap (EMP-D4) ✔ staging gel. 11 (QA LEGIT) | ✔ |
 | [import-karyawan](features/import-karyawan/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai untuk Form asli (D-059–D-064); IMP-D1 lengkapi pemegang bagan `ASLI-` tanpa dobel ✔ staging gel. 23 2026-11-10 (import file data asli di staging menunggu file pengguna) | ✔ gel. 2–4.1, 23 |
 | [onboarding](features/onboarding/README.md) | 4 | Oatse | `HRIS/Oatse/Linux-Windows` | Selesai, QA LEGIT | ✔ aktif gel. 5 |
@@ -99,10 +99,10 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
-- **(2026-11-10, ORG-D2)** Mode edit bagan hanya tampil di layar ≥ 1024 px (`lg`); layar kecil read-only — tinjau ulang bila HR butuh edit dari tablet.
+- ~~**(2026-11-10, ORG-D2)** Mode edit bagan hanya tampil di layar ≥ 1024 px~~ → ORG-D6 2026-11-11 (ketuk kartu → toolbar di layar sempit/sentuh).
 - **(2026-11-10, staging)** 3 pos CD2 kosong dari seed bagan masih ada di staging — pengguna belum memutuskan (hapus/biarkan).
 - **(2026-11-10, D-066)** 1 nama depan asli tersisa di pesan commit `02dff2f` (sudah di-push); dibiarkan karena menulis ulang riwayat butuh kata pengguna.
-- **(2026-11-10, ORG-D4)** Zona Head Office/Site masih diturunkan dari nama unit ("Site …"). Kolom resmi zona di unit organisasi + pengaturan di Master Data → keputusan model baru (kata pengguna).
+- ~~**(2026-11-10, ORG-D4)** Zona Head Office/Site masih diturunkan dari nama unit~~ → ORG-D5 2026-11-11 (kolom `departments.zone`, diatur di Master Data › Unit).
 - **(2026-11-03, HRD-D3)** CSP web staging masih Report-Only: kumpulkan pelanggaran di browser (halaman utama + TM + peta lokasi) lalu putuskan enforce.
 - **(2026-11-03, QA TM web)** Absen (HP) dan Cuti, Izin & Sakit belum di-QA ber-login: butuh akun karyawan staging (Rizky/`emp.arthasia`), akun SA tidak tertaut karyawan.
 - **(2026-11-03, audit keamanan, Q4)** Import `personalEmail` juga mensyaratkan grant `employee.personal.write` (konsisten D-059)? Ditunda: cek peran target (HRD-D1/A) sudah menutup takeover. Gelombang E juga ditunda: R3 lokasi istirahat per PT, R4 rate limit per IP/akun, R5 Swagger di balik auth, R7 pin SHA action + `--ignore-scripts`, R8 sisanya, sesi web di localStorage ([hardening](features/hardening/README.md)).
@@ -151,6 +151,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-11** — Organisasi: zona HO/Site resmi di unit (ORG-D5, migrasi `20261111022710_org_unit_zone` + backfill identik ORG-D4; HR ber-izin ubah zona unit PT-nya) + mode edit bagan di layar < 1024 px / sentuh (ORG-D6). (Oatse) → [organisasi/log](features/organisasi/log.md)
 - **2026-11-10** — Rilis staging gel. 22 (`33d6c42`: ORG-D1/D2/D4, 58 migrasi) + gel. 23 (`a95d62d`: IMP-D1, tanpa migrasi); data staging dibersihkan + bagan PDF 06.11 diisi ulang; nama asli di docs/test diganti fiktif (`a95d62d`); Mat dikabari 17:22 WIB. (Oatse) → [organisasi/log](features/organisasi/log.md)
 - **2026-11-10** — Import melengkapi pemegang bagan ASLI- tanpa dobel (IMP-D1), level L0 Magang (ORG-D1). (Oatse) → [import-karyawan/log](features/import-karyawan/log.md)
 - **2026-11-10** — Organisasi: level jabatan 1b–7 + warna (ORG-D1), mode edit bagan dengan draf/pratinjau/izin per PT (ORG-D2), jabatan rangkap ORG-D3 lalu dibatalkan atas ralat pengguna (tabel di-drop), penanda HO/Site chip + filter (ORG-D4); 4 migrasi; DB lokal di-reset ke bagan PDF 06.11 (nama asli lokal). (Oatse) → [organisasi/log](features/organisasi/log.md)

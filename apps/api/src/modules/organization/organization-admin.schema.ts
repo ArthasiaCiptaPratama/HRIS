@@ -3,6 +3,7 @@ import {
   employmentCategorySchema,
   masterDataViewSchema,
   orgUnitTypeSchema,
+  orgUnitZoneSchema,
   positionLevelSchema,
 } from "@hris/shared";
 
@@ -36,6 +37,10 @@ export const departmentAdminSchema = z
     // D-052: PT pemilik (null = fungsi korporat / lintas grup).
     companyId: z.uuid().nullable(),
     companyCode: z.string().nullable(),
+    // ORG-D5: zona tersimpan (null = ikut induk; akar null = Head Office).
+    zone: orgUnitZoneSchema.nullable(),
+    /** ORG-D5: aktor boleh mengubah zona unit ini (SA; HR ber-izin untuk PT cakupannya). */
+    canEditZone: z.boolean(),
     positionCount: z.number().int(),
   })
   .openapi("DepartmentAdmin");

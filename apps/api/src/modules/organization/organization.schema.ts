@@ -1,5 +1,10 @@
 import { z } from "@hono/zod-openapi";
-import { employmentCategorySchema, orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
+import {
+  employmentCategorySchema,
+  orgUnitTypeSchema,
+  orgUnitZoneSchema,
+  positionLevelSchema,
+} from "@hris/shared";
 
 export const departmentSchema = z
   .object({
@@ -10,6 +15,8 @@ export const departmentSchema = z
     unitType: orgUnitTypeSchema,
     // D-052: PT pemilik; null = fungsi korporat / unit lintas grup.
     companyId: z.uuid().nullable(),
+    // ORG-D5: zona tersimpan (null = ikut induk; akar null = Head Office).
+    zone: orgUnitZoneSchema.nullable(),
   })
   .openapi("Department");
 
