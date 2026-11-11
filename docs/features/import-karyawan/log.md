@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-10 — IMP-D1 ke staging (Oatse)
+- **Dikerjakan:** IMP-D1 dirilis ke staging gel. 23 (develop `a95d62d`, oleh `hris-rilis-0d`); contoh nama di README, komentar `chart-holder.ts`, dan test diganti nama fiktif (`a95d62d`).
+- **Keputusan:** —
+- **Verifikasi:** `Deploy staging` #42796846160 ✔ (`openapi.json` memuat `chartHolderChoices`); CI develop #42793861373 ✔.
+- **Masalah / catatan:** belum ada import file data asli di staging.
+- **Berikutnya:** import file data asli di staging memakai IMP-D1 setelah file dari pengguna tersedia.
+
 ### 2026-11-10 — Import melengkapi pemegang bagan ASLI- (IMP-D1) (Oatse)
 - **Dikerjakan:** shared `import/chart-holder.ts` (kunci nama tanpa gelar/tanda baca, saran inisial, `NAME_TITLES`), pesan issue; API: `chartHolderChoices` di body, `rows[].chartHolder` & `chartHolders` di pratinjau, gabung = UPDATE (NIP diganti/dikosongkan, jabatan pos dipertahankan, CREATE_ONLY tetap boleh), audit `employee.import.chart_holder_merged`, stempel hash pratinjau memuat target; web: pemilih "Gabungkan dengan pemegang bagan…" per baris (saran nama/inisial + pemegang lain PT sama) & blok "Pemegang bagan yang belum dilengkapi".
 - **Keputusan:** IMP-D1 (menutup catatan risiko D-066).

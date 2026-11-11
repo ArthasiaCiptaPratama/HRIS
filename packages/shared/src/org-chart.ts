@@ -126,18 +126,14 @@ export function resolvePostManagers(input: {
   return result;
 }
 
-/**
- * ORG-D4: pembeda Head Office (HO) vs Site tanpa kolom baru. Akar Site = unit organisasi yang namanya
- * diawali kata "Site" (mis. "Site Operasional (ACP)", "Site (ACP)"); unit itu beserta semua turunannya
- * = Site, unit lain = HO. Kolom resmi di unit masuk Backlog.
- */
-export const SITE_ROOT_UNIT_PATTERN = /^site\b/i;
-
 export type OrgZone = "HO" | "SITE";
 
-/** Zona tiap unit (id → HO/SITE) dari pohon unit; unit yang leluhurnya tidak dikenal dianggap HO. */
+/**
+ * ORG-D5 (menggantikan turunan nama ORG-D4): zona efektif tiap unit (id → HO/SITE). Zona tersimpan di
+ * `departments.zone`; kosong = ikut leluhur terdekat yang diisi, akar kosong (atau leluhur tak dikenal) = HO.
+ */
 export function unitZones(
-  units: readonly { id: string; name: string; parentId: string | null }[],
+  units: readonly { id: string; parentId: string | null; zone: "HEAD_OFFICE" | "SITE" | null }[],
 ): Map<string, OrgZone> {
   const byId = new Map(units.map((unit) => [unit.id, unit]));
   const result = new Map<string, OrgZone>();
@@ -145,8 +141,8 @@ export function unitZones(
     let zone: OrgZone = "HO";
     let cursor: (typeof units)[number] | undefined = unit;
     for (let depth = 0; cursor && depth < MAX_DEPTH; depth += 1) {
-      if (SITE_ROOT_UNIT_PATTERN.test(cursor.name.trim())) {
-        zone = "SITE";
+      if (cursor.zone) {
+        zone = cursor.zone === "SITE" ? "SITE" : "HO";
         break;
       }
       cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;

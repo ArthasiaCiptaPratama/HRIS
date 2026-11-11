@@ -986,14 +986,17 @@ export async function seedOrgChart(prisma: PrismaClient, org: OrganizationIds): 
   const units = new Map<string, string>();
   for (const unit of CHART_UNITS) {
     const parentId = unit.parent ? (units.get(unit.parent) ?? null) : null;
+    // ORG-D5: akar Site (nama diawali "Site") ditandai zona Site; turunannya ikut induk.
+    const zone = /^site\b/i.test(unit.name.trim()) ? ("SITE" as const) : null;
     const row = await prisma.department.upsert({
       where: { name: unit.name },
-      update: { companyId: companyId(unit.company), unitType: unit.type, parentId },
+      update: { companyId: companyId(unit.company), unitType: unit.type, parentId, zone },
       create: {
         name: unit.name,
         unitType: unit.type,
         parentId,
         companyId: companyId(unit.company),
+        zone,
       },
     });
     units.set(unit.name, row.id);

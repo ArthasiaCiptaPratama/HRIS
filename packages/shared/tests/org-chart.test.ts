@@ -142,25 +142,42 @@ describe("resolvePostManagers (D-053)", () => {
   });
 });
 
-describe("unitZones (ORG-D4)", () => {
-  test("akar bernama 'Site …' beserta turunannya = SITE; lainnya HO", () => {
+describe("unitZones (ORG-D5)", () => {
+  test("zona tersimpan diwarisi turunan; akar kosong = HO", () => {
     const zones = unitZones([
-      { id: "dir", name: "Direksi (ACP)", parentId: null },
-      { id: "ops", name: "Direktorat Operasional (ACP)", parentId: "dir" },
-      { id: "site", name: "Site Operasional (ACP)", parentId: "ops" },
-      { id: "eng", name: "Engineering (ACP)", parentId: "site" },
-      { id: "drl", name: "Drilling (ACP)", parentId: "eng" },
-      { id: "fat", name: "Finance, Accounting & Tax (ACP)", parentId: "dir" },
-      { id: "hrga", name: "HR & GA Site (ACP)", parentId: null },
-      { id: "s2", name: "site (CD2)", parentId: null },
+      { id: "dir", parentId: null, zone: null },
+      { id: "ops", parentId: "dir", zone: null },
+      { id: "site", parentId: "ops", zone: "SITE" },
+      { id: "eng", parentId: "site", zone: null },
+      { id: "drl", parentId: "eng", zone: null },
+      { id: "fat", parentId: "dir", zone: null },
+      { id: "s2", parentId: null, zone: "SITE" },
     ]);
     expect(zones.get("dir")).toBe("HO");
     expect(zones.get("ops")).toBe("HO");
     expect(zones.get("site")).toBe("SITE");
     expect(zones.get("drl")).toBe("SITE");
     expect(zones.get("fat")).toBe("HO");
-    // "Site" di tengah nama bukan akar.
-    expect(zones.get("hrga")).toBe("HO");
     expect(zones.get("s2")).toBe("SITE");
+  });
+
+  test("anak boleh mengecualikan zona induk (HO di bawah Site & sebaliknya)", () => {
+    const zones = unitZones([
+      { id: "site", parentId: null, zone: "SITE" },
+      { id: "fin", parentId: "site", zone: "HEAD_OFFICE" },
+      { id: "fin-sub", parentId: "fin", zone: null },
+      { id: "ho", parentId: null, zone: "HEAD_OFFICE" },
+      { id: "camp", parentId: "ho", zone: "SITE" },
+      { id: "camp-sub", parentId: "camp", zone: null },
+    ]);
+    expect(zones.get("fin")).toBe("HO");
+    expect(zones.get("fin-sub")).toBe("HO");
+    expect(zones.get("camp")).toBe("SITE");
+    expect(zones.get("camp-sub")).toBe("SITE");
+  });
+
+  test("induk tidak dikenal = HO", () => {
+    const zones = unitZones([{ id: "x", parentId: "missing", zone: null }]);
+    expect(zones.get("x")).toBe("HO");
   });
 });

@@ -17,6 +17,14 @@ export function canManageMasterData(actor: Actor): boolean {
   return actor.role === ROLE.SUPER_ADMIN;
 }
 
+/**
+ * ORG-D5: ubah zona HO/Site sebuah unit — SA, atau HR ber-izin `org.structure.manage` untuk unit milik PT
+ * cakupannya (pengecualian sempit D-049); unit korporat/tanpa PT hanya SA.
+ */
+export function canManageUnitZone(actor: Actor, unit: { companyId: string | null }): boolean {
+  return canManageOrgStructure(actor, unit.companyId);
+}
+
 /** ORG-D2: struktur PT sendiri untuk HR berizin; korporat hanya SUPER_ADMIN. */
 export function canManageOrgStructure(actor: Actor, companyId: string | null): boolean {
   if (actor.role === ROLE.SUPER_ADMIN) return true;
