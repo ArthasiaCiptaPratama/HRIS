@@ -131,6 +131,7 @@ export function ReportsPage() {
   const tab =
     TABS.find((t) => t.slug === params.get("laporan")) ?? (TABS[0] as (typeof TABS)[number]);
   const unitId = params.get("unit") ?? "";
+  const homebaseParam = params.get("homebase") ?? "";
   const yearParam = Number(params.get("tahun"));
   const year = yearParam >= 2000 && yearParam <= thisYear ? yearParam : thisYear;
   const setParam = (key: string, value: string | undefined) =>
@@ -156,9 +157,13 @@ export function ReportsPage() {
   const usesMonth = tab.kind === "tenure" || tab.kind === "birthdays";
   // Ulang tahun hanya butuh bulan; tahun tetap dikirim (skema API) tanpa pilihan di layar.
   const usesYear = YEAR_KINDS.has(tab.kind);
+  // EMP-D6: homebase = atribut karyawan; laporan aset menghitung aset (bukan orang) → tanpa filter ini.
+  const usesHomebase = tab.kind !== "assets";
+  const homebaseId = usesHomebase ? homebaseParam : "";
   const filter: ReportParams = {
     companyId: scope.selectedId,
     unitId: unitId || undefined,
+    homebaseId: homebaseId || undefined,
     ...(usesYear || usesMonth ? { year: usesYear ? year : thisYear } : {}),
     ...(usesMonth ? { month } : {}),
   };
@@ -167,7 +172,10 @@ export function ReportsPage() {
   );
   const company = scope.companies.find((c) => c.id === scope.selectedId);
   const dirty =
-    Boolean(unitId) || (usesYear && year !== thisYear) || (usesMonth && month !== thisMonth);
+    Boolean(unitId) ||
+    Boolean(homebaseId) ||
+    (usesYear && year !== thisYear) ||
+    (usesMonth && month !== thisMonth);
   const [exporting, setExporting] = useState(false);
   const onExport = async () => {
     setExporting(true);
@@ -219,6 +227,20 @@ export function ReportsPage() {
               noneLabel="Semua unit"
               options={units.map((u) => ({ value: u.id, label: u.name }))}
             />
+            {usesHomebase ? (
+              <FormSelect
+                aria-label="Homebase"
+                className="h-9 sm:w-48"
+                value={homebaseId}
+                onChange={(v) => setParam("homebase", v || undefined)}
+                placeholder="Semua homebase"
+                noneLabel="Semua homebase"
+                options={(master.data?.homebases ?? []).map((h) => ({
+                  value: h.id,
+                  label: h.name,
+                }))}
+              />
+            ) : null}
             {usesYear ? (
               <FormSelect
                 aria-label="Tahun"
@@ -252,6 +274,7 @@ export function ReportsPage() {
                     (prev) => {
                       const next = new URLSearchParams(prev);
                       next.delete("unit");
+                      next.delete("homebase");
                       next.delete("tahun");
                       next.delete("bulan");
                       return next;
@@ -275,8 +298,8 @@ export function ReportsPage() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                Berisi ringkasan + seluruh rincian sesuai filter PT/unit/periode. Saringan hasil
-                klik di halaman tidak ikut.
+                Berisi ringkasan + seluruh rincian sesuai filter PT/unit/homebase/periode. Saringan
+                hasil klik di halaman tidak ikut.
               </TooltipContent>
             </Tooltip>
           </div>

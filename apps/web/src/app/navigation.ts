@@ -596,6 +596,8 @@ export const NAV_GROUPS: NavGroup[] = [
               keywords: "pos jabatan bagan org chart slot vacant kosong atasan fungsional",
             },
             masterPage("work-locations"),
+            // EMP-D6: Homebase / Point of Hire.
+            masterPage("homebases"),
           ]),
           masterFolder("master-group-employment", "Kepegawaian", IdCard, [
             masterPage("employment-statuses"),

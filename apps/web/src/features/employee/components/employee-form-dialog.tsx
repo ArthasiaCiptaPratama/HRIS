@@ -60,6 +60,8 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     departmentId: employee.department?.id ?? "",
     positionId: employee.position.id,
     workLocationId: employee.workLocation?.id ?? "",
+    // EMP-D6: tidak diubah lewat form ini (PATCH tidak menerima homebaseId).
+    homebaseId: employee.homebase?.id ?? "",
     gradeId: employee.grade?.id ?? "",
     managerId: employee.manager?.id ?? "",
     orgPostId: employee.orgPostId ?? "",
@@ -177,7 +179,7 @@ export function EmployeeFormDialog({
   const onSubmit = handleSubmit(
     async (values) => {
       setProblem(null);
-      const body = toEmployeeWriteBody(values);
+      const body = toEmployeeWriteBody(values, { create: !employee });
       try {
         if (employee) {
           const profileBody = toProfileUpdate(profile, initialProfile, can);

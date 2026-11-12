@@ -581,7 +581,8 @@ function TreeItem({
   canOpen: CanOpenFn;
   depth: number;
 }) {
-  const [open, setOpen] = useState(depth < 2);
+  // ORG-D7: pohon atasan terbuka penuh saat dibuka; tiap tim tetap bisa dilipat.
+  const [open, setOpen] = useState(true);
   const q = norm(query);
   const children = q ? node.children.filter((child) => matches(child, q)) : node.children;
   const expanded = open || q !== "";

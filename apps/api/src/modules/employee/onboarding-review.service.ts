@@ -27,6 +27,9 @@ import { notify } from "../notification/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import * as employeeRepo from "./employee.repository.ts";
+import { todayInJakarta } from "./employee.service.ts";
+import { diffScalars, recordFieldChanges } from "./field-change.ts";
+import { initialEffectiveFrom, writeInitialHomebase } from "./homebase-history.ts";
 import * as repo from "./onboarding.repository.ts";
 import type { OnboardingContext } from "./onboarding.service.ts";
 import * as wizardRepo from "./onboarding-wizard.repository.ts";
@@ -140,6 +143,8 @@ async function assertWorkRefs(work: WorkCorrection, row: Row) {
     issues.push({ path: "work.workLocationId", message: "Lokasi kerja tidak valid." });
   if (!live(lookup.grades, work.gradeId))
     issues.push({ path: "work.gradeId", message: "Grade tidak valid." });
+  if (!live(lookup.homebases, work.homebaseId))
+    issues.push({ path: "work.homebaseId", message: "Homebase tidak valid." });
   if (work.managerId) {
     const [managers, [manager]] = await Promise.all([
       listManagerEmployeeIds(),
@@ -206,7 +211,19 @@ export async function decide(
   await employeeRepo.withTransaction(async (tx) => {
     let toStatus = row.onboardingStatus;
     if (input.decision === "APPROVED") {
+      const beforePersonal = completion
+        ? await tx.employeePersonal.findUnique({ where: { employeeId: row.id } })
+        : null;
       await repo.setPtkpStatus(tx, row.id, input.ptkpStatus);
+      if (completion)
+        await recordFieldChanges(tx, {
+          employeeId: row.id,
+          actorAccountId: ctx.actor.accountId,
+          source: "ONBOARDING_REVIEW",
+          changes: diffScalars("PERSONAL", beforePersonal, { ptkpStatus: input.ptkpStatus }, [
+            "ptkpStatus",
+          ]),
+        });
       if (completion) {
         await employeeRepo.updateEmployee(tx, row.id, { completionRequired: false });
       } else {
@@ -233,6 +250,15 @@ export async function decide(
           toCompanyId: row.companyId,
           changedBy: ctx.actor.accountId,
         });
+        // EMP-D6: homebase awal berlaku mulai tanggal masuk (masa depan → hari ini).
+        if (work.homebaseId) {
+          await writeInitialHomebase(tx, {
+            employeeId: row.id,
+            homebaseId: work.homebaseId,
+            effectiveFrom: initialEffectiveFrom(joinDate, todayInJakarta(now)),
+            changedBy: ctx.actor.accountId,
+          });
+        }
       }
       // D-048: sejak disetujui akun login dengan NIK (email Auth → alamat turunan). Gagal → batal semua.
       const outcome = await applyNikLogin(

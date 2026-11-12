@@ -66,6 +66,9 @@ export interface NormalizedImportRow {
   /** D-061: nama unit berjenis Divisi (dicocokkan persis di server, tidak disimpan di karyawan). */
   divisionName?: string;
   workLocationName?: string;
+  /** EMP-D6: nama homebase (POH) & tanggal berlakunya (opsional; bawaan dihitung server). */
+  homebaseName?: string;
+  homebaseEffectiveFrom?: string;
   gradeName?: string;
   workEmail?: string;
   /** D-059: email pribadi (unik). */
@@ -183,6 +186,7 @@ const WARNING_CODES = new Set([
   "UNKNOWN_EDUCATION_LEVEL",
   "INVALID_DRIVE_LINK",
   "TOO_MANY_FILES",
+  "HOMEBASE_DATE_IGNORED",
 ]);
 
 /**
@@ -228,6 +232,16 @@ export function normalizeImportRow(raw: RawImportRow): {
   set("departmentName", take("departmentName", parseText(raw.departmentName, 100)));
   set("divisionName", take("divisionName", parseText(raw.divisionName, 100)));
   set("workLocationName", take("workLocationName", parseText(raw.workLocationName, 100)));
+  set("homebaseName", take("homebaseName", parseText(raw.homebaseName, 100)));
+  const homebaseFrom = take("homebaseEffectiveFrom", parseDate(raw.homebaseEffectiveFrom));
+  // EMP-D6: tanggal berlaku tanpa nama homebase tidak berarti apa-apa → diabaikan (peringatan).
+  if (homebaseFrom && row.homebaseName) row.homebaseEffectiveFrom = homebaseFrom;
+  else if (homebaseFrom)
+    issues.push({
+      field: "homebaseEffectiveFrom",
+      code: "HOMEBASE_DATE_IGNORED",
+      severity: "WARNING",
+    });
   set("gradeName", take("gradeName", parseText(raw.gradeName, 50)));
   set("workEmail", take("workEmail", parseEmail(raw.workEmail)));
   set("personalEmail", take("personalEmail", parseEmail(raw.personalEmail)));
@@ -599,6 +613,9 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   CHART_HOLDER_INVALID:
     "Pemegang bagan yang dipilih tidak ditemukan, sudah dilengkapi, atau di luar cakupan — pilih ulang",
   CHART_HOLDER_OTHER_COMPANY: "Pemegang bagan yang dipilih ada di perusahaan lain",
+  // EMP-D6: homebase (Point of Hire).
+  HOMEBASE_FUTURE_DATE: "Tanggal berlaku homebase tidak boleh di masa depan",
+  HOMEBASE_DATE_IGNORED: "Tanggal berlaku homebase tanpa nama homebase (diabaikan)",
   CHART_POSITION_KEPT:
     "Jabatan di file berbeda dari jabatan pos bagan — jabatan pos dipertahankan (ubah lewat bagan)",
 };

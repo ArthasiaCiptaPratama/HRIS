@@ -112,6 +112,15 @@ export function employeeColumns(
           <span className="text-muted-foreground">{row.original.workLocation?.name ?? "—"}</span>
         ),
       }) as DataColumn<EmployeeListItem>,
+      // EMP-D6: homebase (POH) yang berlaku sekarang; muncul di layar lebar seperti kolom Atasan.
+      helper.display({
+        id: "homebase",
+        header: "Homebase",
+        meta: { headerClassName: "hidden xl:table-cell", className: "hidden xl:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{row.original.homebase?.name ?? "—"}</span>
+        ),
+      }) as DataColumn<EmployeeListItem>,
       helper.display({
         id: "joinDate",
         header: "Masuk",
@@ -197,6 +206,7 @@ export function useListParams(defaults: { sort: string }) {
     pageSize: [10, 20, 50, 100].includes(Number(get("size"))) ? Number(get("size")) : 20,
     departmentId: get("dept"),
     workLocationId: get("loc"),
+    homebaseId: get("hb"),
     missingNumber: get("nip") === "kosong",
     sort: get("sort") || defaults.sort,
     update,
@@ -265,6 +275,7 @@ export function EmployeeListView({
       companyId,
       departmentId: list.departmentId || undefined,
       workLocationId: list.workLocationId || undefined,
+      homebaseId: list.homebaseId || undefined,
       missingNumber: list.missingNumber || undefined,
       sort: list.sort,
     }),
@@ -274,6 +285,7 @@ export function EmployeeListView({
       list.q,
       list.departmentId,
       list.workLocationId,
+      list.homebaseId,
       list.missingNumber,
       list.sort,
       category,
@@ -286,7 +298,7 @@ export function EmployeeListView({
   const rows = query.data?.data ?? [];
   const total = query.data?.meta.total ?? 0;
   const filtered = Boolean(
-    list.q || list.departmentId || list.workLocationId || list.missingNumber,
+    list.q || list.departmentId || list.workLocationId || list.homebaseId || list.missingNumber,
   );
 
   // Halaman di luar jangkauan (mis. setelah filter) → kembali ke halaman terakhir yang ada.
@@ -353,6 +365,21 @@ export function EmployeeListView({
               label: l.name,
             }))}
           />
+          {/* EMP-D6: filter homebase (POH); disembunyikan bila master belum berisi. */}
+          {(master.data?.homebases ?? []).length > 0 || list.homebaseId ? (
+            <FormSelect
+              aria-label="Filter homebase"
+              className="h-9 sm:w-48"
+              value={list.homebaseId}
+              onChange={(value) => list.update({ hb: value })}
+              placeholder="Semua homebase"
+              noneLabel="Semua homebase"
+              options={(master.data?.homebases ?? []).map((h) => ({
+                value: h.id,
+                label: h.name,
+              }))}
+            />
+          ) : null}
           <Button
             variant={list.missingNumber ? "secondary" : "outline"}
             size="sm"
@@ -369,7 +396,7 @@ export function EmployeeListView({
               className="h-9"
               onClick={() => {
                 setSearch("");
-                list.update({ q: null, dept: null, loc: null, nip: null });
+                list.update({ q: null, dept: null, loc: null, hb: null, nip: null });
               }}
             >
               <X /> Reset

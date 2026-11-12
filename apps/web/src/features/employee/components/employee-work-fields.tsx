@@ -30,6 +30,7 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   departmentId: "",
   positionId: "",
   workLocationId: "",
+  homebaseId: "",
   gradeId: "",
   managerId: "",
   orgPostId: "",
@@ -38,10 +39,17 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
 
 const orNull = (value: string) => (value.trim() === "" ? null : value.trim());
 
-/** Nilai form → body API (POST/PATCH /employees). */
-export function toEmployeeWriteBody(values: EmployeeForm): EmployeeWriteBody {
+/**
+ * Nilai form → body API (POST/PATCH /employees). EMP-D6: `homebaseId` hanya dikirim saat tambah
+ * (`create`); PATCH tidak menerimanya — homebase diubah lewat riwayat homebase di detail.
+ */
+export function toEmployeeWriteBody(
+  values: EmployeeForm,
+  options: { create?: boolean } = {},
+): EmployeeWriteBody {
   const placed = values.orgPostId !== "";
   return {
+    ...(options.create && values.homebaseId ? { homebaseId: values.homebaseId } : {}),
     employeeNumber: orNull(values.employeeNumber),
     fullName: values.fullName.trim(),
     workEmail: orNull(values.workEmail),
@@ -359,6 +367,34 @@ export function EmployeeWorkFields({
             )}
           />
         </FormField>
+        {editing ? null : (
+          // EMP-D6: hanya saat tambah; perubahan berikutnya lewat "Ubah homebase" di detail.
+          <FormField
+            label="Homebase (POH)"
+            htmlFor="f-homebase"
+            optional
+            hint="Kota/daerah asal rekrut; berlaku mulai tanggal masuk."
+          >
+            <Controller
+              control={control}
+              name="homebaseId"
+              render={({ field }) => (
+                <FormSelect
+                  id="f-homebase"
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pilih homebase"
+                  noneLabel="Belum ditentukan"
+                  options={(master.data?.homebases ?? []).map((h) => ({
+                    value: h.id,
+                    label: h.name,
+                    ...(h.city ? { hint: h.city } : {}),
+                  }))}
+                />
+              )}
+            />
+          </FormField>
+        )}
         {selectedPost ? (
           <div className="sm:col-span-2">
             <label className="flex items-start gap-2 text-sm">
