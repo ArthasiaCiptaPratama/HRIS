@@ -1,6 +1,6 @@
 # Rencana — Homebase karyawan (EMP-D6)
 
-> **Status:** rencana final, **implementasi ditahan** sampai EMP-D5 (riwayat perubahan data) selesai dan rencana ini disetujui.
+> **Status:** diimplementasikan tahap A–C ✔ develop 2026-11-12 (`45e7eeb`, `d15b06e`, `11754b4`); EMP-OD3 terjawab (beda).
 > **Sumber:**
 > - Handoff supervisor 2026-11-12 09:00, poin 3.
 > - Jawaban grill H1–H7: kutipan pengguna 12:29 WIB, "Untuk P1/P2 dan H1-H7 setuju semua berdasarkan rekomendasi anda semua."
@@ -18,7 +18,7 @@
 | 4 | **Data kerja, bukan data pribadi.** Terlihat oleh siapa saja yang boleh melihat data kerja: SA, HR sesuai PT, atasan untuk timnya, karyawan untuk dirinya sendiri, dan HR Kepegawaian. Tidak butuh grant `employee.personal.*`. | H4 (a) |
 | 5 | **Diubah hanya oleh HR/SA**, mengikuti cakupan PT yang sama dengan ubah data kerja (`canUpdateEmployee`; bukan data milik sendiri lewat jalur HR). Saluran: detail karyawan, tambah karyawan, import Excel, dan koreksi data kerja saat approve onboarding. Karyawan **tidak** bisa mengajukan lewat ESS/app. Field ini **opsional** dulu; dijadikan wajib saat payroll aktif. | H5 (a) |
 | 6 | **Tampil di:**<br>• Detail karyawan (Penempatan + riwayat homebase).<br>• Daftar karyawan: kolom opsional + filter.<br>• Import + template Excel.<br>• Laporan, sebagai filter dan kolom ekspor headcount.<br>**Belum** tampil di app mobile, PDF Formulir Data Karyawan, dan dashboard pivot. Tunjangan yang bergantung pada homebase diputuskan di Fase 8 payroll (setelah OD-1 sampai OD-3). | H7 |
-| 7 | **Data awal:** diisi manual atau lewat **kolom baru** "HOMEBASE" di template import. Kolom kantor "PENEMPATAN LOKASI KERJA" **tidak** dipetakan ke homebase sampai pengguna mengonfirmasi (H6 terbuka, lihat EMP-OD3). | H6 (sementara) |
+| 7 | **Data awal:** diisi manual atau lewat **kolom baru** "HOMEBASE" di template import. Kolom kantor "PENEMPATAN LOKASI KERJA" **berbeda** dari homebase dan tidak dipetakan ke homebase (EMP-OD3 terjawab: kutipan pengguna 2026-11-12 13:49 WIB: "EMP-0D3: beda"). | H6 / EMP-OD3 |
 
 ## 2. Desain teknis
 
@@ -76,7 +76,7 @@
 - **D.** Docs (PLAN §4.2 tabel data kerja, codemap, ERD `docs/erd/hris.dbml`), smoke Zen, lalu kabari Mat (migrasi + shared) dan sesi mobile (field aditif).
 
 ## 3. Keputusan terbuka
-- **EMP-OD3:** apakah kolom Excel kantor **"PENEMPATAN LOKASI KERJA"** sebenarnya Homebase/POH? Bila ya, import memetakannya ke Homebase. Bila tidak, kolom itu tetap diabaikan. Sementara ini: tidak dipetakan.
+- ~~**EMP-OD3:** apakah kolom Excel kantor "PENEMPATAN LOKASI KERJA" sebenarnya Homebase/POH?~~ **Terjawab: beda** (kutipan pengguna 2026-11-12 13:49 WIB: "EMP-0D3: beda"). Kolom itu tetap tidak dipetakan ke Homebase (import tetap membacanya sebagai sinonim lokasi kerja seperti sebelumnya); homebase hanya dari kolom HOMEBASE atau diisi manual.
 
 ## 4. Audit (ringkas)
 - **Belum ada konsep Homebase/POH** di kode maupun docs. Konsep terdekat:
