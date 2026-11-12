@@ -54,7 +54,9 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] **Riwayat perubahan data per field (EMP-D5)** ✔ branch kerja 2026-11-12 — tabel `employee_field_changes` + helper `field-change.ts` di 12 jalur ubah data, `GET /employees/{id}/field-changes` (nilai sesuai grant baca), tab Riwayat = timeline gabungan + filter (tambahan 2026-11-12: handoff supervisor 09:00 poin 1, kutipan pengguna 12:29)
   - [x] Test: integration `field-changes.test.ts` 9 (form HR, profil + audit tanpa nilai, rollback 409, arsip, 401/404, penyamaran HR tanpa grant / atasan / HR Kepegawaian, audit baca), `data-changes.test.ts` (+asersi PERSONAL & BANK/dokumen), `org-chart-edit.test.ts` (+ORG_CHART), `master-data.test.ts` (+MASTER_MERGE); web `employee-detail.test.tsx` (+timeline, nilai tersembunyi, filter)
   - [x] Smoke Zen lokal (SA): timeline, filter, label sistem (`QA/2026-11-12-riwayat-perubahan/`)
-- [ ] **Homebase / Point of Hire (EMP-D6)** — rencana disetujui 2026-11-12 ([homebase-plan.md](homebase-plan.md)); tahap A–D mulai setelah EMP-D5 di-push + CI hijau; EMP-OD3 terbuka
+- [~] **Homebase / Point of Hire (EMP-D6)** — rencana disetujui 2026-11-12 ([homebase-plan.md](homebase-plan.md)); EMP-OD3 terbuka
+  - [x] Tahap A: skema + migrasi `20261112060046_employee_homebases`, master `homebases` (SA, arsip/gabung), `GET/POST/PATCH/DELETE /employees/{id}/homebases` + kolom turunan + audit + EMP-D5, `homebase` di detail/daftar + filter, tambah karyawan & approve onboarding, adapter `getHomebasesOn` — integration `homebase.test.ts` 14
+  - [ ] Tahap B web · [ ] Tahap C import/template/laporan · [ ] Tahap D docs/smoke/kabar
 
 ## Keputusan
 

@@ -1,6 +1,10 @@
 import { getPrisma } from "../../core/db.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
 import type { FieldChangesQuery } from "./employee.schema.ts";
+import { listEntries as listHomebaseEntries } from "./homebase.repository.ts";
+
+/** EMP-D6: jumlah baris riwayat homebase di detail karyawan. */
+export const DETAIL_HOMEBASE_LIMIT = 20;
 
 // Satu-satunya tempat query Prisma ke tabel skema employee (PROMPT §4).
 // Tidak ada `include` ke tabel modul lain: nama jabatan/status dirakit service dari modul organization.
@@ -26,6 +30,8 @@ export const LIST_SELECT = {
   positionId: true,
   workLocationId: true,
   gradeId: true,
+  // EMP-D6: homebase sekarang (kolom turunan dari employee_homebases).
+  homebaseId: true,
   managerId: true,
   // D-051/D-053: pos jabatan & atasan manual.
   orgPostId: true,
@@ -79,89 +85,99 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
 export async function findEmployeeParts(id: string, include: { personal: boolean; bank: boolean }) {
   const prisma = getPrisma();
   // Bagian sensitif hanya di-query bila boleh (tidak dibaca lalu dibuang).
-  const [educations, trainings, histories, personal, familyMembers, bankAccount, workExperiences] =
-    await Promise.all([
-      prisma.education.findMany({
-        where: { employeeId: id },
-        select: {
-          id: true,
-          schoolName: true,
-          major: true,
-          graduationYear: true,
-          level: true,
-          // D-059
-          entryYear: true,
-        },
-        orderBy: [{ graduationYear: "desc" }, { createdAt: "desc" }],
-      }),
-      prisma.training.findMany({
-        where: { employeeId: id },
-        select: {
-          id: true,
-          trainingField: true,
-          organizer: true,
-          duration: true,
-          trainingYear: true,
-          // D-054 (Arsip 1a)
-          type: true,
-          startDate: true,
-          endDate: true,
-          hours: true,
-          cost: true,
-          // D-059: nomor sertifikat (sertifikasi dari Formulir Data Karyawan).
-          certificateNumber: true,
-        },
-        orderBy: [{ trainingYear: "desc" }, { createdAt: "desc" }],
-      }),
-      prisma.employmentHistory.findMany({
-        where: { employeeId: id },
-        orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
-        take: 50,
-      }),
-      include.personal ? prisma.employeePersonal.findUnique({ where: { employeeId: id } }) : null,
-      include.personal
-        ? prisma.familyMember.findMany({
-            where: { employeeId: id },
-            select: {
-              id: true,
-              name: true,
-              relationship: true,
-              address: true,
-              birthDate: true,
-              phoneNumber: true,
-              // D-059: data keluarga lengkap dari Formulir Data Karyawan.
-              gender: true,
-              birthPlace: true,
-              education: true,
-              occupation: true,
-              ageAtEntry: true,
-              workAddress: true,
-              relationDetail: true,
-              isDeceased: true,
-            },
-            orderBy: { createdAt: "asc" },
-          })
-        : null,
-      include.bank
-        ? prisma.employeeBankAccount.findUnique({
-            where: { employeeId: id },
-            select: { bankName: true, accountNumber: true, accountHolder: true },
-          })
-        : null,
-      // D-054 (Arsip 1a): riwayat kerja sebelum bergabung (data kerja, bukan sensitif).
-      prisma.workExperience.findMany({
-        where: { employeeId: id },
-        select: {
-          id: true,
-          companyName: true,
-          position: true,
-          startYear: true,
-          endYear: true,
-          description: true,
-        },
-        orderBy: [{ startYear: "desc" }, { createdAt: "desc" }],
-      }),
-    ]);
+  const [
+    educations,
+    trainings,
+    histories,
+    personal,
+    familyMembers,
+    bankAccount,
+    workExperiences,
+    homebases,
+  ] = await Promise.all([
+    prisma.education.findMany({
+      where: { employeeId: id },
+      select: {
+        id: true,
+        schoolName: true,
+        major: true,
+        graduationYear: true,
+        level: true,
+        // D-059
+        entryYear: true,
+      },
+      orderBy: [{ graduationYear: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.training.findMany({
+      where: { employeeId: id },
+      select: {
+        id: true,
+        trainingField: true,
+        organizer: true,
+        duration: true,
+        trainingYear: true,
+        // D-054 (Arsip 1a)
+        type: true,
+        startDate: true,
+        endDate: true,
+        hours: true,
+        cost: true,
+        // D-059: nomor sertifikat (sertifikasi dari Formulir Data Karyawan).
+        certificateNumber: true,
+      },
+      orderBy: [{ trainingYear: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.employmentHistory.findMany({
+      where: { employeeId: id },
+      orderBy: [{ effectiveDate: "desc" }, { createdAt: "desc" }],
+      take: 50,
+    }),
+    include.personal ? prisma.employeePersonal.findUnique({ where: { employeeId: id } }) : null,
+    include.personal
+      ? prisma.familyMember.findMany({
+          where: { employeeId: id },
+          select: {
+            id: true,
+            name: true,
+            relationship: true,
+            address: true,
+            birthDate: true,
+            phoneNumber: true,
+            // D-059: data keluarga lengkap dari Formulir Data Karyawan.
+            gender: true,
+            birthPlace: true,
+            education: true,
+            occupation: true,
+            ageAtEntry: true,
+            workAddress: true,
+            relationDetail: true,
+            isDeceased: true,
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : null,
+    include.bank
+      ? prisma.employeeBankAccount.findUnique({
+          where: { employeeId: id },
+          select: { bankName: true, accountNumber: true, accountHolder: true },
+        })
+      : null,
+    // D-054 (Arsip 1a): riwayat kerja sebelum bergabung (data kerja, bukan sensitif).
+    prisma.workExperience.findMany({
+      where: { employeeId: id },
+      select: {
+        id: true,
+        companyName: true,
+        position: true,
+        startYear: true,
+        endYear: true,
+        description: true,
+      },
+      orderBy: [{ startYear: "desc" }, { createdAt: "desc" }],
+    }),
+    // EMP-D6: riwayat homebase (data kerja), dipangkas 20 terbaru.
+    listHomebaseEntries(id, DETAIL_HOMEBASE_LIMIT),
+  ]);
   return {
     educations,
     trainings,
@@ -170,6 +186,7 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
     familyMembers,
     bankAccount,
     workExperiences,
+    homebases,
   };
 }
 
@@ -352,7 +369,7 @@ export async function listForPivot(where: EmployeeWhere, withPersonal: boolean) 
 
 // ── D-049: dukungan master data untuk modul organization (lewat index.ts, disuntik di app.ts) ──
 
-export type MasterRefKind = "company" | "position" | "status" | "grade" | "location";
+export type MasterRefKind = "company" | "position" | "status" | "grade" | "location" | "homebase";
 
 const MASTER_REF_COLUMN = {
   company: "companyId",
@@ -360,6 +377,7 @@ const MASTER_REF_COLUMN = {
   status: "employmentStatusId",
   grade: "gradeId",
   location: "workLocationId",
+  homebase: "homebaseId",
 } as const;
 
 /** Jumlah karyawan (aktif & total) per id master data. */
@@ -378,6 +396,20 @@ export async function countByMasterRef(kind: MasterRefKind) {
     entry.total += row._count._all;
     if (row.isActive && row.onboardingStatus === "APPROVED") entry.active += row._count._all;
     result.set(id, entry);
+  }
+  if (kind === "homebase") {
+    // EMP-D6: `total` = karyawan yang pernah memakai homebase ini (riwayat; nilai sekarang selalu dari
+    // riwayat), supaya homebase yang hanya tersisa di riwayat tetap dianggap "dipakai".
+    const used = await getPrisma().employeeHomebase.groupBy({
+      by: ["homebaseId", "employeeId"],
+    });
+    const totals = new Map<string, number>();
+    for (const row of used) totals.set(row.homebaseId, (totals.get(row.homebaseId) ?? 0) + 1);
+    for (const [id, total] of totals) {
+      const entry = result.get(id) ?? { active: 0, total: 0 };
+      entry.total = Math.max(entry.total, total);
+      result.set(id, entry);
+    }
   }
   return result;
 }
@@ -408,6 +440,15 @@ export async function reassignMasterRef(
       await tx.employmentHistory.updateMany({
         where: { [to as string]: fromId },
         data: { [to as string]: toId },
+      })
+    ).count;
+  }
+  if (kind === "homebase") {
+    // EMP-D6: riwayat homebase ikut dipindah, jadi kolom turunan tetap sama dengan baris terbaru.
+    histories += (
+      await tx.employeeHomebase.updateMany({
+        where: { homebaseId: fromId },
+        data: { homebaseId: toId },
       })
     ).count;
   }

@@ -71,6 +71,7 @@ export const FIELD_CHANGE_FIELD_LABELS: Record<string, string> = {
   position: "Jabatan",
   orgPost: "Pos jabatan",
   workLocation: "Lokasi kerja",
+  homebase: "Homebase (POH)",
   grade: "Grade",
   manager: "Atasan",
   status: "Status kepegawaian",

@@ -1,5 +1,9 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
-import { decodePivotFilters } from "@hris/shared";
+import {
+  decodePivotFilters,
+  employeeHomebaseInputSchema,
+  employeeHomebaseUpdateSchema,
+} from "@hris/shared";
 import type { Context, MiddlewareHandler } from "hono";
 import { ValidationError } from "../../core/errors.ts";
 import type { GoogleDriveReader } from "../../core/google-drive.ts";
@@ -20,10 +24,12 @@ import {
   deactivateBodySchema,
   detailQuerySchema,
   employeeDetailSchema,
+  employeeHomebaseEntrySchema,
   employeeListItemSchema,
   employeeSummarySchema,
   fieldChangeSchema,
   fieldChangesQuerySchema,
+  homebaseEntryParamSchema,
   idParamSchema,
   listEmployeesQuerySchema,
   managerOptionSchema,
@@ -39,6 +45,7 @@ import {
 import * as service from "./employee.service.ts";
 import * as employeeForm from "./employee-form.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
+import * as homebase from "./homebase.service.ts";
 import { registerOnboardingRoutes } from "./onboarding.routes.ts";
 import type { InvitationDeps as OnboardingInvitationDeps } from "./onboarding.service.ts";
 import { orgChartQuerySchema, orgChartSchema, orgPersonCardSchema } from "./org-chart.schema.ts";
@@ -100,6 +107,73 @@ const mutation = <T extends z.ZodType>(path: string, summary: string, schema: T)
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
   });
+
+// EMP-D6: riwayat homebase (Point of Hire). Bukan operasi app (tidak di APP_OPERATION_IDS). Body memakai
+// skema shared tanpa nama `.openapi()` (aturan 7c849f5).
+const homebaseRoutes = {
+  list: createRoute({
+    method: "get",
+    path: `${P}/employees/{id}/homebases`,
+    tags: TAGS,
+    summary:
+      "Riwayat homebase (POH) karyawan, terbaru dulu — siapa saja yang boleh melihat data kerja",
+    security,
+    request: { params: idParamSchema },
+    responses: {
+      200: json("Riwayat homebase", dataEnvelope(z.array(employeeHomebaseEntrySchema))),
+      ...errors(400, 401, 404, 500),
+    },
+  }),
+  create: createRoute({
+    method: "post",
+    path: `${P}/employees/{id}/homebases`,
+    tags: TAGS,
+    summary:
+      "Tambah homebase berlaku per tanggal (≤ hari ini) — SA/HR sesuai cakupan PT; nilai sekarang dihitung ulang",
+    security,
+    request: {
+      params: idParamSchema,
+      body: {
+        content: { "application/json": { schema: employeeHomebaseInputSchema } },
+        required: true,
+      },
+    },
+    responses: {
+      201: json("Baris riwayat dibuat", dataEnvelope(employeeHomebaseEntrySchema)),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  update: createRoute({
+    method: "patch",
+    path: `${P}/employees/{id}/homebases/{entryId}`,
+    tags: TAGS,
+    summary: "Koreksi satu baris riwayat homebase — SA/HR sesuai cakupan PT",
+    security,
+    request: {
+      params: homebaseEntryParamSchema,
+      body: {
+        content: { "application/json": { schema: employeeHomebaseUpdateSchema } },
+        required: true,
+      },
+    },
+    responses: {
+      200: json("Baris riwayat diubah", dataEnvelope(employeeHomebaseEntrySchema)),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  remove: createRoute({
+    method: "delete",
+    path: `${P}/employees/{id}/homebases/{entryId}`,
+    tags: TAGS,
+    summary: "Hapus satu baris riwayat homebase (koreksi) — SA/HR sesuai cakupan PT",
+    security,
+    request: { params: homebaseEntryParamSchema },
+    responses: {
+      200: json("Baris riwayat dihapus", dataEnvelope(z.object({ id: z.uuid() }))),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+};
 
 const routes = {
   fieldChanges: createRoute({
@@ -441,6 +515,27 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
       200,
     ),
   );
+
+  app.openapi(guard(homebaseRoutes.list), async (c) =>
+    c.json(ok(await homebase.listEmployeeHomebases(ctx(c), c.req.valid("param").id)), 200),
+  );
+  app.openapi(guard(homebaseRoutes.create), async (c) =>
+    c.json(
+      ok(await homebase.addEmployeeHomebase(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
+      201,
+    ),
+  );
+  app.openapi(guard(homebaseRoutes.update), async (c) => {
+    const { id, entryId } = c.req.valid("param");
+    return c.json(
+      ok(await homebase.updateEmployeeHomebase(ctx(c), id, entryId, c.req.valid("json"))),
+      200,
+    );
+  });
+  app.openapi(guard(homebaseRoutes.remove), async (c) => {
+    const { id, entryId } = c.req.valid("param");
+    return c.json(ok(await homebase.deleteEmployeeHomebase(ctx(c), id, entryId)), 200);
+  });
 
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>

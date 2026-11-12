@@ -227,3 +227,22 @@ model WorkLocation {
   @@map("work_locations")
   @@schema("organization")
 }
+
+// EMP-D6: Homebase / Point of Hire (POH) — kota/daerah asal rekrut karyawan; master lintas PT (D-039),
+// dikelola SUPER_ADMIN (D-049). Berbeda dari lokasi kerja (tempat kerja + geofence).
+model Homebase {
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String             @db.VarChar(100)
+  city              String?            @db.VarChar(100)
+  province          String?            @db.VarChar(100)
+  note              String?            @db.VarChar(500)
+  employees         Employee[]
+  employeeHomebases EmployeeHomebase[]
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([name])
+  @@map("homebases")
+  @@schema("organization")
+}

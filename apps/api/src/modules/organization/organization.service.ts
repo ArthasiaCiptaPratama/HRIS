@@ -9,6 +9,7 @@ import type {
   DepartmentDto,
   EmploymentStatusDto,
   GradeDto,
+  HomebaseDto,
   PositionDto,
   WorkLocationDto,
 } from "./organization.schema.ts";
@@ -26,6 +27,8 @@ export interface MasterLookup {
   statuses: Map<string, EmploymentStatusDto & { deleted: boolean }>;
   grades: Map<string, GradeDto & { deleted: boolean }>;
   locations: Map<string, WorkLocationDto & { deleted: boolean }>;
+  /** EMP-D6: Homebase / Point of Hire. */
+  homebases: Map<string, HomebaseDto & { deleted: boolean }>;
 }
 
 function toMap<T extends { id: string }>(rows: Row<T>[]) {
@@ -48,6 +51,7 @@ export async function getMasterLookup(tx?: repository.OrganizationTx): Promise<M
     statuses: toMap(data.statuses),
     grades: toMap(data.grades),
     locations: toMap(data.locations),
+    homebases: toMap(data.homebases),
   };
 }
 
@@ -87,6 +91,7 @@ export async function listMasterData(actor: Actor) {
     employmentStatuses: active(lookup.statuses),
     grades: active(lookup.grades),
     workLocations: active(lookup.locations),
+    homebases: active(lookup.homebases),
   };
 }
 

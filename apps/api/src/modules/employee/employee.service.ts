@@ -75,6 +75,13 @@ import {
   fieldSnapshot,
   recordFieldChanges,
 } from "./field-change.ts";
+import * as homebaseRepo from "./homebase.repository.ts";
+import {
+  homebaseChangeText,
+  initialEffectiveFrom,
+  toHomebaseEntry,
+  writeInitialHomebase,
+} from "./homebase-history.ts";
 import { markActivatedOnLogin } from "./onboarding.service.ts";
 import {
   assertPositionCompany,
@@ -122,7 +129,7 @@ const JAKARTA_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta"
 /** PROMPT §4: logika harian memakai zona Asia/Jakarta. */
 export const todayInJakarta = (now = new Date()) => JAKARTA_DATE.format(now);
 
-function auditBase(ctx: RequestContext) {
+export function auditBase(ctx: RequestContext) {
   return {
     actorAccountId: ctx.actor.accountId,
     requestId: ctx.requestId ?? null,
@@ -232,6 +239,7 @@ function toListItem(
     department: nameRef(lookup.departments, position?.departmentId ?? null),
     workLocation: nameRef(lookup.locations, row.workLocationId),
     grade: nameRef(lookup.grades, row.gradeId),
+    homebase: nameRef(lookup.homebases, row.homebaseId),
     manager: row.manager ? { id: row.manager.id, name: row.manager.fullName } : null,
     orgPostId: row.orgPostId,
     managerOverride: row.managerOverride,
@@ -256,7 +264,7 @@ function assertCanManage(actor: Actor) {
 }
 
 /** Karyawan yang boleh dilihat aktor; di luar cakupan (mis. PT lain, D-040) = 404 (PROMPT §5). */
-async function loadInScope(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
+export async function loadInScope(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
   const row = await loadEmployee(id, tx);
   // D-045: calon onboarding dikelola lewat menu Penerimaan, bukan endpoint karyawan biasa.
   if (row.onboardingStatus !== "APPROVED" || !policy.canViewEmployee(ctx.actor, targetOf(row))) {
@@ -337,6 +345,7 @@ function buildWhere(
   }
   if (query.positionId) and.push({ positionId: query.positionId });
   if (query.workLocationId) and.push({ workLocationId: query.workLocationId });
+  if (query.homebaseId) and.push({ homebaseId: query.homebaseId });
   if (query.missingNumber) and.push({ employeeNumber: null });
   if (query.q) {
     and.push({
@@ -573,10 +582,10 @@ export async function getDashboard(
 
 // ── Detail ──────────────────────────────────────────────────────────────────
 
-type Changer = NonNullable<EmployeeDetail["histories"][number]["changedBy"]>;
+export type Changer = NonNullable<EmployeeDetail["histories"][number]["changedBy"]>;
 
 /** Akun pengubah → nama pegawai (fallback email akun), role, dan lokasi kerja. */
-async function resolveChangers(
+export async function resolveChangers(
   accountIds: (string | null)[],
   lookup: MasterLookup,
 ): Promise<Map<string, Changer>> {
@@ -704,7 +713,7 @@ export async function getEmployee(
     signPhotoUrls(ctx, [row.photoPath]),
   ]);
   const changers = await resolveChangers(
-    parts.histories.map((h) => h.changedBy),
+    [...parts.histories.map((h) => h.changedBy), ...parts.homebases.map((h) => h.changedBy)],
     lookup,
   );
 
@@ -771,6 +780,8 @@ export async function getEmployee(
       changedBy: h.changedBy ? (changers.get(h.changedBy) ?? null) : null,
       createdAt: h.createdAt.toISOString(),
     })),
+    // EMP-D6: data kerja (bukan sensitif) — terlihat oleh siapa saja yang boleh melihat detail ini.
+    homebases: parts.homebases.map((h) => toHomebaseEntry(h, lookup, changers)),
   };
   // Key sensitif hanya ada bila boleh (bukan null).
   if (include.personal) {
@@ -832,9 +843,10 @@ interface RefInput {
   positionId?: string | undefined;
   workLocationId?: string | null | undefined;
   gradeId?: string | null | undefined;
+  homebaseId?: string | null | undefined;
 }
 
-function assertRefs(lookup: MasterLookup, input: RefInput) {
+export function assertRefs(lookup: MasterLookup, input: RefInput) {
   const check = (
     map: Map<string, { deleted: boolean }>,
     id: string | null | undefined,
@@ -851,6 +863,7 @@ function assertRefs(lookup: MasterLookup, input: RefInput) {
   check(lookup.positions, input.positionId, "Jabatan");
   check(lookup.locations, input.workLocationId, "Lokasi kerja");
   check(lookup.grades, input.gradeId, "Grade");
+  check(lookup.homebases, input.homebaseId, "Homebase");
 }
 
 // PLAN §4.1: manager_id wajib menunjuk karyawan aktif ber-akun MANAGER/SUPER_ADMIN; tanpa siklus.
@@ -1031,6 +1044,15 @@ export async function createEmployee(
         managerOverride,
       });
       if (input.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
+      // EMP-D6: homebase awal berlaku mulai tanggal masuk (masa depan → hari ini) + kolom turunan.
+      if (input.homebaseId) {
+        await writeInitialHomebase(tx, {
+          employeeId: created.id,
+          homebaseId: input.homebaseId,
+          effectiveFrom: initialEffectiveFrom(input.joinDate, todayInJakarta()),
+          changedBy: ctx.actor.accountId,
+        });
+      }
       await repository.createHistory(tx, {
         employeeId: created.id,
         changeType: "HIRED",
@@ -1053,6 +1075,7 @@ export async function createEmployee(
             managerId: input.managerId ?? null,
             orgPostId: input.orgPostId ?? null,
             managerOverride,
+            ...(input.homebaseId ? { homebaseId: input.homebaseId } : {}),
             ...(sections ? { profile: sections } : {}),
           },
         },
@@ -1660,6 +1683,8 @@ async function reassignMasterRefWithChanges(
 ) {
   const impacted = await repository.findEmployeesByMasterRef(tx, kind, fromId);
   const lookup = await getMasterLookup(tx);
+  if (kind === "homebase")
+    return reassignHomebaseWithChanges(tx, impacted, lookup, fromId, toId, actorAccountId);
   const names =
     kind === "position"
       ? lookup.positions
@@ -1686,4 +1711,49 @@ async function reassignMasterRefWithChanges(
       ],
     });
   return repository.reassignMasterRef(tx, kind, fromId, toId);
+}
+
+/**
+ * EMP-D6: gabung master homebase — karyawan yang homebase sekarangnya sumber dicatat EMP-D5
+ * `MASTER_MERGE` (teks "<Nama> (berlaku YYYY-MM-DD)" baris terbaru), lalu kolom turunan dan semua baris
+ * riwayat dipindah ke tujuan.
+ */
+async function reassignHomebaseWithChanges(
+  tx: repository.EmployeeTx,
+  impacted: { id: string }[],
+  lookup: MasterLookup,
+  fromId: string,
+  toId: string,
+  actorAccountId?: string,
+) {
+  const latest = new Map<string, { homebaseId: string; effectiveFrom: Date }>();
+  for (const row of await homebaseRepo.listLatestEntriesFor(
+    tx,
+    impacted.map((e) => e.id),
+  )) {
+    if (!latest.has(row.employeeId)) latest.set(row.employeeId, row);
+  }
+  const groupId = crypto.randomUUID();
+  for (const employee of impacted) {
+    const entry = latest.get(employee.id);
+    await recordFieldChanges(tx, {
+      employeeId: employee.id,
+      actorAccountId: actorAccountId ?? null,
+      source: "MASTER_MERGE",
+      groupId,
+      changes: [
+        {
+          section: "WORK",
+          field: "homebase",
+          oldValue: entry
+            ? homebaseChangeText(lookup, entry)
+            : (lookup.homebases.get(fromId)?.name ?? null),
+          newValue: entry
+            ? homebaseChangeText(lookup, { ...entry, homebaseId: toId })
+            : (lookup.homebases.get(toId)?.name ?? null),
+        },
+      ],
+    });
+  }
+  return repository.reassignMasterRef(tx, "homebase", fromId, toId);
 }

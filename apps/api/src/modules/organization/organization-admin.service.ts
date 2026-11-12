@@ -6,6 +6,8 @@ import {
   GEOFENCE_INCOMPLETE_MESSAGE,
   geofenceIncomplete,
   gradeInputSchema,
+  homebaseBaseSchema,
+  homebaseInputSchema,
   type MasterDataKind,
   type MasterDataView,
   MERGEABLE_MASTER_DATA,
@@ -37,6 +39,7 @@ import type {
   DepartmentAdmin,
   EmploymentStatusAdmin,
   GradeAdmin,
+  HomebaseAdmin,
   MergeResult,
   PositionAdmin,
   WorkLocationAdmin,
@@ -64,6 +67,7 @@ const ENTITY: Record<MasterDataKind, repository.ArchivableEntity> = {
   "employment-statuses": "employmentStatus",
   grades: "grade",
   "work-locations": "workLocation",
+  homebases: "homebase",
 };
 const AUDIT_ENTITY: Record<MasterDataKind, string> = {
   companies: "company",
@@ -72,6 +76,7 @@ const AUDIT_ENTITY: Record<MasterDataKind, string> = {
   "employment-statuses": "employment_status",
   grades: "grade",
   "work-locations": "work_location",
+  homebases: "homebase",
 };
 const LABEL: Record<MasterDataKind, string> = {
   companies: "Perusahaan",
@@ -80,6 +85,7 @@ const LABEL: Record<MasterDataKind, string> = {
   "employment-statuses": "Status kepegawaian",
   grades: "Grade",
   "work-locations": "Lokasi kerja",
+  homebases: "Homebase",
 };
 
 function assertCanView(actor: Actor) {
@@ -164,7 +170,8 @@ export type AdminItem =
   | PositionAdmin
   | EmploymentStatusAdmin
   | GradeAdmin
-  | WorkLocationAdmin;
+  | WorkLocationAdmin
+  | HomebaseAdmin;
 
 export async function listAdmin(
   ctx: RequestContext,
@@ -277,6 +284,20 @@ export async function listAdmin(
           employeeCount: active(usage, l.id),
         }));
     }
+    case "homebases": {
+      const usage = await employeeSupport().countByMasterRef("homebase");
+      return rows.homebases
+        .filter((h) => keep(h.deletedAt !== null, h.name, h.city, h.province))
+        .map((h) => ({
+          id: h.id,
+          name: h.name,
+          city: h.city,
+          province: h.province,
+          note: h.note,
+          archived: h.deletedAt !== null,
+          employeeCount: active(usage, h.id),
+        }));
+    }
   }
 }
 
@@ -292,6 +313,7 @@ function findRow(rows: Rows, kind: MasterDataKind, id: string) {
     "employment-statuses": rows.statuses,
     grades: rows.grades,
     "work-locations": rows.locations,
+    homebases: rows.homebases,
   }[kind];
   const row = list.find((r) => r.id === id);
   if (!row) throw new NotFoundError(`${LABEL[kind]} tidak ditemukan.`);
@@ -503,6 +525,18 @@ export async function createItem(
           };
           break;
         }
+        case "homebases": {
+          const input = parseInput(homebaseInputSchema, body);
+          const data = {
+            name: input.name,
+            city: input.city ?? null,
+            province: input.province ?? null,
+            note: input.note ?? null,
+          };
+          created = await repository.homebaseRepo.create(tx, data);
+          after = data;
+          break;
+        }
       }
       await audit(ctx, tx, kind, "create", created.id, { after });
       return { id: created.id };
@@ -639,6 +673,24 @@ export async function updateItem(
           after = { name: input.name, city: input.city, radiusM: input.radiusM };
           break;
         }
+        case "homebases": {
+          const input = parseInput(homebaseBaseSchema.partial(), body);
+          const current = rows.homebases.find((h) => h.id === id);
+          await repository.homebaseRepo.update(tx, id, {
+            ...(input.name !== undefined ? { name: input.name } : {}),
+            ...(input.city !== undefined ? { city: input.city } : {}),
+            ...(input.province !== undefined ? { province: input.province } : {}),
+            ...(input.note !== undefined ? { note: input.note } : {}),
+          });
+          before = {
+            name: current?.name,
+            city: current?.city,
+            province: current?.province,
+            note: current?.note,
+          };
+          after = input;
+          break;
+        }
       }
       await audit(ctx, tx, kind, "update", id, { before, after });
       return { id };
@@ -750,6 +802,15 @@ export async function deleteItem(
   assertCanManage(ctx.actor);
   const rows = await repository.listAdminRows();
   const row = findRow(rows, kind, id) as { id: string; name?: string; code?: string };
+  if (kind === "homebases") {
+    // EMP-D6: homebase yang pernah dipakai (nilai sekarang atau riwayat) tidak bisa dihapus permanen.
+    const used = (await employeeSupport().countByMasterRef("homebase")).get(id)?.total ?? 0;
+    if (used > 0) {
+      throw new ConflictError(
+        "Homebase ini sudah pernah dipakai data karyawan, jadi tidak bisa dihapus permanen. Arsipkan saja.",
+      );
+    }
+  }
   return mapDbErrors(kind, () =>
     repository.withTransaction(async (tx) => {
       // Audit ditulis lebih dulu dalam transaksi yang sama: bila FK menolak, keduanya batal.
@@ -769,6 +830,7 @@ const REF_KIND: Partial<Record<MasterDataKind, Exclude<MasterRefKind, "company">
   "employment-statuses": "status",
   grades: "grade",
   "work-locations": "location",
+  homebases: "homebase",
 };
 
 export async function mergeItem(

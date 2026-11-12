@@ -4,6 +4,8 @@ import {
   departmentInputSchema,
   employmentStatusInputSchema,
   gradeInputSchema,
+  homebaseBaseSchema,
+  homebaseInputSchema,
   MASTER_DATA_KINDS,
   MASTER_DATA_LABELS,
   type MasterDataKind,
@@ -23,6 +25,7 @@ import {
   departmentAdminSchema,
   employmentStatusAdminSchema,
   gradeAdminSchema,
+  homebaseAdminSchema,
   idParamSchema,
   mergeResultSchema,
   mutationResultSchema,
@@ -31,7 +34,7 @@ import {
 } from "./organization-admin.schema.ts";
 import * as service from "./organization-admin.service.ts";
 
-// D-049: /api/v1/<jenis> untuk 6 master data. Baca daftar admin: SA & HR; tulis: SA (policy di service).
+// D-049: /api/v1/<jenis> untuk 7 master data (EMP-D6: + homebases). Baca daftar admin: SA & HR; tulis: SA (policy di service).
 
 const ITEM_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   companies: companyAdminSchema,
@@ -40,6 +43,7 @@ const ITEM_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusAdminSchema,
   grades: gradeAdminSchema,
   "work-locations": workLocationAdminSchema,
+  homebases: homebaseAdminSchema,
 };
 const CREATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   companies: companyInputSchema,
@@ -48,6 +52,7 @@ const CREATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusInputSchema,
   grades: gradeInputSchema,
   "work-locations": workLocationInputSchema,
+  homebases: homebaseInputSchema,
 };
 const UPDATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   companies: companyInputSchema.partial(),
@@ -56,6 +61,7 @@ const UPDATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusInputSchema.partial(),
   grades: gradeInputSchema.partial(),
   "work-locations": workLocationBaseSchema.partial(),
+  homebases: homebaseBaseSchema.partial(),
 };
 
 const security = [{ [BEARER_SCHEME]: [] }];

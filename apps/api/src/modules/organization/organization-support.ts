@@ -4,7 +4,7 @@ import type { OrganizationTx } from "./organization.repository.ts";
 // D-049/D-051: organization tidak membaca tabel employee (PLAN §3.2.4). Jumlah pemakai, pemindahan
 // rujukan saat gabungkan, dan urusan pemegang pos disuntikkan dari modul employee (app.ts).
 
-export type MasterRefKind = "company" | "position" | "status" | "grade" | "location";
+export type MasterRefKind = "company" | "position" | "status" | "grade" | "location" | "homebase";
 
 export interface EmployeeMasterDataSupport {
   countByMasterRef(kind: MasterRefKind): Promise<Map<string, { active: number; total: number }>>;

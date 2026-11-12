@@ -17,11 +17,11 @@ export type OrganizationTx = Prisma.TransactionClient;
 // tidak boleh menjalankan query paralel.
 export async function loadMasterData(tx?: OrganizationTx) {
   // Promise Prisma bersifat malas: query baru jalan saat di-await / dikirim ke $transaction.
-  const [q0, q1, q2, q3, q4, q5] = masterDataQueries(tx ?? getPrisma());
-  const [departments, positions, statuses, grades, locations, companies] = tx
-    ? [await q0, await q1, await q2, await q3, await q4, await q5]
-    : await getPrisma().$transaction([q0, q1, q2, q3, q4, q5]);
-  return { departments, positions, statuses, grades, locations, companies };
+  const [q0, q1, q2, q3, q4, q5, q6] = masterDataQueries(tx ?? getPrisma());
+  const [departments, positions, statuses, grades, locations, companies, homebases] = tx
+    ? [await q0, await q1, await q2, await q3, await q4, await q5, await q6]
+    : await getPrisma().$transaction([q0, q1, q2, q3, q4, q5, q6]);
+  return { departments, positions, statuses, grades, locations, companies, homebases };
 }
 
 function masterDataQueries(prisma: OrganizationTx) {
@@ -58,6 +58,11 @@ function masterDataQueries(prisma: OrganizationTx) {
     prisma.company.findMany({
       select: { id: true, code: true, name: true, isActive: true, deletedAt: true },
       orderBy: { code: "asc" },
+    }),
+    // EMP-D6: Homebase / Point of Hire.
+    prisma.homebase.findMany({
+      select: { id: true, name: true, city: true, province: true, deletedAt: true },
+      orderBy: { name: "asc" },
     }),
   ] as const;
 }
@@ -99,9 +104,21 @@ export function withTransaction<T>(fn: (tx: OrganizationTx) => Promise<T>): Prom
 
 const ADMIN_SELECT = { id: true, name: true, deletedAt: true, createdAt: true } as const;
 
-/** Semua baris (aktif & arsip) untuk halaman admin; tabel kecil → tanpa paginasi. */
-async function loadAdminRows(prisma: OrganizationTx) {
-  const [companies, departments, positions, statuses, grades, locations] = await Promise.all([
+/**
+ * Semua baris (aktif & arsip) untuk halaman admin; tabel kecil → tanpa paginasi. Tanpa `tx`: satu
+ * transaksi batch; dengan `tx` (transaksi interaktif pemanggil): berurutan, karena klien transaksi
+ * interaktif tidak boleh menjalankan query paralel (peringatan pg).
+ */
+export async function listAdminRows(tx?: OrganizationTx) {
+  const [q0, q1, q2, q3, q4, q5, q6] = adminRowQueries(tx ?? getPrisma());
+  const [companies, departments, positions, statuses, grades, locations, homebases] = tx
+    ? [await q0, await q1, await q2, await q3, await q4, await q5, await q6]
+    : await getPrisma().$transaction([q0, q1, q2, q3, q4, q5, q6]);
+  return { companies, departments, positions, statuses, grades, locations, homebases };
+}
+
+function adminRowQueries(prisma: OrganizationTx) {
+  return [
     prisma.company.findMany({
       select: { ...ADMIN_SELECT, code: true, npwpNumber: true, address: true },
       orderBy: { code: "asc" },
@@ -130,11 +147,11 @@ async function loadAdminRows(prisma: OrganizationTx) {
       },
       orderBy: { name: "asc" },
     }),
-  ]);
-  return { companies, departments, positions, statuses, grades, locations };
-}
-export function listAdminRows(tx?: OrganizationTx) {
-  return tx ? loadAdminRows(tx) : withTransaction(loadAdminRows);
+    prisma.homebase.findMany({
+      select: { ...ADMIN_SELECT, city: true, province: true, note: true },
+      orderBy: { name: "asc" },
+    }),
+  ] as const;
 }
 export type AdminRows = Awaited<ReturnType<typeof listAdminRows>>;
 
@@ -223,6 +240,21 @@ export const workLocationRepo = {
     tx.workLocation.update({ where: { id }, data, select: { id: true } }),
 };
 
+export interface HomebaseData {
+  name: string;
+  city: string | null;
+  province: string | null;
+  note: string | null;
+}
+
+/** EMP-D6: master Homebase / Point of Hire. */
+export const homebaseRepo = {
+  create: (tx: OrganizationTx, data: HomebaseData) =>
+    tx.homebase.create({ data, select: { id: true } }),
+  update: (tx: OrganizationTx, id: string, data: Partial<HomebaseData>) =>
+    tx.homebase.update({ where: { id }, data, select: { id: true } }),
+};
+
 // ── Direktori baca-saja untuk modul lain (lewat index.ts): lokasi kerja & PT ──
 
 const LOCATION_BRIEF_SELECT = {
@@ -288,7 +320,8 @@ export type ArchivableEntity =
   | "position"
   | "employmentStatus"
   | "grade"
-  | "workLocation";
+  | "workLocation"
+  | "homebase";
 
 /** Arsip (deletedAt diisi) / pulihkan (null). */
 export async function setArchived(
@@ -311,6 +344,8 @@ export async function setArchived(
       return tx.grade.update({ where: { id }, data, select: { id: true } });
     case "workLocation":
       return tx.workLocation.update({ where: { id }, data, select: { id: true } });
+    case "homebase":
+      return tx.homebase.update({ where: { id }, data, select: { id: true } });
   }
 }
 
@@ -330,6 +365,8 @@ export async function hardDelete(tx: OrganizationTx, entity: ArchivableEntity, i
       return tx.grade.delete({ where, select: { id: true } });
     case "workLocation":
       return tx.workLocation.delete({ where, select: { id: true } });
+    case "homebase":
+      return tx.homebase.delete({ where, select: { id: true } });
   }
 }
 

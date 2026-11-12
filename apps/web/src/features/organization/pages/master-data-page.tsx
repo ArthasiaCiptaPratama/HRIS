@@ -7,6 +7,7 @@ import {
   type EmploymentCategory,
   employmentStatusInputSchema,
   gradeInputSchema,
+  homebaseInputSchema,
   type MasterDataKind,
   type MasterDataView,
   MERGEABLE_MASTER_DATA,
@@ -376,6 +377,8 @@ function buildColumns(
           ),
       }),
     ],
+    // EMP-D6: kolom halaman Homebase menyusul di tahap B web.
+    homebases: [col({ id: "city", header: "Kota", cell: ({ row }) => muted(row.original.city) })],
   };
   const count = col({
     id: "employees",
@@ -439,6 +442,7 @@ const SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusInputSchema,
   grades: gradeInputSchema,
   "work-locations": workLocationInputSchema,
+  homebases: homebaseInputSchema,
 };
 
 function initialValues(item: MasterDataItem | null): Values {
@@ -509,6 +513,9 @@ function toBody(kind: MasterDataKind, v: Values): Record<string, unknown> {
         longitude: number(v.longitude),
         radiusM: number(v.radiusM),
       };
+    // EMP-D6: halaman Homebase belum ada di MASTER_DATA_PAGES (tahap B web); bentuk minimal saja.
+    case "homebases":
+      return { name: v.name ?? "", city: text(v.city) };
   }
 }
 
