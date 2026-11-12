@@ -54,6 +54,8 @@ const ISSUE_HINTS: Record<string, string> = {
   COMPANY_REQUIRED: "Pilih PT di kolom PT baris ini atau PT bawaan di Lengkapi data.",
   CATEGORY_REQUIRED: "Pilih status di kolom Status baris ini.",
   STATUS_INVALID: "Pilih status lain di kolom Status baris ini.",
+  HOMEBASE_FUTURE_DATE:
+    "Isi tanggal berlaku homebase paling lambat hari ini di file (kosongkan = tanggal masuk/hari ini).",
 };
 
 /** Satu kalimat "apa yang harus dilakukan" untuk error-error satu baris. */

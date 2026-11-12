@@ -21,6 +21,8 @@ import {
 export interface ReportParams {
   companyId?: string | undefined;
   unitId?: string | undefined;
+  /** EMP-D6: homebase (POH) yang berlaku sekarang. */
+  homebaseId?: string | undefined;
   year?: number | undefined;
   /** 1–12 (masa kerja/jubilee, ulang tahun). */
   month?: number | undefined;

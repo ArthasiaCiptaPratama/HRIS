@@ -77,7 +77,13 @@ const STEPS: { key: Step; label: string }[] = [
   { key: "preview", label: "Pratinjau" },
   { key: "done", label: "Selesai" },
 ];
-const EMPTY_MAP: MasterMap = { departments: {}, positions: {}, grades: {}, workLocations: {} };
+const EMPTY_MAP: MasterMap = {
+  departments: {},
+  positions: {},
+  grades: {},
+  workLocations: {},
+  homebases: {},
+};
 
 type Choices = {
   masterMap: MasterMap;

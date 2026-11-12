@@ -295,4 +295,68 @@ describe("Master Data (D-049)", () => {
       ]),
     );
   });
+  it("EMP-D6: halaman Homebase (Kota, Provinsi, jumlah karyawan) & tambah mengirim body benar", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(me("SUPER_ADMIN", true), {
+      homebases: [
+        {
+          id: ID(6),
+          name: "Palangka Raya",
+          archived: false,
+          employeeCount: 7,
+          city: "Palangka Raya",
+          province: "Kalimantan Tengah",
+          note: null,
+        },
+      ],
+    });
+    renderAt("/master-data/homebase");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Homebase (POH)" }),
+    ).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: "Daftar homebase (poh)" });
+    expect(await within(table).findByText("Kalimantan Tengah")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Provinsi" })).toBeInTheDocument();
+    expect(within(table).getByText("7")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Homebase \(POH\)/ }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Tambah homebase" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Nama"), "Sampit");
+    await user.type(within(dialog).getByLabelText(/Kota/), "Kotawaringin Timur");
+    await user.type(within(dialog).getByLabelText(/Provinsi/), "Kalimantan Tengah");
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0]).toEqual({
+      method: "POST",
+      path: "/homebases",
+      body: {
+        name: "Sampit",
+        city: "Kotawaringin Timur",
+        province: "Kalimantan Tengah",
+        note: null,
+      },
+    });
+  });
+
+  it("EMP-D6: HR hanya melihat halaman Homebase (tanpa tambah & aksi)", async () => {
+    mockFetch(me("HR_ADMIN"), {
+      homebases: [
+        {
+          id: ID(6),
+          name: "Palangka Raya",
+          archived: false,
+          employeeCount: 0,
+          city: null,
+          province: null,
+          note: null,
+        },
+      ],
+    });
+    renderAt("/master-data/homebase");
+    const table = await screen.findByRole("table", { name: "Daftar homebase (poh)" });
+    expect(await within(table).findByText("Palangka Raya")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Tambah/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aksi untuk/ })).not.toBeInTheDocument();
+  });
 });

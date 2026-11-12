@@ -20,6 +20,8 @@ const EXISTING_INCLUDE = {
   // D-059: pencocokan impor ulang (tambah yang belum ada).
   familyMembers: { select: { relationship: true, name: true } },
   trainings: { select: { trainingField: true } },
+  // EMP-D6: riwayat homebase (cek "baris di tanggal itu dengan homebase yang sama").
+  homebases: { select: { homebaseId: true, effectiveFrom: true } },
 } as const;
 
 export async function findByEmployeeNumbers(numbers: string[]) {

@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-12 — Bagan terbuka penuh saat dibuka (ORG-D7) (Oatse)
+- **Dikerjakan:** `org-chart-canvas.tsx`: state lipat awal kosong (semua cabang terbuka) saat halaman dibuka, ganti PT, dan ganti filter Semua/HO/Site (sebelumnya `collapseBelowDepth` tingkat 3), ganti filter juga pas ke layar; tombol "Buka semua"/"Ringkas"/lipat per cabang tetap. Pohon tab "Atasan langsung" (`org-structure-page.tsx` `TreeItem`) terbuka penuh (sebelumnya 2 tingkat).
+- **Keputusan:** ORG-D7 (rencana disetujui supervisor atas nama pengguna, handoff 2026-11-12 09:00).
+- **Verifikasi:** `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama `roster-edit.service.ts`); `check:boundaries` ✔ (560 modul); web test bagan 4 file 20/20 ✔; Zen headless lokal (SA, ACP, 1070 px): Semua 89 node, 48 cabang terbuka, 0 terlipat, "Buka semua" nonaktif; HO 21 node terbuka; lipat Direktur Utama di HO lalu ganti ke Site → 71 node, 38 cabang terbuka, 0 terlipat; tab Atasan langsung terbuka (screenshot `QA/2026-11-12-org-chart-open/`, memuat nama DB lokal — jangan diunggah).
+- **Masalah / catatan:** bagan penuh yang dipaskan ke layar 1070 px tampil sangat kecil (89 pos) — pengguna perlu zoom/cari; bila keterbacaan jadi keluhan, opsi: fit dengan zoom minimum lalu fokus ke akar. Label lipat memakai jumlah keturunan bagan penuh, bukan bagan tersaring (lama, mis. "88 pos" di filter HO). DB lokal: hampir semua karyawan tanpa `managerId` (pohon Atasan 1 tim) — data lokal, bukan dari perubahan ini.
+- **Berikutnya:** Riwayat perubahan data (EMP-D5) setelah P1/P2 dijawab.
+
 ### 2026-11-11 — Zona HO/Site resmi di unit (ORG-D5) + mode edit layar sempit (ORG-D6) (Oatse)
 - **Dikerjakan:** handoff supervisor 09:25 (backlog bagan). ORG-D5: enum `OrgZone` + `departments.zone` (null = ikut induk), migrasi `20261111022710_org_unit_zone` dengan backfill "Site…" → SITE, `unitZones` dari kolom, `zone` di kontrak `/org-chart`, `/master-data`, daftar admin unit (+ `canEditZone`), create/update unit SA, `PUT /departments/{id}/zone` + policy `canManageUnitZone` + audit, seed akar Site; web: field Zona di form unit, kolom Zona (pilihan langsung bila berhak), draf bagan membawa zona unit. ORG-D6: hook `useCompactEdit`, Mode edit di semua lebar, tanpa seret di layar sempit/sentuh, toolbar ikon + pusatkan kartu, titik + 32 px, bilah edit ikon menempel di bawah (portal).
 - **Keputusan:** ORG-D5, ORG-D6 (ORG-D4 aturan nama diganti; ORG-D2 (1) "desktop saja" diubah).

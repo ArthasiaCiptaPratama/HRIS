@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase", async () => ({
 // EMP-D2: Tambah karyawan bertahap (urutan Google Form) — data kerja wajib, profil opsional, bagian
 // sensitif terkunci tanpa grant tulis, simpan sekali (POST /employees + profile).
 const ACP = { id: "co-acp", code: "ACP", name: "PT Arthasia Cipta Pratama" };
+const HB = "00000000-0000-4000-8000-0000000000b1";
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -45,6 +46,7 @@ function mockBackend(account: ReturnType<typeof me> | Record<string, unknown>) {
             employmentStatuses: [{ id: "st1", name: "Karyawan Tetap", category: "PERMANENT" }],
             grades: [],
             workLocations: [],
+            homebases: [{ id: HB, name: "Palangka Raya", city: "Palangka Raya", province: null }],
           },
         });
       if (path === "/employees/manager-options") return json(200, { data: [] });
@@ -152,6 +154,37 @@ describe("Tambah karyawan bertahap (EMP-D2)", { timeout: 20_000 }, () => {
       expect(profile).toMatchObject({ family: [], educations: [], certifications: [] });
       expect(profile).not.toHaveProperty("personal");
       expect(profile).not.toHaveProperty("bank");
+    });
+  });
+  it("EMP-D6: Homebase (POH) opsional di data kepegawaian → homebaseId terkirim saat tambah", async () => {
+    const requests = mockBackend(me("SUPER_ADMIN", true));
+    const user = userEvent.setup();
+    renderAt("/personal/tambah-karyawan");
+    await fillWork(user);
+    const step = screen.getByRole("region", { name: "Data kepegawaian" });
+    await user.click(within(step).getByRole("combobox", { name: /Homebase \(POH\)/ }));
+    await user.click(await screen.findByRole("option", { name: /Palangka Raya/ }));
+    await user.click(screen.getByRole("button", { name: /Berikutnya/ }));
+    await screen.findByRole("region", { name: "Data pribadi & alamat" });
+    await user.click(screen.getByRole("button", { name: /Simpan sekarang/ }));
+    await waitFor(() => {
+      const post = requests.find((r) => r.method === "POST" && r.path === "/employees");
+      expect(post?.body).toMatchObject({ fullName: "Contoh Fiktif", homebaseId: HB });
+    });
+  });
+
+  it("EMP-D6: tanpa homebase → body tanpa homebaseId", async () => {
+    const requests = mockBackend(me("SUPER_ADMIN", true));
+    const user = userEvent.setup();
+    renderAt("/personal/tambah-karyawan");
+    await fillWork(user);
+    await user.click(screen.getByRole("button", { name: /Berikutnya/ }));
+    await screen.findByRole("region", { name: "Data pribadi & alamat" });
+    await user.click(screen.getByRole("button", { name: /Simpan sekarang/ }));
+    await waitFor(() => {
+      const post = requests.find((r) => r.method === "POST" && r.path === "/employees");
+      expect(post?.body).toMatchObject({ fullName: "Contoh Fiktif" });
+      expect(post?.body).not.toHaveProperty("homebaseId");
     });
   });
 });

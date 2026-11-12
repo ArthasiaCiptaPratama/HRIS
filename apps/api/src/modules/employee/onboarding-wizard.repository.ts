@@ -214,7 +214,7 @@ export async function createDocument(
   });
   return tx.employeeDocument.create({
     data: { ...data, documentTypeId: documentType.id },
-    select: { id: true },
+    select: { id: true, version: true },
   });
 }
 
@@ -222,7 +222,7 @@ export async function createDocument(
 export async function findActiveDocuments(employeeId: string, type: EmployeeDocumentType) {
   return getPrisma().employeeDocument.findMany({
     where: { employeeId, type, deletedAt: null, isCurrent: true },
-    select: { id: true, storagePath: true, uploadedBy: true },
+    select: { id: true, storagePath: true, uploadedBy: true, version: true },
   });
 }
 

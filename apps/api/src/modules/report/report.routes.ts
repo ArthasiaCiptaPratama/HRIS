@@ -21,6 +21,7 @@ const filterQuery = z.object({
   companyId: z.uuid().optional(),
   unitId: z.uuid().optional(),
   workLocationId: z.uuid().optional(),
+  homebaseId: z.uuid().optional(),
 });
 const yearQuery = filterQuery.extend({ year: z.coerce.number().int().min(2000).max(2100) });
 const monthQuery = yearQuery.extend({ month: z.coerce.number().int().min(1).max(12) });

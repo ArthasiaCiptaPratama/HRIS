@@ -11,6 +11,7 @@ vi.mock("@/lib/supabase", async () => ({
 // D-045 c / D-047: halaman review isian onboarding (SA / HR + grant) — baca data, setujui (+PTKP),
 // minta revisi per bagian, batalkan; HR tanpa grant tidak bisa membuka halaman.
 const EMP = "00000000-0000-4000-8000-000000000301";
+const HB = "00000000-0000-4000-8000-0000000000b1";
 const health = {
   data: { status: "ok", checks: { database: "ok" }, time: new Date().toISOString() },
 };
@@ -106,6 +107,7 @@ function mockFetch(role: Record<string, unknown>) {
           employmentStatuses: [{ id: "s1", name: "Kontrak", category: null }],
           grades: [],
           workLocations: [],
+          homebases: [{ id: HB, name: "Palangka Raya", city: null, province: null }],
         },
       });
     if (path === `/onboarding/${EMP}` && method === "GET") return json(200, { data: review() });
@@ -157,6 +159,26 @@ describe.skipIf(!FEATURES.onboarding)("Review onboarding (D-045 c)", () => {
       expect(calls.find((c) => c.path === `/onboarding/${EMP}/decision`)?.body).toEqual({
         decision: "APPROVED",
         ptkpStatus: "K1",
+      }),
+    );
+  });
+
+  it("EMP-D6: setujui calon dengan Homebase (POH) → work.homebaseId terkirim", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(hrWithGrant);
+    renderAt(`/penerimaan/${EMP}`);
+    await screen.findByRole("heading", { name: "Ani Calon" });
+    await user.click(screen.getByRole("button", { name: "Setujui" }));
+    await user.click(screen.getByRole("combobox", { name: /PTKP/ }));
+    await user.click(await screen.findByRole("option", { name: "K/1" }));
+    await user.click(screen.getByRole("combobox", { name: /Homebase/ }));
+    await user.click(await screen.findByRole("option", { name: "Palangka Raya" }));
+    await user.click(screen.getAllByRole("button", { name: "Setujui" }).at(-1) as HTMLElement);
+    await waitFor(() =>
+      expect(calls.find((c) => c.path === `/onboarding/${EMP}/decision`)?.body).toEqual({
+        decision: "APPROVED",
+        ptkpStatus: "K1",
+        work: { homebaseId: HB },
       }),
     );
   });

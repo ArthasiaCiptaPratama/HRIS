@@ -54,6 +54,14 @@ import {
   type RequestContext,
   todayInJakarta,
 } from "./employee.service.ts";
+import {
+  diffRows,
+  diffScalars,
+  type FieldChange,
+  familyKey,
+  recordFieldChanges,
+  summarizeRow,
+} from "./field-change.ts";
 import * as wizard from "./onboarding-wizard.repository.ts";
 import { personalOf } from "./onboarding-wizard.service.ts";
 
@@ -567,7 +575,12 @@ export async function cancelDataChange(ctx: RequestContext, id: string) {
 
 const dateOrNull = (value: unknown) => (typeof value === "string" ? toDate(value) : null);
 
-async function apply(ctx: RequestContext, tx: employees.EmployeeTx, row: repo.RequestRow) {
+async function apply(
+  ctx: RequestContext,
+  tx: employees.EmployeeTx,
+  row: repo.RequestRow,
+  groupId: string,
+) {
   const payload = row.payload as Record<string, unknown>;
   const self = await wizard.loadSelf(row.employeeId);
   if (!self) throw new NotFoundError("Karyawan tidak ditemukan.");
@@ -617,11 +630,11 @@ async function apply(ctx: RequestContext, tx: employees.EmployeeTx, row: repo.Re
         accountNumber: payload.accountNumber as string,
         accountHolder: (payload.accountHolder as string | null) ?? null,
       });
-      await activateDocument(ctx, tx, row);
+      await activateDocument(ctx, tx, row, groupId);
       return bankCurrent(self);
     }
     case "DOCUMENT": {
-      await activateDocument(ctx, tx, row);
+      await activateDocument(ctx, tx, row, groupId);
       return null;
     }
   }
@@ -632,6 +645,7 @@ async function activateDocument(
   ctx: RequestContext,
   tx: employees.EmployeeTx,
   row: repo.RequestRow,
+  groupId: string,
 ) {
   if (!row.document) return;
   const type = row.document.documentType;
@@ -642,13 +656,29 @@ async function activateDocument(
     tx,
     replaced.map((d) => d.id),
   );
+  const version = (await repo.maxVersionOfType(tx, row.employeeId, type.id)) + 1;
   await documents.updateDocument(tx, row.document.id, {
     isCurrent: true,
     status: "VERIFIED",
     verifiedBy: ctx.actor.accountId,
     verifiedAt: new Date(),
-    version: (await repo.maxVersionOfType(tx, row.employeeId, type.id)) + 1,
+    version,
     replacesId: replaced[0]?.id ?? null,
+  });
+  await recordFieldChanges(tx, {
+    employeeId: row.employeeId,
+    actorAccountId: ctx.actor.accountId,
+    source: "DATA_CHANGE",
+    groupId,
+    refId: row.document.id,
+    changes: [
+      {
+        section: "DOCUMENT",
+        field: "document",
+        oldValue: replaced[0] ? `${type.name} · v${replaced[0].version}` : null,
+        newValue: `${type.name} · v${version}`,
+      },
+    ],
   });
 }
 
@@ -668,7 +698,53 @@ export async function decideDataChange(ctx: RequestContext, id: string, body: un
       }
       if (row.status !== "PENDING") throw new BusinessRuleError("Pengajuan sudah diproses.");
       const approved = input.decision === "APPROVE";
-      const previous = approved ? await apply(ctx, tx, row) : null;
+      const groupId = crypto.randomUUID();
+      const previous: Record<string, unknown> | null = approved
+        ? await apply(ctx, tx, row, groupId)
+        : null;
+      if (approved && previous) {
+        const payload = row.payload as Record<string, unknown>;
+        let changes: FieldChange[];
+        if (row.section === "FAMILY") {
+          changes = diffRows<Record<string, unknown>>(
+            "FAMILY",
+            "member",
+            previous.members as Record<string, unknown>[],
+            payload.members as Record<string, unknown>[],
+            familyKey,
+            (r) => summarizeRow("FAMILY", r),
+          );
+        } else if (row.section === "EMERGENCY") {
+          const rename = (v: Record<string, unknown>) => ({
+            emergencyContactName: v.name,
+            emergencyContactRelationship: v.relationship,
+            emergencyPhone: v.phone,
+          });
+          changes = diffScalars(
+            "EMERGENCY",
+            rename(previous),
+            rename(payload),
+            Object.keys(rename(payload)).filter(
+              (k) => rename(payload)[k as keyof ReturnType<typeof rename>] !== undefined,
+            ),
+          );
+        } else {
+          changes = diffScalars(
+            row.section,
+            previous,
+            payload,
+            Object.keys(payload).filter((k) => k in previous),
+          );
+        }
+        await recordFieldChanges(tx, {
+          employeeId: row.employeeId,
+          actorAccountId: ctx.actor.accountId,
+          source: "DATA_CHANGE",
+          groupId,
+          refId: row.id,
+          changes,
+        });
+      }
       if (!approved) dropped = await dropDocument(tx, row, "REJECTED");
       await repo.updateRequest(tx, id, {
         status: approved ? "APPROVED" : "REJECTED",

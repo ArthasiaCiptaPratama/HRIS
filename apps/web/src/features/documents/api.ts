@@ -96,6 +96,7 @@ function useInvalidateDocuments(employeeId: string) {
   return () => {
     void queryClient.invalidateQueries({ queryKey: documentKeys.employee(employeeId) });
     void queryClient.invalidateQueries({ queryKey: archiveKeys.all });
+    void queryClient.invalidateQueries({ queryKey: ["employees"] });
     void queryClient.invalidateQueries({ queryKey: ["document-types"] });
   };
 }

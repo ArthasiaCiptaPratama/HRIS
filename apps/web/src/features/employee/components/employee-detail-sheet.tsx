@@ -4,6 +4,10 @@ import {
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
+  FIELD_CHANGE_FIELD_LABELS,
+  FIELD_CHANGE_SECTION_LABELS,
+  FIELD_CHANGE_SOURCE_LABELS,
+  type FieldChangeSection,
   GENDER_LABELS,
   MOVEMENT_TYPE_LABELS,
   PTKP_LABELS,
@@ -65,11 +69,12 @@ import { access as appAccess } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useEmployee, useMasterData } from "../api";
+import { useEmployee, useEmployeeFieldChanges, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
-import type { EmployeeDetail } from "../schemas";
+import type { EmployeeDetail, EmployeeFieldChange, EmployeeHomebaseEntry } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeeFormDialog } from "./employee-form-dialog";
+import { useHomebaseEditor } from "./employee-homebase-editor";
 import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { profilePlacement } from "./profile-placement";
@@ -629,6 +634,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 function WorkTab({ employee }: { employee: EmployeeDetail }) {
+  const homebase = useHomebaseEditor(employee);
   return (
     <div className="space-y-8">
       <section>
@@ -641,6 +647,21 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="Unit organisasi">{employee.department?.name}</Field>
           <Field label="Grade">{employee.grade?.name}</Field>
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
+          {/* EMP-D6: homebase (POH) yang berlaku sekarang; diubah lewat riwayat (bukan Ubah data). */}
+          <Field label="Homebase (POH)">
+            {homebase.canManage ? (
+              <span className="flex flex-wrap items-center gap-2">
+                {employee.homebase?.name ?? (
+                  <span className="text-muted-foreground font-normal">—</span>
+                )}
+                <Button size="xs" variant="outline" onClick={homebase.add}>
+                  <Pencil /> Ubah homebase
+                </Button>
+              </span>
+            ) : (
+              employee.homebase?.name
+            )}
+          </Field>
           <Field label="Atasan langsung">{employee.manager?.name}</Field>
           <Field label="Status kepegawaian">{employee.employmentStatus.name}</Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
@@ -655,6 +676,8 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           ) : null}
         </FieldGrid>
       </section>
+      <HomebaseHistory employee={employee} menu={homebase.menu} />
+      {homebase.dialogs}
       <section>
         <SectionTitle>Kontak kerja</SectionTitle>
         <FieldGrid>
@@ -686,6 +709,62 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
         </FieldGrid>
       </section>
     </div>
+  );
+}
+
+/** EMP-D6: riwayat homebase (terbaru dulu, maks. 20 dari detail). */
+function HomebaseHistory({
+  employee,
+  menu,
+}: {
+  employee: EmployeeDetail;
+  menu: (entry: EmployeeHomebaseEntry) => ReactNode;
+}) {
+  const entries = employee.homebases ?? [];
+  return (
+    <section aria-labelledby="homebase-history-title">
+      <h3
+        id="homebase-history-title"
+        className="text-muted-foreground mb-4 text-[11px] font-medium tracking-wider uppercase"
+      >
+        Riwayat homebase
+      </h3>
+      {entries.length === 0 ? (
+        <p className="text-muted-foreground text-sm">Belum ada riwayat homebase.</p>
+      ) : (
+        <ul className="divide-y rounded-xl border">
+          {entries.map((entry, index) => (
+            <li key={entry.id} className="flex items-start gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                  {entry.homebase.name}
+                  {index === 0 ? (
+                    <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px]">
+                      Sekarang
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  Berlaku mulai {formatDate(entry.effectiveFrom)}
+                  {entry.decreeNumber ? (
+                    <>
+                      <span aria-hidden> · </span>No. SK {entry.decreeNumber}
+                    </>
+                  ) : null}
+                </p>
+                {entry.note ? (
+                  <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
+                    {entry.note}
+                  </p>
+                ) : null}
+                <ChangedBy changedBy={entry.changedBy} />
+              </div>
+              {menu(entry)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -930,7 +1009,83 @@ const POSITION_HISTORY_TYPES: EmploymentChangeType[] = [
   "COMPANY_CHANGED",
 ];
 
+const HISTORY_FILTERS: { label: string; sections?: readonly FieldChangeSection[] }[] = [
+  { label: "Semua" },
+  { label: "Kepegawaian", sections: [] },
+  { label: "Data kerja", sections: ["WORK", "EMERGENCY"] },
+  { label: "Data pribadi", sections: ["PERSONAL"] },
+  { label: "Keluarga", sections: ["FAMILY"] },
+  { label: "Rekening", sections: ["BANK"] },
+  {
+    label: "Arsip & dokumen",
+    sections: ["EDUCATION", "TRAINING", "WORK_EXPERIENCE", "DOCUMENT", "PHOTO"],
+  },
+];
+
+/** "item" arsip memakai nama bagiannya (Pendidikan/Pelatihan/Pengalaman kerja). */
+const fieldLabel = (row: EmployeeFieldChange) =>
+  row.field === "item"
+    ? FIELD_CHANGE_SECTION_LABELS[row.section]
+    : (FIELD_CHANGE_FIELD_LABELS[row.field] ?? row.field);
+
+function FieldChangeEntry({ rows }: { rows: EmployeeFieldChange[] }) {
+  const first = rows[0];
+  if (!first) return null;
+  return (
+    <li className="relative flex gap-4">
+      <span className="bg-background relative grid size-8 shrink-0 place-items-center rounded-full border">
+        <Pencil className="size-3.5" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1 pt-1">
+        <p className="text-sm font-medium">{FIELD_CHANGE_SOURCE_LABELS[first.source]}</p>
+        <ul className="mt-1 space-y-1 text-sm">
+          {rows.map((row) => (
+            <li key={row.id} className="break-words">
+              {row.valueHidden ? (
+                <>
+                  <span>{fieldLabel(row)} diubah</span>
+                  <span className="text-muted-foreground ml-2 inline-flex items-center gap-1 text-xs">
+                    <Lock className="size-3" aria-hidden />
+                    nilai disembunyikan
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">{fieldLabel(row)}:</span> {row.oldValue ?? "—"} →{" "}
+                  {row.newValue ?? "—"}
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+        <ChangedBy changedBy={first.changedBy} systemLabel="sistem (otomatis)" />
+        <p className="text-muted-foreground mt-1 text-xs">{formatDateTime(first.occurredAt)}</p>
+      </div>
+    </li>
+  );
+}
+
 function HistoryTab({ employee }: { employee: EmployeeDetail }) {
+  const changes = useEmployeeFieldChanges(employee.id);
+  const [filter, setFilter] = useState(0);
+  const selected = HISTORY_FILTERS[filter]?.sections;
+  const groups = new Map<string, EmployeeFieldChange[]>();
+  for (const page of changes.data?.pages ?? [])
+    for (const row of page.data) {
+      if (selected && !selected.includes(row.section)) continue;
+      groups.set(row.groupId, [...(groups.get(row.groupId) ?? []), row]);
+    }
+  const timeline = [
+    ...(filter === 0 || filter === 1
+      ? employee.histories.map((h) => ({ id: h.id, time: h.createdAt, history: h, rows: null }))
+      : []),
+    ...[...groups.entries()].map(([id, rows]) => ({
+      id,
+      time: rows[0]?.occurredAt ?? "",
+      history: null,
+      rows,
+    })),
+  ].sort((a, b) => b.time.localeCompare(a.time));
   const canManage = employee.access.manage && FEATURES.archive;
   const editor = usePositionHistoryEditor(employee);
   const add = canManage ? (
@@ -940,19 +1095,44 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
       </Button>
     </div>
   ) : null;
-  if (employee.histories.length === 0)
-    return (
-      <>
-        {add}
-        <EmptyState icon={History} title="Belum ada riwayat kepegawaian" />
-        {editor.dialog}
-      </>
-    );
   return (
     <>
       {add}
+      <fieldset className="mb-6 flex flex-wrap gap-2 border-0 p-0">
+        <legend className="sr-only">Filter riwayat</legend>
+        {HISTORY_FILTERS.map((item, index) => (
+          <Button
+            key={item.label}
+            size="sm"
+            variant={filter === index ? "default" : "outline"}
+            aria-pressed={filter === index}
+            onClick={() => setFilter(index)}
+          >
+            {item.label}
+          </Button>
+        ))}
+      </fieldset>
+      {changes.isPending ? (
+        <p role="status" className="text-muted-foreground mb-4 text-sm">
+          Memuat riwayat perubahan…
+        </p>
+      ) : null}
+      {changes.isError ? (
+        <div role="alert" className="mb-4 text-sm">
+          {errorMessage(changes.error)}{" "}
+          <Button variant="outline" size="sm" onClick={() => void changes.refetch()}>
+            Coba lagi
+          </Button>
+        </div>
+      ) : null}
+      {!timeline.length && !changes.isPending ? (
+        <EmptyState icon={History} title="Belum ada riwayat kepegawaian" />
+      ) : null}
       <ol className="relative space-y-6 before:absolute before:top-2 before:bottom-2 before:left-[15px] before:w-px before:bg-border">
-        {employee.histories.map((h) => {
+        {timeline.map((entry) => {
+          if (entry.rows) return <FieldChangeEntry key={entry.id} rows={entry.rows} />;
+          const h = entry.history;
+          if (!h) return null;
           const Icon = HISTORY_ICON[h.changeType];
           const detail =
             h.changeType === "STATUS_CHANGED"
@@ -1028,16 +1208,30 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
           );
         })}
       </ol>
+      {changes.hasNextPage ? (
+        <Button
+          className="mt-6"
+          variant="outline"
+          disabled={changes.isFetchingNextPage}
+          onClick={() => void changes.fetchNextPage()}
+        >
+          {changes.isFetchingNextPage ? "Memuat…" : "Muat lebih banyak"}
+        </Button>
+      ) : null}
       {editor.dialog}
     </>
   );
 }
 
-function ChangedBy({ changedBy }: { changedBy: EmployeeDetail["histories"][number]["changedBy"] }) {
+function ChangedBy({
+  changedBy,
+  systemLabel = "sistem (data awal/impor)",
+}: {
+  changedBy: EmployeeDetail["histories"][number]["changedBy"];
+  systemLabel?: string;
+}) {
   if (!changedBy) {
-    return (
-      <p className="text-muted-foreground mt-2 text-xs">Diubah oleh: sistem (data awal/impor)</p>
-    );
+    return <p className="text-muted-foreground mt-2 text-xs">Diubah oleh: {systemLabel}</p>;
   }
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
