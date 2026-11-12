@@ -37,6 +37,7 @@ export type MasterMap = {
   positions: Record<string, string>;
   grades: Record<string, string>;
   workLocations: Record<string, string>;
+  homebases: Record<string, string>;
 };
 export const masterKey = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
 export const positionKey = (department: string, name: string) =>

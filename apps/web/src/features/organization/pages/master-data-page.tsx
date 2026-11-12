@@ -7,6 +7,7 @@ import {
   type EmploymentCategory,
   employmentStatusInputSchema,
   gradeInputSchema,
+  homebaseInputSchema,
   type MasterDataKind,
   type MasterDataView,
   MERGEABLE_MASTER_DATA,
@@ -376,6 +377,11 @@ function buildColumns(
           ),
       }),
     ],
+    // EMP-D6: Homebase / POH — pola lokasi kerja tanpa geofence.
+    homebases: [
+      col({ id: "city", header: "Kota", cell: ({ row }) => muted(row.original.city) }),
+      col({ id: "province", header: "Provinsi", cell: ({ row }) => muted(row.original.province) }),
+    ],
   };
   const count = col({
     id: "employees",
@@ -439,6 +445,7 @@ const SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusInputSchema,
   grades: gradeInputSchema,
   "work-locations": workLocationInputSchema,
+  homebases: homebaseInputSchema,
 };
 
 function initialValues(item: MasterDataItem | null): Values {
@@ -460,6 +467,8 @@ function initialValues(item: MasterDataItem | null): Values {
     latitude: s(item?.latitude),
     longitude: s(item?.longitude),
     radiusM: s(item?.radiusM),
+    province: s(item?.province),
+    note: s(item?.note),
   };
 }
 
@@ -508,6 +517,14 @@ function toBody(kind: MasterDataKind, v: Values): Record<string, unknown> {
         latitude: number(v.latitude),
         longitude: number(v.longitude),
         radiusM: number(v.radiusM),
+      };
+    // EMP-D6: Homebase / POH.
+    case "homebases":
+      return {
+        name: v.name ?? "",
+        city: text(v.city),
+        province: text(v.province),
+        note: text(v.note),
       };
   }
 }
@@ -879,6 +896,24 @@ function MasterDataFormDialog({
                   )}
                 </div>
               </fieldset>
+            </>
+          ) : null}
+          {config.kind === "homebases" ? (
+            <>
+              {field("city", "Kota", textInput("city"), { optional: true })}
+              {field("province", "Provinsi", textInput("province"), { optional: true })}
+              {field(
+                "note",
+                "Catatan",
+                <Textarea
+                  id="md-note"
+                  rows={2}
+                  value={values.note ?? ""}
+                  onChange={(event) => set("note")(event.target.value)}
+                  aria-invalid={Boolean(errors.note)}
+                />,
+                { optional: true },
+              )}
             </>
           ) : null}
           <DialogFooter>

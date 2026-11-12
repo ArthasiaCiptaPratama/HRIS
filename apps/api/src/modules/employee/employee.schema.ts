@@ -6,6 +6,8 @@ import {
   employmentCategorySchema,
   employmentChangeTypeSchema,
   exitReasonSchema,
+  fieldChangeSectionSchema,
+  fieldChangeSourceSchema,
   genderSchema,
   movementTypeSchema,
   orgUnitTypeSchema,
@@ -68,6 +70,8 @@ export const listEmployeesQuerySchema = z.object({
   departmentId: z.uuid().optional(),
   positionId: z.uuid().optional(),
   workLocationId: z.uuid().optional(),
+  // EMP-D6: homebase (POH) yang berlaku sekarang.
+  homebaseId: z.uuid().optional(),
   // D-063: true = hanya karyawan yang NIP-nya belum ada.
   missingNumber: z
     .enum(["true", "false"])
@@ -109,6 +113,8 @@ export const employeeListItemSchema = z
     department: nullableRef(listRefSchema),
     workLocation: nullableRef(listRefSchema),
     grade: nullableRef(listRefSchema),
+    // EMP-D6: homebase (Point of Hire) yang berlaku sekarang; null = belum diisi.
+    homebase: nullableRef(listRefSchema),
     manager: nullableRef(listRefSchema),
     // D-051/D-053: pos jabatan di bagan; atasan diatur manual (bukan otomatis dari pos).
     orgPostId: z.uuid().nullable(),
@@ -237,6 +243,29 @@ const historySchema = z.object({
   createdAt: z.iso.datetime(),
 });
 
+// EMP-D6: satu baris riwayat homebase (data kerja). changedBy sama dengan riwayat kepegawaian.
+export const employeeHomebaseEntrySchema = z
+  .object({
+    id: z.uuid(),
+    homebase: z
+      .object({
+        id: z.uuid(),
+        name: z.string(),
+        city: z.string().nullable(),
+        province: z.string().nullable(),
+      })
+      .openapi("EmployeeHomebaseRef"),
+    effectiveFrom: isoDate,
+    decreeNumber: z.string().nullable(),
+    note: z.string().nullable(),
+    changedBy: historySchema.shape.changedBy,
+    createdAt: z.iso.datetime(),
+  })
+  .openapi("EmployeeHomebaseEntry");
+export type EmployeeHomebaseEntry = z.infer<typeof employeeHomebaseEntrySchema>;
+
+export const homebaseEntryParamSchema = z.object({ id: z.uuid(), entryId: z.uuid() });
+
 export const employeeDetailSchema = employeeListItemSchema
   .extend({
     emergencyPhone: z.string().nullable(),
@@ -293,6 +322,8 @@ export const employeeDetailSchema = employeeListItemSchema
       }),
     ),
     histories: z.array(historySchema),
+    // EMP-D6: riwayat homebase terbaru dulu (maks. 20; lengkapnya GET /employees/{id}/homebases).
+    homebases: z.array(employeeHomebaseEntrySchema),
   })
   .openapi("EmployeeDetail");
 export type EmployeeDetail = z.infer<typeof employeeDetailSchema>;
@@ -364,6 +395,9 @@ export const createEmployeeBodySchema = z
     workLocationId: nullableUuid,
     gradeId: nullableUuid,
     managerId: nullableUuid,
+    // EMP-D6: homebase (POH) awal, berlaku mulai tanggal masuk (tanggal masuk di masa depan → hari ini).
+    // Perubahan berikutnya lewat /employees/{id}/homebases (tidak lewat PATCH /employees/{id}).
+    homebaseId: nullableUuid,
     // D-051: pos jabatan (opsional); jabatan harus sama dengan jabatan pos.
     orgPostId: nullableUuid,
     // D-053: true = atasan diisi manual (managerId); false = otomatis dari pos. Tanpa nilai: managerId
@@ -384,7 +418,7 @@ export type CreateEmployeeInput = z.infer<typeof createEmployeeBodySchema>;
 // Status kepegawaian diubah lewat /status-change supaya selalu tercatat di riwayat.
 // `profile` hanya untuk tambah (EMP-D2); ubah data sensitif lewat PATCH /employees/{id}/profile (EMP-D4).
 export const updateEmployeeBodySchema = createEmployeeBodySchema
-  .omit({ employmentStatusId: true, profile: true })
+  .omit({ employmentStatusId: true, profile: true, homebaseId: true })
   .partial()
   .refine((body) => Object.keys(body).length > 0, "Tidak ada perubahan yang dikirim.")
   .openapi("UpdateEmployee");
@@ -498,3 +532,23 @@ export const dashboardPivotQuerySchema = z.object({
 // Dibungkus `z` milik @hono/zod-openapi: skema dari @hris/shared yang terbentuk sebelum ekstensi OpenAPI
 // dimuat (urutan import) tidak punya method `.openapi()` di zod v4.
 export const dashboardPivotSchema = z.object(pivotResultSchema.shape).openapi("DashboardPivot");
+
+export const fieldChangesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT),
+  section: fieldChangeSectionSchema.optional(),
+});
+export type FieldChangesQuery = z.infer<typeof fieldChangesQuerySchema>;
+export const fieldChangeSchema = z.object({
+  id: z.uuid(),
+  groupId: z.uuid(),
+  occurredAt: z.iso.datetime(),
+  source: fieldChangeSourceSchema,
+  section: fieldChangeSectionSchema,
+  field: z.string(),
+  oldValue: z.string().nullable(),
+  newValue: z.string().nullable(),
+  valueHidden: z.boolean(),
+  refId: z.uuid().nullable(),
+  changedBy: historySchema.shape.changedBy,
+});

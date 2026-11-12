@@ -321,6 +321,18 @@ describe("gabungkan", () => {
     expect(res.status).toBe(200);
     expect(await data(res)).toMatchObject({ movedEmployees: 1, movedHistories: 2 });
     expect((await prisma.employee.findUniqueOrThrow({ where: { id: e } })).positionId).toBe(to);
+    // EMP-D5: karyawan terdampak gabung master mendapat riwayat nama lama → baru.
+    expect(
+      await prisma.employeeFieldChange.findFirst({
+        where: { employeeId: e, source: "MASTER_MERGE" },
+        select: { field: true, oldValue: true, newValue: true, changedBy: true },
+      }),
+    ).toEqual({
+      field: "position",
+      oldValue: N("Staf IT"),
+      newValue: N("Staff IT"),
+      changedBy: sa.account.id,
+    });
     const history = await prisma.employmentHistory.findFirstOrThrow({ where: { employeeId: e } });
     expect([history.fromPositionId, history.toPositionId]).toEqual([to, to]);
     expect(

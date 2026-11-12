@@ -39,6 +39,7 @@ import {
   isDocumentPathConflict,
 } from "./document-storage.ts";
 import * as employeeRepo from "./employee.repository.ts";
+import { diffSnapshots, fieldSnapshot, recordFieldChanges } from "./field-change.ts";
 import * as onboardingRepo from "./onboarding.repository.ts";
 import * as repo from "./onboarding-wizard.repository.ts";
 
@@ -314,6 +315,17 @@ export async function saveSection(ctx: WizardContext, section: OnboardingSection
   const { row, mode } = state;
   const completion = mode === "completion";
   await employeeRepo.withTransaction(async (tx) => {
+    const sections = [
+      "WORK",
+      "EMERGENCY",
+      "PERSONAL",
+      "FAMILY",
+      "BANK",
+      "EDUCATION",
+      "TRAINING",
+      "WORK_EXPERIENCE",
+    ] as const;
+    const before = completion ? await fieldSnapshot(tx, row.id, sections) : null;
     switch (section) {
       case "personal": {
         const input = parseSection(personalSectionSchema, body);
@@ -416,6 +428,18 @@ export async function saveSection(ctx: WizardContext, section: OnboardingSection
         break;
       }
     }
+    if (before)
+      await recordFieldChanges(tx, {
+        employeeId: row.id,
+        actorAccountId: ctx.actor.accountId,
+        source: "SELF_FILL",
+        changes: await diffSnapshots(
+          tx,
+          before,
+          await fieldSnapshot(tx, row.id, sections),
+          sections,
+        ),
+      });
     // Audit tanpa nilai (data pribadi): cukup bagian yang diubah.
     await writeAudit(
       { ...auditBase(ctx, row.id), action: "employee.onboarding.self_update", after: { section } },
@@ -489,6 +513,23 @@ export async function confirmDocument(
         sizeBytes: info.size,
         uploadedBy: ctx.actor.accountId,
       });
+      if (state.mode === "completion")
+        await recordFieldChanges(tx, {
+          employeeId: row.id,
+          actorAccountId: ctx.actor.accountId,
+          source: "DOCUMENT",
+          refId: doc.id,
+          changes: [
+            {
+              section: "DOCUMENT",
+              field: "document",
+              oldValue: replaced.length
+                ? `${DOCUMENT_TYPE_LABELS[input.type]} · v${replaced[0]?.version ?? 1}`
+                : null,
+              newValue: `${DOCUMENT_TYPE_LABELS[input.type]} · v${doc.version}`,
+            },
+          ],
+        });
       await writeAudit(
         {
           ...auditBase(ctx, row.id),
@@ -526,6 +567,21 @@ export async function deleteDocument(ctx: WizardContext, documentId: string, now
   }
   await employeeRepo.withTransaction(async (tx) => {
     await repo.archiveDocuments(tx, [doc.id], now);
+    if (state.mode === "completion")
+      await recordFieldChanges(tx, {
+        employeeId: state.row.id,
+        actorAccountId: ctx.actor.accountId,
+        source: "DOCUMENT",
+        refId: doc.id,
+        changes: [
+          {
+            section: "DOCUMENT",
+            field: "document",
+            oldValue: `${DOCUMENT_TYPE_LABELS[doc.type]} · v${doc.version}`,
+            newValue: null,
+          },
+        ],
+      });
     await writeAudit(
       {
         ...auditBase(ctx, state.row.id),

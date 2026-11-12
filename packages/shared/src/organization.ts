@@ -10,6 +10,8 @@ export const MASTER_DATA_KINDS = [
   "employment-statuses",
   "grades",
   "work-locations",
+  // EMP-D6: Homebase / Point of Hire.
+  "homebases",
 ] as const;
 export const masterDataKindSchema = z.enum(MASTER_DATA_KINDS);
 export type MasterDataKind = z.infer<typeof masterDataKindSchema>;
@@ -22,6 +24,7 @@ export const MASTER_DATA_LABELS: Record<MasterDataKind, string> = {
   "employment-statuses": "Status kepegawaian",
   grades: "Grade",
   "work-locations": "Site / lokasi kerja",
+  homebases: "Homebase (POH)",
 };
 
 /** Perusahaan tidak bisa digabung (badan hukum berbeda, D-039). */
@@ -31,6 +34,7 @@ export const MERGEABLE_MASTER_DATA: readonly MasterDataKind[] = [
   "employment-statuses",
   "grades",
   "work-locations",
+  "homebases",
 ];
 
 // ── D-050: unit organisasi berjenjang & level jabatan ───────────────────────────
@@ -225,3 +229,31 @@ export type WorkLocationInput = z.infer<typeof workLocationInputSchema>;
 
 export const mergeMasterDataInputSchema = z.object({ targetId: z.uuid("Pilih tujuan.") });
 export type MergeMasterDataInput = z.infer<typeof mergeMasterDataInputSchema>;
+
+// EMP-D6: Homebase / Point of Hire (POH) — kota/daerah asal rekrut; bukan lokasi kerja (tanpa geofence).
+export const homebaseBaseSchema = z.object({
+  name: name(100),
+  city: optionalText(100),
+  province: optionalText(100),
+  note: optionalText(500),
+});
+export const homebaseInputSchema = homebaseBaseSchema;
+export type HomebaseInput = z.infer<typeof homebaseInputSchema>;
+
+/**
+ * EMP-D6: baris riwayat homebase karyawan. `effectiveFrom` boleh mundur, tidak boleh di masa depan (dicek
+ * API dengan tanggal WIB). Satu tanggal berlaku per karyawan hanya satu baris.
+ */
+export const employeeHomebaseInputSchema = z.object({
+  homebaseId: z.uuid("Pilih homebase."),
+  effectiveFrom: z.iso.date("Tanggal berlaku tidak valid (YYYY-MM-DD)."),
+  decreeNumber: optionalText(60),
+  note: optionalText(500),
+});
+export type EmployeeHomebaseInput = z.infer<typeof employeeHomebaseInputSchema>;
+
+/** EMP-D6: koreksi satu baris riwayat homebase (field yang dikirim saja). */
+export const employeeHomebaseUpdateSchema = employeeHomebaseInputSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "Tidak ada perubahan yang dikirim.");
+export type EmployeeHomebaseUpdate = z.infer<typeof employeeHomebaseUpdateSchema>;

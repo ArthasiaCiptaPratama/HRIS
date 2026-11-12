@@ -1,4 +1,6 @@
 import type {
+  EmployeeHomebaseInput,
+  EmployeeHomebaseUpdate,
   EmployeeProfileInput,
   EmployeeProfileUpdateInput,
   EmploymentCategory,
@@ -13,6 +15,7 @@ import {
 import {
   keepPreviousData,
   type QueryClient,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -25,8 +28,10 @@ import { useStoredCompanyId } from "./company-scope";
 import {
   dashboardSchema,
   employeeDetailSchema,
+  employeeHomebaseEntrySchema,
   employeeListItemSchema,
   employeePageSchema,
+  fieldChangesPageSchema,
   managerOptionSchema,
   masterDataSchema,
   one,
@@ -48,6 +53,7 @@ export const employeeKeys = {
   summary: (companyId: string | undefined) => ["employees", "summary", companyId ?? "all"] as const,
   dashboard: ["employees", "dashboard"] as const,
   detail: (id: string, view: DetailView) => ["employees", "detail", id, view] as const,
+  fieldChanges: (id: string) => ["employees", "field-changes", id] as const,
   structure: ["employees", "structure"] as const,
   chart: (companyId: string | null) => ["employees", "org-chart", companyId ?? "default"] as const,
   card: (id: string) => ["employees", "org-chart", "card", id] as const,
@@ -66,6 +72,8 @@ export interface EmployeeListParams {
   companyId?: string | undefined;
   departmentId?: string | undefined;
   workLocationId?: string | undefined;
+  /** EMP-D6: homebase (POH) yang berlaku sekarang. */
+  homebaseId?: string | undefined;
   /** D-063: hanya karyawan tanpa NIP. */
   missingNumber?: boolean | undefined;
   sort: string;
@@ -153,6 +161,23 @@ export function useEmployee(id: string | null, view: DetailView = "work", enable
     enabled: enabled && id !== null,
     staleTime: view === "full" ? 0 : 15_000,
     gcTime: view === "full" ? 0 : 60_000,
+  });
+}
+
+/** Riwayat sensitif dibaca saat tab dibuka dan dibuang saat tab ditutup. */
+export function useEmployeeFieldChanges(id: string) {
+  return useInfiniteQuery({
+    queryKey: employeeKeys.fieldChanges(id),
+    initialPageParam: 1,
+    queryFn: ({ signal, pageParam }) =>
+      api(`/employees/${id}/field-changes?page=${pageParam}&pageSize=50`, {
+        schema: fieldChangesPageSchema,
+        signal,
+      }),
+    getNextPageParam: (last) =>
+      last.meta.page * last.meta.pageSize < last.meta.total ? last.meta.page + 1 : undefined,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
 
@@ -305,6 +330,8 @@ export interface EmployeeWriteBody {
   orgPostId?: string | null;
   /** D-053: true = atasan manual; false = otomatis dari pos. */
   managerOverride?: boolean;
+  /** EMP-D6: homebase awal, berlaku mulai tanggal masuk (hanya POST; ubah lewat riwayat homebase). */
+  homebaseId?: string | null;
   /** EMP-D2: data profil lengkap saat tambah (hanya POST). */
   profile?: EmployeeProfileInput;
 }
@@ -336,6 +363,55 @@ export function useUpdateEmployeeProfile() {
     },
   });
 }
+
+// ── EMP-D6: riwayat homebase (POH) ─────────────────────────────────────────
+// Mutasi menyegarkan semua kunci "employees": detail (nilai sekarang + riwayat), daftar (kolom & filter),
+// dan riwayat perubahan data (fieldChanges). Jumlah karyawan per homebase di Master Data ikut segar.
+
+const homebaseEntry = one(employeeHomebaseEntrySchema);
+
+function useHomebaseMutation<TInput>(request: (input: TInput) => Promise<unknown>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: employeeKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ["organization"] }),
+      ]),
+  });
+}
+
+export const useAddEmployeeHomebase = () =>
+  useHomebaseMutation(({ employeeId, body }: { employeeId: string; body: EmployeeHomebaseInput }) =>
+    api(`/employees/${employeeId}/homebases`, { method: "POST", body, schema: homebaseEntry }),
+  );
+
+export const useUpdateEmployeeHomebase = () =>
+  useHomebaseMutation(
+    ({
+      employeeId,
+      entryId,
+      body,
+    }: {
+      employeeId: string;
+      entryId: string;
+      body: EmployeeHomebaseUpdate;
+    }) =>
+      api(`/employees/${employeeId}/homebases/${entryId}`, {
+        method: "PATCH",
+        body,
+        schema: homebaseEntry,
+      }),
+  );
+
+export const useDeleteEmployeeHomebase = () =>
+  useHomebaseMutation(({ employeeId, entryId }: { employeeId: string; entryId: string }) =>
+    api(`/employees/${employeeId}/homebases/${entryId}`, {
+      method: "DELETE",
+      schema: one(z.object({ id: z.string() })),
+    }),
+  );
 
 export const useChangeStatus = () =>
   useEmployeeMutation(

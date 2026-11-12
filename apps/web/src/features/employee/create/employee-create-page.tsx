@@ -137,7 +137,7 @@ export function EmployeeCreatePage() {
     const values = form.getValues();
     try {
       const created = (await create.mutateAsync({
-        ...toEmployeeWriteBody(values),
+        ...toEmployeeWriteBody(values, { create: true }),
         employmentStatusId: values.employmentStatusId,
         profile: profileInput,
       })) as { data: { id: string } };

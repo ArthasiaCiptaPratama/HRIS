@@ -251,6 +251,17 @@ describe("pengajuan data pribadi", () => {
     const row = await prisma.dataChangeRequest.findUniqueOrThrow({ where: { id: requestId } });
     expect(row.status).toBe("APPROVED");
     expect(row.previous).toEqual({ domicileAddress: "Jl. Lama 1", originCity: null });
+    // EMP-D5: riwayat per field dari pengajuan (nilai lama → baru), satu kelompok, oleh reviewer.
+    const changes = await prisma.employeeFieldChange.findMany({
+      where: { employeeId: ids.self, refId: requestId },
+      orderBy: { field: "asc" },
+    });
+    expect(
+      changes.map((c) => [c.source, c.section, c.field, c.oldValue, c.newValue, c.changedBy]),
+    ).toEqual([
+      ["DATA_CHANGE", "PERSONAL", "domicileAddress", "Jl. Lama 1", "Jl. Baru 2", hrFull.account.id],
+      ["DATA_CHANGE", "PERSONAL", "originCity", null, "Samarinda", hrFull.account.id],
+    ]);
     expect(await code(await decide(hrFull, requestId, "REJECT", "x"))).toBe(
       "BUSINESS_RULE_VIOLATION",
     );
@@ -476,6 +487,12 @@ describe("rekening & dokumen", () => {
     expect(bank.accountNumber).toBe("9999888877");
     const active = await prisma.employeeDocument.findFirstOrThrow({ where: { storagePath: path } });
     expect([active.status, active.isCurrent, active.version]).toEqual(["VERIFIED", true, 1]);
+    const bankChanges = await prisma.employeeFieldChange.findMany({
+      where: { employeeId: ids.self, source: "DATA_CHANGE", section: { in: ["BANK", "DOCUMENT"] } },
+    });
+    expect(bankChanges.find((c) => c.field === "accountNumber")?.newValue).toBe("9999888877");
+    expect(bankChanges.find((c) => c.field === "document")?.newValue).toMatch(/· v1$/);
+    expect(new Set(bankChanges.map((c) => c.groupId)).size).toBe(1);
     // Buku tabungan tampil di tab Rekening bagi pemegang grant rekening (tanpa grant dokumen).
     const bankDocs = (
       await body(await call("GET", `/employees/${ids.self}/documents`, hrBank.headers))

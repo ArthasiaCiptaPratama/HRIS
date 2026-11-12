@@ -34,6 +34,7 @@ Status: tabel ERD **[done]**; baca master data lewat `GET /master-data` **[done]
 | `employment_statuses` | ERD `employment_status`: `name` (unik), `category?` (enum `EmploymentCategory` unik: PERMANENT, PROBATION, PKWT, DAILY_WORKER, INTERNSHIP, OUTSOURCING, VENDOR — D-035/D-038), `deleted_at?` |
 | `grades` | ERD `grade` (menggantikan rencana `job_levels`): `name` (unik), `deleted_at?` |
 | `work_locations` | `name` (unik), `city?`, `address?`, `latitude?`, `longitude?` Decimal(9,6), `radius_m?` (geofence wajib di Fase 5), `deleted_at?` |
+| `homebases` | [done] EMP-D6: master Homebase / Point of Hire — `name` (unik), `city?`, `province?`, `note?`, `deleted_at?`; kind master data `homebases` (SA tulis; arsip/pulihkan/hapus/gabung — gabung memindah `employees.homebase_id` + `employee_homebases`, `MasterRefKind` `homebase`), `MasterLookup.homebases`, `/master-data.homebases`, `createMissingMasterData` (import) |
 | `org_chart_state` | [done] ORG-D2: satu baris `revision` (konkurensi optimistis bagan, 409); migrasi `20261110050000_org_chart_edit` (+ izin `org.structure.manage`) |
 | `org_posts` | [done] D-051: pos jabatan (kursi bagan) — `code?` (unik), `position_id`, `reports_to_id?` (garis tegas), `functional_reports_to_id?` (garis putus-putus), `headcount` 1–50 (CHECK), `sort_order`, `deleted_at?`; aturan PT/siklus/slot di service (`@hris/shared/org-chart.ts`) |
 | `holidays` | [planned] `date`, `name`, `is_collective_leave` |

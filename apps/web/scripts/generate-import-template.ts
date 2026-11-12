@@ -29,6 +29,9 @@ const HEADERS = [
   "KOTA PENEMPATAN",
   "PERUSAHAAN\n(PNR / RCE / RDA / ACP / AU / NMA)",
   "PENEMPATAN LOKASI KERJA",
+  // EMP-D6: Homebase (Point of Hire) + tanggal berlakunya (opsional).
+  "HOMEBASE",
+  "HOMEBASE BERLAKU MULAI",
   "TEMPAT LAHIR",
   "TGL LAHIR",
   "USIA",
@@ -63,6 +66,9 @@ interface DummyRow {
   department: string;
   city: string;
   company: string;
+  /** EMP-D6: homebase (POH); tanggal kosong = tanggal masuk (baru) / hari ini (diperbarui). */
+  homebase?: string;
+  homebaseFrom?: Date;
   birthPlace?: string;
   birthDate?: string;
   ptkp?: string;
@@ -121,6 +127,7 @@ const ROWS: DummyRow[] = [
     department: "Management",
     city: "Kalimantan Tengah",
     company: "ACP",
+    homebase: "Palangka Raya",
     birthPlace: "Palangka Raya",
     birthDate: "1980-05-12",
     ptkp: "K/3",
@@ -148,6 +155,8 @@ const ROWS: DummyRow[] = [
     department: "Engineering",
     city: "Kalimantan Tengah",
     company: "ACP",
+    homebase: "Banjarmasin",
+    homebaseFrom: d("2024-01-01"),
     birthPlace: "Banjarmasin",
     birthDate: "1994-08-21",
     ptkp: "TK/0",
@@ -243,6 +252,7 @@ const ROWS: DummyRow[] = [
     department: "Legal",
     city: "Jakarta Selatan",
     company: "ACP",
+    homebase: "Jakarta",
     birthPlace: "Jakarta",
     birthDate: "1996-04-30",
     ptkp: "TK/0",
@@ -332,9 +342,11 @@ function dataRow(r: number, row: DummyRow): { cells: Value[]; hidden: boolean } 
       row.city,
       row.company,
       { f: `N${r}`, v: row.city },
+      row.homebase ?? null,
+      row.homebaseFrom ?? null,
       row.birthPlace ?? null,
       birth,
-      { f: `IF(R${r}="","-",(TODAY()-R${r})/365)`, v: birth ? years(birth) : "-" },
+      { f: `IF(T${r}="","-",(TODAY()-T${r})/365)`, v: birth ? years(birth) : "-" },
       null, // KOTA ASAL (kosong di file asli)
       row.ptkp ?? null,
       row.grade ?? null,
@@ -355,7 +367,7 @@ function dataRow(r: number, row: DummyRow): { cells: Value[]; hidden: boolean } 
       row.domicileSame === false
         ? "Mess Karyawan Site Contoh, Kalimantan Tengah"
         : row.address
-          ? { f: `AJ${r}`, v: row.address }
+          ? { f: `AL${r}`, v: row.address }
           : null,
     ],
   };
