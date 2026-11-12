@@ -122,6 +122,36 @@ const detail = (access: Record<string, boolean>, full = false) => ({
   ],
 });
 
+// EMP-D5: perubahan data per field (satu kelompok = satu simpan).
+const fieldChanges = [
+  {
+    id: "c1",
+    groupId: "g1",
+    occurredAt: "2026-11-12T03:00:00.000Z",
+    source: "HR_FORM",
+    section: "WORK",
+    field: "position",
+    oldValue: "GA Staff",
+    newValue: "GA Supervisor",
+    valueHidden: false,
+    refId: null,
+    changedBy: { name: "Budi Santoso", role: "SUPER_ADMIN", workLocation: null },
+  },
+  {
+    id: "c2",
+    groupId: "g2",
+    occurredAt: "2026-11-11T03:00:00.000Z",
+    source: "HR_PROFILE",
+    section: "PERSONAL",
+    field: "ktpNumber",
+    oldValue: null,
+    newValue: null,
+    valueHidden: true,
+    refId: null,
+    changedBy: null,
+  },
+];
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -186,6 +216,11 @@ function mockBackend(
       });
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
+    if (key === "/employees/e1/field-changes")
+      return json(200, {
+        data: fieldChanges,
+        meta: { page: 1, pageSize: 50, total: fieldChanges.length, totalPages: 1 },
+      });
     if (key === "/employees/e1")
       return json(200, { data: detail(access, url.searchParams.get("view") === "full") });
     if (key === "/employees/e1/print")
@@ -256,7 +291,19 @@ describe("panel detail pegawai", () => {
     expect(within(history).getByText("Siti Rahmawati")).toBeInTheDocument();
     expect(within(history).getByText("HR Admin")).toBeInTheDocument();
     expect(within(history).getByText("Kantor Pusat Jakarta")).toBeInTheDocument();
-    expect(within(history).getByText(/sistem \(data awal\/impor\)/)).toBeInTheDocument();
+    expect(within(history).getAllByText(/sistem \(data awal\/impor\)/).length).toBeGreaterThan(0);
+
+    // EMP-D5: timeline gabungan — perubahan data (nilai lama → baru) + nilai tersembunyi tanpa nilai.
+    expect(await within(history).findByText("GA Staff → GA Supervisor")).toBeInTheDocument();
+    expect(within(history).getByText("NIK KTP diubah")).toBeInTheDocument();
+    expect(within(history).getByText("nilai disembunyikan")).toBeInTheDocument();
+    // Filter: Data pribadi hanya menampilkan bagian pribadi; Kepegawaian hanya peristiwa kepegawaian.
+    await userEvent.click(within(history).getByRole("button", { name: "Data pribadi" }));
+    expect(within(history).queryByText("GA Staff → GA Supervisor")).not.toBeInTheDocument();
+    expect(within(history).getByText("NIK KTP diubah")).toBeInTheDocument();
+    await userEvent.click(within(history).getByRole("button", { name: "Kepegawaian" }));
+    expect(within(history).queryByText("NIK KTP diubah")).not.toBeInTheDocument();
+    expect(within(history).getByText("Magang → PKWT")).toBeInTheDocument();
   });
 
   it("tombol Kembali (panah kiri) di kiri atas menutup panel; tanpa tombol X", async () => {

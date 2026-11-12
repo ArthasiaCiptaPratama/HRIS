@@ -27,6 +27,7 @@ import { notify } from "../notification/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import * as employeeRepo from "./employee.repository.ts";
+import { diffScalars, recordFieldChanges } from "./field-change.ts";
 import * as repo from "./onboarding.repository.ts";
 import type { OnboardingContext } from "./onboarding.service.ts";
 import * as wizardRepo from "./onboarding-wizard.repository.ts";
@@ -206,7 +207,19 @@ export async function decide(
   await employeeRepo.withTransaction(async (tx) => {
     let toStatus = row.onboardingStatus;
     if (input.decision === "APPROVED") {
+      const beforePersonal = completion
+        ? await tx.employeePersonal.findUnique({ where: { employeeId: row.id } })
+        : null;
       await repo.setPtkpStatus(tx, row.id, input.ptkpStatus);
+      if (completion)
+        await recordFieldChanges(tx, {
+          employeeId: row.id,
+          actorAccountId: ctx.actor.accountId,
+          source: "ONBOARDING_REVIEW",
+          changes: diffScalars("PERSONAL", beforePersonal, { ptkpStatus: input.ptkpStatus }, [
+            "ptkpStatus",
+          ]),
+        });
       if (completion) {
         await employeeRepo.updateEmployee(tx, row.id, { completionRequired: false });
       } else {

@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-12 — Riwayat perubahan data per field (EMP-D5) + rencana Homebase (EMP-D6) (Oatse)
+- **Dikerjakan:** handoff supervisor 09:00 poin 1 & 3. Audit jalur tulis data karyawan (12 jalur). EMP-D5: migrasi `20261112053425_employee_field_changes`, `employee/field-change.ts` (diff skalar & baris, snapshot berurutan di transaksi), pencatatan di employee/profile/data-change/import/onboarding (lengkapi, review, undang)/bagan/`syncPostManagers`/gabung master/arsip/dokumen/foto, `GET /employees/{id}/field-changes`, shared `employee-field-changes.ts` (label), web tab Riwayat timeline gabungan + filter + "Muat lebih banyak". Implementasi awal Codex sol-high (berhenti di ±70% karena batas kuota), dilanjutkan & direview penuh sendiri. Rencana Homebase `homebase-plan.md` (EMP-D6) + EMP-OD3.
+- **Keputusan:** EMP-D5, EMP-D6 (P1/P2/H1–H7 kutipan pengguna 12:29 WIB); EMP-OD3 baru.
+- **Verifikasi:** `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔ (562 modul); `db:check` ✔ (No difference); test shared 362 · api 1316 · web 352 (`--maxWorkers=4`) ✔; smoke Zen headless lokal SA: timeline + filter Data pribadi + label "sistem (otomatis)" (baris uji disisipkan langsung ke DB lokal lalu dihapus, karena dialog Ubah data tidak ter-render di headless) — screenshot `QA/2026-11-12-riwayat-perubahan/` (nama DB lokal, jangan diunggah).
+- **Masalah / catatan:** review menemukan & memperbaiki: query paralel di klien transaksi interaktif (`Promise.all`/`include` banyak relasi → peringatan pg "client.query() when the client is already executing", dilarang di pg@9) di `loadMasterData(tx)`, `diffWork`, `fieldSnapshot`, `loadSelf(tx)` → dibuat berurutan / kembali di luar transaksi; master import dibaca sekali per commit; filter riwayat jadi `fieldset`. Belum diuji di browser dengan akun non-SA (penyamaran dibuktikan test integrasi). PATCH arsip mengganti item utuh, jadi kolom yang tidak dikirim (mis. tahun lulus) tercatat jadi kosong.
+- **Berikutnya:** Homebase tahap A setelah push + CI hijau; kabar Mat lewat supervisor (migrasi baru).
+
 ### 2026-10-19 — Ubah data lengkap dari detail karyawan (EMP-D4) + perbaikan pengajuan Keluarga (Oatse)
 - **Dikerjakan:** checklist "Ubah data lengkap" — `PATCH /employees/{id}/profile`, dialog Ubah data bertab, tombol di semua panel detail; perbaikan `replaceFamily` (pengajuan/onboarding) yang menghapus kolom keluarga lain; `PATCH /employees` tidak menerima `profile`.
 - **Keputusan:** EMP-D4.

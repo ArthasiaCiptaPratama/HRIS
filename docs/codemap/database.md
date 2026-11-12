@@ -9,7 +9,7 @@ apps/api/
 │   │   ├── _base.prisma              [done] generator (prisma-client, runtime bun, output src/generated/prisma) + datasource (10 skema Postgres)
 │   │   ├── iam.prisma               [done] accounts (enum `Role`, D-028), permission_grants, account_companies (D-040), dashboard_layouts (D-065)
 │   │   ├── organization.prisma      [done] companies (D-039), departments, positions, employment_statuses (+ enum `EmploymentCategory` 7 nilai, D-035/D-038), grades, work_locations (ERD, D-026)
-│   │   ├── employee.prisma          [done] employees (+ `exit_reason`), employee_personal, employee_bank_accounts, family_members, educations, trainings, employment_histories + enum (ERD D-026, D-035)
+│   │   ├── employee.prisma          [done] employees (+ `exit_reason`), employee_personal, employee_bank_accounts, family_members, educations, trainings, employment_histories, employee_field_changes (EMP-D5) + enum (ERD D-026, D-035)
 │   │   ├── attendance.prisma        [wip] Fase 5 (2026-10-13, dari branch Mat): holidays, time_settings, shifts, roster_patterns, crews, crew_members, roster_days, roster_change_requests, attendance_days, attendance_punches, attendance_periods, attendance_statements, attendance_corrections
 │   │   ├── leave.prisma             [wip] Fase 6 (2026-10-13): leave_types, leave_years, leave_ledger (buku besar saldo), leave_requests
 │   │   ├── approval.prisma          [wip] Fase 5 (2026-10-13): approval_requests, approval_steps (paralel/tunggal, override)

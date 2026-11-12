@@ -3,6 +3,8 @@ import {
   employmentCategorySchema,
   employmentChangeTypeSchema,
   exitReasonSchema,
+  fieldChangeSectionSchema,
+  fieldChangeSourceSchema,
   genderSchema,
   movementTypeSchema,
   orgUnitTypeSchema,
@@ -398,3 +400,22 @@ export const orgPersonCardSchema = z.object({
   workEmail: z.string().nullable(),
 });
 export type OrgPersonCard = z.infer<typeof orgPersonCardSchema>;
+
+export const fieldChangeSchema = z.object({
+  id: z.string(),
+  groupId: z.string(),
+  occurredAt: z.string(),
+  source: fieldChangeSourceSchema,
+  section: fieldChangeSectionSchema,
+  field: z.string(),
+  oldValue: z.string().nullable(),
+  newValue: z.string().nullable(),
+  valueHidden: z.boolean(),
+  refId: z.string().nullable(),
+  changedBy: employeeDetailSchema.shape.histories.element.shape.changedBy,
+});
+export type EmployeeFieldChange = z.infer<typeof fieldChangeSchema>;
+export const fieldChangesPageSchema = z.object({
+  data: z.array(fieldChangeSchema),
+  meta: paginationMetaSchema,
+});

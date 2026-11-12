@@ -99,6 +99,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-11-12, EMP-D5)** Riwayat perubahan data belum mencatat lokasi absen per karyawan (TM-D1), keanggotaan crew, dan email login akun (P2 (a), kutipan pengguna 12:29 WIB) — sudah ada catatan audit di modulnya masing-masing.
 - ~~**(2026-11-10, ORG-D2)** Mode edit bagan hanya tampil di layar ≥ 1024 px~~ → ORG-D6 2026-11-11 (ketuk kartu → toolbar di layar sempit/sentuh).
 - **(2026-11-10, staging)** 3 pos CD2 kosong dari seed bagan masih ada di staging — pengguna belum memutuskan (hapus/biarkan).
 - **(2026-11-10, D-066)** 1 nama depan asli tersisa di pesan commit `02dff2f` (sudah di-push); dibiarkan karena menulis ulang riwayat butuh kata pengguna.

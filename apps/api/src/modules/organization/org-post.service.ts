@@ -392,7 +392,7 @@ export async function updatePost(
           ctx.actor.role === "SUPER_ADMIN"
             ? undefined
             : new Set(posts.filter((p) => policy.canManageOrgPost(ctx.actor, p)).map((p) => p.id));
-        await employeeSupport().syncPostManagers(tx, scope);
+        await employeeSupport().syncPostManagers(tx, scope, ctx.actor.accountId);
       }
       return { id };
     }),
@@ -433,6 +433,7 @@ export async function syncManagers(ctx: RequestContext): Promise<{ updated: numb
     const updated = await employeeSupport().syncPostManagers(
       tx,
       new Set(allowedPosts.map((p) => p.id)),
+      ctx.actor.accountId,
     );
     await audit(ctx, tx, "sync_managers", ctx.actor.accountId, { after: { updated } });
     return { updated };

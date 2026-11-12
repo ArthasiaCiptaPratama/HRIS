@@ -12,45 +12,54 @@ export type OrganizationTx = Prisma.TransactionClient;
 // Satu-satunya tempat query Prisma ke tabel skema organization (PROMPT §4).
 // Master data kecil (puluhan baris) → dibaca utuh dalam satu transaksi baca.
 
-export async function loadMasterData() {
-  const prisma = getPrisma();
-  const [departments, positions, statuses, grades, locations, companies] =
-    await prisma.$transaction([
-      prisma.department.findMany({
-        select: {
-          id: true,
-          name: true,
-          parentId: true,
-          unitType: true,
-          companyId: true,
-          zone: true,
-          deletedAt: true,
-        },
-        orderBy: { name: "asc" },
-      }),
-      prisma.position.findMany({
-        select: { id: true, name: true, departmentId: true, level: true, deletedAt: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.employmentStatus.findMany({
-        select: { id: true, name: true, category: true, deletedAt: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.grade.findMany({
-        select: { id: true, name: true, deletedAt: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.workLocation.findMany({
-        select: { id: true, name: true, city: true, deletedAt: true },
-        orderBy: { name: "asc" },
-      }),
-      // D-039: perusahaan dalam grup; nonaktif diperlakukan seperti dihapus untuk pilihan baru.
-      prisma.company.findMany({
-        select: { id: true, code: true, name: true, isActive: true, deletedAt: true },
-        orderBy: { code: "asc" },
-      }),
-    ]);
+// Tanpa `tx`: satu transaksi batch (seperti sebelumnya). Dengan `tx` (mis. riwayat EMP-D5 di dalam
+// transaksi tulis yang mungkin baru membuat master): query berurutan, karena klien transaksi interaktif
+// tidak boleh menjalankan query paralel.
+export async function loadMasterData(tx?: OrganizationTx) {
+  // Promise Prisma bersifat malas: query baru jalan saat di-await / dikirim ke $transaction.
+  const [q0, q1, q2, q3, q4, q5] = masterDataQueries(tx ?? getPrisma());
+  const [departments, positions, statuses, grades, locations, companies] = tx
+    ? [await q0, await q1, await q2, await q3, await q4, await q5]
+    : await getPrisma().$transaction([q0, q1, q2, q3, q4, q5]);
   return { departments, positions, statuses, grades, locations, companies };
+}
+
+function masterDataQueries(prisma: OrganizationTx) {
+  return [
+    prisma.department.findMany({
+      select: {
+        id: true,
+        name: true,
+        parentId: true,
+        unitType: true,
+        companyId: true,
+        zone: true,
+        deletedAt: true,
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.position.findMany({
+      select: { id: true, name: true, departmentId: true, level: true, deletedAt: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.employmentStatus.findMany({
+      select: { id: true, name: true, category: true, deletedAt: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.grade.findMany({
+      select: { id: true, name: true, deletedAt: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.workLocation.findMany({
+      select: { id: true, name: true, city: true, deletedAt: true },
+      orderBy: { name: "asc" },
+    }),
+    // D-039: perusahaan dalam grup; nonaktif diperlakukan seperti dihapus untuk pilihan baru.
+    prisma.company.findMany({
+      select: { id: true, code: true, name: true, isActive: true, deletedAt: true },
+      orderBy: { code: "asc" },
+    }),
+  ] as const;
 }
 
 // ── D-042: master data baru dari import (dalam transaksi pemanggil) ───────────

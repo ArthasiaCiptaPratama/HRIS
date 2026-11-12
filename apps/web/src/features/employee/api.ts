@@ -13,6 +13,7 @@ import {
 import {
   keepPreviousData,
   type QueryClient,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -27,6 +28,7 @@ import {
   employeeDetailSchema,
   employeeListItemSchema,
   employeePageSchema,
+  fieldChangesPageSchema,
   managerOptionSchema,
   masterDataSchema,
   one,
@@ -48,6 +50,7 @@ export const employeeKeys = {
   summary: (companyId: string | undefined) => ["employees", "summary", companyId ?? "all"] as const,
   dashboard: ["employees", "dashboard"] as const,
   detail: (id: string, view: DetailView) => ["employees", "detail", id, view] as const,
+  fieldChanges: (id: string) => ["employees", "field-changes", id] as const,
   structure: ["employees", "structure"] as const,
   chart: (companyId: string | null) => ["employees", "org-chart", companyId ?? "default"] as const,
   card: (id: string) => ["employees", "org-chart", "card", id] as const,
@@ -153,6 +156,23 @@ export function useEmployee(id: string | null, view: DetailView = "work", enable
     enabled: enabled && id !== null,
     staleTime: view === "full" ? 0 : 15_000,
     gcTime: view === "full" ? 0 : 60_000,
+  });
+}
+
+/** Riwayat sensitif dibaca saat tab dibuka dan dibuang saat tab ditutup. */
+export function useEmployeeFieldChanges(id: string) {
+  return useInfiniteQuery({
+    queryKey: employeeKeys.fieldChanges(id),
+    initialPageParam: 1,
+    queryFn: ({ signal, pageParam }) =>
+      api(`/employees/${id}/field-changes?page=${pageParam}&pageSize=50`, {
+        schema: fieldChangesPageSchema,
+        signal,
+      }),
+    getNextPageParam: (last) =>
+      last.meta.page * last.meta.pageSize < last.meta.total ? last.meta.page + 1 : undefined,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
 

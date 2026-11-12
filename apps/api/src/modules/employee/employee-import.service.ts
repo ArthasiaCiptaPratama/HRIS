@@ -41,6 +41,12 @@ import {
   unitChoicesSchema,
 } from "./employee-import.schema.ts";
 import { newUnitSpecs, resolveUnits } from "./employee-import-units.ts";
+import {
+  diffSnapshots,
+  type FieldChange,
+  fieldSnapshot,
+  recordFieldChanges,
+} from "./field-change.ts";
 
 // D-042: import karyawan. `analyze` dipakai pratinjau & simpan (sumber kebenaran di server).
 // Aturan: cakupan PT (D-040), grant untuk kolom sensitif (§4.2), master data baru boleh ditambah,
@@ -821,6 +827,19 @@ export async function commit(
     const locationId = (name: string) =>
       map.workLocations?.[masterKey(name)] ?? index.workLocations.get(masterKey(name));
 
+    const pendingChanges: { employeeId: string; changes: FieldChange[] }[] = [];
+    // Nama master untuk riwayat EMP-D5 dibaca sekali (termasuk master baru dari import ini).
+    const changeLookup = await getMasterLookup(tx);
+    const fieldSections = [
+      "WORK",
+      "EMERGENCY",
+      "PERSONAL",
+      "BANK",
+      "FAMILY",
+      "EDUCATION",
+      "TRAINING",
+    ] as const;
+    const groupId = crypto.randomUUID();
     for (const plan of plans) {
       const { row } = plan;
       const sensitiveSections = [
@@ -922,6 +941,7 @@ export async function commit(
 
       if (plan.action === "UPDATE" && plan.existing) {
         const e = plan.existing;
+        const beforeFields = await fieldSnapshot(tx, e.id, fieldSections);
         const has = (key: ImportFieldKey) => plan.changes.includes(key);
         const newPositionId =
           has("positionName") && plan.departmentName && row.positionName
@@ -999,6 +1019,16 @@ export async function commit(
             schoolName: row.education.schoolName ?? row.education.level,
           });
         if (plan.repeated) await writeRepeated(tx, e.id, plan.repeated);
+        pendingChanges.push({
+          employeeId: e.id,
+          changes: await diffSnapshots(
+            tx,
+            beforeFields,
+            await fieldSnapshot(tx, e.id, fieldSections),
+            fieldSections,
+            changeLookup,
+          ),
+        });
         queue(plan, e.id);
         await writeAudit(
           {
@@ -1074,6 +1104,14 @@ export async function commit(
         })),
       ),
     );
+    for (const pending of pendingChanges)
+      await recordFieldChanges(tx, {
+        ...pending,
+        actorAccountId: ctx.actor.accountId,
+        source: "IMPORT",
+        refId: id,
+        groupId,
+      });
     await importRepo.createAttachments(tx, id, attachments);
     await writeAudit(
       {

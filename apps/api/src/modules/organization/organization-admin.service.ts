@@ -818,7 +818,13 @@ export async function mergeItem(
       let movedPositions = 0;
       const refKind = REF_KIND[kind];
       if (refKind) {
-        const moved = await employeeSupport().reassignMasterRef(tx, refKind, id, targetId);
+        const moved = await employeeSupport().reassignMasterRef(
+          tx,
+          refKind,
+          id,
+          targetId,
+          ctx.actor.accountId,
+        );
         movedEmployees = moved.employees;
         movedHistories = moved.histories;
       } else {
@@ -836,6 +842,7 @@ export async function mergeItem(
               "position",
               position.id,
               same.id,
+              ctx.actor.accountId,
             );
             movedEmployees += moved.employees;
             movedHistories += moved.histories;

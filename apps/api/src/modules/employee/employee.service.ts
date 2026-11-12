@@ -55,6 +55,7 @@ import type {
   EmployeeDetail,
   EmployeeListItem,
   EmployeeSummary,
+  FieldChangesQuery,
   ListEmployeesQuery,
   ManagerOption,
   OrgStructure,
@@ -67,6 +68,13 @@ import type {
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
 import * as importRepo from "./employee-import.repository.ts";
+import {
+  diffScalars,
+  diffSnapshots,
+  diffWork,
+  fieldSnapshot,
+  recordFieldChanges,
+} from "./field-change.ts";
 import { markActivatedOnLogin } from "./onboarding.service.ts";
 import {
   assertPositionCompany,
@@ -595,6 +603,65 @@ async function resolveChangers(
   return result;
 }
 
+export async function listFieldChanges(ctx: RequestContext, id: string, query: FieldChangesQuery) {
+  const row = await loadInScope(ctx, id);
+  if (!visibleToActor(ctx.actor, row)) throw new NotFoundError("Karyawan tidak ditemukan.");
+  const target = targetOf(row);
+  const personal = policy.canReadPersonal(ctx.actor, target);
+  const bank = policy.canReadBank(ctx.actor, target);
+  const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
+  const cost = policy.canSeeArchiveCost(ctx.actor, target);
+  const { rows, total } = await repository.listFieldChanges(id, query);
+  const changers = await resolveChangers(
+    rows.map((r) => r.changedBy),
+    await getMasterLookup(),
+  );
+  const data = rows.map((r) => {
+    const valueHidden =
+      ((r.section === "PERSONAL" || r.section === "FAMILY") && !personal) ||
+      (r.section === "BANK" && !bank) ||
+      (workOnly && ["EMERGENCY", "EDUCATION", "TRAINING", "WORK_EXPERIENCE"].includes(r.section)) ||
+      (r.section === "TRAINING" && r.field === "cost" && !cost);
+    return {
+      ...r,
+      occurredAt: r.occurredAt.toISOString(),
+      oldValue: valueHidden ? null : r.oldValue,
+      newValue: valueHidden ? null : r.newValue,
+      valueHidden,
+      changedBy: r.changedBy ? (changers.get(r.changedBy) ?? null) : null,
+    };
+  });
+  const sections = [
+    ...new Set(
+      data
+        .filter((r) => !r.valueHidden && (r.oldValue !== null || r.newValue !== null))
+        .flatMap((r) =>
+          r.section === "PERSONAL" || r.section === "FAMILY"
+            ? ["personal"]
+            : r.section === "BANK"
+              ? ["bank"]
+              : [],
+        ),
+    ),
+  ];
+  if (sections.length && ctx.actor.employeeId !== id)
+    await writeAudit({
+      ...auditBase(ctx),
+      action: "employee.sensitive.read",
+      entityId: id,
+      after: { sections },
+    });
+  return {
+    data,
+    meta: {
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      totalPages: Math.ceil(total / query.pageSize),
+    },
+  };
+}
+
 export async function getEmployee(
   ctx: RequestContext,
   id: string,
@@ -963,7 +1030,7 @@ export async function createEmployee(
         orgPostId: input.orgPostId ?? null,
         managerOverride,
       });
-      if (input.orgPostId) await syncPostManagers(tx);
+      if (input.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
       await repository.createHistory(tx, {
         employeeId: created.id,
         changeType: "HIRED",
@@ -1035,6 +1102,8 @@ export async function updateEmployeeProfile(ctx: RequestContext, id: string, raw
   }
   const bankChanged = await repository
     .withTransaction(async (tx) => {
+      const sections = ["PERSONAL", "FAMILY", "BANK"] as const;
+      const beforeProfile = await fieldSnapshot(tx, id, sections);
       if (input.personal) {
         await importRepo.upsertPersonal(tx, id, personalRow(input.personal, true));
         await repository.setPersonalEmail(tx, id, input.personal.personalEmail ?? null);
@@ -1049,6 +1118,17 @@ export async function updateEmployeeProfile(ctx: RequestContext, id: string, raw
           (before?.accountHolder ?? null) !== (input.bank.accountHolder ?? null);
         await importRepo.upsertBank(tx, id, input.bank, before !== null);
       }
+      await recordFieldChanges(tx, {
+        employeeId: id,
+        actorAccountId: ctx.actor.accountId,
+        source: "HR_PROFILE",
+        changes: await diffSnapshots(
+          tx,
+          beforeProfile,
+          await fieldSnapshot(tx, id, sections),
+          sections,
+        ),
+      });
       await writeAudit(
         {
           ...auditBase(ctx),
@@ -1172,7 +1252,22 @@ export async function updateEmployee(
         orgPostId,
         managerOverride,
       });
-      if (before.orgPostId || orgPostId) await syncPostManagers(tx);
+      const after = await repository.findEmployee(id, tx);
+      if (after)
+        await recordFieldChanges(tx, {
+          employeeId: id,
+          actorAccountId: ctx.actor.accountId,
+          source: "HR_FORM",
+          changes: [
+            ...(await diffWork(tx, before, after, lookup)),
+            ...diffScalars("EMERGENCY", before, after, [
+              "emergencyContactName",
+              "emergencyContactRelationship",
+              "emergencyPhone",
+            ]),
+          ],
+        });
+      if (before.orgPostId || orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
       // D-048: nomor induk berubah → alamat login NIK ikut (gagal di Supabase → seluruh perubahan batal).
       if (input.employeeNumber && input.employeeNumber !== before.employeeNumber && ctx.nikLogin) {
         await applyNikLogin(id, input.employeeNumber, ctx.nikLogin, tx, "refresh");
@@ -1279,7 +1374,7 @@ export async function deactivateEmployee(
       // D-051: slot pos dilepas (pos menjadi Kosong); bawahan dihitung ulang atasannya (D-053).
       orgPostId: null,
     });
-    if (before.orgPostId) await syncPostManagers(tx);
+    if (before.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
     await repository.createHistory(tx, {
       employeeId: id,
       changeType: "DEACTIVATED",
@@ -1483,7 +1578,17 @@ export async function confirmPhoto(
     return { photoUrl: urls.get(input.path) ?? null };
   }
 
-  await repository.setPhotoPath(id, input.path);
+  await repository.withTransaction(async (tx) => {
+    const before = await repository.findEmployee(id, tx);
+    await repository.setPhotoPath(id, input.path, tx);
+    if (before?.photoPath !== input.path)
+      await recordFieldChanges(tx, {
+        employeeId: id,
+        actorAccountId: ctx.actor.accountId,
+        source: "PHOTO",
+        changes: [{ section: "PHOTO", field: "photo", oldValue: null, newValue: "Foto baru" }],
+      });
+  });
   await writeAudit({
     ...auditBase(ctx),
     action: "employee.photo.update",
@@ -1500,7 +1605,17 @@ export async function confirmPhoto(
 export async function deletePhoto(ctx: RequestContext, id: string): Promise<PhotoResult> {
   const row = await loadPhotoTarget(ctx, id);
   if (!row.photoPath) return { photoUrl: null };
-  await repository.setPhotoPath(id, null);
+  await repository.withTransaction(async (tx) => {
+    const before = await repository.findEmployee(id, tx);
+    await repository.setPhotoPath(id, null, tx);
+    if (before?.photoPath)
+      await recordFieldChanges(tx, {
+        employeeId: id,
+        actorAccountId: ctx.actor.accountId,
+        source: "PHOTO",
+        changes: [{ section: "PHOTO", field: "photo", oldValue: "Foto lama", newValue: null }],
+      });
+  });
   await writeAudit({
     ...auditBase(ctx),
     action: "employee.photo.delete",
@@ -1532,5 +1647,43 @@ export const employeeMasterDataSupport = {
     kind: Exclude<repository.MasterRefKind, "company">,
     fromId: string,
     toId: string,
-  ) => repository.reassignMasterRef(tx, kind, fromId, toId),
+    actorAccountId?: string,
+  ) => reassignMasterRefWithChanges(tx, kind, fromId, toId, actorAccountId),
 };
+
+async function reassignMasterRefWithChanges(
+  tx: repository.EmployeeTx,
+  kind: Exclude<repository.MasterRefKind, "company">,
+  fromId: string,
+  toId: string,
+  actorAccountId?: string,
+) {
+  const impacted = await repository.findEmployeesByMasterRef(tx, kind, fromId);
+  const lookup = await getMasterLookup(tx);
+  const names =
+    kind === "position"
+      ? lookup.positions
+      : kind === "status"
+        ? lookup.statuses
+        : kind === "grade"
+          ? lookup.grades
+          : lookup.locations;
+  const field = kind === "location" ? "workLocation" : kind;
+  const groupId = crypto.randomUUID();
+  for (const employee of impacted)
+    await recordFieldChanges(tx, {
+      employeeId: employee.id,
+      actorAccountId: actorAccountId ?? null,
+      source: "MASTER_MERGE",
+      groupId,
+      changes: [
+        {
+          section: "WORK",
+          field,
+          oldValue: names.get(fromId)?.name ?? null,
+          newValue: names.get(toId)?.name ?? null,
+        },
+      ],
+    });
+  return repository.reassignMasterRef(tx, kind, fromId, toId);
+}

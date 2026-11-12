@@ -13,13 +13,18 @@ export interface EmployeeMasterDataSupport {
     kind: Exclude<MasterRefKind, "company">,
     fromId: string,
     toId: string,
+    actorAccountId?: string,
   ): Promise<{ employees: number; histories: number }>;
   /** D-051: jumlah karyawan aktif yang menempati tiap pos. */
   countPostHolders(tx?: OrganizationTx): Promise<Map<string, number>>;
   /** D-051: PT para pemegang pos tertentu (untuk aturan PT unit, D-052). */
   postHolderCompanies(tx: OrganizationTx, postIds: string[]): Promise<string[]>;
   /** D-053: hitung ulang atasan otomatis semua pemegang pos; mengembalikan jumlah yang berubah. */
-  syncPostManagers(tx: OrganizationTx, postIds?: ReadonlySet<string>): Promise<number>;
+  syncPostManagers(
+    tx: OrganizationTx,
+    postIds?: ReadonlySet<string>,
+    actorAccountId?: string,
+  ): Promise<number>;
 }
 
 let support: EmployeeMasterDataSupport | undefined;

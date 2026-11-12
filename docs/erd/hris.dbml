@@ -221,6 +221,24 @@ Enum employee.employment_change_type {
   COMPANY_CHANGED
 }
 
+Table employee.employee_field_changes {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_id uuid [not null, ref: > employee.employees.id, note: 'ON DELETE CASCADE']
+  group_id uuid [not null, note: 'satu aksi simpan']
+  occurred_at timestamptz [not null, default: `now()`]
+  changed_by uuid [note: 'iam.accounts.id tanpa FK; null = sistem']
+  source employee.field_change_source [not null]
+  section employee.field_change_section [not null]
+  field varchar(60) [not null]
+  old_value text [note: 'teks tampilan saat itu; SENSITIF untuk bagian pribadi/rekening']
+  new_value text
+  ref_id uuid [note: 'pengajuan / item arsip / dokumen / import job']
+  indexes {
+    (employee_id, occurred_at)
+  }
+  Note: 'EMP-D5 riwayat perubahan data per field; nilai ditampilkan sesuai grant baca'
+}
+
 Table employee.employment_histories {
   id uuid [pk, default: `gen_random_uuid()`]
   employee_id uuid [not null, ref: > employee.employees.id, note: 'ON DELETE CASCADE']

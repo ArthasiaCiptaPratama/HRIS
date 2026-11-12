@@ -1,5 +1,6 @@
 import { getPrisma } from "../../core/db.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
+import type { FieldChangesQuery } from "./employee.schema.ts";
 
 // Satu-satunya tempat query Prisma ke tabel skema employee (PROMPT §4).
 // Tidak ada `include` ke tabel modul lain: nama jabatan/status dirakit service dari modul organization.
@@ -188,8 +189,12 @@ export async function findManyByIds(ids: string[]) {
   });
 }
 
-export async function setPhotoPath(id: string, photoPath: string | null) {
-  return getPrisma().employee.update({ where: { id }, data: { photoPath } });
+export async function setPhotoPath(
+  id: string,
+  photoPath: string | null,
+  tx: EmployeeTx = getPrisma(),
+) {
+  return tx.employee.update({ where: { id }, data: { photoPath } });
 }
 
 /** Nama & lokasi kerja pegawai milik akun pengubah (riwayat "diubah oleh"). */
@@ -437,4 +442,26 @@ export async function findPersonalEmail(id: string) {
     select: { personalEmail: true },
   });
   return row?.personalEmail ?? null;
+}
+
+export async function listFieldChanges(employeeId: string, query: FieldChangesQuery) {
+  const where = { employeeId, ...(query.section ? { section: query.section } : {}) };
+  const [rows, total] = await getPrisma().$transaction([
+    getPrisma().employeeFieldChange.findMany({
+      where,
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    }),
+    getPrisma().employeeFieldChange.count({ where }),
+  ]);
+  return { rows, total };
+}
+
+export function findEmployeesByMasterRef(
+  tx: EmployeeTx,
+  kind: Exclude<MasterRefKind, "company">,
+  id: string,
+) {
+  return tx.employee.findMany({ where: { [MASTER_REF_COLUMN[kind]]: id }, select: { id: true } });
 }

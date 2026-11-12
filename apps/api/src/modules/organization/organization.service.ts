@@ -34,8 +34,8 @@ function toMap<T extends { id: string }>(rows: Row<T>[]) {
   ) as unknown as Map<string, T & { deleted: boolean }>;
 }
 
-export async function getMasterLookup(): Promise<MasterLookup> {
-  const data = await repository.loadMasterData();
+export async function getMasterLookup(tx?: repository.OrganizationTx): Promise<MasterLookup> {
+  const data = await repository.loadMasterData(tx);
   return {
     companies: toMap(
       data.companies.map(({ isActive, deletedAt, ...rest }) => ({

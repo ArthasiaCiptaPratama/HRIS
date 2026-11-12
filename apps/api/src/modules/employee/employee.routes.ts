@@ -22,6 +22,8 @@ import {
   employeeDetailSchema,
   employeeListItemSchema,
   employeeSummarySchema,
+  fieldChangeSchema,
+  fieldChangesQuerySchema,
   idParamSchema,
   listEmployeesQuerySchema,
   managerOptionSchema,
@@ -100,6 +102,18 @@ const mutation = <T extends z.ZodType>(path: string, summary: string, schema: T)
   });
 
 const routes = {
+  fieldChanges: createRoute({
+    method: "get",
+    path: `${P}/employees/{id}/field-changes`,
+    tags: TAGS,
+    summary: "Riwayat perubahan data karyawan (nilai sesuai hak akses)",
+    security,
+    request: { params: idParamSchema, query: fieldChangesQuerySchema },
+    responses: {
+      200: json("Perubahan per field", paginatedEnvelope(fieldChangeSchema)),
+      ...errors(400, 401, 404, 500),
+    },
+  }),
   list: createRoute({
     method: "get",
     path: `${P}/employees`,
@@ -420,6 +434,13 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
       perHour: 25,
     },
   });
+
+  app.openapi(guard(routes.fieldChanges), async (c) =>
+    c.json(
+      await service.listFieldChanges(ctx(c), c.req.valid("param").id, c.req.valid("query")),
+      200,
+    ),
+  );
 
   // Route statis didaftarkan sebelum /employees/{id} (validasi UUID juga menolak "summary").
   app.openapi(guard(routes.list), async (c) =>

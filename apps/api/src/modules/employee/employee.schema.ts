@@ -6,6 +6,8 @@ import {
   employmentCategorySchema,
   employmentChangeTypeSchema,
   exitReasonSchema,
+  fieldChangeSectionSchema,
+  fieldChangeSourceSchema,
   genderSchema,
   movementTypeSchema,
   orgUnitTypeSchema,
@@ -498,3 +500,23 @@ export const dashboardPivotQuerySchema = z.object({
 // Dibungkus `z` milik @hono/zod-openapi: skema dari @hris/shared yang terbentuk sebelum ekstensi OpenAPI
 // dimuat (urutan import) tidak punya method `.openapi()` di zod v4.
 export const dashboardPivotSchema = z.object(pivotResultSchema.shape).openapi("DashboardPivot");
+
+export const fieldChangesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT),
+  section: fieldChangeSectionSchema.optional(),
+});
+export type FieldChangesQuery = z.infer<typeof fieldChangesQuerySchema>;
+export const fieldChangeSchema = z.object({
+  id: z.uuid(),
+  groupId: z.uuid(),
+  occurredAt: z.iso.datetime(),
+  source: fieldChangeSourceSchema,
+  section: fieldChangeSectionSchema,
+  field: z.string(),
+  oldValue: z.string().nullable(),
+  newValue: z.string().nullable(),
+  valueHidden: z.boolean(),
+  refId: z.uuid().nullable(),
+  changedBy: historySchema.shape.changedBy,
+});
