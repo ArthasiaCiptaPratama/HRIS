@@ -78,6 +78,18 @@ Table organization.grades {
   deleted_at timestamptz
 }
 
+Table organization.homebases {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null, unique]
+  city varchar(100)
+  province varchar(100)
+  note varchar(500)
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null]
+  deleted_at timestamptz [note: 'arsip (D-049)']
+  Note: 'EMP-D6 master Homebase / Point of Hire (SA)'
+}
+
 Table organization.work_locations {
   id uuid [pk, default: `gen_random_uuid()`]
   name varchar(100) [not null, unique]
@@ -184,6 +196,7 @@ Table employee.employees {
   company_id uuid [not null, ref: > organization.companies.id, note: 'D-039: perusahaan tempat terdaftar']
   position_id uuid [not null, ref: > organization.positions.id]
   work_location_id uuid [ref: > organization.work_locations.id]
+  homebase_id uuid [ref: > organization.homebases.id, note: 'EMP-D6 turunan: homebase berlaku sekarang']
   grade_id uuid [ref: > organization.grades.id]
   manager_id uuid [ref: > employee.employees.id, note: 'Atasan langsung (PLAN D-009)']
   is_active boolean [not null, default: true]
@@ -219,6 +232,22 @@ Enum employee.employment_change_type {
   DEACTIVATED
   REACTIVATED
   COMPANY_CHANGED
+}
+
+Table employee.employee_homebases {
+  id uuid [pk, default: `gen_random_uuid()`]
+  employee_id uuid [not null, ref: > employee.employees.id, note: 'ON DELETE CASCADE']
+  homebase_id uuid [not null, ref: > organization.homebases.id, note: 'ON DELETE RESTRICT']
+  effective_from date [not null, note: 'berlaku mulai; <= hari ini (WIB)']
+  decree_number varchar(60)
+  note varchar(500)
+  changed_by uuid [note: 'iam.accounts.id tanpa FK']
+  created_at timestamptz [not null, default: `now()`]
+  indexes {
+    (employee_id, effective_from) [unique]
+    homebase_id
+  }
+  Note: 'EMP-D6 riwayat homebase (Point of Hire); employees.homebase_id = baris terbaru'
 }
 
 Table employee.employee_field_changes {

@@ -229,7 +229,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Dashboard agregat karyawan (jumlah per kategori, lokasi, departemen, jabatan, tahun masuk, pendidikan; pivot bebas atur D-065; tanpa data per orang) | ✅ semua PT | ✅ PT ditugaskan (D-040) | ❌ (sapaan) | ❌ (sapaan) |
 | Pivot dashboard dimensi pribadi (agama, status nikah, umur — jumlah saja, D-065) | ✅ | 🔑 `employee.personal.read` | ❌ | ❌ |
 | Susunan widget Dashboard milik sendiri (D-065) | ✅ | ✅ | ❌ | ❌ |
-| Data kerja (jabatan, tgl masuk, status, atasan) | ✅ | ✅ | 👁 tim | 👁 sendiri |
+| Data kerja (jabatan, tgl masuk, status, atasan, homebase/POH EMP-D6) | ✅ | ✅ | 👁 tim | 👁 sendiri |
+| Riwayat perubahan data per field (EMP-D5): nilai pribadi/rekening hanya bagi yang boleh membaca bagian itu, lainnya "field diubah" | ✅ | ✅ (nilai sensitif 🔑) | 👁 tim (tanpa nilai sensitif) | 👁 sendiri |
 | Tambah/ubah/nonaktifkan karyawan, tempatkan jabatan, isi `manager_id` | ✅ | ✅ | ❌ | ❌ |
 | Data pribadi sensitif (NIK, NPWP, KK, alamat, PTKP) | ✅ | 🔑 | 🔑 tim | 👁 sendiri |
 | Rekening bank | ✅ | 🔑 | 🔑 tim | 👁 sendiri |
@@ -552,6 +553,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ORG-D4](features/organisasi/README.md#org-d4) | Penanda HO vs Site di bagan: chip & filter Semua/HO/Site; pos zona lain yang tersambung garis tampil redup (aturan nama "Site …" diganti ORG-D5) | [ORG](features/organisasi/README.md) |
 | [ORG-D5](features/organisasi/README.md#org-d5) | Zona HO/Site resmi di unit: `departments.zone` (kosong = ikut induk, akar = HO), backfill dari nama "Site …"; diubah SA di Master Data, HR ber-izin `org.structure.manage` untuk unit PT-nya (`PUT /departments/{id}/zone`) | [ORG](features/organisasi/README.md) |
 | [ORG-D6](features/organisasi/README.md#org-d6) | Mode edit bagan di layar < 1024 px / sentuh: ketuk kartu → toolbar, tanpa seret, bilah edit ikon di bawah layar; desktop tetap | [ORG](features/organisasi/README.md) |
+| [ORG-D7](features/organisasi/README.md#org-d7) | Bagan organisasi terbuka penuh saat dibuka, ganti PT, dan ganti filter Semua/HO/Site; Buka semua/Ringkas tetap | [ORG](features/organisasi/README.md) |
 | [ORG-D3](features/organisasi/README.md#org-d3) | ~~Jabatan rangkap~~ **dibatalkan 2026-11-10 (ralat pengguna)**: 1 pos utama + maks 5 pos rangkap PT sama; rangkap mengisi slot & jadi kandidat atasan D-053; profil "Pos rangkap" | [ORG](features/organisasi/README.md) |
 | [IAM-D1](features/iam/README.md#keputusan) | Role kelima `HR_PERSONNEL` "HR Kepegawaian": lihat data kerja karyawan di PT yang ditugaskan saja (mengubah PLAN §4.1 "role tetap 4") | [IAM](features/iam/README.md) |
 | [DSB-D1](features/dashboard/README.md#keputusan) | Dashboard analitik SDM & biaya: aktif awal/akhir bulan, masuk/keluar per alasan, turnover 12 bulan, gender, masa kerja | [DSB](features/dashboard/README.md) |
@@ -561,6 +563,8 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
 | [EMP-D3](features/karyawan/README.md#keputusan) | Print data = PDF dari template PDF HR "Formulir Data Karyawan" (pdf-lib, posisi tetap); Excel & Formulir Aplikasi Word (EMP-D1, Gotenberg) dihapus | [EMP](features/karyawan/README.md) |
 | [EMP-D4](features/karyawan/README.md#keputusan) | HR ber-grant ubah data pribadi/keluarga/rekening karyawan lain langsung dari detail; data diri sendiri tetap lewat pengajuan; rekening berubah → karyawan diberi tahu | [EMP](features/karyawan/README.md) |
+| [EMP-D5](features/karyawan/README.md#keputusan) | Riwayat perubahan data per field (lama → baru, siapa, kapan, sumber) di semua jalur ubah data, dalam transaksi yang sama; nilai sensitif tampil sesuai grant baca; audit log tetap tanpa nilai | [EMP](features/karyawan/README.md) |
+| [EMP-D6](features/karyawan/README.md#keputusan) | Homebase = Point of Hire: master SA, riwayat berlaku per tanggal + no. SK, data kerja, diubah SA/HR; import, laporan, adapter payroll `getHomebasesOn` | [EMP](features/karyawan/README.md) |
 | [HRD-D1](features/hardening/README.md#keputusan) | Lupa password akun SUPER_ADMIN/HR_ADMIN/HR_PERSONNEL hanya ke email akun, bukan email pribadi | [HRD](features/hardening/README.md) |
 | [HRD-D2](features/hardening/README.md#keputusan) | Larangan ubah data diri sendiri lewat jalur HR berlaku untuk HR_ADMIN; SUPER_ADMIN dikecualikan | [HRD](features/hardening/README.md) |
 | [HRD-D3](features/hardening/README.md#keputusan) | CSP web mulai Report-Only, enforce setelah dicek di staging | [HRD](features/hardening/README.md) |

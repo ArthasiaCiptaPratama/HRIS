@@ -1,7 +1,7 @@
 # Karyawan — Personal Management
 
 > **Kode prefix:** `EMP` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `changeStatus`
-> **Status:** Berjalan — ✔ staging (daftar, detail, form, ubah status, foto, multi-PT); gel. 9: Tambah karyawan bertahap (EMP-D2); gel. 10: Print data PDF dari template (EMP-D3); riwayat perubahan data per field (EMP-D5) ✔ branch kerja 2026-11-12; Homebase (EMP-D6) direncanakan
+> **Status:** Berjalan — ✔ staging (daftar, detail, form, ubah status, foto, multi-PT); gel. 9: Tambah karyawan bertahap (EMP-D2); gel. 10: Print data PDF dari template (EMP-D3); riwayat perubahan data per field (EMP-D5) + Homebase/POH (EMP-D6) ✔ develop 2026-11-12 (belum staging)
 
 Data karyawan aktif per kategori, detail layar penuh bertab, tambah/ubah, ubah status & nonaktif/aktifkan, riwayat, foto profil (D-037), Print data, data sensitif ber-grant.
 
@@ -54,11 +54,11 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [x] **Riwayat perubahan data per field (EMP-D5)** ✔ branch kerja 2026-11-12 — tabel `employee_field_changes` + helper `field-change.ts` di 12 jalur ubah data, `GET /employees/{id}/field-changes` (nilai sesuai grant baca), tab Riwayat = timeline gabungan + filter (tambahan 2026-11-12: handoff supervisor 09:00 poin 1, kutipan pengguna 12:29)
   - [x] Test: integration `field-changes.test.ts` 9 (form HR, profil + audit tanpa nilai, rollback 409, arsip, 401/404, penyamaran HR tanpa grant / atasan / HR Kepegawaian, audit baca), `data-changes.test.ts` (+asersi PERSONAL & BANK/dokumen), `org-chart-edit.test.ts` (+ORG_CHART), `master-data.test.ts` (+MASTER_MERGE); web `employee-detail.test.tsx` (+timeline, nilai tersembunyi, filter)
   - [x] Smoke Zen lokal (SA): timeline, filter, label sistem (`QA/2026-11-12-riwayat-perubahan/`)
-- [~] **Homebase / Point of Hire (EMP-D6)** — rencana disetujui 2026-11-12 ([homebase-plan.md](homebase-plan.md)); EMP-OD3 terbuka
+- [x] **Homebase / Point of Hire (EMP-D6)** ✔ develop 2026-11-12 (tahap A–C) — rencana disetujui 2026-11-12 ([homebase-plan.md](homebase-plan.md)); EMP-OD3 terbuka
   - [x] Tahap A: skema + migrasi `20261112060046_employee_homebases`, master `homebases` (SA, arsip/gabung), `GET/POST/PATCH/DELETE /employees/{id}/homebases` + kolom turunan + audit + EMP-D5, `homebase` di detail/daftar + filter, tambah karyawan & approve onboarding, adapter `getHomebasesOn` — integration `homebase.test.ts` 14
   - [x] Tahap B web: Master Data › Homebase, detail Penempatan + Riwayat homebase + dialog (`employee-homebase-editor.tsx`), tambah karyawan, approve onboarding, kolom + filter daftar (`hb`) — web test +11; Zen lokal tampilan detail & master (dialog tidak ter-render di headless, dicakup test web)
   - [x] Tahap C: import `homebaseName`/`homebaseEffectiveFrom` (sinonim homebase/POH; **bukan** "penempatan lokasi kerja", EMP-OD3), master baru/terarsip, `HOMEBASE_FUTURE_DATE`, template import + kolom HOMEBASE, laporan filter `homebaseId` + kolom ekspor headcount — shared +, api `import-homebase.test.ts` 9 + report 2, web +2
-  - [~] Tahap D: docs, kabar Mat & sesi mobile (lewat supervisor)
+  - [x] Tahap D: docs (PLAN §4.3/§8, ERD, codemap, PROGRESS); kabar Mat & sesi mobile diserahkan ke supervisor
 
 ## Keputusan
 
