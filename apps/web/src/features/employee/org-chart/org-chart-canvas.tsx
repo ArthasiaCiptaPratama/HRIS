@@ -182,11 +182,9 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
   }, [editing, base, draft.actions, lookup]);
   const chart = applied?.chart ?? serverChart;
   const index = useMemo(() => indexChart(chart), [chart]);
-  // Tampilan awal ringkas sampai tingkat ke-3 (seperti halaman Direksi di dokumen kantor; cabang site
-  // terbuka dengan klik). "Buka semua" menampilkan bagan utuh.
-  const [collapsed, setCollapsed] = useState<Set<string>>(() =>
-    collapseBelowDepth(chart, index, INITIAL_DEPTH),
-  );
+  // ORG-D7: tampilan awal = bagan terbuka penuh (semua cabang). "Ringkas" melipat di bawah tingkat ke-3;
+  // tiap cabang tetap bisa dilipat/dibuka dengan klik.
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   // ORG-D4: zona HO/Site per pos (dari pohon unit; ikut berubah saat draf memindah pos/jabatan).
   const zones = useMemo(() => unitZones(chart.units), [chart.units]);
   const zoneOf = useCallback(
@@ -203,13 +201,14 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
     [chart, zoneOf, zoneFilter, hasBothZones],
   );
   const viewIndex = useMemo(() => indexChart(view.chart), [view.chart]);
-  // Ganti filter zona → tampilan ringkas dihitung ulang dari bagan yang tersaring (akar baru).
+  // Ganti filter zona (Semua/HO/Site) → kembali terbuka penuh & pas ke layar (ORG-D7).
   const lastFilter = useRef(zoneFilter);
   useEffect(() => {
     if (lastFilter.current === zoneFilter) return;
     lastFilter.current = zoneFilter;
-    setCollapsed(collapseBelowDepth(view.chart, viewIndex, INITIAL_DEPTH));
-  }, [zoneFilter, view.chart, viewIndex]);
+    setCollapsed(new Set());
+    fitted.current = false;
+  }, [zoneFilter]);
   // Tata letak sinkron & ringan (pohon ~100 pos) → dihitung langsung dari data.
   const layout = useMemo<ChartLayout>(
     () => layoutChart(view.chart, viewIndex, collapsed),
@@ -222,16 +221,16 @@ function Canvas({ chart: serverChart, onOpenPerson, onEditingChange }: OrgChartC
   // Fit pertama ditangani prop `fitView` React Flow (setelah node siap); berikutnya lewat efek di bawah.
   const fitted = useRef(true);
 
-  // Ganti PT → kembali ke tampilan ringkas awal & pas ke layar.
+  // Ganti PT → kembali terbuka penuh & pas ke layar (ORG-D7).
   const companyId = chart.company.id;
   const initialCollapsed = useRef(companyId);
   useEffect(() => {
     if (initialCollapsed.current === companyId) return;
     initialCollapsed.current = companyId;
-    setCollapsed(collapseBelowDepth(chart, index, INITIAL_DEPTH));
+    setCollapsed(new Set());
     setHighlight(null);
     fitted.current = false;
-  }, [companyId, chart, index]);
+  }, [companyId]);
 
   const toggle = useCallback((postId: string) => {
     setCollapsed((current) => {
