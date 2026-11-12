@@ -40,6 +40,8 @@ export const employeeListItemSchema = z.object({
   department: ref.nullable(),
   workLocation: ref.nullable(),
   grade: ref.nullable(),
+  /** EMP-D6: homebase (POH) yang berlaku sekarang; opsional agar respons lama tetap terbaca. */
+  homebase: ref.nullable().optional(),
   manager: ref.nullable(),
   // D-051/D-053: pos jabatan & atasan manual (data lama tanpa field ini tetap terbaca).
   orgPostId: z.string().nullable().optional(),
@@ -92,6 +94,27 @@ export const dashboardSchema = z.object({
   ),
 });
 export type EmployeeDashboard = z.infer<typeof dashboardSchema>;
+
+const changedBySchema = z
+  .object({ name: z.string(), role: roleSchema, workLocation: z.string().nullable() })
+  .nullable();
+
+/** EMP-D6: satu baris riwayat homebase (GET /employees/{id}/homebases). */
+export const employeeHomebaseEntrySchema = z.object({
+  id: z.string(),
+  homebase: z.object({
+    id: z.string(),
+    name: z.string(),
+    city: z.string().nullable(),
+    province: z.string().nullable(),
+  }),
+  effectiveFrom: z.string(),
+  decreeNumber: z.string().nullable(),
+  note: z.string().nullable(),
+  changedBy: changedBySchema,
+  createdAt: z.string(),
+});
+export type EmployeeHomebaseEntry = z.infer<typeof employeeHomebaseEntrySchema>;
 
 export const employeeDetailSchema = employeeListItemSchema.extend({
   emergencyPhone: z.string().nullable(),
@@ -236,12 +259,12 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
       decreeNumber: z.string().nullable().optional(),
       toPositionName: z.string().nullable().optional(),
       toDepartmentName: z.string().nullable().optional(),
-      changedBy: z
-        .object({ name: z.string(), role: roleSchema, workLocation: z.string().nullable() })
-        .nullable(),
+      changedBy: changedBySchema,
       createdAt: z.string(),
     }),
   ),
+  /** EMP-D6: riwayat homebase terbaru dulu (maks. 20). */
+  homebases: z.array(employeeHomebaseEntrySchema).optional(),
 });
 export type EmployeeDetail = z.infer<typeof employeeDetailSchema>;
 
@@ -265,6 +288,10 @@ export const masterDataSchema = z.object({
   employmentStatuses: z.array(ref.extend({ category: employmentCategorySchema.nullable() })),
   grades: z.array(ref),
   workLocations: z.array(ref.extend({ city: z.string().nullable() })),
+  /** EMP-D6: homebase (POH) aktif; opsional agar respons lama tetap terbaca. */
+  homebases: z
+    .array(ref.extend({ city: z.string().nullable(), province: z.string().nullable() }))
+    .optional(),
 });
 export type MasterData = z.infer<typeof masterDataSchema>;
 
@@ -335,6 +362,8 @@ export const employeeFormSchema = z.object({
   departmentId: z.string().min(1, "Pilih unit organisasi."),
   positionId: z.string().min(1, "Pilih jabatan."),
   workLocationId: z.string(),
+  /** EMP-D6: homebase awal — hanya dikirim saat tambah (berlaku mulai tanggal masuk). */
+  homebaseId: z.string(),
   gradeId: z.string(),
   managerId: z.string(),
   // D-051/D-053: pos jabatan (opsional) & atasan diatur manual.

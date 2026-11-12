@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +21,11 @@ vi.mock("@/lib/supabase", async () => ({
 
 let photoUrl: string | null = null;
 let accountOverride: { role: string; isActive: boolean } | null = null;
+// EMP-D6: homebase (POH) — hanya diisi test homebase; respons POST riwayat bisa diganti (mis. 409).
+const HB1 = "00000000-0000-4000-8000-0000000000b1";
+const HB2 = "00000000-0000-4000-8000-0000000000b2";
+let homebaseData: Record<string, unknown> = {};
+let homebasePost: { status: number; body: unknown } | null = null;
 const detail = (access: Record<string, boolean>, full = false) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
@@ -40,6 +45,7 @@ const detail = (access: Record<string, boolean>, full = false) => ({
   grade: null,
   manager: null,
   photoUrl,
+  ...homebaseData,
   emergencyPhone: null,
   emergencyContactName: null,
   emergencyContactRelationship: null,
@@ -212,8 +218,16 @@ function mockBackend(
           employmentStatuses: [],
           grades: [],
           workLocations: [],
+          homebases: [
+            { id: HB1, name: "Palangka Raya", city: "Palangka Raya", province: "Kalteng" },
+            { id: HB2, name: "Sampit", city: "Kotawaringin Timur", province: "Kalteng" },
+          ],
         },
       });
+    if (key === "/employees/e1/homebases" && init?.method === "POST") {
+      const response = homebasePost ?? { status: 201, body: { data: null } };
+      return json(response.status, response.body);
+    }
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
     if (key === "/employees/e1/field-changes")
@@ -255,6 +269,9 @@ function mockBackend(
 beforeEach(() => {
   photoUrl = null;
   accountOverride = null;
+  homebaseData = {};
+  homebasePost = null;
+  delete sentBodies["POST /employees/e1/homebases"];
   authState.session = { access_token: "t", user: { id: "u" } };
   vi.clearAllMocks();
 });
@@ -554,5 +571,147 @@ describe("foto profil di panel detail (D-037)", () => {
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("heading", { name: "Agus Pratama" });
     expect(within(dialog).queryByRole("button", { name: /foto profil/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("Homebase / POH di detail (EMP-D6)", () => {
+  const withHomebase = () => {
+    homebaseData = {
+      homebase: { id: HB1, name: "Palangka Raya" },
+      homebases: [
+        {
+          id: "00000000-0000-4000-8000-0000000000e2",
+          homebase: { id: HB1, name: "Palangka Raya", city: "Palangka Raya", province: "Kalteng" },
+          effectiveFrom: "2025-01-01",
+          decreeNumber: "SK/HB/01",
+          note: "Pindah domisili rekrut",
+          changedBy: { name: "Siti Rahmawati", role: "HR_ADMIN", workLocation: "Kantor Pusat" },
+          createdAt: "2025-01-02T03:00:00.000Z",
+        },
+        {
+          id: "00000000-0000-4000-8000-0000000000e1",
+          homebase: { id: HB2, name: "Sampit", city: null, province: null },
+          effectiveFrom: "2023-08-01",
+          decreeNumber: null,
+          note: null,
+          changedBy: null,
+          createdAt: "2023-08-01T03:00:00.000Z",
+        },
+      ],
+    };
+  };
+
+  it("baris Homebase + riwayat; Ubah homebase → POST /employees/:id/homebases dengan body benar", async () => {
+    withHomebase();
+    homebasePost = {
+      status: 201,
+      body: {
+        data: {
+          id: "00000000-0000-4000-8000-0000000000e3",
+          homebase: { id: HB2, name: "Sampit", city: null, province: null },
+          effectiveFrom: "2026-10-01",
+          decreeNumber: "SK/HB/02",
+          note: null,
+          changedBy: null,
+          createdAt: "2026-10-01T03:00:00.000Z",
+        },
+      },
+    };
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    const field = (await within(sheet).findByText("Homebase (POH)")).closest("div") as HTMLElement;
+    expect(field).toHaveTextContent("Palangka Raya");
+
+    const history = within(sheet).getByRole("region", { name: "Riwayat homebase" });
+    expect(within(history).getByText("Sekarang")).toBeInTheDocument();
+    expect(within(history).getByText(/No\. SK SK\/HB\/01/)).toBeInTheDocument();
+    expect(within(history).getByText("Pindah domisili rekrut")).toBeInTheDocument();
+    expect(within(history).getByText("Siti Rahmawati")).toBeInTheDocument();
+    expect(within(history).getByText("Sampit")).toBeInTheDocument();
+    expect(within(history).getAllByRole("button", { name: /Aksi untuk homebase/ })).toHaveLength(2);
+
+    await userEvent.click(within(field).getByRole("button", { name: /Ubah homebase/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ubah homebase" });
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Homebase" }));
+    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
+    fireEvent.change(within(dialog).getByLabelText("Berlaku mulai"), {
+      target: { value: "2026-10-01" },
+    });
+    await userEvent.type(within(dialog).getByLabelText(/No\. SK/), "SK/HB/02");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() =>
+      expect(sentBodies["POST /employees/e1/homebases"]).toEqual({
+        homebaseId: HB2,
+        effectiveFrom: "2026-10-01",
+        decreeNumber: "SK/HB/02",
+        note: null,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Ubah homebase" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("tanggal kembar (409): pesan API tampil di dialog, dialog tetap terbuka", async () => {
+    withHomebase();
+    homebasePost = {
+      status: 409,
+      body: {
+        error: {
+          code: "CONFLICT",
+          message: "Sudah ada homebase yang berlaku pada tanggal ini.",
+          requestId: "r",
+        },
+      },
+    };
+    mockBackend("SUPER_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah homebase/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ubah homebase" });
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Homebase" }));
+    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
+    fireEvent.change(within(dialog).getByLabelText("Berlaku mulai"), {
+      target: { value: "2025-01-01" },
+    });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Sudah ada homebase yang berlaku pada tanggal ini.",
+    );
+    expect(screen.getByRole("dialog", { name: "Ubah homebase" })).toBeInTheDocument();
+  });
+
+  it("tanggal masa depan ditolak di form tanpa memanggil API", async () => {
+    withHomebase();
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah homebase/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ubah homebase" });
+    await userEvent.click(within(dialog).getByRole("combobox", { name: "Homebase" }));
+    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
+    fireEvent.change(within(dialog).getByLabelText("Berlaku mulai"), {
+      target: { value: "2999-01-01" },
+    });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    expect(
+      await within(dialog).findByText("Tanggal berlaku tidak boleh di masa depan."),
+    ).toBeInTheDocument();
+    expect(sentBodies["POST /employees/e1/homebases"]).toBeUndefined();
+  });
+
+  it("non-pengelola (MANAGER): homebase & riwayat terlihat, tanpa tombol ubah/aksi", async () => {
+    withHomebase();
+    mockBackend("MANAGER", {});
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    await within(sheet).findByText("Homebase (POH)");
+    const history = within(sheet).getByRole("region", { name: "Riwayat homebase" });
+    expect(within(history).getByText("Palangka Raya")).toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Ubah homebase/ })).not.toBeInTheDocument();
+    expect(
+      within(sheet).queryByRole("button", { name: /Aksi untuk homebase/ }),
+    ).not.toBeInTheDocument();
   });
 });

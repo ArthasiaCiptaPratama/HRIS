@@ -6,6 +6,7 @@ import {
   Building2,
   type LucideIcon,
   MapPin,
+  MapPinHouse,
   Tags,
 } from "lucide-react";
 
@@ -74,6 +75,16 @@ export const MASTER_DATA_PAGES: MasterDataPageConfig[] = [
     icon: MapPin,
     description:
       "Site/lokasi kerja. Titik geofence (latitude, longitude, radius) dipakai absensi; pilih titik di peta atau isi angka.",
+  },
+  {
+    // EMP-D6: Homebase / Point of Hire (kota/daerah asal rekrut); tanpa geofence.
+    kind: "homebases",
+    slug: "homebase",
+    label: MASTER_DATA_LABELS.homebases,
+    noun: "homebase",
+    icon: MapPinHouse,
+    description:
+      "Homebase / Point of Hire (POH): kota atau daerah asal rekrut karyawan. Berbeda dengan lokasi kerja; riwayatnya per karyawan berlaku per tanggal.",
   },
 ];
 

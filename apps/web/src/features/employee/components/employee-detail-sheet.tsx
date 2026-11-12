@@ -71,9 +71,10 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useEmployee, useEmployeeFieldChanges, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
-import type { EmployeeDetail, EmployeeFieldChange } from "../schemas";
+import type { EmployeeDetail, EmployeeFieldChange, EmployeeHomebaseEntry } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeeFormDialog } from "./employee-form-dialog";
+import { useHomebaseEditor } from "./employee-homebase-editor";
 import { EmployeePhotoControl } from "./employee-photo-control";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { profilePlacement } from "./profile-placement";
@@ -633,6 +634,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 function WorkTab({ employee }: { employee: EmployeeDetail }) {
+  const homebase = useHomebaseEditor(employee);
   return (
     <div className="space-y-8">
       <section>
@@ -645,6 +647,21 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="Unit organisasi">{employee.department?.name}</Field>
           <Field label="Grade">{employee.grade?.name}</Field>
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
+          {/* EMP-D6: homebase (POH) yang berlaku sekarang; diubah lewat riwayat (bukan Ubah data). */}
+          <Field label="Homebase (POH)">
+            {homebase.canManage ? (
+              <span className="flex flex-wrap items-center gap-2">
+                {employee.homebase?.name ?? (
+                  <span className="text-muted-foreground font-normal">—</span>
+                )}
+                <Button size="xs" variant="outline" onClick={homebase.add}>
+                  <Pencil /> Ubah homebase
+                </Button>
+              </span>
+            ) : (
+              employee.homebase?.name
+            )}
+          </Field>
           <Field label="Atasan langsung">{employee.manager?.name}</Field>
           <Field label="Status kepegawaian">{employee.employmentStatus.name}</Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
@@ -659,6 +676,8 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           ) : null}
         </FieldGrid>
       </section>
+      <HomebaseHistory employee={employee} menu={homebase.menu} />
+      {homebase.dialogs}
       <section>
         <SectionTitle>Kontak kerja</SectionTitle>
         <FieldGrid>
@@ -690,6 +709,62 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
         </FieldGrid>
       </section>
     </div>
+  );
+}
+
+/** EMP-D6: riwayat homebase (terbaru dulu, maks. 20 dari detail). */
+function HomebaseHistory({
+  employee,
+  menu,
+}: {
+  employee: EmployeeDetail;
+  menu: (entry: EmployeeHomebaseEntry) => ReactNode;
+}) {
+  const entries = employee.homebases ?? [];
+  return (
+    <section aria-labelledby="homebase-history-title">
+      <h3
+        id="homebase-history-title"
+        className="text-muted-foreground mb-4 text-[11px] font-medium tracking-wider uppercase"
+      >
+        Riwayat homebase
+      </h3>
+      {entries.length === 0 ? (
+        <p className="text-muted-foreground text-sm">Belum ada riwayat homebase.</p>
+      ) : (
+        <ul className="divide-y rounded-xl border">
+          {entries.map((entry, index) => (
+            <li key={entry.id} className="flex items-start gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+                  {entry.homebase.name}
+                  {index === 0 ? (
+                    <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px]">
+                      Sekarang
+                    </span>
+                  ) : null}
+                </p>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  Berlaku mulai {formatDate(entry.effectiveFrom)}
+                  {entry.decreeNumber ? (
+                    <>
+                      <span aria-hidden> · </span>No. SK {entry.decreeNumber}
+                    </>
+                  ) : null}
+                </p>
+                {entry.note ? (
+                  <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
+                    {entry.note}
+                  </p>
+                ) : null}
+                <ChangedBy changedBy={entry.changedBy} />
+              </div>
+              {menu(entry)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
