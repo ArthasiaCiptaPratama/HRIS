@@ -270,6 +270,9 @@ export async function diffWork(
     status: masters.statuses.get(String(row.employmentStatusId))?.name ?? null,
     workLocation: masters.locations.get(String(row.workLocationId))?.name ?? null,
     grade: masters.grades.get(String(row.gradeId))?.name ?? null,
+    // EMP-D6: homebase yang berlaku sekarang (kolom turunan). Jalur riwayat homebase sendiri mencatat
+    // "Nama (berlaku …)" tanpa diffWork, jadi tidak tercatat ganda.
+    homebase: masters.homebases.get(String(row.homebaseId))?.name ?? null,
     manager: managers.find((m) => m.id === row.managerId)?.fullName ?? null,
     orgPost: (() => {
       const post = posts.find((p) => p.id === row.orgPostId);
@@ -289,6 +292,7 @@ export async function diffWork(
     "position",
     "orgPost",
     "workLocation",
+    "homebase",
     "grade",
     "manager",
     "status",

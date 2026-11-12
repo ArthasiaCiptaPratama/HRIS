@@ -96,6 +96,11 @@ export async function createWorkLocation(tx: OrganizationTx, name: string) {
   return tx.workLocation.create({ data: { name }, select: { id: true, name: true } });
 }
 
+/** EMP-D6: homebase baru dari import (nama saja; kota/provinsi dilengkapi SA di Master Data). */
+export async function createHomebase(tx: OrganizationTx, name: string) {
+  return tx.homebase.create({ data: { name }, select: { id: true, name: true } });
+}
+
 // ── D-049: kelola master data (SUPER_ADMIN) ─────────────────────────────────────
 
 export function withTransaction<T>(fn: (tx: OrganizationTx) => Promise<T>): Promise<T> {

@@ -86,6 +86,9 @@ const STEPS: {
         Setiap kolom file sudah dipasangkan ke data karyawan. Periksa kolom yang kecocokannya{" "}
         <em>rendah</em> atau <em>belum dipetakan</em>. File wajib punya kolom <strong>NIP</strong>{" "}
         atau <strong>NIK KTP</strong>. Pemetaan disimpan untuk file dengan judul kolom yang sama.
+        Kolom <strong>HOMEBASE</strong> (Point of Hire) dan <strong>HOMEBASE BERLAKU MULAI</strong>{" "}
+        opsional; tanggal kosong berarti tanggal masuk untuk karyawan baru, atau hari ini untuk
+        karyawan yang diperbarui.
       </>
     ),
   },

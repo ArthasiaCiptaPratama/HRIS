@@ -57,7 +57,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 - [~] **Homebase / Point of Hire (EMP-D6)** — rencana disetujui 2026-11-12 ([homebase-plan.md](homebase-plan.md)); EMP-OD3 terbuka
   - [x] Tahap A: skema + migrasi `20261112060046_employee_homebases`, master `homebases` (SA, arsip/gabung), `GET/POST/PATCH/DELETE /employees/{id}/homebases` + kolom turunan + audit + EMP-D5, `homebase` di detail/daftar + filter, tambah karyawan & approve onboarding, adapter `getHomebasesOn` — integration `homebase.test.ts` 14
   - [x] Tahap B web: Master Data › Homebase, detail Penempatan + Riwayat homebase + dialog (`employee-homebase-editor.tsx`), tambah karyawan, approve onboarding, kolom + filter daftar (`hb`) — web test +11; Zen lokal tampilan detail & master (dialog tidak ter-render di headless, dicakup test web)
-  - [ ] Tahap C import/template/laporan · [ ] Tahap D docs/smoke/kabar
+  - [x] Tahap C: import `homebaseName`/`homebaseEffectiveFrom` (sinonim homebase/POH; **bukan** "penempatan lokasi kerja", EMP-OD3), master baru/terarsip, `HOMEBASE_FUTURE_DATE`, template import + kolom HOMEBASE, laporan filter `homebaseId` + kolom ekspor headcount — shared +, api `import-homebase.test.ts` 9 + report 2, web +2
+  - [~] Tahap D: docs, kabar Mat & sesi mobile (lewat supervisor)
 
 ## Keputusan
 

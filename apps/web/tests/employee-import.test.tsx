@@ -70,6 +70,7 @@ const preview = {
     positions: [{ department: "Divisi Uji", name: "Staff Uji" }],
     grades: [],
     workLocations: [],
+    homebases: [] as string[],
   },
   skippedFields: ["ktpNumber"],
   previewHash: "hash-1",
@@ -113,6 +114,7 @@ function mockBackend({
             employmentStatuses: STATUSES,
             grades: [],
             workLocations: [],
+            homebases: [{ id: "hb-1", name: "Palangka Raya", city: null, province: null }],
           },
         });
       if (path.startsWith("/employee-imports/mappings/"))
@@ -346,6 +348,38 @@ describe("Import Data Karyawan", () => {
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ defaultEmploymentStatusId: "st-2" });
+    });
+  });
+
+  it("EMP-D6: homebase baru tampil di master data baru; pemetaan ke homebase yang ada dikirim", async () => {
+    const withHomebase = {
+      ...preview,
+      counts: { ...preview.counts, create: 0, error: 2 },
+      rows: preview.rows.map((r) => ({
+        ...r,
+        action: "ERROR",
+        newEmployee: true,
+        employmentStatusId: null,
+        issues: [{ field: "employmentStatusText", code: "CATEGORY_REQUIRED", severity: "ERROR" }],
+      })),
+      masterData: { ...preview.masterData, homebases: ["Palangkaraya"] },
+    };
+    const requests = mockBackend({ previewData: withHomebase as unknown as typeof preview });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
+
+    expect(await screen.findByText("Lengkapi data", { selector: "h2" })).toBeInTheDocument();
+    await user.click(screen.getByText(/2 jabatan, grade, lokasi, atau homebase baru akan dibuat/));
+    expect(screen.getByText("Homebase: Palangkaraya")).toBeInTheDocument();
+    await user.click(screen.getByRole("combobox", { name: "Pemetaan Homebase: Palangkaraya" }));
+    await user.click(await screen.findByRole("option", { name: "Palangka Raya" }));
+    await waitFor(() => {
+      const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
+      expect(last?.body).toMatchObject({
+        masterDataMapping: { homebases: { palangkaraya: "hb-1" } },
+      });
     });
   });
 

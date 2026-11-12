@@ -47,6 +47,7 @@ import {
   fieldSnapshot,
   recordFieldChanges,
 } from "./field-change.ts";
+import { initialEffectiveFrom, writeInitialHomebase } from "./homebase-history.ts";
 
 // D-042: import karyawan. `analyze` dipakai pratinjau & simpan (sumber kebenaran di server).
 // Aturan: cakupan PT (D-040), grant untuk kolom sensitif (§4.2), master data baru boleh ditambah,
@@ -264,9 +265,15 @@ function departmentNameOf(lookup: MasterLookup, positionId: string): string | un
   return position ? lookup.departments.get(position.departmentId)?.name : undefined;
 }
 
-export async function analyze(ctx: RequestContext, body: ImportBody): Promise<Analysis> {
+export async function analyze(
+  ctx: RequestContext,
+  body: ImportBody,
+  now = new Date(),
+): Promise<Analysis> {
   if (!policy.canImportEmployees(ctx.actor)) throw new ForbiddenError();
   const lookup = await getMasterLookup();
+  const today = todayInJakarta(now);
+  const map = body.masterDataMapping ?? {};
   const writePersonal = policy.canWriteSensitiveViaImport(ctx.actor, "personal");
   const writeBank = policy.canWriteSensitiveViaImport(ctx.actor, "bank");
   const companyByCode = new Map(
@@ -515,7 +522,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
           row.departmentName ??
           (row.positionName ? departmentNameOf(lookup, existing.positionId) : undefined);
         plan.repeated = missingRepeated(row, existing);
-        plan.changes = diff(row, existing, lookup, plan);
+        plan.changes = diff(row, existing, lookup, plan, map);
         // IMP-D1: pemegang bagan → jabatan pos dipertahankan (pos menentukan jabatan).
         if (
           plan.mergeChartHolder &&
@@ -537,20 +544,22 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       if (row.exit?.date && row.joinDate && row.exit.date < row.joinDate)
         plan.issues.push(issue("exitDate", "EXIT_BEFORE_JOIN"));
     }
+    // EMP-D6: homebase tidak boleh berlaku di masa depan (tanpa cron; kolom turunan = riwayat terbaru).
+    if (row.homebaseEffectiveFrom && row.homebaseEffectiveFrom > today && plan.action !== "SKIP")
+      plan.issues.push(issue("homebaseEffectiveFrom", "HOMEBASE_FUTURE_DATE"));
     if (plan.issues.some((i) => i.severity === "ERROR")) plan.action = "ERROR";
     return plan;
   });
 
   // 3) D-064: Departemen/Divisi → unit organisasi (pilihan HR, nama persis, saran, atau unit baru).
   //    Pemetaan lama `masterDataMapping.departments` (nama → id) tetap diterima sebagai pilihan unit.
-  const map = body.masterDataMapping ?? {};
   const legacyChoices = Object.fromEntries(
     Object.entries(map.departments ?? {}).map(([name, unitId]) => [unitKey(name), { unitId }]),
   );
   const unitResult = resolveUnits(plans, lookup, body.unitMapping ?? {}, legacyChoices);
   for (const p of plans) {
     if (p.action === "UPDATE" && p.existing && (p.row.departmentName || p.row.divisionName))
-      p.changes = diff(p.row, p.existing, lookup, p);
+      p.changes = diff(p.row, p.existing, lookup, p, map);
     if (p.action === "UPDATE" && p.changes.length === 0) p.action = "SKIP";
   }
 
@@ -583,6 +592,14 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       archived.workLocations.has(masterKey(location))
     )
       p.issues.push(issue("workLocationName", "MASTER_ARCHIVED"));
+    const homebase = p.row.homebaseName;
+    if (
+      wants(p, "homebaseName") &&
+      homebase &&
+      !mapped(map.homebases, masterKey(homebase)) &&
+      archived.homebases.has(masterKey(homebase))
+    )
+      p.issues.push(issue("homebaseName", "MASTER_ARCHIVED"));
     if (p.issues.some((i) => i.severity === "ERROR")) p.action = "ERROR";
   }
   const writing = plans.filter((p) => p.action === "CREATE" || p.action === "UPDATE");
@@ -591,6 +608,7 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
     positions: [],
     grades: [],
     workLocations: [],
+    homebases: [],
     departmentSpecs: newUnitSpecs(unitResult.newUnits),
   };
   for (const p of writing) {
@@ -612,6 +630,12 @@ export async function analyze(ctx: RequestContext, body: ImportBody): Promise<An
       !mapped(map.workLocations, masterKey(p.row.workLocationName))
     )
       names.workLocations.push(p.row.workLocationName);
+    if (
+      wants(p, "homebaseName") &&
+      p.row.homebaseName &&
+      !mapped(map.homebases, masterKey(p.row.homebaseName))
+    )
+      names.homebases.push(p.row.homebaseName);
   }
   const missing = missingMasterData(lookup, names);
 
@@ -695,6 +719,7 @@ function diff(
   e: importRepo.ExistingEmployee,
   lookup: MasterLookup,
   plan: RowPlan,
+  map: NonNullable<ImportBody["masterDataMapping"]>,
 ): ImportFieldKey[] {
   const changes: ImportFieldKey[] = [];
   // Array (jenis SIM) & objek (nomor SIM per jenis) dibandingkan isinya, bukan rujukannya.
@@ -730,6 +755,7 @@ function diff(
   const location = e.workLocationId ? lookup.locations.get(e.workLocationId)?.name : undefined;
   if (row.workLocationName && masterKey(row.workLocationName) !== masterKey(location ?? ""))
     changes.push("workLocationName");
+  if (row.homebaseName && homebaseDiffers(row, e, lookup, map)) changes.push("homebaseName");
   const p = e.personal;
   for (const key of PERSONAL_KEYS) {
     const value = row.personal[key];
@@ -762,6 +788,32 @@ function diff(
   return changes;
 }
 
+/**
+ * EMP-D6: homebase berubah bila berbeda dari yang berlaku sekarang (`employees.homebase_id`), atau bila
+ * tanggal berlaku diisi dan belum ada baris di tanggal itu dengan homebase yang sama.
+ */
+function homebaseDiffers(
+  row: NormalizedImportRow,
+  e: importRepo.ExistingEmployee,
+  lookup: MasterLookup,
+  map: NonNullable<ImportBody["masterDataMapping"]>,
+): boolean {
+  const name = row.homebaseName as string;
+  const key = masterKey(name);
+  // Pilihan HR di pratinjau > nama persis (aktif). Nama baru → belum punya id (selalu berbeda).
+  const targetId =
+    map.homebases?.[key] ??
+    [...lookup.homebases.values()].find((h) => !h.deleted && masterKey(h.name) === key)?.id;
+  const sameHomebase = (id: string | null) =>
+    id !== null &&
+    (targetId ? id === targetId : masterKey(lookup.homebases.get(id)?.name ?? "") === key);
+  if (!sameHomebase(e.homebaseId)) return true;
+  const from = row.homebaseEffectiveFrom;
+  return Boolean(
+    from && !e.homebases.some((h) => toIso(h.effectiveFrom) === from && sameHomebase(h.homebaseId)),
+  );
+}
+
 function positionDiffers(
   row: NormalizedImportRow,
   e: importRepo.ExistingEmployee,
@@ -778,8 +830,12 @@ function positionDiffers(
   );
 }
 
-export async function preview(ctx: RequestContext, body: ImportBody): Promise<ImportPreview> {
-  return (await analyze(ctx, body)).preview;
+export async function preview(
+  ctx: RequestContext,
+  body: ImportBody,
+  now = new Date(),
+): Promise<ImportPreview> {
+  return (await analyze(ctx, body, now)).preview;
 }
 
 const personalData = (row: NormalizedImportRow) => ({
@@ -792,7 +848,7 @@ export async function commit(
   body: CommitBody,
   now = new Date(),
 ): Promise<{ jobId: string; counts: ImportPreview["counts"] }> {
-  const analysis = await analyze(ctx, body);
+  const analysis = await analyze(ctx, body, now);
   if (analysis.preview.previewHash !== body.previewHash) {
     throw new ConflictError("Data berubah sejak pratinjau. Ulangi pratinjau sebelum menyimpan.");
   }
@@ -826,6 +882,9 @@ export async function commit(
       map.grades?.[masterKey(name)] ?? index.grades.get(masterKey(name));
     const locationId = (name: string) =>
       map.workLocations?.[masterKey(name)] ?? index.workLocations.get(masterKey(name));
+    const homebaseId = (name: string) =>
+      map.homebases?.[masterKey(name)] ?? index.homebases.get(masterKey(name));
+    const today = todayInJakarta(now);
 
     const pendingChanges: { employeeId: string; changes: FieldChange[] }[] = [];
     // Nama master untuk riwayat EMP-D5 dibaca sekali (termasuk master baru dari import ini).
@@ -878,6 +937,16 @@ export async function commit(
               }
             : {}),
         });
+        // EMP-D6: homebase awal berlaku mulai kolom file, bawaan tanggal masuk (masa depan → hari ini).
+        const createdHomebase = row.homebaseName ? homebaseId(row.homebaseName) : undefined;
+        if (createdHomebase)
+          await writeInitialHomebase(tx, {
+            employeeId: created.id,
+            homebaseId: createdHomebase,
+            effectiveFrom:
+              row.homebaseEffectiveFrom ?? initialEffectiveFrom(row.joinDate as string, today),
+            changedBy: ctx.actor.accountId,
+          });
         if (Object.keys(row.personal).length > 0)
           await importRepo.upsertPersonal(tx, created.id, personalData(row));
         if (row.bank.accountNumber) await importRepo.upsertBank(tx, created.id, row.bank, false);
@@ -970,12 +1039,23 @@ export async function commit(
             ? { workLocationId: locationId(row.workLocationName) }
             : {}),
         });
-        const today = toDate(todayInJakarta(now));
+        // EMP-D6: homebase baru berlaku mulai kolom file, bawaan hari ini (WIB). Tanggal yang sudah ada
+        // barisnya → homebase di tanggal itu diganti (writeInitialHomebase), bukan baris kembar.
+        const nextHomebase =
+          has("homebaseName") && row.homebaseName ? homebaseId(row.homebaseName) : undefined;
+        if (nextHomebase)
+          await writeInitialHomebase(tx, {
+            employeeId: e.id,
+            homebaseId: nextHomebase,
+            effectiveFrom: row.homebaseEffectiveFrom ?? today,
+            changedBy: ctx.actor.accountId,
+          });
+        const todayDate = toDate(today);
         if (has("employmentStatusText"))
           await repository.createHistory(tx, {
             employeeId: e.id,
             changeType: "STATUS_CHANGED",
-            effectiveDate: today,
+            effectiveDate: todayDate,
             fromStatusId: e.employmentStatusId,
             toStatusId: plan.statusId as string,
             note: "Import data karyawan",
@@ -985,7 +1065,7 @@ export async function commit(
           await repository.createHistory(tx, {
             employeeId: e.id,
             changeType: "POSITION_CHANGED",
-            effectiveDate: today,
+            effectiveDate: todayDate,
             fromPositionId: e.positionId,
             toPositionId: newPositionId,
             note: "Import data karyawan",
@@ -995,7 +1075,7 @@ export async function commit(
           await repository.createHistory(tx, {
             employeeId: e.id,
             changeType: "COMPANY_CHANGED",
-            effectiveDate: today,
+            effectiveDate: todayDate,
             fromCompanyId: e.companyId,
             toCompanyId: plan.companyId as string,
             note: "Import data karyawan",
@@ -1128,6 +1208,7 @@ export async function commit(
             positions: missing.positions.length,
             grades: missing.grades.length,
             workLocations: missing.workLocations.length,
+            homebases: missing.homebases.length,
           },
           skippedFields: result.skippedFields,
           attachments: attachments.length,

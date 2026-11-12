@@ -93,6 +93,9 @@ export async function headcountReport(ctx: RequestContext, raw: unknown, now = n
       .sort((a, b) => b.active - a.active || a.label.localeCompare(b.label));
   const leavers = employees.filter((e) => inYear(e.endDate));
   const joiners = employees.filter((e) => inYear(e.joinDate));
+  // EMP-D6: homebase yang berlaku sekarang (kolom ekspor per orang).
+  const homebaseOf = (e: ReportEmployee) =>
+    e.homebaseId ? (lookup.homebases.get(e.homebaseId)?.name ?? null) : null;
   return {
     year: query.year,
     asOf: yearEnd,
@@ -122,11 +125,12 @@ export async function headcountReport(ctx: RequestContext, raw: unknown, now = n
       .sort((a, b) => b.count - a.count),
     leavers: leavers.map((e) => ({
       ...personDto(lookup, e),
+      homebase: homebaseOf(e),
       endDate: e.endDate as string,
       exitReason: e.exitReason ? EXIT_REASON_LABELS[e.exitReason] : null,
     })),
     joiners: joiners
-      .map((e) => ({ ...personDto(lookup, e), joinDate: e.joinDate }))
+      .map((e) => ({ ...personDto(lookup, e), homebase: homebaseOf(e), joinDate: e.joinDate }))
       .sort((a, b) => a.joinDate.localeCompare(b.joinDate)),
   };
 }
@@ -417,10 +421,10 @@ async function sheetsFor(
           name: "Karyawan masuk",
           title: `Karyawan masuk — ${r.year}`,
           rows: [
-            [...PERSON_HEADERS, "Tanggal masuk"],
-            ...r.joiners.map((x) => [...person(x), d(x.joinDate)]),
+            [...PERSON_HEADERS, "Homebase", "Tanggal masuk"],
+            ...r.joiners.map((x) => [...person(x), x.homebase, d(x.joinDate)]),
           ],
-          formats: [...PERSON_FORMATS, "date"],
+          formats: [...PERSON_FORMATS, "text", "date"],
         }),
       ),
       people(
@@ -428,10 +432,10 @@ async function sheetsFor(
           name: "Karyawan keluar",
           title: `Karyawan keluar — ${r.year}`,
           rows: [
-            [...PERSON_HEADERS, "Tanggal keluar", "Alasan"],
-            ...r.leavers.map((l) => [...person(l), d(l.endDate), l.exitReason]),
+            [...PERSON_HEADERS, "Homebase", "Tanggal keluar", "Alasan"],
+            ...r.leavers.map((l) => [...person(l), l.homebase, d(l.endDate), l.exitReason]),
           ],
-          formats: [...PERSON_FORMATS, "date", "text"],
+          formats: [...PERSON_FORMATS, "text", "date", "text"],
         }),
       ),
     ];
@@ -670,6 +674,9 @@ async function exportFrame(ctx: RequestContext, kind: ReportKind, raw: unknown, 
   }
   if (filter.workLocationId) {
     parts.push(`Lokasi ${lookup.locations.get(filter.workLocationId)?.name ?? "-"}`);
+  }
+  if (filter.homebaseId) {
+    parts.push(`Homebase ${lookup.homebases.get(filter.homebaseId)?.name ?? "-"}`);
   }
   if (kind === "tenure" || kind === "birthdays") {
     const q = parse(monthQuerySchema, raw);

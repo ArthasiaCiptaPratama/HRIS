@@ -124,6 +124,8 @@ export interface MasterDataNames {
   positions: { department: string; name: string }[];
   grades: string[];
   workLocations: string[];
+  /** EMP-D6: homebase (Point of Hire). */
+  homebases: string[];
 }
 
 /** Id master data aktif per kunci nama (departemen, jabatan per departemen, grade, lokasi). */
@@ -143,6 +145,7 @@ export function masterIndex(lookup: MasterLookup) {
     positions,
     grades: new Map(live(lookup.grades).map((g) => [masterKey(g.name), g.id])),
     workLocations: new Map(live(lookup.locations).map((l) => [masterKey(l.name), l.id])),
+    homebases: new Map(live(lookup.homebases).map((h) => [masterKey(h.name), h.id])),
   };
 }
 
@@ -171,6 +174,7 @@ export function archivedMasterIndex(lookup: MasterLookup) {
     ),
     grades: keys(lookup.grades, live.grades),
     workLocations: keys(lookup.locations, live.workLocations),
+    homebases: keys(lookup.homebases, live.homebases),
   };
 }
 
@@ -198,6 +202,7 @@ export function missingMasterData(lookup: MasterLookup, names: MasterDataNames):
     positions: [...positions.values()],
     grades: unique(names.grades, index.grades),
     workLocations: unique(names.workLocations, index.workLocations),
+    homebases: unique(names.homebases, index.homebases),
   };
 }
 
@@ -262,6 +267,11 @@ export async function createMissingMasterData(
     const row = await repository.createWorkLocation(tx, name);
     index.workLocations.set(masterKey(name), row.id);
     await log("work_location", row.id, name);
+  }
+  for (const name of missing.homebases) {
+    const row = await repository.createHomebase(tx, name);
+    index.homebases.set(masterKey(name), row.id);
+    await log("homebase", row.id, name);
   }
   return index;
 }
