@@ -10,6 +10,7 @@ import {
   type ImportFieldKey,
   type ImportRowIssue,
   isBlankImportRow,
+  maritalFromPtkp,
   type NormalizedImportRow,
   normalizeImportRow,
   unitKey,
@@ -65,6 +66,10 @@ interface RowPlan {
   row: NormalizedImportRow;
   issues: ImportRowIssue[];
   changes: ImportFieldKey[];
+  /** IMP-D2 (mode FILL_EMPTY): field yang sudah berisi di sistem & berbeda dengan file → tidak ditulis. */
+  kept?: ImportFieldKey[];
+  /** IMP-D2: mode "Isi yang kosong saja" (karyawan yang cocok hanya diisi field yang masih kosong). */
+  fillEmpty?: boolean;
   existing?: importRepo.ExistingEmployee;
   companyId?: string;
   companySource?: "FILE" | "ROW" | "DEFAULT" | "EXISTING";
@@ -363,7 +368,14 @@ export async function analyze(
   const seenEmail = new Set<string>();
   const seenPersonalEmail = new Set<string>();
   const plans: RowPlan[] = normalized.map(({ sourceRow, row, issues }) => {
-    const plan: RowPlan = { sourceRow, action: "CREATE", row, issues: [...issues], changes: [] };
+    const plan: RowPlan = {
+      sourceRow,
+      action: "CREATE",
+      row,
+      issues: [...issues],
+      changes: [],
+      fillEmpty: body.mode === "FILL_EMPTY",
+    };
     const number = row.employeeNumber;
     if (number) {
       if (seenNumber.has(number)) plan.issues.push(issue("employeeNumber", "DUPLICATE_IN_FILE"));
@@ -556,7 +568,9 @@ export async function analyze(
   const legacyChoices = Object.fromEntries(
     Object.entries(map.departments ?? {}).map(([name, unitId]) => [unitKey(name), { unitId }]),
   );
-  const unitResult = resolveUnits(plans, lookup, body.unitMapping ?? {}, legacyChoices);
+  // IMP-D2: FILL_EMPTY → karyawan yang sudah punya jabatan tidak memakai unit file (tidak ada unit baru).
+  const unitPlans = plans.filter((p) => !(p.fillEmpty && p.existing?.positionId));
+  const unitResult = resolveUnits(unitPlans, lookup, body.unitMapping ?? {}, legacyChoices);
   for (const p of plans) {
     if (p.action === "UPDATE" && p.existing && (p.row.departmentName || p.row.divisionName))
       p.changes = diff(p.row, p.existing, lookup, p, map);
@@ -665,6 +679,7 @@ export async function analyze(
     newEmployee: !p.existing,
     employmentStatusId: p.existing ? null : (p.statusId ?? null),
     changes: p.changes,
+    kept: p.kept ?? [],
     issues: p.issues,
     attachments: queuedAttachments(p).length,
     chartHolder: p.chartHolder ?? null,
@@ -722,6 +737,10 @@ function diff(
   map: NonNullable<ImportBody["masterDataMapping"]>,
 ): ImportFieldKey[] {
   const changes: ImportFieldKey[] = [];
+  const kept: ImportFieldKey[] = [];
+  // IMP-D2: mode FILL_EMPTY → field yang sudah berisi di sistem dibiarkan (dicatat sebagai `kept`).
+  const add = (field: ImportFieldKey, current: unknown) =>
+    (plan.fillEmpty && !isBlank(current) ? kept : changes).push(field);
   // Array (jenis SIM) & objek (nomor SIM per jenis) dibandingkan isinya, bukan rujukannya.
   const same = (a: unknown, b: unknown) =>
     (a !== null && typeof a === "object") || (b !== null && typeof b === "object")
@@ -734,39 +753,50 @@ function diff(
   if (plan.mergeChartHolder) {
     if ((row.employeeNumber ?? null) !== e.employeeNumber) changes.push("employeeNumber");
   } else if (row.employeeNumber && !e.employeeNumber) changes.push("employeeNumber");
-  if (differs(row.fullName, e.fullName)) changes.push("fullName");
-  if (differs(row.workEmail, e.workEmail)) changes.push("workEmail");
-  if (differs(row.personalEmail, e.personalEmail)) changes.push("personalEmail");
-  if (differs(row.phoneNumber, e.phoneNumber)) changes.push("phoneNumber");
-  if (differs(row.emergencyPhone, e.emergencyPhone)) changes.push("emergencyPhone");
+  if (differs(row.fullName, e.fullName)) add("fullName", e.fullName);
+  if (differs(row.workEmail, e.workEmail)) add("workEmail", e.workEmail);
+  if (differs(row.personalEmail, e.personalEmail)) add("personalEmail", e.personalEmail);
+  if (differs(row.phoneNumber, e.phoneNumber)) add("phoneNumber", e.phoneNumber);
+  if (differs(row.emergencyPhone, e.emergencyPhone)) add("emergencyPhone", e.emergencyPhone);
   if (differs(row.emergencyContactName, e.emergencyContactName))
-    changes.push("emergencyContactName");
+    add("emergencyContactName", e.emergencyContactName);
   if (differs(row.emergencyContactRelationship, e.emergencyContactRelationship))
-    changes.push("emergencyContactRelationship");
-  if (differs(row.gender, e.gender)) changes.push("gender");
-  if (differs(row.joinDate, toIso(e.joinDate))) changes.push("joinDate");
-  if (plan.companyId && plan.companyId !== e.companyId) changes.push("companyCode");
-  if (plan.statusId && plan.statusId !== e.employmentStatusId) changes.push("employmentStatusText");
+    add("emergencyContactRelationship", e.emergencyContactRelationship);
+  if (differs(row.gender, e.gender)) add("gender", e.gender);
+  if (differs(row.joinDate, toIso(e.joinDate))) add("joinDate", e.joinDate);
+  if (plan.companyId && plan.companyId !== e.companyId) add("companyCode", e.companyId);
+  if (plan.statusId && plan.statusId !== e.employmentStatusId)
+    add("employmentStatusText", e.employmentStatusId);
   if (!(plan.mergeChartHolder && e.orgPostId) && positionDiffers(row, e, lookup, plan))
-    changes.push("positionName");
+    add("positionName", e.positionId);
   const grade = e.gradeId ? lookup.grades.get(e.gradeId)?.name : undefined;
   if (row.gradeName && masterKey(row.gradeName) !== masterKey(grade ?? ""))
-    changes.push("gradeName");
+    add("gradeName", e.gradeId);
   const location = e.workLocationId ? lookup.locations.get(e.workLocationId)?.name : undefined;
   if (row.workLocationName && masterKey(row.workLocationName) !== masterKey(location ?? ""))
-    changes.push("workLocationName");
-  if (row.homebaseName && homebaseDiffers(row, e, lookup, map)) changes.push("homebaseName");
+    add("workLocationName", e.workLocationId);
+  if (row.homebaseName && homebaseDiffers(row, e, lookup, map)) add("homebaseName", e.homebaseId);
   const p = e.personal;
   for (const key of PERSONAL_KEYS) {
     const value = row.personal[key];
     const current = p ? (key === "birthDate" ? toIso(p.birthDate) : p[key]) : undefined;
-    if (differs(value, current)) changes.push(PERSONAL_FIELD[key]);
+    if (!differs(value, current)) continue;
+    // IMP-D2: status nikah turunan PTKP file tidak dipakai bila PTKP-nya sendiri dibiarkan.
+    const derivedFromKeptPtkp =
+      plan.fillEmpty &&
+      key === "maritalStatus" &&
+      kept.includes("ptkpStatus") &&
+      row.personal.ptkpStatus !== undefined &&
+      value === maritalFromPtkp(row.personal.ptkpStatus);
+    if (derivedFromKeptPtkp) kept.push("maritalStatus");
+    else add(PERSONAL_FIELD[key], current);
   }
-  if (differs(row.bank.bankName, e.bankAccount?.bankName)) changes.push("bankName");
+  if (differs(row.bank.bankName, e.bankAccount?.bankName)) add("bankName", e.bankAccount?.bankName);
   if (differs(row.bank.accountNumber, e.bankAccount?.accountNumber))
-    changes.push("bankAccountNumber");
+    add("bankAccountNumber", e.bankAccount?.accountNumber);
   if (differs(row.bank.accountHolder, e.bankAccount?.accountHolder))
-    changes.push("bankAccountHolder");
+    add("bankAccountHolder", e.bankAccount?.accountHolder);
+  // Pendidikan/keluarga/sertifikasi: selalu "tambah yang belum ada" (tidak menimpa) di semua mode.
   if (
     row.education &&
     !e.educations.some(
@@ -785,7 +815,17 @@ function diff(
     ])
       changes.push(item.source);
   }
-  return changes;
+  plan.kept = [...new Set(kept)].filter((field) => !changes.includes(field));
+  return [...new Set(changes)];
+}
+
+/** IMP-D2: nilai dianggap kosong (null, string kosong, daftar/objek kosong). */
+function isBlank(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value.trim() === "";
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object" && !(value instanceof Date)) return Object.keys(value).length === 0;
+  return false;
 }
 
 /**
@@ -1081,7 +1121,12 @@ export async function commit(
             note: "Import data karyawan",
             changedBy: ctx.actor.accountId,
           });
-        const personalChanges = PERSONAL_KEYS.filter((k) => has(PERSONAL_FIELD[k]));
+        // IMP-D2: satu field bisa dari dua kunci (No. SIM) → pada FILL_EMPTY hanya kunci yang masih kosong.
+        const personalChanges = PERSONAL_KEYS.filter(
+          (k) =>
+            has(PERSONAL_FIELD[k]) &&
+            (!plan.fillEmpty || isBlank(e.personal ? (e.personal[k] as unknown) : undefined)),
+        );
         if (personalChanges.length > 0) {
           const data = personalData(row);
           await importRepo.upsertPersonal(
@@ -1091,7 +1136,18 @@ export async function commit(
           );
         }
         if (has("bankName") || has("bankAccountNumber") || has("bankAccountHolder"))
-          await importRepo.upsertBank(tx, e.id, row.bank, e.bankAccount !== null);
+          await importRepo.upsertBank(
+            tx,
+            e.id,
+            plan.fillEmpty
+              ? {
+                  ...(has("bankName") ? { bankName: row.bank.bankName } : {}),
+                  ...(has("bankAccountNumber") ? { accountNumber: row.bank.accountNumber } : {}),
+                  ...(has("bankAccountHolder") ? { accountHolder: row.bank.accountHolder } : {}),
+                }
+              : row.bank,
+            e.bankAccount !== null,
+          );
         if (has("educationText") && row.education)
           await importRepo.createEducation(tx, {
             employeeId: e.id,

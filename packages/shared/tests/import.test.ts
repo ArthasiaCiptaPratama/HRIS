@@ -482,3 +482,26 @@ test("baris tanpa nama & nomor induk = baris kosong (dilewati, bukan error)", ()
   expect(isBlankImportRow({ fullName: "Contoh" })).toBe(false);
   expect(isBlankImportRow({ employeeNumber: "A1" })).toBe(false);
 });
+
+describe("IMP-D2: kolom email berisi email gratis = email pribadi", () => {
+  const fieldOf = (header: string, emails: string[]) => {
+    const grid: Grid = [
+      ["NIK", "NAMA KARYAWAN", header],
+      ...emails.map((e, i) => [`ACP-${i}`, `Nama ${i}`, e]),
+    ];
+    const detected = detectSheet(grid);
+    if (!detected) throw new Error("sheet tidak terdeteksi");
+    return suggestMapping(detected).find((s) => s.column === 2)?.field;
+  };
+  test("ALAMAT EMAIL berisi gmail/yahoo → personalEmail", () => {
+    expect(fieldOf("ALAMAT EMAIL", ["budi@gmail.com", "ani@yahoo.co.id", "dedi@gmail.com"])).toBe(
+      "personalEmail",
+    );
+  });
+  test("ALAMAT EMAIL berisi domain kantor → tetap workEmail", () => {
+    expect(fieldOf("ALAMAT EMAIL", ["budi@arthasia.com", "ani@arthasia.com"])).toBe("workEmail");
+  });
+  test("header Email kantor tetap workEmail walau isinya gmail", () => {
+    expect(fieldOf("Email kantor", ["budi@gmail.com", "ani@gmail.com"])).toBe("workEmail");
+  });
+});

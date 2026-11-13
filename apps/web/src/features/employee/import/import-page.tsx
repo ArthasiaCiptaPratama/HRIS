@@ -46,6 +46,7 @@ import { useCompanyScope, useMasterData } from "../api";
 import { ChoiceCard } from "../components/choice-card";
 import {
   fetchSavedMapping,
+  type ImportMode,
   type ImportPreview,
   type ImportRequest,
   importKeys,
@@ -70,6 +71,12 @@ import { suggestedChoices } from "./unit-matching";
 // Karyawan Aktif.
 
 type Step = "upload" | "mapping" | "complete" | "preview" | "done";
+const MODE_LABEL: Record<ImportMode, string> = {
+  UPSERT: "Tambah + perbarui",
+  FILL_EMPTY: "Isi yang kosong saja",
+  CREATE_ONLY: "Tambah baru saja",
+};
+
 const STEPS: { key: Step; label: string }[] = [
   { key: "upload", label: "Unggah" },
   { key: "mapping", label: "Pemetaan kolom" },
@@ -145,7 +152,7 @@ export function ImportEmployeesPage() {
   const previewSeq = useRef(0);
 
   const [step, setStep] = useState<Step>("upload");
-  const [mode, setMode] = useState<"UPSERT" | "CREATE_ONLY">("UPSERT");
+  const [mode, setMode] = useState<ImportMode>("UPSERT");
   const [companyId, setCompanyId] = useState<string>("");
   const [dragging, setDragging] = useState(false);
   const [parsing, setParsing] = useState(false);
@@ -383,6 +390,7 @@ export function ImportEmployeesPage() {
     const status = statusOptions.find((s) => s.value === defaultStatusId)?.label;
     const created = p.units.filter((u) => u.create).length;
     return [
+      MODE_LABEL[mode],
       company ? `PT ${company}` : "PT dari kolom file",
       p.units.length > 0
         ? `${p.units.length} nilai unit${created > 0 ? ` (${created} unit baru)` : ""}`
@@ -569,6 +577,12 @@ export function ImportEmployeesPage() {
                   description="Karyawan baru dibuat; yang sudah ada diperbarui. Sel kosong tidak menghapus data."
                 />
                 <ChoiceCard
+                  selected={mode === "FILL_EMPTY"}
+                  onSelect={() => setMode("FILL_EMPTY")}
+                  title="Isi yang kosong saja"
+                  description="Karyawan baru dibuat; untuk yang sudah ada hanya data yang masih kosong diisi. Data yang sudah berisi tidak ditimpa."
+                />
+                <ChoiceCard
                   selected={mode === "CREATE_ONLY"}
                   onSelect={() => setMode("CREATE_ONLY")}
                   title="Tambah baru saja"
@@ -635,6 +649,7 @@ export function ImportEmployeesPage() {
         <PreviewStep
           preview={preview}
           settings={settingsSummary(preview)}
+          fillEmpty={mode === "FILL_EMPTY"}
           statusOptions={statusOptions}
           statusOverrides={statusOverrides}
           onStatusOverride={(sourceRow, id) => {
