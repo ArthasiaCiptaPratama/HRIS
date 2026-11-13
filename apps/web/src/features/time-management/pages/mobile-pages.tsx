@@ -223,7 +223,7 @@ export function MobileRosterPage() {
                       ? `${hhmm(r.shift.startMinute)}–${hhmm(r.shift.endMinute)}`
                       : r
                         ? "Libur"
-                        : "Tanpa roster"}
+                        : "Tanpa jadwal"}
                     {h ? (
                       <span
                         className={cn(

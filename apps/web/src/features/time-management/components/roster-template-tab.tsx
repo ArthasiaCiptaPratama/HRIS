@@ -227,7 +227,7 @@ function TemplateBuilderDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{template ? "Ubah template roster" : "Buat template roster"}</DialogTitle>
+          <DialogTitle>{template ? "Ubah template jadwal" : "Buat template jadwal"}</DialogTitle>
           <DialogDescription>
             Klik kode shift untuk menyusun pola satu siklus. Pratinjau menunjukkan jadwal tiap crew
             dan jeda antarshift.

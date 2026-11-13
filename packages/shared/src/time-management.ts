@@ -22,7 +22,7 @@ export const APPROVAL_SUBJECT_LABELS: Record<ApprovalSubject, string> = {
   ATTENDANCE_CORRECTION: "Koreksi absensi",
   OVERTIME: "Lembur",
   ATTENDANCE_DAY: "Hari absen",
-  ROSTER_CHANGE: "Perubahan roster",
+  ROSTER_CHANGE: "Perubahan jadwal",
   ATTENDANCE_PUNCH: "Absen masuk/pulang",
   ROSTER_EDIT: "Perubahan jadwal oleh HR",
 };
@@ -138,7 +138,7 @@ const shiftCode = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z0-9]{1,10}$/, "Kode shift 1–10 huruf/angka")
-  .refine((code) => code !== OFF_CODE, "OFF dipakai untuk hari libur roster");
+  .refine((code) => code !== OFF_CODE, "OFF dipakai untuk hari libur jadwal");
 const minuteOfDay = z.number().int().min(0).max(1439);
 const minutes = (max: number) => z.number().int().min(0).max(max);
 
@@ -351,8 +351,8 @@ export const ATTENDANCE_LABELS = [
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
-  OUTSIDE_ROSTER: "Di luar jadwal roster",
-  NO_ROSTER: "Tanpa roster",
+  OUTSIDE_ROSTER: "Di luar jadwal",
+  NO_ROSTER: "Tanpa jadwal",
   OUTSIDE_RADIUS: "Di luar radius lokasi",
   LOW_ACCURACY: "Akurasi GPS rendah",
   OTHER_LOCATION: "Di lokasi lain",

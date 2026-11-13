@@ -192,7 +192,7 @@ export function PersonalDashboard({ me }: { me: Me }) {
       "/time/persetujuan-cuti",
     ],
     [
-      "perubahan roster menunggu keputusan",
+      "perubahan jadwal menunggu keputusan",
       changeInbox.data?.length ?? 0,
       "/time/perubahan-roster",
     ],
@@ -223,7 +223,7 @@ export function PersonalDashboard({ me }: { me: Me }) {
     ["Absen", "/absen", ScanFace, "bg-violet-100 text-violet-700", hasEmployee],
     ["Cuti & Izin", "/time/cuti", Plane, "bg-sky-100 text-sky-700", hasEmployee],
     ["Koreksi Absen", "/time/pernyataan", FilePenLine, "bg-amber-100 text-amber-700", true],
-    ["Roster", "/time/roster", CalendarRange, "bg-emerald-100 text-emerald-700", true],
+    ["Jadwal", "/time/roster", CalendarRange, "bg-emerald-100 text-emerald-700", true],
     ["Tukar Shift", "/time/perubahan-roster", Repeat, "bg-rose-100 text-rose-700", true],
     ["Kalender Libur", "/time/kalender", CalendarDays, "bg-orange-100 text-orange-700", true],
     [
@@ -261,7 +261,7 @@ export function PersonalDashboard({ me }: { me: Me }) {
                 ? `Shift ${rosterToday.shift.code} ${hhmm(rosterToday.shift.startMinute)}–${hhmm(rosterToday.shift.endMinute)}`
                 : rosterToday
                   ? "Libur (OFF)"
-                  : "Tanpa roster"}
+                  : "Tanpa jadwal"}
               {data.location ? ` · ${data.location.name}` : ""}
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -402,11 +402,11 @@ export function PersonalDashboard({ me }: { me: Me }) {
 
       {/* Roster 7 hari */}
       {hasEmployee ? (
-        <Widget title="Roster 7 hari" icon={CalendarRange}>
+        <Widget title="Jadwal 7 hari" icon={CalendarRange}>
           {todayQ.isPending ? (
             <Skeleton className="h-20" />
           ) : (data?.roster.length ?? 0) === 0 ? (
-            <p className="text-muted-foreground text-sm">Belum ada roster.</p>
+            <p className="text-muted-foreground text-sm">Belum ada jadwal.</p>
           ) : (
             <RosterWeek roster={data?.roster ?? []} today={today} />
           )}

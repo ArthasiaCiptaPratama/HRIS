@@ -991,7 +991,7 @@ async function selfDirectCellIssues(
             index,
             employeeId: cell.employeeId,
             date: cell.date,
-            message: "Anda tidak boleh mengubah roster milik sendiri tanpa persetujuan.",
+            message: "Anda tidak boleh mengubah jadwal milik sendiri tanpa persetujuan.",
           },
         ];
   });

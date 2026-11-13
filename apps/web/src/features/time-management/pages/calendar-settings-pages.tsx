@@ -133,7 +133,7 @@ export function HolidaysPage() {
     <div>
       <PageHeader
         title="Kalender Libur"
-        description="Tanggal merah nasional dan cuti bersama sesuai SKB 3 Menteri. Cuti bersama pada hari kerja roster tanpa absen dihitung sebagai cuti."
+        description="Tanggal merah nasional dan cuti bersama sesuai SKB 3 Menteri. Cuti bersama pada hari kerja jadwal tanpa absen dihitung sebagai cuti."
         actions={
           <>
             <div className="flex items-center gap-1">
@@ -475,8 +475,8 @@ const FIELDS: { key: NumberSetting; label: string; hint: string }[] = [
   },
   {
     key: "rosterHorizonDays",
-    label: "Roster dibangkitkan ke depan (hari)",
-    hint: "Hari roster dari pola dibuat sejauh ini.",
+    label: "Jadwal dibangkitkan ke depan (hari)",
+    hint: "Hari jadwal dari pola dibuat sejauh ini.",
   },
   {
     key: "checkOutEarlyMin",

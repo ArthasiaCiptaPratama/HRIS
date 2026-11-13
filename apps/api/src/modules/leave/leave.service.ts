@@ -123,7 +123,7 @@ const DEFAULT_TYPES = [
     name: "Cuti tahunan",
     category: "ANNUAL",
     description:
-      "Cuti tahunan dari saldo cuti Anda. Hari OFF roster dan tanggal merah tidak dihitung.",
+      "Cuti tahunan dari saldo cuti Anda. Hari OFF jadwal dan tanggal merah tidak dihitung.",
     sortOrder: 0,
   },
   {
@@ -632,7 +632,7 @@ async function submitLeaveRequest(
 
   const dates = await countedDates(employeeId, input.startDate, input.endDate);
   if (dates.length === 0) {
-    throw new BusinessRuleError("Tidak ada hari kerja roster pada rentang ini (semua OFF/libur).");
+    throw new BusinessRuleError("Tidak ada hari kerja jadwal pada rentang ini (semua OFF/libur).");
   }
   // Izin boleh melebihi batas (kelebihan memotong cuti tahunan); batas tetap berlaku untuk sakit.
   if (

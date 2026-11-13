@@ -399,12 +399,12 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         id: "roster",
-        label: "Roster",
+        label: "Jadwal",
         items: [
           {
             id: "roster-grid",
             maintenance: !tmOn("tmRoster"),
-            label: "Roster Bulanan",
+            label: "Jadwal Bulanan",
             to: "/time/roster",
             icon: CalendarRange,
             keywords: "jadwal shift crew roster tambang",
@@ -412,7 +412,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             id: "roster-changes",
             maintenance: !tmOn("tmRosterChanges"),
-            label: "Perubahan Roster",
+            label: "Perubahan Jadwal",
             to: "/time/perubahan-roster",
             queueKey: "rosterChanges",
             icon: Repeat,
@@ -426,7 +426,7 @@ export const NAV_GROUPS: NavGroup[] = [
             to: "/time/roster/pengaturan",
             icon: CalendarCog,
             visible: tmAccess.manageRoster,
-            keywords: "master shift pola siklus crew anggota import roster",
+            keywords: "master shift pola siklus crew anggota import jadwal roster",
           },
           {
             id: "attendance-locations",

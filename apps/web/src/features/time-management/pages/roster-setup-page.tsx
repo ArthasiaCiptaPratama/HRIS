@@ -63,7 +63,7 @@ export function RosterSetupPage() {
     <div>
       <PageHeader
         title="Shift, Pola & Crew"
-        description="Atur jam shift beserta jendela absennya, pola siklus roster (mis. 10 kerja / 4 libur), dan crew yang mengikuti pola."
+        description="Atur jam shift beserta jendela absennya, pola siklus jadwal (mis. 10 kerja / 4 libur), dan crew yang mengikuti pola."
         actions={
           companies.length > 1 ? (
             <FormSelect
@@ -84,7 +84,7 @@ export function RosterSetupPage() {
           <TabsList>
             <TabsTrigger value="template">Template</TabsTrigger>
             <TabsTrigger value="shift">Shift</TabsTrigger>
-            <TabsTrigger value="pattern">Pola roster</TabsTrigger>
+            <TabsTrigger value="pattern">Pola jadwal</TabsTrigger>
             <TabsTrigger value="crew">Crew</TabsTrigger>
           </TabsList>
           <TabsContent value="template" className="mt-4">
@@ -191,7 +191,7 @@ function ShiftTab({ companyId }: { companyId: string }) {
                 {hhmm(s.startMinute)}–{hhmm(s.endMinute)}
                 {s.startsNextDay ? (
                   <Badge variant="muted" className="ml-2">
-                    malam setelah tanggal roster
+                    malam setelah tanggal jadwal
                   </Badge>
                 ) : s.crossesMidnight ? (
                   <Badge variant="muted" className="ml-2">
@@ -244,10 +244,10 @@ const TEMPLATE_INFO: Record<
 > = {
   JT: {
     description:
-      "Shift JTP 07–15, JTS 15–23, JTM 23–07 (7 jam normal + 1 jam lembur rutin, istirahat 60 mnt dibayar), pola 6 kerja + 1 OFF dengan rotasi Pagi → Sore → Malam tiap minggu (siklus 21 hari). Hari ke-6 (5 jam) diatur sendiri di Roster Bulanan.",
+      "Shift JTP 07–15, JTS 15–23, JTM 23–07 (7 jam normal + 1 jam lembur rutin, istirahat 60 mnt dibayar), pola 6 kerja + 1 OFF dengan rotasi Pagi → Sore → Malam tiap minggu (siklus 21 hari). Hari ke-6 (5 jam) diatur sendiri di Jadwal Bulanan.",
     crewHint: "Diisi = dibuat JT Crew A/B/C; pada tanggal mulai A Pagi, B Sore, C Malam.",
     crewWarning:
-      "Dengan 3 crew, hari OFF ketiganya jatuh di tanggal yang sama (tiap hari ke-7), sehingga hari itu tidak ada yang berjaga. Atur crew pengganti atau ubah sel roster hari OFF bila operasi harus 24 jam penuh.",
+      "Dengan 3 crew, hari OFF ketiganya jatuh di tanggal yang sama (tiap hari ke-7), sehingga hari itu tidak ada yang berjaga. Atur crew pengganti atau ubah sel jadwal hari OFF bila operasi harus 24 jam penuh.",
   },
   ROT_13_1: {
     description:
@@ -258,7 +258,7 @@ const TEMPLATE_INFO: Record<
   },
   SHIFT_3X8: {
     description:
-      "Shift S1 08–16, S2 16–24, S3 24–08 (S3 dijalani malam setelah tanggal roster, tetap tercatat di tanggal roster), istirahat 60 mnt dibayar. Pola 2 hari S1 → 2 hari S2 → 2 hari S3 → 2 OFF (siklus 8 hari).",
+      "Shift S1 08–16, S2 16–24, S3 24–08 (S3 dijalani malam setelah tanggal jadwal, tetap tercatat di tanggal jadwal), istirahat 60 mnt dibayar. Pola 2 hari S1 → 2 hari S2 → 2 hari S3 → 2 OFF (siklus 8 hari).",
     crewHint:
       "Diisi = dibuat 4 crew (A–D) bergeser 2 hari, sehingga setiap shift selalu dijaga satu crew.",
   },
@@ -301,13 +301,13 @@ function TemplateDialog({ companyId, onClose }: { companyId: string; onClose: ()
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Pakai template roster</DialogTitle>
+          <DialogTitle>Pakai template jadwal</DialogTitle>
           <DialogDescription>{info.description}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <Field label="Template">
             <FormSelect
-              aria-label="Template roster"
+              aria-label="Template jadwal"
               placeholder="Pilih template"
               value={template}
               onChange={(v) => setTemplate(v as RosterTemplate)}
@@ -517,7 +517,7 @@ function ShiftDialog({
           {dawn ? (
             <fieldset className="bg-muted/40 col-span-2 space-y-2 rounded-lg border p-3 text-sm">
               <legend className="px-1 font-medium">Shift ini dimulai dini hari</legend>
-              <p className="text-muted-foreground">Kalau di roster ditulis tanggal 17, artinya:</p>
+              <p className="text-muted-foreground">Kalau di jadwal ditulis tanggal 17, artinya:</p>
               <label className="flex items-center gap-2">
                 <input
                   type="radio"
@@ -597,7 +597,7 @@ function PatternTab({ companyId }: { companyId: string }) {
       ) : (patterns.data ?? []).length === 0 ? (
         <EmptyState
           icon={CalendarCog}
-          title="Belum ada pola roster"
+          title="Belum ada pola jadwal"
           description="Contoh: 10/4 (10 hari kerja, 4 hari libur)."
         />
       ) : (
@@ -680,7 +680,7 @@ function PatternDialog({
     try {
       await save.mutateAsync({ id: pattern?.id, body: { companyId, name, steps } });
       toast.success(
-        pattern ? "Pola diperbarui; roster crew dibangkitkan ulang." : "Pola ditambahkan.",
+        pattern ? "Pola diperbarui; jadwal crew dibangkitkan ulang." : "Pola ditambahkan.",
       );
       onClose();
     } catch (e) {
@@ -877,7 +877,7 @@ function CrewDialog({
   const submit = async () => {
     try {
       await save.mutateAsync({ id: crew?.id, body: { companyId, ...form } });
-      toast.success(crew ? "Crew diperbarui; roster dibangkitkan ulang." : "Crew ditambahkan.");
+      toast.success(crew ? "Crew diperbarui; jadwal dibangkitkan ulang." : "Crew ditambahkan.");
       onClose();
     } catch (e) {
       toast.error(errorMessage(e));
@@ -901,7 +901,7 @@ function CrewDialog({
               placeholder="Crew A"
             />
           </Field>
-          <Field label="Pola roster">
+          <Field label="Pola jadwal">
             <FormSelect
               value={form.patternId}
               onChange={(v) => setForm({ ...form, patternId: v })}
@@ -979,7 +979,7 @@ function MembersDialog({ crew, onClose }: { crew: Crew; onClose: () => void }) {
       toast.success(
         result.submitted > 0
           ? `Anggota crew disimpan. ${result.submitted} perpindahan / pengeluaran karyawan ber-crew diajukan ke atasan + HR dan berlaku setelah disetujui.`
-          : "Anggota crew disimpan; roster anggota dibangkitkan dari tanggal efektif.",
+          : "Anggota crew disimpan; jadwal anggota dibangkitkan dari tanggal efektif.",
       );
       onClose();
     } catch (e) {

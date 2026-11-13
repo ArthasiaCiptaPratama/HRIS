@@ -594,7 +594,7 @@ export function registerRosterEditHandler() {
           : row.kind === "CREW"
             ? await applyCrewEdit(tx, row, event.afterCommit)
             : null;
-    if (!appliedFrom) throw new BusinessRuleError("Jenis perubahan roster ini belum didukung.");
+    if (!appliedFrom) throw new BusinessRuleError("Jenis perubahan jadwal ini belum didukung.");
     await repository.updateRosterEdit(tx, row.id, {
       status: "APPLIED",
       appliedFrom: toDate(appliedFrom),

@@ -156,7 +156,7 @@ export function useMobileApp(): MobileContextValue {
 
 const MOBILE_TITLES: [prefix: string, title: string][] = [
   ["/absen/riwayat", "Riwayat Absen"],
-  ["/absen/roster", "Roster Saya"],
+  ["/absen/roster", "Jadwal Saya"],
   ["/absen/cuti", "Cuti & Izin"],
   ["/absen/koreksi", "Koreksi & Pernyataan"],
   ["/absen/lembur", "Pengajuan Lembur"],
@@ -410,7 +410,7 @@ function TodayCard({
               ? ` · ${roster.shift.code} ${hhmm(roster.shift.startMinute)}–${hhmm(roster.shift.endMinute)}`
               : roster
                 ? " · OFF"
-                : " · Tanpa roster"}
+                : " · Tanpa jadwal"}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -634,7 +634,7 @@ function MenuGrid({ me }: { me: Me }) {
         <MenuTile
           to="/absen/roster"
           icon={CalendarRange}
-          label="Roster"
+          label="Jadwal"
           tone="bg-violet-100 text-violet-700"
         />
         <MenuTile
@@ -697,7 +697,7 @@ function RosterStrip({ data, today }: { data: Today; today: string }) {
   if (data.roster.length === 0) return null;
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">
-      <h2 className="mb-2 px-1 text-sm font-semibold">Roster 7 hari</h2>
+      <h2 className="mb-2 px-1 text-sm font-semibold">Jadwal 7 hari</h2>
       <RosterWeek roster={data.roster} today={today} />
     </section>
   );

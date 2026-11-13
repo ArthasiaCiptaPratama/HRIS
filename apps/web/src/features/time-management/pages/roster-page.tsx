@@ -68,8 +68,8 @@ export function RosterPage() {
   return (
     <div>
       <PageHeader
-        title="Roster Bulanan"
-        description="Jadwal kerja per karyawan. Absen di luar roster tetap tercatat dengan label dan perlu alasan."
+        title="Jadwal Bulanan"
+        description="Jadwal kerja per karyawan. Absen di luar jadwal tetap tercatat dengan label dan perlu alasan."
         actions={
           manage ? (
             <>
@@ -130,7 +130,7 @@ export function RosterPage() {
       ) : grid.isError ? (
         <EmptyState
           icon={CalendarRange}
-          title="Gagal memuat roster"
+          title="Gagal memuat jadwal"
           description={errorMessage(grid.error)}
         />
       ) : (
@@ -230,10 +230,10 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
     return (
       <EmptyState
         icon={CalendarRange}
-        title="Belum ada karyawan di roster bulan ini"
+        title="Belum ada karyawan di jadwal bulan ini"
         description={
           grid.canEdit
-            ? "Buat shift, pola, dan crew lalu masukkan anggota — roster terbentuk otomatis dari pola."
+            ? "Buat shift, pola, dan crew lalu masukkan anggota — jadwal terbentuk otomatis dari pola."
             : undefined
         }
       />
@@ -479,7 +479,7 @@ function ImportDialog({
     try {
       const parsed = rowsFromGrid(await readRosterFile(file), month);
       if (parsed.rows.length === 0)
-        throw new RosterFileError("Tidak ada baris roster yang terbaca.");
+        throw new RosterFileError("Tidak ada baris jadwal yang terbaca.");
       setRows(parsed.rows);
       setFileInfo({ name: file.name, format: parsed.format, problems: parsed.problems });
       preview.mutate({ companyId, rows: parsed.rows });
@@ -520,7 +520,7 @@ function ImportDialog({
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Import roster</DialogTitle>
+          <DialogTitle>Import jadwal</DialogTitle>
           <DialogDescription>
             File .xlsx/.csv dengan kolom <b>NIP, Tanggal, Kode</b>, atau grid bulanan: kolom NIP
             lalu satu kolom per tanggal (angka 1–31 dibaca sebagai bulan {month}). Kosong dilewati;

@@ -114,9 +114,9 @@ export function TemplateAssignDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Isi roster dengan template</DialogTitle>
+          <DialogTitle>Isi jadwal dengan template</DialogTitle>
           <DialogDescription>
-            Karyawan terpilih dibagi rata ke crew template mulai tanggal berlaku, dan roster lamanya
+            Karyawan terpilih dibagi rata ke crew template mulai tanggal berlaku, dan jadwal lamanya
             ditimpa penuh. Pola berulang otomatis ke minggu-minggu berikutnya. Hari yang absennya
             sudah disetujui atau periodenya ditutup tidak berubah.
           </DialogDescription>
@@ -126,7 +126,7 @@ export function TemplateAssignDialog({
         ) : (templates.data ?? []).length === 0 ? (
           <EmptyState
             icon={LayoutTemplate}
-            title="Belum ada template roster"
+            title="Belum ada template jadwal"
             description="Buat dulu di Shift, pola & crew › Template."
             action={
               <Button variant="outline" asChild>
@@ -205,7 +205,7 @@ export function TemplateAssignDialog({
                 value={search}
                 onChange={setSearch}
                 placeholder="Cari nama atau NIK…"
-                aria-label="Cari karyawan roster"
+                aria-label="Cari karyawan jadwal"
               />
               <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
                 {people.map((p) => (
@@ -307,7 +307,7 @@ function PlanView({
                 <td className="text-muted-foreground px-3 py-1.5 text-xs">
                   {a.stays
                     ? a.needsApproval
-                      ? "Sudah di crew ini · roster lama ditimpa"
+                      ? "Sudah di crew ini · jadwal lama ditimpa"
                       : "Sudah di crew ini · tidak ada perubahan"
                     : a.fromCrew
                       ? `Pindah dari ${a.fromCrew}`
@@ -333,7 +333,7 @@ function PlanView({
       {plan.approvalCount > 0 ? (
         <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           {plan.approvalCount} karyawan sudah ber-crew: perubahannya diajukan ke atasan + HR dan
-          baru berlaku setelah disetujui. Roster lama tetap berlaku sampai saat itu.
+          baru berlaku setelah disetujui. Jadwal lama tetap berlaku sampai saat itu.
         </p>
       ) : null}
       {plan.restWarnings.length > 0 ? (
