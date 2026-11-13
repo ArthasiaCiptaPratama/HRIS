@@ -160,6 +160,10 @@ const fieldChanges = [
   },
 ];
 
+// EMP-D6: baris EMP-D5 tambahan per test; `pagedChanges` = dua halaman (pageSize 1) untuk uji "Muat lebih banyak".
+let extraChanges: Record<string, unknown>[] = [];
+let pagedChanges = false;
+
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -236,11 +240,20 @@ function mockBackend(
     }
     if (key === "/employees")
       return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
-    if (key === "/employees/e1/field-changes")
+    if (key === "/employees/e1/field-changes") {
+      const all = [...fieldChanges, ...extraChanges];
+      if (pagedChanges) {
+        const page = Number(url.searchParams.get("page") ?? 1);
+        return json(200, {
+          data: all.slice(page - 1, page),
+          meta: { page, pageSize: 1, total: all.length, totalPages: all.length },
+        });
+      }
       return json(200, {
-        data: fieldChanges,
-        meta: { page: 1, pageSize: 50, total: fieldChanges.length, totalPages: 1 },
+        data: all,
+        meta: { page: 1, pageSize: 50, total: all.length, totalPages: 1 },
       });
+    }
     if (key === "/employees/e1")
       return json(200, { data: detail(access, url.searchParams.get("view") === "full") });
     if (key === "/employees/e1/print")
@@ -278,6 +291,8 @@ beforeEach(() => {
   homebaseData = {};
   homebasePost = null;
   savedPhone = null;
+  extraChanges = [];
+  pagedChanges = false;
   delete sentBodies["POST /employees/e1/homebases"];
   delete sentBodies["PATCH /employees/e1"];
   authState.session = { access_token: "t", user: { id: "u" } };
@@ -632,26 +647,106 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
     return form;
   };
 
-  it("tab Kepegawaian hanya homebase sekarang; riwayat + aksi koreksi di tab Riwayat", async () => {
+  /** Buka tab Riwayat → panel + grup filter. */
+  const openHistory = async (sheet: HTMLElement) => {
+    await userEvent.click(await within(sheet).findByRole("tab", { name: /Riwayat/ }));
+    const panel = within(sheet).getByRole("tabpanel");
+    return { panel, filters: within(panel).getByRole("group", { name: "Filter riwayat" }) };
+  };
+
+  it("tab Kepegawaian hanya homebase sekarang; riwayat homebase = entri timeline + segmen Homebase", async () => {
     withHomebase();
     mockBackend("HR_ADMIN", { manage: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
     const sheet = await screen.findByRole("dialog");
     const field = (await within(sheet).findByText("Homebase (POH)")).closest("div") as HTMLElement;
     expect(field).toHaveTextContent("Palangka Raya");
-    expect(
-      within(sheet).queryByRole("region", { name: "Riwayat homebase" }),
-    ).not.toBeInTheDocument();
     expect(within(sheet).queryByRole("button", { name: /Ubah homebase/ })).not.toBeInTheDocument();
 
-    await userEvent.click(within(sheet).getByRole("tab", { name: /Riwayat/ }));
-    const history = await within(sheet).findByRole("region", { name: "Riwayat homebase" });
-    expect(within(history).getByText("Sekarang")).toBeInTheDocument();
-    expect(within(history).getByText(/No\. SK SK\/HB\/01/)).toBeInTheDocument();
-    expect(within(history).getByText("Pindah domisili rekrut")).toBeInTheDocument();
-    expect(within(history).getByText("Siti Rahmawati")).toBeInTheDocument();
-    expect(within(history).getByText("Sampit")).toBeInTheDocument();
-    expect(within(history).getAllByRole("button", { name: /Aksi untuk homebase/ })).toHaveLength(2);
+    const { panel, filters } = await openHistory(sheet);
+    // Tanpa kartu terpisah; entri homebase ikut timeline "Semua".
+    expect(
+      within(panel).queryByRole("region", { name: "Riwayat homebase" }),
+    ).not.toBeInTheDocument();
+    expect(await within(panel).findAllByText("Homebase diubah")).toHaveLength(2);
+    await userEvent.click(within(filters).getByRole("button", { name: /^Homebase\s*2$/ }));
+    expect(within(panel).getAllByText("Homebase diubah")).toHaveLength(2);
+    expect(within(panel).queryByText("GA Supervisor")).not.toBeInTheDocument();
+    expect(within(panel).getByText("Sekarang")).toBeInTheDocument();
+    expect(within(panel).getByText("No. SK SK/HB/01")).toBeInTheDocument();
+    expect(within(panel).getByText("Berlaku mulai 01 Jan 2025")).toBeInTheDocument();
+    expect(within(panel).getByText("Pindah domisili rekrut")).toBeInTheDocument();
+    expect(within(panel).getByText("Siti Rahmawati")).toBeInTheDocument();
+    // Diff entri terbaru: Sampit → Palangka Raya.
+    const latest = within(panel).getByText("Palangka Raya", { selector: "dd *" })
+      .parentElement as HTMLElement;
+    expect(latest).toHaveTextContent(/^Sampit.*Palangka Raya$/);
+    expect(within(panel).getAllByRole("button", { name: /Aksi untuk homebase/ })).toHaveLength(2);
+    // Data kerja tidak lagi memuat homebase.
+    await userEvent.click(within(filters).getByRole("button", { name: /^Data kerja/ }));
+    expect(within(panel).queryByText("Homebase diubah")).not.toBeInTheDocument();
+  });
+
+  it("tanpa duplikat: baris EMP-D5 homebase untuk entri yang ada disembunyikan; jejak hapus tetap tampil", async () => {
+    withHomebase();
+    extraChanges = [
+      {
+        id: "c3",
+        groupId: "g3",
+        occurredAt: "2025-01-02T03:00:00.000Z",
+        source: "HR_FORM",
+        section: "WORK",
+        field: "homebase",
+        oldValue: "Sampit (berlaku 01 Agu 2023)",
+        newValue: "Palangka Raya (berlaku 01 Jan 2025)",
+        valueHidden: false,
+        refId: "00000000-0000-4000-8000-0000000000e2",
+        changedBy: null,
+      },
+      {
+        id: "c4",
+        groupId: "g4",
+        occurredAt: "2026-11-10T03:00:00.000Z",
+        source: "HR_FORM",
+        section: "WORK",
+        field: "homebase",
+        oldValue: "Katingan (berlaku 01 Mar 2026)",
+        newValue: "Palangka Raya (berlaku 01 Jan 2025)",
+        valueHidden: false,
+        refId: "00000000-0000-4000-8000-0000000000e9",
+        changedBy: null,
+      },
+    ];
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const { panel, filters } = await openHistory(await screen.findByRole("dialog"));
+    await userEvent.click(await within(filters).findByRole("button", { name: /^Homebase\s*3$/ }));
+    expect(within(panel).getAllByText("Homebase diubah")).toHaveLength(2);
+    expect(within(panel).getByText("Riwayat homebase dihapus")).toBeInTheDocument();
+    expect(within(panel).getByText("Katingan (berlaku 01 Mar 2026)")).toBeInTheDocument();
+    expect(within(panel).queryByText("Sampit (berlaku 01 Agu 2023)")).not.toBeInTheDocument();
+    expect(within(filters).getByRole("button", { name: /^Data kerja\s*1$/ })).toBeInTheDocument();
+  });
+
+  it("Muat lebih banyak: entri homebase & kepegawaian lama baru tampil setelah halamannya dimuat", async () => {
+    withHomebase();
+    pagedChanges = true;
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const { panel } = await openHistory(await screen.findByRole("dialog"));
+    // Halaman 1 hanya baris 12 Nov 2026 → entri yang dicatat lebih awal belum ditampilkan.
+    expect(
+      await within(panel).findByText("GA Supervisor", { selector: "dd *" }),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByText("Homebase diubah")).not.toBeInTheDocument();
+    expect(within(panel).queryByText("Ubah status kepegawaian")).not.toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole("button", { name: "Muat lebih banyak" }));
+    expect(await within(panel).findAllByText("Homebase diubah")).toHaveLength(2);
+    // Urutan menurut waktu dicatat: NIK (11 Nov 2026) sebelum homebase (Jan 2025).
+    const order = within(panel)
+      .getAllByText(/^(Data pribadi diubah|Homebase diubah)$/)
+      .map((el) => el.textContent?.trim());
+    expect(order).toEqual(["Data pribadi diubah", "Homebase diubahSekarang", "Homebase diubah"]);
   });
 
   it("Ubah data: ganti homebase → isian berlaku mulai + No. SK; POST riwayat, tanpa PATCH data kerja", async () => {
@@ -745,16 +840,15 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
     expect(within(form).getByLabelText("Homebase berlaku mulai")).toHaveValue("2025-01-01");
   });
 
-  it("non-pengelola (MANAGER): homebase terlihat, riwayat di tab Riwayat tanpa aksi", async () => {
+  it("non-pengelola (MANAGER): homebase terlihat, entri riwayat homebase tanpa aksi", async () => {
     withHomebase();
     mockBackend("MANAGER", {});
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
     const sheet = await screen.findByRole("dialog");
     await within(sheet).findByText("Homebase (POH)");
     expect(within(sheet).queryByRole("button", { name: /Ubah data/ })).not.toBeInTheDocument();
-    await userEvent.click(within(sheet).getByRole("tab", { name: /Riwayat/ }));
-    const history = await within(sheet).findByRole("region", { name: "Riwayat homebase" });
-    expect(within(history).getByText("Palangka Raya")).toBeInTheDocument();
+    const { panel } = await openHistory(sheet);
+    expect(await within(panel).findAllByText("Homebase diubah")).toHaveLength(2);
     expect(
       within(sheet).queryByRole("button", { name: /Aksi untuk homebase/ }),
     ).not.toBeInTheDocument();

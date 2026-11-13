@@ -27,6 +27,7 @@ import {
   History,
   Landmark,
   Lock,
+  MapPin,
   Package,
   Pencil,
   Plus,
@@ -696,64 +697,6 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
   );
 }
 
-/** EMP-D6: riwayat homebase ringkas di tab Riwayat (terbaru dulu, maks. 20 dari detail); kosong = disembunyikan. */
-function HomebaseHistory({
-  employee,
-  menu,
-}: {
-  employee: EmployeeDetail;
-  menu: (entry: EmployeeHomebaseEntry) => ReactNode;
-}) {
-  const entries = employee.homebases ?? [];
-  if (!entries.length) return null;
-  return (
-    <section aria-labelledby="homebase-history-title" className="mb-8 rounded-lg border">
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
-        <h4 id="homebase-history-title" className="text-sm font-medium">
-          Riwayat homebase
-        </h4>
-        <span className="text-muted-foreground text-xs tabular-nums">{entries.length} entri</span>
-      </div>
-      <ul className="divide-y">
-        {entries.map((entry, index) => (
-          <li key={entry.id} className="flex items-start gap-3 px-4 py-2.5">
-            <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-                <span className="font-medium">{entry.homebase.name}</span>
-                {index === 0 ? (
-                  <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px]">
-                    Sekarang
-                  </span>
-                ) : null}
-              </p>
-              <p className={cn(META_LINE, "mt-0.5")}>
-                <span>Berlaku mulai {formatDate(entry.effectiveFrom)}</span>
-                {entry.decreeNumber ? <span>No. SK {entry.decreeNumber}</span> : null}
-                {entry.changedBy ? (
-                  <span
-                    className="text-foreground/80 font-medium"
-                    title={entry.changedBy.workLocation ?? "Lokasi kerja belum diisi"}
-                  >
-                    {entry.changedBy.name}
-                  </span>
-                ) : (
-                  <span>sistem (data awal/impor)</span>
-                )}
-              </p>
-              {entry.note ? (
-                <p className="text-muted-foreground border-border mt-1.5 border-l-2 pl-3 text-xs">
-                  {entry.note}
-                </p>
-              ) : null}
-            </div>
-            {menu(entry)}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 function SensitiveGate({
   allowed,
   what,
@@ -995,18 +938,32 @@ const POSITION_HISTORY_TYPES: EmploymentChangeType[] = [
   "COMPANY_CHANGED",
 ];
 
-const HISTORY_FILTERS: { label: string; sections?: readonly FieldChangeSection[] }[] = [
+/** Jenis entri timeline untuk filter; "homebase" = riwayat homebase (EMP-D6), terpisah dari data kerja. */
+type HistoryKind = "events" | "work" | "homebase" | "personal" | "family" | "bank" | "archive";
+const HISTORY_FILTERS: { label: string; kind?: HistoryKind }[] = [
   { label: "Semua" },
-  { label: "Kepegawaian", sections: [] },
-  { label: "Data kerja", sections: ["WORK", "EMERGENCY"] },
-  { label: "Data pribadi", sections: ["PERSONAL"] },
-  { label: "Keluarga", sections: ["FAMILY"] },
-  { label: "Rekening", sections: ["BANK"] },
-  {
-    label: "Arsip & dokumen",
-    sections: ["EDUCATION", "TRAINING", "WORK_EXPERIENCE", "DOCUMENT", "PHOTO"],
-  },
+  { label: "Kepegawaian", kind: "events" },
+  { label: "Data kerja", kind: "work" },
+  { label: "Homebase", kind: "homebase" },
+  { label: "Data pribadi", kind: "personal" },
+  { label: "Keluarga", kind: "family" },
+  { label: "Rekening", kind: "bank" },
+  { label: "Arsip & dokumen", kind: "archive" },
 ];
+const SECTION_KIND: Record<FieldChangeSection, HistoryKind> = {
+  WORK: "work",
+  EMERGENCY: "work",
+  PERSONAL: "personal",
+  FAMILY: "family",
+  BANK: "bank",
+  EDUCATION: "archive",
+  TRAINING: "archive",
+  WORK_EXPERIENCE: "archive",
+  DOCUMENT: "archive",
+  PHOTO: "archive",
+};
+const rowKind = (row: EmployeeFieldChange): HistoryKind =>
+  row.field === "homebase" ? "homebase" : SECTION_KIND[row.section];
 
 /** "item" arsip memakai nama bagiannya (Pendidikan/Pelatihan/Pengalaman kerja). */
 const fieldLabel = (row: EmployeeFieldChange) =>
@@ -1158,8 +1115,13 @@ function FieldChangeEntry({ rows }: { rows: EmployeeFieldChange[] }) {
   const first = rows[0];
   if (!first) return null;
   const sections = [...new Set(rows.map((row) => FIELD_CHANGE_SECTION_LABELS[row.section]))];
+  // Baris homebase yang tersisa di timeline hanya jejak hapus (entri lain tampil dari riwayat homebase).
+  const homebaseOnly = rows.every((row) => row.field === "homebase");
   return (
-    <TimelineItem icon={Pencil} title={`${sections.join(", ")} diubah`}>
+    <TimelineItem
+      icon={homebaseOnly ? MapPin : Pencil}
+      title={homebaseOnly ? "Riwayat homebase dihapus" : `${sections.join(", ")} diubah`}
+    >
       <DiffList>
         {rows.map((row) =>
           row.valueHidden ? (
@@ -1232,28 +1194,81 @@ const EMPTY_TEXT: Record<string, string> = {
 function HistoryTab({ employee }: { employee: EmployeeDetail }) {
   const changes = useEmployeeFieldChanges(employee.id);
   const [filter, setFilter] = useState(0);
-  const selected = HISTORY_FILTERS[filter]?.sections;
+  const selected = HISTORY_FILTERS[filter]?.kind;
+  const loaded = (changes.data?.pages ?? []).flatMap((page) => page.data);
+  // EMP-D6: entri homebase dari riwayat homebase (lengkap: termasuk tanggal mundur / koreksi). Baris EMP-D5
+  // homebase disembunyikan supaya tidak dobel, kecuali jejak hapus (refId = baris yang sudah tidak ada).
+  const homebases = employee.homebases ?? [];
+  const entryIds = new Set(homebases.map((entry) => entry.id));
+  const visibleRows = loaded.filter(
+    (row) =>
+      row.field !== "homebase" ||
+      (row.source === "HR_FORM" && row.refId !== null && !entryIds.has(row.refId)),
+  );
+  // Data lokal (peristiwa & homebase) hanya sampai waktu baris tertua yang sudah dimuat, supaya urutan tetap
+  // benar saat "Muat lebih banyak" (tidak menumpuk entri lama sebelum halamannya dimuat).
+  const oldestLoaded = changes.hasNextPage
+    ? loaded.reduce<string | null>(
+        (min, row) => (!min || row.occurredAt < min ? row.occurredAt : min),
+        null,
+      )
+    : null;
+  const inWindow = (time: string) => !oldestLoaded || time >= oldestLoaded;
   const allGroups = new Map<string, EmployeeFieldChange[]>();
-  for (const page of changes.data?.pages ?? [])
-    for (const row of page.data)
-      allGroups.set(row.groupId, [...(allGroups.get(row.groupId) ?? []), row]);
-  // Grup yang memuat beberapa bagian hanya menampilkan baris bagian yang dipilih.
-  const groups = [...allGroups.entries()].flatMap(([id, rows]) => {
-    const kept = selected ? rows.filter((row) => selected.includes(row.section)) : rows;
-    return kept.length ? [{ id, rows: kept }] : [];
-  });
-  const showEvents = filter === 0 || filter === 1;
-  const timeline = [
-    ...(showEvents
-      ? employee.histories.map((h) => ({ id: h.id, time: h.createdAt, history: h, rows: null }))
-      : []),
-    ...groups.map(({ id, rows }) => ({
+  for (const row of visibleRows)
+    allGroups.set(row.groupId, [...(allGroups.get(row.groupId) ?? []), row]);
+  type Item = {
+    id: string;
+    time: string;
+    kinds: HistoryKind[];
+    rows: EmployeeFieldChange[] | null;
+    history: HistoryRow | null;
+    homebase: {
+      entry: EmployeeHomebaseEntry;
+      previous: EmployeeHomebaseEntry | null;
+      current: boolean;
+    } | null;
+  };
+  const items: Item[] = [
+    ...employee.histories
+      .filter((h) => inWindow(h.createdAt))
+      .map((h) => ({
+        id: h.id,
+        time: h.createdAt,
+        kinds: ["events" as HistoryKind],
+        rows: null,
+        history: h,
+        homebase: null,
+      })),
+    ...homebases
+      .map((entry, index) => ({
+        id: entry.id,
+        time: entry.createdAt,
+        kinds: ["homebase" as HistoryKind],
+        rows: null,
+        history: null,
+        homebase: { entry, previous: homebases[index + 1] ?? null, current: index === 0 },
+      }))
+      .filter((item) => inWindow(item.time)),
+    ...[...allGroups.entries()].map(([id, rows]) => ({
       id,
       time: rows[0]?.occurredAt ?? "",
-      history: null,
+      kinds: [...new Set(rows.map(rowKind))],
       rows,
+      history: null,
+      homebase: null,
     })),
-  ].sort((a, b) => b.time.localeCompare(a.time));
+  ];
+  // Grup yang memuat beberapa bagian hanya menampilkan baris jenis yang dipilih.
+  const timeline = items
+    .flatMap((item) => {
+      if (!selected) return [item];
+      if (!item.kinds.includes(selected)) return [];
+      return item.rows
+        ? [{ ...item, rows: item.rows.filter((row) => rowKind(row) === selected) }]
+        : [item];
+    })
+    .sort((a, b) => b.time.localeCompare(a.time));
   // Kelompok per bulan (WIB), terbaru dulu.
   const months: { key: string; label: string; items: typeof timeline }[] = [];
   for (const entry of timeline) {
@@ -1265,20 +1280,13 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
   }
   // Jumlah per filter dari data yang sudah dimuat; "+" bila masih ada halaman berikutnya.
   const more = changes.hasNextPage ? "+" : "";
-  const countOf = (sections?: readonly FieldChangeSection[]) => {
-    const events = sections === undefined || sections.length === 0 ? employee.histories.length : 0;
-    const rows =
-      sections === undefined
-        ? allGroups.size
-        : [...allGroups.values()].filter((rows) => rows.some((r) => sections.includes(r.section)))
-            .length;
-    const total = events + rows;
-    return total ? `${total}${sections?.length === 0 ? "" : more}` : "";
+  const countOf = (kind?: HistoryKind) => {
+    const total = kind ? items.filter((item) => item.kinds.includes(kind)).length : items.length;
+    return total ? `${total}${more}` : "";
   };
   const canManage = employee.access.manage && FEATURES.archive;
   const editor = usePositionHistoryEditor(employee);
   const homebase = useHomebaseEditor(employee);
-  const showHomebase = filter === 0 || HISTORY_FILTERS[filter]?.sections?.includes("WORK");
   const label = HISTORY_FILTERS[filter]?.label ?? "Semua";
   return (
     <>
@@ -1301,7 +1309,7 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
         <fieldset className="bg-muted/70 m-0 flex min-w-0 border-0 w-full gap-0.5 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none] sm:inline-flex sm:w-auto sm:max-w-full [&::-webkit-scrollbar]:hidden">
           <legend className="sr-only">Filter riwayat</legend>
           {HISTORY_FILTERS.map((item, index) => {
-            const count = countOf(item.sections);
+            const count = countOf(item.kind);
             return (
               <button
                 key={item.label}
@@ -1325,7 +1333,6 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
           className="from-background pointer-events-none absolute inset-y-0 right-0 w-10 rounded-r-lg bg-linear-to-l sm:hidden"
         />
       </div>
-      {showHomebase ? <HomebaseHistory employee={employee} menu={homebase.menu} /> : null}
       {homebase.dialogs}
       {changes.isPending ? (
         <p role="status" className="text-muted-foreground mb-4 text-sm">
@@ -1354,6 +1361,49 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
             <ol className="before:bg-border relative space-y-5 before:absolute before:top-3 before:bottom-3 before:left-[13.5px] before:w-px">
               {month.items.map((entry) => {
                 if (entry.rows) return <FieldChangeEntry key={entry.id} rows={entry.rows} />;
+                if (entry.homebase) {
+                  const { entry: hb, previous, current } = entry.homebase;
+                  return (
+                    <TimelineItem
+                      key={entry.id}
+                      icon={MapPin}
+                      title={
+                        <>
+                          Homebase diubah
+                          {current ? (
+                            <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px] font-normal">
+                              Sekarang
+                            </span>
+                          ) : null}
+                        </>
+                      }
+                      actions={homebase.menu(hb)}
+                    >
+                      <DiffList>
+                        <DiffRow
+                          label="Homebase (POH)"
+                          from={previous?.homebase.name ?? null}
+                          to={hb.homebase.name}
+                        />
+                      </DiffList>
+                      {hb.note ? (
+                        <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-xs">
+                          {hb.note}
+                        </p>
+                      ) : null}
+                      <EntryMeta
+                        changedBy={hb.changedBy}
+                        at={hb.createdAt}
+                        lead={[
+                          <span key="eff">Berlaku mulai {formatDate(hb.effectiveFrom)}</span>,
+                          ...(hb.decreeNumber
+                            ? [<span key="sk">No. SK {hb.decreeNumber}</span>]
+                            : []),
+                        ]}
+                      />
+                    </TimelineItem>
+                  );
+                }
                 const h = entry.history;
                 if (!h) return null;
                 const positional = POSITION_HISTORY_TYPES.includes(h.changeType);
