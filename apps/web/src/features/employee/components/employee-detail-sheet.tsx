@@ -108,17 +108,19 @@ export function useEmployeeSheet() {
   };
 }
 
-/** Tombol kembali panel detail (menutup sheet). `compact` = ikon saja di bawah xl (label tetap untuk SR). */
-function BackButton({ className, compact = false }: { className?: string; compact?: boolean }) {
+/** Tombol "Kembali" di kiri atas panel detail (menutup sheet; Esc juga menutup). */
+function BackButton({ className }: { className?: string }) {
   return (
     <SheetClose asChild>
       <Button
         size="sm"
         variant="ghost"
-        className={cn("text-foreground hover:bg-accent shrink-0 font-semibold", className)}
+        className={cn(
+          "bg-background/80 text-foreground hover:bg-accent absolute top-1 left-3 z-20 font-semibold lg:top-4 lg:left-4",
+          className,
+        )}
       >
-        <ArrowLeft strokeWidth={2.5} />
-        <span className={compact ? "sr-only xl:not-sr-only" : undefined}>Kembali</span>
+        <ArrowLeft strokeWidth={2.5} /> Kembali
       </Button>
     </SheetClose>
   );
@@ -140,11 +142,9 @@ export function EmployeeDetailSheet({
     <Sheet open={openId !== null} onOpenChange={(open) => !open && close()}>
       {/* Layar penuh: isi dipusatkan dengan lebar baca terbatas supaya tetap nyaman di layar lebar. */}
       <SheetContent className="border-l-0 sm:max-w-none" aria-describedby={undefined} hideClose>
-        {/* Panel layar penuh terasa seperti halaman (Esc juga menutup). Saat detail tampil, tombol Kembali ada
-            di bar tab yang menempel (tidak menimpa isi saat digulir); melayang hanya saat memuat / galat. */}
-        {detail.isPending || detail.isError || !employee ? (
-          <BackButton className="bg-background/80 absolute top-1 left-3 z-20 lg:top-4 lg:left-4" />
-        ) : null}
+        {/* Panel layar penuh terasa seperti halaman. Saat detail tampil, tombol Kembali ada di dalam area gulir
+            DetailBody (ikut tergulir bersama banner, tidak menimpa bar tab); di sini hanya saat memuat / galat. */}
+        {detail.isPending || detail.isError || !employee ? <BackButton /> : null}
         {detail.isPending ? (
           <DetailSkeleton />
         ) : detail.isError || !employee ? (
@@ -452,8 +452,9 @@ function DetailBody({
   const full = useEmployee(employee.id, "full", wantsSensitive);
   const sensitive = full.data;
   return (
-    // Satu area gulir: header ikut tergulir, baris tab menempel di atas (sticky).
-    <div className="h-full min-h-0 overflow-y-auto">
+    // Satu area gulir: header & tombol Kembali ikut tergulir, baris tab menempel di atas (sticky).
+    <div className="relative h-full min-h-0 overflow-y-auto">
+      <BackButton />
       <ProfileBanner companyName={employee.company.name} />
       <header className={cn(CONTAINER, "-mt-12 pb-6")}>
         <ProfileHeader
@@ -508,13 +509,12 @@ function DetailBody({
       </header>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-0">
-        {/* Tombol Kembali sebaris dengan tab di bar yang menempel: selalu terlihat, tidak menimpa isi. */}
-        <div className="bg-background sticky top-0 z-10 flex items-center border-b pl-2 sm:pl-3">
-          <BackButton compact />
+        {/* Bar tab menempel & opak: isi yang tergulir tidak tembus. */}
+        <div className="bg-background sticky top-0 z-10 border-b">
           <TabsList
             className={cn(
               CONTAINER,
-              "min-w-0 flex-1 justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
+              "justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
             )}
           >
             <TabsTrigger value="work">
