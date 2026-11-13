@@ -48,6 +48,26 @@ export function formatFieldValue(field: string, value: unknown): string | null {
   return normalized(labels[field]?.[String(value)] ?? String(value));
 }
 
+/**
+ * Field nomor yang dinormalkan saat simpan (spasi/titik/strip dibuang, mis. NPWP, KK, rekening) atau sering
+ * ditulis dengan pemisah (telepon, BPJS, SIM). Bandingkan bentuk tanpa pemisah supaya data lama berformat yang
+ * hanya dinormalkan ulang tidak tercatat sebagai perubahan. Nilai yang dicatat tetap teks tampilan apa adanya.
+ */
+const FORMAT_INSENSITIVE_FIELDS = new Set([
+  "ktpNumber",
+  "kkNumber",
+  "npwpNumber",
+  "bpjsEmploymentNumber",
+  "bpjsHealthNumber",
+  "accountNumber",
+  "phoneNumber",
+  "emergencyPhone",
+  "emergencyContact2Phone",
+  "drivingLicenseNumber",
+]);
+const comparable = (field: string, value: string | null) =>
+  value !== null && FORMAT_INSENSITIVE_FIELDS.has(field) ? value.replace(/[\s.()-]/g, "") : value;
+
 export function diffScalars(
   section: FieldChangeSection,
   before: Values | null | undefined,
@@ -58,7 +78,9 @@ export function diffScalars(
   return keys.flatMap((field) => {
     const oldValue = normalized(format(field, before?.[field]));
     const newValue = normalized(format(field, after?.[field]));
-    return oldValue === newValue ? [] : [{ section, field, oldValue, newValue }];
+    return comparable(field, oldValue) === comparable(field, newValue)
+      ? []
+      : [{ section, field, oldValue, newValue }];
   });
 }
 
@@ -70,6 +92,8 @@ export function diffRows<T>(
   afterRows: readonly T[],
   keyOf: (row: T) => string,
   summarize: (row: T) => string | null,
+  /** Ringkasan untuk perbandingan (bawaan = `summarize`); mis. tanpa pemisah nomor telepon. */
+  compareOf: (row: T) => string | null = summarize,
 ): FieldChange[] {
   const pending = new Map<string, T[]>();
   for (const row of beforeRows) {
@@ -83,6 +107,10 @@ export function diffRows<T>(
   for (const rows of pending.values())
     for (const before of rows) pairs.push({ before, after: undefined });
   return pairs.flatMap(({ before, after }) => {
+    const same =
+      normalized(before === undefined ? null : compareOf(before)) ===
+      normalized(after === undefined ? null : compareOf(after));
+    if (same) return [];
     const oldValue = normalized(before === undefined ? null : summarize(before));
     const newValue = normalized(after === undefined ? null : summarize(after));
     return oldValue === newValue ? [] : [{ section, field, oldValue, newValue }];
@@ -192,11 +220,16 @@ const ROW_FIELDS: Partial<Record<FieldChangeSection, readonly string[]>> = {
   ],
   WORK_EXPERIENCE: ["companyName", "position", "startYear", "endYear", "description"],
 };
-export function summarizeRow(section: FieldChangeSection, row: Values): string | null {
+export function summarizeRow(
+  section: FieldChangeSection,
+  row: Values,
+  forCompare = false,
+): string | null {
   return normalized(
     (ROW_FIELDS[section] ?? [])
       .flatMap((field) => {
-        const value = formatFieldValue(field, row[field]);
+        const text = formatFieldValue(field, row[field]);
+        const value = forCompare ? comparable(field, text) : text;
         return value === null ? [] : [value];
       })
       .join(" · "),
@@ -337,6 +370,7 @@ export async function diffSnapshots(
         after[property],
         keyOf,
         (r) => summarizeRow(section, r),
+        (r) => summarizeRow(section, r, true),
       ),
     );
     if (section === "TRAINING")

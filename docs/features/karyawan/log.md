@@ -3,6 +3,10 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — EMP-D5: beda format nomor tidak dicatat sebagai perubahan (Oatse)
+- **Dikerjakan:** temuan saat isi data contoh Rizky lokal: simpan profil (ubah kota asal saja) ikut mencatat "NPWP 09.009.009.9-017.000 → 090090099017000" karena EMP-D4 menormalkan nomor saat simpan. `field-change.ts`: `diffScalars` membandingkan bentuk tanpa pemisah untuk field nomor (`FORMAT_INSENSITIVE_FIELDS`: NIK, KK, NPWP, BPJS ×2, rekening, telepon, telepon darurat, SIM); `diffRows` + `summarizeRow(…, forCompare)` untuk ringkasan baris (keluarga, juga di persetujuan pengajuan `data-change.service.ts`). Nilai yang dicatat & penyimpanan EMP-D4 tidak berubah. Baris NPWP palsu Rizky di DB lokal dihapus.
+- **Verifikasi:** test integration `field-changes.test.ts` +1 (NPWP & rekening berformat + kota asal → tepat 1 baris; gagal sebelum perbaikan); typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · api 1342 · web 367 ✔.
+
 ### 2026-11-13 — Polish tab Riwayat: tanggal homebase & pemisah meta (Oatse)
 - **Dikerjakan:** permintaan supervisor setelah tinjau screenshot. (1) `homebase-history.ts` `homebaseChangeText`: tanggal "berlaku 01 Jan 2025" (id-ID, `dd MMM yyyy`, UTC = tanggal kalender) untuk entri EMP-D5 baru; entri lama (ISO) dibiarkan. (2) `employee-detail-sheet.tsx`: pemisah "·" meta jadi pseudo-element di akhir item (`META_LINE`), tidak pernah di awal baris saat wrap (meta timeline & Riwayat homebase).
 - **Verifikasi:** typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · web 367 ✔ · api 1341 ✔ (run pertama 1 fail flaky `reports-batch2` ulang tahun ARS-D21 — lulus sendiri & di run ulang penuh); screenshot Zen headless 390 px `QA/2026-11-13-riwayat-ui/04-polish-390px.png` (animasi dimatikan di iframe uji); data uji lokal dihapus lagi.
