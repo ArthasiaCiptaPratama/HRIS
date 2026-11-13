@@ -33,8 +33,9 @@ import {
 import { todayIso } from "../labels";
 import type { EmployeeDetail, EmployeeHomebaseEntry } from "../schemas";
 
-// EMP-D6: Homebase / Point of Hire (POH) berlaku per tanggal. Nilai sekarang = baris riwayat terbaru;
-// perubahan hanya lewat dialog ini (PATCH /employees tidak menerima homebaseId). API tetap penentu akses.
+// EMP-D6: Homebase / Point of Hire (POH) berlaku per tanggal. Nilai sekarang = baris riwayat terbaru.
+// Homebase baru diisi lewat form Ubah data (employee-form-dialog → POST riwayat); dialog ini untuk koreksi/
+// hapus satu baris riwayat dari tab Riwayat. API tetap penentu akses.
 
 type Values = { homebaseId: string; effectiveFrom: string; decreeNumber: string; note: string };
 
@@ -50,13 +51,13 @@ const FUTURE_MESSAGE = "Tanggal berlaku tidak boleh di masa depan.";
 /** Status dialog + aksi per baris riwayat homebase; `dialogs` dirender sekali oleh pemanggil. */
 export function useHomebaseEditor(employee: EmployeeDetail) {
   const canManage = employee.access.manage;
-  const [editing, setEditing] = useState<EmployeeHomebaseEntry | "new" | null>(null);
+  const [editing, setEditing] = useState<EmployeeHomebaseEntry | null>(null);
   const [deleting, setDeleting] = useState<EmployeeHomebaseEntry | null>(null);
   const dialogs = canManage ? (
     <>
       <HomebaseDialog
         employee={employee}
-        entry={editing === "new" ? null : editing}
+        entry={editing}
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}
       />
@@ -69,7 +70,6 @@ export function useHomebaseEditor(employee: EmployeeDetail) {
   ) : null;
   return {
     canManage,
-    add: () => setEditing("new"),
     menu: (entry: EmployeeHomebaseEntry) =>
       canManage ? (
         <HomebaseRowMenu

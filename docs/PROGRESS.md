@@ -153,6 +153,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-13** — Perbaikan form Ubah data (tidak me-reset isian saat refetch) & EMP-D5 homebase (nilai berlaku sebelum → sesudah); homebase diganti lewat Ubah data, riwayatnya di tab Riwayat (pembaruan EMP-D6); tampilan tab Riwayat dirapikan (filter segmented, per bulan, diff lama → baru). (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-11-12** — Bagan terbuka penuh (ORG-D7, `6fd4c27`); riwayat perubahan data per field (EMP-D5, `33effb3`, migrasi `employee_field_changes`); Homebase/POH tahap A–C (EMP-D6, `45e7eeb` migrasi `employee_homebases`, `d15b06e`, `11754b4`); EMP-OD3 baru. (Oatse) → [karyawan/log](features/karyawan/log.md) · [organisasi/log](features/organisasi/log.md)
 
 - **2026-11-11** — Organisasi: zona HO/Site resmi di unit (ORG-D5, migrasi `20261111022710_org_unit_zone` + backfill identik ORG-D4; HR ber-izin ubah zona unit PT-nya) + mode edit bagan di layar < 1024 px / sentuh (ORG-D6). (Oatse) → [organisasi/log](features/organisasi/log.md)

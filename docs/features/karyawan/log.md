@@ -3,6 +3,41 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — Tombol Kembali detail karyawan tidak menimpa isi saat digulir (Oatse)
+- **Dikerjakan:** kutipan pengguna 11:13 WIB ("perbaiki sekarang tombol kembali"). `employee-detail-sheet.tsx`: tombol Kembali (`BackButton`) dipindah ke dalam bar tab yang menempel (sebaris di depan tab, ikon saja di bawah xl, label tetap untuk pembaca layar); bar dibuat opak; tombol melayang hanya saat detail memuat/galat. Berlaku untuk semua tab detail.
+- **Verifikasi:** web `employee-detail.test.tsx` (tombol di bar sticky, sebelum tablist, tidak absolute); typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · api 1342 · web 369 ✔; sebelum: `QA/2026-11-13-riwayat-ui/07-homebase-timeline-desktop.png`, `04-polish-390px.png`; sesudah: `09-kembali-sesudah-desktop.png`, `10-kembali-sesudah-390px.png`.
+
+### 2026-11-13 — Test flaky laporan ulang tahun (ARS-D21) (Oatse)
+- **Dikerjakan:** `reports-batch2.test.ts`: token `RUN` jadi huruf saja (digit hex dipetakan ke huruf) — sebelumnya token acak bisa "1995" dan menggagalkan asersi "tanpa tahun lahir 1995" (CI #43363521371 attempt 1, satu run lokal). Khusus test.
+- **Verifikasi:** test itu 3× berturut-turut 9/9 ✔; api penuh ✔; typecheck/biome ✔.
+
+### 2026-11-13 — Riwayat homebase di timeline tab Riwayat + segmen Homebase (Oatse)
+- **Dikerjakan:** koreksi pengguna 13 Nov (kartu terpisah → entri timeline). `employee-detail-sheet.tsx`: kartu Riwayat homebase dihapus; filter berbasis jenis (`HistoryKind`) dengan segmen **Homebase**; entri homebase = `TimelineItem` (ikon pin, "Homebase diubah", badge Sekarang, diff "entri sebelumnya → entri ini", meta "Berlaku mulai · No. SK · pengubah · waktu dicatat", catatan, menu ⋯ Koreksi/Hapus). **Sumber:** `detail.homebases` (employee_homebases) — lengkap termasuk tanggal mundur/koreksi baris lama & entri import/tambah/onboarding, membawa id untuk menu; baris EMP-D5 `homebase` disembunyikan (anti-duplikat) kecuali jejak hapus (`HR_FORM` + `refId` yang sudah tidak ada) → "Riwayat homebase dihapus". "Data kerja" tidak lagi memuat homebase. Urut menurut waktu dicatat; saat masih ada halaman EMP-D5 berikutnya, peristiwa kepegawaian & homebase hanya ditampilkan sampai waktu baris tertua yang termuat (tidak menumpuk/terlewat saat "Muat lebih banyak").
+- **Keputusan:** — (tampilan; arah dari pengguna lewat supervisor). Batas: koreksi baris lama tidak tampil sebagai peristiwa tersendiri (entri menampilkan nilai terbaru; jejak di audit).
+- **Verifikasi:** web `employee-detail.test.tsx` +2 (anti-duplikat + jejak hapus; urutan Muat lebih banyak) & 2 disesuaikan; typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · api 1342 · web 369 ✔; Zen headless Rizky lokal `QA/2026-11-13-riwayat-ui/07-homebase-timeline-desktop.png`, `08-homebase-timeline-390px.png`.
+
+### 2026-11-13 — EMP-D5: beda format nomor tidak dicatat sebagai perubahan (Oatse)
+- **Dikerjakan:** temuan saat isi data contoh Rizky lokal: simpan profil (ubah kota asal saja) ikut mencatat "NPWP 09.009.009.9-017.000 → 090090099017000" karena EMP-D4 menormalkan nomor saat simpan. `field-change.ts`: `diffScalars` membandingkan bentuk tanpa pemisah untuk field nomor (`FORMAT_INSENSITIVE_FIELDS`: NIK, KK, NPWP, BPJS ×2, rekening, telepon, telepon darurat, SIM); `diffRows` + `summarizeRow(…, forCompare)` untuk ringkasan baris (keluarga, juga di persetujuan pengajuan `data-change.service.ts`). Nilai yang dicatat & penyimpanan EMP-D4 tidak berubah. Baris NPWP palsu Rizky di DB lokal dihapus.
+- **Verifikasi:** test integration `field-changes.test.ts` +1 (NPWP & rekening berformat + kota asal → tepat 1 baris; gagal sebelum perbaikan); typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · api 1342 · web 367 ✔.
+
+### 2026-11-13 — Polish tab Riwayat: tanggal homebase & pemisah meta (Oatse)
+- **Dikerjakan:** permintaan supervisor setelah tinjau screenshot. (1) `homebase-history.ts` `homebaseChangeText`: tanggal "berlaku 01 Jan 2025" (id-ID, `dd MMM yyyy`, UTC = tanggal kalender) untuk entri EMP-D5 baru; entri lama (ISO) dibiarkan. (2) `employee-detail-sheet.tsx`: pemisah "·" meta jadi pseudo-element di akhir item (`META_LINE`), tidak pernah di awal baris saat wrap (meta timeline & Riwayat homebase).
+- **Verifikasi:** typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · web 367 ✔ · api 1341 ✔ (run pertama 1 fail flaky `reports-batch2` ulang tahun ARS-D21 — lulus sendiri & di run ulang penuh); screenshot Zen headless 390 px `QA/2026-11-13-riwayat-ui/04-polish-390px.png` (animasi dimatikan di iframe uji); data uji lokal dihapus lagi.
+
+### 2026-11-13 — Tampilan tab Riwayat dirapikan (Oatse)
+- **Dikerjakan:** handoff supervisor 10:10 poin 5 (sub-item README). `employee-detail-sheet.tsx`: `HistoryTab` (header + aksi, filter segmented `fieldset` dengan jumlah dari data termuat + "+" bila ada halaman berikutnya, fade kanan < 640 px, kelompok per bulan Asia/Jakarta, empty state per filter), `TimelineItem`/`DiffList`/`DiffRow`/`EntryMeta` baru (menggantikan `ChangedBy`: avatar, chip peran, dan pin lokasi diganti meta teks; lokasi di `title`), peristiwa kepegawaian sebagai baris diff (Status/Jabatan/Perusahaan/Alasan), `HomebaseHistory` kartu ringkas (disembunyikan bila kosong). Acuan skill `minimalist-ui` (prinsip flat/border 1px/meta redup), token & ikon projek tetap.
+- **Keputusan:** — (tampilan saja).
+- **Verifikasi:** `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔; test shared 372 · api 1341 · web 367 ✔. Zen lokal foreground: desktop & 390 px (iframe origin sama) — `QA/2026-11-13-riwayat-ui/01-sebelum-desktop.png`, `02-sesudah-desktop.png`, `03-sesudah-390px.png`.
+- **Masalah / catatan:** data uji lokal (master "Makassar/Balikpapan (uji)", riwayat homebase + EMP-D5 Ahmad Hulaemi) dihapus dari DB lokal setelah screenshot (keputusan supervisor); baris audit `employee.homebase.*` lokal dibiarkan.
+- **Berikutnya:** rilis staging di antrean RELEASE berikutnya; koreksi arah desain dari pengguna bila ada.
+
+### 2026-11-13 — Perbaikan form Ubah data & riwayat homebase; homebase lewat Ubah data (Oatse)
+- **Dikerjakan:** handoff supervisor 2026-11-13 10:10 poin 1–4 (sub-item EMP-D6 README). (1) `employee-form-dialog.tsx`: reset form hanya saat dialog dibuka / karyawan berganti (`useRef`), refetch detail tidak lagi menimpa isian; status bawaan mode tambah diisi lewat efek terpisah. (2) `homebase.service.ts` + `homebase.repository.ts` (`findLatestEntry`): EMP-D5 field `homebase` = baris berlaku sebelum → sesudah di tambah/koreksi/hapus. (3) `employee-detail-sheet.tsx`: Kepegawaian hanya "Homebase (POH)"; `HomebaseHistory` + menu koreksi/hapus di atas timeline tab Riwayat; `employee-homebase-editor.tsx` tanpa mode tambah. (4) `employee-work-fields.tsx` (field Homebase juga saat ubah bila `access.manage`, isian "Homebase berlaku mulai" + "No. SK homebase" saat diganti, `homebaseChangeFromForm`), `schemas.ts` (`homebaseEffectiveFrom`, `homebaseDecreeNumber`), dialog: validasi `employeeHomebaseInputSchema` + tidak masa depan → PATCH (hanya bila data kerja lain berubah) → profil → `POST /employees/{id}/homebases`; POST gagal setelah data lain tersimpan → pesan "Data lain sudah tersimpan, tetapi homebase gagal disimpan: …", isian tetap.
+- **Keputusan:** pembaruan EMP-D6 (README); tanpa migrasi/kontrak baru.
+- **Verifikasi:** `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔ (566 modul); test shared 372 · api 1341 · web 367 ✔. Regresi dibuktikan gagal di kode lama: `homebase.test.ts` "pencatatan" (1 fail), `employee-form-reset.test.tsx` (1 fail). smoke Zen lokal SA (Zen terlihat, tab latar): Kepegawaian hanya nilai sekarang; Ubah data → Makassar (2025-01-01) lalu Balikpapan (2026-11-01, SK) → tab Riwayat "Makassar (uji) (berlaku 2025-01-01) → Balikpapan (uji) (berlaku 2026-11-01)" ✔ — bukti teks DOM `QA/2026-11-13-homebase-ubah-data/smoke-dom.txt` (screenshot tab latar tidak me-render dialog)
+- **Masalah / catatan:** Codex tidak dipakai (kuota habis s.d. 17 Nov). Baris EMP-D5 lama di staging ("— → Balikpapan" Rizky) tidak dibetulkan (tanpa backfill). Simpan homebase dari form = request kedua (non-atomik), sama seperti profil.
+- **Berikutnya:** rilis ke staging di antrean RELEASE berikutnya.
+
 ### YYYY-MM-DD — <judul singkat> (<PIC>)
 - **Dikerjakan:** … (rujuk item checklist README)
 - **Keputusan:** <PREFIX>-Dn baru / OD terjawab
@@ -12,6 +47,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 ```
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
+
+### 2026-11-13 — Data contoh Homebase + Riwayat di karyawan uji Rizky (staging) (Oatse)
+- **Dikerjakan:** handoff supervisor 09:50 (kutipan pengguna ±09:45 WIB). Lewat UI staging sebagai SA: 2 master homebase berlabel CONTOH, 2 baris riwayat homebase Rizky, ubah No. HP, nama kontak darurat, kota asal (nilai asli di RELEASE §4).
+- **Keputusan:** tidak ada.
+- **Verifikasi:** MCP `SELECT`: `homebases` 2, `employee_homebases` Rizky 2, `employee_field_changes` Rizky 5; tab Riwayat + filter Data pribadi tampil; screenshot `QA/2026-11-13-staging-contoh-rizky/` 01–04.
+- **Masalah / catatan:** (1) form Ubah data me-reset isian bila detail karyawan dimuat ulang saat dialog terbuka (`employee-form-dialog.tsx` effect `reset` bergantung pada objek `employee`) → edit No. HP/kontak darurat pertama hilang tanpa pesan; diulang per tab. (2) Entri riwayat homebase kedua tercatat "— → Balikpapan", bukan "Makassar → Balikpapan" (nilai lama tidak diisi untuk baris riwayat baru). Keduanya belum diperbaiki, diusulkan ke develop.
+- **Berikutnya:** hapus/kembalikan data contoh hanya atas kata pengguna.
 
 ### 2026-11-12 — Homebase / Point of Hire tahap A–C (EMP-D6) (Oatse)
 - **Dikerjakan:** rencana `homebase-plan.md` disetujui (supervisor atas nama pengguna). A `45e7eeb`: migrasi `20261112060046_employee_homebases`, master `homebases`, API riwayat + kolom turunan + audit + EMP-D5, detail/daftar/filter, tambah karyawan & approve onboarding, adapter `getHomebasesOn`. B `d15b06e`: web Master Data › Homebase, detail Penempatan + Riwayat homebase + dialog, tambah karyawan, approve onboarding, kolom & filter daftar. C `11754b4`: import HOMEBASE / HOMEBASE BERLAKU MULAI (master baru/terarsip, `HOMEBASE_FUTURE_DATE`), template import, filter laporan + kolom ekspor headcount, `diffWork` mencatat `homebase`. Implementasi tiap tahap oleh subagen Claude (Codex sedang kena batas kuota) dengan brief rinci; diff inti direview + verifikasi ulang sendiri.
