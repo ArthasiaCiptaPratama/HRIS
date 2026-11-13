@@ -57,6 +57,7 @@ import {
 import {
   DayStatusBadge,
   hhmm,
+  isTimeOff,
   LabelChips,
   StepChips,
   timeIn,
@@ -409,7 +410,9 @@ function TodayCard({
             {roster?.shift
               ? ` · ${roster.shift.code} ${hhmm(roster.shift.startMinute)}–${hhmm(roster.shift.endMinute)}`
               : roster
-                ? " · OFF"
+                ? isTimeOff(roster.code)
+                  ? " · TO (time off)"
+                  : " · OFF"
                 : " · Tanpa jadwal"}
           </p>
         </div>

@@ -879,7 +879,7 @@ function DayDialog({
           </DialogTitle>
           <DialogDescription>
             {d
-              ? `${d.employee.employeeNumber ?? "—"} · ${d.shiftCode ? `Shift ${d.shiftCode} ${scheduleLabel(d.workDate, d.scheduledStart, d.scheduledEnd, tz)}` : "Tanpa jadwal roster"}${d.workLocation ? ` · ${d.workLocation.name}` : ""}`
+              ? `${d.employee.employeeNumber ?? "—"} · ${d.shiftCode ? `Shift ${d.shiftCode} ${scheduleLabel(d.workDate, d.scheduledStart, d.scheduledEnd, tz)}` : "Tanpa jadwal"}${d.workLocation ? ` · ${d.workLocation.name}` : ""}`
               : "Memuat…"}
           </DialogDescription>
         </DialogHeader>

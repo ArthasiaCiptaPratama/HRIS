@@ -29,7 +29,7 @@ import { tmAccess } from "../access";
 import { useAttendanceDays, useMyHistory, useRosterChanges, useTimezone, useToday } from "../api";
 import { useLeaveRequests, useMyLeave } from "../leave-api";
 import { useCorrections, useMyStatements } from "../period-api";
-import { addDays, hhmm, timeIn, todayIn, workDateLabel } from "./display";
+import { addDays, hhmm, isTimeOff, timeIn, todayIn, workDateLabel } from "./display";
 import { RosterWeek } from "./roster-week";
 
 // Dashboard karyawan & atasan (bukan SA/HR): widget saja — kehadiran hari ini, hal yang perlu
@@ -260,7 +260,9 @@ export function PersonalDashboard({ me }: { me: Me }) {
               {rosterToday?.shift
                 ? `Shift ${rosterToday.shift.code} ${hhmm(rosterToday.shift.startMinute)}–${hhmm(rosterToday.shift.endMinute)}`
                 : rosterToday
-                  ? "Libur (OFF)"
+                  ? isTimeOff(rosterToday.code)
+                    ? "Time off (bukan cuti)"
+                    : "Libur (OFF)"
                   : "Tanpa jadwal"}
               {data.location ? ` · ${data.location.name}` : ""}
             </p>

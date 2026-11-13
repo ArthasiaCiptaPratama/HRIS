@@ -33,6 +33,7 @@ import {
   Network,
   Package,
   Plane,
+  RefreshCcw,
   Repeat,
   Scale,
   Settings2,
@@ -427,6 +428,17 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: CalendarCog,
             visible: tmAccess.manageRoster,
             keywords: "master shift pola siklus crew anggota import jadwal roster",
+          },
+          {
+            // TM-D28: Pola Kerja = siklus kerja–libur (office 5/2, lapangan non-lokal 13/1 + time off, lokal 6/1).
+            id: "work-roster",
+            maintenance: !tmOn("tmWorkRoster"),
+            label: "Pola Kerja",
+            to: "/time/pola-kerja",
+            icon: RefreshCcw,
+            visible: tmAccess.manageRoster,
+            keywords:
+              "pola kerja office kantor roster siklus kerja libur time off lokal non-lokal lapangan homebase 13/1 6/1 5/2",
           },
           {
             id: "attendance-locations",

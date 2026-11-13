@@ -125,6 +125,10 @@ export const pages = {
     import("@/features/time-management/pages/roster-page").then((m) => ({
       Component: m.RosterPage,
     })),
+  workRoster: () =>
+    import("@/features/time-management/pages/work-roster-page").then((m) => ({
+      Component: m.WorkRosterPage,
+    })),
   rosterSetup: () =>
     import("@/features/time-management/pages/roster-setup-page").then((m) => ({
       Component: m.RosterSetupPage,
@@ -215,6 +219,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
     "/time/lokasi-absen",
     tmOn("tmAttendanceLocations") ? pages.locationSettings : pages.maintenance,
   ],
+  ["/time/pola-kerja", tmOn("tmWorkRoster") ? pages.workRoster : pages.maintenance],
   ["/time/roster", tmOn("tmRoster") ? pages.roster : pages.maintenance],
   ["/time/perubahan-roster", tmOn("tmRosterChanges") ? pages.rosterChanges : pages.maintenance],
   ["/time/kalender", tmOn("tmHolidays") ? pages.holidays : pages.maintenance],

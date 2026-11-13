@@ -47,7 +47,7 @@ import {
   useShifts,
   useTimeSettings,
 } from "../api";
-import { hhmm, parseHhmm, todayIn, workDateLabel } from "../components/display";
+import { hhmm, isTimeOff, parseHhmm, todayIn, workDateLabel } from "../components/display";
 import { PatternChips } from "../components/pattern-chips";
 import { TemplateTab } from "../components/roster-template-tab";
 import { useApplyRosterTemplate } from "../overtime-api";
@@ -540,7 +540,7 @@ function ShiftDialog({
                 />
                 <span>
                   18, pukul {form.start}{" "}
-                  <span className="text-muted-foreground">(malam setelah tanggal roster)</span>
+                  <span className="text-muted-foreground">(malam setelah tanggal jadwal)</span>
                 </span>
               </label>
             </fieldset>
@@ -668,7 +668,9 @@ function PatternDialog({
     .split(/[\s,;]+/)
     .filter(Boolean);
   const codes = (shifts.data ?? []).filter((s) => !s.archived).map((s) => s.code);
-  const unknown = [...new Set(steps.filter((s) => s !== OFF_CODE && !codes.includes(s)))];
+  const unknown = [
+    ...new Set(steps.filter((s) => s !== OFF_CODE && !isTimeOff(s) && !codes.includes(s))),
+  ];
   // TM-D13 Fase D: pergantian shift berurutan dengan jeda < pengaturan (hanya peringatan).
   const minRestHours = useTimeSettings().data?.minRestHours ?? DEFAULT_TIME_SETTINGS.minRestHours;
   const restWarnings = patternRestWarnings(

@@ -149,6 +149,8 @@ beforeAll(async () => {
       name: `Uji RC ${RUN}`,
       startMinute: (localMinute + 10) % 1440,
       endMinute: (localMinute + 8 * 60) % 1440,
+      // Batas normal = jam pulang (tanpa tambahan) supaya tidak melewati 24:00 di jam berapa pun test jalan.
+      checkOutCloseMin: 0,
     },
   });
   for (const offset of [-1, 0, 1]) {

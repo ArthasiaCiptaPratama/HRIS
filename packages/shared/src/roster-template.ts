@@ -11,10 +11,10 @@ export const rosterTemplateDefInputSchema = z.object({
   companyId: z.uuid(),
   name: z.string().trim().min(1).max(60),
   description: z.string().trim().max(300).nullish(),
-  steps: z.array(rosterStepSchema).min(1).max(120),
+  steps: z.array(rosterStepSchema).min(1).max(400),
   crewCount: z.number().int().min(1).max(ROSTER_TEMPLATE_MAX_CREWS),
   /** Crew B mulai sekian hari lebih awal dari A, C dua kali lipat, dst. (JT: 7, 3 shift × 8: 2). */
-  crewOffsetDays: z.number().int().min(0).max(120),
+  crewOffsetDays: z.number().int().min(0).max(400),
   /** Siklus dimulai Senin (pola kantor 5+2 supaya OFF jatuh Sabtu–Minggu). */
   startOnMonday: z.boolean().default(false),
 });

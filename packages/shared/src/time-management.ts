@@ -138,7 +138,9 @@ const shiftCode = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z0-9]{1,10}$/, "Kode shift 1–10 huruf/angka")
-  .refine((code) => code !== OFF_CODE, "OFF dipakai untuk hari libur jadwal");
+  .refine((code) => code !== OFF_CODE, "OFF dipakai untuk hari libur jadwal")
+  // TM-D28: "TO" = hari time off roster (lihat work-roster.ts).
+  .refine((code) => code !== "TO", "TO dipakai untuk hari time off roster");
 const minuteOfDay = z.number().int().min(0).max(1439);
 const minutes = (max: number) => z.number().int().min(0).max(max);
 
@@ -179,7 +181,7 @@ export const rosterStepSchema = z
 export const rosterPatternInputSchema = z.object({
   companyId: z.uuid(),
   name: z.string().trim().min(1).max(80),
-  steps: z.array(rosterStepSchema).min(1).max(120),
+  steps: z.array(rosterStepSchema).min(1).max(400),
 });
 export type RosterPatternInput = z.infer<typeof rosterPatternInputSchema>;
 

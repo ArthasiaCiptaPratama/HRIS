@@ -5,6 +5,7 @@ import {
   FileUp,
   LayoutTemplate,
   Paintbrush,
+  Repeat,
   Save,
   Settings2,
   Undo2,
@@ -12,6 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
+import { tmOn } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { FormSelect } from "@/components/form-select";
 import { PageHeader } from "@/components/page-header";
@@ -34,8 +36,9 @@ import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useCrews, useRosterGrid, useRosterImport, useSetRosterCells } from "../api";
-import { hhmm, todayIn } from "../components/display";
+import { hhmm, isTimeOff, TIME_OFF_TITLE, TIME_OFF_TONE, todayIn } from "../components/display";
 import { TemplateAssignDialog } from "../components/template-assign-dialog";
+import { WorkRosterAssignDialog } from "../components/work-roster-assign-dialog";
 import { RosterFileError, type RosterFileRow, readRosterFile, rowsFromGrid } from "../roster-file";
 import type { CellIssue, RosterGrid } from "../schemas";
 
@@ -63,6 +66,7 @@ export function RosterPage() {
   const grid = useRosterGrid(companyId || undefined, month, crewId);
   const [importOpen, setImportOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [rosterAssignOpen, setRosterAssignOpen] = useState(false);
   const manage = tmAccess.manageRoster(me);
 
   return (
@@ -85,6 +89,15 @@ export function RosterPage() {
               >
                 <LayoutTemplate /> Isi dengan template
               </Button>
+              {tmOn("tmWorkRoster") ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setRosterAssignOpen(true)}
+                  disabled={!companyId || !grid.data}
+                >
+                  <Repeat /> Isi dengan pola kerja
+                </Button>
+              ) : null}
               <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!companyId}>
                 <FileUp /> Import
               </Button>
@@ -143,6 +156,13 @@ export function RosterPage() {
           onClose={() => setAssignOpen(false)}
         />
       ) : null}
+      {manage && companyId && rosterAssignOpen && grid.data ? (
+        <WorkRosterAssignDialog
+          companyId={companyId}
+          grid={grid.data}
+          onClose={() => setRosterAssignOpen(false)}
+        />
+      ) : null}
       {manage && companyId ? (
         <ImportDialog
           open={importOpen}
@@ -176,7 +196,9 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
     return map;
   }, [grid.days]);
   const holidays = useMemo(() => new Map(grid.holidays.map((h) => [h.date, h])), [grid.holidays]);
-  const color = (code: string) => grid.shifts.find((s) => s.code === code)?.color ?? null;
+  // TO (time off roster, TM-D28) bukan shift → tanpa warna shift; tampil dengan TIME_OFF_TONE.
+  const color = (code: string) =>
+    isTimeOff(code) ? null : (grid.shifts.find((s) => s.code === code)?.color ?? null);
   const activeShifts = grid.shifts.filter((s) => !s.archived);
   const today = todayIn();
 
@@ -364,6 +386,7 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
                         key={date}
                         title={[
                           issue,
+                          code && isTimeOff(code) ? TIME_OFF_TITLE : null,
                           source && !isPending ? `Sumber: ${ROSTER_SOURCE_LABELS[source]}` : null,
                           holidays.get(date)?.name,
                         ]
@@ -386,6 +409,7 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
                           className={cn(
                             "flex h-full items-center justify-center rounded font-mono text-[11px] font-semibold",
                             code === OFF_CODE && "text-muted-foreground bg-muted",
+                            isTimeOff(code) && TIME_OFF_TONE,
                             isPending && "ring-brand ring-2",
                             issue && "ring-destructive ring-2",
                           )}
@@ -428,6 +452,13 @@ function RosterGridView({ grid }: { grid: RosterGrid }) {
             {s.name} {hhmm(s.startMinute)}–{hhmm(s.endMinute)}
           </span>
         ))}
+        <span>
+          <span className="font-mono font-semibold">{OFF_CODE}</span> Libur
+        </span>
+        <span title={TIME_OFF_TITLE}>
+          <span className={cn("rounded px-0.5 font-mono font-semibold", TIME_OFF_TONE)}>TO</span>{" "}
+          Time off (bukan cuti)
+        </span>
         <span className="flex items-center gap-1">
           <span className="bg-brand size-1.5 rounded-full" /> manual
         </span>

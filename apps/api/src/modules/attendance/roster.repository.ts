@@ -259,7 +259,8 @@ export const upsertDay = (
   tx.rosterDay.upsert({
     where: { employeeId_workDate: { employeeId, workDate } },
     create: { employeeId, workDate, ...data },
-    update: data,
+    // TM-D28: sel yang diubah manual/import/tukar bukan lagi hari time off pola.
+    update: { ...data, timeOff: false },
   });
 
 export const deleteDay = (tx: AttendanceTx, employeeId: string, workDate: Date) =>

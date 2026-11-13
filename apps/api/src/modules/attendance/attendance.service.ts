@@ -15,6 +15,7 @@ import {
   type PunchSuspicion,
   SELFIE_CONTENT_TYPES,
   SELFIE_MAX_BYTES,
+  TIME_OFF_CODE,
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import {
@@ -760,7 +761,7 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
     roster: rosterDays
       .map((d) => ({
         date: toIso(d.workDate),
-        code: d.shift?.code ?? "OFF",
+        code: d.timeOff ? TIME_OFF_CODE : (d.shift?.code ?? "OFF"),
         shift: d.shift ? shiftDto(d.shift) : null,
         changed: recentlyChanged(d, now),
       }))

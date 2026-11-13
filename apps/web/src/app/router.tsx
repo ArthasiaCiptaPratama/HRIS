@@ -264,6 +264,11 @@ export const routes: RouteObject[] = [
                     path: "roster/pengaturan",
                     lazy: tmOn("tmRosterSetup") ? pages.rosterSetup : pages.maintenance,
                   },
+                  {
+                    // TM-D28: Pola Kerja (siklus kerja–libur), lokasi kantor/Homebase lokal, kelompok karyawan.
+                    path: "pola-kerja",
+                    lazy: tmOn("tmWorkRoster") ? pages.workRoster : pages.maintenance,
+                  },
                 ],
               },
               {
