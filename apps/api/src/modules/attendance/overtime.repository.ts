@@ -152,6 +152,18 @@ export const findClaimById = (id: string) =>
   getPrisma().overtimeClaim.findUnique({ where: { id } });
 export const countPendingClaims = (employeeId: string, workDate: Date) =>
   getPrisma().overtimeClaim.count({ where: { employeeId, workDate, status: "PENDING" } });
+/** Pengajuan menunggu (antrean HR/SA); `companyIds` null = semua PT; pengajuan `excludeEmployeeId` tidak dihitung. */
+export const countPendingClaimsFor = (
+  companyIds: string[] | null,
+  excludeEmployeeId: string | null,
+) =>
+  getPrisma().overtimeClaim.count({
+    where: {
+      status: "PENDING",
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+      ...(excludeEmployeeId ? { employeeId: { not: excludeEmployeeId } } : {}),
+    },
+  });
 export const createClaim = (
   data: Omit<Prisma.OvertimeClaimUncheckedCreateInput, "id" | "createdAt" | "updatedAt">,
 ) => getPrisma().overtimeClaim.create({ data });

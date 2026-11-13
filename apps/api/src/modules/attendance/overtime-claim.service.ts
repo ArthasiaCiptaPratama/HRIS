@@ -1,4 +1,5 @@
 import type { OvertimeClaimDecision, OvertimeClaimInput, OvertimeClaimStatus } from "@hris/shared";
+import { ROLE } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -6,6 +7,8 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
+import { listApproverAccounts, loadActor } from "../iam/index.ts";
+import { notify, type Recipient } from "../notification/index.ts";
 import * as policy from "./attendance.policy.ts";
 import * as dayRepo from "./attendance.repository.ts";
 import { localDate, orderInstants } from "./attendance-engine.ts";
@@ -15,7 +18,7 @@ import * as repository from "./overtime.repository.ts";
 import { setOvertimeOrder } from "./overtime-order.service.ts";
 import { isDateClosed } from "./period.service.ts";
 import { rosterDaysBetween } from "./roster.repository.ts";
-import { dateLabel, notifyEmployees } from "./time-notify.service.ts";
+import { dateLabel, notifyEmployees, recipientsOfEmployees } from "./time-notify.service.ts";
 
 // TM-D27: karyawan mengajukan lembur atas jam yang sudah dijalani (absen pulang bebas s.d. 24:00, jam
 // setelah jadwal pulang TIDAK otomatis lembur — TM-D17). HR PT / SA menetapkan rentang yang diakui lalu
@@ -165,22 +168,58 @@ export async function createOvertimeClaim(
     reason: input.reason,
   });
   await audit(ctx, "attendance.overtime_claim.create", row.id, { ...input });
-  if (employee.managerId) {
-    await notifyEmployees(
-      [
-        {
-          employeeId: employee.managerId,
-          type: "attendance.overtime_claim_new",
-          title: `${employee.fullName} mengajukan lembur ${dateLabel(input.workDate)}`,
-          body: `“${input.reason}” — diputus oleh HR.`,
-          link: "/time/lembur",
-          dedupeKey: `tm-ot-claim-new:${row.id}`,
-        },
-      ],
-      now,
-    );
-  }
+  await notifyNewClaim(ctx, employee, row.id, input, now);
   return (await toViews(ctx, [row]))[0] as OvertimeClaimView;
+}
+
+/**
+ * Pengajuan baru → pemutus (HR PT karyawan; SA bila PT itu tanpa HR aktif) + atasan (info saja).
+ * Satu notifikasi per akun; pengaju sendiri tidak diberi tahu. Gagal kirim tidak menggagalkan pengajuan.
+ */
+async function notifyNewClaim(
+  ctx: RequestContext,
+  employee: directory.DirectoryEmployee,
+  claimId: string,
+  input: OvertimeClaimInput,
+  now: Date,
+) {
+  const hrs: Recipient[] = [];
+  const admins: Recipient[] = [];
+  for (const account of await listApproverAccounts()) {
+    const actor = await loadActor(account.authUserId, now);
+    if (!actor || !policy.canOrderOvertimeRetroactive(actor, employee.companyId)) continue;
+    const recipient = { accountId: account.accountId, email: account.email };
+    (actor.role === ROLE.HR_ADMIN ? hrs : admins).push(recipient);
+  }
+  const deciders = hrs.length > 0 ? hrs : admins;
+  const manager = employee.managerId
+    ? (await recipientsOfEmployees([employee.managerId])).get(employee.managerId)
+    : undefined;
+  const title = `${employee.fullName} mengajukan lembur ${dateLabel(input.workDate)}`;
+  const inbox = new Map<string, { recipient: Recipient; decider: boolean }>();
+  if (manager) inbox.set(manager.accountId, { recipient: manager, decider: false });
+  for (const r of deciders) inbox.set(r.accountId, { recipient: r, decider: true });
+  inbox.delete(ctx.actor.accountId);
+  for (const { recipient, decider } of inbox.values()) {
+    try {
+      await notify(
+        {
+          recipients: [recipient],
+          type: "attendance.overtime_claim_new",
+          title,
+          body: decider
+            ? `“${input.reason}” — tetapkan jam yang diakui lalu putuskan.`
+            : `“${input.reason}” — diputus oleh HR.`,
+          link: "/time/lembur?tab=claims",
+          dedupeKey: `tm-ot-claim-new:${claimId}`,
+          email: false,
+        },
+        now,
+      );
+    } catch {
+      // Notifikasi bersifat tambahan; pengajuan tetap tersimpan.
+    }
+  }
 }
 
 export async function cancelOvertimeClaim(ctx: RequestContext, id: string) {

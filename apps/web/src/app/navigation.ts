@@ -78,8 +78,8 @@ export interface NavItem {
   maintenance?: boolean;
   /** Angka badge dari GET /employees/summary. */
   summaryKey?: SummaryKey;
-  /** Angka antrean keputusan dari GET /time/queue (tampil bila > 0). */
-  queueKey?: TimeQueueKey;
+  /** Angka antrean keputusan dari GET /time/queue (tampil bila > 0); beberapa kunci dijumlahkan. */
+  queueKey?: TimeQueueKey | TimeQueueKey[];
   children?: NavItem[];
   keywords?: string;
 }
@@ -389,7 +389,8 @@ export const NAV_GROUPS: NavGroup[] = [
             maintenance: !tmOn("tmOvertime"),
             label: "Lembur",
             to: "/time/lembur",
-            queueKey: "overtime",
+            // TM-D27: usulan lembur (approval) + pengajuan lembur karyawan (diputus HR).
+            queueKey: ["overtime", "overtimeClaims"],
             icon: Timer,
             visible: tmAccess.overtime,
             keywords: "lembur overtime jam setara upah rekap persetujuan regular",

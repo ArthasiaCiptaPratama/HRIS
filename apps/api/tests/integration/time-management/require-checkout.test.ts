@@ -2,11 +2,15 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
-import { closeOverdueDays, readTimeSettings } from "../../../src/modules/attendance/index.ts";
+import {
+  closeOverdueDays,
+  readTimeSettings,
+  runApprovalDigest,
+} from "../../../src/modules/attendance/index.ts";
 import { deleteAttendanceData, patchAttendanceSettings } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
-import { acpCompanyId } from "../../helpers/company.ts";
+import { acpCompanyId, createTestCompany } from "../../helpers/company.ts";
 import { createFakeStorage } from "../../helpers/storage.ts";
 
 // TM-D26: wajib absen datang & pulang (absen pulang bebas s.d. 24:00 → lewat itu Alpha; pulang di luar
@@ -29,6 +33,13 @@ const call = (method: string, path: string, headers: Record<string, string>, bod
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 const data = async <T>(res: Response) => ((await res.json()) as { data: T }).data;
+const queueOf = async (headers: Record<string, string>) =>
+  data<{ overtimeClaims: number; total: number }>(await call("GET", "/time/queue", headers));
+/** Notifikasi pengajuan lembur baru `claimId` untuk akun ini. */
+const notesOf = (accountId: string, claimId: string) =>
+  prisma.notification.findMany({
+    where: { recipientAccountId: accountId, dedupeKey: `tm-ot-claim-new:${claimId}` },
+  });
 const BUCKET = "attendance-selfies";
 const SITE = { latitude: -3.85, longitude: 115.3 };
 const FAR = { latitude: -3.7, longitude: 115.3 }; // ± 16 km dari site
@@ -55,6 +66,9 @@ const ids = { status: "", department: "", position: "", location: "", employees:
 let companyId = "";
 const emp = { mgr: "", a: "", out: "", ot: "" };
 let h: Record<"sa" | "hr" | "mgr" | "a" | "out" | "ot", Record<string, string>>;
+const acc = { sa: "", hr: "", mgr: "" };
+const claimIds: string[] = [];
+const solo = { companyId: "", employee: "" };
 let restoreSettings: () => Promise<void>;
 
 async function selfie(headers: Record<string, string>) {
@@ -148,10 +162,16 @@ beforeAll(async () => {
     });
   }
 
+  const sa = await auth.loginAs("SUPER_ADMIN");
+  const hr = await auth.loginAs("HR_ADMIN", { companies: [companyId] });
+  const mgr = await auth.loginAs("MANAGER", { employeeId: emp.mgr, companies: [companyId] });
+  acc.sa = sa.account.id;
+  acc.hr = hr.account.id;
+  acc.mgr = mgr.account.id;
   h = {
-    sa: (await auth.loginAs("SUPER_ADMIN")).headers,
-    hr: (await auth.loginAs("HR_ADMIN", { companies: [companyId] })).headers,
-    mgr: (await auth.loginAs("MANAGER", { employeeId: emp.mgr, companies: [companyId] })).headers,
+    sa: sa.headers,
+    hr: hr.headers,
+    mgr: mgr.headers,
     a: (await auth.loginAs("EMPLOYEE", { employeeId: emp.a, companies: [companyId] })).headers,
     out: (await auth.loginAs("EMPLOYEE", { employeeId: emp.out, companies: [companyId] })).headers,
     ot: (await auth.loginAs("EMPLOYEE", { employeeId: emp.ot, companies: [companyId] })).headers,
@@ -163,10 +183,15 @@ afterAll(async () => {
   await prisma.attendanceCorrection.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await deleteAttendanceData(ids.employees);
   await prisma.notification.deleteMany({ where: { dedupeKey: { contains: RUN } } }).catch(() => {});
+  // Notifikasi pengajuan lembur juga sampai ke HR/SA lain di DB lokal (penerima sungguhan).
+  await prisma.notification.deleteMany({
+    where: { dedupeKey: { in: claimIds.map((id) => `tm-ot-claim-new:${id}`) } },
+  });
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.shift.deleteMany({ where: { name: `Uji RC ${RUN}` } });
   await auth.cleanup();
   await prisma.employee.deleteMany({ where: { id: { in: ids.employees } } });
+  if (solo.companyId) await prisma.company.delete({ where: { id: solo.companyId } });
   await prisma.position.delete({ where: { id: ids.position } });
   await prisma.department.delete({ where: { id: ids.department } });
   await prisma.workLocation.delete({ where: { id: ids.location } });
@@ -376,6 +401,7 @@ describe("pengajuan lembur karyawan (TM-D27)", () => {
       workDate: addDays(today, -5),
     });
     expect(none.status).toBe(422);
+    const before = await queueOf(h.hr);
     const res = await call("POST", "/overtime-claims", h.ot, input);
     expect(res.status).toBe(200);
     const claim = await data<{
@@ -392,6 +418,84 @@ describe("pengajuan lembur karyawan (TM-D27)", () => {
       await call("GET", `/overtime-claims?scope=me&from=${workDate}&to=${today}`, h.ot),
     );
     expect(mine.map((c) => c.id)).toContain(claimId);
+    claimIds.push(claimId);
+
+    // Pemutus (HR PT) & atasan diberi tahu; SA tidak karena PT ini punya HR.
+    const [hrNote] = await notesOf(acc.hr, claimId);
+    expect(hrNote?.title).toContain("mengajukan lembur");
+    expect(hrNote?.body).toContain("tetapkan jam yang diakui");
+    expect(hrNote?.link).toBe("/time/lembur?tab=claims");
+    expect((await notesOf(acc.mgr, claimId))[0]?.body).toContain("diputus oleh HR");
+    expect(await notesOf(acc.sa, claimId)).toHaveLength(0);
+
+    // Antrean HR naik 1 & ikut total; karyawan & atasan tidak memutus.
+    const after = await queueOf(h.hr);
+    expect(after.overtimeClaims).toBe(before.overtimeClaims + 1);
+    expect(after.total).toBe(before.total + 1);
+    expect((await queueOf(h.mgr)).overtimeClaims).toBe(0);
+    expect((await queueOf(h.ot)).overtimeClaims).toBe(0);
+
+    await runApprovalDigest();
+    const [digest] = await prisma.notification.findMany({
+      where: { recipientAccountId: acc.hr, type: "attendance.approval_digest" },
+    });
+    expect(digest?.body).toContain("pengajuan lembur karyawan");
+  });
+
+  test("PT tanpa HR aktif → pengajuan dikirim ke SA", async () => {
+    solo.companyId = await createTestCompany(`S${RUN}`, `PT Tanpa HR ${RUN}`);
+    solo.employee = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `RC-${RUN}-SOLO`,
+          fullName: `Wajib Pulang ${RUN} SOLO`,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId: solo.companyId,
+          employmentStatusId: ids.status,
+          positionId: ids.position,
+          workLocationId: ids.location,
+        },
+      })
+    ).id;
+    ids.employees.push(solo.employee);
+    await prisma.attendanceDay.create({
+      data: {
+        employeeId: solo.employee,
+        companyId: solo.companyId,
+        workDate: dateOf(workDate),
+        status: "PENDING",
+        labels: [],
+        checkOutDeadline: new Date(Date.now() + 86_400_000),
+        punches: {
+          create: ["IN", "OUT"].map((kind, i) => ({
+            kind: kind as "IN" | "OUT",
+            at: new Date(Date.now() - (9 - i * 8) * 3600_000),
+            ...SITE,
+            accuracyM: 10,
+            insideGeofence: true,
+            labels: [],
+          })),
+        },
+      },
+    });
+    const own = await auth.loginAs("EMPLOYEE", {
+      employeeId: solo.employee,
+      companies: [solo.companyId],
+    });
+    const hrBefore = await queueOf(h.hr);
+    const res = await call("POST", "/overtime-claims", own.headers, {
+      workDate,
+      startTime: "18:00",
+      endTime: "19:00",
+      reason: "Pengiriman darurat",
+    });
+    expect(res.status).toBe(200);
+    const { id } = await data<{ id: string }>(res);
+    claimIds.push(id);
+    expect((await notesOf(acc.sa, id))[0]?.link).toBe("/time/lembur?tab=claims");
+    expect(await notesOf(acc.hr, id)).toHaveLength(0);
+    expect((await queueOf(h.sa)).overtimeClaims).toBeGreaterThanOrEqual(1);
+    expect((await queueOf(h.hr)).overtimeClaims).toBe(hrBefore.overtimeClaims);
   });
 
   test("hanya HR PT / SA yang memutus; tolak wajib alasan; setuju → SPL susulan dengan jam yang diakui", async () => {
@@ -439,6 +543,7 @@ describe("pengajuan lembur karyawan (TM-D27)", () => {
         reason: "Tambahan bongkar muat",
       }),
     );
+    claimIds.push(created.id);
     expect((await call("POST", `/overtime-claims/${created.id}/cancel`, h.mgr)).status).toBe(404);
     const cancelled = await data<{ status: string }>(
       await call("POST", `/overtime-claims/${created.id}/cancel`, h.ot),

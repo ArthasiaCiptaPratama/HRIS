@@ -7,6 +7,7 @@ import {
 } from "@hris/shared";
 import { Check, Coffee, Eye, Inbox, Pencil, Timer, Wallet, X } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { FormSelect } from "@/components/form-select";
@@ -64,7 +65,11 @@ export function OvertimePage() {
   const me = useMe().data as Me;
   const decider = tmAccess.decideOvertime(me);
   const { companies, companyId, setCompanyId } = useRosterCompany();
-  const [tab, setTab] = useState<Tab>(decider ? "inbox" : "me");
+  // `?tab=claims`: tautan notifikasi & ringkasan harian pengajuan lembur karyawan (TM-D27).
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<Tab>(
+    decider ? (params.get("tab") === "claims" ? "claims" : "inbox") : "me",
+  );
   const [month, setMonth] = useState(() => todayIn().slice(0, 7));
   const range = monthRange(month);
   const company = companies.length > 1 ? companyId : undefined;
