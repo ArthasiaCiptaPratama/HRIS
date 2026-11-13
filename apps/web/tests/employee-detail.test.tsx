@@ -26,12 +26,14 @@ const HB1 = "00000000-0000-4000-8000-0000000000b1";
 const HB2 = "00000000-0000-4000-8000-0000000000b2";
 let homebaseData: Record<string, unknown> = {};
 let homebasePost: { status: number; body: unknown } | null = null;
+// PATCH /employees/e1 menyimpan No. HP → GET berikutnya mengembalikan objek baru (seperti server).
+let savedPhone: string | null = null;
 const detail = (access: Record<string, boolean>, full = false) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
   fullName: "Agus Pratama",
   workEmail: null,
-  phoneNumber: "081200000007",
+  phoneNumber: savedPhone ?? "081200000007",
   gender: "MALE",
   joinDate: "2023-08-01",
   endDate: null,
@@ -184,6 +186,10 @@ function mockBackend(
           grants: grants.map((permission) => ({ permission, expiresAt: null })),
         },
       });
+    if (key === "/employees/e1" && init?.method === "PATCH") {
+      savedPhone = (JSON.parse(String(init.body)) as { phoneNumber: string | null }).phoneNumber;
+      return json(200, { data: detail(access) });
+    }
     if (key === "/employees/e1/profile" && init?.method === "PATCH")
       return json(200, { data: detail(access, true) });
     if (key === "/health")
@@ -271,7 +277,9 @@ beforeEach(() => {
   accountOverride = null;
   homebaseData = {};
   homebasePost = null;
+  savedPhone = null;
   delete sentBodies["POST /employees/e1/homebases"];
+  delete sentBodies["PATCH /employees/e1"];
   authState.session = { access_token: "t", user: { id: "u" } };
   vi.clearAllMocks();
 });
@@ -601,7 +609,40 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
     };
   };
 
-  it("baris Homebase + riwayat; Ubah homebase → POST /employees/:id/homebases dengan body benar", async () => {
+  /** Buka Ubah data → pilih homebase lain (Sampit) di tab Kepegawaian. */
+  const pickHomebaseInForm = async () => {
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah data/ }));
+    const form = await screen.findByRole("dialog", { name: "Ubah data karyawan" });
+    expect(within(form).queryByLabelText("Homebase berlaku mulai")).not.toBeInTheDocument();
+    await userEvent.click(within(form).getByRole("combobox", { name: /Homebase \(POH\)/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
+    return form;
+  };
+
+  it("tab Kepegawaian hanya homebase sekarang; riwayat + aksi koreksi di tab Riwayat", async () => {
+    withHomebase();
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const sheet = await screen.findByRole("dialog");
+    const field = (await within(sheet).findByText("Homebase (POH)")).closest("div") as HTMLElement;
+    expect(field).toHaveTextContent("Palangka Raya");
+    expect(
+      within(sheet).queryByRole("region", { name: "Riwayat homebase" }),
+    ).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("button", { name: /Ubah homebase/ })).not.toBeInTheDocument();
+
+    await userEvent.click(within(sheet).getByRole("tab", { name: /Riwayat/ }));
+    const history = await within(sheet).findByRole("region", { name: "Riwayat homebase" });
+    expect(within(history).getByText("Sekarang")).toBeInTheDocument();
+    expect(within(history).getByText(/No\. SK SK\/HB\/01/)).toBeInTheDocument();
+    expect(within(history).getByText("Pindah domisili rekrut")).toBeInTheDocument();
+    expect(within(history).getByText("Siti Rahmawati")).toBeInTheDocument();
+    expect(within(history).getByText("Sampit")).toBeInTheDocument();
+    expect(within(history).getAllByRole("button", { name: /Aksi untuk homebase/ })).toHaveLength(2);
+  });
+
+  it("Ubah data: ganti homebase → isian berlaku mulai + No. SK; POST riwayat, tanpa PATCH data kerja", async () => {
     withHomebase();
     homebasePost = {
       status: 201,
@@ -617,29 +658,14 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
         },
       },
     };
-    mockBackend("HR_ADMIN", { manage: true });
+    const calls = mockBackend("HR_ADMIN", { manage: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
-    const sheet = await screen.findByRole("dialog");
-    const field = (await within(sheet).findByText("Homebase (POH)")).closest("div") as HTMLElement;
-    expect(field).toHaveTextContent("Palangka Raya");
-
-    const history = within(sheet).getByRole("region", { name: "Riwayat homebase" });
-    expect(within(history).getByText("Sekarang")).toBeInTheDocument();
-    expect(within(history).getByText(/No\. SK SK\/HB\/01/)).toBeInTheDocument();
-    expect(within(history).getByText("Pindah domisili rekrut")).toBeInTheDocument();
-    expect(within(history).getByText("Siti Rahmawati")).toBeInTheDocument();
-    expect(within(history).getByText("Sampit")).toBeInTheDocument();
-    expect(within(history).getAllByRole("button", { name: /Aksi untuk homebase/ })).toHaveLength(2);
-
-    await userEvent.click(within(field).getByRole("button", { name: /Ubah homebase/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Ubah homebase" });
-    await userEvent.click(within(dialog).getByRole("combobox", { name: "Homebase" }));
-    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
-    fireEvent.change(within(dialog).getByLabelText("Berlaku mulai"), {
+    const form = await pickHomebaseInForm();
+    fireEvent.change(within(form).getByLabelText("Homebase berlaku mulai"), {
       target: { value: "2026-10-01" },
     });
-    await userEvent.type(within(dialog).getByLabelText(/No\. SK/), "SK/HB/02");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await userEvent.type(within(form).getByLabelText(/No\. SK homebase/), "SK/HB/02");
+    await userEvent.click(within(form).getByRole("button", { name: "Simpan perubahan" }));
     await waitFor(() =>
       expect(sentBodies["POST /employees/e1/homebases"]).toEqual({
         homebaseId: HB2,
@@ -649,11 +675,27 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
       }),
     );
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Ubah homebase" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("dialog", { name: "Ubah data karyawan" })).not.toBeInTheDocument(),
     );
+    expect(calls).not.toContain("PATCH http://api.test/api/v1/employees/e1");
   });
 
-  it("tanggal kembar (409): pesan API tampil di dialog, dialog tetap terbuka", async () => {
+  it("Ubah data: berlaku mulai masa depan ditolak di form tanpa memanggil API", async () => {
+    withHomebase();
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const form = await pickHomebaseInForm();
+    fireEvent.change(within(form).getByLabelText("Homebase berlaku mulai"), {
+      target: { value: "2999-01-01" },
+    });
+    await userEvent.click(within(form).getByRole("button", { name: "Simpan perubahan" }));
+    expect(
+      await within(form).findByText("Tanggal berlaku tidak boleh di masa depan."),
+    ).toBeInTheDocument();
+    expect(sentBodies["POST /employees/e1/homebases"]).toBeUndefined();
+  });
+
+  it("data lain tersimpan tapi homebase gagal (409): pesan jelas, refetch tidak me-reset isian", async () => {
     withHomebase();
     homebasePost = {
       status: 409,
@@ -665,51 +707,42 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
         },
       },
     };
-    mockBackend("SUPER_ADMIN", { manage: true });
+    const calls = mockBackend("HR_ADMIN", { manage: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
-    const sheet = await screen.findByRole("dialog");
-    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah homebase/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Ubah homebase" });
-    await userEvent.click(within(dialog).getByRole("combobox", { name: "Homebase" }));
-    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
-    fireEvent.change(within(dialog).getByLabelText("Berlaku mulai"), {
+    const form = await pickHomebaseInForm();
+    fireEvent.change(within(form).getByLabelText("Homebase berlaku mulai"), {
       target: { value: "2025-01-01" },
     });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "Sudah ada homebase yang berlaku pada tanggal ini.",
-    );
-    expect(screen.getByRole("dialog", { name: "Ubah homebase" })).toBeInTheDocument();
-  });
-
-  it("tanggal masa depan ditolak di form tanpa memanggil API", async () => {
-    withHomebase();
-    mockBackend("HR_ADMIN", { manage: true });
-    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
-    const sheet = await screen.findByRole("dialog");
-    await userEvent.click(await within(sheet).findByRole("button", { name: /Ubah homebase/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Ubah homebase" });
-    await userEvent.click(within(dialog).getByRole("combobox", { name: "Homebase" }));
-    await userEvent.click(await screen.findByRole("option", { name: /Sampit/ }));
-    fireEvent.change(within(dialog).getByLabelText("Berlaku mulai"), {
-      target: { value: "2999-01-01" },
-    });
-    await userEvent.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    const phone = within(form).getByLabelText(/No\. HP/);
+    await userEvent.clear(phone);
+    await userEvent.type(phone, "081299999999");
+    const detailGets = () =>
+      calls.filter((c) => c.startsWith("GET http://api.test/api/v1/employees/e1?")).length;
+    const before = detailGets();
+    await userEvent.click(within(form).getByRole("button", { name: "Simpan perubahan" }));
     expect(
-      await within(dialog).findByText("Tanggal berlaku tidak boleh di masa depan."),
+      await within(form).findByText(
+        /Data lain sudah tersimpan, tetapi homebase gagal disimpan: Sudah ada homebase/,
+      ),
     ).toBeInTheDocument();
-    expect(sentBodies["POST /employees/e1/homebases"]).toBeUndefined();
+    expect(sentBodies["PATCH /employees/e1"]).toMatchObject({ phoneNumber: "081299999999" });
+    // PATCH sukses → detail dimuat ulang; dialog tetap terbuka dan isian tidak di-reset (temuan 2026-11-13).
+    await waitFor(() => expect(detailGets()).toBeGreaterThan(before));
+    expect(screen.getByRole("dialog", { name: "Ubah data karyawan" })).toBeInTheDocument();
+    expect(within(form).getByLabelText(/No\. HP/)).toHaveValue("081299999999");
+    expect(within(form).getByLabelText("Homebase berlaku mulai")).toHaveValue("2025-01-01");
   });
 
-  it("non-pengelola (MANAGER): homebase & riwayat terlihat, tanpa tombol ubah/aksi", async () => {
+  it("non-pengelola (MANAGER): homebase terlihat, riwayat di tab Riwayat tanpa aksi", async () => {
     withHomebase();
     mockBackend("MANAGER", {});
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
     const sheet = await screen.findByRole("dialog");
     await within(sheet).findByText("Homebase (POH)");
-    const history = within(sheet).getByRole("region", { name: "Riwayat homebase" });
+    expect(within(sheet).queryByRole("button", { name: /Ubah data/ })).not.toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("tab", { name: /Riwayat/ }));
+    const history = await within(sheet).findByRole("region", { name: "Riwayat homebase" });
     expect(within(history).getByText("Palangka Raya")).toBeInTheDocument();
-    expect(within(sheet).queryByRole("button", { name: /Ubah homebase/ })).not.toBeInTheDocument();
     expect(
       within(sheet).queryByRole("button", { name: /Aksi untuk homebase/ }),
     ).not.toBeInTheDocument();

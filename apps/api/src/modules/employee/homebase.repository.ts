@@ -77,16 +77,21 @@ export function deleteEntry(tx: EmployeeTx, id: string) {
   return tx.employeeHomebase.delete({ where: { id }, select: { id: true } });
 }
 
+/** Baris yang berlaku sekarang (effective_from terbaru), null bila riwayat kosong. */
+export function findLatestEntry(tx: EmployeeTx, employeeId: string) {
+  return tx.employeeHomebase.findFirst({
+    where: { employeeId },
+    select: ENTRY_SELECT,
+    orderBy: NEWEST_FIRST,
+  });
+}
+
 /**
  * Hitung ulang kolom turunan `employees.homebase_id` dari baris dengan `effective_from` terbaru (null bila
  * riwayat kosong). Dipanggil di transaksi yang sama setiap kali riwayat berubah.
  */
 export async function syncCurrentHomebase(tx: EmployeeTx, employeeId: string) {
-  const latest = await tx.employeeHomebase.findFirst({
-    where: { employeeId },
-    select: { homebaseId: true },
-    orderBy: NEWEST_FIRST,
-  });
+  const latest = await findLatestEntry(tx, employeeId);
   const homebaseId = latest?.homebaseId ?? null;
   await tx.employee.update({ where: { id: employeeId }, data: { homebaseId } });
   return homebaseId;

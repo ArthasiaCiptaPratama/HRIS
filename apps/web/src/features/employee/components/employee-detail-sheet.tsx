@@ -634,7 +634,6 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 function WorkTab({ employee }: { employee: EmployeeDetail }) {
-  const homebase = useHomebaseEditor(employee);
   return (
     <div className="space-y-8">
       <section>
@@ -647,21 +646,8 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="Unit organisasi">{employee.department?.name}</Field>
           <Field label="Grade">{employee.grade?.name}</Field>
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
-          {/* EMP-D6: homebase (POH) yang berlaku sekarang; diubah lewat riwayat (bukan Ubah data). */}
-          <Field label="Homebase (POH)">
-            {homebase.canManage ? (
-              <span className="flex flex-wrap items-center gap-2">
-                {employee.homebase?.name ?? (
-                  <span className="text-muted-foreground font-normal">—</span>
-                )}
-                <Button size="xs" variant="outline" onClick={homebase.add}>
-                  <Pencil /> Ubah homebase
-                </Button>
-              </span>
-            ) : (
-              employee.homebase?.name
-            )}
-          </Field>
+          {/* EMP-D6: hanya homebase yang berlaku sekarang; diubah lewat Ubah data, riwayatnya di tab Riwayat. */}
+          <Field label="Homebase (POH)">{employee.homebase?.name}</Field>
           <Field label="Atasan langsung">{employee.manager?.name}</Field>
           <Field label="Status kepegawaian">{employee.employmentStatus.name}</Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
@@ -676,8 +662,6 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           ) : null}
         </FieldGrid>
       </section>
-      <HomebaseHistory employee={employee} menu={homebase.menu} />
-      {homebase.dialogs}
       <section>
         <SectionTitle>Kontak kerja</SectionTitle>
         <FieldGrid>
@@ -712,7 +696,7 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
   );
 }
 
-/** EMP-D6: riwayat homebase (terbaru dulu, maks. 20 dari detail). */
+/** EMP-D6: riwayat homebase di tab Riwayat (terbaru dulu, maks. 20 dari detail) + koreksi/hapus baris. */
 function HomebaseHistory({
   employee,
   menu,
@@ -722,7 +706,7 @@ function HomebaseHistory({
 }) {
   const entries = employee.homebases ?? [];
   return (
-    <section aria-labelledby="homebase-history-title">
+    <section aria-labelledby="homebase-history-title" className="mb-8">
       <h3
         id="homebase-history-title"
         className="text-muted-foreground mb-4 text-[11px] font-medium tracking-wider uppercase"
@@ -1088,6 +1072,7 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
   ].sort((a, b) => b.time.localeCompare(a.time));
   const canManage = employee.access.manage && FEATURES.archive;
   const editor = usePositionHistoryEditor(employee);
+  const homebase = useHomebaseEditor(employee);
   const add = canManage ? (
     <div className="mb-6 flex justify-end">
       <Button size="sm" variant="outline" onClick={editor.add}>
@@ -1097,6 +1082,8 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
   ) : null;
   return (
     <>
+      <HomebaseHistory employee={employee} menu={homebase.menu} />
+      {homebase.dialogs}
       {add}
       <fieldset className="mb-6 flex flex-wrap gap-2 border-0 p-0">
         <legend className="sr-only">Filter riwayat</legend>

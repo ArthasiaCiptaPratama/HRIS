@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — Perbaikan form Ubah data & riwayat homebase; homebase lewat Ubah data (Oatse)
+- **Dikerjakan:** handoff supervisor 2026-11-13 10:10 poin 1–4 (sub-item EMP-D6 README). (1) `employee-form-dialog.tsx`: reset form hanya saat dialog dibuka / karyawan berganti (`useRef`), refetch detail tidak lagi menimpa isian; status bawaan mode tambah diisi lewat efek terpisah. (2) `homebase.service.ts` + `homebase.repository.ts` (`findLatestEntry`): EMP-D5 field `homebase` = baris berlaku sebelum → sesudah di tambah/koreksi/hapus. (3) `employee-detail-sheet.tsx`: Kepegawaian hanya "Homebase (POH)"; `HomebaseHistory` + menu koreksi/hapus di atas timeline tab Riwayat; `employee-homebase-editor.tsx` tanpa mode tambah. (4) `employee-work-fields.tsx` (field Homebase juga saat ubah bila `access.manage`, isian "Homebase berlaku mulai" + "No. SK homebase" saat diganti, `homebaseChangeFromForm`), `schemas.ts` (`homebaseEffectiveFrom`, `homebaseDecreeNumber`), dialog: validasi `employeeHomebaseInputSchema` + tidak masa depan → PATCH (hanya bila data kerja lain berubah) → profil → `POST /employees/{id}/homebases`; POST gagal setelah data lain tersimpan → pesan "Data lain sudah tersimpan, tetapi homebase gagal disimpan: …", isian tetap.
+- **Keputusan:** pembaruan EMP-D6 (README); tanpa migrasi/kontrak baru.
+- **Verifikasi:** `bun run typecheck` ✔; `bunx biome ci .` ✔ (1 warning lama); `check:boundaries` ✔ (566 modul); test shared 372 · api 1341 · web 367 ✔. Regresi dibuktikan gagal di kode lama: `homebase.test.ts` "pencatatan" (1 fail), `employee-form-reset.test.tsx` (1 fail). smoke Zen lokal SA (Zen terlihat, tab latar): Kepegawaian hanya nilai sekarang; Ubah data → Makassar (2025-01-01) lalu Balikpapan (2026-11-01, SK) → tab Riwayat "Makassar (uji) (berlaku 2025-01-01) → Balikpapan (uji) (berlaku 2026-11-01)" ✔ — bukti teks DOM `QA/2026-11-13-homebase-ubah-data/smoke-dom.txt` (screenshot tab latar tidak me-render dialog)
+- **Masalah / catatan:** Codex tidak dipakai (kuota habis s.d. 17 Nov). Baris EMP-D5 lama di staging ("— → Balikpapan" Rizky) tidak dibetulkan (tanpa backfill). Simpan homebase dari form = request kedua (non-atomik), sama seperti profil.
+- **Berikutnya:** rilis ke staging di antrean RELEASE berikutnya.
+
 ### YYYY-MM-DD — <judul singkat> (<PIC>)
 - **Dikerjakan:** … (rujuk item checklist README)
 - **Keputusan:** <PREFIX>-Dn baru / OD terjawab
