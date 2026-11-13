@@ -1474,3 +1474,99 @@ describe("IMP-D2 mode Isi yang kosong saja (FILL_EMPTY)", () => {
     expect(fields).not.toContain("ptkpStatus");
   });
 });
+
+describe("IMP-D3 status keluar di file untuk karyawan yang sudah ada", () => {
+  const makeEmployee = (n: string, extra: Record<string, unknown> = {}) =>
+    prisma.employee.create({
+      data: {
+        companyId: ids.acp,
+        employeeNumber: NUM(n),
+        fullName: `Impor ${RUN} Keluar ${n}`,
+        joinDate: new Date("2024-01-02T00:00:00.000Z"),
+        employmentStatusId: ids.pkwt,
+        positionId: ids.position,
+        ...extra,
+      },
+    });
+  const exitRow = (sourceRow: number, n: string, extra: Record<string, unknown> = {}) =>
+    row(sourceRow, {
+      employeeNumber: NUM(n),
+      fullName: `Impor ${RUN} Keluar ${n}`,
+      exitMarker: "RESIGN",
+      exitDate: "2026-05-31",
+      ...extra,
+    });
+
+  for (const mode of ["UPSERT", "FILL_EMPTY"] as const) {
+    test(`${mode}: karyawan aktif dinonaktifkan (riwayat, akun, audit); sudah nonaktif tidak diubah`, async () => {
+      const tag = mode === "UPSERT" ? "XU" : "XF";
+      const active = await makeEmployee(`${tag}1`);
+      const linked = await auth.loginAs("EMPLOYEE", { employeeId: active.id });
+      const inactive = await makeEmployee(`${tag}2`, {
+        isActive: false,
+        endDate: new Date("2025-01-31T00:00:00.000Z"),
+        exitReason: "OTHER",
+      });
+      const payload = body([exitRow(6, `${tag}1`), exitRow(7, `${tag}2`)], { mode });
+      const preview = await data(
+        await call("POST", "/employee-imports/preview", sa.headers, payload),
+      );
+      const [r1, r2] = preview.rows;
+      expect(r1).toMatchObject({
+        action: "UPDATE",
+        deactivate: { reason: "RESIGNATION", date: "2026-05-31" },
+      });
+      expect(r2.deactivate).toBeNull();
+      expect(r2.issues.map((i: { code: string }) => i.code)).toContain("EXIT_ALREADY_INACTIVE");
+
+      const res = await call("POST", "/employee-imports", sa.headers, {
+        ...payload,
+        previewHash: preview.previewHash,
+      });
+      expect(res.status).toBe(201);
+      const after = await prisma.employee.findUniqueOrThrow({
+        where: { id: active.id },
+        include: { histories: true },
+      });
+      expect(after).toMatchObject({ isActive: false, exitReason: "RESIGNATION" });
+      expect(after.endDate?.toISOString().slice(0, 10)).toBe("2026-05-31");
+      expect(after.histories.map((h) => h.changeType)).toContain("DEACTIVATED");
+      const account = await prisma.account.findFirstOrThrow({
+        where: { employeeId: active.id },
+      });
+      expect(account.isActive).toBe(false);
+      expect(linked).toBeDefined();
+      expect(
+        await prisma.auditLog.count({
+          where: { action: "employee.employee.deactivate", entityId: active.id },
+        }),
+      ).toBe(1);
+      const untouched = await prisma.employee.findUniqueOrThrow({ where: { id: inactive.id } });
+      expect(untouched).toMatchObject({ isActive: false, exitReason: "OTHER" });
+    });
+  }
+
+  test("tanggal keluar sebelum tanggal masuk → error; CREATE_ONLY tetap dilewati", async () => {
+    const e = await makeEmployee("XE1");
+    const early = await data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        sa.headers,
+        body([exitRow(6, "XE1", { exitDate: "2023-12-31" })]),
+      ),
+    );
+    expect(early.rows[0].action).toBe("ERROR");
+    expect(early.rows[0].issues.map((i: { code: string }) => i.code)).toContain("EXIT_BEFORE_JOIN");
+    const createOnly = await data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        sa.headers,
+        body([exitRow(6, "XE1")], { mode: "CREATE_ONLY" }),
+      ),
+    );
+    expect(createOnly.rows[0]).toMatchObject({ action: "SKIP", deactivate: null });
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: e.id } })).isActive).toBe(true);
+  });
+});

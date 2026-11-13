@@ -604,8 +604,10 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   UNIT_INVALID: "Pilihan unit tidak sah (unit diarsipkan atau induk tidak cocok) — pilih ulang",
   UNIT_NOT_IN_LINE:
     "Departemen & Divisi tidak segaris di Struktur Organisasi — karyawan ditempatkan di unit paling bawah",
-  EXIT_EXISTING_IGNORED:
-    "Status keluar karyawan yang sudah ada tidak diubah lewat import (pakai Ubah Status)",
+  // IMP-D3: status keluar di file menonaktifkan karyawan yang cocok & masih aktif.
+  EXIT_ALREADY_INACTIVE: "Karyawan sudah nonaktif; status keluar tidak diubah",
+  EXIT_OWN_ACCOUNT: "Tidak bisa menonaktifkan akun sendiri lewat import",
+  EXIT_FORBIDDEN: "Anda tidak berwenang menonaktifkan karyawan ini",
   // IMP-D1: melengkapi pemegang bagan bernomor sementara ASLI-.
   CHART_HOLDER_CHOICE_REQUIRED:
     "Mirip pemegang bagan yang sudah ada — pilih gabungkan dengan pemegang bagan atau buat karyawan baru",

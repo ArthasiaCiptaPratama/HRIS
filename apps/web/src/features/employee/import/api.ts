@@ -92,6 +92,11 @@ export const previewSchema = z.object({
         })
         .nullable()
         .default(null),
+      /** IMP-D3: karyawan yang cocok & masih aktif akan dinonaktifkan (alasan + tanggal dari file). */
+      deactivate: z
+        .object({ reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]), date: z.string() })
+        .nullable()
+        .default(null),
     }),
   ),
   units: z.array(unitPreviewSchema).default([]),

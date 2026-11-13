@@ -17,7 +17,7 @@ import {
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
-import { getAccountLinksForEmployees } from "../iam/index.ts";
+import { deactivateAccountOfEmployee, getAccountLinksForEmployees } from "../iam/index.ts";
 import {
   archivedMasterIndex,
   createMissingMasterData,
@@ -49,6 +49,7 @@ import {
   recordFieldChanges,
 } from "./field-change.ts";
 import { initialEffectiveFrom, writeInitialHomebase } from "./homebase-history.ts";
+import { syncPostManagers } from "./org-post-assignment.ts";
 
 // D-042: import karyawan. `analyze` dipakai pratinjau & simpan (sumber kebenaran di server).
 // Aturan: cakupan PT (D-040), grant untuk kolom sensitif (§4.2), master data baru boleh ditambah,
@@ -82,6 +83,8 @@ interface RowPlan {
   chartHolder?: { candidates: { id: string; match: "NAME" | "INITIALS" }[]; choice: string | null };
   /** IMP-D1: true = baris ini melengkapi pemegang bagan (existing = karyawan ASLI- terpilih). */
   mergeChartHolder?: boolean;
+  /** IMP-D3: karyawan yang cocok & masih aktif dinonaktifkan dari kolom Keterangan/Tgl keluar. */
+  deactivate?: { reason: "RESIGNATION" | "TERMINATION" | "OTHER"; date: string };
 }
 
 interface RepeatedRows {
@@ -507,7 +510,20 @@ export async function analyze(
         plan.issues.push(issue("employeeNumber", "EXISTS_SKIPPED", "WARNING"));
       } else {
         plan.action = "UPDATE";
-        if (row.exit) plan.issues.push(issue("exitMarker", "EXIT_EXISTING_IGNORED", "WARNING"));
+        // IMP-D3 (mengubah design.md §225): status keluar di file menonaktifkan karyawan yang masih
+        // aktif (aturan sama dengan tombol Nonaktifkan); yang sudah nonaktif tidak diubah.
+        if (row.exit?.date) {
+          const joinDate = row.joinDate ?? toIso(existing.joinDate) ?? "";
+          if (!existing.isActive)
+            plan.issues.push(issue("exitMarker", "EXIT_ALREADY_INACTIVE", "WARNING"));
+          else if (ctx.actor.employeeId === existing.id)
+            plan.issues.push(issue("exitMarker", "EXIT_OWN_ACCOUNT"));
+          else if (!policy.canDeactivateEmployee(ctx.actor, target))
+            plan.issues.push(issue("exitMarker", "EXIT_FORBIDDEN"));
+          else if (row.exit.date < joinDate)
+            plan.issues.push(issue("exitDate", "EXIT_BEFORE_JOIN"));
+          else plan.deactivate = { reason: row.exit.reason, date: row.exit.date };
+        }
         // OD-6 (belum diputuskan): data sensitif milik akun sendiri tidak diubah lewat import.
         if (ctx.actor.employeeId === existing.id) {
           const hadSensitive =
@@ -542,7 +558,7 @@ export async function analyze(
           positionDiffers(row, existing, lookup, plan)
         )
           plan.issues.push(issue("positionName", "CHART_POSITION_KEPT", "WARNING"));
-        if (plan.changes.length === 0) plan.action = "SKIP";
+        if (plan.changes.length === 0 && !plan.deactivate) plan.action = "SKIP";
       }
     } else {
       if (!row.fullName) plan.issues.push(issue("fullName", "REQUIRED"));
@@ -574,7 +590,7 @@ export async function analyze(
   for (const p of plans) {
     if (p.action === "UPDATE" && p.existing && (p.row.departmentName || p.row.divisionName))
       p.changes = diff(p.row, p.existing, lookup, p, map);
-    if (p.action === "UPDATE" && p.changes.length === 0) p.action = "SKIP";
+    if (p.action === "UPDATE" && p.changes.length === 0 && !p.deactivate) p.action = "SKIP";
   }
 
   // 4) Master data yang belum ada (hanya dari baris yang akan ditulis), setelah pemetaan pengguna.
@@ -683,6 +699,7 @@ export async function analyze(
     issues: p.issues,
     attachments: queuedAttachments(p).length,
     chartHolder: p.chartHolder ?? null,
+    deactivate: p.deactivate ?? null,
   }));
   // IMP-D1: daftar pemegang bagan yang masih ber-NIP sementara (pilihan manual & "belum dilengkapi").
   const posts = chartHolderList.length > 0 ? await listOrgPosts() : [];
@@ -1166,6 +1183,53 @@ export async function commit(
           ),
         });
         queue(plan, e.id);
+        // IMP-D3: nonaktifkan seperti deactivateEmployee (pos dilepas, riwayat, akun diblokir, audit).
+        if (plan.deactivate) {
+          const { reason, date } = plan.deactivate;
+          await repository.updateEmployee(tx, e.id, {
+            isActive: false,
+            endDate: toDate(date),
+            exitReason: EXIT_REASON[reason],
+            orgPostId: null,
+          });
+          if (e.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
+          await repository.createHistory(tx, {
+            employeeId: e.id,
+            changeType: "DEACTIVATED",
+            effectiveDate: toDate(date),
+            fromStatusId: has("employmentStatusText")
+              ? (plan.statusId as string)
+              : e.employmentStatusId,
+            exitReason: EXIT_REASON[reason],
+            note: "Import data karyawan",
+            changedBy: ctx.actor.accountId,
+          });
+          const account = ctx.nikLogin
+            ? await deactivateAccountOfEmployee(
+                ctx,
+                e.id,
+                { authAdmin: ctx.nikLogin.authAdmin },
+                tx,
+              )
+            : null;
+          await writeAudit(
+            {
+              ...audit,
+              action: "employee.employee.deactivate",
+              entityType: "employee.employee",
+              entityId: e.id,
+              before: { isActive: true },
+              after: {
+                source: "import",
+                isActive: false,
+                effectiveDate: date,
+                exitReason: EXIT_REASON[reason],
+                account,
+              },
+            },
+            tx,
+          );
+        }
         await writeAudit(
           {
             ...audit,

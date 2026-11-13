@@ -413,6 +413,7 @@ describe("Import Data Karyawan", () => {
           issues: [],
           changes: ["workLocationName", "originCity"],
           kept: ["positionName", "phoneNumber"],
+          deactivate: { reason: "RESIGNATION", date: "2026-05-31" },
         },
       ],
     } as unknown as typeof preview;
@@ -437,6 +438,10 @@ describe("Import Data Karyawan", () => {
     expect(screen.getByText(/^Diisi: /)).toBeInTheDocument();
     expect(screen.getByText(/^Dibiarkan \(sudah berisi, beda\): /)).toBeInTheDocument();
     expect(screen.queryByText(/^Berubah: /)).not.toBeInTheDocument();
+    // IMP-D3: karyawan yang cocok & masih aktif dinonaktifkan dari kolom status keluar.
+    expect(
+      screen.getByText(/^Akan dinonaktifkan: Mengundurkan diri per 31 Mei 2026/),
+    ).toBeInTheDocument();
   });
 
   it("IMP-D1: saran pemegang bagan per baris + daftar belum dilengkapi; pilihan dikirim", async () => {
