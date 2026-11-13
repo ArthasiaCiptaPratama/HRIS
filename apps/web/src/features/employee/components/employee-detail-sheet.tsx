@@ -726,15 +726,18 @@ function HomebaseHistory({
                   </span>
                 ) : null}
               </p>
-              <p className="text-muted-foreground mt-0.5 flex flex-wrap gap-x-1.5 text-xs">
+              <p className={cn(META_LINE, "mt-0.5")}>
                 <span>Berlaku mulai {formatDate(entry.effectiveFrom)}</span>
-                {entry.decreeNumber ? <span>· No. SK {entry.decreeNumber}</span> : null}
+                {entry.decreeNumber ? <span>No. SK {entry.decreeNumber}</span> : null}
                 {entry.changedBy ? (
-                  <span title={entry.changedBy.workLocation ?? "Lokasi kerja belum diisi"}>
-                    · <span className="text-foreground/80 font-medium">{entry.changedBy.name}</span>
+                  <span
+                    className="text-foreground/80 font-medium"
+                    title={entry.changedBy.workLocation ?? "Lokasi kerja belum diisi"}
+                  >
+                    {entry.changedBy.name}
                   </span>
                 ) : (
-                  <span>· sistem (data awal/impor)</span>
+                  <span>sistem (data awal/impor)</span>
                 )}
               </p>
               {entry.note ? (
@@ -1066,6 +1069,13 @@ function DiffList({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Baris meta kecil: item dipisah "·" sebagai pseudo-element di AKHIR item (bukan elemen sendiri), jadi saat
+ * wrap pemisah menempel di ujung baris sebelumnya, tidak pernah di awal baris.
+ */
+const META_LINE =
+  "text-muted-foreground flex flex-wrap items-center gap-y-0.5 text-xs [&>*:not(:last-child)]:after:text-muted-foreground [&>*:not(:last-child)]:after:mx-1.5 [&>*:not(:last-child)]:after:font-normal [&>*:not(:last-child)]:after:content-['·']";
+
 /** Meta satu baris: [keterangan …] · siapa · peran · kapan. Lokasi kerja pengubah di tooltip nama. */
 function EntryMeta({
   changedBy,
@@ -1097,14 +1107,10 @@ function EntryMeta({
     </time>,
   ];
   return (
-    <p className="text-muted-foreground mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs">
+    <p className={cn(META_LINE, "mt-2")}>
       {parts.map((part, index) => (
-        // Titik pemisah ikut item berikutnya supaya tidak tertinggal di ujung baris saat wrap.
         // biome-ignore lint/suspicious/noArrayIndexKey: urutan tetap
-        <span key={index} className="inline-flex items-center gap-1.5">
-          {index > 0 ? <span aria-hidden>·</span> : null}
-          {part}
-        </span>
+        <span key={index}>{part}</span>
       ))}
     </p>
   );

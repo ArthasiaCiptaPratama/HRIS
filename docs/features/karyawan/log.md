@@ -3,6 +3,10 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — Polish tab Riwayat: tanggal homebase & pemisah meta (Oatse)
+- **Dikerjakan:** permintaan supervisor setelah tinjau screenshot. (1) `homebase-history.ts` `homebaseChangeText`: tanggal "berlaku 01 Jan 2025" (id-ID, `dd MMM yyyy`, UTC = tanggal kalender) untuk entri EMP-D5 baru; entri lama (ISO) dibiarkan. (2) `employee-detail-sheet.tsx`: pemisah "·" meta jadi pseudo-element di akhir item (`META_LINE`), tidak pernah di awal baris saat wrap (meta timeline & Riwayat homebase).
+- **Verifikasi:** typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · web 367 ✔ · api 1341 ✔ (run pertama 1 fail flaky `reports-batch2` ulang tahun ARS-D21 — lulus sendiri & di run ulang penuh); screenshot Zen headless 390 px `QA/2026-11-13-riwayat-ui/04-polish-390px.png` (animasi dimatikan di iframe uji); data uji lokal dihapus lagi.
+
 ### 2026-11-13 — Tampilan tab Riwayat dirapikan (Oatse)
 - **Dikerjakan:** handoff supervisor 10:10 poin 5 (sub-item README). `employee-detail-sheet.tsx`: `HistoryTab` (header + aksi, filter segmented `fieldset` dengan jumlah dari data termuat + "+" bila ada halaman berikutnya, fade kanan < 640 px, kelompok per bulan Asia/Jakarta, empty state per filter), `TimelineItem`/`DiffList`/`DiffRow`/`EntryMeta` baru (menggantikan `ChangedBy`: avatar, chip peran, dan pin lokasi diganti meta teks; lokasi di `title`), peristiwa kepegawaian sebagai baris diff (Status/Jabatan/Perusahaan/Alasan), `HomebaseHistory` kartu ringkas (disembunyikan bila kosong). Acuan skill `minimalist-ui` (prinsip flat/border 1px/meta redup), token & ikon projek tetap.
 - **Keputusan:** — (tampilan saja).
