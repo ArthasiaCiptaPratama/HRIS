@@ -3,6 +3,10 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — Tombol Kembali detail karyawan tidak menimpa isi saat digulir (Oatse)
+- **Dikerjakan:** kutipan pengguna 11:13 WIB ("perbaiki sekarang tombol kembali"). `employee-detail-sheet.tsx`: tombol Kembali (`BackButton`) dipindah ke dalam bar tab yang menempel (sebaris di depan tab, ikon saja di bawah xl, label tetap untuk pembaca layar); bar dibuat opak; tombol melayang hanya saat detail memuat/galat. Berlaku untuk semua tab detail.
+- **Verifikasi:** web `employee-detail.test.tsx` (tombol di bar sticky, sebelum tablist, tidak absolute); typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · api 1342 · web 369 ✔; sebelum: `QA/2026-11-13-riwayat-ui/07-homebase-timeline-desktop.png`, `04-polish-390px.png`; sesudah: `09-kembali-sesudah-desktop.png`, `10-kembali-sesudah-390px.png`.
+
 ### 2026-11-13 — Test flaky laporan ulang tahun (ARS-D21) (Oatse)
 - **Dikerjakan:** `reports-batch2.test.ts`: token `RUN` jadi huruf saja (digit hex dipetakan ke huruf) — sebelumnya token acak bisa "1995" dan menggagalkan asersi "tanpa tahun lahir 1995" (CI #43363521371 attempt 1, satu run lokal). Khusus test.
 - **Verifikasi:** test itu 3× berturut-turut 9/9 ✔; api penuh ✔; typecheck/biome ✔.

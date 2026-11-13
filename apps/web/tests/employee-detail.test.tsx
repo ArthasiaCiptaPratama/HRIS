@@ -358,14 +358,19 @@ describe("panel detail pegawai", () => {
     expect(dd("PKWT")?.parentElement).toHaveTextContent(/^Magang.*PKWT$/);
   });
 
-  it("tombol Kembali (panah kiri) di kiri atas menutup panel; tanpa tombol X", async () => {
+  it("tombol Kembali (panah kiri) di bar tab yang menempel menutup panel; tanpa tombol X", async () => {
     mockBackend("HR_ADMIN", { manage: true, print: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("heading", { name: "Agus Pratama" });
     expect(within(dialog).queryByRole("button", { name: "Tutup" })).not.toBeInTheDocument();
+    // Hanya satu tombol Kembali, sebaris di depan tab dalam bar sticky (tidak melayang menimpa isi).
     const back = within(dialog).getByRole("button", { name: "Kembali" });
-    expect(back.className).toContain("left-3");
+    const bar = back.parentElement as HTMLElement;
+    expect(bar.className).toContain("sticky");
+    expect(bar).toContainElement(within(dialog).getByRole("tablist"));
+    expect(back.nextElementSibling).toBe(within(dialog).getByRole("tablist"));
+    expect(back.className).not.toContain("absolute");
     // Teks & panah hitam tebal supaya mudah terlihat (bukan abu-abu).
     expect(back.className).toContain("text-foreground");
     expect(back.className).toContain("font-semibold");

@@ -108,6 +108,22 @@ export function useEmployeeSheet() {
   };
 }
 
+/** Tombol kembali panel detail (menutup sheet). `compact` = ikon saja di bawah xl (label tetap untuk SR). */
+function BackButton({ className, compact = false }: { className?: string; compact?: boolean }) {
+  return (
+    <SheetClose asChild>
+      <Button
+        size="sm"
+        variant="ghost"
+        className={cn("text-foreground hover:bg-accent shrink-0 font-semibold", className)}
+      >
+        <ArrowLeft strokeWidth={2.5} />
+        <span className={compact ? "sr-only xl:not-sr-only" : undefined}>Kembali</span>
+      </Button>
+    </SheetClose>
+  );
+}
+
 export function EmployeeDetailSheet({
   onEdit,
 }: {
@@ -124,16 +140,11 @@ export function EmployeeDetailSheet({
     <Sheet open={openId !== null} onOpenChange={(open) => !open && close()}>
       {/* Layar penuh: isi dipusatkan dengan lebar baca terbatas supaya tetap nyaman di layar lebar. */}
       <SheetContent className="border-l-0 sm:max-w-none" aria-describedby={undefined} hideClose>
-        {/* Panel layar penuh terasa seperti halaman: tombol kembali di kiri atas (Esc juga menutup). */}
-        <SheetClose asChild>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="bg-background/80 text-foreground hover:bg-accent absolute top-1 left-3 z-20 font-semibold lg:top-4 lg:left-4"
-          >
-            <ArrowLeft strokeWidth={2.5} /> Kembali
-          </Button>
-        </SheetClose>
+        {/* Panel layar penuh terasa seperti halaman (Esc juga menutup). Saat detail tampil, tombol Kembali ada
+            di bar tab yang menempel (tidak menimpa isi saat digulir); melayang hanya saat memuat / galat. */}
+        {detail.isPending || detail.isError || !employee ? (
+          <BackButton className="bg-background/80 absolute top-1 left-3 z-20 lg:top-4 lg:left-4" />
+        ) : null}
         {detail.isPending ? (
           <DetailSkeleton />
         ) : detail.isError || !employee ? (
@@ -497,12 +508,13 @@ function DetailBody({
       </header>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-0">
-        {/* pl-28 di bawah lg: ruang untuk tombol "Kembali" yang melayang di pojok kiri atas. */}
-        <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 border-b pl-28 backdrop-blur lg:pl-0">
+        {/* Tombol Kembali sebaris dengan tab di bar yang menempel: selalu terlihat, tidak menimpa isi. */}
+        <div className="bg-background sticky top-0 z-10 flex items-center border-b pl-2 sm:pl-3">
+          <BackButton compact />
           <TabsList
             className={cn(
               CONTAINER,
-              "justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
+              "min-w-0 flex-1 justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
             )}
           >
             <TabsTrigger value="work">
