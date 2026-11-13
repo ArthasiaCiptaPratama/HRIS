@@ -13,6 +13,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-13 — Data contoh Homebase + Riwayat di karyawan uji Rizky (staging) (Oatse)
+- **Dikerjakan:** handoff supervisor 09:50 (kutipan pengguna ±09:45 WIB). Lewat UI staging sebagai SA: 2 master homebase berlabel CONTOH, 2 baris riwayat homebase Rizky, ubah No. HP, nama kontak darurat, kota asal (nilai asli di RELEASE §4).
+- **Keputusan:** tidak ada.
+- **Verifikasi:** MCP `SELECT`: `homebases` 2, `employee_homebases` Rizky 2, `employee_field_changes` Rizky 5; tab Riwayat + filter Data pribadi tampil; screenshot `QA/2026-11-13-staging-contoh-rizky/` 01–04.
+- **Masalah / catatan:** (1) form Ubah data me-reset isian bila detail karyawan dimuat ulang saat dialog terbuka (`employee-form-dialog.tsx` effect `reset` bergantung pada objek `employee`) → edit No. HP/kontak darurat pertama hilang tanpa pesan; diulang per tab. (2) Entri riwayat homebase kedua tercatat "— → Balikpapan", bukan "Makassar → Balikpapan" (nilai lama tidak diisi untuk baris riwayat baru). Keduanya belum diperbaiki, diusulkan ke develop.
+- **Berikutnya:** hapus/kembalikan data contoh hanya atas kata pengguna.
+
 ### 2026-11-12 — Homebase / Point of Hire tahap A–C (EMP-D6) (Oatse)
 - **Dikerjakan:** rencana `homebase-plan.md` disetujui (supervisor atas nama pengguna). A `45e7eeb`: migrasi `20261112060046_employee_homebases`, master `homebases`, API riwayat + kolom turunan + audit + EMP-D5, detail/daftar/filter, tambah karyawan & approve onboarding, adapter `getHomebasesOn`. B `d15b06e`: web Master Data › Homebase, detail Penempatan + Riwayat homebase + dialog, tambah karyawan, approve onboarding, kolom & filter daftar. C `11754b4`: import HOMEBASE / HOMEBASE BERLAKU MULAI (master baru/terarsip, `HOMEBASE_FUTURE_DATE`), template import, filter laporan + kolom ekspor headcount, `diffWork` mencatat `homebase`. Implementasi tiap tahap oleh subagen Claude (Codex sedang kena batas kuota) dengan brief rinci; diff inti direview + verifikasi ulang sendiri.
 - **Keputusan:** EMP-D6; EMP-OD3 terjawab 13:49 WIB "EMP-0D3: beda" → "PENEMPATAN LOKASI KERJA" bukan Homebase, tidak dipetakan.
