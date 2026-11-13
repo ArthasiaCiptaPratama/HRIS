@@ -713,6 +713,7 @@ export async function decideDataChange(ctx: RequestContext, id: string, body: un
             payload.members as Record<string, unknown>[],
             familyKey,
             (r) => summarizeRow("FAMILY", r),
+            (r) => summarizeRow("FAMILY", r, true),
           );
         } else if (row.section === "EMERGENCY") {
           const rename = (v: Record<string, unknown>) => ({

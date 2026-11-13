@@ -16,6 +16,7 @@ import {
 import {
   ArrowLeft,
   ArrowLeftRight,
+  ArrowRight,
   BriefcaseBusiness,
   Building2,
   CalendarX2,
@@ -107,6 +108,22 @@ export function useEmployeeSheet() {
   };
 }
 
+/** Tombol kembali panel detail (menutup sheet). `compact` = ikon saja di bawah xl (label tetap untuk SR). */
+function BackButton({ className, compact = false }: { className?: string; compact?: boolean }) {
+  return (
+    <SheetClose asChild>
+      <Button
+        size="sm"
+        variant="ghost"
+        className={cn("text-foreground hover:bg-accent shrink-0 font-semibold", className)}
+      >
+        <ArrowLeft strokeWidth={2.5} />
+        <span className={compact ? "sr-only xl:not-sr-only" : undefined}>Kembali</span>
+      </Button>
+    </SheetClose>
+  );
+}
+
 export function EmployeeDetailSheet({
   onEdit,
 }: {
@@ -123,16 +140,11 @@ export function EmployeeDetailSheet({
     <Sheet open={openId !== null} onOpenChange={(open) => !open && close()}>
       {/* Layar penuh: isi dipusatkan dengan lebar baca terbatas supaya tetap nyaman di layar lebar. */}
       <SheetContent className="border-l-0 sm:max-w-none" aria-describedby={undefined} hideClose>
-        {/* Panel layar penuh terasa seperti halaman: tombol kembali di kiri atas (Esc juga menutup). */}
-        <SheetClose asChild>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="bg-background/80 text-foreground hover:bg-accent absolute top-1 left-3 z-20 font-semibold lg:top-4 lg:left-4"
-          >
-            <ArrowLeft strokeWidth={2.5} /> Kembali
-          </Button>
-        </SheetClose>
+        {/* Panel layar penuh terasa seperti halaman (Esc juga menutup). Saat detail tampil, tombol Kembali ada
+            di bar tab yang menempel (tidak menimpa isi saat digulir); melayang hanya saat memuat / galat. */}
+        {detail.isPending || detail.isError || !employee ? (
+          <BackButton className="bg-background/80 absolute top-1 left-3 z-20 lg:top-4 lg:left-4" />
+        ) : null}
         {detail.isPending ? (
           <DetailSkeleton />
         ) : detail.isError || !employee ? (
@@ -496,12 +508,13 @@ function DetailBody({
       </header>
 
       <Tabs value={tab} onValueChange={setTab} className="gap-0">
-        {/* pl-28 di bawah lg: ruang untuk tombol "Kembali" yang melayang di pojok kiri atas. */}
-        <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-10 border-b pl-28 backdrop-blur lg:pl-0">
+        {/* Tombol Kembali sebaris dengan tab di bar yang menempel: selalu terlihat, tidak menimpa isi. */}
+        <div className="bg-background sticky top-0 z-10 flex items-center border-b pl-2 sm:pl-3">
+          <BackButton compact />
           <TabsList
             className={cn(
               CONTAINER,
-              "justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
+              "min-w-0 flex-1 justify-center-safe border-b-0 [&_[data-state=active]]:after:bg-logo-leaf",
             )}
           >
             <TabsTrigger value="work">
@@ -634,7 +647,6 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 function WorkTab({ employee }: { employee: EmployeeDetail }) {
-  const homebase = useHomebaseEditor(employee);
   return (
     <div className="space-y-8">
       <section>
@@ -647,21 +659,8 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="Unit organisasi">{employee.department?.name}</Field>
           <Field label="Grade">{employee.grade?.name}</Field>
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
-          {/* EMP-D6: homebase (POH) yang berlaku sekarang; diubah lewat riwayat (bukan Ubah data). */}
-          <Field label="Homebase (POH)">
-            {homebase.canManage ? (
-              <span className="flex flex-wrap items-center gap-2">
-                {employee.homebase?.name ?? (
-                  <span className="text-muted-foreground font-normal">—</span>
-                )}
-                <Button size="xs" variant="outline" onClick={homebase.add}>
-                  <Pencil /> Ubah homebase
-                </Button>
-              </span>
-            ) : (
-              employee.homebase?.name
-            )}
-          </Field>
+          {/* EMP-D6: hanya homebase yang berlaku sekarang; diubah lewat Ubah data, riwayatnya di tab Riwayat. */}
+          <Field label="Homebase (POH)">{employee.homebase?.name}</Field>
           <Field label="Atasan langsung">{employee.manager?.name}</Field>
           <Field label="Status kepegawaian">{employee.employmentStatus.name}</Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
@@ -676,8 +675,6 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           ) : null}
         </FieldGrid>
       </section>
-      <HomebaseHistory employee={employee} menu={homebase.menu} />
-      {homebase.dialogs}
       <section>
         <SectionTitle>Kontak kerja</SectionTitle>
         <FieldGrid>
@@ -709,62 +706,6 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
         </FieldGrid>
       </section>
     </div>
-  );
-}
-
-/** EMP-D6: riwayat homebase (terbaru dulu, maks. 20 dari detail). */
-function HomebaseHistory({
-  employee,
-  menu,
-}: {
-  employee: EmployeeDetail;
-  menu: (entry: EmployeeHomebaseEntry) => ReactNode;
-}) {
-  const entries = employee.homebases ?? [];
-  return (
-    <section aria-labelledby="homebase-history-title">
-      <h3
-        id="homebase-history-title"
-        className="text-muted-foreground mb-4 text-[11px] font-medium tracking-wider uppercase"
-      >
-        Riwayat homebase
-      </h3>
-      {entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">Belum ada riwayat homebase.</p>
-      ) : (
-        <ul className="divide-y rounded-xl border">
-          {entries.map((entry, index) => (
-            <li key={entry.id} className="flex items-start gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                  {entry.homebase.name}
-                  {index === 0 ? (
-                    <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px]">
-                      Sekarang
-                    </span>
-                  ) : null}
-                </p>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  Berlaku mulai {formatDate(entry.effectiveFrom)}
-                  {entry.decreeNumber ? (
-                    <>
-                      <span aria-hidden> · </span>No. SK {entry.decreeNumber}
-                    </>
-                  ) : null}
-                </p>
-                {entry.note ? (
-                  <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
-                    {entry.note}
-                  </p>
-                ) : null}
-                <ChangedBy changedBy={entry.changedBy} />
-              </div>
-              {menu(entry)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 
@@ -1009,18 +950,32 @@ const POSITION_HISTORY_TYPES: EmploymentChangeType[] = [
   "COMPANY_CHANGED",
 ];
 
-const HISTORY_FILTERS: { label: string; sections?: readonly FieldChangeSection[] }[] = [
+/** Jenis entri timeline untuk filter; "homebase" = riwayat homebase (EMP-D6), terpisah dari data kerja. */
+type HistoryKind = "events" | "work" | "homebase" | "personal" | "family" | "bank" | "archive";
+const HISTORY_FILTERS: { label: string; kind?: HistoryKind }[] = [
   { label: "Semua" },
-  { label: "Kepegawaian", sections: [] },
-  { label: "Data kerja", sections: ["WORK", "EMERGENCY"] },
-  { label: "Data pribadi", sections: ["PERSONAL"] },
-  { label: "Keluarga", sections: ["FAMILY"] },
-  { label: "Rekening", sections: ["BANK"] },
-  {
-    label: "Arsip & dokumen",
-    sections: ["EDUCATION", "TRAINING", "WORK_EXPERIENCE", "DOCUMENT", "PHOTO"],
-  },
+  { label: "Kepegawaian", kind: "events" },
+  { label: "Data kerja", kind: "work" },
+  { label: "Homebase", kind: "homebase" },
+  { label: "Data pribadi", kind: "personal" },
+  { label: "Keluarga", kind: "family" },
+  { label: "Rekening", kind: "bank" },
+  { label: "Arsip & dokumen", kind: "archive" },
 ];
+const SECTION_KIND: Record<FieldChangeSection, HistoryKind> = {
+  WORK: "work",
+  EMERGENCY: "work",
+  PERSONAL: "personal",
+  FAMILY: "family",
+  BANK: "bank",
+  EDUCATION: "archive",
+  TRAINING: "archive",
+  WORK_EXPERIENCE: "archive",
+  DOCUMENT: "archive",
+  PHOTO: "archive",
+};
+const rowKind = (row: EmployeeFieldChange): HistoryKind =>
+  row.field === "homebase" ? "homebase" : SECTION_KIND[row.section];
 
 /** "item" arsip memakai nama bagiannya (Pendidikan/Pelatihan/Pengalaman kerja). */
 const fieldLabel = (row: EmployeeFieldChange) =>
@@ -1028,90 +983,369 @@ const fieldLabel = (row: EmployeeFieldChange) =>
     ? FIELD_CHANGE_SECTION_LABELS[row.section]
     : (FIELD_CHANGE_FIELD_LABELS[row.field] ?? row.field);
 
-function FieldChangeEntry({ rows }: { rows: EmployeeFieldChange[] }) {
-  const first = rows[0];
-  if (!first) return null;
+const monthKeyFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "2-digit",
+});
+const monthLabelFormat = new Intl.DateTimeFormat("id-ID", {
+  timeZone: "Asia/Jakarta",
+  year: "numeric",
+  month: "long",
+});
+
+/** Satu baris "Label  lama → baru": lama redup & dicoret, baru tebal. */
+function DiffRow({
+  label,
+  from,
+  to,
+}: {
+  label: string;
+  from?: string | null | undefined;
+  to: ReactNode;
+}) {
   return (
-    <li className="relative flex gap-4">
-      <span className="bg-background relative grid size-8 shrink-0 place-items-center rounded-full border">
-        <Pencil className="size-3.5" aria-hidden />
-      </span>
-      <div className="min-w-0 flex-1 pt-1">
-        <p className="text-sm font-medium">{FIELD_CHANGE_SOURCE_LABELS[first.source]}</p>
-        <ul className="mt-1 space-y-1 text-sm">
-          {rows.map((row) => (
-            <li key={row.id} className="break-words">
-              {row.valueHidden ? (
-                <>
-                  <span>{fieldLabel(row)} diubah</span>
-                  <span className="text-muted-foreground ml-2 inline-flex items-center gap-1 text-xs">
-                    <Lock className="size-3" aria-hidden />
-                    nilai disembunyikan
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="font-medium">{fieldLabel(row)}:</span> {row.oldValue ?? "—"} →{" "}
-                  {row.newValue ?? "—"}
-                </>
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words">
+        {from !== undefined ? (
+          <>
+            <span
+              className={cn(
+                "text-muted-foreground",
+                from && "decoration-muted-foreground/50 line-through",
               )}
-            </li>
-          ))}
-        </ul>
-        <ChangedBy changedBy={first.changedBy} systemLabel="sistem (otomatis)" />
-        <p className="text-muted-foreground mt-1 text-xs">{formatDateTime(first.occurredAt)}</p>
+            >
+              {from ?? "—"}
+            </span>
+            <ArrowRight
+              className="text-muted-foreground mx-1.5 inline size-3.5 align-[-2px]"
+              aria-label="menjadi"
+            />
+          </>
+        ) : null}
+        <span className="font-medium">{to ?? "—"}</span>
+      </dd>
+    </>
+  );
+}
+
+function DiffList({ children }: { children: ReactNode }) {
+  return (
+    <dl className="mt-1.5 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[minmax(7rem,10rem)_1fr] sm:gap-y-1.5">
+      {children}
+    </dl>
+  );
+}
+
+/**
+ * Baris meta kecil: item dipisah "·" sebagai pseudo-element di AKHIR item (bukan elemen sendiri), jadi saat
+ * wrap pemisah menempel di ujung baris sebelumnya, tidak pernah di awal baris.
+ */
+const META_LINE =
+  "text-muted-foreground flex flex-wrap items-center gap-y-0.5 text-xs [&>*:not(:last-child)]:after:text-muted-foreground [&>*:not(:last-child)]:after:mx-1.5 [&>*:not(:last-child)]:after:font-normal [&>*:not(:last-child)]:after:content-['·']";
+
+/** Meta satu baris: [keterangan …] · siapa · peran · kapan. Lokasi kerja pengubah di tooltip nama. */
+function EntryMeta({
+  changedBy,
+  at,
+  systemLabel = "sistem (data awal/impor)",
+  lead = [],
+}: {
+  changedBy: EmployeeDetail["histories"][number]["changedBy"];
+  at: string;
+  systemLabel?: string;
+  lead?: ReactNode[];
+}) {
+  const parts: ReactNode[] = [
+    ...lead,
+    changedBy ? (
+      <span
+        key="by"
+        className="text-foreground/80 font-medium"
+        title={changedBy.workLocation ?? "Lokasi kerja belum diisi"}
+      >
+        {changedBy.name}
+      </span>
+    ) : (
+      <span key="by">{systemLabel}</span>
+    ),
+    ...(changedBy ? [<span key="role">{ROLE_LABELS[changedBy.role]}</span>] : []),
+    <time key="at" dateTime={at} className="tabular-nums">
+      {formatDateTime(at)}
+    </time>,
+  ];
+  return (
+    <p className={cn(META_LINE, "mt-2")}>
+      {parts.map((part, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: urutan tetap
+        <span key={index}>{part}</span>
+      ))}
+    </p>
+  );
+}
+
+/** Kerangka satu entri timeline: ikon di garis, judul + aksi rata kanan, isi, meta. */
+function TimelineItem({
+  icon: Icon,
+  tone,
+  title,
+  actions,
+  children,
+}: {
+  icon: typeof History;
+  tone?: "destructive" | "success" | undefined;
+  title: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <li className="relative grid grid-cols-[1.75rem_1fr] gap-x-3">
+      <span
+        className={cn(
+          "bg-background text-muted-foreground relative z-10 grid size-7 place-items-center rounded-full border",
+          tone === "destructive" && "text-destructive",
+          tone === "success" && "text-success",
+        )}
+      >
+        <Icon className="size-3.5" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <div className="flex min-h-7 items-start justify-between gap-3">
+          <p className="flex flex-wrap items-center gap-1.5 pt-1 text-sm leading-5 font-medium">
+            {title}
+          </p>
+          {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+        </div>
+        {children}
       </div>
     </li>
   );
 }
 
+function FieldChangeEntry({ rows }: { rows: EmployeeFieldChange[] }) {
+  const first = rows[0];
+  if (!first) return null;
+  const sections = [...new Set(rows.map((row) => FIELD_CHANGE_SECTION_LABELS[row.section]))];
+  // Baris homebase yang tersisa di timeline hanya jejak hapus (entri lain tampil dari riwayat homebase).
+  const homebaseOnly = rows.every((row) => row.field === "homebase");
+  return (
+    <TimelineItem
+      icon={homebaseOnly ? MapPin : Pencil}
+      title={homebaseOnly ? "Riwayat homebase dihapus" : `${sections.join(", ")} diubah`}
+    >
+      <DiffList>
+        {rows.map((row) =>
+          row.valueHidden ? (
+            <DiffRow
+              key={row.id}
+              label={fieldLabel(row)}
+              to={
+                <span className="text-muted-foreground inline-flex items-center gap-1 font-normal">
+                  <Lock className="size-3" aria-hidden />
+                  nilai disembunyikan
+                </span>
+              }
+            />
+          ) : (
+            <DiffRow key={row.id} label={fieldLabel(row)} from={row.oldValue} to={row.newValue} />
+          ),
+        )}
+      </DiffList>
+      <EntryMeta
+        changedBy={first.changedBy}
+        at={first.occurredAt}
+        systemLabel="sistem (otomatis)"
+        lead={[<span key="src">{FIELD_CHANGE_SOURCE_LABELS[first.source]}</span>]}
+      />
+    </TimelineItem>
+  );
+}
+
+type HistoryRow = EmployeeDetail["histories"][number];
+
+/** Isi peristiwa kepegawaian sebagai baris diff. */
+function historyRows(h: HistoryRow): ReactNode {
+  switch (h.changeType) {
+    case "STATUS_CHANGED":
+      return <DiffRow label="Status" from={h.fromStatus?.name ?? null} to={h.toStatus?.name} />;
+    case "POSITION_CHANGED":
+      return h.source === "MANUAL" ? (
+        <DiffRow
+          label="Jabatan"
+          to={[h.toPosition?.name ?? h.toPositionName, h.toDepartmentName]
+            .filter(Boolean)
+            .join(" · ")}
+        />
+      ) : (
+        <DiffRow label="Jabatan" from={h.fromPosition?.name ?? null} to={h.toPosition?.name} />
+      );
+    case "COMPANY_CHANGED":
+      return (
+        <DiffRow label="Perusahaan" from={h.fromCompany?.name ?? null} to={h.toCompany?.name} />
+      );
+    case "DEACTIVATED":
+      return h.exitReason ? <DiffRow label="Alasan" to={EXIT_REASON_LABELS[h.exitReason]} /> : null;
+    case "HIRED":
+      return (
+        <>
+          {h.toPosition ? <DiffRow label="Jabatan" to={h.toPosition.name} /> : null}
+          {h.toStatus ? <DiffRow label="Status" to={h.toStatus.name} /> : null}
+        </>
+      );
+    default:
+      return h.toStatus ? <DiffRow label="Status" to={h.toStatus.name} /> : null;
+  }
+}
+
+const EMPTY_TEXT: Record<string, string> = {
+  Semua: "Belum ada riwayat.",
+  Kepegawaian: "Belum ada peristiwa kepegawaian.",
+};
+
 function HistoryTab({ employee }: { employee: EmployeeDetail }) {
   const changes = useEmployeeFieldChanges(employee.id);
   const [filter, setFilter] = useState(0);
-  const selected = HISTORY_FILTERS[filter]?.sections;
-  const groups = new Map<string, EmployeeFieldChange[]>();
-  for (const page of changes.data?.pages ?? [])
-    for (const row of page.data) {
-      if (selected && !selected.includes(row.section)) continue;
-      groups.set(row.groupId, [...(groups.get(row.groupId) ?? []), row]);
-    }
-  const timeline = [
-    ...(filter === 0 || filter === 1
-      ? employee.histories.map((h) => ({ id: h.id, time: h.createdAt, history: h, rows: null }))
-      : []),
-    ...[...groups.entries()].map(([id, rows]) => ({
+  const selected = HISTORY_FILTERS[filter]?.kind;
+  const loaded = (changes.data?.pages ?? []).flatMap((page) => page.data);
+  // EMP-D6: entri homebase dari riwayat homebase (lengkap: termasuk tanggal mundur / koreksi). Baris EMP-D5
+  // homebase disembunyikan supaya tidak dobel, kecuali jejak hapus (refId = baris yang sudah tidak ada).
+  const homebases = employee.homebases ?? [];
+  const entryIds = new Set(homebases.map((entry) => entry.id));
+  const visibleRows = loaded.filter(
+    (row) =>
+      row.field !== "homebase" ||
+      (row.source === "HR_FORM" && row.refId !== null && !entryIds.has(row.refId)),
+  );
+  // Data lokal (peristiwa & homebase) hanya sampai waktu baris tertua yang sudah dimuat, supaya urutan tetap
+  // benar saat "Muat lebih banyak" (tidak menumpuk entri lama sebelum halamannya dimuat).
+  const oldestLoaded = changes.hasNextPage
+    ? loaded.reduce<string | null>(
+        (min, row) => (!min || row.occurredAt < min ? row.occurredAt : min),
+        null,
+      )
+    : null;
+  const inWindow = (time: string) => !oldestLoaded || time >= oldestLoaded;
+  const allGroups = new Map<string, EmployeeFieldChange[]>();
+  for (const row of visibleRows)
+    allGroups.set(row.groupId, [...(allGroups.get(row.groupId) ?? []), row]);
+  type Item = {
+    id: string;
+    time: string;
+    kinds: HistoryKind[];
+    rows: EmployeeFieldChange[] | null;
+    history: HistoryRow | null;
+    homebase: {
+      entry: EmployeeHomebaseEntry;
+      previous: EmployeeHomebaseEntry | null;
+      current: boolean;
+    } | null;
+  };
+  const items: Item[] = [
+    ...employee.histories
+      .filter((h) => inWindow(h.createdAt))
+      .map((h) => ({
+        id: h.id,
+        time: h.createdAt,
+        kinds: ["events" as HistoryKind],
+        rows: null,
+        history: h,
+        homebase: null,
+      })),
+    ...homebases
+      .map((entry, index) => ({
+        id: entry.id,
+        time: entry.createdAt,
+        kinds: ["homebase" as HistoryKind],
+        rows: null,
+        history: null,
+        homebase: { entry, previous: homebases[index + 1] ?? null, current: index === 0 },
+      }))
+      .filter((item) => inWindow(item.time)),
+    ...[...allGroups.entries()].map(([id, rows]) => ({
       id,
       time: rows[0]?.occurredAt ?? "",
-      history: null,
+      kinds: [...new Set(rows.map(rowKind))],
       rows,
+      history: null,
+      homebase: null,
     })),
-  ].sort((a, b) => b.time.localeCompare(a.time));
+  ];
+  // Grup yang memuat beberapa bagian hanya menampilkan baris jenis yang dipilih.
+  const timeline = items
+    .flatMap((item) => {
+      if (!selected) return [item];
+      if (!item.kinds.includes(selected)) return [];
+      return item.rows
+        ? [{ ...item, rows: item.rows.filter((row) => rowKind(row) === selected) }]
+        : [item];
+    })
+    .sort((a, b) => b.time.localeCompare(a.time));
+  // Kelompok per bulan (WIB), terbaru dulu.
+  const months: { key: string; label: string; items: typeof timeline }[] = [];
+  for (const entry of timeline) {
+    const date = new Date(entry.time);
+    const key = monthKeyFormat.format(date);
+    const last = months.at(-1);
+    if (last?.key === key) last.items.push(entry);
+    else months.push({ key, label: monthLabelFormat.format(date), items: [entry] });
+  }
+  // Jumlah per filter dari data yang sudah dimuat; "+" bila masih ada halaman berikutnya.
+  const more = changes.hasNextPage ? "+" : "";
+  const countOf = (kind?: HistoryKind) => {
+    const total = kind ? items.filter((item) => item.kinds.includes(kind)).length : items.length;
+    return total ? `${total}${more}` : "";
+  };
   const canManage = employee.access.manage && FEATURES.archive;
   const editor = usePositionHistoryEditor(employee);
-  const add = canManage ? (
-    <div className="mb-6 flex justify-end">
-      <Button size="sm" variant="outline" onClick={editor.add}>
-        <Plus /> Tambah riwayat jabatan lama
-      </Button>
-    </div>
-  ) : null;
+  const homebase = useHomebaseEditor(employee);
+  const label = HISTORY_FILTERS[filter]?.label ?? "Semua";
   return (
     <>
-      {add}
-      <fieldset className="mb-6 flex flex-wrap gap-2 border-0 p-0">
-        <legend className="sr-only">Filter riwayat</legend>
-        {HISTORY_FILTERS.map((item, index) => (
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="text-base font-semibold">Riwayat</h3>
+        {canManage ? (
           <Button
-            key={item.label}
             size="sm"
-            variant={filter === index ? "default" : "outline"}
-            aria-pressed={filter === index}
-            onClick={() => setFilter(index)}
+            variant="outline"
+            onClick={editor.add}
+            aria-label="Tambah riwayat jabatan lama"
           >
-            {item.label}
+            <Plus />
+            <span className="hidden sm:inline">Riwayat jabatan lama</span>
           </Button>
-        ))}
-      </fieldset>
+        ) : null}
+      </div>
+      {/* Segmented: geser horizontal di layar sempit, fade kanan sebagai petunjuk ada filter lain. */}
+      <div className="relative mb-6">
+        <fieldset className="bg-muted/70 m-0 flex min-w-0 border-0 w-full gap-0.5 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none] sm:inline-flex sm:w-auto sm:max-w-full [&::-webkit-scrollbar]:hidden">
+          <legend className="sr-only">Filter riwayat</legend>
+          {HISTORY_FILTERS.map((item, index) => {
+            const count = countOf(item.kind);
+            return (
+              <button
+                key={item.label}
+                type="button"
+                aria-pressed={filter === index}
+                onClick={() => setFilter(index)}
+                className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 aria-pressed:bg-background aria-pressed:text-foreground inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-3 text-[13px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] aria-pressed:shadow-xs"
+              >
+                {item.label}
+                {count ? (
+                  <span className="text-muted-foreground text-xs font-normal tabular-nums">
+                    {count}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </fieldset>
+        <div
+          aria-hidden
+          className="from-background pointer-events-none absolute inset-y-0 right-0 w-10 rounded-r-lg bg-linear-to-l sm:hidden"
+        />
+      </div>
+      {homebase.dialogs}
       {changes.isPending ? (
         <p role="status" className="text-muted-foreground mb-4 text-sm">
           Memuat riwayat perubahan…
@@ -1126,92 +1360,131 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
         </div>
       ) : null}
       {!timeline.length && !changes.isPending ? (
-        <EmptyState icon={History} title="Belum ada riwayat kepegawaian" />
+        <p className="text-muted-foreground rounded-lg border border-dashed py-10 text-center text-sm">
+          {EMPTY_TEXT[label] ?? `Belum ada perubahan ${label.toLowerCase()}.`}
+        </p>
       ) : null}
-      <ol className="relative space-y-6 before:absolute before:top-2 before:bottom-2 before:left-[15px] before:w-px before:bg-border">
-        {timeline.map((entry) => {
-          if (entry.rows) return <FieldChangeEntry key={entry.id} rows={entry.rows} />;
-          const h = entry.history;
-          if (!h) return null;
-          const Icon = HISTORY_ICON[h.changeType];
-          const detail =
-            h.changeType === "STATUS_CHANGED"
-              ? `${h.fromStatus?.name ?? "—"} → ${h.toStatus?.name ?? "—"}`
-              : h.changeType === "POSITION_CHANGED"
-                ? h.source === "MANUAL"
-                  ? [h.toPosition?.name ?? h.toPositionName, h.toDepartmentName]
-                      .filter(Boolean)
-                      .join(" · ")
-                  : `${h.fromPosition?.name ?? "—"} → ${h.toPosition?.name ?? "—"}`
-                : h.changeType === "COMPANY_CHANGED"
-                  ? `${h.fromCompany?.name ?? "—"} → ${h.toCompany?.name ?? "—"}`
-                  : h.changeType === "DEACTIVATED"
-                    ? h.exitReason
-                      ? EXIT_REASON_LABELS[h.exitReason]
-                      : null
-                    : h.changeType === "HIRED"
-                      ? [h.toPosition?.name, h.toStatus?.name].filter(Boolean).join(" · ")
-                      : h.toStatus?.name;
-          return (
-            <li key={h.id} className="relative flex gap-4">
-              <span
-                className={cn(
-                  "bg-background relative grid size-8 shrink-0 place-items-center rounded-full border",
-                  h.changeType === "DEACTIVATED" && "text-destructive",
-                  h.changeType === "REACTIVATED" && "text-success",
-                )}
-              >
-                <Icon className="size-3.5" aria-hidden />
-              </span>
-              <div className="min-w-0 flex-1 pt-1">
-                <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
-                  {EMPLOYMENT_CHANGE_LABELS[h.changeType]}
-                  {h.movementType ? (
-                    <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px]">
-                      {MOVEMENT_TYPE_LABELS[h.movementType]}
-                    </span>
-                  ) : null}
-                  {h.source === "MANUAL" ? (
-                    <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px]">
-                      Riwayat lama
-                    </span>
-                  ) : null}
-                </p>
-                {detail ? <p className="text-sm">{detail}</p> : null}
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  Efektif {formatDate(h.effectiveDate)}
-                  <span aria-hidden> · </span>
-                  dicatat {formatDateTime(h.createdAt)}
-                </p>
-                {h.decreeNumber ? (
-                  <p className="text-muted-foreground mt-0.5 text-xs">No. SK {h.decreeNumber}</p>
-                ) : null}
-                {POSITION_HISTORY_TYPES.includes(h.changeType) ? (
-                  <AttachmentList
-                    employeeId={employee.id}
-                    link={{ historyId: h.id }}
-                    typeCodes={DECREE_CODES}
-                    label="SK"
-                  />
-                ) : null}
-                <ChangedBy changedBy={h.changedBy} />
-                {h.note ? (
-                  <p className="text-muted-foreground bg-muted/60 mt-2 rounded-lg px-3 py-2 text-xs">
-                    {h.note}
-                  </p>
-                ) : null}
-              </div>
-              {canManage && POSITION_HISTORY_TYPES.includes(h.changeType)
-                ? editor.menu(h, EMPLOYMENT_CHANGE_LABELS[h.changeType])
-                : null}
-            </li>
-          );
-        })}
-      </ol>
+      <div className="space-y-8">
+        {months.map((month) => (
+          <section key={month.key} aria-label={month.label}>
+            <h4 className="text-muted-foreground mb-3 text-[11px] font-medium tracking-wider uppercase">
+              {month.label}
+            </h4>
+            <ol className="before:bg-border relative space-y-5 before:absolute before:top-3 before:bottom-3 before:left-[13.5px] before:w-px">
+              {month.items.map((entry) => {
+                if (entry.rows) return <FieldChangeEntry key={entry.id} rows={entry.rows} />;
+                if (entry.homebase) {
+                  const { entry: hb, previous, current } = entry.homebase;
+                  return (
+                    <TimelineItem
+                      key={entry.id}
+                      icon={MapPin}
+                      title={
+                        <>
+                          Homebase diubah
+                          {current ? (
+                            <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px] font-normal">
+                              Sekarang
+                            </span>
+                          ) : null}
+                        </>
+                      }
+                      actions={homebase.menu(hb)}
+                    >
+                      <DiffList>
+                        <DiffRow
+                          label="Homebase (POH)"
+                          from={previous?.homebase.name ?? null}
+                          to={hb.homebase.name}
+                        />
+                      </DiffList>
+                      {hb.note ? (
+                        <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-xs">
+                          {hb.note}
+                        </p>
+                      ) : null}
+                      <EntryMeta
+                        changedBy={hb.changedBy}
+                        at={hb.createdAt}
+                        lead={[
+                          <span key="eff">Berlaku mulai {formatDate(hb.effectiveFrom)}</span>,
+                          ...(hb.decreeNumber
+                            ? [<span key="sk">No. SK {hb.decreeNumber}</span>]
+                            : []),
+                        ]}
+                      />
+                    </TimelineItem>
+                  );
+                }
+                const h = entry.history;
+                if (!h) return null;
+                const positional = POSITION_HISTORY_TYPES.includes(h.changeType);
+                return (
+                  <TimelineItem
+                    key={h.id}
+                    icon={HISTORY_ICON[h.changeType]}
+                    tone={
+                      h.changeType === "DEACTIVATED"
+                        ? "destructive"
+                        : h.changeType === "REACTIVATED"
+                          ? "success"
+                          : undefined
+                    }
+                    title={
+                      <>
+                        {EMPLOYMENT_CHANGE_LABELS[h.changeType]}
+                        {h.movementType ? (
+                          <span className="bg-brand-soft text-brand-soft-foreground rounded-md px-1.5 py-0.5 text-[11px] font-normal">
+                            {MOVEMENT_TYPE_LABELS[h.movementType]}
+                          </span>
+                        ) : null}
+                        {h.source === "MANUAL" ? (
+                          <span className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px] font-normal">
+                            Riwayat lama
+                          </span>
+                        ) : null}
+                      </>
+                    }
+                    actions={
+                      canManage && positional
+                        ? editor.menu(h, EMPLOYMENT_CHANGE_LABELS[h.changeType])
+                        : null
+                    }
+                  >
+                    <DiffList>{historyRows(h)}</DiffList>
+                    {h.note ? (
+                      <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-xs">
+                        {h.note}
+                      </p>
+                    ) : null}
+                    {positional ? (
+                      <AttachmentList
+                        employeeId={employee.id}
+                        link={{ historyId: h.id }}
+                        typeCodes={DECREE_CODES}
+                        label="SK"
+                      />
+                    ) : null}
+                    <EntryMeta
+                      changedBy={h.changedBy}
+                      at={h.createdAt}
+                      lead={[
+                        <span key="eff">Efektif {formatDate(h.effectiveDate)}</span>,
+                        ...(h.decreeNumber ? [<span key="sk">No. SK {h.decreeNumber}</span>] : []),
+                      ]}
+                    />
+                  </TimelineItem>
+                );
+              })}
+            </ol>
+          </section>
+        ))}
+      </div>
       {changes.hasNextPage ? (
         <Button
           className="mt-6"
           variant="outline"
+          size="sm"
           disabled={changes.isFetchingNextPage}
           onClick={() => void changes.fetchNextPage()}
         >
@@ -1220,33 +1493,5 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
       ) : null}
       {editor.dialog}
     </>
-  );
-}
-
-function ChangedBy({
-  changedBy,
-  systemLabel = "sistem (data awal/impor)",
-}: {
-  changedBy: EmployeeDetail["histories"][number]["changedBy"];
-  systemLabel?: string;
-}) {
-  if (!changedBy) {
-    return <p className="text-muted-foreground mt-2 text-xs">Diubah oleh: {systemLabel}</p>;
-  }
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-      <span className="text-muted-foreground">Diubah oleh</span>
-      <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
-        <EmployeeAvatar name={changedBy.name} size="sm" className="size-5 text-[9px]" />
-        <span className="truncate">{changedBy.name}</span>
-      </span>
-      <span className="bg-muted rounded-md px-1.5 py-0.5 font-medium">
-        {ROLE_LABELS[changedBy.role]}
-      </span>
-      <span className="text-muted-foreground inline-flex items-center gap-1">
-        <MapPin className="size-3" aria-hidden />
-        {changedBy.workLocation ?? "Lokasi kerja belum diisi"}
-      </span>
-    </div>
   );
 }
