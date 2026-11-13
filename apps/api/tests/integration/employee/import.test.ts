@@ -1378,3 +1378,99 @@ describe("perlindungan email pribadi akun lewat import", () => {
     });
   }
 });
+
+describe("IMP-D2 mode Isi yang kosong saja (FILL_EMPTY)", () => {
+  test("hanya field kosong yang diisi; yang sudah berisi dibiarkan (kept) tanpa master baru; baris baru dibuat", async () => {
+    const existing = await prisma.employee.create({
+      data: {
+        companyId: ids.acp,
+        employeeNumber: NUM("ZF1"),
+        fullName: `Impor ${RUN} Isi Kosong`,
+        phoneNumber: "081200002222",
+        joinDate: new Date("2024-01-02T00:00:00.000Z"),
+        employmentStatusId: ids.pkwt,
+        positionId: ids.position,
+        personal: { create: { ptkpStatus: "TK0" } },
+      },
+    });
+    const payload = body(
+      [
+        row(
+          6,
+          baseRow("ZF1", {
+            fullName: `Impor ${RUN} Nama Lain`,
+            phoneNumber: "081299993333",
+            departmentName: `Dept Tak Dipakai ${RUN}`,
+            positionName: `Jab Tak Dipakai ${RUN}`,
+            employmentStatusText: null,
+            joinDate: "2024-01-02",
+            workLocationName: `Site Isi ${RUN}`,
+            gradeName: `Grade Isi ${RUN}`,
+            ptkpStatus: "K/1",
+            originCity: "Palopo",
+          }),
+        ),
+        row(7, baseRow("ZF2")),
+      ],
+      { mode: "FILL_EMPTY" },
+    );
+    const preview = await data(
+      await call("POST", "/employee-imports/preview", sa.headers, payload),
+    );
+    const [r1, r2] = preview.rows;
+    expect(r1.action).toBe("UPDATE");
+    expect([...r1.changes].sort()).toEqual(["gradeName", "originCity", "workLocationName"]);
+    // Status nikah turunan PTKP file (K/1) ikut dibiarkan karena PTKP-nya dibiarkan.
+    expect([...r1.kept].sort()).toEqual([
+      "fullName",
+      "maritalStatus",
+      "phoneNumber",
+      "positionName",
+      "ptkpStatus",
+    ]);
+    expect(r2).toMatchObject({ action: "CREATE", kept: [] });
+    // Tidak ada unit/jabatan baru untuk field yang dibiarkan.
+    expect(JSON.stringify(preview.masterData)).not.toContain("Tak Dipakai");
+    expect(JSON.stringify(preview.units)).not.toContain("Tak Dipakai");
+
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...payload,
+      previewHash: preview.previewHash,
+    });
+    expect(res.status).toBe(201);
+    const after = await prisma.employee.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: { personal: true, grade: true, workLocation: true },
+    });
+    expect(after).toMatchObject({
+      fullName: `Impor ${RUN} Isi Kosong`,
+      phoneNumber: "081200002222",
+      positionId: ids.position,
+    });
+    expect(after.personal).toMatchObject({
+      ptkpStatus: "TK0",
+      originCity: "Palopo",
+      maritalStatus: null,
+    });
+    expect(after.grade?.name).toBe(`Grade Isi ${RUN}`);
+    expect(after.workLocation?.name).toBe(`Site Isi ${RUN}`);
+    expect(await prisma.department.count({ where: { name: `Dept Tak Dipakai ${RUN}` } })).toBe(0);
+    expect(await prisma.employee.count({ where: { employeeNumber: NUM("ZF2") } })).toBe(1);
+    const job = await prisma.importJob.findFirstOrThrow({
+      where: { fileSha256: SHA, mode: "FILL_EMPTY" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(job).toMatchObject({ createdCount: 1, updatedCount: 1 });
+    // EMP-D5: hanya field yang diisi tercatat, sumber IMPORT.
+    const logged = await prisma.employeeFieldChange.findMany({
+      where: { employeeId: existing.id },
+      select: { field: true, source: true },
+    });
+    expect(logged.every((c) => c.source === "IMPORT")).toBe(true);
+    const fields = logged.map((c) => c.field);
+    expect(fields).toContain("originCity");
+    expect(fields).not.toContain("fullName");
+    expect(fields).not.toContain("phoneNumber");
+    expect(fields).not.toContain("ptkpStatus");
+  });
+});

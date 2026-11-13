@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-13 — Mode import "Isi yang kosong saja" (IMP-D2) (Oatse)
+- **Dikerjakan:** handoff supervisor 14:21 (keputusan pengguna 14:20). Migrasi `20261113073214_add_import_mode_fill_empty` (enum `ImportMode` + `FILL_EMPTY`). API `employee-import.service.ts`: `diff` memisah `changes` (field kosong → diisi) dan `kept` (sudah berisi & beda → dibiarkan) bila `fillEmpty`; status nikah turunan PTKP ikut dibiarkan bila PTKP dibiarkan; baris yang jabatannya sudah terisi tidak ikut `resolveUnits` (tanpa unit baru); simpan: data pribadi per kunci yang masih kosong, bank per field; pratinjau `rows[].kept`. Shared `detect.ts`: kolom email berisi email gratis tanpa kata kantor → Email pribadi. Web: kartu "Isi yang kosong saja" (tengah, bawaan tetap "Tambah + perbarui"), Pratinjau "Diisi:" + "Dibiarkan (sudah berisi, beda):", mode di ringkasan Pengaturan.
+- **Keputusan:** IMP-D2.
+- **Verifikasi:** test import api 40 ✔ (+1 FILL_EMPTY: isi kosong, kept, tanpa master baru, baris baru, EMP-D5 IMPORT), employee integration 243 ✔, shared 375 ✔ (+3 deteksi email), web import 15 ✔ (+1); smoke pratinjau ke DB lokal (Rizky, tanpa simpan): UPSERT 6 field berubah + unit baru, FILL_EMPTY diisi Email pribadi & PTKP, dibiarkan HP/jabatan/kota asal/status nikah, tanpa unit baru.
+- **Masalah / catatan:** ada migrasi → rilis staging perlu `db:deploy`; Mat perlu dikabari (migrasi baru di develop).
+- **Berikutnya:** rilis staging (sesi HRIS-rilis), lalu import pelengkapan data staging dengan mode ini.
+
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
 ### 2026-11-10 — IMP-D1 ke staging (Oatse)
