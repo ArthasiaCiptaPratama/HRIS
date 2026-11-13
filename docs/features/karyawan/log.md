@@ -3,6 +3,10 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — Test flaky laporan ulang tahun (ARS-D21) (Oatse)
+- **Dikerjakan:** `reports-batch2.test.ts`: token `RUN` jadi huruf saja (digit hex dipetakan ke huruf) — sebelumnya token acak bisa "1995" dan menggagalkan asersi "tanpa tahun lahir 1995" (CI #43363521371 attempt 1, satu run lokal). Khusus test.
+- **Verifikasi:** test itu 3× berturut-turut 9/9 ✔; api penuh ✔; typecheck/biome ✔.
+
 ### 2026-11-13 — Riwayat homebase di timeline tab Riwayat + segmen Homebase (Oatse)
 - **Dikerjakan:** koreksi pengguna 13 Nov (kartu terpisah → entri timeline). `employee-detail-sheet.tsx`: kartu Riwayat homebase dihapus; filter berbasis jenis (`HistoryKind`) dengan segmen **Homebase**; entri homebase = `TimelineItem` (ikon pin, "Homebase diubah", badge Sekarang, diff "entri sebelumnya → entri ini", meta "Berlaku mulai · No. SK · pengubah · waktu dicatat", catatan, menu ⋯ Koreksi/Hapus). **Sumber:** `detail.homebases` (employee_homebases) — lengkap termasuk tanggal mundur/koreksi baris lama & entri import/tambah/onboarding, membawa id untuk menu; baris EMP-D5 `homebase` disembunyikan (anti-duplikat) kecuali jejak hapus (`HR_FORM` + `refId` yang sudah tidak ada) → "Riwayat homebase dihapus". "Data kerja" tidak lagi memuat homebase. Urut menurut waktu dicatat; saat masih ada halaman EMP-D5 berikutnya, peristiwa kepegawaian & homebase hanya ditampilkan sampai waktu baris tertua yang termuat (tidak menumpuk/terlewat saat "Muat lebih banyak").
 - **Keputusan:** — (tampilan; arah dari pengguna lewat supervisor). Batas: koreksi baris lama tidak tampil sebagai peristiwa tersendiri (entri menampilkan nilai terbaru; jejak di audit).
