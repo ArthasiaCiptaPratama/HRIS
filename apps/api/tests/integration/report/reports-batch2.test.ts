@@ -11,7 +11,12 @@ import { createFakeStorage } from "../../helpers/storage.ts";
 
 // ARS-D21 (Laporan batch 2): masa kerja + jubilee, demografi agregat, mutasi & promosi menurut level
 // jabatan, ulang tahun tanpa tahun lahir, aset tanpa harga + belum kembali, pengajuan data per grant.
-const RUN = crypto.randomUUID().slice(0, 4).toUpperCase();
+// Huruf saja: token hex acak bisa kebetulan "1995" dan bentrok dengan asersi "tanpa tahun lahir".
+const RUN = crypto
+  .randomUUID()
+  .slice(0, 4)
+  .replace(/\d/g, (d) => "GHIJKLMNOP"[Number(d)] ?? "G")
+  .toUpperCase();
 const auth = createAuthFixture(`rq${RUN.toLowerCase()}`);
 const prisma = getPrisma();
 const app = createApp({

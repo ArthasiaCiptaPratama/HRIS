@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { type EmployeeHomebaseInput, employeeHomebaseInputSchema } from "@hris/shared";
 import { Lock } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import type { Me } from "@/features/auth/schemas";
 import { access as appAccess } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import {
+  useAddEmployeeHomebase,
   useCompanyScope,
   useCreateEmployee,
   useEmployee,
@@ -37,6 +39,7 @@ import { type EmployeeDetail, type EmployeeForm, employeeFormSchema } from "../s
 import {
   EMPTY_EMPLOYEE_FORM,
   EmployeeWorkFields,
+  homebaseChangeFromForm,
   toEmployeeWriteBody,
 } from "./employee-work-fields";
 
@@ -60,8 +63,10 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     departmentId: employee.department?.id ?? "",
     positionId: employee.position.id,
     workLocationId: employee.workLocation?.id ?? "",
-    // EMP-D6: tidak diubah lewat form ini (PATCH tidak menerima homebaseId).
+    // EMP-D6: diganti → baris riwayat homebase baru (bukan lewat PATCH), berlaku mulai + no. SK.
     homebaseId: employee.homebase?.id ?? "",
+    homebaseEffectiveFrom: todayIso(),
+    homebaseDecreeNumber: "",
     gradeId: employee.grade?.id ?? "",
     managerId: employee.manager?.id ?? "",
     orgPostId: employee.orgPostId ?? "",
@@ -99,6 +104,7 @@ export function EmployeeFormDialog({
   const create = useCreateEmployee();
   const update = useUpdateEmployee();
   const updateProfile = useUpdateEmployeeProfile();
+  const addHomebase = useAddEmployeeHomebase();
   const [tab, setTab] = useState<TabKey>("work");
   const [problem, setProblem] = useState<{ tab: TabKey; message: string } | null>(null);
   // Data sensitif: perlu izin baca (supaya isian lama terlihat & tidak terhapus) dan izin tulis.
@@ -140,36 +146,46 @@ export function EmployeeFormDialog({
     defaultValues: EMPTY_EMPLOYEE_FORM,
     mode: "onTouched",
   });
-  const { handleSubmit, setValue, reset, formState } = form;
+  const { handleSubmit, setValue, setError, reset, formState } = form;
 
-  // Hanya saat dialog dibuka / data dasar berubah — nilai scope dibaca saat reset saja.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scope sengaja tidak jadi pemicu reset
+  // Reset hanya saat dialog dibuka (atau karyawan yang diubah berganti). Refetch detail di latar membuat
+  // objek `employee` baru — tidak boleh menimpa isian yang sedang diketik (temuan staging 2026-11-13).
+  const resetFor = useRef<string | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: employee/scope dibaca saat dibuka saja
   useEffect(() => {
-    if (open) {
-      setTab("work");
-      setProblem(null);
-      reset(
-        employee
-          ? fromDetail(employee)
-          : {
-              ...EMPTY_EMPLOYEE_FORM,
-              joinDate: todayIso(),
-              employmentStatusId: defaultStatusId ?? "",
-              // D-040: perusahaan terpilih di top bar; satu-satunya PT dalam cakupan diisi otomatis.
-              companyId:
-                scope.selectedId ??
-                (scope.companies.length === 1 ? (scope.companies[0]?.id ?? "") : ""),
-            },
-      );
+    if (!open) {
+      resetFor.current = null;
+      return;
     }
-  }, [open, employee, defaultStatusId, reset]);
+    const key = employee?.id ?? "new";
+    if (resetFor.current === key) return;
+    resetFor.current = key;
+    setTab("work");
+    setProblem(null);
+    reset(
+      employee
+        ? fromDetail(employee)
+        : {
+            ...EMPTY_EMPLOYEE_FORM,
+            joinDate: todayIso(),
+            employmentStatusId: defaultStatusId ?? "",
+            // D-040: perusahaan terpilih di top bar; satu-satunya PT dalam cakupan diisi otomatis.
+            companyId:
+              scope.selectedId ??
+              (scope.companies.length === 1 ? (scope.companies[0]?.id ?? "") : ""),
+          },
+    );
+  }, [open, employee?.id, reset]);
 
   // Master data datang setelah dialog terbuka: isi PT otomatis bila hanya ada satu pilihan.
   useEffect(() => {
     if (open && !editing && !form.getValues("companyId") && scope.companies.length === 1) {
       setValue("companyId", scope.companies[0]?.id ?? "");
     }
-  }, [open, editing, scope.companies, form, setValue]);
+    if (open && !editing && defaultStatusId && !form.getValues("employmentStatusId")) {
+      setValue("employmentStatusId", defaultStatusId);
+    }
+  }, [open, editing, scope.companies, defaultStatusId, form, setValue]);
 
   const set =
     <K extends keyof ProfileState>(key: K) =>
@@ -192,8 +208,62 @@ export function EmployeeFormDialog({
               return;
             }
           }
-          if (formState.isDirty) await update.mutateAsync({ id: employee.id, body });
-          if (profileBody) await updateProfile.mutateAsync({ id: employee.id, body: profileBody });
+          // EMP-D6: homebase diganti → validasi dulu, disimpan sesudah data lain (POST riwayat homebase).
+          let homebaseBody: EmployeeHomebaseInput | null = null;
+          if (homebaseChangeFromForm(employee, values.homebaseId)) {
+            const parsed = employeeHomebaseInputSchema.safeParse({
+              homebaseId: values.homebaseId,
+              effectiveFrom: values.homebaseEffectiveFrom,
+              decreeNumber: values.homebaseDecreeNumber,
+              note: "",
+            });
+            if (!parsed.success || parsed.data.effectiveFrom > todayIso()) {
+              const first = parsed.success ? null : parsed.error.issues[0];
+              const message = !values.homebaseEffectiveFrom
+                ? "Tanggal berlaku homebase wajib diisi."
+                : (first?.message ?? "Tanggal berlaku tidak boleh di masa depan.");
+              setError(
+                first?.path[0] === "decreeNumber"
+                  ? "homebaseDecreeNumber"
+                  : "homebaseEffectiveFrom",
+                { message },
+              );
+              setTab("work");
+              return;
+            }
+            homebaseBody = parsed.data;
+          }
+          // Field homebase tidak ikut PATCH; kirim PATCH hanya bila data kerja lain berubah.
+          const workDirty = Object.keys(formState.dirtyFields).some(
+            (k) => !k.startsWith("homebase"),
+          );
+          let saved = false;
+          if (workDirty) {
+            await update.mutateAsync({ id: employee.id, body });
+            saved = true;
+          }
+          if (profileBody) {
+            await updateProfile.mutateAsync({ id: employee.id, body: profileBody });
+            saved = true;
+          }
+          if (homebaseBody) {
+            try {
+              await addHomebase.mutateAsync({ employeeId: employee.id, body: homebaseBody });
+            } catch (error) {
+              // Data lain sudah tersimpan: jangan kirim ulang; isian homebase tetap untuk dicoba lagi.
+              const message = saved
+                ? `Data lain sudah tersimpan, tetapi homebase gagal disimpan: ${errorMessage(error)} Perbaiki isian homebase lalu simpan lagi.`
+                : `Homebase gagal disimpan: ${errorMessage(error)}`;
+              if (saved) {
+                reset(values);
+                setBaseline(profile);
+              }
+              setTab("work");
+              setProblem({ tab: "work", message });
+              toast.error(message);
+              return;
+            }
+          }
           toast.success("Data karyawan diperbarui.");
           onSaved?.(employee.id);
         } else {
@@ -313,7 +383,12 @@ export function EmployeeFormDialog({
             </Button>
             <Button
               type="submit"
-              disabled={formState.isSubmitting || update.isPending || updateProfile.isPending}
+              disabled={
+                formState.isSubmitting ||
+                update.isPending ||
+                updateProfile.isPending ||
+                addHomebase.isPending
+              }
             >
               {formState.isSubmitting
                 ? "Menyimpan…"
