@@ -3,6 +3,10 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-13 — Tombol Kembali kembali ke posisi asli, ikut tergulir (Oatse)
+- **Dikerjakan:** kutipan pengguna 12:41 WIB (menolak tombol di bar tab, minta kembali ke posisi asli). `employee-detail-sheet.tsx`: `BackButton` "← Kembali" (berlabel) lagi di kiri atas di atas banner hijau, tetapi kini di dalam area gulir `DetailBody` (`relative`), jadi ikut tergulir bersama banner dan tidak lagi menimpa bar tab/judul. Bar tab sticky tetap opak, `pl-28` dihapus. Versi di bar tab (`compact`) dihapus. Saat memuat/galat, tombol ada di `SheetContent`.
+- **Verifikasi:** test detail 21 ✔ (test tombol diperbarui: absolute di dalam area gulir, bukan di bar tab); screenshot `QA/2026-11-13-riwayat-ui/11-kembali-asli-{desktop,390px}-{atas,gulir}.png`.
+
 ### 2026-11-13 — Tombol Kembali detail karyawan tidak menimpa isi saat digulir (Oatse)
 - **Dikerjakan:** kutipan pengguna 11:13 WIB ("perbaiki sekarang tombol kembali"). `employee-detail-sheet.tsx`: tombol Kembali (`BackButton`) dipindah ke dalam bar tab yang menempel (sebaris di depan tab, ikon saja di bawah xl, label tetap untuk pembaca layar); bar dibuat opak; tombol melayang hanya saat detail memuat/galat. Berlaku untuk semua tab detail.
 - **Verifikasi:** web `employee-detail.test.tsx` (tombol di bar sticky, sebelum tablist, tidak absolute); typecheck ✔ · biome ci ✔ (1 warning lama) · boundaries ✔ · shared 372 · api 1342 · web 369 ✔; sebelum: `QA/2026-11-13-riwayat-ui/07-homebase-timeline-desktop.png`, `04-polish-390px.png`; sesudah: `09-kembali-sesudah-desktop.png`, `10-kembali-sesudah-390px.png`.

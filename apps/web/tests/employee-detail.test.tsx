@@ -358,19 +358,23 @@ describe("panel detail pegawai", () => {
     expect(dd("PKWT")?.parentElement).toHaveTextContent(/^Magang.*PKWT$/);
   });
 
-  it("tombol Kembali (panah kiri) di bar tab yang menempel menutup panel; tanpa tombol X", async () => {
+  it("tombol Kembali (panah kiri) di kiri atas, ikut tergulir (bukan di bar tab), menutup panel; tanpa tombol X", async () => {
     mockBackend("HR_ADMIN", { manage: true, print: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
     const dialog = await screen.findByRole("dialog");
     await within(dialog).findByRole("heading", { name: "Agus Pratama" });
     expect(within(dialog).queryByRole("button", { name: "Tutup" })).not.toBeInTheDocument();
-    // Hanya satu tombol Kembali, sebaris di depan tab dalam bar sticky (tidak melayang menimpa isi).
+    // Hanya satu tombol Kembali, di kiri atas (posisi asli, berlabel) di dalam area gulir: ikut tergulir
+    // bersama banner sehingga tidak menimpa bar tab yang menempel (permintaan pemilik 2026-11-13).
     const back = within(dialog).getByRole("button", { name: "Kembali" });
-    const bar = back.parentElement as HTMLElement;
+    expect(back).toHaveTextContent("Kembali");
+    expect(back.className).toContain("absolute");
+    const scroller = back.parentElement as HTMLElement;
+    expect(scroller.className).toContain("overflow-y-auto");
+    expect(scroller.className).toContain("relative");
+    const bar = within(dialog).getByRole("tablist").parentElement as HTMLElement;
     expect(bar.className).toContain("sticky");
-    expect(bar).toContainElement(within(dialog).getByRole("tablist"));
-    expect(back.nextElementSibling).toBe(within(dialog).getByRole("tablist"));
-    expect(back.className).not.toContain("absolute");
+    expect(bar).not.toContainElement(back);
     // Teks & panah hitam tebal supaya mudah terlihat (bukan abu-abu).
     expect(back.className).toContain("text-foreground");
     expect(back.className).toContain("font-semibold");
