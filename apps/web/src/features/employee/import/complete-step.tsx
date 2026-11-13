@@ -158,7 +158,10 @@ export function CompleteStep({
 
   const { masterData } = preview;
   const optional =
-    masterData.positions.length + masterData.grades.length + masterData.workLocations.length;
+    masterData.positions.length +
+    masterData.grades.length +
+    masterData.workLocations.length +
+    masterData.homebases.length;
   const departmentsById = new Map((master?.departments ?? []).map((d) => [d.id, d.name]));
   const pick = (group: keyof MasterMap, key: string, label: string, options: SelectOption[]) => (
     <div
@@ -285,7 +288,7 @@ export function CompleteStep({
       {optional > 0 ? (
         <details className="bg-card group rounded-2xl border p-5">
           <summary className="cursor-pointer text-sm font-medium">
-            Opsional: {optional} jabatan, grade, atau lokasi baru akan dibuat.
+            Opsional: {optional} jabatan, grade, lokasi, atau homebase baru akan dibuat.
             <span className="text-muted-foreground font-normal">
               {" "}
               Buka bila ada yang sebenarnya sama dengan data yang sudah ada.
@@ -318,6 +321,14 @@ export function CompleteStep({
                 masterKey(name),
                 `Lokasi kerja: ${name}`,
                 (master?.workLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
+              ),
+            )}
+            {masterData.homebases.map((name) =>
+              pick(
+                "homebases",
+                masterKey(name),
+                `Homebase: ${name}`,
+                (master?.homebases ?? []).map((h) => ({ value: h.id, label: h.name })),
               ),
             )}
           </div>

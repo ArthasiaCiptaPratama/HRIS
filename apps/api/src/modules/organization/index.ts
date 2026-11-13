@@ -32,6 +32,7 @@ export type {
   DepartmentDto,
   EmploymentStatusDto,
   GradeDto,
+  HomebaseDto,
   PositionDto,
   WorkLocationDto,
 } from "./organization.schema.ts";

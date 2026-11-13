@@ -123,7 +123,7 @@ export async function createDocument(
   tx: EmployeeTx,
   data: Prisma.EmployeeDocumentUncheckedCreateInput,
 ) {
-  return tx.employeeDocument.create({ data, select: { id: true } });
+  return tx.employeeDocument.create({ data, select: { id: true, version: true } });
 }
 
 export async function updateDocument(

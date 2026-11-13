@@ -18,6 +18,8 @@ export const reportFilterSchema = z.object({
   /** Unit organisasi (D-050) — termasuk sub-unit di bawahnya. */
   unitId: optionalId,
   workLocationId: optionalId,
+  /** EMP-D6: homebase (Point of Hire) yang berlaku sekarang. */
+  homebaseId: optionalId,
 });
 export type ReportFilter = z.infer<typeof reportFilterSchema>;
 

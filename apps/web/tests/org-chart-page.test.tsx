@@ -42,7 +42,14 @@ function chart(overrides: Record<string, unknown> = {}) {
       { id: ID(2), code: "CD2", name: "PT Dua" },
     ],
     units: [
-      { id: ID(3), name: "Direksi", unitType: "DIRECTORATE", parentId: null, corporate: false },
+      {
+        id: ID(3),
+        name: "Direksi",
+        unitType: "DIRECTORATE",
+        parentId: null,
+        corporate: false,
+        zone: null,
+      },
     ],
     posts: [
       {

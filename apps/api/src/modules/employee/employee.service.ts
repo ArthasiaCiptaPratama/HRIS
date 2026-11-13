@@ -55,6 +55,7 @@ import type {
   EmployeeDetail,
   EmployeeListItem,
   EmployeeSummary,
+  FieldChangesQuery,
   ListEmployeesQuery,
   ManagerOption,
   OrgStructure,
@@ -67,6 +68,20 @@ import type {
   UpdateEmployeeInput,
 } from "./employee.schema.ts";
 import * as importRepo from "./employee-import.repository.ts";
+import {
+  diffScalars,
+  diffSnapshots,
+  diffWork,
+  fieldSnapshot,
+  recordFieldChanges,
+} from "./field-change.ts";
+import * as homebaseRepo from "./homebase.repository.ts";
+import {
+  homebaseChangeText,
+  initialEffectiveFrom,
+  toHomebaseEntry,
+  writeInitialHomebase,
+} from "./homebase-history.ts";
 import { markActivatedOnLogin } from "./onboarding.service.ts";
 import {
   assertPositionCompany,
@@ -114,7 +129,7 @@ const JAKARTA_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta"
 /** PROMPT §4: logika harian memakai zona Asia/Jakarta. */
 export const todayInJakarta = (now = new Date()) => JAKARTA_DATE.format(now);
 
-function auditBase(ctx: RequestContext) {
+export function auditBase(ctx: RequestContext) {
   return {
     actorAccountId: ctx.actor.accountId,
     requestId: ctx.requestId ?? null,
@@ -224,6 +239,7 @@ function toListItem(
     department: nameRef(lookup.departments, position?.departmentId ?? null),
     workLocation: nameRef(lookup.locations, row.workLocationId),
     grade: nameRef(lookup.grades, row.gradeId),
+    homebase: nameRef(lookup.homebases, row.homebaseId),
     manager: row.manager ? { id: row.manager.id, name: row.manager.fullName } : null,
     orgPostId: row.orgPostId,
     managerOverride: row.managerOverride,
@@ -248,7 +264,7 @@ function assertCanManage(actor: Actor) {
 }
 
 /** Karyawan yang boleh dilihat aktor; di luar cakupan (mis. PT lain, D-040) = 404 (PROMPT §5). */
-async function loadInScope(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
+export async function loadInScope(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
   const row = await loadEmployee(id, tx);
   // D-045: calon onboarding dikelola lewat menu Penerimaan, bukan endpoint karyawan biasa.
   if (row.onboardingStatus !== "APPROVED" || !policy.canViewEmployee(ctx.actor, targetOf(row))) {
@@ -329,6 +345,7 @@ function buildWhere(
   }
   if (query.positionId) and.push({ positionId: query.positionId });
   if (query.workLocationId) and.push({ workLocationId: query.workLocationId });
+  if (query.homebaseId) and.push({ homebaseId: query.homebaseId });
   if (query.missingNumber) and.push({ employeeNumber: null });
   if (query.q) {
     and.push({
@@ -565,10 +582,10 @@ export async function getDashboard(
 
 // ── Detail ──────────────────────────────────────────────────────────────────
 
-type Changer = NonNullable<EmployeeDetail["histories"][number]["changedBy"]>;
+export type Changer = NonNullable<EmployeeDetail["histories"][number]["changedBy"]>;
 
 /** Akun pengubah → nama pegawai (fallback email akun), role, dan lokasi kerja. */
-async function resolveChangers(
+export async function resolveChangers(
   accountIds: (string | null)[],
   lookup: MasterLookup,
 ): Promise<Map<string, Changer>> {
@@ -593,6 +610,65 @@ async function resolveChangers(
     });
   }
   return result;
+}
+
+export async function listFieldChanges(ctx: RequestContext, id: string, query: FieldChangesQuery) {
+  const row = await loadInScope(ctx, id);
+  if (!visibleToActor(ctx.actor, row)) throw new NotFoundError("Karyawan tidak ditemukan.");
+  const target = targetOf(row);
+  const personal = policy.canReadPersonal(ctx.actor, target);
+  const bank = policy.canReadBank(ctx.actor, target);
+  const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
+  const cost = policy.canSeeArchiveCost(ctx.actor, target);
+  const { rows, total } = await repository.listFieldChanges(id, query);
+  const changers = await resolveChangers(
+    rows.map((r) => r.changedBy),
+    await getMasterLookup(),
+  );
+  const data = rows.map((r) => {
+    const valueHidden =
+      ((r.section === "PERSONAL" || r.section === "FAMILY") && !personal) ||
+      (r.section === "BANK" && !bank) ||
+      (workOnly && ["EMERGENCY", "EDUCATION", "TRAINING", "WORK_EXPERIENCE"].includes(r.section)) ||
+      (r.section === "TRAINING" && r.field === "cost" && !cost);
+    return {
+      ...r,
+      occurredAt: r.occurredAt.toISOString(),
+      oldValue: valueHidden ? null : r.oldValue,
+      newValue: valueHidden ? null : r.newValue,
+      valueHidden,
+      changedBy: r.changedBy ? (changers.get(r.changedBy) ?? null) : null,
+    };
+  });
+  const sections = [
+    ...new Set(
+      data
+        .filter((r) => !r.valueHidden && (r.oldValue !== null || r.newValue !== null))
+        .flatMap((r) =>
+          r.section === "PERSONAL" || r.section === "FAMILY"
+            ? ["personal"]
+            : r.section === "BANK"
+              ? ["bank"]
+              : [],
+        ),
+    ),
+  ];
+  if (sections.length && ctx.actor.employeeId !== id)
+    await writeAudit({
+      ...auditBase(ctx),
+      action: "employee.sensitive.read",
+      entityId: id,
+      after: { sections },
+    });
+  return {
+    data,
+    meta: {
+      page: query.page,
+      pageSize: query.pageSize,
+      total,
+      totalPages: Math.ceil(total / query.pageSize),
+    },
+  };
 }
 
 export async function getEmployee(
@@ -637,7 +713,7 @@ export async function getEmployee(
     signPhotoUrls(ctx, [row.photoPath]),
   ]);
   const changers = await resolveChangers(
-    parts.histories.map((h) => h.changedBy),
+    [...parts.histories.map((h) => h.changedBy), ...parts.homebases.map((h) => h.changedBy)],
     lookup,
   );
 
@@ -704,6 +780,8 @@ export async function getEmployee(
       changedBy: h.changedBy ? (changers.get(h.changedBy) ?? null) : null,
       createdAt: h.createdAt.toISOString(),
     })),
+    // EMP-D6: data kerja (bukan sensitif) — terlihat oleh siapa saja yang boleh melihat detail ini.
+    homebases: parts.homebases.map((h) => toHomebaseEntry(h, lookup, changers)),
   };
   // Key sensitif hanya ada bila boleh (bukan null).
   if (include.personal) {
@@ -765,9 +843,10 @@ interface RefInput {
   positionId?: string | undefined;
   workLocationId?: string | null | undefined;
   gradeId?: string | null | undefined;
+  homebaseId?: string | null | undefined;
 }
 
-function assertRefs(lookup: MasterLookup, input: RefInput) {
+export function assertRefs(lookup: MasterLookup, input: RefInput) {
   const check = (
     map: Map<string, { deleted: boolean }>,
     id: string | null | undefined,
@@ -784,6 +863,7 @@ function assertRefs(lookup: MasterLookup, input: RefInput) {
   check(lookup.positions, input.positionId, "Jabatan");
   check(lookup.locations, input.workLocationId, "Lokasi kerja");
   check(lookup.grades, input.gradeId, "Grade");
+  check(lookup.homebases, input.homebaseId, "Homebase");
 }
 
 // PLAN §4.1: manager_id wajib menunjuk karyawan aktif ber-akun MANAGER/SUPER_ADMIN; tanpa siklus.
@@ -963,7 +1043,16 @@ export async function createEmployee(
         orgPostId: input.orgPostId ?? null,
         managerOverride,
       });
-      if (input.orgPostId) await syncPostManagers(tx);
+      if (input.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
+      // EMP-D6: homebase awal berlaku mulai tanggal masuk (masa depan → hari ini) + kolom turunan.
+      if (input.homebaseId) {
+        await writeInitialHomebase(tx, {
+          employeeId: created.id,
+          homebaseId: input.homebaseId,
+          effectiveFrom: initialEffectiveFrom(input.joinDate, todayInJakarta()),
+          changedBy: ctx.actor.accountId,
+        });
+      }
       await repository.createHistory(tx, {
         employeeId: created.id,
         changeType: "HIRED",
@@ -986,6 +1075,7 @@ export async function createEmployee(
             managerId: input.managerId ?? null,
             orgPostId: input.orgPostId ?? null,
             managerOverride,
+            ...(input.homebaseId ? { homebaseId: input.homebaseId } : {}),
             ...(sections ? { profile: sections } : {}),
           },
         },
@@ -1035,6 +1125,8 @@ export async function updateEmployeeProfile(ctx: RequestContext, id: string, raw
   }
   const bankChanged = await repository
     .withTransaction(async (tx) => {
+      const sections = ["PERSONAL", "FAMILY", "BANK"] as const;
+      const beforeProfile = await fieldSnapshot(tx, id, sections);
       if (input.personal) {
         await importRepo.upsertPersonal(tx, id, personalRow(input.personal, true));
         await repository.setPersonalEmail(tx, id, input.personal.personalEmail ?? null);
@@ -1049,6 +1141,17 @@ export async function updateEmployeeProfile(ctx: RequestContext, id: string, raw
           (before?.accountHolder ?? null) !== (input.bank.accountHolder ?? null);
         await importRepo.upsertBank(tx, id, input.bank, before !== null);
       }
+      await recordFieldChanges(tx, {
+        employeeId: id,
+        actorAccountId: ctx.actor.accountId,
+        source: "HR_PROFILE",
+        changes: await diffSnapshots(
+          tx,
+          beforeProfile,
+          await fieldSnapshot(tx, id, sections),
+          sections,
+        ),
+      });
       await writeAudit(
         {
           ...auditBase(ctx),
@@ -1172,7 +1275,22 @@ export async function updateEmployee(
         orgPostId,
         managerOverride,
       });
-      if (before.orgPostId || orgPostId) await syncPostManagers(tx);
+      const after = await repository.findEmployee(id, tx);
+      if (after)
+        await recordFieldChanges(tx, {
+          employeeId: id,
+          actorAccountId: ctx.actor.accountId,
+          source: "HR_FORM",
+          changes: [
+            ...(await diffWork(tx, before, after, lookup)),
+            ...diffScalars("EMERGENCY", before, after, [
+              "emergencyContactName",
+              "emergencyContactRelationship",
+              "emergencyPhone",
+            ]),
+          ],
+        });
+      if (before.orgPostId || orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
       // D-048: nomor induk berubah → alamat login NIK ikut (gagal di Supabase → seluruh perubahan batal).
       if (input.employeeNumber && input.employeeNumber !== before.employeeNumber && ctx.nikLogin) {
         await applyNikLogin(id, input.employeeNumber, ctx.nikLogin, tx, "refresh");
@@ -1279,7 +1397,7 @@ export async function deactivateEmployee(
       // D-051: slot pos dilepas (pos menjadi Kosong); bawahan dihitung ulang atasannya (D-053).
       orgPostId: null,
     });
-    if (before.orgPostId) await syncPostManagers(tx);
+    if (before.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
     await repository.createHistory(tx, {
       employeeId: id,
       changeType: "DEACTIVATED",
@@ -1483,7 +1601,17 @@ export async function confirmPhoto(
     return { photoUrl: urls.get(input.path) ?? null };
   }
 
-  await repository.setPhotoPath(id, input.path);
+  await repository.withTransaction(async (tx) => {
+    const before = await repository.findEmployee(id, tx);
+    await repository.setPhotoPath(id, input.path, tx);
+    if (before?.photoPath !== input.path)
+      await recordFieldChanges(tx, {
+        employeeId: id,
+        actorAccountId: ctx.actor.accountId,
+        source: "PHOTO",
+        changes: [{ section: "PHOTO", field: "photo", oldValue: null, newValue: "Foto baru" }],
+      });
+  });
   await writeAudit({
     ...auditBase(ctx),
     action: "employee.photo.update",
@@ -1500,7 +1628,17 @@ export async function confirmPhoto(
 export async function deletePhoto(ctx: RequestContext, id: string): Promise<PhotoResult> {
   const row = await loadPhotoTarget(ctx, id);
   if (!row.photoPath) return { photoUrl: null };
-  await repository.setPhotoPath(id, null);
+  await repository.withTransaction(async (tx) => {
+    const before = await repository.findEmployee(id, tx);
+    await repository.setPhotoPath(id, null, tx);
+    if (before?.photoPath)
+      await recordFieldChanges(tx, {
+        employeeId: id,
+        actorAccountId: ctx.actor.accountId,
+        source: "PHOTO",
+        changes: [{ section: "PHOTO", field: "photo", oldValue: "Foto lama", newValue: null }],
+      });
+  });
   await writeAudit({
     ...auditBase(ctx),
     action: "employee.photo.delete",
@@ -1532,5 +1670,90 @@ export const employeeMasterDataSupport = {
     kind: Exclude<repository.MasterRefKind, "company">,
     fromId: string,
     toId: string,
-  ) => repository.reassignMasterRef(tx, kind, fromId, toId),
+    actorAccountId?: string,
+  ) => reassignMasterRefWithChanges(tx, kind, fromId, toId, actorAccountId),
 };
+
+async function reassignMasterRefWithChanges(
+  tx: repository.EmployeeTx,
+  kind: Exclude<repository.MasterRefKind, "company">,
+  fromId: string,
+  toId: string,
+  actorAccountId?: string,
+) {
+  const impacted = await repository.findEmployeesByMasterRef(tx, kind, fromId);
+  const lookup = await getMasterLookup(tx);
+  if (kind === "homebase")
+    return reassignHomebaseWithChanges(tx, impacted, lookup, fromId, toId, actorAccountId);
+  const names =
+    kind === "position"
+      ? lookup.positions
+      : kind === "status"
+        ? lookup.statuses
+        : kind === "grade"
+          ? lookup.grades
+          : lookup.locations;
+  const field = kind === "location" ? "workLocation" : kind;
+  const groupId = crypto.randomUUID();
+  for (const employee of impacted)
+    await recordFieldChanges(tx, {
+      employeeId: employee.id,
+      actorAccountId: actorAccountId ?? null,
+      source: "MASTER_MERGE",
+      groupId,
+      changes: [
+        {
+          section: "WORK",
+          field,
+          oldValue: names.get(fromId)?.name ?? null,
+          newValue: names.get(toId)?.name ?? null,
+        },
+      ],
+    });
+  return repository.reassignMasterRef(tx, kind, fromId, toId);
+}
+
+/**
+ * EMP-D6: gabung master homebase — karyawan yang homebase sekarangnya sumber dicatat EMP-D5
+ * `MASTER_MERGE` (teks "<Nama> (berlaku YYYY-MM-DD)" baris terbaru), lalu kolom turunan dan semua baris
+ * riwayat dipindah ke tujuan.
+ */
+async function reassignHomebaseWithChanges(
+  tx: repository.EmployeeTx,
+  impacted: { id: string }[],
+  lookup: MasterLookup,
+  fromId: string,
+  toId: string,
+  actorAccountId?: string,
+) {
+  const latest = new Map<string, { homebaseId: string; effectiveFrom: Date }>();
+  for (const row of await homebaseRepo.listLatestEntriesFor(
+    tx,
+    impacted.map((e) => e.id),
+  )) {
+    if (!latest.has(row.employeeId)) latest.set(row.employeeId, row);
+  }
+  const groupId = crypto.randomUUID();
+  for (const employee of impacted) {
+    const entry = latest.get(employee.id);
+    await recordFieldChanges(tx, {
+      employeeId: employee.id,
+      actorAccountId: actorAccountId ?? null,
+      source: "MASTER_MERGE",
+      groupId,
+      changes: [
+        {
+          section: "WORK",
+          field: "homebase",
+          oldValue: entry
+            ? homebaseChangeText(lookup, entry)
+            : (lookup.homebases.get(fromId)?.name ?? null),
+          newValue: entry
+            ? homebaseChangeText(lookup, { ...entry, homebaseId: toId })
+            : (lookup.homebases.get(toId)?.name ?? null),
+        },
+      ],
+    });
+  }
+  return repository.reassignMasterRef(tx, "homebase", fromId, toId);
+}

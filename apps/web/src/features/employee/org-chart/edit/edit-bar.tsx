@@ -2,8 +2,8 @@ import { LogOut, PencilRuler, Redo2, Save, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { DraftState } from "./draft";
 
-// ORG-D2: bilah mode edit (desktop saja). Tombol "Mode edit" hanya untuk akun ber-izin
-// `org.structure.manage` (API tetap memeriksa ulang setiap simpan).
+// ORG-D2: bilah mode edit. Tombol "Mode edit" hanya untuk akun ber-izin `org.structure.manage` (API
+// tetap memeriksa ulang setiap simpan). ORG-D6: di layar sempit/sentuh bilah jadi ikon (di bawah kanvas).
 
 export function EditBar({
   editing,
@@ -13,7 +13,9 @@ export function EditBar({
   onRedo,
   onExit,
   onSave,
+  compact = false,
 }: {
+  compact?: boolean;
   editing: boolean;
   draft: DraftState;
   onStart: () => void;
@@ -24,12 +26,7 @@ export function EditBar({
 }) {
   if (!editing) {
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        className="bg-card hidden shadow-xs lg:inline-flex"
-        onClick={onStart}
-      >
+      <Button size="sm" variant="outline" className="bg-card shadow-xs" onClick={onStart}>
         <PencilRuler /> Mode edit
       </Button>
     );
@@ -43,9 +40,9 @@ export function EditBar({
       aria-label="Mode edit bagan"
       className="bg-card flex items-center gap-1 rounded-lg border p-1 shadow-sm"
     >
-      <span className="text-brand px-2 text-xs font-semibold">Mode edit</span>
+      {compact ? null : <span className="text-brand px-2 text-xs font-semibold">Mode edit</span>}
       <Button
-        size="icon-sm"
+        size={compact ? "icon" : "icon-sm"}
         variant="ghost"
         aria-label={lastUndo ? `Urungkan: ${lastUndo}` : "Urungkan"}
         title={lastUndo ? `Urungkan: ${lastUndo} (Ctrl+Z)` : "Urungkan (Ctrl+Z)"}
@@ -55,7 +52,7 @@ export function EditBar({
         <Undo2 />
       </Button>
       <Button
-        size="icon-sm"
+        size={compact ? "icon" : "icon-sm"}
         variant="ghost"
         aria-label={nextRedo ? `Ulangi: ${nextRedo}` : "Ulangi"}
         title={nextRedo ? `Ulangi: ${nextRedo} (Ctrl+Shift+Z)` : "Ulangi (Ctrl+Shift+Z)"}
@@ -65,14 +62,27 @@ export function EditBar({
         <Redo2 />
       </Button>
       <span className="text-muted-foreground px-1.5 text-xs tabular-nums" aria-live="polite">
-        {count === 0 ? "Belum ada perubahan" : `${count} perubahan`}
+        {count === 0 ? (compact ? "0 ubahan" : "Belum ada perubahan") : `${count} perubahan`}
       </span>
-      <Button size="sm" variant="ghost" onClick={onExit}>
-        <LogOut /> Keluar
-      </Button>
-      <Button size="sm" onClick={onSave} disabled={count === 0}>
-        <Save /> Simpan
-      </Button>
+      {compact ? (
+        <>
+          <Button size="icon" variant="ghost" aria-label="Keluar mode edit" onClick={onExit}>
+            <LogOut />
+          </Button>
+          <Button size="icon" aria-label="Simpan" onClick={onSave} disabled={count === 0}>
+            <Save />
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button size="sm" variant="ghost" onClick={onExit}>
+            <LogOut /> Keluar
+          </Button>
+          <Button size="sm" onClick={onSave} disabled={count === 0}>
+            <Save /> Simpan
+          </Button>
+        </>
+      )}
     </div>
   );
 }

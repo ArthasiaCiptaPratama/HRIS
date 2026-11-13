@@ -31,8 +31,22 @@ const chart: OrgChart = {
   company: { id: "c1", code: "ACP", name: "PT Uji" },
   companies: [{ id: "c1", code: "ACP", name: "PT Uji" }],
   units: [
-    { id: "u1", name: "Direksi", unitType: "DIRECTORATE", parentId: null, corporate: false },
-    { id: "u2", name: "Corporate", unitType: "DIRECTORATE", parentId: null, corporate: true },
+    {
+      id: "u1",
+      name: "Direksi",
+      unitType: "DIRECTORATE",
+      parentId: null,
+      corporate: false,
+      zone: null,
+    },
+    {
+      id: "u2",
+      name: "Corporate",
+      unitType: "DIRECTORATE",
+      parentId: null,
+      corporate: true,
+      zone: null,
+    },
   ],
   posts: [
     post("dir", { holders: [{ id: "p1", fullName: "Budi Contoh", photoUrl: null }] }),

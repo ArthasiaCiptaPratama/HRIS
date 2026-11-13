@@ -352,6 +352,79 @@ describe("deteksi struktur file kantor", () => {
   });
 });
 
+// EMP-D6: Homebase (Point of Hire). "PENEMPATAN LOKASI KERJA" belum dipetakan ke homebase (EMP-OD3).
+describe("homebase (POH)", () => {
+  const mapOf = (headers: string[]) => {
+    const row = headers.map((_, i) => `isi ${i}`);
+    const sheet = detectSheet([
+      ["NAMA", "NIK", ...headers],
+      ["A", "1.A.1", ...row],
+      ["B", "1.A.2", ...row],
+    ]);
+    return Object.fromEntries(
+      suggestMapping(sheet as NonNullable<typeof sheet>).map((m) => [m.header, m.field]),
+    );
+  };
+
+  test.each([
+    ["HOMEBASE", "homebaseName"],
+    ["Home Base", "homebaseName"],
+    ["POH", "homebaseName"],
+    ["Point of Hire", "homebaseName"],
+    ["HOMEBASE BERLAKU MULAI", "homebaseEffectiveFrom"],
+    ["TMT Homebase", "homebaseEffectiveFrom"],
+    ["Berlaku Homebase", "homebaseEffectiveFrom"],
+  ] as const)("header %p → %s", (header, field) => {
+    expect(mapOf([header])[header]).toBe(field);
+  });
+
+  test("HOMEBASE + BERLAKU MULAI berdampingan → dua field berbeda", () => {
+    expect(mapOf(["HOMEBASE", "HOMEBASE BERLAKU MULAI"])).toMatchObject({
+      HOMEBASE: "homebaseName",
+      "HOMEBASE BERLAKU MULAI": "homebaseEffectiveFrom",
+    });
+  });
+
+  test("PENEMPATAN / PENEMPATAN LOKASI KERJA tidak pernah terpetakan ke homebase", () => {
+    for (const header of ["PENEMPATAN", "PENEMPATAN LOKASI KERJA"]) {
+      const field = mapOf([header])[header];
+      expect(field).not.toBe("homebaseName");
+      expect(field).not.toBe("homebaseEffectiveFrom");
+    }
+    const both = mapOf(["KOTA PENEMPATAN", "PENEMPATAN LOKASI KERJA"]);
+    expect(both["PENEMPATAN LOKASI KERJA"]).toBeNull();
+  });
+
+  test("normalisasi: nama + tanggal; tanggal tanpa nama → peringatan diabaikan", () => {
+    const full = normalizeImportRow({
+      employeeNumber: "1.A.1",
+      homebaseName: " Palangka Raya ",
+      homebaseEffectiveFrom: "01/02/2024",
+    });
+    expect(full.issues).toEqual([]);
+    expect(full.row).toMatchObject({
+      homebaseName: "Palangka Raya",
+      homebaseEffectiveFrom: "2024-02-01",
+    });
+    const dateOnly = normalizeImportRow({
+      employeeNumber: "1.A.1",
+      homebaseEffectiveFrom: "2024-02-01",
+    });
+    expect(dateOnly.row.homebaseEffectiveFrom).toBeUndefined();
+    expect(dateOnly.issues).toEqual([
+      { field: "homebaseEffectiveFrom", code: "HOMEBASE_DATE_IGNORED", severity: "WARNING" },
+    ]);
+    const bad = normalizeImportRow({
+      employeeNumber: "1.A.1",
+      homebaseName: "Sampit",
+      homebaseEffectiveFrom: "bukan tanggal",
+    });
+    expect(bad.issues).toEqual([
+      { field: "homebaseEffectiveFrom", code: "INVALID_DATE", severity: "ERROR" },
+    ]);
+  });
+});
+
 describe("deteksi file berantakan", () => {
   // Header bahasa Inggris, urutan acak, header di baris 1, NIK KTP berlabel "NIK".
   const MESSY: Grid = [

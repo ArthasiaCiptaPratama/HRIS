@@ -47,6 +47,8 @@ model Department {
   // unik di seluruh grup (pencocokan nama import D-042).
   companyId String?      @map("company_id") @db.Uuid
   company   Company?     @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  // ORG-D5: zona Head Office/Site; kosong = ikut induk (akar kosong = Head Office).
+  zone      OrgZone?
   positions Position[]
   createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -127,6 +129,14 @@ model OrgChartState {
 // Harian; Magang; grup Eksternal: Outsourcing, Vendor).
 // Nama status tetap diatur SUPER_ADMIN; kategori menjadi penanda stabil yang tidak bergantung pada nama.
 // D-050: jenis unit organisasi. Departemen boleh langsung di bawah Direktorat (tanpa Divisi).
+// ORG-D5: zona unit organisasi (chip & filter bagan HO/Site).
+enum OrgZone {
+  HEAD_OFFICE
+  SITE
+
+  @@schema("organization")
+}
+
 enum OrgUnitType {
   DIRECTORATE
   DIVISION
@@ -215,5 +225,24 @@ model WorkLocation {
 
   @@unique([name])
   @@map("work_locations")
+  @@schema("organization")
+}
+
+// EMP-D6: Homebase / Point of Hire (POH) — kota/daerah asal rekrut karyawan; master lintas PT (D-039),
+// dikelola SUPER_ADMIN (D-049). Berbeda dari lokasi kerja (tempat kerja + geofence).
+model Homebase {
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String             @db.VarChar(100)
+  city              String?            @db.VarChar(100)
+  province          String?            @db.VarChar(100)
+  note              String?            @db.VarChar(500)
+  employees         Employee[]
+  employeeHomebases EmployeeHomebase[]
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([name])
+  @@map("homebases")
   @@schema("organization")
 }

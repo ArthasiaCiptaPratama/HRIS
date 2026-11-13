@@ -290,6 +290,7 @@ function mockFetch(
             employmentStatuses: [],
             grades: [],
             workLocations: [],
+            homebases: [{ id: "hb-1", name: "Palangka Raya", city: null, province: null }],
           },
         });
       if (path === "/reports/headcount") return json(200, { data: headcount });
@@ -338,6 +339,35 @@ describe.skipIf(!FEATURES.reports)("Personal Management › Laporan (ARS-D16/D17
     expect(screen.getByRole("img", { name: /Grafik masuk dan keluar 2026/ })).toBeInTheDocument();
     expect(
       calls.some((c) => c.path === "/reports/headcount" && c.search.includes("year=2026")),
+    ).toBe(true);
+  });
+
+  it("EMP-D6: filter Homebase terkirim ke laporan & ekspor; tidak tampil di laporan aset", async () => {
+    const calls = mockFetch(me("HR_ADMIN"));
+    renderAt("/personal/laporan");
+    await screen.findByText("Turnover 2026", undefined, { timeout: 5000 });
+    await userEvent.click(screen.getByRole("combobox", { name: "Homebase" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Palangka Raya" }));
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.path === "/reports/headcount" && c.search.includes("homebaseId=hb-1")),
+      ).toBe(true),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Ekspor Excel/ }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.path === "/reports/headcount/export" && c.search.includes("homebaseId=hb-1"),
+        ),
+      ).toBe(true),
+    );
+    await userEvent.click(screen.getByRole("tab", { name: /Aset/ }));
+    await screen.findByRole("table", { name: "Aset belum kembali" }, { timeout: 5000 });
+    expect(screen.queryByRole("combobox", { name: "Homebase" })).not.toBeInTheDocument();
+    expect(
+      calls
+        .filter((c) => c.path === "/reports/assets")
+        .every((c) => !c.search.includes("homebaseId")),
     ).toBe(true);
   });
 

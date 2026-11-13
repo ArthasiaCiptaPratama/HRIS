@@ -1,4 +1,9 @@
-import { employmentCategorySchema, orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
+import {
+  employmentCategorySchema,
+  orgUnitTypeSchema,
+  orgUnitZoneSchema,
+  positionLevelSchema,
+} from "@hris/shared";
 import { z } from "zod";
 
 // D-049: bentuk respons daftar admin master data (sama dengan organization-admin.schema.ts API).
@@ -24,6 +29,9 @@ export const departmentAdminSchema = z.object({
   // D-052: PT pemilik; null = fungsi korporat / lintas grup.
   companyId: z.string().nullable().optional(),
   companyCode: z.string().nullable().optional(),
+  // ORG-D5: zona tersimpan (null = ikut induk) + boleh diubah aktor ini.
+  zone: orgUnitZoneSchema.nullable().optional(),
+  canEditZone: z.boolean().optional(),
   positionCount: z.number(),
 });
 export const positionAdminSchema = z.object({
@@ -46,12 +54,21 @@ export const workLocationAdminSchema = z.object({
   radiusM: z.number().nullable(),
 });
 
+// EMP-D6: Homebase / Point of Hire; employeeCount = karyawan aktif yang homebase-nya sekarang item ini.
+export const homebaseAdminSchema = z.object({
+  ...base,
+  city: z.string().nullable(),
+  province: z.string().nullable(),
+  note: z.string().nullable(),
+});
+
 export type CompanyAdmin = z.infer<typeof companyAdminSchema>;
 export type DepartmentAdmin = z.infer<typeof departmentAdminSchema>;
 export type PositionAdmin = z.infer<typeof positionAdminSchema>;
 export type EmploymentStatusAdmin = z.infer<typeof employmentStatusAdminSchema>;
 export type GradeAdmin = z.infer<typeof gradeAdminSchema>;
 export type WorkLocationAdmin = z.infer<typeof workLocationAdminSchema>;
+export type HomebaseAdmin = z.infer<typeof homebaseAdminSchema>;
 
 /** Gabungan longgar semua jenis: kolom khusus dibaca dengan pemeriksaan jenis di halaman. */
 export const masterDataItemSchema = z.object({
@@ -65,6 +82,8 @@ export const masterDataItemSchema = z.object({
   companyCode: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
   parentName: z.string().nullable().optional(),
+  zone: orgUnitZoneSchema.nullable().optional(),
+  canEditZone: z.boolean().optional(),
   positionCount: z.number().optional(),
   departmentId: z.string().optional(),
   departmentName: z.string().optional(),
@@ -74,6 +93,9 @@ export const masterDataItemSchema = z.object({
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional(),
   radiusM: z.number().nullable().optional(),
+  // EMP-D6: homebase.
+  province: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
 });
 export type MasterDataItem = z.infer<typeof masterDataItemSchema>;
 

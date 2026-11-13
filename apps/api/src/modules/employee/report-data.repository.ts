@@ -9,6 +9,8 @@ export interface ReportEmployeeFilter {
   /** null = semua jabatan (filter unit diterjemahkan pemanggil menjadi jabatan). */
   positionIds: string[] | null;
   workLocationId: string | null;
+  /** EMP-D6: homebase yang berlaku sekarang (kolom turunan `employees.homebase_id`). */
+  homebaseId?: string | null;
 }
 
 export const findReportEmployees = (f: ReportEmployeeFilter) =>
@@ -18,6 +20,7 @@ export const findReportEmployees = (f: ReportEmployeeFilter) =>
       ...(f.companyIds ? { companyId: { in: f.companyIds } } : {}),
       ...(f.positionIds ? { positionId: { in: f.positionIds } } : {}),
       ...(f.workLocationId ? { workLocationId: f.workLocationId } : {}),
+      ...(f.homebaseId ? { homebaseId: f.homebaseId } : {}),
     },
     select: {
       id: true,
@@ -26,6 +29,7 @@ export const findReportEmployees = (f: ReportEmployeeFilter) =>
       companyId: true,
       positionId: true,
       workLocationId: true,
+      homebaseId: true,
       employmentStatusId: true,
       joinDate: true,
       endDate: true,

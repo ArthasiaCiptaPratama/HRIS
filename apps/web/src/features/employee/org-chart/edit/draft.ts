@@ -75,8 +75,10 @@ export interface DraftLookup {
   /** Unit → PT (null = fungsi korporat grup). */
   unitCompany: ReadonlyMap<string, string | null>;
   unitName: ReadonlyMap<string, string>;
-  /** Induk unit (ORG-D4: zona HO/Site pos baru diturunkan dari leluhur unitnya). */
+  /** Induk unit (ORG-D5: zona HO/Site pos baru diwarisi dari leluhur unitnya). */
   unitParent?: ReadonlyMap<string, string | null>;
+  /** ORG-D5: zona tersimpan unit (null = ikut induk). */
+  unitZone?: ReadonlyMap<string, "HEAD_OFFICE" | "SITE" | null>;
 }
 
 export class DraftError extends Error {}
@@ -278,6 +280,7 @@ function ensureUnit(work: Working, lookup: DraftLookup, unitId: string, corporat
         unitType: "DEPARTMENT",
         parentId,
         corporate,
+        zone: lookup.unitZone?.get(id) ?? null,
       },
     ];
     cursor = parentId;

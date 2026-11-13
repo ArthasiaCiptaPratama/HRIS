@@ -1,5 +1,10 @@
 import { z } from "@hono/zod-openapi";
-import { employmentCategorySchema, orgUnitTypeSchema, positionLevelSchema } from "@hris/shared";
+import {
+  employmentCategorySchema,
+  orgUnitTypeSchema,
+  orgUnitZoneSchema,
+  positionLevelSchema,
+} from "@hris/shared";
 
 export const departmentSchema = z
   .object({
@@ -10,6 +15,8 @@ export const departmentSchema = z
     unitType: orgUnitTypeSchema,
     // D-052: PT pemilik; null = fungsi korporat / unit lintas grup.
     companyId: z.uuid().nullable(),
+    // ORG-D5: zona tersimpan (null = ikut induk; akar null = Head Office).
+    zone: orgUnitZoneSchema.nullable(),
   })
   .openapi("Department");
 
@@ -32,6 +39,16 @@ export const workLocationSchema = z
   .object({ id: z.uuid(), name: z.string(), city: z.string().nullable() })
   .openapi("WorkLocation");
 
+// EMP-D6: Homebase / Point of Hire (POH).
+export const homebaseSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    city: z.string().nullable(),
+    province: z.string().nullable(),
+  })
+  .openapi("Homebase");
+
 // D-039: perusahaan dalam grup (ringkas: untuk pilihan, filter, dan label).
 export const companySchema = z
   .object({ id: z.uuid(), code: z.string(), name: z.string() })
@@ -43,3 +60,4 @@ export type PositionDto = z.infer<typeof positionSchema>;
 export type EmploymentStatusDto = z.infer<typeof employmentStatusSchema>;
 export type GradeDto = z.infer<typeof gradeSchema>;
 export type WorkLocationDto = z.infer<typeof workLocationSchema>;
+export type HomebaseDto = z.infer<typeof homebaseSchema>;

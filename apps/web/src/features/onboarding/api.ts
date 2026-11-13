@@ -82,6 +82,7 @@ function useInvalidate() {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({ queryKey: onboardingKeys.all });
+    void queryClient.invalidateQueries({ queryKey: ["employees"] });
   };
 }
 
@@ -200,6 +201,7 @@ function useRefreshMine() {
     if (data) queryClient.setQueryData(myOnboardingKey, data);
     else void queryClient.invalidateQueries({ queryKey: myOnboardingKey });
     void queryClient.invalidateQueries({ queryKey: authKeys.me });
+    void queryClient.invalidateQueries({ queryKey: ["employees"] });
   };
 }
 

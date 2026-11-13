@@ -613,6 +613,8 @@ function DecisionDialog({
   const [positionId, setPositionId] = useState(data.work.positionId);
   const [statusId, setStatusId] = useState(data.work.employmentStatusId);
   const [joinDate, setJoinDate] = useState(data.work.joinDate);
+  // EMP-D6: homebase (POH) awal, opsional; berlaku mulai tanggal masuk.
+  const [homebaseId, setHomebaseId] = useState("");
   const [notes, setNotes] = useState<Partial<Record<ReviewSection, string>>>({});
   const [reason, setReason] = useState("");
 
@@ -633,6 +635,7 @@ function DecisionDialog({
       ...(positionId !== data.work.positionId ? { positionId } : {}),
       ...(statusId !== data.work.employmentStatusId ? { employmentStatusId: statusId } : {}),
       ...(joinDate !== data.work.joinDate ? { joinDate } : {}),
+      ...(homebaseId ? { homebaseId } : {}),
     };
     void submit(
       {
@@ -708,6 +711,25 @@ function DecisionDialog({
                       value={joinDate}
                       onChange={(e) => setJoinDate(e.target.value)}
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="homebase">
+                      Homebase (POH){" "}
+                      <span className="text-muted-foreground font-normal">(opsional)</span>
+                    </Label>
+                    <FormSelect
+                      id="homebase"
+                      value={homebaseId}
+                      onChange={setHomebaseId}
+                      options={(master?.homebases ?? []).map((h) => ({
+                        value: h.id,
+                        label: h.name,
+                        ...(h.city ? { hint: h.city } : {}),
+                      }))}
+                      placeholder="Pilih homebase"
+                      noneLabel="Belum ditentukan"
+                    />
+                    <p className="text-muted-foreground text-xs">Berlaku mulai tanggal masuk.</p>
                   </div>
                 </>
               ) : null}

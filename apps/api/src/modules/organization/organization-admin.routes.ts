@@ -4,12 +4,15 @@ import {
   departmentInputSchema,
   employmentStatusInputSchema,
   gradeInputSchema,
+  homebaseBaseSchema,
+  homebaseInputSchema,
   MASTER_DATA_KINDS,
   MASTER_DATA_LABELS,
   type MasterDataKind,
   MERGEABLE_MASTER_DATA,
   mergeMasterDataInputSchema,
   positionInputSchema,
+  unitZoneInputSchema,
   workLocationBaseSchema,
   workLocationInputSchema,
 } from "@hris/shared";
@@ -22,6 +25,7 @@ import {
   departmentAdminSchema,
   employmentStatusAdminSchema,
   gradeAdminSchema,
+  homebaseAdminSchema,
   idParamSchema,
   mergeResultSchema,
   mutationResultSchema,
@@ -30,7 +34,7 @@ import {
 } from "./organization-admin.schema.ts";
 import * as service from "./organization-admin.service.ts";
 
-// D-049: /api/v1/<jenis> untuk 6 master data. Baca daftar admin: SA & HR; tulis: SA (policy di service).
+// D-049: /api/v1/<jenis> untuk 7 master data (EMP-D6: + homebases). Baca daftar admin: SA & HR; tulis: SA (policy di service).
 
 const ITEM_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   companies: companyAdminSchema,
@@ -39,6 +43,7 @@ const ITEM_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusAdminSchema,
   grades: gradeAdminSchema,
   "work-locations": workLocationAdminSchema,
+  homebases: homebaseAdminSchema,
 };
 const CREATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   companies: companyInputSchema,
@@ -47,6 +52,7 @@ const CREATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusInputSchema,
   grades: gradeInputSchema,
   "work-locations": workLocationInputSchema,
+  homebases: homebaseInputSchema,
 };
 const UPDATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   companies: companyInputSchema.partial(),
@@ -55,6 +61,7 @@ const UPDATE_SCHEMA: Record<MasterDataKind, z.ZodType> = {
   "employment-statuses": employmentStatusInputSchema.partial(),
   grades: gradeInputSchema.partial(),
   "work-locations": workLocationBaseSchema.partial(),
+  homebases: homebaseBaseSchema.partial(),
 };
 
 const security = [{ [BEARER_SCHEME]: [] }];
@@ -195,4 +202,31 @@ export function registerOrganizationAdminRoutes(
       );
     }
   }
+  // ORG-D5: zona HO/Site unit — SA, atau HR ber-izin org.structure.manage untuk unit PT cakupannya.
+  app.openapi(guard(unitZoneRoute), async (c) =>
+    c.json(
+      ok(await service.updateUnitZone(ctxOf(c), c.req.valid("param").id, c.req.valid("json"))),
+      200,
+    ),
+  );
 }
+
+const unitZoneRoute = createRoute({
+  method: "put",
+  path: `${API_BASE_PATH}/departments/{id}/zone`,
+  tags: TAGS,
+  summary:
+    "Unit organisasi: ubah zona Head Office/Site (null = ikut induk) — SA, HR ber-izin org.structure.manage untuk PT cakupannya",
+  security,
+  request: {
+    params: idParamSchema,
+    body: {
+      content: { "application/json": { schema: unitZoneInputSchema } },
+      required: true,
+    },
+  },
+  responses: {
+    200: json("Zona diubah", dataEnvelope(mutationResultSchema)),
+    ...errors(400, 401, 403, 404, 422, 500),
+  },
+});

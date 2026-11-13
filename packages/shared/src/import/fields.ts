@@ -111,6 +111,18 @@ const BASE_IMPORT_FIELDS = {
       "location",
     ],
   },
+  // EMP-D6: Homebase = Point of Hire (POH), dicocokkan ke master seperti lokasi kerja. Kolom kantor
+  // "PENEMPATAN LOKASI KERJA" sengaja TIDAK disinonimkan ke sini (EMP-OD3 masih terbuka).
+  homebaseName: {
+    label: "Homebase (POH)",
+    section: "work",
+    synonyms: ["homebase", "home base", "poh", "point of hire"],
+  },
+  homebaseEffectiveFrom: {
+    label: "Homebase berlaku mulai",
+    section: "work",
+    synonyms: ["homebase berlaku mulai", "tmt homebase", "berlaku homebase"],
+  },
   gradeName: {
     label: "Grade",
     section: "work",

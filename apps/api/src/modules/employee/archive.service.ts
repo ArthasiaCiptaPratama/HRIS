@@ -28,6 +28,13 @@ import {
   signPhotoUrls,
   todayInJakarta,
 } from "./employee.service.ts";
+import {
+  diffScalars,
+  type FieldChange,
+  formatFieldValue,
+  recordFieldChanges,
+  summarizeRow,
+} from "./field-change.ts";
 
 // D-054 (Arsip gelombang 1a, docs/features/arsip/design.md): tabel lintas karyawan per kategori + kelola
 // item per karyawan. Cakupan = cakupan daftar karyawan; tulis = SA/HR atas karyawan yang boleh dilihat.
@@ -449,6 +456,32 @@ export async function createItem(
         break;
       }
     }
+    if (category !== "position-histories") {
+      const section =
+        category === "educations"
+          ? "EDUCATION"
+          : category === "trainings"
+            ? "TRAINING"
+            : "WORK_EXPERIENCE";
+      const item = await findOwnedItem(tx, category, employeeId, created.id);
+      const changes: FieldChange[] = [
+        { section, field: "item", oldValue: null, newValue: summarizeRow(section, item) },
+      ];
+      if (category === "trainings" && "cost" in item && item.cost !== null)
+        changes.push({
+          section,
+          field: "cost",
+          oldValue: null,
+          newValue: formatFieldValue("cost", item.cost),
+        });
+      await recordFieldChanges(tx, {
+        employeeId,
+        actorAccountId: ctx.actor.accountId,
+        source: "ARCHIVE",
+        refId: created.id,
+        changes,
+      });
+    }
     await audit(ctx, tx, AUDIT_ENTITY[category], "create", created.id, {
       after: { employeeId, fields },
     });
@@ -526,6 +559,22 @@ export async function updateItem(
         break;
       }
     }
+    if (category !== "position-histories") {
+      const section =
+        category === "educations"
+          ? "EDUCATION"
+          : category === "trainings"
+            ? "TRAINING"
+            : "WORK_EXPERIENCE";
+      const after = await findOwnedItem(tx, category, employeeId, itemId);
+      await recordFieldChanges(tx, {
+        employeeId,
+        actorAccountId: ctx.actor.accountId,
+        source: "ARCHIVE",
+        refId: itemId,
+        changes: diffScalars(section, item, after, fields),
+      });
+    }
     await audit(ctx, tx, AUDIT_ENTITY[category], "update", itemId, {
       after: { employeeId, fields },
     });
@@ -549,6 +598,23 @@ export async function deleteItem(
     else if (category === "trainings") await archive.trainingRepo.delete(tx, itemId);
     else if (category === "work-experiences") await archive.workExperienceRepo.delete(tx, itemId);
     else await archive.historyRepo.delete(tx, itemId);
+    if (category !== "position-histories") {
+      const section =
+        category === "educations"
+          ? "EDUCATION"
+          : category === "trainings"
+            ? "TRAINING"
+            : "WORK_EXPERIENCE";
+      await recordFieldChanges(tx, {
+        employeeId,
+        actorAccountId: ctx.actor.accountId,
+        source: "ARCHIVE",
+        refId: itemId,
+        changes: [
+          { section, field: "item", oldValue: summarizeRow(section, item), newValue: null },
+        ],
+      });
+    }
     await audit(ctx, tx, AUDIT_ENTITY[category], "delete", itemId, { before: { employeeId } });
     return { id: itemId };
   });

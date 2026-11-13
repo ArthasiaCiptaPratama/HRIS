@@ -8,6 +8,7 @@ import {
   departmentSchema,
   employmentStatusSchema,
   gradeSchema,
+  homebaseSchema,
   positionSchema,
   workLocationSchema,
 } from "./organization.schema.ts";
@@ -26,6 +27,8 @@ const masterDataSchema = z
     employmentStatuses: z.array(employmentStatusSchema),
     grades: z.array(gradeSchema),
     workLocations: z.array(workLocationSchema),
+    // EMP-D6: Homebase / Point of Hire.
+    homebases: z.array(homebaseSchema),
   })
   .openapi("MasterData");
 
@@ -35,7 +38,7 @@ const masterDataRoute = createRoute({
   path: `${API_BASE_PATH}/master-data`,
   tags: ["Organization"],
   summary:
-    "Master data organisasi yang aktif: perusahaan (sesuai cakupan PT), departemen, jabatan, status, grade, lokasi (semua role)",
+    "Master data organisasi yang aktif: perusahaan (sesuai cakupan PT), departemen, jabatan, status, grade, lokasi, homebase (semua role)",
   security: [{ [BEARER_SCHEME]: [] }],
   responses: {
     200: {

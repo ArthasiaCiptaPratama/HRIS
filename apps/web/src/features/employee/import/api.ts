@@ -110,6 +110,8 @@ export const previewSchema = z.object({
     positions: z.array(z.object({ department: z.string(), name: z.string() })),
     grades: z.array(z.string()),
     workLocations: z.array(z.string()),
+    // EMP-D6: homebase baru (server lama tanpa field ini → kosong).
+    homebases: z.array(z.string()).default([]),
   }),
   skippedFields: z.array(fieldKey),
   previewHash: z.string(),
@@ -144,6 +146,7 @@ export interface ImportRequest {
     positions?: Record<string, string>;
     grades?: Record<string, string>;
     workLocations?: Record<string, string>;
+    homebases?: Record<string, string>;
   };
 }
 

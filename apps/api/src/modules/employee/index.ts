@@ -21,6 +21,8 @@ export {
   employeeScopeForIam,
   withEmployeeCompanyScope,
 } from "./employee.service.ts";
+// EMP-D6: homebase per tanggal untuk payroll (tanpa FK lintas modul).
+export { getHomebasesOn, type HomebaseOnDate } from "./homebase.service.ts";
 export { processInvitations as processOnboardingInvitations } from "./onboarding.service.ts";
 export {
   purgeCancelledCandidates,

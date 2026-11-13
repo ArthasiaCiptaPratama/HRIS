@@ -81,6 +81,8 @@ export const importBodySchema = z
         positions: nameMap.optional(),
         grades: nameMap.optional(),
         workLocations: nameMap.optional(),
+        /** EMP-D6: nama homebase di file → id homebase yang sudah ada. */
+        homebases: nameMap.optional(),
       })
       .optional(),
   })
@@ -105,6 +107,8 @@ const importMasterDataSchema = z
     positions: z.array(z.object({ department: z.string(), name: z.string() })),
     grades: z.array(z.string()),
     workLocations: z.array(z.string()),
+    /** EMP-D6: homebase baru (dibuat saat simpan). */
+    homebases: z.array(z.string()),
   })
   .openapi("EmployeeImportMasterData");
 

@@ -71,6 +71,7 @@ export async function scopedEmployees(ctx: RequestContext, raw: unknown) {
     companyIds,
     positionIds,
     workLocationId: filter.workLocationId,
+    homebaseId: filter.homebaseId,
   });
   return { employees, lookup, filter };
 }

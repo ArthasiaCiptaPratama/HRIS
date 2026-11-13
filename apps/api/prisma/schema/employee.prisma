@@ -157,6 +157,9 @@ model Employee {
   positionId                   String                 @map("position_id") @db.Uuid
   workLocationId               String?                @map("work_location_id") @db.Uuid
   gradeId                      String?                @map("grade_id") @db.Uuid
+  // EMP-D6: homebase (Point of Hire) yang berlaku sekarang — kolom turunan, selalu sama dengan
+  // homebase_id baris employee_homebases dengan effective_from terbaru (diperbarui di transaksi yang sama).
+  homebaseId                   String?                @map("homebase_id") @db.Uuid
   // Tidak di ERD; PLAN §4.1 & D-009: tim MANAGER = bawahan langsung.
   managerId                    String?                @map("manager_id") @db.Uuid
   // D-051/D-053: pos jabatan di bagan; atasan langsung dihitung dari pos kecuali diatur manual.
@@ -191,6 +194,7 @@ model Employee {
   position          Position              @relation(fields: [positionId], references: [id], onDelete: Restrict)
   workLocation      WorkLocation?         @relation(fields: [workLocationId], references: [id], onDelete: Restrict)
   grade             Grade?                @relation(fields: [gradeId], references: [id], onDelete: Restrict)
+  homebase          Homebase?             @relation(fields: [homebaseId], references: [id], onDelete: Restrict)
   manager           Employee?             @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: Restrict)
   orgPost           OrgPost?              @relation(fields: [orgPostId], references: [id], onDelete: Restrict)
   subordinates      Employee[]            @relation("EmployeeManager")
@@ -200,6 +204,8 @@ model Employee {
   educations        Education[]
   trainings         Training[]
   histories         EmploymentHistory[]
+  homebases         EmployeeHomebase[]
+  fieldChanges      EmployeeFieldChange[]
   importAttachments ImportJobAttachment[]
   // Sisi balik relasi iam.accounts.employee_id (wajib Prisma); jangan di-include dari modul employee.
   account           Account?
@@ -222,6 +228,7 @@ model Employee {
   @@index([employmentStatusId, isActive])
   @@index([workLocationId])
   @@index([gradeId])
+  @@index([homebaseId])
   @@index([managerId])
   @@index([orgPostId])
   // Urutan default daftar pegawai aktif/nonaktif berdasarkan nama.
@@ -273,6 +280,81 @@ model EmploymentHistory {
   @@index([fromCompanyId])
   @@index([toCompanyId])
   @@map("employment_histories")
+  @@schema("employee")
+}
+
+// EMP-D6: riwayat homebase (Point of Hire) berlaku per tanggal. Nilai pada tanggal X = baris dengan
+// effective_from terakhir <= X. changed_by = iam.accounts.id tanpa FK (iam bukan modul inti).
+model EmployeeHomebase {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @map("employee_id") @db.Uuid
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  homebaseId    String   @map("homebase_id") @db.Uuid
+  homebase      Homebase @relation(fields: [homebaseId], references: [id], onDelete: Restrict)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  decreeNumber  String?  @map("decree_number") @db.VarChar(60)
+  note          String?  @db.VarChar(500)
+  changedBy     String?  @map("changed_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([employeeId, effectiveFrom])
+  @@index([employeeId, effectiveFrom(sort: Desc)])
+  @@index([homebaseId])
+  @@map("employee_homebases")
+  @@schema("employee")
+}
+
+// EMP-D5: SENSITIF — nilai data pribadi/rekening disimpan penuh. Jangan pernah kirim ke log/email.
+model EmployeeFieldChange {
+  id         String             @id @default(uuid()) @db.Uuid
+  employeeId String             @map("employee_id") @db.Uuid
+  employee   Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  groupId    String             @map("group_id") @db.Uuid
+  occurredAt DateTime           @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  // iam.accounts.id tanpa FK; null = sistem.
+  changedBy  String?            @map("changed_by") @db.Uuid
+  source     FieldChangeSource
+  section    FieldChangeSection
+  field      String             @db.VarChar(60)
+  oldValue   String?            @map("old_value")
+  newValue   String?            @map("new_value")
+  refId      String?            @map("ref_id") @db.Uuid
+
+  @@index([employeeId, occurredAt(sort: Desc)])
+  @@map("employee_field_changes")
+  @@schema("employee")
+}
+
+enum FieldChangeSource {
+  HR_FORM
+  HR_PROFILE
+  DATA_CHANGE
+  IMPORT
+  SELF_FILL
+  ONBOARDING_REVIEW
+  ONBOARDING_INVITE
+  ORG_CHART
+  POST_SYNC
+  MASTER_MERGE
+  ARCHIVE
+  DOCUMENT
+  PHOTO
+
+  @@schema("employee")
+}
+
+enum FieldChangeSection {
+  WORK
+  EMERGENCY
+  PERSONAL
+  FAMILY
+  BANK
+  EDUCATION
+  TRAINING
+  WORK_EXPERIENCE
+  DOCUMENT
+  PHOTO
+
   @@schema("employee")
 }
 

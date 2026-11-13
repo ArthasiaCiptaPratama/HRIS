@@ -38,6 +38,8 @@ export interface PostEditProps {
   onAddSibling: (postId: string, side: "left" | "right") => void;
   onAction: (postId: string, action: PostEditAction) => void;
   onDropPerson: (employeeId: string, postId: string) => void;
+  /** ORG-D6: layar sempit/sentuh — tanpa seret; titik + tampil di kartu terpilih, target sentuh besar. */
+  compact?: boolean;
 }
 
 // ORG-D1: token warna per level (legenda bagan site ACP, index.css).
@@ -169,7 +171,7 @@ function PostNodeView({ data }: NodeProps<PostNodeType>) {
         {visibleHolders.map((holder) => (
           <li
             key={holder.id}
-            draggable={edit !== undefined}
+            draggable={edit !== undefined && !edit.compact}
             onDragStart={(event) => {
               event.dataTransfer.setData(PERSON_DRAG_TYPE, holder.id);
               event.dataTransfer.effectAllowed = "move";
@@ -262,23 +264,32 @@ function EditControls({
   edit: PostEditProps;
   label: string;
 }) {
+  // ORG-D6: di layar sempit/sentuh tidak ada hover → titik + hanya di kartu terpilih, ukuran ≥ 32 px.
+  const compact = edit.compact === true;
+  const dot = compact ? cn(DOT, edit.selected ? "opacity-100" : "hidden") : DOT;
   return (
     <>
-      {/* Atas: seret titik ke kartu lain = ganti atasan (garis koneksi React Flow). */}
-      <Handle
-        id="reparent"
-        type="source"
-        position={Position.Top}
-        isConnectable
-        title="Seret ke kartu lain untuk mengganti atasan"
-        className={cn(
-          "!size-3.5 !-translate-y-1/2 !border-2 !border-white !bg-sky-500 !opacity-0 transition-opacity group-hover/post:!opacity-100 dark:!border-neutral-900",
-          edit.selected && "!opacity-100",
-        )}
-      />
+      {/* Atas: seret titik ke kartu lain = ganti atasan (garis koneksi React Flow); sentuh → toolbar. */}
+      {compact ? null : (
+        <Handle
+          id="reparent"
+          type="source"
+          position={Position.Top}
+          isConnectable
+          title="Seret ke kartu lain untuk mengganti atasan"
+          className={cn(
+            "!size-3.5 !-translate-y-1/2 !border-2 !border-white !bg-sky-500 !opacity-0 transition-opacity group-hover/post:!opacity-100 dark:!border-neutral-900",
+            edit.selected && "!opacity-100",
+          )}
+        />
+      )}
       <button
         type="button"
-        className={cn(DOT, "-bottom-9 left-1/2 size-6 -translate-x-1/2")}
+        className={cn(
+          dot,
+          "left-1/2 -translate-x-1/2",
+          compact ? "-bottom-11 size-8" : "-bottom-9 size-6",
+        )}
         aria-label={`Tambah bawahan ${label}`}
         title="Tambah bawahan"
         onClick={(event) => {
@@ -293,9 +304,11 @@ function EditControls({
           key={side}
           type="button"
           className={cn(
-            DOT,
-            "top-1/2 size-5 -translate-y-1/2",
-            side === "left" ? "-left-2.5" : "-right-2.5",
+            dot,
+            "top-1/2 -translate-y-1/2",
+            compact
+              ? cn("size-8", side === "left" ? "-left-4" : "-right-4")
+              : cn("size-5", side === "left" ? "-left-2.5" : "-right-2.5"),
           )}
           aria-label={`Tambah pos setingkat di ${side === "left" ? "kiri" : "kanan"} ${label}`}
           title="Tambah pos setingkat (atasan sama)"
@@ -311,7 +324,10 @@ function EditControls({
         <div
           role="toolbar"
           aria-label={`Aksi pos ${label}`}
-          className="bg-popover text-popover-foreground flex items-center gap-0.5 rounded-lg border p-1 shadow-md"
+          className={cn(
+            "bg-popover text-popover-foreground flex items-center gap-0.5 rounded-lg border p-1 shadow-md",
+            compact && "max-w-[calc(100vw-2rem)] overflow-x-auto",
+          )}
         >
           {(
             [
@@ -326,13 +342,16 @@ function EditControls({
               key={action}
               type="button"
               className={cn(
-                "hover:bg-accent focus-visible:ring-ring flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium outline-none focus-visible:ring-2",
+                "hover:bg-accent focus-visible:ring-ring flex shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium whitespace-nowrap outline-none focus-visible:ring-2",
+                compact ? "size-10 justify-center px-0" : "h-8",
                 action === "delete" && "text-destructive",
               )}
+              aria-label={compact ? text : undefined}
+              title={compact ? text : undefined}
               onClick={() => edit.onAction(postId, action)}
             >
-              <Icon className="size-3.5" aria-hidden />
-              {text}
+              <Icon className={compact ? "size-4" : "size-3.5"} aria-hidden />
+              {compact ? null : text}
             </button>
           ))}
         </div>

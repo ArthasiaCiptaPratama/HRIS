@@ -26,6 +26,8 @@ export interface ReportEmployee {
   companyId: string;
   positionId: string;
   workLocationId: string | null;
+  /** EMP-D6: homebase yang berlaku sekarang. */
+  homebaseId: string | null;
   employmentStatusId: string;
   joinDate: string;
   endDate: string | null;

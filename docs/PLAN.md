@@ -188,7 +188,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `asset.manage`                   | Kelola aset per unit & pembagian APD di PT yang ditugaskan: tambah/ubah aset, serah-terima, pengembalian, tandai hilang, BAST, harga aset (ARS-D3) | HR_ADMIN              |
 | `employee.discipline.read`       | Lihat surat peringatan karyawan di PT yang ditugaskan (aktif + riwayat; tanpa draft) termasuk scan `WARNING_LETTER` (ARS-D13/D14) | HR_ADMIN              |
 | `employee.discipline.write`      | Buat, terbitkan & cabut surat peringatan, unggah scan, kelola jenis pelanggaran di PT yang ditugaskan (ARS-D10/D14) | HR_ADMIN              |
-| `org.structure.manage`           | Ubah bagan organisasi lewat mode edit (pos, atasan, slot, jabatan baru, penempatan) di PT yang ditugaskan; pos korporat & Direksi tetap SA (ORG-D2/D3) | HR_ADMIN              |
+| `org.structure.manage`           | Ubah bagan organisasi lewat mode edit (pos, atasan, slot, jabatan baru, penempatan) dan zona HO/Site unit di PT yang ditugaskan; pos/unit korporat & Direksi tetap SA (ORG-D2/D3/D5) | HR_ADMIN              |
 
 Sifat grant:
 - **Cakupan:** untuk HR_ADMIN berlaku atas **semua karyawan**; untuk MANAGER hanya atas **timnya**.
@@ -229,7 +229,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Dashboard agregat karyawan (jumlah per kategori, lokasi, departemen, jabatan, tahun masuk, pendidikan; pivot bebas atur D-065; tanpa data per orang) | ✅ semua PT | ✅ PT ditugaskan (D-040) | ❌ (sapaan) | ❌ (sapaan) |
 | Pivot dashboard dimensi pribadi (agama, status nikah, umur — jumlah saja, D-065) | ✅ | 🔑 `employee.personal.read` | ❌ | ❌ |
 | Susunan widget Dashboard milik sendiri (D-065) | ✅ | ✅ | ❌ | ❌ |
-| Data kerja (jabatan, tgl masuk, status, atasan) | ✅ | ✅ | 👁 tim | 👁 sendiri |
+| Data kerja (jabatan, tgl masuk, status, atasan, homebase/POH EMP-D6) | ✅ | ✅ | 👁 tim | 👁 sendiri |
+| Riwayat perubahan data per field (EMP-D5): nilai pribadi/rekening hanya bagi yang boleh membaca bagian itu, lainnya "field diubah" | ✅ | ✅ (nilai sensitif 🔑) | 👁 tim (tanpa nilai sensitif) | 👁 sendiri |
 | Tambah/ubah/nonaktifkan karyawan, tempatkan jabatan, isi `manager_id` | ✅ | ✅ | ❌ | ❌ |
 | Data pribadi sensitif (NIK, NPWP, KK, alamat, PTKP) | ✅ | 🔑 | 🔑 tim | 👁 sendiri |
 | Rekening bank | ✅ | 🔑 | 🔑 tim | 👁 sendiri |
@@ -242,6 +243,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Lihat aset & pembagian APD (ARS-D3) | ✅ | ✅ PT sendiri (harga hanya ber-grant) | 👁 tim, tanpa harga | 👁 milik sendiri, tanpa harga |
 | Kelola aset, serah-terima, pengembalian, APD, BAST (ARS-D3) | ✅ | 🔑 `asset.manage` (PT sendiri) | ❌ | ✅ konfirmasi terima milik sendiri |
 | Ubah bagan organisasi: mode edit, pos, atasan, penempatan (ORG-D2) | ✅ | 🔑 `org.structure.manage` (PT sendiri; korporat & Direksi ❌) | 👁 | 👁 |
+| Ubah zona HO/Site unit organisasi (ORG-D5) | ✅ | 🔑 `org.structure.manage` (unit PT sendiri; unit korporat ❌) | ❌ | ❌ |
 | Lihat surat peringatan (aktif + riwayat; draft hanya penulis) (ARS-D13) | ✅ | 🔑 `employee.discipline.read`/`.write` (PT sendiri) | 👁 tim (tanpa alasan eskalasi & bukti) | 👁 milik sendiri |
 | Buat, terbitkan, cabut SP; jenis pelanggaran (ARS-D10/D12) | ✅ (+ masa berlaku bawaan, ARS-D8) | 🔑 `employee.discipline.write` (PT sendiri) | ✅ "Sudah disampaikan" (tim) | ✅ "Sudah menerima" milik sendiri |
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
@@ -548,7 +550,10 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [IMP-D1](features/import-karyawan/README.md#imp-d1) | Import melengkapi pemegang bagan `ASLI-`: saran nama (tanpa gelar) / inisial di Pratinjau, HR memilih per baris (gabung atau baru, pilihan manual), NIP sementara diganti, pos & jabatan pos tetap | [IMP](features/import-karyawan/README.md) |
 | [ORG-D1](features/organisasi/README.md#org-d1) | Level jabatan bernomor L7 Direktur Utama … L1B Helper, L0 Magang + warna bagan (mengubah D-050 (4)) | [ORG](features/organisasi/README.md) |
 | [ORG-D2](features/organisasi/README.md#org-d2) | Mode edit bagan: draf + undo/redo, pratinjau dampak, batch satu transaksi, revisi 409, izin `org.structure.manage` per PT (korporat/Direksi SA), jabatan baru dari bagan (pengecualian D-049) | [ORG](features/organisasi/README.md) |
-| [ORG-D4](features/organisasi/README.md#org-d4) | Penanda HO vs Site di bagan: akar Site = unit bernama "Site …" + turunannya; chip & filter Semua/HO/Site; pos zona lain yang tersambung garis tampil redup (tanpa migrasi) | [ORG](features/organisasi/README.md) |
+| [ORG-D4](features/organisasi/README.md#org-d4) | Penanda HO vs Site di bagan: chip & filter Semua/HO/Site; pos zona lain yang tersambung garis tampil redup (aturan nama "Site …" diganti ORG-D5) | [ORG](features/organisasi/README.md) |
+| [ORG-D5](features/organisasi/README.md#org-d5) | Zona HO/Site resmi di unit: `departments.zone` (kosong = ikut induk, akar = HO), backfill dari nama "Site …"; diubah SA di Master Data, HR ber-izin `org.structure.manage` untuk unit PT-nya (`PUT /departments/{id}/zone`) | [ORG](features/organisasi/README.md) |
+| [ORG-D6](features/organisasi/README.md#org-d6) | Mode edit bagan di layar < 1024 px / sentuh: ketuk kartu → toolbar, tanpa seret, bilah edit ikon di bawah layar; desktop tetap | [ORG](features/organisasi/README.md) |
+| [ORG-D7](features/organisasi/README.md#org-d7) | Bagan organisasi terbuka penuh saat dibuka, ganti PT, dan ganti filter Semua/HO/Site; Buka semua/Ringkas tetap | [ORG](features/organisasi/README.md) |
 | [ORG-D3](features/organisasi/README.md#org-d3) | ~~Jabatan rangkap~~ **dibatalkan 2026-11-10 (ralat pengguna)**: 1 pos utama + maks 5 pos rangkap PT sama; rangkap mengisi slot & jadi kandidat atasan D-053; profil "Pos rangkap" | [ORG](features/organisasi/README.md) |
 | [IAM-D1](features/iam/README.md#keputusan) | Role kelima `HR_PERSONNEL` "HR Kepegawaian": lihat data kerja karyawan di PT yang ditugaskan saja (mengubah PLAN §4.1 "role tetap 4") | [IAM](features/iam/README.md) |
 | [DSB-D1](features/dashboard/README.md#keputusan) | Dashboard analitik SDM & biaya: aktif awal/akhir bulan, masuk/keluar per alasan, turnover 12 bulan, gender, masa kerja | [DSB](features/dashboard/README.md) |
@@ -558,6 +563,8 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [EMP-D2](features/karyawan/README.md#keputusan) | Tambah karyawan manual = form bertahap urutan Google Form, profil opsional disimpan sekali (satu transaksi), grant tulis per bagian | [EMP](features/karyawan/README.md) |
 | [EMP-D3](features/karyawan/README.md#keputusan) | Print data = PDF dari template PDF HR "Formulir Data Karyawan" (pdf-lib, posisi tetap); Excel & Formulir Aplikasi Word (EMP-D1, Gotenberg) dihapus | [EMP](features/karyawan/README.md) |
 | [EMP-D4](features/karyawan/README.md#keputusan) | HR ber-grant ubah data pribadi/keluarga/rekening karyawan lain langsung dari detail; data diri sendiri tetap lewat pengajuan; rekening berubah → karyawan diberi tahu | [EMP](features/karyawan/README.md) |
+| [EMP-D5](features/karyawan/README.md#keputusan) | Riwayat perubahan data per field (lama → baru, siapa, kapan, sumber) di semua jalur ubah data, dalam transaksi yang sama; nilai sensitif tampil sesuai grant baca; audit log tetap tanpa nilai | [EMP](features/karyawan/README.md) |
+| [EMP-D6](features/karyawan/README.md#keputusan) | Homebase = Point of Hire: master SA, riwayat berlaku per tanggal + no. SK, data kerja, diubah SA/HR; import, laporan, adapter payroll `getHomebasesOn` | [EMP](features/karyawan/README.md) |
 | [HRD-D1](features/hardening/README.md#keputusan) | Lupa password akun SUPER_ADMIN/HR_ADMIN/HR_PERSONNEL hanya ke email akun, bukan email pribadi | [HRD](features/hardening/README.md) |
 | [HRD-D2](features/hardening/README.md#keputusan) | Larangan ubah data diri sendiri lewat jalur HR berlaku untuk HR_ADMIN; SUPER_ADMIN dikecualikan | [HRD](features/hardening/README.md) |
 | [HRD-D3](features/hardening/README.md#keputusan) | CSP web mulai Report-Only, enforce setelah dicek di staging | [HRD](features/hardening/README.md) |

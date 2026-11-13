@@ -51,6 +51,7 @@ import {
 import * as policy from "./employee.policy.ts";
 import * as employees from "./employee.repository.ts";
 import { employeeTargetOf, type RequestContext, todayInJakarta } from "./employee.service.ts";
+import { recordFieldChanges } from "./field-change.ts";
 
 // D-055 (Arsip gelombang 1b, docs/features/arsip/design.md §4, §6.1, §7.2, §8): jenis dokumen (SA), dokumen
 // karyawan berversi + bermasa berlaku, tautan baca singkat, tabel Data File, pengingat kedaluwarsa.
@@ -437,6 +438,20 @@ export async function createDocument(ctx: RequestContext, employeeId: string, bo
         verifiedBy: ctx.actor.accountId,
         verifiedAt: new Date(),
       });
+      await recordFieldChanges(tx, {
+        employeeId,
+        actorAccountId: ctx.actor.accountId,
+        source: "DOCUMENT",
+        refId: created.id,
+        changes: [
+          {
+            section: "DOCUMENT",
+            field: "document",
+            oldValue: replaced[0] ? `${type.name} · v${replaced[0].version}` : null,
+            newValue: `${type.name} · v${created.version}`,
+          },
+        ],
+      });
       await writeAudit(
         {
           ...auditBase(ctx),
@@ -528,6 +543,20 @@ export async function deleteDocument(ctx: RequestContext, employeeId: string, do
       throw new ForbiddenError();
     }
     await repo.updateDocument(tx, documentId, { deletedAt: new Date(), isCurrent: false });
+    await recordFieldChanges(tx, {
+      employeeId,
+      actorAccountId: ctx.actor.accountId,
+      source: "DOCUMENT",
+      refId: documentId,
+      changes: [
+        {
+          section: "DOCUMENT",
+          field: "document",
+          oldValue: `${doc.documentType.name} · v${doc.version}`,
+          newValue: null,
+        },
+      ],
+    });
     if (doc.isCurrent && doc.replacesId) await repo.restoreCurrent(tx, doc.replacesId);
     await writeAudit(
       {

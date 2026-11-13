@@ -299,6 +299,55 @@ describe("halaman Personal Management", () => {
     expect(await screen.findByText("Tidak ada yang cocok")).toBeInTheDocument();
   });
 
+  it("EMP-D6: kolom Homebase & filter homebase → ?homebaseId= (param URL hb)", async () => {
+    const HB = "00000000-0000-4000-8000-0000000000b1";
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("HR_ADMIN") }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/employees/summary": [200, summary],
+      "/master-data": [
+        200,
+        {
+          data: {
+            ...masterData.data,
+            homebases: [{ id: HB, name: "Palangka Raya", city: null, province: null }],
+          },
+        },
+      ],
+      "/employees": [
+        200,
+        {
+          data: [{ ...employee("1", "Nur Aisyah"), homebase: { id: HB, name: "Palangka Raya" } }],
+          meta: { page: 1, pageSize: 20, total: 1 },
+        },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/semua");
+    const user = userEvent.setup();
+    const table = await screen.findByRole("table", { name: "Daftar karyawan" });
+    expect(await within(table).findByText("Nur Aisyah")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Homebase" })).toBeInTheDocument();
+    expect(within(table).getByText("Palangka Raya")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("combobox", { name: "Filter homebase" }));
+    await user.click(await screen.findByRole("option", { name: "Palangka Raya" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([input]) => new URL(String(input)).searchParams.get("homebaseId") === HB,
+        ),
+      ).toBe(true),
+    );
+    // Filter aktif → tombol Reset muncul dan mengosongkan filter.
+    await user.click(screen.getByRole("button", { name: /Reset/ }));
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Filter homebase" })).toHaveTextContent(
+        "Semua homebase",
+      ),
+    );
+  });
+
   it("menu Laporan mengikuti FEATURES.reports (ARS-D16)", async () => {
     mockApi({
       "/me": [200, { data: me("HR_ADMIN") }],

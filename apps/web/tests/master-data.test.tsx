@@ -112,6 +112,28 @@ describe("Master Data (D-049)", () => {
     expect(screen.getAllByRole("link", { name: /Site \/ lokasi kerja/ }).length).toBeGreaterThan(0);
   });
 
+  it("ORG-D5: HR ber-izin mengubah zona unit PT-nya → PUT /departments/:id/zone; unit lain baca saja", async () => {
+    const calls = mockFetch(me("HR_ADMIN"), {
+      departments: [
+        { ...department, zone: null, canEditZone: true },
+        { ...department, id: ID(4), name: "Site Lain", zone: "SITE", canEditZone: false },
+      ],
+    });
+    renderAt("/master-data/unit-organisasi");
+    const table = await screen.findByRole("table", { name: /Daftar unit/i });
+    expect(await within(table).findByText("Site")).toBeInTheDocument();
+    await userEvent.click(
+      within(table).getByRole("combobox", { name: "Zona Teknologi Informasi" }),
+    );
+    await userEvent.click(await screen.findByRole("option", { name: "Site" }));
+    await waitFor(() =>
+      expect(writes(calls)).toEqual([
+        { method: "PUT", path: `/departments/${ID(3)}/zone`, body: { zone: "SITE" } },
+      ]),
+    );
+    expect(within(table).queryByRole("combobox", { name: "Zona Site Lain" })).toBeNull();
+  });
+
   it("HR: hanya melihat — tanpa tombol tambah & aksi, ada penjelasan", async () => {
     mockFetch(me("HR_ADMIN"), { grades: [grade] });
     renderAt("/master-data/grade");
@@ -272,5 +294,69 @@ describe("Master Data (D-049)", () => {
         { method: "POST", path: `/grades/${ID(1)}/archive`, body: undefined },
       ]),
     );
+  });
+  it("EMP-D6: halaman Homebase (Kota, Provinsi, jumlah karyawan) & tambah mengirim body benar", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(me("SUPER_ADMIN", true), {
+      homebases: [
+        {
+          id: ID(6),
+          name: "Palangka Raya",
+          archived: false,
+          employeeCount: 7,
+          city: "Palangka Raya",
+          province: "Kalimantan Tengah",
+          note: null,
+        },
+      ],
+    });
+    renderAt("/master-data/homebase");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Homebase (POH)" }),
+    ).toBeInTheDocument();
+    const table = await screen.findByRole("table", { name: "Daftar homebase (poh)" });
+    expect(await within(table).findByText("Kalimantan Tengah")).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "Provinsi" })).toBeInTheDocument();
+    expect(within(table).getByText("7")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Homebase \(POH\)/ }).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Tambah homebase" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Nama"), "Sampit");
+    await user.type(within(dialog).getByLabelText(/Kota/), "Kotawaringin Timur");
+    await user.type(within(dialog).getByLabelText(/Provinsi/), "Kalimantan Tengah");
+    await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(writes(calls)).toHaveLength(1));
+    expect(writes(calls)[0]).toEqual({
+      method: "POST",
+      path: "/homebases",
+      body: {
+        name: "Sampit",
+        city: "Kotawaringin Timur",
+        province: "Kalimantan Tengah",
+        note: null,
+      },
+    });
+  });
+
+  it("EMP-D6: HR hanya melihat halaman Homebase (tanpa tambah & aksi)", async () => {
+    mockFetch(me("HR_ADMIN"), {
+      homebases: [
+        {
+          id: ID(6),
+          name: "Palangka Raya",
+          archived: false,
+          employeeCount: 0,
+          city: null,
+          province: null,
+          note: null,
+        },
+      ],
+    });
+    renderAt("/master-data/homebase");
+    const table = await screen.findByRole("table", { name: "Daftar homebase (poh)" });
+    expect(await within(table).findByText("Palangka Raya")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Tambah/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aksi untuk/ })).not.toBeInTheDocument();
   });
 });

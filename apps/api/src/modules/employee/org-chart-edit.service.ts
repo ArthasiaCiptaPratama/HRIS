@@ -28,6 +28,7 @@ import {
 } from "../organization/index.ts";
 import * as employees from "./employee.repository.ts";
 import type { RequestContext } from "./employee.service.ts";
+import { diffWork, recordFieldChanges } from "./field-change.ts";
 import * as repository from "./org-chart.repository.ts";
 import { resolvePostPlacement, syncPostManagers } from "./org-post-assignment.ts";
 import { recordPositionChange } from "./position-history.ts";
@@ -80,6 +81,14 @@ async function placeEmployee(
     orgPostId: postId,
     ...(placement ? { positionId: placement.positionId } : {}),
   });
+  const after = await employees.findEmployee(employeeId, tx);
+  if (after)
+    await recordFieldChanges(tx, {
+      employeeId,
+      actorAccountId: ctx.actor.accountId,
+      source: "ORG_CHART",
+      changes: await diffWork(tx, before, after),
+    });
   await recordPositionChange(
     tx,
     employeeId,
@@ -208,7 +217,7 @@ async function execute(
     // HR hanya menyinkron pemegang pos yang boleh ia kelola (garis tegas tidak lintas PT, jadi
     // perubahan di PT-nya tidak mengubah atasan PT lain); SA menyinkron seluruh bagan.
     const scope = await manageablePostIds(ctx, tx);
-    const managersUpdated = await syncPostManagers(tx, scope);
+    const managersUpdated = await syncPostManagers(tx, scope, ctx.actor.accountId);
     const result = { revision, createdIds, managersUpdated };
     if (previewOnly) {
       // Ringkasan hanya memuat karyawan di PT cakupan aktor (SA: semua).

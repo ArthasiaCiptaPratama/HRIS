@@ -25,6 +25,7 @@ import {
 import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import * as employeeRepo from "./employee.repository.ts";
+import { diffScalars, recordFieldChanges } from "./field-change.ts";
 import * as repo from "./onboarding.repository.ts";
 import type {
   CandidateListQuery,
@@ -513,9 +514,19 @@ export async function inviteExisting(ctx: OnboardingContext, body: InviteExistin
   }
   await employeeRepo.withTransaction(async (tx) => {
     for (const { employeeId, email } of accepted) {
+      const beforeEmail = await tx.employee.findUniqueOrThrow({
+        where: { id: employeeId },
+        select: { personalEmail: true },
+      });
       await repo.updateForExistingInvite(tx, employeeId, {
         personalEmail: email,
         completionRequired: true,
+      });
+      await recordFieldChanges(tx, {
+        employeeId,
+        actorAccountId: ctx.actor.accountId,
+        source: "ONBOARDING_INVITE",
+        changes: diffScalars("PERSONAL", beforeEmail, { personalEmail: email }, ["personalEmail"]),
       });
       await repo.queueInvitation(tx, { employeeId, email, queuedBy: ctx.actor.accountId });
       await writeAudit(

@@ -3,6 +3,7 @@ import {
   employmentCategorySchema,
   masterDataViewSchema,
   orgUnitTypeSchema,
+  orgUnitZoneSchema,
   positionLevelSchema,
 } from "@hris/shared";
 
@@ -36,6 +37,10 @@ export const departmentAdminSchema = z
     // D-052: PT pemilik (null = fungsi korporat / lintas grup).
     companyId: z.uuid().nullable(),
     companyCode: z.string().nullable(),
+    // ORG-D5: zona tersimpan (null = ikut induk; akar null = Head Office).
+    zone: orgUnitZoneSchema.nullable(),
+    /** ORG-D5: aktor boleh mengubah zona unit ini (SA; HR ber-izin untuk PT cakupannya). */
+    canEditZone: z.boolean(),
     positionCount: z.number().int(),
   })
   .openapi("DepartmentAdmin");
@@ -66,12 +71,23 @@ export const workLocationAdminSchema = z
   })
   .openapi("WorkLocationAdmin");
 
+// EMP-D6: Homebase / Point of Hire. employeeCount = karyawan aktif yang homebase-nya sekarang item ini.
+export const homebaseAdminSchema = z
+  .object({
+    ...base,
+    city: z.string().nullable(),
+    province: z.string().nullable(),
+    note: z.string().nullable(),
+  })
+  .openapi("HomebaseAdmin");
+
 export type CompanyAdmin = z.infer<typeof companyAdminSchema>;
 export type DepartmentAdmin = z.infer<typeof departmentAdminSchema>;
 export type PositionAdmin = z.infer<typeof positionAdminSchema>;
 export type EmploymentStatusAdmin = z.infer<typeof employmentStatusAdminSchema>;
 export type GradeAdmin = z.infer<typeof gradeAdminSchema>;
 export type WorkLocationAdmin = z.infer<typeof workLocationAdminSchema>;
+export type HomebaseAdmin = z.infer<typeof homebaseAdminSchema>;
 
 export const adminListQuerySchema = z.object({
   view: masterDataViewSchema.default("active"),

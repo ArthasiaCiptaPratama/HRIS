@@ -429,6 +429,13 @@ describe("ORG-D2 validasi, revisi, dan atomisitas", () => {
         select: { orgPostId: true, positionId: true },
       }),
     ).toEqual({ orgPostId: null, positionId: row.positionId });
+    // EMP-D5: penempatan & pelepasan pos tercatat di riwayat perubahan data karyawan.
+    const changes = await prisma.employeeFieldChange.findMany({
+      where: { employeeId: personId, source: "ORG_CHART" },
+      orderBy: { occurredAt: "asc" },
+    });
+    expect(changes.map((c) => c.field)).toEqual(expect.arrayContaining(["orgPost", "position"]));
+    expect(changes.at(-1)).toMatchObject({ field: "orgPost", newValue: null });
   });
 
   test("pos penuh, calon belum disetujui, jabatan berisi, dan slot kurang dari pemegang ditolak", async () => {

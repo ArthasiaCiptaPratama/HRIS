@@ -3,6 +3,7 @@ import { BusinessRuleError } from "../../core/errors.ts";
 import { listManagerEmployeeIds } from "../iam/index.ts";
 import { getMasterLookup, listOrgPosts } from "../organization/index.ts";
 import type { EmployeeTx } from "./employee.repository.ts";
+import { recordFieldChanges } from "./field-change.ts";
 import * as repository from "./org-chart.repository.ts";
 
 // D-051/D-053: penempatan karyawan ke pos jabatan & atasan langsung otomatis dari pos.
@@ -15,6 +16,7 @@ import * as repository from "./org-chart.repository.ts";
 export async function syncPostManagers(
   tx: EmployeeTx,
   postIds?: ReadonlySet<string>,
+  actorAccountId?: string,
 ): Promise<number> {
   const [posts, holders, eligible] = await Promise.all([
     listOrgPosts(tx),
@@ -29,6 +31,17 @@ export async function syncPostManagers(
     ),
     eligibleManagers: new Set(eligible),
   });
+  const managerIds = [
+    ...new Set(
+      [...holders.map((h) => h.managerId), ...desired.values()].filter((id): id is string =>
+        Boolean(id),
+      ),
+    ),
+  ];
+  const managerNames = new Map(
+    (await repository.findChartPersonNames(tx, managerIds)).map((m) => [m.id, m.fullName]),
+  );
+  const groupId = crypto.randomUUID();
   let updated = 0;
   for (const holder of holders) {
     if (
@@ -39,6 +52,20 @@ export async function syncPostManagers(
     const next = desired.get(holder.id) ?? null;
     if (next !== holder.managerId) {
       await repository.setManager(tx, holder.id, next);
+      await recordFieldChanges(tx, {
+        employeeId: holder.id,
+        actorAccountId: actorAccountId ?? null,
+        source: "POST_SYNC",
+        groupId,
+        changes: [
+          {
+            section: "WORK",
+            field: "manager",
+            oldValue: holder.managerId ? (managerNames.get(holder.managerId) ?? null) : null,
+            newValue: next ? (managerNames.get(next) ?? null) : null,
+          },
+        ],
+      });
       updated += 1;
     }
   }
@@ -96,6 +123,6 @@ export const employeePostSupport = {
   countPostHolders: (tx?: EmployeeTx) => repository.countPostHolders(tx),
   postHolderCompanies: (tx: EmployeeTx, postIds: string[]) =>
     repository.postHolderCompanies(tx, postIds),
-  syncPostManagers: (tx: EmployeeTx, postIds?: ReadonlySet<string>) =>
-    syncPostManagers(tx, postIds),
+  syncPostManagers: (tx: EmployeeTx, postIds?: ReadonlySet<string>, actorAccountId?: string) =>
+    syncPostManagers(tx, postIds, actorAccountId),
 };

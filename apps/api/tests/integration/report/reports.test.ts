@@ -51,6 +51,7 @@ const ids = {
   sensitiveType: "",
   plainType: "",
   violation: "",
+  homebase: "",
 };
 const startedAt = new Date();
 let sa: Login;
@@ -112,12 +113,14 @@ beforeAll(async () => {
     await prisma.position.create({ data: { name: `RP JabB ${RUN}`, departmentId: ids.otherUnit } })
   ).id;
   // 2025: A aktif sejak 2024; B masuk Mar 2025; C keluar Mei 2025 (resign); D masuk & keluar 2025 (unit lain).
+  // EMP-D6: homebase (kolom turunan) untuk B & D → filter homebaseId + kolom ekspor headcount.
+  ids.homebase = (await prisma.homebase.create({ data: { name: `RP Homebase ${RUN}` } })).id;
   ids.a = await employee("A", {
     workEmail: `rp-a-${RUN.toLowerCase()}@example.test`,
     emergencyPhone: "0812",
     emergencyContactName: "Ibu",
   });
-  ids.b = await employee("B", { joinDate: date("2025-03-10") });
+  ids.b = await employee("B", { joinDate: date("2025-03-10"), homebaseId: ids.homebase });
   ids.c = await employee("C", {
     endDate: date("2025-05-31"),
     isActive: false,
@@ -129,6 +132,7 @@ beforeAll(async () => {
     endDate: date("2025-08-15"),
     isActive: false,
     exitReason: "CONTRACT_ENDED",
+    homebaseId: ids.homebase,
   });
   ids.x = (
     await prisma.employee.create({
@@ -214,6 +218,7 @@ afterAll(async () => {
     where: { occurredAt: { gte: startedAt }, entityType: "report" },
   });
   await prisma.employee.deleteMany({ where: { id: { in: employees } } });
+  if (ids.homebase) await prisma.homebase.delete({ where: { id: ids.homebase } });
   for (const id of [ids.posA, ids.posB]) if (id) await prisma.position.delete({ where: { id } });
   for (const id of [ids.subUnit, ids.unit, ids.otherUnit])
     if (id) await prisma.department.delete({ where: { id } });
@@ -276,6 +281,47 @@ describe("headcount & turnover (ARS-D17)", () => {
       await call(`/reports/headcount${q(`&year=2025&unitId=${ids.unit}`)}`, hr.headers),
     );
     expect(r.summary).toMatchObject({ startActive: 2, endActive: 2, joined: 1, left: 1 });
+  });
+});
+
+describe("homebase (EMP-D6)", () => {
+  test("filter homebaseId hanya karyawan ber-homebase itu; daftar masuk/keluar membawa nama homebase", async () => {
+    const r = await data(
+      await call(`/reports/headcount${q(`&year=2025&homebaseId=${ids.homebase}`)}`, hr.headers),
+    );
+    // B (masuk Mar) & D (masuk Feb, keluar Agu); A & C tanpa homebase tidak ikut.
+    expect(r.summary).toMatchObject({ startActive: 0, endActive: 1, joined: 2, left: 1 });
+    expect(r.joiners.map((j: { fullName: string; homebase: string | null }) => j)).toEqual([
+      expect.objectContaining({ fullName: `Laporan ${RUN} D`, homebase: `RP Homebase ${RUN}` }),
+      expect.objectContaining({ fullName: `Laporan ${RUN} B`, homebase: `RP Homebase ${RUN}` }),
+    ]);
+    const all = await data(await call(`/reports/headcount${q("&year=2025")}`, hr.headers));
+    expect(
+      all.leavers.find((l: { fullName: string }) => l.fullName === `Laporan ${RUN} C`).homebase,
+    ).toBeNull();
+    const bad = await call(
+      `/reports/headcount${q("&year=2025&homebaseId=bukan-uuid")}`,
+      hr.headers,
+    );
+    expect(bad.status).toBe(400);
+  });
+
+  test("ekspor headcount: kolom Homebase di daftar masuk/keluar + filter terbaca", async () => {
+    const res = await call(
+      `/reports/headcount/export${q(`&year=2025&homebaseId=${ids.homebase}`)}`,
+      hr.headers,
+    );
+    expect(res.status).toBe(200);
+    const files = unzipSync(new Uint8Array(Buffer.from((await data(res)).contentBase64, "base64")));
+    const workbook = strFromU8(files["xl/workbook.xml"] as Uint8Array);
+    const names = [...workbook.matchAll(/<sheet name="([^"]+)"/g)].map((m) => m[1]);
+    const sheet = (name: string) =>
+      strFromU8(files[`xl/worksheets/sheet${names.indexOf(name) + 1}.xml`] as Uint8Array);
+    for (const name of ["Karyawan masuk", "Karyawan keluar"]) {
+      expect(sheet(name)).toContain(">Homebase<");
+      expect(sheet(name)).toContain(`RP Homebase ${RUN}`);
+    }
+    expect(sheet("Ringkasan")).toContain(`Homebase RP Homebase ${RUN}`);
   });
 });
 

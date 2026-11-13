@@ -1,4 +1,4 @@
-import type { MasterDataKind, MasterDataView } from "@hris/shared";
+import type { MasterDataKind, MasterDataView, OrgUnitZone } from "@hris/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
@@ -61,6 +61,17 @@ export function useMasterDataAction(kind: MasterDataKind) {
       action === "delete"
         ? api(`/${kind}/${id}`, { method: "DELETE", schema: mutation })
         : api(`/${kind}/${id}/${action}`, { method: "POST", schema: mutation }),
+    onSuccess: invalidate,
+  });
+}
+
+/** ORG-D5: ubah zona HO/Site satu unit (null = ikut induk); SA atau HR ber-izin untuk PT-nya. */
+export function useSetUnitZone() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, zone }: { id: string; zone: OrgUnitZone | null }) =>
+      api(`/departments/${id}/zone`, { method: "PUT", body: { zone }, schema: mutation }),
+    // Bagan (kunci "employees") memakai zona untuk chip & filter HO/Site.
     onSuccess: invalidate,
   });
 }

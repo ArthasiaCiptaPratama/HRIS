@@ -168,6 +168,8 @@ export const onboardingDecisionSchema = z.discriminatedUnion("decision", [
         workLocationId: optionalUuid,
         gradeId: optionalUuid,
         managerId: optionalUuid,
+        /** EMP-D6: homebase (POH) awal; berlaku mulai tanggal masuk. */
+        homebaseId: optionalUuid,
       })
       .optional(),
   }),

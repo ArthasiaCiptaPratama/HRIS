@@ -33,8 +33,22 @@ const chart: OrgChart = {
   company: { id: C, code: "ACP", name: "PT ACP" },
   companies: [],
   units: [
-    { id: "unit-1", name: "Site", unitType: "DEPARTMENT", parentId: null, corporate: false },
-    { id: "unit-corp", name: "Korporat", unitType: "DIRECTORATE", parentId: null, corporate: true },
+    {
+      id: "unit-1",
+      name: "Site",
+      unitType: "DEPARTMENT",
+      parentId: null,
+      corporate: false,
+      zone: null,
+    },
+    {
+      id: "unit-corp",
+      name: "Korporat",
+      unitType: "DIRECTORATE",
+      parentId: null,
+      corporate: true,
+      zone: null,
+    },
   ],
   posts: [
     post("ktt", { level: "L5" }),
@@ -172,7 +186,7 @@ describe("reorderChanges", () => {
   });
 });
 
-describe("zona HO/Site pos baru di draf (ORG-D4)", () => {
+describe("zona HO/Site pos baru di draf (ORG-D5)", () => {
   it("unit jabatan baru membawa leluhurnya sehingga zona Site terbaca", async () => {
     const { unitZones } = await import("@hris/shared");
     const siteLookup: DraftLookup = {
@@ -186,6 +200,10 @@ describe("zona HO/Site pos baru di draf (ORG-D4)", () => {
       unitParent: new Map([
         ["u-eng", "u-site"],
         ["u-site", null],
+      ]),
+      unitZone: new Map([
+        ["u-site", "SITE"],
+        ["u-eng", null],
       ]),
     };
     const next = applyDraft(
