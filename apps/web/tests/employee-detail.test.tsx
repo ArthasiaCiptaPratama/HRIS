@@ -315,20 +315,32 @@ describe("panel detail pegawai", () => {
     const history = within(dialog).getByRole("tabpanel");
     expect(within(history).getByText("Siti Rahmawati")).toBeInTheDocument();
     expect(within(history).getByText("HR Admin")).toBeInTheDocument();
-    expect(within(history).getByText("Kantor Pusat Jakarta")).toBeInTheDocument();
+    // Lokasi kerja pengubah di tooltip nama (meta satu baris).
+    expect(within(history).getAllByTitle("Kantor Pusat Jakarta").length).toBeGreaterThan(0);
     expect(within(history).getAllByText(/sistem \(data awal\/impor\)/).length).toBeGreaterThan(0);
 
-    // EMP-D5: timeline gabungan — perubahan data (nilai lama → baru) + nilai tersembunyi tanpa nilai.
-    expect(await within(history).findByText("GA Staff → GA Supervisor")).toBeInTheDocument();
-    expect(within(history).getByText("NIK KTP diubah")).toBeInTheDocument();
+    // EMP-D5: timeline gabungan per bulan — diff "label  lama → baru" + nilai tersembunyi tanpa nilai.
+    const dd = (text: string) => within(history).queryByText(text, { selector: "dd *" });
+    const position = (await within(history).findByText("GA Supervisor", { selector: "dd *" }))
+      .parentElement as HTMLElement;
+    expect(position).toHaveTextContent(/^GA Staff.*GA Supervisor$/);
+    expect(position.previousElementSibling).toHaveTextContent("Jabatan");
+    expect(within(history).getByText("NIK KTP")).toBeInTheDocument();
     expect(within(history).getByText("nilai disembunyikan")).toBeInTheDocument();
-    // Filter: Data pribadi hanya menampilkan bagian pribadi; Kepegawaian hanya peristiwa kepegawaian.
-    await userEvent.click(within(history).getByRole("button", { name: "Data pribadi" }));
-    expect(within(history).queryByText("GA Staff → GA Supervisor")).not.toBeInTheDocument();
-    expect(within(history).getByText("NIK KTP diubah")).toBeInTheDocument();
-    await userEvent.click(within(history).getByRole("button", { name: "Kepegawaian" }));
-    expect(within(history).queryByText("NIK KTP diubah")).not.toBeInTheDocument();
-    expect(within(history).getByText("Magang → PKWT")).toBeInTheDocument();
+    // Filter segmented ber-jumlah: Data pribadi hanya bagian pribadi; Kepegawaian hanya peristiwa kepegawaian.
+    const filters = within(history).getByRole("group", { name: "Filter riwayat" });
+    expect(within(filters).getByRole("button", { name: /^Semua\s*\d+/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(within(filters).getByRole("button", { name: /^Data pribadi/ }));
+    expect(dd("GA Supervisor")).not.toBeInTheDocument();
+    expect(within(history).getByText("NIK KTP")).toBeInTheDocument();
+    await userEvent.click(within(filters).getByRole("button", { name: /^Rekening/ }));
+    expect(within(history).getByText("Belum ada perubahan rekening.")).toBeInTheDocument();
+    await userEvent.click(within(filters).getByRole("button", { name: /^Kepegawaian/ }));
+    expect(within(history).queryByText("NIK KTP")).not.toBeInTheDocument();
+    expect(dd("PKWT")?.parentElement).toHaveTextContent(/^Magang.*PKWT$/);
   });
 
   it("tombol Kembali (panah kiri) di kiri atas menutup panel; tanpa tombol X", async () => {
