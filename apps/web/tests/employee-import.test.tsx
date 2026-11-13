@@ -401,6 +401,44 @@ describe("Import Data Karyawan", () => {
     });
   });
 
+  it("IMP-D2: mode Isi yang kosong saja dikirim; Pratinjau menampilkan Diisi & Dibiarkan", async () => {
+    const fill = {
+      ...preview,
+      counts: { ...preview.counts, update: 1, error: 0 },
+      rows: [
+        preview.rows[0],
+        {
+          ...preview.rows[1],
+          action: "UPDATE",
+          issues: [],
+          changes: ["workLocationName", "originCity"],
+          kept: ["positionName", "phoneNumber"],
+        },
+      ],
+    } as unknown as typeof preview;
+    const requests = mockBackend({ previewData: fill });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    const card = await screen.findByRole("radio", { name: /Isi yang kosong saja/ });
+    expect(screen.getByRole("radio", { name: /Tambah \+ perbarui/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await user.click(card);
+    expect(card).toHaveAttribute("aria-checked", "true");
+    await user.upload(screen.getByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
+    expect(await screen.findByText("Akan dibuat")).toBeInTheDocument();
+    const body = requests.find((r) => r.path === "/employee-imports/preview")?.body as {
+      mode: string;
+    };
+    expect(body.mode).toBe("FILL_EMPTY");
+    expect(screen.getByText(/Isi yang kosong saja · PT ACP/)).toBeInTheDocument();
+    expect(screen.getByText(/^Diisi: /)).toBeInTheDocument();
+    expect(screen.getByText(/^Dibiarkan \(sudah berisi, beda\): /)).toBeInTheDocument();
+    expect(screen.queryByText(/^Berubah: /)).not.toBeInTheDocument();
+  });
+
   it("IMP-D1: saran pemegang bagan per baris + daftar belum dilengkapi; pilihan dikirim", async () => {
     const withHolders = {
       ...preview,
