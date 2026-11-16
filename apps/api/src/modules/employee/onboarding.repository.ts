@@ -126,6 +126,10 @@ export async function countSentSince(since: Date) {
   return getPrisma().onboardingInvitation.count({ where: { sentAt: { gte: since } } });
 }
 
+/**
+ * Tandai hasil satu undangan antrean. Hanya baris yang MASIH `QUEUED` yang diubah (ONB-D1: undangan
+ * yang dibatalkan/diganti emailnya di tengah proses tidak ditimpa jadi SENT). Mengembalikan jumlah baris.
+ */
 export async function markInvitation(
   id: string,
   data: {
@@ -135,7 +139,16 @@ export async function markInvitation(
     lastErrorCode?: string | null;
   },
 ) {
-  return getPrisma().onboardingInvitation.update({ where: { id }, data });
+  const { count } = await getPrisma().onboardingInvitation.updateMany({
+    where: { id, status: "QUEUED" },
+    data,
+  });
+  return count;
+}
+
+/** ONB-D1: undangan antrean masih QUEUED? (cek ulang tepat sebelum mengundang). */
+export async function isInvitationQueued(id: string) {
+  return (await getPrisma().onboardingInvitation.count({ where: { id, status: "QUEUED" } })) > 0;
 }
 
 export async function hasOpenInvitation(employeeId: string) {
@@ -144,6 +157,40 @@ export async function hasOpenInvitation(employeeId: string) {
       where: { employeeId, status: "QUEUED" },
     })) > 0
   );
+}
+
+/** ONB-D1: email undangan antrean terbaru yang masih terbuka (null bila tidak ada). */
+export async function openInvitationEmail(employeeId: string) {
+  const row = await getPrisma().onboardingInvitation.findFirst({
+    where: { employeeId, status: "QUEUED" },
+    orderBy: { createdAt: "desc" },
+    select: { email: true },
+  });
+  return row?.email ?? null;
+}
+
+/**
+ * ONB-D1: tutup undangan antrean yang masih terbuka (batal / email diganti). Status antrean hanya
+ * QUEUED/SENT/FAILED, jadi ditandai FAILED dengan kode alasan (tanpa migrasi).
+ */
+export async function closeOpenInvitations(
+  tx: EmployeeTx,
+  employeeId: string,
+  code: "CANCELLED" | "EMAIL_CHANGED",
+) {
+  const { count } = await tx.onboardingInvitation.updateMany({
+    where: { employeeId, status: "QUEUED" },
+    data: { status: "FAILED", lastErrorCode: code },
+  });
+  return count;
+}
+
+export async function setCompletionRequired(tx: EmployeeTx, id: string, value: boolean) {
+  return tx.employee.update({ where: { id }, data: { completionRequired: value } });
+}
+
+export async function setPersonalEmail(tx: EmployeeTx, id: string, personalEmail: string) {
+  return tx.employee.update({ where: { id }, data: { personalEmail } });
 }
 
 export type CandidateWhere = Prisma.EmployeeWhereInput;

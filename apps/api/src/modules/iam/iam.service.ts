@@ -1040,6 +1040,41 @@ export async function purgeAccountOfEmployee(
   };
 }
 
+/**
+ * ONB-D1: lepas akun undangan yang BELUM PERNAH login (batalkan / ubah email undangan), di transaksi
+ * pemanggil. Baris akun dihapus (API langsung menolak token lama). User Auth yang dibuat undangan ini
+ * di-ban + emailnya dianonimkan supaya tautan undangan/atur password lama tidak bisa dipakai; user Auth
+ * yang sudah ada sebelumnya (dipakai bersama lingkungan lain, D-023) tidak disentuh.
+ */
+export async function retireUnusedEmployeeAccount(
+  employeeId: string,
+  deps: { authAdmin: AuthAdmin; anonymousDomain: string },
+  tx: repository.IamTx,
+): Promise<{ accountId: string; emails: string[]; authUserRetired: boolean } | null> {
+  const account = await repository.findAccountByEmployeeId(tx, employeeId);
+  if (!account) return null;
+  if (account.lastLoginAt !== null) {
+    throw new BusinessRuleError("Akun sudah pernah login; gunakan Nonaktifkan di menu Akun.");
+  }
+  if (account.role !== ROLE.EMPLOYEE) {
+    throw new BusinessRuleError("Akun ini bukan akun karyawan biasa; kelola di menu Akun.");
+  }
+  const authUserRetired = await repository.authUserCreatedByInvite(tx, account.id);
+  await repository.deleteAccount(tx, account.id);
+  if (authUserRetired) {
+    await deps.authAdmin.setBanned(account.authUserId, true);
+    await deps.authAdmin.updateUserEmail(
+      account.authUserId,
+      `deleted-${crypto.randomUUID()}@${deps.anonymousDomain}`,
+    );
+  }
+  return {
+    accountId: account.id,
+    emails: [account.email, account.loginEmail].filter((e): e is string => Boolean(e)),
+    authUserRetired,
+  };
+}
+
 // ── D-045: undangan akun untuk calon/karyawan dari onboarding (dipanggil modul employee) ─────────
 
 export type EmployeeInviteOutcome =
@@ -1060,9 +1095,11 @@ export async function inviteEmployeeAccount(input: {
   requestId?: string | null;
 }): Promise<EmployeeInviteOutcome> {
   const email = input.email.trim().toLowerCase();
-  if (await repository.findAccountByEmail(email)) return { ok: false, code: "EMAIL_HAS_ACCOUNT" };
+  // Akun milik karyawan ini dicek DULU: kirim ulang ke email akunnya sendiri bukan "email dipakai akun
+  // lain" (ONB-D1; dulu selalu gagal EMAIL_HAS_ACCOUNT).
   const linked = await repository.findAccountsForEmployees([input.employeeId]);
   if (linked.length > 0) return { ok: false, code: "EMPLOYEE_HAS_ACCOUNT" };
+  if (await repository.findAccountByEmail(email)) return { ok: false, code: "EMAIL_HAS_ACCOUNT" };
   let authUser: { id: string };
   let emailSent = false;
   try {
@@ -1107,6 +1144,8 @@ export interface EmployeeAccountState {
   employeeId: string;
   accountId: string;
   email: string;
+  /** Email user Auth akun ini (alamat NIP D-048 bila sudah aktif) — tujuan tautan atur password. */
+  authEmail: string;
   hasLoggedIn: boolean;
   isActive: boolean;
 }
@@ -1215,6 +1254,7 @@ export async function getEmployeeAccountStates(
     employeeId: row.employeeId as string,
     accountId: row.id,
     email: row.email,
+    authEmail: row.loginEmail ?? row.email,
     hasLoggedIn: row.lastLoginAt !== null,
     isActive: row.isActive,
   }));

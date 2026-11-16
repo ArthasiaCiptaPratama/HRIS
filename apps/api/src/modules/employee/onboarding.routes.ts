@@ -4,6 +4,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
+import { FALLBACK_ANONYMOUS_AUTH_DOMAIN } from "../../core/supabase-admin.ts";
 import {
   batchIdParamSchema,
   batchSchema,
@@ -15,6 +16,9 @@ import {
   documentUploadUrlBodySchema,
   documentUploadUrlSchema,
   employeeIdParamSchema,
+  invitationCancelResultSchema,
+  invitationEmailBodySchema,
+  invitationEmailResultSchema,
   inviteExistingBodySchema,
   inviteExistingResultSchema,
   myOnboardingSchema,
@@ -136,6 +140,32 @@ const routes = {
     responses: {
       200: json("Antre", dataEnvelope(z.object({ employeeId: z.uuid(), queued: z.boolean() }))),
       ...errors(401, 403, 404, 409, 422, 500),
+    },
+  }),
+  changeInvitationEmail: createRoute({
+    method: "put",
+    path: `${P}/onboarding/{employeeId}/invitation-email`,
+    operationId: "changeOnboardingInvitationEmail",
+    tags: TAGS,
+    summary: "Ubah email undangan (akun belum pernah login) lalu kirim ulang lewat antrean",
+    security,
+    request: { params: employeeIdParamSchema, ...body(invitationEmailBodySchema) },
+    responses: {
+      200: json("Antre ke email baru", dataEnvelope(invitationEmailResultSchema)),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  cancelInvitation: createRoute({
+    method: "delete",
+    path: `${P}/onboarding/{employeeId}/invitation`,
+    operationId: "cancelOnboardingInvitation",
+    tags: TAGS,
+    summary: "Batalkan undangan (akun belum pernah login dilepas, bisa diundang ulang)",
+    security,
+    request: { params: employeeIdParamSchema },
+    responses: {
+      200: json("Dibatalkan", dataEnvelope(invitationCancelResultSchema)),
+      ...errors(401, 403, 404, 422, 500),
     },
   }),
   inviteExisting: createRoute({
@@ -330,6 +360,29 @@ export function registerOnboardingRoutes(
   });
   app.openapi(guard(routes.resend), async (c) =>
     c.json(ok(await service.resendInvitation(ctx(c), c.req.valid("param").employeeId)), 200),
+  );
+  const adminDeps: service.InvitationAdminDeps = {
+    authAdmin: deps.invitations.authAdmin,
+    anonymousDomain: deps.loginEmailDomain ?? FALLBACK_ANONYMOUS_AUTH_DOMAIN,
+  };
+  app.openapi(guard(routes.changeInvitationEmail), async (c) =>
+    c.json(
+      ok(
+        await service.changeInvitationEmail(
+          ctx(c),
+          c.req.valid("param").employeeId,
+          c.req.valid("json").email,
+          adminDeps,
+        ),
+      ),
+      200,
+    ),
+  );
+  app.openapi(guard(routes.cancelInvitation), async (c) =>
+    c.json(
+      ok(await service.cancelInvitation(ctx(c), c.req.valid("param").employeeId, adminDeps)),
+      200,
+    ),
   );
   app.openapi(guard(routes.inviteExisting), async (c) =>
     c.json(ok(await service.inviteExisting(ctx(c), c.req.valid("json"))), 200),
