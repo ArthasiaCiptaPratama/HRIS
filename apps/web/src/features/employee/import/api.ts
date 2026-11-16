@@ -80,6 +80,8 @@ export const previewSchema = z.object({
       newEmployee: z.boolean(),
       employmentStatusId: z.string().nullable(),
       changes: z.array(z.string()),
+      /** IMP-D2 (mode FILL_EMPTY): field yang sudah berisi & berbeda dengan file → dibiarkan. */
+      kept: z.array(z.string()).default([]),
       issues: z.array(issueSchema),
       attachments: z.number(),
       /** IMP-D1: null = cocok lewat NIP/NIK; selain itu saran & pilihan pemegang bagan. */
@@ -88,6 +90,11 @@ export const previewSchema = z.object({
           candidates: z.array(z.object({ id: z.string(), match: z.enum(["NAME", "INITIALS"]) })),
           choice: z.string().nullable(),
         })
+        .nullable()
+        .default(null),
+      /** IMP-D3: karyawan yang cocok & masih aktif akan dinonaktifkan (alasan + tanggal dari file). */
+      deactivate: z
+        .object({ reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]), date: z.string() })
         .nullable()
         .default(null),
     }),
@@ -127,10 +134,13 @@ const mappingSchema = z.object({
 
 export type ImportCell = string | number | boolean | null;
 
+/** D-042 + IMP-D2: mode import (FILL_EMPTY = karyawan yang cocok hanya diisi field yang masih kosong). */
+export type ImportMode = "CREATE_ONLY" | "UPSERT" | "FILL_EMPTY";
+
 export interface ImportRequest {
   fileName: string;
   fileSha256: string;
-  mode: "CREATE_ONLY" | "UPSERT";
+  mode: ImportMode;
   companyId?: string | undefined;
   /** D-062: status bawaan & status per baris (nomor baris → id) untuk baris yang belum ada di sistem. */
   defaultEmploymentStatusId?: string | undefined;

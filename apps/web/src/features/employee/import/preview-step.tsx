@@ -1,4 +1,4 @@
-import type { ImportFieldKey } from "@hris/shared";
+import { EXIT_REASON_LABELS, type ImportFieldKey } from "@hris/shared";
 import {
   ArrowLeft,
   ChevronDown,
@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "./api";
 import { ACTION_LABELS, fieldLabel, issueHint, issueText } from "./labels";
@@ -74,9 +75,11 @@ type Row = ImportPreview["rows"][number];
 function RowMessages({
   row,
   columnOf,
+  fillEmpty,
 }: {
   row: Row;
   columnOf: (field: ImportFieldKey) => number | undefined;
+  fillEmpty: boolean;
 }) {
   const [showWarnings, setShowWarnings] = useState(false);
   const errors = row.issues.filter((i) => i.severity === "ERROR");
@@ -84,10 +87,24 @@ function RowMessages({
   const hint = issueHint(row.issues);
   return (
     <div className="space-y-1 text-sm">
-      {row.action === "UPDATE" && row.changes.length > 0 ? (
-        <p className="text-muted-foreground">Berubah: {row.changes.map(fieldLabel).join(", ")}</p>
+      {row.deactivate ? (
+        <p className="text-foreground">
+          Akan dinonaktifkan: {EXIT_REASON_LABELS[row.deactivate.reason]} per{" "}
+          {formatDate(row.deactivate.date)}
+        </p>
       ) : null}
-      {row.action === "SKIP" && row.issues.length === 0 ? (
+      {row.action === "UPDATE" && row.changes.length > 0 ? (
+        <p className="text-muted-foreground">
+          {fillEmpty ? "Diisi" : "Berubah"}: {row.changes.map(fieldLabel).join(", ")}
+        </p>
+      ) : null}
+      {/* IMP-D2: info konflik, bukan error — nilai di sistem dipertahankan. */}
+      {row.kept.length > 0 ? (
+        <p className="text-muted-foreground">
+          Dibiarkan (sudah berisi, beda): {row.kept.map(fieldLabel).join(", ")}
+        </p>
+      ) : null}
+      {row.action === "SKIP" && row.issues.length === 0 && row.kept.length === 0 ? (
         <p className="text-muted-foreground">Tidak ada perubahan data</p>
       ) : null}
       {row.action === "CREATE" && row.issues.length === 0 ? (
@@ -136,6 +153,7 @@ function RowMessages({
 export function PreviewStep({
   preview,
   settings,
+  fillEmpty = false,
   statusOptions,
   statusOverrides,
   onStatusOverride,
@@ -155,6 +173,8 @@ export function PreviewStep({
   preview: ImportPreview;
   /** Ringkasan pilihan di langkah Lengkapi data (mis. "PT ACP", "10 nilai unit dicocokkan"). */
   settings: string[];
+  /** IMP-D2: mode "Isi yang kosong saja" → label "Diisi" untuk field yang akan ditulis. */
+  fillEmpty?: boolean;
   statusOptions: SelectOption[];
   statusOverrides: Record<string, string>;
   /** id kosong = kembali ikut kolom file / status bawaan. */
@@ -474,7 +494,7 @@ export function PreviewStep({
                     </TableCell>
                   ) : null}
                   <TableCell className="min-w-[280px] whitespace-normal">
-                    <RowMessages row={r} columnOf={columnOf} />
+                    <RowMessages row={r} columnOf={columnOf} fillEmpty={fillEmpty} />
                   </TableCell>
                 </TableRow>
               ))}

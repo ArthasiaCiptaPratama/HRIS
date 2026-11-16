@@ -150,6 +150,7 @@ export async function addEmployeeHomebase(
     .withTransaction(async (tx) => {
       await loadWritable(ctx, id, tx);
       await assertDateFree(tx, id, effectiveFrom);
+      const current = await repository.findLatestEntry(tx, id);
       // 1) baris riwayat → 2) kolom turunan → 3) audit → 4) EMP-D5.
       const created = await repository.createEntry(tx, {
         employeeId: id,
@@ -170,8 +171,9 @@ export async function addEmployeeHomebase(
           {
             section: "WORK",
             field: "homebase",
-            oldValue: null,
-            newValue: homebaseChangeText(lookup, created),
+            // EMP-D5: homebase yang berlaku sebelum → sesudah (tanggal mundur = tidak berubah, tidak dicatat).
+            oldValue: homebaseChangeText(lookup, current),
+            newValue: homebaseChangeText(lookup, await repository.findLatestEntry(tx, id)),
           },
         ],
       });
@@ -201,6 +203,7 @@ export async function updateEmployeeHomebase(
       if (input.homebaseId !== undefined && input.homebaseId !== before.homebaseId) {
         assertActiveHomebase(lookup, input.homebaseId);
       }
+      const current = await repository.findLatestEntry(tx, id);
       const effectiveFrom =
         input.effectiveFrom !== undefined ? toDate(input.effectiveFrom) : undefined;
       if (effectiveFrom && effectiveFrom.getTime() !== before.effectiveFrom.getTime()) {
@@ -226,8 +229,8 @@ export async function updateEmployeeHomebase(
           {
             section: "WORK",
             field: "homebase",
-            oldValue: homebaseChangeText(lookup, before),
-            newValue: homebaseChangeText(lookup, after),
+            oldValue: homebaseChangeText(lookup, current),
+            newValue: homebaseChangeText(lookup, await repository.findLatestEntry(tx, id)),
           },
         ],
       });
@@ -249,6 +252,7 @@ export async function deleteEmployeeHomebase(
     await loadWritable(ctx, id, tx);
     const before = await repository.findEntry(tx, id, entryId);
     if (!before) throw new NotFoundError("Riwayat homebase tidak ditemukan.");
+    const current = await repository.findLatestEntry(tx, id);
     await repository.deleteEntry(tx, entryId);
     await repository.syncCurrentHomebase(tx, id);
     await writeAudit(auditOf(ctx, id, "delete", { before: auditEntry(before) }), tx);
@@ -261,8 +265,8 @@ export async function deleteEmployeeHomebase(
         {
           section: "WORK",
           field: "homebase",
-          oldValue: homebaseChangeText(lookup, before),
-          newValue: null,
+          oldValue: homebaseChangeText(lookup, current),
+          newValue: homebaseChangeText(lookup, await repository.findLatestEntry(tx, id)),
         },
       ],
     });

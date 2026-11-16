@@ -32,6 +32,7 @@ export {
   type RequestContext,
   reactivateAccountOfEmployee,
   recoverPrimarySuperAdmin,
+  retireUnusedEmployeeAccount,
 } from "./iam.service.ts";
 export {
   applyNikLogin,

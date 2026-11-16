@@ -362,8 +362,13 @@ export const employeeFormSchema = z.object({
   departmentId: z.string().min(1, "Pilih unit organisasi."),
   positionId: z.string().min(1, "Pilih jabatan."),
   workLocationId: z.string(),
-  /** EMP-D6: homebase awal — hanya dikirim saat tambah (berlaku mulai tanggal masuk). */
+  /**
+   * EMP-D6: tambah = homebase awal (berlaku mulai tanggal masuk, ikut POST /employees). Ubah data = homebase
+   * baru bila diganti → POST /employees/{id}/homebases dengan berlaku mulai + no. SK di bawah.
+   */
   homebaseId: z.string(),
+  homebaseEffectiveFrom: z.string(),
+  homebaseDecreeNumber: z.string(),
   gradeId: z.string(),
   managerId: z.string(),
   // D-051/D-053: pos jabatan (opsional) & atasan diatur manual.

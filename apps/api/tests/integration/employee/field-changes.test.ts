@@ -185,6 +185,46 @@ describe("pencatatan per jalur", () => {
     expect(dump).not.toContain("1234567890");
   });
 
+  test("profil HR: nomor yang hanya beda format (NPWP/rekening) tidak tercatat; hanya kota asal", async () => {
+    // Data lama berformat (impor/seed); simpan profil menormalkan jadi angka saja (EMP-D4).
+    await prisma.employeePersonal.create({
+      data: {
+        employeeId: ids.manager,
+        npwpNumber: "09.009.009.9-017.000",
+      },
+    });
+    await prisma.employeeBankAccount.create({
+      data: {
+        employeeId: ids.manager,
+        bankName: "Bank Contoh",
+        accountNumber: "123-456-7890",
+        accountHolder: "Uji",
+      },
+    });
+    const res = await call("PATCH", `/employees/${ids.manager}/profile`, hrWriter.headers, {
+      personal: {
+        npwpNumber: "09.009.009.9-017.000",
+        originCity: "Palopo",
+      },
+      bank: { bankName: "Bank Contoh", accountNumber: "123-456-7890", accountHolder: "Uji" },
+    });
+    expect(res.status).toBe(200);
+    const stored = await prisma.employeePersonal.findUniqueOrThrow({
+      where: { employeeId: ids.manager },
+    });
+    expect(stored.npwpNumber).toBe("090090099017000"); // penyimpanan EMP-D4 tidak berubah
+    const rows = await prisma.employeeFieldChange.findMany({
+      where: { employeeId: ids.manager, source: "HR_PROFILE" },
+      select: { section: true, field: true, oldValue: true, newValue: true },
+    });
+    expect(rows).toEqual([
+      { section: "PERSONAL", field: "originCity", oldValue: null, newValue: "Palopo" },
+    ]);
+    await prisma.employeeFieldChange.deleteMany({ where: { employeeId: ids.manager } });
+    await prisma.employeeBankAccount.deleteMany({ where: { employeeId: ids.manager } });
+    await prisma.employeePersonal.deleteMany({ where: { employeeId: ids.manager } });
+  });
+
   test("gagal di tengah transaksi (NIK dipakai karyawan lain) → tidak ada baris riwayat", async () => {
     const taken = (await prisma.employeePersonal.findUnique({ where: { employeeId: ids.target } }))
       ?.ktpNumber as string;

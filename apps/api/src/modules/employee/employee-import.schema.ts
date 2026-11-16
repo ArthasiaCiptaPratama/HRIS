@@ -40,7 +40,7 @@ export const importBodySchema = z
   .object({
     fileName: z.string().trim().min(1).max(255),
     fileSha256: z.string().regex(/^[a-f0-9]{64}$/, "SHA-256 heksadesimal"),
-    mode: z.enum(["CREATE_ONLY", "UPSERT"]),
+    mode: z.enum(["CREATE_ONLY", "UPSERT", "FILL_EMPTY"]),
     /** PT bawaan untuk baris tanpa kolom perusahaan (D-040). */
     companyId: z.uuid().optional(),
     /** D-062: status kepegawaian bawaan untuk baris yang belum ada di sistem dan tanpa kolom status. */
@@ -139,6 +139,8 @@ export const previewSchema = z
         /** D-062: status kepegawaian terpilih untuk baris baru (file / per baris / bawaan), null bila belum. */
         employmentStatusId: z.uuid().nullable(),
         changes: z.array(z.string()),
+        /** IMP-D2 (mode FILL_EMPTY): field yang sudah berisi & berbeda dengan file → dibiarkan. */
+        kept: z.array(z.string()),
         issues: z.array(issueSchema),
         attachments: z.number().int(),
         /**
@@ -149,6 +151,13 @@ export const previewSchema = z
           .object({
             candidates: z.array(z.object({ id: z.uuid(), match: z.enum(["NAME", "INITIALS"]) })),
             choice: z.union([z.uuid(), z.literal("NEW")]).nullable(),
+          })
+          .nullable(),
+        /** IMP-D3: karyawan yang cocok & masih aktif akan dinonaktifkan (alasan + tanggal dari file). */
+        deactivate: z
+          .object({
+            reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]),
+            date: z.iso.date(),
           })
           .nullable(),
       }),
@@ -212,7 +221,7 @@ export const importJobSchema = z
     actorAccountId: z.uuid(),
     companyId: z.uuid().nullable(),
     fileName: z.string(),
-    mode: z.enum(["CREATE_ONLY", "UPSERT"]),
+    mode: z.enum(["CREATE_ONLY", "UPSERT", "FILL_EMPTY"]),
     totalRows: z.number().int(),
     createdCount: z.number().int(),
     updatedCount: z.number().int(),

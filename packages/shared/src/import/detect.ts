@@ -248,6 +248,10 @@ function contentScores(p: ContentProfile): Partial<Record<ImportFieldKey, number
 const KTP_HEADER = /nomor induk kependudukan/i;
 const FORMS_TIMESTAMP = new Set(["stempel waktu", "timestamp", "cap waktu"]);
 const FORMS_ACCOUNT_EMAIL = new Set(["alamat email", "email address"]);
+// IMP-D2: kolom email tanpa kata "kantor" dkk. yang isinya kebanyakan email gratis = email pribadi.
+const WORK_EMAIL_HEADER = /\b(kantor|kerja|work|office|perusahaan|company|corporate)\b/i;
+const FREE_MAIL =
+  /@(gmail|googlemail|yahoo|ymail|rocketmail|hotmail|outlook|live|msn|icloud|me|aol|proton|protonmail)\.[a-z.]+$/i;
 
 // Kolom milik anggota keluarga: "(Anak 1)", "(Saudara Kandung 2)", "Nama Istri/Suami", "Nama Lengkap Ayah".
 const FAMILY_HEADER = /\b(anak|saudara|suami|istri|pasangan|ayah|ibu|orang tua)\b/i;
@@ -566,6 +570,18 @@ export function suggestMapping(detected: DetectedSheet): ColumnSuggestion[] {
       if (h === 0 && c >= 0.9 && ["ktpNumber", "workEmail", "ptkpStatus"].includes(key))
         score = 0.6;
       combined[key] = score;
+    }
+    // IMP-D2: "ALAMAT EMAIL" berisi gmail/yahoo dst. → email pribadi, bukan email kantor.
+    const freeMail = profile(values).ratio(
+      (v) => typeof v === "string" && FREE_MAIL.test(v.trim()),
+    );
+    if (
+      (combined.workEmail ?? 0) >= 0.5 &&
+      freeMail >= 0.5 &&
+      !WORK_EMAIL_HEADER.test(String(header ?? ""))
+    ) {
+      combined.personalEmail = Math.max(combined.personalEmail ?? 0, combined.workEmail ?? 0);
+      combined.workEmail = 0;
     }
     // NIK ambigu: isi 16 digit = NIK KTP, selain itu nomor induk karyawan.
     if ((byHeader.employeeNumber ?? 0) >= 0.8 && (byContent.ktpNumber ?? 0) >= 0.6) {

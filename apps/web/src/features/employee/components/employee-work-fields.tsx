@@ -31,6 +31,8 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   positionId: "",
   workLocationId: "",
   homebaseId: "",
+  homebaseEffectiveFrom: "",
+  homebaseDecreeNumber: "",
   gradeId: "",
   managerId: "",
   orgPostId: "",
@@ -41,7 +43,8 @@ const orNull = (value: string) => (value.trim() === "" ? null : value.trim());
 
 /**
  * Nilai form → body API (POST/PATCH /employees). EMP-D6: `homebaseId` hanya dikirim saat tambah
- * (`create`); PATCH tidak menerimanya — homebase diubah lewat riwayat homebase di detail.
+ * (`create`); PATCH tidak menerimanya — homebase baru dari Ubah data dikirim ke riwayat homebase
+ * (`homebaseChangeFromForm`).
  */
 export function toEmployeeWriteBody(
   values: EmployeeForm,
@@ -69,6 +72,14 @@ export function toEmployeeWriteBody(
       ? { managerOverride: false }
       : { managerId: orNull(values.managerId), ...(placed ? { managerOverride: true } : {}) }),
   };
+}
+
+/** EMP-D6: Ubah data mengganti homebase → perlu baris riwayat baru (berlaku mulai + no. SK). */
+export function homebaseChangeFromForm(
+  employee: EmployeeDetail | null | undefined,
+  homebaseId: string,
+): boolean {
+  return Boolean(employee && homebaseId && homebaseId !== (employee.homebase?.id ?? ""));
 }
 
 export function EmployeeWorkFields({
@@ -119,6 +130,8 @@ export function EmployeeWorkFields({
     }
   }, [postOptions, posts.data, form, setValue]);
   const selectedPost = postOptions.find((p) => p.id === orgPostId);
+  const homebaseId = watch("homebaseId");
+  const homebaseChanged = Boolean(employee) && homebaseChangeFromForm(employee, homebaseId);
 
   // D-049: nilai lama yang sudah diarsipkan tetap ditampilkan (tidak bisa dipilih untuk data lain).
   const keepCurrent = <O extends { value: string; label: string }>(
@@ -367,13 +380,17 @@ export function EmployeeWorkFields({
             )}
           />
         </FormField>
-        {editing ? null : (
-          // EMP-D6: hanya saat tambah; perubahan berikutnya lewat "Ubah homebase" di detail.
+        {!employee || employee.access.manage ? (
+          // EMP-D6: tambah = homebase awal; ubah data (SA/HR sesuai PT) = homebase baru berlaku per tanggal.
           <FormField
             label="Homebase (POH)"
             htmlFor="f-homebase"
             optional
-            hint="Kota/daerah asal rekrut; berlaku mulai tanggal masuk."
+            hint={
+              editing
+                ? "Kota/daerah asal rekrut. Mengganti homebase menambah riwayat baru (lihat tab Riwayat)."
+                : "Kota/daerah asal rekrut; berlaku mulai tanggal masuk."
+            }
           >
             <Controller
               control={control}
@@ -384,17 +401,52 @@ export function EmployeeWorkFields({
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="Pilih homebase"
-                  noneLabel="Belum ditentukan"
-                  options={(master.data?.homebases ?? []).map((h) => ({
-                    value: h.id,
-                    label: h.name,
-                    ...(h.city ? { hint: h.city } : {}),
-                  }))}
+                  // Menghapus homebase yang sudah ada hanya lewat riwayat (tab Riwayat).
+                  {...(employee?.homebase ? {} : { noneLabel: "Belum ditentukan" })}
+                  options={keepCurrent(
+                    (master.data?.homebases ?? []).map((h) => ({
+                      value: h.id,
+                      label: h.name,
+                      ...(h.city ? { hint: h.city } : {}),
+                    })),
+                    employee?.homebase,
+                  )}
                 />
               )}
             />
           </FormField>
-        )}
+        ) : null}
+        {homebaseChanged ? (
+          <>
+            <FormField
+              label="Homebase berlaku mulai"
+              htmlFor="f-homebase-from"
+              error={errors.homebaseEffectiveFrom?.message}
+              hint="Boleh mundur, tidak boleh di masa depan."
+            >
+              <Input
+                id="f-homebase-from"
+                type="date"
+                max={todayIso()}
+                aria-invalid={Boolean(errors.homebaseEffectiveFrom)}
+                {...register("homebaseEffectiveFrom")}
+              />
+            </FormField>
+            <FormField
+              label="No. SK homebase"
+              htmlFor="f-homebase-sk"
+              optional
+              error={errors.homebaseDecreeNumber?.message}
+            >
+              <Input
+                id="f-homebase-sk"
+                maxLength={60}
+                aria-invalid={Boolean(errors.homebaseDecreeNumber)}
+                {...register("homebaseDecreeNumber")}
+              />
+            </FormField>
+          </>
+        ) : null}
         {selectedPost ? (
           <div className="sm:col-span-2">
             <label className="flex items-start gap-2 text-sm">

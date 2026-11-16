@@ -8,14 +8,22 @@ import * as repository from "./homebase.repository.ts";
 const toIso = (date: Date) => date.toISOString().slice(0, 10);
 const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
-/** Teks EMP-D5 field `homebase`: "<Nama> (berlaku YYYY-MM-DD)". */
+// Tanggal tampilan PROMPT §7 (`dd MMM yyyy`). `effective_from` = tanggal kalender (tengah malam UTC).
+const DISPLAY_DATE = new Intl.DateTimeFormat("id-ID", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/** Teks EMP-D5 field `homebase`: "<Nama> (berlaku 01 Jan 2025)". Entri lama (ISO) dibiarkan. */
 export function homebaseChangeText(
   lookup: MasterLookup,
   entry: { homebaseId: string; effectiveFrom: Date } | null,
 ): string | null {
   if (!entry) return null;
   const name = lookup.homebases.get(entry.homebaseId)?.name ?? "—";
-  return `${name} (berlaku ${toIso(entry.effectiveFrom)})`;
+  return `${name} (berlaku ${DISPLAY_DATE.format(entry.effectiveFrom)})`;
 }
 
 /** Homebase awal berlaku mulai tanggal masuk; tanggal masuk di masa depan → hari ini (WIB). */

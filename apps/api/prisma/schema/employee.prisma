@@ -52,6 +52,8 @@ enum EducationLevel {
 enum ImportMode {
   CREATE_ONLY
   UPSERT
+  // IMP-D2: karyawan yang cocok hanya diisi field yang masih kosong.
+  FILL_EMPTY
 
   @@schema("employee")
 }

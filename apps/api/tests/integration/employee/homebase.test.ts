@@ -314,24 +314,20 @@ describe("riwayat homebase karyawan", () => {
       select: { source: true, section: true, oldValue: true, newValue: true },
     });
     expect(rows.every((r) => r.source === "HR_FORM" && r.section === "WORK")).toBe(true);
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        oldValue: null,
-        newValue: `${N("Alfa")} (berlaku 2024-01-01)`,
-      }),
-    );
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        oldValue: `${N("Charlie")} (berlaku 2023-06-01)`,
-        newValue: `${N("Charlie")} (berlaku 2025-06-01)`,
-      }),
-    );
-    expect(rows).toContainEqual(
-      expect.objectContaining({
-        oldValue: `${N("Charlie")} (berlaku 2025-06-01)`,
-        newValue: null,
-      }),
-    );
+    // Nilai lama/baru = homebase yang BERLAKU sebelum → sesudah simpan (temuan staging 2026-11-13: dulu
+    // tambah baris selalu "— → baru"). Baris mundur (2023-06-01) & koreksi baris lama tidak mengubah nilai
+    // sekarang → tidak dicatat.
+    const text = (name: string, from: string) => `${N(name)} (berlaku ${from})`;
+    expect(rows.map((r) => [r.oldValue, r.newValue])).toEqual([
+      [null, text("Alfa", "01 Jan 2024")],
+      [text("Alfa", "01 Jan 2024"), text("Bravo", "01 Jan 2025")],
+      // PATCH baris mundur Charlie → 2025-06-01 menjadikannya yang terbaru.
+      [text("Bravo", "01 Jan 2025"), text("Charlie", "01 Jun 2025")],
+      // Hapus terbaru → kembali ke baris sebelumnya; lalu sisa dihapus sampai kosong.
+      [text("Charlie", "01 Jun 2025"), text("Bravo", "01 Jan 2025")],
+      [text("Bravo", "01 Jan 2025"), text("Alfa", "01 Jan 2024")],
+      [text("Alfa", "01 Jan 2024"), null],
+    ]);
     // Lewat endpoint EMP-D5 juga terbaca (data kerja, tanpa disamarkan).
     const changes = await data(
       await call("GET", `/employees/${target}/field-changes?section=WORK`, sa.headers),
@@ -456,8 +452,8 @@ describe("tambah karyawan, daftar, hapus & gabung master", () => {
     ).toEqual({
       section: "WORK",
       field: "homebase",
-      oldValue: `${N("Sumber")} (berlaku 2024-05-01)`,
-      newValue: `${N("Tujuan")} (berlaku 2024-05-01)`,
+      oldValue: `${N("Sumber")} (berlaku 01 Mei 2024)`,
+      newValue: `${N("Tujuan")} (berlaku 01 Mei 2024)`,
       changedBy: sa.account.id,
     });
     expect(

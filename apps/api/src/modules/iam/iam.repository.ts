@@ -332,8 +332,29 @@ export async function findAccountsForEmployees(employeeIds: string[]) {
   if (employeeIds.length === 0) return [];
   return getPrisma().account.findMany({
     where: { employeeId: { in: employeeIds } },
-    select: { id: true, employeeId: true, email: true, lastLoginAt: true, isActive: true },
+    select: {
+      id: true,
+      employeeId: true,
+      email: true,
+      loginEmail: true,
+      lastLoginAt: true,
+      isActive: true,
+    },
   });
+}
+
+/**
+ * ONB-D1: apakah user Auth akun ini DIBUAT oleh undangan onboarding (bukan user Auth yang sudah ada &
+ * dipakai bersama lingkungan lain, D-023). Sumbernya audit `iam.account.invite` (`emailSent`).
+ */
+export async function authUserCreatedByInvite(tx: IamTx, accountId: string): Promise<boolean> {
+  const row = await tx.auditLog.findFirst({
+    where: { entityType: "iam.account", entityId: accountId, action: "iam.account.invite" },
+    orderBy: { occurredAt: "desc" },
+    select: { after: true },
+  });
+  const after = row?.after as { emailSent?: unknown } | null | undefined;
+  return after?.emailSent === true;
 }
 
 /** D-047: penerima notifikasi review onboarding — HR_ADMIN aktif ber-grant aktif di PT itu. */
