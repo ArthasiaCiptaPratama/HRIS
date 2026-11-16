@@ -13,6 +13,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-16 — Grade = Level, langkah cepat (ORG-D8) (Oatse)
+- **Dikerjakan:** item "Grade = Level, langkah cepat (ORG-D8)": migrasi `20261116031709_employee_hr_level_code`; shared `parseHrLevelCode`/`hrLevelCodeDiffers`/`hrLevelCodeNote`; organization `fillEmptyPositionLevels`; detail karyawan `hrLevelCode`; web `HrLevelChip` (tab Kepegawaian Grade → Level + header profil), form tanpa Grade, Master Data › Level (`levels-page.tsx`, `/master-data/grade` dialihkan), dimensi dashboard Grade disembunyikan, review onboarding tanpa Grade. Import: IMP-D4 (log import-karyawan).
+- **Keputusan:** ORG-D8 (+ IMP-D4).
+- **Verifikasi:** typecheck ✔ · `biome ci` ✔ · boundaries ✔ (568 modul) · `db:migrate` + `db:generate` + `db:check` ✔ · test per file (suite penuh ditunda atas permintaan supervisor karena RAM): shared `hr-level-code` 15 · api 179 (employees, organization, employee-schema, import +1 ORG-D8, openapi, onboarding-review) · web master-data 12, employee-import, hr-level-chip 3, employee-detail, dll. 166+.
+- **Masalah / catatan:** data & API Grade dibiarkan (upah grade TM milik Mat, app mobile). Migrasi baru → Mat perlu dikabari (kata pengguna).
+- **Verifikasi penuh (2026-11-16, izin supervisor):** shared 390 · api 1367/1367 (serial) · web 377/377 (setelah `profile-placement.test.ts` disesuaikan untuk `levelCode`; run pertama 2 gagal karena ekspektasi lama) · typecheck ✔ · biome ✔.
+- **Berikutnya:** commit + push develop → kabar Mat (kata pengguna).
+
 ### 2026-11-12 — Bagan terbuka penuh saat dibuka (ORG-D7) (Oatse)
 - **Dikerjakan:** `org-chart-canvas.tsx`: state lipat awal kosong (semua cabang terbuka) saat halaman dibuka, ganti PT, dan ganti filter Semua/HO/Site (sebelumnya `collapseBelowDepth` tingkat 3), ganti filter juga pas ke layar; tombol "Buka semua"/"Ringkas"/lipat per cabang tetap. Pohon tab "Atasan langsung" (`org-structure-page.tsx` `TreeItem`) terbuka penuh (sebelumnya 2 tingkat).
 - **Keputusan:** ORG-D7 (rencana disetujui supervisor atas nama pengguna, handoff 2026-11-12 09:00).

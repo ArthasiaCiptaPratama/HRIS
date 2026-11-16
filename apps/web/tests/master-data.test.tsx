@@ -34,7 +34,16 @@ const health = {
   data: { status: "ok", checks: { database: "ok" }, time: new Date().toISOString() },
 };
 const ID = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
-const grade = { id: ID(1), name: "3A", archived: false, employeeCount: 4 };
+// ORG-D8: Grade tidak lagi dikelola di Master Data → contoh halaman generik memakai Homebase.
+const homebase = {
+  id: ID(1),
+  name: "Jakarta Selatan",
+  archived: false,
+  employeeCount: 4,
+  city: null,
+  province: null,
+  note: null,
+};
 const position = {
   id: ID(2),
   name: "Staff IT",
@@ -135,10 +144,10 @@ describe("Master Data (D-049)", () => {
   });
 
   it("HR: hanya melihat — tanpa tombol tambah & aksi, ada penjelasan", async () => {
-    mockFetch(me("HR_ADMIN"), { grades: [grade] });
-    renderAt("/master-data/grade");
-    const table = await screen.findByRole("table", { name: "Daftar grade" });
-    expect(await within(table).findByText("3A")).toBeInTheDocument();
+    mockFetch(me("HR_ADMIN"), { homebases: [homebase] });
+    renderAt("/master-data/homebase");
+    const table = await screen.findByRole("table", { name: /Daftar homebase/ });
+    expect(await within(table).findByText("Jakarta Selatan")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Tambah/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Aksi untuk/ })).not.toBeInTheDocument();
     expect(
@@ -147,12 +156,12 @@ describe("Master Data (D-049)", () => {
   });
 
   it("MANAGER tidak bisa membuka halaman master data", async () => {
-    mockFetch(me("MANAGER", false, "emp-1"), { grades: [grade] });
-    renderAt("/master-data/grade");
+    mockFetch(me("MANAGER", false, "emp-1"), { homebases: [homebase] });
+    renderAt("/master-data/homebase");
     await waitFor(() =>
-      expect(screen.queryByRole("heading", { level: 1, name: "Grade" })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("heading", { level: 1, name: /Homebase/ })).not.toBeInTheDocument(),
     );
-    expect(screen.queryByRole("table", { name: "Daftar grade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: /Daftar homebase/ })).not.toBeInTheDocument();
   });
 
   it("lokasi: geofence tidak lengkap ditolak di form; tempel koordinat mengisi latitude & longitude", async () => {
@@ -282,19 +291,36 @@ describe("Master Data (D-049)", () => {
 
   it("arsipkan lewat menu aksi + konfirmasi memanggil POST /:id/archive", async () => {
     const user = userEvent.setup();
-    const calls = mockFetch(me("SUPER_ADMIN", true), { grades: [grade] });
-    renderAt("/master-data/grade");
-    await user.click(await screen.findByRole("button", { name: "Aksi untuk 3A" }));
+    const calls = mockFetch(me("SUPER_ADMIN", true), { homebases: [homebase] });
+    renderAt("/master-data/homebase");
+    await user.click(await screen.findByRole("button", { name: "Aksi untuk Jakarta Selatan" }));
     await user.click(await screen.findByRole("menuitem", { name: /Arsipkan/ }));
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("4 karyawan aktif masih memakai");
     await user.click(within(dialog).getByRole("button", { name: "Arsipkan" }));
     await waitFor(() =>
       expect(writes(calls)).toEqual([
-        { method: "POST", path: `/grades/${ID(1)}/archive`, body: undefined },
+        { method: "POST", path: `/homebases/${ID(1)}/archive`, body: undefined },
       ]),
     );
   });
+  it("ORG-D8: tab Level (baca saja) — jumlah jabatan & karyawan per level; /grade dialihkan", async () => {
+    mockFetch(me("HR_ADMIN"), {
+      positions: [
+        { ...position, level: "L3" },
+        { ...position, id: ID(4), name: "Operator", employeeCount: 5, level: null },
+      ],
+    });
+    renderAt("/master-data/grade");
+    expect(await screen.findByRole("heading", { level: 1, name: "Level" })).toBeInTheDocument();
+    const table = screen.getByRole("table", { name: "Daftar level" });
+    const rowOf = (label: RegExp) => within(table).getByText(label).closest("tr") as HTMLElement;
+    await waitFor(() => expect(within(rowOf(/L3 · Supervisor/)).getAllByText("2")).toHaveLength(1));
+    expect(within(rowOf(/L3 · Supervisor/)).getByText("1")).toBeInTheDocument();
+    expect(within(rowOf(/Belum ber-level/)).getByText("5")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Tambah/ })).not.toBeInTheDocument();
+  });
+
   it("EMP-D6: halaman Homebase (Kota, Provinsi, jumlah karyawan) & tambah mengirim body benar", async () => {
     const user = userEvent.setup();
     const calls = mockFetch(me("SUPER_ADMIN", true), {

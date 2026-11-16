@@ -26,6 +26,7 @@ describe("profilePlacement", () => {
       division: "Divisi HR & GA",
       department: "HR & GA Site",
       level: "L3 · Supervisor / Manager",
+      levelCode: "L3",
     });
   });
 
@@ -52,11 +53,13 @@ describe("profilePlacement", () => {
       division: null,
       department: "unit dep",
       level: null,
+      levelCode: null,
     });
     expect(profilePlacement(emp(null, "p-staff"), master)).toEqual({
       division: null,
       department: null,
       level: null,
+      levelCode: null,
     });
   });
 });

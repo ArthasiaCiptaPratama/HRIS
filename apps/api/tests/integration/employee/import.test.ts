@@ -205,7 +205,7 @@ describe("POST /employee-imports/preview", () => {
       "/employee-imports/preview",
       sa.headers,
       body([
-        row(6, baseRow("N1", { ktpNumber: "6271011205800901", gradeName: `3A ${RUN}` })),
+        row(6, baseRow("N1", { ktpNumber: "6271011205800901", gradeName: "3A" })),
         row(7, { employeeNumber: NUM("E1"), phoneNumber: "081299990000" }),
         row(8, baseRow("N2", { ktpNumber: "620201030199003" })),
         row(9, baseRow("N1")),
@@ -241,7 +241,15 @@ describe("POST /employee-imports/preview", () => {
       code: "DUPLICATE_IN_FILE",
       severity: "ERROR",
     });
-    expect(preview.masterData.grades).toEqual([`3A ${RUN}`]);
+    // ORG-D8: kolom Level/Grade tidak lagi membuat master Grade; kode 3A hanya diberi peringatan.
+    expect(preview.masterData.grades).toEqual([]);
+    expect(
+      preview.rows.find((r: { sourceRow: number }) => r.sourceRow === 6).issues,
+    ).toContainEqual({
+      field: "gradeName",
+      code: "HR_LEVEL_SUB_LEVEL",
+      severity: "WARNING",
+    });
     // Tanpa nilai sensitif di respons.
     expect(JSON.stringify(preview)).not.toContain("6271011205800901");
     expect(preview.previewHash).toMatch(/^[a-f0-9]{64}$/);
@@ -1405,7 +1413,7 @@ describe("IMP-D2 mode Isi yang kosong saja (FILL_EMPTY)", () => {
             employmentStatusText: null,
             joinDate: "2024-01-02",
             workLocationName: `Site Isi ${RUN}`,
-            gradeName: `Grade Isi ${RUN}`,
+            gradeName: "L4",
             ptkpStatus: "K/1",
             originCity: "Palopo",
           }),
@@ -1452,7 +1460,8 @@ describe("IMP-D2 mode Isi yang kosong saja (FILL_EMPTY)", () => {
       originCity: "Palopo",
       maritalStatus: null,
     });
-    expect(after.grade?.name).toBe(`Grade Isi ${RUN}`);
+    // ORG-D8: kode level HR disimpan sebagai penanda; grade tidak diisi.
+    expect(after).toMatchObject({ hrLevelCode: "L4", gradeId: null });
     expect(after.workLocation?.name).toBe(`Site Isi ${RUN}`);
     expect(await prisma.department.count({ where: { name: `Dept Tak Dipakai ${RUN}` } })).toBe(0);
     expect(await prisma.employee.count({ where: { employeeNumber: NUM("ZF2") } })).toBe(1);
@@ -1568,5 +1577,79 @@ describe("IMP-D3 status keluar di file untuk karyawan yang sudah ada", () => {
     );
     expect(createOnly.rows[0]).toMatchObject({ action: "SKIP", deactivate: null });
     expect((await prisma.employee.findUniqueOrThrow({ where: { id: e.id } })).isActive).toBe(true);
+  });
+});
+
+// ORG-D8 (Grade = Level, langkah cepat): kolom Level/Grade = kode level HR — penanda per karyawan,
+// level jabatan yang masih kosong diisi bila tidak bentrok; level karyawan tetap ikut jabatan.
+describe("ORG-D8 kode level HR di import", () => {
+  test("peringatan per kode, penanda tersimpan, level jabatan kosong diisi, yang ber-level tidak diubah", async () => {
+    const empty = (
+      await prisma.position.create({
+        data: { name: `Jab Kosong ${RUN}`, departmentId: ids.department },
+      })
+    ).id;
+    const clash = (
+      await prisma.position.create({
+        data: { name: `Jab Bentrok ${RUN}`, departmentId: ids.department },
+      })
+    ).id;
+    const leveled = (
+      await prisma.position.create({
+        data: { name: `Jab L3 ${RUN}`, departmentId: ids.department, level: "L3" },
+      })
+    ).id;
+    const at = (n: string, positionName: string, gradeName: string) =>
+      baseRow(n, { positionName, gradeName });
+    const payload = body([
+      row(6, at("LV1", `Jab Kosong ${RUN}`, "3A")),
+      row(7, at("LV2", `Jab L3 ${RUN}`, "L4")),
+      row(8, at("LV3", `Jab L3 ${RUN}`, "1")),
+      row(9, at("LV4", `Jab Bentrok ${RUN}`, "2")),
+      row(10, at("LV5", `Jab Bentrok ${RUN}`, "4")),
+      row(11, at("LV6", `Jab L3 ${RUN}`, "L3")),
+    ]);
+    const preview = await data(
+      await call("POST", "/employee-imports/preview", sa.headers, payload),
+    );
+    const codes = (sourceRow: number) =>
+      preview.rows
+        .find((r: { sourceRow: number }) => r.sourceRow === sourceRow)
+        .issues.map((i: { code: string }) => i.code)
+        .filter((c: string) => c.startsWith("HR_LEVEL"))
+        .sort();
+    expect(codes(6)).toEqual(["HR_LEVEL_FILL", "HR_LEVEL_SUB_LEVEL"]);
+    expect(codes(7)).toEqual(["HR_LEVEL_MISMATCH"]);
+    expect(codes(8)).toEqual(["HR_LEVEL_AMBIGUOUS"]);
+    expect(codes(9)).toEqual(["HR_LEVEL_CONFLICT"]);
+    expect(codes(10)).toEqual(["HR_LEVEL_CONFLICT"]);
+    expect(codes(11)).toEqual([]);
+    expect(preview.masterData.grades).toEqual([]);
+
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...payload,
+      previewHash: preview.previewHash,
+    });
+    expect(res.status).toBe(201);
+    const stored = await prisma.employee.findMany({
+      where: { employeeNumber: { in: ["LV1", "LV2", "LV3"].map(NUM) } },
+      orderBy: { employeeNumber: "asc" },
+      select: { hrLevelCode: true, gradeId: true },
+    });
+    expect(stored).toEqual([
+      { hrLevelCode: "3A", gradeId: null },
+      { hrLevelCode: "L4", gradeId: null },
+      { hrLevelCode: "1", gradeId: null },
+    ]);
+    const level = async (id: string) =>
+      (await prisma.position.findUniqueOrThrow({ where: { id } })).level;
+    expect(await level(empty)).toBe("L3");
+    expect(await level(leveled)).toBe("L3");
+    expect(await level(clash)).toBeNull();
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: empty, action: "organization.position.update" },
+    });
+    expect(audit.after).toMatchObject({ level: "L3", source: "import_hr_level_code" });
+    await prisma.auditLog.deleteMany({ where: { entityId: empty } });
   });
 });

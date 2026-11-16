@@ -268,6 +268,8 @@ export const homebaseEntryParamSchema = z.object({ id: z.uuid(), entryId: z.uuid
 
 export const employeeDetailSchema = employeeListItemSchema
   .extend({
+    // ORG-D8: kode level asli dari file HR (penanda; level karyawan = level jabatan).
+    hrLevelCode: z.string().nullable(),
     emergencyPhone: z.string().nullable(),
     // D-041: kontak darurat.
     emergencyContactName: z.string().nullable(),

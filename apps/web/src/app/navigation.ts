@@ -601,7 +601,15 @@ export const NAV_GROUPS: NavGroup[] = [
           ]),
           masterFolder("master-group-employment", "Kepegawaian", IdCard, [
             masterPage("employment-statuses"),
-            masterPage("grades"),
+            {
+              // ORG-D8: Grade = Level (level karyawan ikut jabatan; baca saja).
+              id: "master-levels",
+              label: "Level",
+              to: `${MASTER_DATA_BASE}/level`,
+              icon: Award,
+              visible: access.viewMasterData,
+              keywords: "level grade golongan kode hr jabatan",
+            },
           ]),
           masterFolder("master-group-archive", "Arsip & Disiplin", FolderArchive, [
             {

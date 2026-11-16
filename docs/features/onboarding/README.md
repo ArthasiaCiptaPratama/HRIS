@@ -1,7 +1,7 @@
 # Onboarding karyawan baru
 
 > **Kode prefix:** `ONB` · **Fase:** 4 · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `onboarding`
-> **Status:** ✔ aktif di staging (rilis gel. 5, 2026-10-12); QA LEGIT · ubah email & batalkan undangan (ONB-D1) ✔ develop `fdeb71b` 2026-11-16 (CI ✔), belum dirilis · akun wajib tertaut karyawan (ONB-D2) ✔ lokal 2026-11-16
+> **Status:** ✔ aktif di staging (rilis gel. 5, 2026-10-12); QA LEGIT · ubah email & batalkan undangan (ONB-D1) ✔ develop `fdeb71b` 2026-11-16 (CI ✔), belum dirilis · akun wajib tertaut karyawan (ONB-D2) ✔ develop `7396aec` 2026-11-16 (CI ✔)
 
 Impor calon → undangan → wizard isi data & dokumen → review HR (D-047) → disetujui; login dengan NIP (D-048), template email bermerek.
 
@@ -23,7 +23,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] BUG-004 sapaan Dashboard pakai nama karyawan (tambahan 2026-10-12; `/me.employeeName`, commit `7e6517b`; api 600 · web 208 ✔)
   - [x] **UI/UX onboarding lebih profesional** (tambahan 2026-10-12: masukan pemilik projek dari uji manual) — wizard: panel langkah vertikal + status (lengkap / perlu dilengkapi / perlu diperbaiki) + progres, kartu konten per langkah (judul, penjelasan, tanda `*` wajib), kartu dokumen (Wajib/Opsional, terunggah/belum, penghitung), ringkasan kekurangan dikelompokkan per bagian + tombol Buka; review admin: kartu profil (foto, NIP, status, fakta kunci), data pribadi dikelompokkan, dokumen sebagai daftar + dokumen wajib yang belum ada, riwayat review sebagai linimasa; impor calon: **seret-lepas berfungsi** (sebelumnya tidak ada handler) + tata letak 2 kolom dengan panel Format file; form atur password (undangan/reset/profil): tombol tampilkan password, indikator kekuatan, syarat langsung tercentang, penanda kecocokan ulangi password — web 233 ✔ (saklar onboarding lokal menyala), tanpa scroll mendatar di HP (390 px)
   - [x] **Ubah email & batalkan undangan akun belum login + perbaikan antrean (ONB-D1)** (tambahan 2026-11-16: kutipan pengguna "kerjakan A, B, C" — undangan ke email salah tidak bisa diperbaiki & tautannya tetap berlaku; kirim ulang ditandai SENT padahal email tidak sampai) — API + web Penerimaan (menu ⋯ per baris) + test; uji tautan lama di Supabase Auth lokal ✔; develop `fdeb71b` (CI #43794724243 ✔), belum dirilis
-  - [x] **Akun Karyawan/Manager wajib tertaut ke data karyawan (ONB-D2)** (tambahan 2026-11-16: bug staging akun Seifal "Akun belum terhubung ke data karyawan" — Akun › Undang akun tidak menautkan karyawan) — undang wajib pilih karyawan, Tautkan ke karyawan + saran email, badge & filter Belum tertaut, ganti role dijaga; lokal ✔, belum di-push
+  - [x] **Akun Karyawan/Manager wajib tertaut ke data karyawan (ONB-D2)** (tambahan 2026-11-16: bug staging akun Seifal "Akun belum terhubung ke data karyawan" — Akun › Undang akun tidak menautkan karyawan) — undang wajib pilih karyawan, Tautkan ke karyawan + saran email, badge & filter Belum tertaut, ganti role dijaga; develop `7396aec` (CI #43796971466 ✔), belum dirilis
   - [x] Saklar `onboarding` true di jalur rilis (`790973c`) → rilis gel. 5 (PR #45/#46, Deploy #38230471120) → uji staging alur onboarding LULUS (HR ber-grant review, revisi & setujui, login NIP) → arsip QA Drive `2026-10-12-onboarding-e2e` (2026-10-12)
 
 ## Keputusan

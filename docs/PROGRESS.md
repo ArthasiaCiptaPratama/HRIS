@@ -100,6 +100,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-11-16, ORG-D8)** Penggabungan penuh Grade = Level sesudah produksi: hapus `grade_id`/tabel grades/`EmployeeListItem.grade`, upah lembur/labor cost/cuti keluar/pesangon per level (bersama Mat, TM-D6).
 - **(2026-11-16, ONB-D2 review supervisor)** Akun milik karyawan resign/nonaktif masih bisa diaktifkan ulang manual lewat menu Akun (absen tetap menolak, tetapi login terbuka) → tolak atau beri peringatan saat Aktifkan.
 - **(2026-11-16, ONB-D2)** Lepas tautan akun ↔ karyawan (salah tautan) belum ada; sementara lewat SA/DB dengan kata pengguna. Menautkan akun Manager tidak otomatis menyinkronkan atasan (pakai Sinkronkan atasan, D-053).
 - **(2026-11-16, ONB-D1)** `supabase/config.toml` repo gagal diam-diam di Supabase CLI 3.1.0 (exit 1 tanpa pesan) dan 2.54 ("failed to parse config") di Linux → `bun run auth:local:up` tidak bisa dipakai; uji Auth lokal ONB-D1 memakai proyek sementara. Perlu diselaraskan dengan versi CLI (catatan supervisor: jangan dikerjakan sekarang).
@@ -156,6 +157,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-16** — Grade = Level langkah cepat: level ikut jabatan, penanda Kode HR, Master Data › Level, import kode HR (ORG-D8, IMP-D4; migrasi `hr_level_code`). (Oatse) → [organisasi/log](features/organisasi/log.md)
 - **2026-11-16** — Akun Karyawan/Manager wajib tertaut ke data karyawan: undang pilih karyawan, Tautkan ke karyawan, badge "Belum tertaut" (ONB-D2). (Oatse) → [onboarding/log](features/onboarding/log.md)
 - **2026-11-16** — Penerimaan: ubah email & batalkan undangan akun belum login, tautan lama mati; antrean tidak lagi salah tandai SENT (ONB-D1). (Oatse) → [onboarding/log](features/onboarding/log.md)
 - **2026-11-13** — Import: status keluar di file menonaktifkan karyawan yang cocok & masih aktif (IMP-D3). (Oatse) → [import-karyawan/log](features/import-karyawan/log.md)

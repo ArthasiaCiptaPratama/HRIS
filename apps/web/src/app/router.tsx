@@ -204,6 +204,9 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="perusahaan" replace /> },
               // D-051: pos jabatan (bagan organisasi).
               { path: "pos-jabatan", lazy: pages.orgPosts },
+              // ORG-D8: Grade = Level — tab Grade diganti Level (baca saja); tautan lama dialihkan.
+              { path: "level", lazy: pages.levels },
+              { path: "grade", element: <Navigate to="../level" replace /> },
               // D-055: jenis dokumen karyawan.
               {
                 path: "jenis-dokumen",

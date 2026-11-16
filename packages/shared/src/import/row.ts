@@ -618,6 +618,15 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   // EMP-D6: homebase (Point of Hire).
   HOMEBASE_FUTURE_DATE: "Tanggal berlaku homebase tidak boleh di masa depan",
   HOMEBASE_DATE_IGNORED: "Tanggal berlaku homebase tanpa nama homebase (diabaikan)",
+  // ORG-D8: kode level HR (kolom Level/Grade) — level karyawan tetap ikut jabatan.
+  HR_LEVEL_SUB_LEVEL:
+    "Kode HR punya sub-level (mis. 3A) — dimasukkan ke level angkanya dan ditandai",
+  HR_LEVEL_AMBIGUOUS: "Kode HR 1 tanpa A/B — level jabatan tidak diisi, kode ditandai",
+  HR_LEVEL_UNKNOWN: "Kode HR tidak dikenal sebagai level — hanya disimpan sebagai penanda",
+  HR_LEVEL_MISMATCH: "Level di file berbeda dengan level jabatan — level tetap ikut jabatan",
+  HR_LEVEL_FILL: "Jabatan belum ber-level — level jabatan diisi dari file",
+  HR_LEVEL_CONFLICT:
+    "Baris lain memberi level berbeda untuk jabatan yang sama — level jabatan tidak diisi",
   CHART_POSITION_KEPT:
     "Jabatan di file berbeda dari jabatan pos bagan — jabatan pos dipertahankan (ubah lewat bagan)",
 };

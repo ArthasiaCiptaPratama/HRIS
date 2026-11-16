@@ -780,6 +780,7 @@ export async function getEmployee(
   const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
   const detail: EmployeeDetail = {
     ...toListItem(row, lookup, photoUrls),
+    hrLevelCode: row.hrLevelCode,
     emergencyPhone: workOnly ? null : row.emergencyPhone,
     emergencyContactName: workOnly ? null : row.emergencyContactName,
     emergencyContactRelationship: workOnly ? null : row.emergencyContactRelationship,
