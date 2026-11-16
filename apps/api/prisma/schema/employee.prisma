@@ -159,6 +159,8 @@ model Employee {
   positionId                   String                 @map("position_id") @db.Uuid
   workLocationId               String?                @map("work_location_id") @db.Uuid
   gradeId                      String?                @map("grade_id") @db.Uuid
+  /// ORG-D8: kode level asli dari file HR ("3A", "1", "1B") — penanda bila tidak sama dengan level jabatan.
+  hrLevelCode                  String?                @map("hr_level_code") @db.VarChar(10)
   // EMP-D6: homebase (Point of Hire) yang berlaku sekarang — kolom turunan, selalu sama dengan
   // homebase_id baris employee_homebases dengan effective_from terbaru (diperbarui di transaksi yang sama).
   homebaseId                   String?                @map("homebase_id") @db.Uuid

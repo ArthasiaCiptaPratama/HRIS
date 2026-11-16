@@ -1,4 +1,5 @@
 import { ROLE } from "@hris/shared";
+import { tmOn } from "@/app/feature-flags";
 import type { Me } from "@/features/auth/schemas";
 
 // Helper akses UI Time Management (cermin apps/api/src/modules/attendance/attendance.policy.ts &
@@ -12,6 +13,12 @@ const isManager = (me: Me) => me.role === ROLE.MANAGER && me.employeeId !== null
 export const tmAccess = {
   /** Absen PWA: akun yang terhubung ke data karyawan (D-067). */
   punch: (me: Me) => me.employeeId !== null,
+  /**
+   * #102 (TM-D26): akun EMPLOYEE yang tertaut karyawan memakai halaman absen sebagai beranda —
+   * "/" dialihkan ke /absen dan menu web Dashboard/Time Management diganti satu tab "Absen".
+   * MANAGER/HR/SA (walau punya data karyawan) tetap memakai dashboard.
+   */
+  absenHome: (me: Me) => tmOn("tmAbsen") && me.role === ROLE.EMPLOYEE && me.employeeId !== null,
   /** TM-D13 Fase B: verifikasi Alpha tim (atasan), SA, HR PT. */
   verifyAlpha: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Data Absen Harian & inbox keputusan (D-068): SA, HR (PT ditugaskan), MANAGER (tim). */

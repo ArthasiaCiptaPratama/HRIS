@@ -21,7 +21,9 @@ import {
   getEmployeeAccountStates,
   inviteEmployeeAccount,
   listManagerEmployeeIds,
+  retireUnusedEmployeeAccount,
 } from "../iam/index.ts";
+import { forgetRecipient } from "../notification/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import * as employeeRepo from "./employee.repository.ts";
@@ -377,6 +379,8 @@ export async function processInvitations(
   let sent = 0;
   let failed = 0;
   for (const item of queue) {
+    // ONB-D1: undangan bisa dibatalkan / diganti emailnya setelah diambil dari antrean.
+    if (!(await repo.isInvitationQueued(item.id))) continue;
     const outcome = await inviteEmployeeAccount({
       email: item.email,
       employeeId: item.employeeId,
@@ -392,7 +396,19 @@ export async function processInvitations(
         sentAt: now,
       });
     } else if (outcome.code === "EMPLOYEE_HAS_ACCOUNT") {
-      // Akun sudah ada (mis. kirim ulang setelah akun dibuat): kirim tautan atur password saja.
+      // Akun sudah ada (mis. kirim ulang setelah akun dibuat): kirim tautan atur password saja — HANYA
+      // bila email antrean = email user Auth akun. Supabase diam-diam tidak mengirim apa pun ke alamat
+      // yang tidak terdaftar, jadi selain itu dicatat gagal (ONB-D1, dulu salah tercatat SENT).
+      const [account] = await getEmployeeAccountStates([item.employeeId]);
+      if (!account || account.authEmail.toLowerCase() !== item.email.trim().toLowerCase()) {
+        failed += 1;
+        await repo.markInvitation(item.id, {
+          status: "FAILED",
+          attempts: item.attempts + 1,
+          lastErrorCode: "EMAIL_MISMATCH",
+        });
+        continue;
+      }
       try {
         await deps.authAdmin.sendPasswordSetupEmail(item.email, deps.redirectTo);
         sent += 1;
@@ -449,6 +465,11 @@ export async function resendInvitation(ctx: OnboardingContext, employeeId: strin
   }
   const email = candidate.personalEmail ?? candidate.workEmail;
   if (!email) throw new BusinessRuleError("Calon belum punya email.");
+  if (account && account.authEmail.toLowerCase() !== email.toLowerCase()) {
+    throw new ConflictError(
+      "Email karyawan berbeda dengan email akun undangan. Pakai Ubah email undangan.",
+    );
+  }
   await employeeRepo.withTransaction(async (tx) => {
     await repo.queueInvitation(tx, { employeeId, email, queuedBy: ctx.actor.accountId });
     if (candidate.onboardingStatus === "NOT_INVITED") {
@@ -471,6 +492,160 @@ export async function resendInvitation(ctx: OnboardingContext, employeeId: strin
     );
   });
   return { employeeId, queued: true };
+}
+
+// ── ONB-D1: batalkan / ubah email undangan (akun belum pernah login) ─────────────────────────────
+
+export interface InvitationAdminDeps {
+  authAdmin: AuthAdmin;
+  /** Domain alamat anonim user Auth yang dilepas (LOGIN_EMAIL_DOMAIN atau bawaan). */
+  anonymousDomain: string;
+}
+
+/** Calon/karyawan yang undangannya boleh dibatalkan atau diganti emailnya (+ status akun). */
+async function loadInvitationTarget(ctx: OnboardingContext, employeeId: string) {
+  assertCanRun(ctx.actor);
+  const candidate = await repo.findCandidate(employeeId);
+  if (!candidate || !policy.canOnboardInCompany(ctx.actor, candidate.companyId)) {
+    throw new NotFoundError("Calon tidak ditemukan.");
+  }
+  const existingInvite = candidate.onboardingStatus === "APPROVED" && candidate.completionRequired;
+  if (!["NOT_INVITED", "INVITED"].includes(candidate.onboardingStatus) && !existingInvite) {
+    throw new BusinessRuleError("Calon ini sudah aktivasi; undangannya tidak bisa diubah.");
+  }
+  const [account] = await getEmployeeAccountStates([employeeId]);
+  if (account?.hasLoggedIn) {
+    throw new BusinessRuleError("Akun sudah pernah login; gunakan Nonaktifkan di menu Akun.");
+  }
+  const openEmail = await repo.openInvitationEmail(employeeId);
+  return { candidate, account: account ?? null, openEmail, existingInvite };
+}
+
+/**
+ * B: batalkan undangan — akun belum pernah login dilepas (user Auth buatan undangan di-ban + anonim),
+ * antrean terbuka ditutup, calon kembali "Belum diundang" / karyawan existing keluar dari Penerimaan
+ * (bisa diundang ulang lewat "Undang Karyawan Terdaftar"). Data karyawan tidak disentuh.
+ */
+export async function cancelInvitation(
+  ctx: OnboardingContext,
+  employeeId: string,
+  deps: InvitationAdminDeps,
+) {
+  const { candidate, account, openEmail, existingInvite } = await loadInvitationTarget(
+    ctx,
+    employeeId,
+  );
+  if (!account && !openEmail && candidate.onboardingStatus === "NOT_INVITED") {
+    throw new BusinessRuleError("Tidak ada undangan untuk dibatalkan.");
+  }
+  const retired = await employeeRepo.withTransaction(async (tx) => {
+    const released = await retireUnusedEmployeeAccount(employeeId, deps, tx);
+    const closed = await repo.closeOpenInvitations(tx, employeeId, "CANCELLED");
+    if (candidate.onboardingStatus === "INVITED") {
+      await repo.setStatus(tx, employeeId, "NOT_INVITED");
+      await repo.addEvent(tx, {
+        employeeId,
+        fromStatus: "INVITED",
+        toStatus: "NOT_INVITED",
+        actorAccountId: ctx.actor.accountId,
+      });
+    }
+    if (existingInvite) await repo.setCompletionRequired(tx, employeeId, false);
+    await writeAudit(
+      {
+        ...auditBase(ctx),
+        action: "employee.onboarding.invite_cancelled",
+        entityType: "employee.employee",
+        entityId: employeeId,
+        before: { accountId: released?.accountId ?? null, openInvitations: closed },
+        after: { authUserRetired: released?.authUserRetired ?? false },
+      },
+      tx,
+    );
+    return released;
+  });
+  if (retired) await forgetRecipient(retired.accountId, retired.emails);
+  return { employeeId, cancelled: true, authUserRetired: retired?.authUserRetired ?? false };
+}
+
+/**
+ * A: ubah email undangan — seperti batalkan, lalu email baru masuk antrean (batas per jam berlaku).
+ * Email pribadi karyawan ikut diganti bila itu sumber undangan (atau masih kosong).
+ */
+export async function changeInvitationEmail(
+  ctx: OnboardingContext,
+  employeeId: string,
+  rawEmail: string,
+  deps: InvitationAdminDeps,
+) {
+  const email = rawEmail.trim().toLowerCase();
+  const { candidate, account, openEmail } = await loadInvitationTarget(ctx, employeeId);
+  const current = (account?.email ?? openEmail)?.toLowerCase() ?? null;
+  if (current === email) {
+    throw new BusinessRuleError("Email baru sama dengan email undangan sekarang.");
+  }
+  const personal = candidate.personalEmail?.toLowerCase() ?? null;
+  const [takenAccounts, takenPersonal] = await Promise.all([
+    accountEmailsInUse([email]),
+    repo.findTakenPersonalEmails([email]),
+  ]);
+  if (takenAccounts.has(email) || (takenPersonal.length > 0 && personal !== email)) {
+    throw new ConflictError("Email sudah dipakai karyawan atau akun lain.");
+  }
+  const syncPersonal = personal === null || personal === current;
+  try {
+    const retired = await employeeRepo.withTransaction(async (tx) => {
+      const released = await retireUnusedEmployeeAccount(employeeId, deps, tx);
+      await repo.closeOpenInvitations(tx, employeeId, "EMAIL_CHANGED");
+      if (syncPersonal && personal !== email) {
+        await repo.setPersonalEmail(tx, employeeId, email);
+        await recordFieldChanges(tx, {
+          employeeId,
+          actorAccountId: ctx.actor.accountId,
+          source: "ONBOARDING_INVITE",
+          changes: diffScalars(
+            "PERSONAL",
+            { personalEmail: candidate.personalEmail },
+            { personalEmail: email },
+            ["personalEmail"],
+          ),
+        });
+      }
+      await repo.queueInvitation(tx, { employeeId, email, queuedBy: ctx.actor.accountId });
+      if (candidate.onboardingStatus === "NOT_INVITED") {
+        await repo.setStatus(tx, employeeId, "INVITED");
+        await repo.addEvent(tx, {
+          employeeId,
+          fromStatus: "NOT_INVITED",
+          toStatus: "INVITED",
+          actorAccountId: ctx.actor.accountId,
+        });
+      }
+      await writeAudit(
+        {
+          ...auditBase(ctx),
+          action: "employee.onboarding.invite_email_changed",
+          entityType: "employee.employee",
+          entityId: employeeId,
+          before: { email: current, accountId: released?.accountId ?? null },
+          after: {
+            email,
+            personalEmailSynced: syncPersonal,
+            authUserRetired: released?.authUserRetired ?? false,
+          },
+        },
+        tx,
+      );
+      return released;
+    });
+    if (retired) await forgetRecipient(retired.accountId, retired.emails);
+    return { employeeId, email, queued: true, authUserRetired: retired?.authUserRetired ?? false };
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code === "P2002") {
+      throw new ConflictError("Email sudah dipakai karyawan atau akun lain.");
+    }
+    throw error;
+  }
 }
 
 /** D-045 poin 9: undang karyawan existing (tetap APPROVED, wajib melengkapi data kosong di bagian b). */

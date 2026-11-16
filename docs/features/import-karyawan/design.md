@@ -222,7 +222,7 @@ Import saldo cuti (Fase 6, memakai mesin yang sama), data kontrak (Fase 7, lewat
 1. **Nama wajib hanya untuk baris baru** — baris UPSERT yang hanya membawa nomor induk + kolom yang ingin diperbarui tetap sah.
 2. **Baris kosong** (tanpa nama dan tanpa nomor induk) dilewati diam-diam dan dihitung di `counts.blank`, bukan error.
 3. **PT bawaan**: SA (atau HR dengan > 1 PT) memilih "Perusahaan bawaan" di langkah Unggah; HR dengan satu PT otomatis. Baris tanpa kolom perusahaan dan tanpa PT bawaan → error `COMPANY_REQUIRED`.
-4. **Status keluar karyawan yang sudah ada** tidak diubah oleh import (peringatan `EXIT_EXISTING_IGNORED`); menonaktifkan tetap lewat menu Ubah Status (alasan & tanggal efektif tercatat).
+4. ~~**Status keluar karyawan yang sudah ada** tidak diubah oleh import (peringatan `EXIT_EXISTING_IGNORED`); menonaktifkan tetap lewat menu Ubah Status (alasan & tanggal efektif tercatat).~~ *Diubah [IMP-D3](README.md#imp-d3) 2026-11-13: karyawan yang cocok & masih aktif dinonaktifkan dari kolom status keluar (aturan sama dengan Nonaktifkan); yang sudah nonaktif tidak diubah.*
 5. **Profil pemetaan** disimpan otomatis saat lanjut ke pratinjau (kotak "Ingat pemetaan…", default aktif), kunci = SHA-256 susunan header ternormalisasi.
 6. **Unduh baris bermasalah** tersedia di Pratinjau dan Selesai: header asli + kolom "Keterangan import" (`Baris N: ERROR — <field>: <pesan>`), dibuat di browser (`lib/xlsx-write.ts`, fflate).
 7. Pesan masalah menyebut **letak kolom** di file (mis. "Kolom K · Status karyawan: …").

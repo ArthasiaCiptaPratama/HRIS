@@ -198,13 +198,39 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: LayoutDashboard,
     to: "/",
     match: (p) => p === "/",
-    visible: () => true,
+    visible: (me) => !tmAccess.absenHome(me),
     inTopNav: true,
     sections: [
       {
         id: "overview",
         label: "Ringkasan",
         items: [{ id: "dashboard", label: "Dashboard", to: "/", icon: LayoutDashboard }],
+      },
+    ],
+  },
+  {
+    // #102 (TM-D26): pengganti Dashboard + Time Management untuk karyawan — semua menu absen,
+    // cuti, koreksi, roster, dan lembur ada di halaman absen (/absen/*).
+    id: "absen",
+    label: "Absen",
+    icon: Smartphone,
+    to: "/absen",
+    match: (p) => p.startsWith("/absen"),
+    visible: tmAccess.absenHome,
+    inTopNav: true,
+    sections: [
+      {
+        id: "absen",
+        label: "Absen",
+        items: [
+          {
+            id: "absen-home",
+            label: "Absen",
+            to: "/absen",
+            icon: Smartphone,
+            keywords: "absen masuk pulang selfie cuti izin koreksi roster lembur",
+          },
+        ],
       },
     ],
   },
@@ -338,7 +364,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: CalendarClock,
     to: "/time/roster",
     match: (p) => p.startsWith("/time") || p.startsWith("/absen"),
-    visible: tmAccess.viewRoster,
+    visible: (me) => tmAccess.viewRoster(me) && !tmAccess.absenHome(me),
     inTopNav: true,
     sections: [
       {
@@ -601,7 +627,15 @@ export const NAV_GROUPS: NavGroup[] = [
           ]),
           masterFolder("master-group-employment", "Kepegawaian", IdCard, [
             masterPage("employment-statuses"),
-            masterPage("grades"),
+            {
+              // ORG-D8: Grade = Level (level karyawan ikut jabatan; baca saja).
+              id: "master-levels",
+              label: "Level",
+              to: `${MASTER_DATA_BASE}/level`,
+              icon: Award,
+              visible: access.viewMasterData,
+              keywords: "level grade golongan kode hr jabatan",
+            },
           ]),
           masterFolder("master-group-archive", "Arsip & Disiplin", FolderArchive, [
             {

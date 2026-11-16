@@ -1,4 +1,4 @@
-import type { ImportFieldKey } from "@hris/shared";
+import { EXIT_REASON_LABELS, type ImportFieldKey } from "@hris/shared";
 import {
   ArrowLeft,
   ChevronDown,
@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "./api";
 import { ACTION_LABELS, fieldLabel, issueHint, issueText } from "./labels";
@@ -86,6 +87,12 @@ function RowMessages({
   const hint = issueHint(row.issues);
   return (
     <div className="space-y-1 text-sm">
+      {row.deactivate ? (
+        <p className="text-foreground">
+          Akan dinonaktifkan: {EXIT_REASON_LABELS[row.deactivate.reason]} per{" "}
+          {formatDate(row.deactivate.date)}
+        </p>
+      ) : null}
       {row.action === "UPDATE" && row.changes.length > 0 ? (
         <p className="text-muted-foreground">
           {fillEmpty ? "Diisi" : "Berubah"}: {row.changes.map(fieldLabel).join(", ")}

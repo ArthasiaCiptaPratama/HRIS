@@ -74,6 +74,8 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
     where: { id },
     select: {
       ...LIST_SELECT,
+      // ORG-D8: kode level HR asli (penanda di detail).
+      hrLevelCode: true,
       emergencyPhone: true,
       emergencyContactName: true,
       emergencyContactRelationship: true,

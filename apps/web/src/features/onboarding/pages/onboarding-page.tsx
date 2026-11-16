@@ -1,16 +1,19 @@
 import { ONBOARDING_STATUS_LABELS, ONBOARDING_STATUSES, type OnboardingStatus } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
+  Ban,
   ClipboardCheck,
   FileUp,
   MailPlus,
+  MoreHorizontal,
+  Pencil,
   RotateCcw,
   SearchX,
   Send,
   UserPlus,
   X,
 } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { type FormEvent, useDeferredValue, useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
@@ -28,6 +31,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useMe } from "@/features/auth/api";
@@ -38,6 +47,8 @@ import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  useCancelInvitation,
+  useChangeInvitationEmail,
   useInviteExisting,
   useOnboardingCandidates,
   useProcessInvitations,
@@ -69,6 +80,9 @@ const INVITE_ERROR: Record<string, string> = {
   INVITE_FAILED: "gagal dikirim",
   EMAIL_HAS_ACCOUNT: "email sudah dipakai akun lain",
   EMPLOYEE_HAS_ACCOUNT: "sudah punya akun",
+  EMAIL_MISMATCH: "email berbeda dengan akun — pakai Ubah email undangan",
+  CANCELLED: "dibatalkan",
+  EMAIL_CHANGED: "email diganti",
 };
 
 export function OnboardingPage() {
@@ -90,6 +104,20 @@ export function OnboardingPage() {
   const resend = useResendInvitation();
   const restore = useRestoreOnboarding();
   const [restoreTarget, setRestoreTarget] = useState<OnboardingCandidateRow | null>(null);
+  // ONB-D1: ubah email / batalkan undangan (akun belum pernah login).
+  const [emailTarget, setEmailTarget] = useState<OnboardingCandidateRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<OnboardingCandidateRow | null>(null);
+  const cancelInvite = useCancelInvitation();
+  const onCancelInvite = async () => {
+    if (!cancelTarget) return;
+    try {
+      await cancelInvite.mutateAsync(cancelTarget.id);
+      toast.success(`Undangan untuk ${cancelTarget.fullName} dibatalkan.`);
+      setCancelTarget(null);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
   const onRestore = async () => {
     if (!restoreTarget) return;
     try {
@@ -230,18 +258,42 @@ export function OnboardingPage() {
             </Button>
           );
         }
-        if (!canInvite) return reviewLink;
+        // ONB-D1: undangan yang sudah dikirim/antre dan akunnya belum pernah login.
+        const canManage =
+          !r.account?.hasLoggedIn &&
+          (r.onboardingStatus === "INVITED" ||
+            (r.onboardingStatus === "APPROVED" && r.completionRequired));
+        if (!canInvite && !canManage) return reviewLink;
         return (
           <div className="flex justify-end gap-2">
             {reviewLink}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={resend.isPending}
-              onClick={() => onResend(r)}
-            >
-              <Send /> {r.onboardingStatus === "NOT_INVITED" ? "Undang" : "Kirim ulang"}
-            </Button>
+            {canInvite ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={resend.isPending}
+                onClick={() => onResend(r)}
+              >
+                <Send /> {r.onboardingStatus === "NOT_INVITED" ? "Undang" : "Kirim ulang"}
+              </Button>
+            ) : null}
+            {canManage ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon-sm" variant="ghost" aria-label={`Aksi undangan ${r.fullName}`}>
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setEmailTarget(r)}>
+                    <Pencil /> Ubah email undangan
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={() => setCancelTarget(r)}>
+                    <Ban /> Batalkan undangan
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
           </div>
         );
       },
@@ -348,6 +400,33 @@ export function OnboardingPage() {
         />
       </ListPanel>
       <InviteExistingDialog open={inviteOpen} onOpenChange={setInviteOpen} />
+      <ChangeInvitationEmailDialog target={emailTarget} onClose={() => setEmailTarget(null)} />
+      <Dialog open={cancelTarget !== null} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Batalkan undangan</DialogTitle>
+            <DialogDescription>
+              Tautan undangan yang sudah terkirim ke {cancelTarget?.email ?? "email ini"} tidak
+              berlaku lagi dan akun yang belum pernah dipakai dihapus.{" "}
+              {cancelTarget?.completionRequired
+                ? `${cancelTarget.fullName} tetap tercatat sebagai karyawan dan bisa diundang lagi lewat Undang Karyawan Terdaftar.`
+                : `${cancelTarget?.fullName ?? "Calon"} kembali ke status Belum diundang.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCancelTarget(null)}>
+              Kembali
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelInvite.isPending}
+              onClick={onCancelInvite}
+            >
+              Batalkan undangan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={restoreTarget !== null}
         onOpenChange={(open) => !open && setRestoreTarget(null)}
@@ -380,6 +459,75 @@ function daysLeft(untilIso: string): number {
 function daysLeftLabel(untilIso: string): string {
   const days = daysLeft(untilIso);
   return days > 0 ? `Dihapus permanen dalam ${days} hari` : "Menunggu dihapus permanen";
+}
+
+// ── Ubah email undangan (ONB-D1) ─────────────────────────────────────────────────────────────────
+
+function ChangeInvitationEmailDialog({
+  target,
+  onClose,
+}: {
+  target: OnboardingCandidateRow | null;
+  onClose: () => void;
+}) {
+  const change = useChangeInvitationEmail();
+  const [email, setEmail] = useState("");
+  const close = () => {
+    setEmail("");
+    onClose();
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!target) return;
+    const value = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(value)) {
+      toast.error("Email tidak valid.");
+      return;
+    }
+    try {
+      await change.mutateAsync({ employeeId: target.id, email: value });
+      toast.success(`Undangan ${target.fullName} dikirim ulang ke ${value} lewat antrean.`);
+      close();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+  return (
+    <Dialog open={target !== null} onOpenChange={(open) => !open && close()}>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Ubah email undangan</DialogTitle>
+            <DialogDescription>
+              Tautan lama ke {target?.email ?? "email sebelumnya"} tidak berlaku lagi. Undangan baru
+              masuk antrean ke email di bawah; email pribadi ikut diganti bila sama dengan email
+              undangan lama.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="invitation-email">Email baru</Label>
+            <Input
+              id="invitation-email"
+              type="email"
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nama@contoh.com"
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={close}>
+              Batal
+            </Button>
+            <Button type="submit" variant="brand" disabled={change.isPending || !email.trim()}>
+              Simpan & kirim ulang
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ── Undang karyawan terdaftar (D-045 poin 9) ──────────────────────────────────────────────────────
@@ -460,7 +608,9 @@ function InviteExistingDialog({
           />
           {selectedId && hasAccount ? (
             <p className="text-muted-foreground rounded-lg border border-dashed p-3 text-sm">
-              {selected.data?.fullName} sudah punya akun login — tidak perlu diundang.
+              {selected.data?.fullName} sudah punya akun login — tidak perlu diundang. Bila
+              undangannya salah alamat dan akun belum pernah login, pakai Ubah email / Batalkan
+              undangan di daftar Penerimaan.
             </p>
           ) : null}
           {selectedId && !hasAccount ? (

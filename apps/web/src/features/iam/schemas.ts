@@ -1,4 +1,9 @@
-import { paginationMetaSchema, permissionSchema, roleSchema } from "@hris/shared";
+import {
+  paginationMetaSchema,
+  permissionSchema,
+  requiresEmployeeLink,
+  roleSchema,
+} from "@hris/shared";
 import { z } from "zod";
 
 // Subset respons API modul iam (sumber kebenaran: apps/api/src/modules/iam/iam.schema.ts).
@@ -13,8 +18,24 @@ export const accountSchema = z.object({
   companyIds: z.array(z.string()),
   lastLoginAt: z.string().nullable(),
   createdAt: z.string(),
+  /** ONB-D2: akun Karyawan/Manager tanpa data karyawan tertaut. */
+  needsEmployeeLink: z.boolean().default(false),
 });
 export type Account = z.infer<typeof accountSchema>;
+
+/** ONB-D2: undangan role Karyawan masuk antrean "Undang Karyawan Terdaftar" (202). */
+export const accountInviteQueuedSchema = z.object({
+  employeeId: z.string(),
+  queued: z.literal(true),
+});
+export const linkSuggestionSchema = z.object({
+  employeeId: z.string(),
+  fullName: z.string(),
+  employeeNumber: z.string().nullable(),
+  companyId: z.string(),
+  matchedBy: z.enum(["PERSONAL_EMAIL", "WORK_EMAIL"]),
+});
+export type LinkSuggestion = z.infer<typeof linkSuggestionSchema>;
 
 export const grantSchema = z.object({
   id: z.string(),
@@ -49,10 +70,16 @@ export const page = <T extends z.ZodType>(item: T) =>
   z.object({ data: z.array(item), meta: paginationMetaSchema });
 export const one = <T extends z.ZodType>(item: T) => z.object({ data: item });
 
-export const inviteFormSchema = z.object({
-  email: z.email("Email tidak valid."),
-  role: roleSchema,
-});
+export const inviteFormSchema = z
+  .object({
+    email: z.email("Email tidak valid."),
+    role: roleSchema,
+    employeeId: z.string().optional(),
+  })
+  .refine((v) => !requiresEmployeeLink(v.role) || Boolean(v.employeeId), {
+    path: ["employeeId"],
+    message: "Pilih karyawan yang ditautkan ke akun ini.",
+  });
 export type InviteForm = z.infer<typeof inviteFormSchema>;
 
 export const grantFormSchema = z.object({

@@ -39,6 +39,7 @@ export type {
 export {
   archivedMasterIndex,
   createMissingMasterData,
+  fillEmptyPositionLevels,
   getMasterLookup,
   type MasterDataNames,
   type MasterLookup,

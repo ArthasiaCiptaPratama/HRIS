@@ -1,4 +1,4 @@
-import type { EmploymentCategory, OrgUnitType } from "@hris/shared";
+import type { EmploymentCategory, OrgUnitType, PositionLevel } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 import { type AuditEntry, writeAudit } from "../../core/audit.ts";
 import { ForbiddenError } from "../../core/errors.ts";
@@ -207,6 +207,38 @@ export function missingMasterData(lookup: MasterLookup, names: MasterDataNames):
 }
 
 /** Buat master data yang belum ada; kembalikan indeks lengkap (lama + baru) untuk dipakai pemanggil. */
+/**
+ * ORG-D8: isi level jabatan yang MASIH KOSONG dari kode level HR di file import (jabatan yang sudah
+ * ber-level tidak diubah). Mengembalikan id jabatan yang terisi; tiap pengisian diaudit.
+ */
+export async function fillEmptyPositionLevels(
+  tx: repository.OrganizationTx,
+  levels: Map<string, PositionLevel>,
+  audit: Omit<AuditEntry, "action" | "entityType" | "entityId" | "after">,
+): Promise<string[]> {
+  const filled: string[] = [];
+  for (const [positionId, level] of levels) {
+    const { count } = await tx.position.updateMany({
+      where: { id: positionId, level: null },
+      data: { level },
+    });
+    if (count === 0) continue;
+    filled.push(positionId);
+    await writeAudit(
+      {
+        ...audit,
+        action: "organization.position.update",
+        entityType: "organization.position",
+        entityId: positionId,
+        before: { level: null },
+        after: { level, source: "import_hr_level_code" },
+      },
+      tx,
+    );
+  }
+  return filled;
+}
+
 export async function createMissingMasterData(
   tx: repository.OrganizationTx,
   lookup: MasterLookup,

@@ -323,7 +323,8 @@ export interface EmployeeWriteBody {
   employmentStatusId?: string;
   positionId: string;
   workLocationId: string | null;
-  gradeId: string | null;
+  /** ORG-D8: grade tidak lagi diisi dari form (level ikut jabatan); tanpa field = tidak diubah. */
+  gradeId?: string | null;
   /** Tanpa field = tidak diubah (mode atasan otomatis dari pos, D-053). */
   managerId?: string | null;
   /** D-051: pos jabatan; null = lepas dari pos. */

@@ -24,6 +24,9 @@ export interface AuthAdmin {
   generateRecoveryLink(email: string, redirectTo: string): Promise<string>;
 }
 
+/** Domain alamat anonim user Auth yang dilepas bila LOGIN_EMAIL_DOMAIN kosong (purge D-045 d, ONB-D1). */
+export const FALLBACK_ANONYMOUS_AUTH_DOMAIN = "deleted.akselerasi.invalid";
+
 // Durasi ban "selamanya" (± 100 tahun); dibuka dengan "none".
 const BAN_FOREVER = "876000h";
 

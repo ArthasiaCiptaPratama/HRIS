@@ -1,8 +1,17 @@
 import type { Permission, Role } from "@hris/shared";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import { authKeys } from "@/features/auth/api";
 import { api } from "@/lib/api";
-import { accountSchema, auditLogSchema, grantSchema, one, page } from "./schemas";
+import {
+  accountInviteQueuedSchema,
+  accountSchema,
+  auditLogSchema,
+  grantSchema,
+  linkSuggestionSchema,
+  one,
+  page,
+} from "./schemas";
 
 export const iamKeys = {
   accounts: (params: Record<string, unknown>) => ["iam", "accounts", params] as const,
@@ -25,6 +34,8 @@ export interface AccountsParams {
   role?: Role | undefined;
   isActive?: boolean | undefined;
   q?: string | undefined;
+  /** ONB-D2: hanya akun Karyawan/Manager yang belum tertaut karyawan. */
+  unlinked?: boolean | undefined;
 }
 
 export function useAccounts(params: AccountsParams, enabled = true) {
@@ -50,10 +61,49 @@ function useInvalidate() {
 
 export function useInviteAccount() {
   const invalidate = useInvalidate();
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { email: string; role: Role }) =>
-      api("/accounts/invite", { method: "POST", body, schema: one(accountSchema) }),
-    onSuccess: invalidate,
+    // ONB-D2: role Karyawan → 202 antrean (Undang Karyawan Terdaftar); role lain → 201 akun.
+    mutationFn: (body: { email: string; role: Role; employeeId?: string | undefined }) =>
+      api("/accounts/invite", {
+        method: "POST",
+        body,
+        schema: one(z.union([accountInviteQueuedSchema, accountSchema])),
+      }).then((r) => r.data),
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+  });
+}
+
+/** ONB-D2: tautkan akun yang belum tertaut ke data karyawan. */
+export function useLinkEmployee() {
+  const invalidate = useInvalidate();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, employeeId }: { id: string; employeeId: string }) =>
+      api(`/accounts/${id}/employee`, {
+        method: "PUT",
+        body: { employeeId },
+        schema: one(accountSchema),
+      }).then((r) => r.data),
+    onSuccess: () => {
+      invalidate();
+      void queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+  });
+}
+
+export function useLinkSuggestions(accountId: string | null) {
+  return useQuery({
+    queryKey: ["iam", "link-suggestions", accountId],
+    queryFn: ({ signal }) =>
+      api(`/accounts/${accountId}/link-suggestions`, {
+        schema: one(z.array(linkSuggestionSchema)),
+        signal,
+      }).then((r) => r.data),
+    enabled: accountId !== null,
   });
 }
 

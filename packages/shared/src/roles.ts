@@ -20,3 +20,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 /** D-040 + IAM-D1: role yang cakupan PT-nya dari penugasan (iam.account_companies). */
 export const COMPANY_ASSIGNED_ROLES: readonly Role[] = [ROLE.HR_ADMIN, ROLE.HR_PERSONNEL];
 export const usesAssignedCompanies = (role: Role) => COMPANY_ASSIGNED_ROLES.includes(role);
+
+/** ONB-D2: role yang akunnya wajib tertaut ke data karyawan (absen, Layanan Mandiri, atasan D-053). */
+export const EMPLOYEE_LINKED_ROLES: readonly Role[] = [ROLE.MANAGER, ROLE.EMPLOYEE];
+export const requiresEmployeeLink = (role: Role) => EMPLOYEE_LINKED_ROLES.includes(role);
