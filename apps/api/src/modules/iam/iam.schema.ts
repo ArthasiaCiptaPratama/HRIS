@@ -64,6 +64,8 @@ export const accountSchema = z
     companyIds: z.array(z.uuid()),
     lastLoginAt: z.iso.datetime().nullable(),
     createdAt: z.iso.datetime(),
+    // ONB-D2: role Karyawan/Manager tanpa data karyawan tertaut (perlu "Tautkan ke karyawan").
+    needsEmployeeLink: z.boolean(),
   })
   .openapi("Account");
 export type AccountDto = z.infer<typeof accountSchema>;
@@ -75,12 +77,32 @@ export const listAccountsQuerySchema = z.object({
   role: roleSchema.optional(),
   isActive: booleanQuery.optional(),
   q: z.string().trim().min(1).max(100).optional(),
+  // ONB-D2: hanya akun Karyawan/Manager yang belum tertaut data karyawan.
+  unlinked: booleanQuery.optional(),
 });
 export type ListAccountsQuery = z.infer<typeof listAccountsQuerySchema>;
 
+// ONB-D2: role Karyawan/Manager wajib `employeeId` (422 bila kosong); role lain opsional.
 export const inviteAccountBodySchema = z
-  .object({ email: z.email().max(254), role: roleSchema })
+  .object({ email: z.email().max(254), role: roleSchema, employeeId: z.uuid().optional() })
   .openapi("InviteAccount");
+/** ONB-D2 (Q1a): undangan role Karyawan masuk antrean "Undang Karyawan Terdaftar" (202). */
+export const accountInviteQueuedSchema = z
+  .object({ employeeId: z.uuid(), queued: z.literal(true) })
+  .openapi("AccountInviteQueued");
+
+export const linkEmployeeBodySchema = z
+  .object({ employeeId: z.uuid() })
+  .openapi("LinkAccountEmployee");
+export const linkSuggestionSchema = z
+  .object({
+    employeeId: z.uuid(),
+    fullName: z.string(),
+    employeeNumber: z.string().nullable(),
+    companyId: z.uuid(),
+    matchedBy: z.enum(["PERSONAL_EMAIL", "WORK_EMAIL"]).openapi("AccountLinkMatch"),
+  })
+  .openapi("AccountLinkSuggestion");
 export type InviteAccountInput = z.infer<typeof inviteAccountBodySchema>;
 
 export const changeRoleBodySchema = z.object({ role: roleSchema }).openapi("ChangeRole");

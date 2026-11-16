@@ -123,8 +123,10 @@ const BASE_IMPORT_FIELDS = {
     section: "work",
     synonyms: ["homebase berlaku mulai", "tmt homebase", "berlaku homebase"],
   },
+  // ORG-D8: kolom Grade/Level berisi kode level HR (3A, 1B, L4) — disimpan sebagai penanda,
+  // level karyawan tetap = level jabatannya; tidak lagi membuat master Grade. Kunci tetap (profil lama).
   gradeName: {
-    label: "Grade",
+    label: "Level (kode HR)",
     section: "work",
     synonyms: ["grade", "golongan", "level", "gol"],
   },

@@ -57,6 +57,11 @@ export const pages = {
     })),
   archive: () =>
     import("@/features/archive/pages/archive-page").then((m) => ({ Component: m.ArchivePage })),
+  // ORG-D8: Master Data › Level (menggantikan Grade, baca saja).
+  levels: () =>
+    import("@/features/organization/pages/levels-page").then((m) => ({
+      Component: m.LevelsPage,
+    })),
   orgPosts: () =>
     import("@/features/organization/pages/org-posts-page").then((m) => ({
       Component: m.OrgPostsPage,

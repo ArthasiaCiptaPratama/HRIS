@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-16 — Kolom Grade/Level = kode level HR (IMP-D4) (Oatse)
+- **Dikerjakan:** `employee-import.service.ts` — diff kode HR (`hrLevelCode`), tanpa master Grade (cek arsip & nama baru dihapus), peringatan `HR_LEVEL_*` di Pratinjau (`levelVotes`, `knownPosition`), simpan `hrLevelCode` + `fillEmptyPositionLevels`; shared label "Level (kode HR)" + pesan isu; web teks "Lengkapi data" tanpa grade.
+- **Keputusan:** IMP-D4 (README).
+- **Verifikasi:** `import.test.ts` 44/44 (+1 ORG-D8: peringatan per kode, penanda tersimpan, level jabatan kosong terisi, bentrok tidak diisi, ber-level tidak diubah; 2 test lama disesuaikan); web `employee-import.test.tsx` ✔.
+- **Masalah / catatan:** —
+- **Berikutnya:** commit bersama ORG-D8.
+
 ### 2026-11-13 — Status keluar di file menonaktifkan karyawan yang sudah ada (IMP-D3) (Oatse)
 - **Dikerjakan:** `employee-import.service.ts`: `EXIT_EXISTING_IGNORED` diganti `plan.deactivate` (aktif, berizin, bukan akun sendiri, tanggal ≥ tanggal masuk); simpan = `updateEmployee` nonaktif + lepas pos + `syncPostManagers`, riwayat DEACTIVATED, `deactivateAccountOfEmployee`, audit deactivate; baris dengan `deactivate` tidak jadi SKIP; pratinjau `rows[].deactivate`. Shared: pesan `EXIT_ALREADY_INACTIVE` / `EXIT_OWN_ACCOUNT` / `EXIT_FORBIDDEN`. Web: "Akan dinonaktifkan: <alasan> per <tanggal>" di Keterangan Pratinjau.
 - **Keputusan:** IMP-D3 (mengubah design.md §6 butir 4).

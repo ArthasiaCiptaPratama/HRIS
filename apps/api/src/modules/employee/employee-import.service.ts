@@ -13,6 +13,8 @@ import {
   maritalFromPtkp,
   type NormalizedImportRow,
   normalizeImportRow,
+  type PositionLevel,
+  parseHrLevelCode,
   unitKey,
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
@@ -21,10 +23,12 @@ import { deactivateAccountOfEmployee, getAccountLinksForEmployees } from "../iam
 import {
   archivedMasterIndex,
   createMissingMasterData,
+  fillEmptyPositionLevels,
   getMasterLookup,
   listOrgPosts,
   type MasterDataNames,
   type MasterLookup,
+  masterIndex,
   masterKey,
   missingMasterData,
   positionKey,
@@ -250,6 +254,21 @@ const EXIT_REASON = {
   TERMINATION: "TERMINATION",
   OTHER: "OTHER",
 } as const;
+
+/** ORG-D8: level dari kode HR per jabatan (lebih dari satu nilai = bentrok, jabatan tidak diisi). */
+function levelVotes<P extends { row: { gradeName?: string | undefined } }>(
+  plans: P[],
+  positionOf: (plan: P) => string | undefined,
+): Map<string, Set<PositionLevel>> {
+  const votes = new Map<string, Set<PositionLevel>>();
+  for (const plan of plans) {
+    const level = parseHrLevelCode(plan.row.gradeName)?.level;
+    const positionId = positionOf(plan);
+    if (!level || !positionId) continue;
+    votes.set(positionId, (votes.get(positionId) ?? new Set()).add(level));
+  }
+  return votes;
+}
 
 function issue(
   field: ImportFieldKey | null,
@@ -610,10 +629,6 @@ export async function analyze(
       if (!mapped(map.positions, key) && archived.positions.has(key))
         p.issues.push(issue("positionName", "MASTER_ARCHIVED"));
     }
-    const grade = p.row.gradeName;
-    if (wants(p, "gradeName") && grade && !mapped(map.grades, masterKey(grade)))
-      if (archived.grades.has(masterKey(grade)))
-        p.issues.push(issue("gradeName", "MASTER_ARCHIVED"));
     const location = p.row.workLocationName;
     if (
       wants(p, "workLocationName") &&
@@ -652,8 +667,6 @@ export async function analyze(
       !mapped(map.positions, positionKey(dept, p.row.positionName))
     )
       names.positions.push({ department: dept, name: p.row.positionName });
-    if (wants(p, "gradeName") && p.row.gradeName && !mapped(map.grades, masterKey(p.row.gradeName)))
-      names.grades.push(p.row.gradeName);
     if (
       wants(p, "workLocationName") &&
       p.row.workLocationName &&
@@ -668,6 +681,40 @@ export async function analyze(
       names.homebases.push(p.row.homebaseName);
   }
   const missing = missingMasterData(lookup, names);
+
+  // ORG-D8: kode level HR → peringatan (bukan error); level jabatan kosong diisi bila tidak bentrok.
+  const knownIndex = masterIndex(lookup);
+  const knownPosition = (p: RowPlan) =>
+    p.existing && !p.changes.includes("positionName")
+      ? p.existing.positionId
+      : p.departmentName && p.row.positionName
+        ? (map.positions?.[positionKey(p.departmentName, p.row.positionName)] ??
+          knownIndex.positions.get(positionKey(p.departmentName, p.row.positionName)))
+        : undefined;
+  const votes = levelVotes(
+    writing.filter((p) => wants(p, "gradeName")),
+    knownPosition,
+  );
+  for (const p of writing) {
+    if (!wants(p, "gradeName")) continue;
+    const parsed = parseHrLevelCode(p.row.gradeName);
+    if (!parsed) continue;
+    if (parsed.match !== "EXACT")
+      p.issues.push(issue("gradeName", `HR_LEVEL_${parsed.match}`, "WARNING"));
+    const positionId = knownPosition(p);
+    if (!positionId || !parsed.level) continue;
+    const current = lookup.positions.get(positionId)?.level ?? null;
+    if (current && current !== parsed.level)
+      p.issues.push(issue("gradeName", "HR_LEVEL_MISMATCH", "WARNING"));
+    else if (!current)
+      p.issues.push(
+        issue(
+          "gradeName",
+          (votes.get(positionId)?.size ?? 0) > 1 ? "HR_LEVEL_CONFLICT" : "HR_LEVEL_FILL",
+          "WARNING",
+        ),
+      );
+  }
 
   const counts = {
     total: rows.length,
@@ -786,9 +833,9 @@ function diff(
     add("employmentStatusText", e.employmentStatusId);
   if (!(plan.mergeChartHolder && e.orgPostId) && positionDiffers(row, e, lookup, plan))
     add("positionName", e.positionId);
-  const grade = e.gradeId ? lookup.grades.get(e.gradeId)?.name : undefined;
-  if (row.gradeName && masterKey(row.gradeName) !== masterKey(grade ?? ""))
-    add("gradeName", e.gradeId);
+  // ORG-D8: kolom Level/Grade = kode level HR (penanda), bukan master Grade.
+  const hrCode = parseHrLevelCode(row.gradeName)?.code;
+  if (hrCode && hrCode !== (e.hrLevelCode ?? "")) add("gradeName", e.hrLevelCode);
   const location = e.workLocationId ? lookup.locations.get(e.workLocationId)?.name : undefined;
   if (row.workLocationName && masterKey(row.workLocationName) !== masterKey(location ?? ""))
     add("workLocationName", e.workLocationId);
@@ -935,8 +982,6 @@ export async function commit(
     const index = await createMissingMasterData(tx, lookup, missing, audit);
     const positionId = (dept: string, name: string) =>
       map.positions?.[positionKey(dept, name)] ?? index.positions.get(positionKey(dept, name));
-    const gradeId = (name: string) =>
-      map.grades?.[masterKey(name)] ?? index.grades.get(masterKey(name));
     const locationId = (name: string) =>
       map.workLocations?.[masterKey(name)] ?? index.workLocations.get(masterKey(name));
     const homebaseId = (name: string) =>
@@ -956,6 +1001,8 @@ export async function commit(
       "TRAINING",
     ] as const;
     const groupId = crypto.randomUUID();
+    // ORG-D8: jabatan akhir tiap baris yang membawa kode level HR (pengisian level jabatan kosong).
+    const levelRows: { row: { gradeName?: string | undefined }; positionId: string }[] = [];
     for (const plan of plans) {
       const { row } = plan;
       const sensitiveSections = [
@@ -984,7 +1031,7 @@ export async function commit(
           employmentStatusId: plan.statusId as string,
           positionId: posId,
           workLocationId: row.workLocationName ? (locationId(row.workLocationName) ?? null) : null,
-          gradeId: row.gradeName ? (gradeId(row.gradeName) ?? null) : null,
+          hrLevelCode: parseHrLevelCode(row.gradeName)?.code ?? null,
           managerId: null,
           ...(row.exit
             ? {
@@ -1015,6 +1062,7 @@ export async function commit(
           });
         await writeRepeated(tx, created.id, missingRepeated(row));
         queue(plan, created.id);
+        if (row.gradeName) levelRows.push({ row, positionId: posId });
         await repository.createHistory(tx, {
           employeeId: created.id,
           changeType: "HIRED",
@@ -1091,7 +1139,9 @@ export async function commit(
           ...(has("companyCode") ? { companyId: plan.companyId } : {}),
           ...(has("employmentStatusText") ? { employmentStatusId: plan.statusId } : {}),
           ...(newPositionId ? { positionId: newPositionId } : {}),
-          ...(has("gradeName") && row.gradeName ? { gradeId: gradeId(row.gradeName) } : {}),
+          ...(has("gradeName") && row.gradeName
+            ? { hrLevelCode: parseHrLevelCode(row.gradeName)?.code ?? null }
+            : {}),
           ...(has("workLocationName") && row.workLocationName
             ? { workLocationId: locationId(row.workLocationName) }
             : {}),
@@ -1183,6 +1233,8 @@ export async function commit(
           ),
         });
         queue(plan, e.id);
+        if (has("gradeName") && row.gradeName)
+          levelRows.push({ row, positionId: newPositionId ?? e.positionId });
         // IMP-D3: nonaktifkan seperti deactivateEmployee (pos dilepas, riwayat, akun diblokir, audit).
         if (plan.deactivate) {
           const { reason, date } = plan.deactivate;
@@ -1304,6 +1356,10 @@ export async function commit(
         })),
       ),
     );
+    const levels = new Map<string, PositionLevel>();
+    for (const [positionId, set] of levelVotes(levelRows, (r) => r.positionId))
+      if (set.size === 1) levels.set(positionId, [...set][0] as PositionLevel);
+    await fillEmptyPositionLevels(tx, levels, audit);
     for (const pending of pendingChanges)
       await recordFieldChanges(tx, {
         ...pending,

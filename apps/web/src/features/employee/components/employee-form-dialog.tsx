@@ -67,7 +67,6 @@ function fromDetail(employee: EmployeeDetail): EmployeeForm {
     homebaseId: employee.homebase?.id ?? "",
     homebaseEffectiveFrom: todayIso(),
     homebaseDecreeNumber: "",
-    gradeId: employee.grade?.id ?? "",
     managerId: employee.manager?.id ?? "",
     orgPostId: employee.orgPostId ?? "",
     // Data lama tanpa pos = atasan selalu manual.

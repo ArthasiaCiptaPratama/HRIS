@@ -248,6 +248,31 @@ export async function findCandidate(id: string) {
   });
 }
 
+/** ONB-D2: karyawan aktif & disetujui yang email pribadi/kerjanya = `email` (saran tautan akun). */
+export async function findEmployeesByEmail(email: string, companyIds: string[] | null) {
+  return getPrisma().employee.findMany({
+    where: {
+      isActive: true,
+      onboardingStatus: "APPROVED",
+      ...(companyIds === null ? {} : { companyId: { in: companyIds } }),
+      OR: [
+        { personalEmail: { equals: email, mode: "insensitive" } },
+        { workEmail: { equals: email, mode: "insensitive" } },
+      ],
+    },
+    orderBy: { fullName: "asc" },
+    take: 10,
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      companyId: true,
+      personalEmail: true,
+      workEmail: true,
+    },
+  });
+}
+
 export async function findEmployeesForInvite(ids: string[]) {
   if (ids.length === 0) return [];
   return getPrisma().employee.findMany({

@@ -53,7 +53,8 @@ export const canUsePersonalDimensions = (me: Me) =>
   me.role === "SUPER_ADMIN" || me.grants.some((g) => g.permission === "employee.personal.read");
 
 const DIMENSION_GROUPS: { label: string; dims: PivotDimension[] }[] = [
-  { label: "Kepegawaian", dims: ["category", "status", "education", "gender", "grade"] },
+  // ORG-D8: dimensi "Grade" tidak ditawarkan lagi (pakai "Level jabatan"); widget lama tetap tampil.
+  { label: "Kepegawaian", dims: ["category", "status", "education", "gender"] },
   {
     label: "Organisasi",
     dims: ["company", "directorate", "division", "department", "position", "positionLevel"],

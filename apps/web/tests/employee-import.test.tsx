@@ -371,7 +371,7 @@ describe("Import Data Karyawan", () => {
     await user.click(await screen.findByRole("button", { name: "Lanjut" }));
 
     expect(await screen.findByText("Lengkapi data", { selector: "h2" })).toBeInTheDocument();
-    await user.click(screen.getByText(/2 jabatan, grade, lokasi, atau homebase baru akan dibuat/));
+    await user.click(screen.getByText(/2 jabatan, lokasi, atau homebase baru akan dibuat/));
     expect(screen.getByText("Homebase: Palangkaraya")).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "Pemetaan Homebase: Palangkaraya" }));
     await user.click(await screen.findByRole("option", { name: "Palangka Raya" }));
