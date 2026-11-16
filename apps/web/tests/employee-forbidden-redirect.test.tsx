@@ -107,7 +107,13 @@ describe.skipIf(!tmOn("tmAbsen"))("#102: karyawan tidak melihat layar Akses dito
   it("role lain: Akses ditolak + akun aktif + Ke Beranda / Masuk dengan akun lain (F2)", async () => {
     who = { role: "MANAGER", employeeId: "emp-2" };
     backend();
+    // Keluar sungguhan: sesi hilang + event SIGNED_OUT (tanpa ini /login langsung memantul ke "/").
     supabaseMock.auth.signOut.mockClear();
+    supabaseMock.auth.signOut.mockImplementationOnce((async () => {
+      authState.session = null;
+      emit?.("SIGNED_OUT", null);
+      return { error: null };
+    }) as never);
     const router = renderRouter("/akun");
     expect(await screen.findByText("Akses ditolak", {}, { timeout: 15000 })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/akun");
@@ -118,6 +124,9 @@ describe.skipIf(!tmOn("tmAbsen"))("#102: karyawan tidak melihat layar Akses dito
     expect(screen.getByRole("link", { name: "Ke Beranda" })).toHaveAttribute("href", "/");
     await userEvent.click(screen.getByRole("button", { name: "Masuk dengan akun lain" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/login"), { timeout: 5000 });
+    // Tetap di halaman login (form tampil), tanpa ?next.
+    expect(await screen.findByRole("button", { name: "Masuk" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toBe("");
     expect(supabaseMock.auth.signOut).toHaveBeenCalled();
   });
