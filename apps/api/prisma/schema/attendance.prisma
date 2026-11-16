@@ -80,22 +80,94 @@ model Shift {
 // Pola siklus: daftar kode shift atau "OFF" berurutan (mis. D×10 + OFF×4).
 /// TM-D23: template roster buatan HR (pola + jumlah crew + jarak geser), dipasang per lokasi kerja.
 model RosterTemplate {
-  id             String    @id @default(uuid()) @db.Uuid
-  companyId      String    @map("company_id") @db.Uuid
-  name           String    @db.VarChar(60)
-  description    String?   @db.VarChar(300)
-  steps          String[]  @db.VarChar(10)
-  crewCount      Int       @map("crew_count")
-  crewOffsetDays Int       @map("crew_offset_days")
-  startOnMonday  Boolean   @default(false) @map("start_on_monday")
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String      @id @default(uuid()) @db.Uuid
+  companyId      String      @map("company_id") @db.Uuid
+  name           String      @db.VarChar(60)
+  description    String?     @db.VarChar(300)
+  steps          String[]    @db.VarChar(10)
+  crewCount      Int         @map("crew_count")
+  crewOffsetDays Int         @map("crew_offset_days")
+  startOnMonday  Boolean     @default(false) @map("start_on_monday")
+  /// TM-D28: template jadwal yang dirakit otomatis dari roster (roster + shift hari kerja).
+  workRosterId   String?     @map("work_roster_id") @db.Uuid
+  workRoster     WorkRoster? @relation(fields: [workRosterId], references: [id], onDelete: SetNull)
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   patterns RosterPattern[]
 
   @@unique([companyId, name])
+  @@index([workRosterId])
   @@map("roster_templates")
+  @@schema("attendance")
+}
+
+/// TM-D28: kelompok karyawan untuk pola kerja (office / lapangan lokal / lapangan non-lokal).
+enum Residency {
+  LOCAL
+  NON_LOCAL
+  OFFICE
+
+  @@schema("attendance")
+}
+
+/// TM-D28: roster = siklus kerja–libur yang wajib dijalani (mis. non-lokal 13/1 × N + time off 14 hari,
+/// lokal 6/1), per PT. Dirakit menjadi pola jadwal bersama shift hari kerja (template jadwal otomatis).
+model WorkRoster {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  name                String    @db.VarChar(60)
+  residency           Residency
+  workDays            Int       @map("work_days")
+  offDays             Int       @map("off_days")
+  /// 0 = tanpa time off.
+  cyclesBeforeTimeOff Int       @map("cycles_before_time_off")
+  timeOffDays         Int       @map("time_off_days")
+  crewCount           Int       @default(1) @map("crew_count")
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  templates RosterTemplate[]
+
+  @@unique([companyId, name])
+  @@map("work_rosters")
+  @@schema("attendance")
+}
+
+/// TM-D28: Homebase (EMP-D6) yang dianggap lokal untuk satu lokasi kerja (tanpa FK lintas modul).
+model LocalHomebase {
+  workLocationId     String   @map("work_location_id") @db.Uuid
+  homebaseId         String   @map("homebase_id") @db.Uuid
+  createdByAccountId String   @map("created_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([workLocationId, homebaseId])
+  @@index([homebaseId])
+  @@map("work_location_local_homebases")
+  @@schema("attendance")
+}
+
+/// TM-D28: lokasi kerja kantor — karyawan di lokasi ini memakai pola kerja office (tanpa FK lintas modul).
+model OfficeWorkLocation {
+  workLocationId     String   @id @map("work_location_id") @db.Uuid
+  createdByAccountId String   @map("created_by_account_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("office_work_locations")
+  @@schema("attendance")
+}
+
+/// TM-D28: lokal/non-lokal yang ditetapkan HR (mengalahkan hitungan otomatis dari Homebase).
+model EmployeeResidency {
+  employeeId         String    @id @map("employee_id") @db.Uuid
+  residency          Residency
+  updatedByAccountId String    @map("updated_by_account_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("employee_residencies")
   @@schema("attendance")
 }
 
@@ -237,6 +309,8 @@ model RosterDay {
   shift      Shift?       @relation(fields: [shiftId], references: [id], onDelete: Restrict)
   crewId     String?      @map("crew_id") @db.Uuid
   source     RosterSource
+  /// TM-D28: hari time off roster (langkah pola "TO"; shift null = libur, bukan cuti, tidak Alpha).
+  timeOff    Boolean      @default(false) @map("time_off")
   createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -548,6 +622,47 @@ model OvertimeOrder {
   @@unique([employeeId, workDate])
   @@index([companyId, workDate])
   @@map("overtime_orders")
+  @@schema("attendance")
+}
+
+enum OvertimeClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+
+  @@schema("attendance")
+}
+
+/// TM-D27: pengajuan lembur oleh karyawan atas jam yang sudah dijalani (absen pulang bebas, tidak otomatis
+/// lembur). HR PT / SA menetapkan rentang yang diakui lalu memutus; disetujui → SPL susulan (TM-D19,
+/// `orderId`) sehingga jam aktual di dalam rentang itu dihitung lembur. Satu yang menunggu per karyawan per
+/// tanggal kerja (dicek di service).
+model OvertimeClaim {
+  id                 String              @id @default(uuid()) @db.Uuid
+  employeeId         String              @map("employee_id") @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  managerEmployeeId  String?             @map("manager_employee_id") @db.Uuid
+  workDate           DateTime            @map("work_date") @db.Date
+  /// Jam yang diajukan karyawan (jam lokal HH:mm, sama dengan input SPL).
+  startTime          String?             @map("start_time") @db.VarChar(5)
+  endTime            String?             @map("end_time") @db.VarChar(5)
+  reason             String              @db.VarChar(300)
+  status             OvertimeClaimStatus @default(PENDING)
+  /// Rentang yang diakui HR saat disetujui.
+  approvedStartTime  String?             @map("approved_start_time") @db.VarChar(5)
+  approvedEndTime    String?             @map("approved_end_time") @db.VarChar(5)
+  decisionNote       String?             @map("decision_note") @db.VarChar(300)
+  decidedByAccountId String?             @map("decided_by_account_id") @db.Uuid
+  decidedAt          DateTime?           @map("decided_at") @db.Timestamptz(6)
+  /// SPL susulan yang dibuat saat disetujui.
+  orderId            String?             @map("order_id") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, workDate])
+  @@index([companyId, status, workDate])
+  @@map("overtime_claims")
   @@schema("attendance")
 }
 

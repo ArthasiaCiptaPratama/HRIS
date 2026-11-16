@@ -1,5 +1,9 @@
-import type { ReactNode } from "react";
-import { Navigate, Outlet, useLocation } from "react-router";
+import { ROLE_LABELS, type Role } from "@hris/shared";
+import { type ReactNode, useEffect } from "react";
+import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { tmAccess } from "@/features/time-management/access";
 import { ApiError } from "@/lib/api-client";
 import { useMe } from "../api";
 import { useAuth } from "../auth-provider";
@@ -49,13 +53,61 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
-export function ForbiddenMessage() {
+/**
+ * Layar "Akses ditolak" (role non-karyawan). #102 susulan: tampilkan akun yang sedang aktif — sesi
+ * Supabase dipakai bersama semua tab di satu browser, jadi akun bisa berganti tanpa disadari — dan
+ * jalan keluar: ke Beranda atau masuk dengan akun lain.
+ */
+export function ForbiddenMessage({ me }: { me?: Me }) {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
   return (
-    <div className="space-y-2">
-      <h1 className="text-2xl font-semibold tracking-tight">Akses ditolak</h1>
-      <p className="text-muted-foreground text-sm">Anda tidak memiliki akses ke halaman ini.</p>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Akses ditolak</h1>
+        <p className="text-muted-foreground text-sm">Anda tidak memiliki akses ke halaman ini.</p>
+        {me ? (
+          <p className="text-sm">
+            Masuk sebagai: <span className="font-medium">{me.email}</span> (
+            {ROLE_LABELS[me.role as Role] ?? me.role})
+          </p>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild>
+          <Link to="/">Ke Beranda</Link>
+        </Button>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            await signOut();
+            navigate("/login", { replace: true });
+          }}
+        >
+          Masuk dengan akun lain
+        </Button>
+      </div>
     </div>
   );
+}
+
+const EMPLOYEE_REDIRECT_TEXT =
+  "Halaman itu tidak tersedia untuk akun Karyawan — dibuka halaman Absen.";
+
+/**
+ * #102 (TM-D26) susulan: akun Karyawan (beranda /absen) tidak diberi layar "Akses ditolak" — rute yang
+ * ditolak (mis. ?next dari akun lain di browser yang sama, tab yang sesinya berganti) dialihkan ke /absen.
+ */
+function RedirectToAbsen() {
+  useEffect(() => {
+    toast.info(EMPLOYEE_REDIRECT_TEXT, { id: "employee-forbidden-redirect" });
+  }, []);
+  return <Navigate to="/absen" replace />;
+}
+
+/** Tampilan saat `check` gagal: Karyawan → /absen; role lain → pesan Akses ditolak. */
+function Denied({ me }: { me: Me }) {
+  return tmAccess.absenHome(me) ? <RedirectToAbsen /> : <ForbiddenMessage me={me} />;
 }
 
 export function RequireAccess({
@@ -67,12 +119,12 @@ export function RequireAccess({
 }) {
   const me = useMe();
   if (!me.data) return null;
-  return check(me.data) ? children : <ForbiddenMessage />;
+  return check(me.data) ? children : <Denied me={me.data} />;
 }
 
 /** Guard sebagai layout route: melindungi sekelompok rute (termasuk rute `lazy`). */
 export function RequireAccessRoute({ check }: { check: (me: Me) => boolean }) {
   const me = useMe();
   if (!me.data) return null;
-  return check(me.data) ? <Outlet /> : <ForbiddenMessage />;
+  return check(me.data) ? <Outlet /> : <Denied me={me.data} />;
 }
