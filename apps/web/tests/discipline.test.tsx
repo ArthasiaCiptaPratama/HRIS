@@ -201,7 +201,11 @@ describe.skipIf(!FEATURES.discipline)("Arsip › Riwayat Peringatan (ARS-D13)", 
     view.unmount();
     mockFetch(me("EMPLOYEE", false, "e1"));
     renderAt("/personal/arsip/peringatan");
-    expect(await screen.findByRole("heading", { name: /Akses ditolak/ })).toBeInTheDocument();
+    // #103: akun Karyawan yang ditolak dialihkan ke beranda absen (bukan layar Akses ditolak).
+    expect(
+      await screen.findByText("Attendance Online System", {}, { timeout: 15000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Akses ditolak/ })).not.toBeInTheDocument();
   });
 
   it('MANAGER: detail SP tim → "Sudah disampaikan"', async () => {
