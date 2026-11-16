@@ -364,3 +364,233 @@ describe("batas per jam & karyawan existing", () => {
     expect((await call("GET", `/employees/${ids.existing}`, sa.headers)).status).toBe(200);
   });
 });
+
+// ONB-D1: ubah email & batalkan undangan akun yang belum pernah login + bug antrean (EMAIL_MISMATCH).
+describe("ubah email & batalkan undangan (ONB-D1)", () => {
+  /** Calon baru Diundang; `process` = proses antrean sampai akun terbentuk. */
+  async function newCandidate(n: string, process = true) {
+    const preview = await data(
+      await call("POST", "/onboarding-batches/preview", sa.headers, { candidates: [candidate(n)] }),
+    );
+    await call("POST", "/onboarding-batches", sa.headers, {
+      name: `Batch ${RUN} ${n}`,
+      candidates: [candidate(n, { employeeNumber: preview.rows[0].employeeNumber })],
+    });
+    const row = await prisma.employee.findFirstOrThrow({ where: { personalEmail: email(n) } });
+    if (process) {
+      await call("POST", "/onboarding-invitations/process", sa.headers);
+      await prisma.account.findUniqueOrThrow({ where: { employeeId: row.id } });
+    }
+    return row.id;
+  }
+  const changeEmail = (id: string, to: string, who: Login = hr) =>
+    call("PUT", `/onboarding/${id}/invitation-email`, who.headers, { email: to });
+  const cancel = (id: string, who: Login = hr) =>
+    call("DELETE", `/onboarding/${id}/invitation`, who.headers);
+
+  test("ubah email: user Auth buatan undangan di-ban + anonim, akun dilepas, email pribadi ikut, antre ke email baru", async () => {
+    const id = await newCandidate("21");
+    const old = await prisma.account.findUniqueOrThrow({ where: { employeeId: id } });
+    const res = await changeEmail(id, email("21b").toUpperCase());
+    expect(res.status).toBe(200);
+    expect(await data(res)).toMatchObject({
+      employeeId: id,
+      email: email("21b"),
+      queued: true,
+      authUserRetired: true,
+    });
+    expect(fake.banned.get(old.authUserId)).toBe(true);
+    const anon = fake.emailChanges.find((c) => c.userId === old.authUserId);
+    expect(anon?.email).toMatch(/^deleted-.+@/);
+    expect(await prisma.account.findUnique({ where: { id: old.id } })).toBeNull();
+    const employee = await prisma.employee.findUniqueOrThrow({ where: { id } });
+    expect(employee).toMatchObject({ personalEmail: email("21b"), onboardingStatus: "INVITED" });
+    const invitations = await prisma.onboardingInvitation.findMany({
+      where: { employeeId: id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(invitations.map((i) => [i.status, i.email])).toEqual([
+      ["SENT", email("21")],
+      ["QUEUED", email("21b")],
+    ]);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { entityId: id, action: "employee.onboarding.invite_email_changed" },
+    });
+    expect(audit.before).toMatchObject({ email: email("21"), accountId: old.id });
+    expect(audit.after).toMatchObject({ email: email("21b"), authUserRetired: true });
+    // Antrean berikutnya membuat user Auth & akun baru dengan email baru.
+    await call("POST", "/onboarding-invitations/process", sa.headers);
+    const next = await prisma.account.findUniqueOrThrow({ where: { employeeId: id } });
+    expect(next.email).toBe(email("21b"));
+    expect(next.authUserId).not.toBe(old.authUserId);
+    expect(fake.invited).toContain(email("21b"));
+  });
+
+  test("ubah email saat undangan masih antre (belum ada akun): antrean lama ditutup EMAIL_CHANGED", async () => {
+    const id = await newCandidate("22", false);
+    expect((await changeEmail(id, email("22b"))).status).toBe(200);
+    const invitations = await prisma.onboardingInvitation.findMany({
+      where: { employeeId: id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(invitations.map((i) => [i.status, i.lastErrorCode])).toEqual([
+      ["FAILED", "EMAIL_CHANGED"],
+      ["QUEUED", null],
+    ]);
+  });
+
+  test("ubah email: email dipakai akun/karyawan lain 409, sama 422, tidak valid 400", async () => {
+    const id = await newCandidate("23");
+    expect(await code(await changeEmail(id, hr.account.email))).toBe("CONFLICT");
+    expect(await code(await changeEmail(id, email("21b")))).toBe("CONFLICT");
+    expect(await code(await changeEmail(id, email("23")))).toBe("BUSINESS_RULE_VIOLATION");
+    expect((await changeEmail(id, "bukan-email")).status).toBe(400);
+    // Akun tetap utuh setelah penolakan.
+    expect(await prisma.account.findUnique({ where: { employeeId: id } })).not.toBeNull();
+  });
+
+  test("akses: HR PT lain 404, MANAGER 403, tanpa token 401", async () => {
+    const id = await newCandidate("24", false);
+    expect((await changeEmail(id, email("24b"), hrOther)).status).toBe(404);
+    expect((await cancel(id, hrOther)).status).toBe(404);
+    expect(await code(await cancel(id, mgr))).toBe("FORBIDDEN");
+    expect((await call("DELETE", `/onboarding/${id}/invitation`, {})).status).toBe(401);
+  });
+
+  test("batalkan: akun dilepas, user Auth di-ban, antrean ditutup, kembali Belum diundang & bisa diundang ulang", async () => {
+    const id = await newCandidate("25");
+    const old = await prisma.account.findUniqueOrThrow({ where: { employeeId: id } });
+    // Undangan kirim ulang yang masih antre ikut ditutup.
+    await prisma.onboardingInvitation.create({
+      data: { employeeId: id, email: email("25"), queuedBy: sa.account.id },
+    });
+    const res = await cancel(id);
+    expect(res.status).toBe(200);
+    expect(await data(res)).toMatchObject({ cancelled: true, authUserRetired: true });
+    expect(fake.banned.get(old.authUserId)).toBe(true);
+    expect(await prisma.account.findUnique({ where: { employeeId: id } })).toBeNull();
+    expect(
+      await prisma.onboardingInvitation.count({ where: { employeeId: id, status: "QUEUED" } }),
+    ).toBe(0);
+    expect(
+      await prisma.onboardingInvitation.count({
+        where: { employeeId: id, lastErrorCode: "CANCELLED" },
+      }),
+    ).toBe(1);
+    const employee = await prisma.employee.findUniqueOrThrow({ where: { id } });
+    expect(employee).toMatchObject({ onboardingStatus: "NOT_INVITED", personalEmail: email("25") });
+    // Tidak ada undangan lagi → batalkan kedua kali 422; undang ulang bisa.
+    expect(await code(await cancel(id))).toBe("BUSINESS_RULE_VIOLATION");
+    expect((await call("POST", `/onboarding/${id}/resend-invitation`, hr.headers)).status).toBe(
+      200,
+    );
+  });
+
+  test("user Auth yang sudah ada sebelum undangan (D-023) tidak di-ban/dianonimkan, akun tetap dilepas", async () => {
+    const shared = fake.addExistingUser(email("26"));
+    const id = await newCandidate("26");
+    const account = await prisma.account.findUniqueOrThrow({ where: { employeeId: id } });
+    expect(account.authUserId).toBe(shared);
+    const res = await cancel(id);
+    expect(await data(res)).toMatchObject({ cancelled: true, authUserRetired: false });
+    expect(fake.banned.has(shared)).toBe(false);
+    expect(fake.emailChanges.some((c) => c.userId === shared)).toBe(false);
+    expect(await prisma.account.findUnique({ where: { employeeId: id } })).toBeNull();
+
+    // Cabang yang sama lewat ubah email.
+    const shared2 = fake.addExistingUser(email("27"));
+    const id2 = await newCandidate("27");
+    const changed = await data(await changeEmail(id2, email("27b")));
+    expect(changed.authUserRetired).toBe(false);
+    expect(fake.banned.has(shared2)).toBe(false);
+  });
+
+  test("sudah pernah login → 422 (tetap hanya Nonaktifkan); karyawan existing dibatalkan tetap utuh", async () => {
+    const make = async (n: string) =>
+      (
+        await prisma.employee.create({
+          data: {
+            companyId: ids.acp,
+            employeeNumber: `OBC-${RUN}-${n}`,
+            fullName: `Calon ${RUN} lama ${n}`,
+            joinDate: new Date("2024-01-02T00:00:00.000Z"),
+            employmentStatusId: ids.status,
+            positionId: ids.position,
+            workEmail: `kantor-${run}-${n}@example.test`,
+          },
+        })
+      ).id;
+    const loggedIn = await make("1");
+    const untouched = await make("2");
+    await call("POST", "/onboarding/invite-existing", hr.headers, {
+      employees: [
+        { employeeId: loggedIn, email: email("31") },
+        { employeeId: untouched, email: email("32") },
+      ],
+    });
+    await call("POST", "/onboarding-invitations/process", sa.headers);
+    const account = await prisma.account.findUniqueOrThrow({ where: { employeeId: loggedIn } });
+    expect((await call("GET", "/me", bearer(account.authUserId))).status).toBe(200);
+    expect(await code(await cancel(loggedIn))).toBe("BUSINESS_RULE_VIOLATION");
+    expect(await code(await changeEmail(loggedIn, email("31b")))).toBe("BUSINESS_RULE_VIOLATION");
+    expect(await prisma.account.findUnique({ where: { employeeId: loggedIn } })).not.toBeNull();
+
+    const before = await prisma.employee.findUniqueOrThrow({ where: { id: untouched } });
+    expect((await cancel(untouched)).status).toBe(200);
+    const after = await prisma.employee.findUniqueOrThrow({ where: { id: untouched } });
+    expect(after).toEqual({ ...before, completionRequired: false, updatedAt: after.updatedAt });
+    expect((await call("GET", `/employees/${untouched}`, hr.headers)).status).toBe(200);
+    // Bisa diundang ulang lewat "Undang Karyawan Terdaftar".
+    const again = await data(
+      await call("POST", "/onboarding/invite-existing", hr.headers, {
+        employees: [{ employeeId: untouched, email: email("32") }],
+      }),
+    );
+    expect(again.queued).toBe(1);
+  });
+
+  test("bug antrean: email antrean ≠ email akun → FAILED EMAIL_MISMATCH (bukan SENT); kirim ulang ditolak 409", async () => {
+    const id = await newCandidate("28");
+    // Email pribadi diubah di luar alur undangan (mis. dari profil) → tidak sama dengan akun.
+    await prisma.employee.update({ where: { id }, data: { personalEmail: email("28b") } });
+    expect(await code(await call("POST", `/onboarding/${id}/resend-invitation`, hr.headers))).toBe(
+      "CONFLICT",
+    );
+    // Baris antre lama (dibuat sebelum perbaikan) tetap diproses aman.
+    const queued = await prisma.onboardingInvitation.create({
+      data: { employeeId: id, email: email("28b"), queuedBy: sa.account.id },
+    });
+    await call("POST", "/onboarding-invitations/process", sa.headers);
+    const row = await prisma.onboardingInvitation.findUniqueOrThrow({ where: { id: queued.id } });
+    expect(row).toMatchObject({ status: "FAILED", lastErrorCode: "EMAIL_MISMATCH" });
+    expect(fake.passwordSetup).not.toContain(email("28b"));
+    // Jalur perbaikan: ubah email undangan ke alamat yang benar.
+    expect((await changeEmail(id, email("28b"))).status).toBe(200);
+  });
+
+  test("kirim ulang dengan email yang sama dengan akun tetap mengirim tautan atur password (SENT)", async () => {
+    const id = await newCandidate("29");
+    expect((await call("POST", `/onboarding/${id}/resend-invitation`, hr.headers)).status).toBe(
+      200,
+    );
+    await call("POST", "/onboarding-invitations/process", sa.headers);
+    const last = await prisma.onboardingInvitation.findFirstOrThrow({
+      where: { employeeId: id },
+      orderBy: { createdAt: "desc" },
+    });
+    expect([last.status, last.lastErrorCode]).toEqual(["SENT", null]);
+    expect(fake.passwordSetup).toContain(email("29"));
+  });
+
+  test("kontrak: operationId changeOnboardingInvitationEmail & cancelOnboardingInvitation", async () => {
+    const spec = (await (await app.request("/api/v1/openapi.json")).json()) as {
+      paths: Record<string, Record<string, { operationId?: string }>>;
+    };
+    expect(spec.paths["/api/v1/onboarding/{employeeId}/invitation-email"]?.put?.operationId).toBe(
+      "changeOnboardingInvitationEmail",
+    );
+    expect(spec.paths["/api/v1/onboarding/{employeeId}/invitation"]?.delete?.operationId).toBe(
+      "cancelOnboardingInvitation",
+    );
+  });
+});

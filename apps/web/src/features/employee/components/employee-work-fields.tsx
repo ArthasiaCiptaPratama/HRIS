@@ -33,7 +33,6 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   homebaseId: "",
   homebaseEffectiveFrom: "",
   homebaseDecreeNumber: "",
-  gradeId: "",
   managerId: "",
   orgPostId: "",
   managerManual: false,
@@ -65,7 +64,6 @@ export function toEmployeeWriteBody(
     companyId: values.companyId,
     positionId: values.positionId,
     workLocationId: orNull(values.workLocationId),
-    gradeId: orNull(values.gradeId),
     orgPostId: orNull(values.orgPostId),
     // D-053: dengan pos & mode otomatis, atasan dihitung server dari pos.
     ...(placed && !values.managerManual
@@ -334,25 +332,6 @@ export function EmployeeWorkFields({
                     hint: free > 0 ? `${free} slot kosong` : "penuh",
                   };
                 })}
-              />
-            )}
-          />
-        </FormField>
-        <FormField label="Grade" htmlFor="f-grade" optional>
-          <Controller
-            control={control}
-            name="gradeId"
-            render={({ field }) => (
-              <FormSelect
-                id="f-grade"
-                value={field.value}
-                onChange={field.onChange}
-                placeholder="Pilih grade"
-                noneLabel="Tanpa grade"
-                options={keepCurrent(
-                  (master.data?.grades ?? []).map((g) => ({ value: g.id, label: g.name })),
-                  employee?.grade,
-                )}
               />
             )}
           />

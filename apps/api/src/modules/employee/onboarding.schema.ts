@@ -134,6 +134,28 @@ export const inviteExistingResultSchema = z
   .openapi("OnboardingInviteExistingResult");
 
 export const employeeIdParamSchema = z.object({ employeeId: z.uuid() });
+
+// ONB-D1: ubah email / batalkan undangan akun yang belum pernah login.
+export const invitationEmailBodySchema = z
+  .object({
+    email: z
+      .email()
+      .max(254)
+      .transform((v) => v.trim().toLowerCase()),
+  })
+  .openapi("OnboardingInvitationEmailBody");
+export const invitationEmailResultSchema = z
+  .object({
+    employeeId: z.uuid(),
+    email: z.string(),
+    queued: z.boolean(),
+    /** true = user Auth lama (buatan undangan) di-ban & dianonimkan, tautan lama tidak berlaku. */
+    authUserRetired: z.boolean(),
+  })
+  .openapi("OnboardingInvitationEmailResult");
+export const invitationCancelResultSchema = z
+  .object({ employeeId: z.uuid(), cancelled: z.boolean(), authUserRetired: z.boolean() })
+  .openapi("OnboardingInvitationCancelResult");
 export const batchIdParamSchema = z.object({ id: z.uuid() });
 
 // ── D-045 b: wizard milik sendiri (/onboarding/me) ──────────────────────────────────────────────

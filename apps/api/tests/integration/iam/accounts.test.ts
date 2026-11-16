@@ -5,6 +5,7 @@ import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
+import { acpCompanyId } from "../../helpers/company.ts";
 
 const RUN = crypto.randomUUID().slice(0, 8);
 const auth = createAuthFixture(RUN);
@@ -33,8 +34,27 @@ let sa: Awaited<ReturnType<typeof auth.loginAs>>;
 let hr: Awaited<ReturnType<typeof auth.loginAs>>;
 let mgr: Awaited<ReturnType<typeof auth.loginAs>>;
 let emp: Awaited<ReturnType<typeof auth.loginAs>>;
+// ONB-D2: role Manager/Karyawan wajib tertaut karyawan → satu karyawan uji untuk ganti role.
+const fx = { department: "", position: "", status: "", employee: "" };
 
 beforeAll(async () => {
+  fx.department = (await prisma.department.create({ data: { name: `Dept Auth ${RUN}` } })).id;
+  fx.position = (
+    await prisma.position.create({ data: { name: `Jab Auth ${RUN}`, departmentId: fx.department } })
+  ).id;
+  fx.status = (await prisma.employmentStatus.create({ data: { name: `St Auth ${RUN}` } })).id;
+  fx.employee = (
+    await prisma.employee.create({
+      data: {
+        companyId: await acpCompanyId(),
+        employeeNumber: `AUTH-${RUN}`,
+        fullName: `Auth ${RUN}`,
+        joinDate: new Date("2024-01-02T00:00:00.000Z"),
+        employmentStatusId: fx.status,
+        positionId: fx.position,
+      },
+    })
+  ).id;
   sa = await auth.loginAs("SUPER_ADMIN");
   hr = await auth.loginAs("HR_ADMIN");
   mgr = await auth.loginAs("MANAGER");
@@ -43,6 +63,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await auth.cleanup();
+  await prisma.employee.deleteMany({ where: { id: fx.employee } });
+  await prisma.position.deleteMany({ where: { id: fx.position } });
+  await prisma.department.deleteMany({ where: { id: fx.department } });
+  await prisma.employmentStatus.deleteMany({ where: { id: fx.status } });
   await disconnectPrisma();
 });
 
@@ -72,14 +96,19 @@ describe("GET /accounts & /accounts/:id", () => {
 });
 
 describe("POST /accounts/invite", () => {
-  test("SA mengundang MANAGER → 201, undangan terkirim, audit tercatat", async () => {
+  test("SA mengundang HR Admin → 201, undangan terkirim, audit tercatat", async () => {
     const res = await call("POST", "/accounts/invite", sa.headers, {
       email: email("Inv1").toUpperCase(),
-      role: "MANAGER",
+      role: "HR_ADMIN",
     });
     expect(res.status).toBe(201);
     const account = await data(res);
-    expect(account).toMatchObject({ email: email("inv1"), role: "MANAGER", isActive: true });
+    expect(account).toMatchObject({
+      email: email("inv1"),
+      role: "HR_ADMIN",
+      isActive: true,
+      needsEmployeeLink: false,
+    });
     expect(fake.invited).toContain(email("inv1"));
     const log = await prisma.auditLog.findFirst({
       where: { entityId: account.id, action: "iam.account.invite" },
@@ -89,9 +118,9 @@ describe("POST /accounts/invite", () => {
 
   test("user Auth yang sudah ada dipakai ulang tanpa email undangan baru", async () => {
     const existingId = fake.addExistingUser(email("existing"));
-    const res = await call("POST", "/accounts/invite", hr.headers, {
+    const res = await call("POST", "/accounts/invite", sa.headers, {
       email: email("existing"),
-      role: "EMPLOYEE",
+      role: "HR_PERSONNEL",
     });
     expect(res.status).toBe(201);
     const stored = await prisma.account.findUniqueOrThrow({ where: { email: email("existing") } });
@@ -124,7 +153,7 @@ describe("POST /accounts/invite", () => {
       await code(
         await call("POST", "/accounts/invite", sa.headers, {
           email: email("inv1"),
-          role: "EMPLOYEE",
+          role: "HR_ADMIN",
         }),
       ),
     ).toBe("CONFLICT");
@@ -142,6 +171,7 @@ describe("POST /accounts/invite", () => {
 describe("PATCH /accounts/:id/role", () => {
   test("SA mengubah role; grant yang tidak berlaku untuk role baru dicabut otomatis", async () => {
     const target = await auth.loginAs("HR_ADMIN", {
+      employeeId: fx.employee,
       grants: [{ permission: "CONTRACT_MANAGE" }, { permission: "EMPLOYEE_PERSONAL_READ" }],
     });
     const res = await call("PATCH", `/accounts/${target.account.id}/role`, sa.headers, {

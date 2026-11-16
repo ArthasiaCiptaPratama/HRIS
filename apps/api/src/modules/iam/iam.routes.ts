@@ -9,6 +9,7 @@ import { dataEnvelope, ERROR_RESPONSES, ok, paginatedEnvelope } from "../../core
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import { canReadOwnAccount } from "./iam.policy.ts";
 import {
+  accountInviteQueuedSchema,
   accountSchema,
   assignCompaniesBodySchema,
   auditLogSchema,
@@ -18,6 +19,8 @@ import {
   grantSchema,
   idParamSchema,
   inviteAccountBodySchema,
+  linkEmployeeBodySchema,
+  linkSuggestionSchema,
   listAccountsQuerySchema,
   listAuditLogsQuerySchema,
   listGrantsQuerySchema,
@@ -160,7 +163,38 @@ const routes = {
     request: body(inviteAccountBodySchema),
     responses: {
       201: json("Akun dibuat & undangan terkirim", dataEnvelope(accountSchema)),
-      ...errors(400, 401, 403, 409, 422, 500),
+      202: json(
+        "ONB-D2: role Karyawan — masuk antrean Undang Karyawan Terdaftar (lengkapi data)",
+        dataEnvelope(accountInviteQueuedSchema),
+      ),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  linkEmployee: createRoute({
+    method: "put",
+    path: `${P}/accounts/{id}/employee`,
+    operationId: "linkAccountEmployee",
+    tags: ["IAM"],
+    summary:
+      "Tautkan akun yang belum tertaut ke data karyawan (SA; HR: Karyawan/Manager di PT-nya)",
+    security,
+    request: { params: idParamSchema, ...body(linkEmployeeBodySchema) },
+    responses: {
+      200: json("Akun ditautkan", dataEnvelope(accountSchema)),
+      ...errors(400, 401, 403, 404, 409, 422, 500),
+    },
+  }),
+  linkSuggestions: createRoute({
+    method: "get",
+    path: `${P}/accounts/{id}/link-suggestions`,
+    operationId: "listAccountLinkSuggestions",
+    tags: ["IAM"],
+    summary: "Saran karyawan untuk ditautkan (email pribadi/kerja sama dengan email akun)",
+    security,
+    request: { params: idParamSchema },
+    responses: {
+      200: json("Saran", dataEnvelope(z.array(linkSuggestionSchema))),
+      ...errors(400, 401, 403, 404, 500),
     },
   }),
   changeRole: createRoute({
@@ -315,16 +349,29 @@ export function registerIamRoutes(app: OpenAPIHono, deps: IamRouteDeps): void {
   app.openapi(guard(routes.getAccount), async (c) =>
     c.json(ok(await service.getAccount(ctxOf(c), c.req.valid("param").id)), 200),
   );
-  app.openapi(guard(routes.inviteAccount), async (c) =>
+  app.openapi(guard(routes.inviteAccount), async (c) => {
+    const result = await service.inviteAccount(ctxOf(c), c.req.valid("json"), {
+      authAdmin: deps.authAdmin,
+      redirectTo,
+    });
+    return result.kind === "queued"
+      ? c.json(ok({ employeeId: result.employeeId, queued: true as const }), 202)
+      : c.json(ok(result.account), 201);
+  });
+  app.openapi(guard(routes.linkEmployee), async (c) =>
     c.json(
       ok(
-        await service.inviteAccount(ctxOf(c), c.req.valid("json"), {
-          authAdmin: deps.authAdmin,
-          redirectTo,
-        }),
+        await service.linkAccountEmployee(
+          ctxOf(c),
+          c.req.valid("param").id,
+          c.req.valid("json").employeeId,
+        ),
       ),
-      201,
+      200,
     ),
+  );
+  app.openapi(guard(routes.linkSuggestions), async (c) =>
+    c.json(ok(await service.listLinkSuggestions(ctxOf(c), c.req.valid("param").id)), 200),
   );
   app.openapi(guard(routes.assignCompanies), async (c) =>
     c.json(

@@ -1,7 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ROLE_LABELS, ROLES, type Role, usesAssignedCompanies } from "@hris/shared";
+import {
+  ROLE_LABELS,
+  ROLES,
+  type Role,
+  requiresEmployeeLink,
+  usesAssignedCompanies,
+} from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
-import { SearchX, UserPlus, Users } from "lucide-react";
+import { Link2, SearchX, UserPlus, Users } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -32,7 +38,8 @@ import {
 } from "@/components/ui/select";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
-import { useCompanyScope } from "@/features/employee/api";
+import { useCompanyScope, useEmployee } from "@/features/employee/api";
+import { EmployeePicker } from "@/features/employee/components/employee-picker";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { access } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
@@ -43,6 +50,8 @@ import {
   useAssignCompanies,
   useChangeRole,
   useInviteAccount,
+  useLinkEmployee,
+  useLinkSuggestions,
   useSetActive,
   useTransferPrimary,
 } from "../api";
@@ -62,7 +71,8 @@ export function AccountsPage() {
     page,
     pageSize,
     role: (role || undefined) as Role | undefined,
-    isActive: status === "" ? undefined : status === "active",
+    isActive: status === "" || status === "unlinked" ? undefined : status === "active",
+    unlinked: status === "unlinked" ? true : undefined,
     q: q || undefined,
   });
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -71,6 +81,7 @@ export function AccountsPage() {
   const scope = useCompanyScope();
   const companyCode = new Map(scope.companies.map((c) => [c.id, c.code]));
   const [transferTarget, setTransferTarget] = useState<Account | null>(null);
+  const [linkTarget, setLinkTarget] = useState<Account | null>(null);
   const setActive = useSetActive();
   const filtered = Boolean(q || role || status);
   const total = accounts.data?.meta.total ?? 0;
@@ -126,12 +137,21 @@ export function AccountsPage() {
     accountColumnHelper.display({
       id: "status",
       header: "Status",
-      cell: ({ row }) =>
-        row.original.isActive ? (
-          <Badge variant="success">Aktif</Badge>
-        ) : (
-          <Badge variant="destructive">Nonaktif</Badge>
-        ),
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          {row.original.isActive ? (
+            <Badge variant="success">Aktif</Badge>
+          ) : (
+            <Badge variant="destructive">Nonaktif</Badge>
+          )}
+          {/* ONB-D2: akun Karyawan/Manager tanpa data karyawan → absen & Layanan Mandiri tidak jalan. */}
+          {row.original.needsEmployeeLink ? (
+            <Badge variant="warning" title="Akun belum terhubung ke data karyawan">
+              Belum tertaut
+            </Badge>
+          ) : null}
+        </div>
+      ),
     }) as DataColumn<Account>,
     accountColumnHelper.display({
       id: "lastLogin",
@@ -150,6 +170,15 @@ export function AccountsPage() {
         const account = row.original;
         return (
           <div className="flex justify-end gap-1">
+            {access.linkEmployee(me, account) ? (
+              <Button
+                size="sm"
+                variant={account.needsEmployeeLink ? "default" : "outline"}
+                onClick={() => setLinkTarget(account)}
+              >
+                <Link2 /> Tautkan
+              </Button>
+            ) : null}
             {access.assignCompanies(me) && usesAssignedCompanies(account.role) ? (
               <Button size="sm" variant="outline" onClick={() => setCompanyTarget(account)}>
                 Atur PT
@@ -235,6 +264,7 @@ export function AccountsPage() {
                 options={[
                   { value: "active", label: "Aktif" },
                   { value: "inactive", label: "Nonaktif" },
+                  { value: "unlinked", label: "Belum tertaut karyawan" },
                 ]}
               />
             </div>
@@ -293,6 +323,7 @@ export function AccountsPage() {
         account={transferTarget}
         onClose={() => setTransferTarget(null)}
       />
+      <LinkEmployeeDialog account={linkTarget} onClose={() => setLinkTarget(null)} />
     </div>
   );
 }
@@ -308,40 +339,59 @@ function InviteDialog({
 }) {
   const roles = access.inviteRoles(me);
   const invite = useInviteAccount();
+  const defaults = {
+    email: "",
+    role: roles.includes("EMPLOYEE") ? "EMPLOYEE" : (roles[0] ?? "EMPLOYEE"),
+    employeeId: undefined,
+  } satisfies InviteForm;
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteFormSchema),
-    defaultValues: {
-      email: "",
-      role: roles.includes("EMPLOYEE") ? "EMPLOYEE" : (roles[0] ?? "EMPLOYEE"),
-    },
+    defaultValues: defaults,
   });
+  const role = form.watch("role");
+  const employeeId = form.watch("employeeId") ?? null;
+  const [employeeName, setEmployeeName] = useState("");
+  const selected = useEmployee(employeeId, "work", open && employeeId !== null);
+  // Karyawan yang sudah punya akun tidak bisa diundang lagi (API juga menolak, 409).
+  const hasAccount = Boolean(selected.data?.account);
+  const linkRequired = requiresEmployeeLink(role);
+  const close = (next: boolean) => {
+    if (!next) {
+      form.reset(defaults);
+      setEmployeeName("");
+    }
+    onOpenChange(next);
+  };
   const onSubmit = form.handleSubmit(async (values) => {
     try {
-      await invite.mutateAsync(values);
-      toast.success(`Undangan dikirim ke ${values.email}.`);
-      form.reset();
-      onOpenChange(false);
+      const result = await invite.mutateAsync({
+        ...values,
+        employeeId: values.employeeId || undefined,
+      });
+      if ("queued" in result) {
+        toast.success(`Undangan ${employeeName || values.email} masuk antrean.`, {
+          description:
+            "Karyawan menerima email undangan, lalu diminta melengkapi data yang masih kosong.",
+        });
+      } else {
+        toast.success(`Undangan dikirim ke ${values.email}.`);
+      }
+      close(false);
     } catch (error) {
       toast.error(errorMessage(error));
     }
   });
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Undang akun</DialogTitle>
           <DialogDescription>
-            Email undangan berisi tautan untuk mengatur password.
+            Email undangan berisi tautan untuk mengatur password. Akun Karyawan dan Manager harus
+            ditautkan ke data karyawan.
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={onSubmit} noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="invite-email">Email</Label>
-            <Input id="invite-email" type="email" {...form.register("email")} />
-            {form.formState.errors.email ? (
-              <p className="text-destructive text-xs">{form.formState.errors.email.message}</p>
-            ) : null}
-          </div>
           <div className="space-y-2">
             <Label>Role</Label>
             <Controller
@@ -363,12 +413,158 @@ function InviteDialog({
               )}
             />
           </div>
+          <div className="space-y-2">
+            <Label>
+              Karyawan{" "}
+              {linkRequired ? null : (
+                <span className="text-muted-foreground font-normal">(opsional)</span>
+              )}
+            </Label>
+            <EmployeePicker
+              active
+              selectedId={employeeId}
+              onSelect={(id, row) => {
+                form.setValue("employeeId", id, { shouldValidate: true });
+                setEmployeeName(row.fullName);
+                // Email kerja sebagai saran awal; ganti dengan email pribadi bila perlu.
+                if (!form.getValues("email") && row.workEmail) {
+                  form.setValue("email", row.workEmail, { shouldValidate: true });
+                }
+              }}
+              title="Pilih karyawan"
+              className="max-h-64 min-h-0"
+            />
+            {employeeId && hasAccount ? (
+              <p className="text-destructive text-xs">
+                {employeeName} sudah punya akun login — tidak perlu diundang.
+              </p>
+            ) : null}
+            {form.formState.errors.employeeId ? (
+              <p className="text-destructive text-xs">{form.formState.errors.employeeId.message}</p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="invite-email">
+              Email {role === "EMPLOYEE" ? "pribadi karyawan" : ""}
+            </Label>
+            <Input id="invite-email" type="email" {...form.register("email")} />
+            {form.formState.errors.email ? (
+              <p className="text-destructive text-xs">{form.formState.errors.email.message}</p>
+            ) : null}
+            {role === "EMPLOYEE" ? (
+              <p className="text-muted-foreground text-xs">
+                Sama seperti Undang Karyawan Terdaftar: undangan masuk antrean dan karyawan diminta
+                melengkapi data yang masih kosong.
+              </p>
+            ) : null}
+          </div>
           <DialogFooter>
-            <Button type="submit" disabled={invite.isPending}>
+            <Button type="submit" disabled={invite.isPending || hasAccount}>
               Kirim undangan
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ONB-D2: tautkan akun lama yang belum terhubung ke data karyawan (login tetap email, Q2a).
+function LinkEmployeeDialog({
+  account,
+  onClose,
+}: {
+  account: Account | null;
+  onClose: () => void;
+}) {
+  const link = useLinkEmployee();
+  const suggestions = useLinkSuggestions(account?.id ?? null);
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [employeeName, setEmployeeName] = useState("");
+  const selected = useEmployee(employeeId, "work", employeeId !== null);
+  const hasAccount = Boolean(selected.data?.account);
+  const close = () => {
+    setEmployeeId(null);
+    setEmployeeName("");
+    onClose();
+  };
+  const pick = (id: string, name: string) => {
+    setEmployeeId(id);
+    setEmployeeName(name);
+  };
+  const submit = async () => {
+    if (!account || !employeeId) return;
+    try {
+      await link.mutateAsync({ id: account.id, employeeId });
+      toast.success(`${account.email} ditautkan ke ${employeeName}.`);
+      close();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+  return (
+    <Dialog open={account !== null} onOpenChange={(open) => !open && close()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Tautkan ke karyawan</DialogTitle>
+          <DialogDescription>
+            {account?.email} akan terhubung ke data karyawan (absen, Layanan Mandiri, pengajuan).
+            Cara login tidak berubah.
+          </DialogDescription>
+        </DialogHeader>
+        {suggestions.data && suggestions.data.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Saran (email sama)</p>
+            <ul className="space-y-1" aria-label="Saran karyawan">
+              {suggestions.data.map((s) => (
+                <li key={s.employeeId}>
+                  <button
+                    type="button"
+                    aria-pressed={employeeId === s.employeeId}
+                    onClick={() => pick(s.employeeId, s.fullName)}
+                    className={
+                      employeeId === s.employeeId
+                        ? "bg-brand-soft flex w-full items-center justify-between rounded-lg border p-2 text-left text-sm"
+                        : "hover:bg-muted/70 flex w-full items-center justify-between rounded-lg border p-2 text-left text-sm"
+                    }
+                  >
+                    <span>
+                      <span className="font-medium">{s.fullName}</span>{" "}
+                      <span className="text-muted-foreground font-mono text-xs">
+                        {s.employeeNumber ?? "NIP belum ada"}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {s.matchedBy === "PERSONAL_EMAIL" ? "email pribadi" : "email kerja"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <EmployeePicker
+          active
+          selectedId={employeeId}
+          onSelect={(id, row) => pick(id, row.fullName)}
+          title="Atau pilih karyawan"
+          className="max-h-64 min-h-0"
+        />
+        {employeeId && hasAccount ? (
+          <p className="text-destructive text-xs">{employeeName} sudah punya akun login lain.</p>
+        ) : null}
+        <DialogFooter>
+          <Button variant="ghost" onClick={close}>
+            Batal
+          </Button>
+          <Button
+            variant="brand"
+            disabled={!employeeId || hasAccount || link.isPending}
+            onClick={submit}
+          >
+            Tautkan{employeeName ? ` ke ${employeeName}` : ""}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

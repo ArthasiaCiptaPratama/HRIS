@@ -9,6 +9,7 @@ import {
   ROLE,
   ROLE_LABELS,
   type Role,
+  requiresEmployeeLink,
   usesAssignedCompanies,
 } from "@hris/shared";
 import { type Actor, isGrantActive } from "../../core/access/index.ts";
@@ -72,6 +73,32 @@ export interface IamEmployeeScope {
   employeeIdsInCompanies(companyIds: string[]): Promise<string[]>;
   /** Label karyawan untuk audit log: "Nama (nomor induk)". */
   employeeLabels(employeeIds: string[]): Promise<Map<string, string>>;
+  /** ONB-D2: data karyawan calon tautan akun. */
+  linkCandidates(employeeIds: string[]): Promise<Map<string, EmployeeLinkCandidate>>;
+  /** ONB-D2: karyawan aktif & disetujui yang email pribadi/kerjanya sama (null = semua PT). */
+  employeesByEmail(email: string, companyIds: string[] | null): Promise<AccountLinkSuggestion[]>;
+  /** ONB-D2 (Q1a): undangan role Karyawan = "Undang Karyawan Terdaftar" (D-045 poin 9). */
+  inviteExisting(
+    ctx: RequestContext,
+    employeeId: string,
+    email: string,
+  ): Promise<{ queued: number; skipped: { employeeId: string; code: string; message: string }[] }>;
+}
+
+export interface EmployeeLinkCandidate {
+  companyId: string;
+  isActive: boolean;
+  approved: boolean;
+  personalEmail: string | null;
+  workEmail: string | null;
+}
+
+export interface AccountLinkSuggestion {
+  employeeId: string;
+  fullName: string;
+  employeeNumber: string | null;
+  companyId: string;
+  matchedBy: "PERSONAL_EMAIL" | "WORK_EMAIL";
 }
 
 let employeeScope: IamEmployeeScope | undefined;
@@ -134,6 +161,7 @@ export function toAccountDto(a: AccountRow, companyIds: string[] = []): AccountD
     companyIds,
     lastLoginAt: a.lastLoginAt?.toISOString() ?? null,
     createdAt: a.createdAt.toISOString(),
+    needsEmployeeLink: a.employeeId === null && requiresEmployeeLink(a.role),
   };
 }
 
@@ -348,7 +376,13 @@ export async function listAccounts(ctx: RequestContext, query: ListAccountsQuery
         }
       : {};
   const { rows, total } = await repository.listAccounts(
-    { role: query.role, isActive: query.isActive, q: query.q, ...employeeScopeFilter },
+    {
+      role: query.role,
+      isActive: query.isActive,
+      q: query.q,
+      unlinked: query.unlinked,
+      ...employeeScopeFilter,
+    },
     skip,
     take,
   );
@@ -368,32 +402,85 @@ export async function getAccount(ctx: RequestContext, id: string): Promise<Accou
   return (await accountDtos([account]))[0] as AccountDto;
 }
 
+/** ONB-D2: karyawan tujuan tautan — ada, dalam cakupan aktor, aktif, disetujui, belum berakun. */
+async function assertLinkableEmployee(ctx: RequestContext, employeeId: string) {
+  const candidate = (await scopeSource().linkCandidates([employeeId])).get(employeeId);
+  if (!candidate || !policy.canPickEmployeeOfCompany(ctx.actor, candidate.companyId)) {
+    throw new NotFoundError("Karyawan tidak ditemukan.");
+  }
+  if (!candidate.isActive || !candidate.approved) {
+    throw new BusinessRuleError("Hanya karyawan aktif yang sudah terdaftar yang bisa ditautkan.");
+  }
+  if ((await repository.findAccountsForEmployees([employeeId])).length > 0) {
+    throw new ConflictError("Karyawan ini sudah punya akun login.");
+  }
+  return candidate;
+}
+
+const INVITE_EXISTING_ERRORS: Record<string, () => Error> = {
+  NOT_FOUND: () => new NotFoundError("Karyawan tidak ditemukan."),
+  NOT_ELIGIBLE: () =>
+    new BusinessRuleError("Hanya karyawan aktif yang sudah terdaftar yang bisa diundang."),
+  HAS_ACCOUNT: () => new ConflictError("Karyawan ini sudah punya akun login."),
+  EMAIL_TAKEN: () => new ConflictError("Email sudah dipakai karyawan atau akun lain."),
+  QUEUED: () => new ConflictError("Undangan untuk karyawan ini masih dalam antrean."),
+};
+
+/**
+ * Undang akun. ONB-D2: role Karyawan/Manager wajib memilih karyawan. Karyawan (Q1a) diteruskan ke
+ * "Undang Karyawan Terdaftar" (antrean + lengkapi data + review + login NIP) → `{ queued }`; role lain
+ * dibuat langsung (dan ditautkan bila `employeeId` diisi) → akun.
+ */
 export async function inviteAccount(
   ctx: RequestContext,
   input: InviteAccountInput,
   deps: { authAdmin: AuthAdmin; redirectTo: string },
-): Promise<AccountDto> {
+): Promise<{ kind: "account"; account: AccountDto } | { kind: "queued"; employeeId: string }> {
   if (!policy.canInviteAccount(ctx.actor, input.role)) throw new ForbiddenError();
   const email = input.email.trim().toLowerCase();
+  if (requiresEmployeeLink(input.role) && !input.employeeId) {
+    throw new BusinessRuleError(
+      `Akun ${ROLE_LABELS[input.role]} wajib memilih karyawan yang ditautkan.`,
+    );
+  }
   if (await repository.findAccountByEmail(email)) {
     throw new ConflictError("Email sudah terdaftar sebagai akun Akselerasi Arthasia.");
   }
+  if (input.role === ROLE.EMPLOYEE && input.employeeId) {
+    const result = await scopeSource().inviteExisting(ctx, input.employeeId, email);
+    const skipped = result.skipped[0];
+    if (result.queued !== 1) {
+      throw (
+        INVITE_EXISTING_ERRORS[skipped?.code ?? ""] ?? INVITE_EXISTING_ERRORS.NOT_FOUND
+      )?.() as Error;
+    }
+    return { kind: "queued", employeeId: input.employeeId };
+  }
+  if (input.employeeId) await assertLinkableEmployee(ctx, input.employeeId);
   // User Auth bisa sudah ada (mis. dari bootstrap/environment lain berbagi Auth staging, PLAN §3.3).
   const existingUser = await deps.authAdmin.findUserByEmail(email);
   const authUser = existingUser ?? (await deps.authAdmin.inviteUser(email, deps.redirectTo));
   const account = await repository.withTransaction(async (tx) => {
-    const created = await repository.createAccount(tx, {
+    const plain = await repository.createAccount(tx, {
       authUserId: authUser.id,
       email,
       role: input.role,
     });
+    const created = input.employeeId
+      ? await repository.linkEmployee(tx, plain.id, input.employeeId)
+      : plain;
     await writeAudit(
       {
         ...auditBase(ctx),
         action: "iam.account.invite",
         entityType: "iam.account",
         entityId: created.id,
-        after: { email, role: input.role, invitationEmailSent: !existingUser },
+        after: {
+          email,
+          role: input.role,
+          employeeId: input.employeeId ?? null,
+          invitationEmailSent: !existingUser,
+        },
       },
       tx,
     );
@@ -405,7 +492,70 @@ export async function inviteAccount(
       `${email} diundang sebagai SUPER_ADMIN oleh ${ctx.actor.email}.`,
     );
   }
-  return toAccountDto(account);
+  return { kind: "account", account: toAccountDto(account) };
+}
+
+/** ONB-D2: tautkan akun yang belum tertaut ke data karyawan (login tidak diubah, Q2a). */
+export async function linkAccountEmployee(
+  ctx: RequestContext,
+  id: string,
+  employeeId: string,
+): Promise<AccountDto> {
+  const target = await loadTarget(id);
+  if (!policy.canListAccounts(ctx.actor)) throw new ForbiddenError();
+  if (target.employeeId) {
+    throw new ConflictError("Akun ini sudah tertaut ke data karyawan.");
+  }
+  const candidate = await assertLinkableEmployee(ctx, employeeId);
+  if (!policy.canLinkEmployee(ctx.actor, toTarget(target), candidate.companyId)) {
+    throw new ForbiddenError();
+  }
+  try {
+    return await repository.withTransaction(async (tx) => {
+      const updated = await repository.linkEmployee(tx, target.id, employeeId);
+      await writeAudit(
+        {
+          ...auditBase(ctx),
+          action: "iam.account.link_employee",
+          entityType: "iam.account",
+          entityId: target.id,
+          before: { employeeId: null },
+          after: { employeeId, role: target.role },
+        },
+        tx,
+      );
+      return (await accountDtos([updated], tx))[0] as AccountDto;
+    });
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code === "P2002") {
+      throw new ConflictError("Karyawan ini sudah punya akun login.");
+    }
+    throw error;
+  }
+}
+
+/** ONB-D2: saran karyawan untuk ditautkan — email pribadi/kerja sama dengan email akun. */
+export async function listLinkSuggestions(
+  ctx: RequestContext,
+  id: string,
+): Promise<AccountLinkSuggestion[]> {
+  if (!policy.canListAccounts(ctx.actor)) throw new ForbiddenError();
+  const target = await loadTarget(id);
+  if (!policy.canViewAccount(ctx.actor, await scopedTarget(target))) {
+    throw new NotFoundError("Akun tidak ditemukan.");
+  }
+  if (target.employeeId) return [];
+  const scope =
+    ctx.actor.role === ROLE.SUPER_ADMIN || ctx.actor.companyIds === null
+      ? null
+      : [...ctx.actor.companyIds];
+  const found = await scopeSource().employeesByEmail(target.email, scope);
+  const linked = new Set(
+    (await repository.findAccountsForEmployees(found.map((f) => f.employeeId))).map(
+      (a) => a.employeeId,
+    ),
+  );
+  return found.filter((f) => !linked.has(f.employeeId));
 }
 
 export async function changeRole(ctx: RequestContext, id: string, newRole: Role, now = new Date()) {
@@ -414,6 +564,11 @@ export async function changeRole(ctx: RequestContext, id: string, newRole: Role,
     const target = await loadTarget(id, tx);
     if (!policy.canChangeRole(ctx.actor, toTarget(target), newRole)) throw new ForbiddenError();
     if (target.role === newRole) throw new ConflictError("Akun sudah memiliki role tersebut.");
+    if (requiresEmployeeLink(newRole) && !target.employeeId) {
+      throw new BusinessRuleError(
+        `Tautkan akun ke data karyawan dulu sebelum menjadikannya ${ROLE_LABELS[newRole]}.`,
+      );
+    }
     if (target.role === ROLE.SUPER_ADMIN && target.isActive) {
       await assertAnotherActiveSuperAdmin(tx, target.id);
     }
@@ -1040,6 +1195,41 @@ export async function purgeAccountOfEmployee(
   };
 }
 
+/**
+ * ONB-D1: lepas akun undangan yang BELUM PERNAH login (batalkan / ubah email undangan), di transaksi
+ * pemanggil. Baris akun dihapus (API langsung menolak token lama). User Auth yang dibuat undangan ini
+ * di-ban + emailnya dianonimkan supaya tautan undangan/atur password lama tidak bisa dipakai; user Auth
+ * yang sudah ada sebelumnya (dipakai bersama lingkungan lain, D-023) tidak disentuh.
+ */
+export async function retireUnusedEmployeeAccount(
+  employeeId: string,
+  deps: { authAdmin: AuthAdmin; anonymousDomain: string },
+  tx: repository.IamTx,
+): Promise<{ accountId: string; emails: string[]; authUserRetired: boolean } | null> {
+  const account = await repository.findAccountByEmployeeId(tx, employeeId);
+  if (!account) return null;
+  if (account.lastLoginAt !== null) {
+    throw new BusinessRuleError("Akun sudah pernah login; gunakan Nonaktifkan di menu Akun.");
+  }
+  if (account.role !== ROLE.EMPLOYEE) {
+    throw new BusinessRuleError("Akun ini bukan akun karyawan biasa; kelola di menu Akun.");
+  }
+  const authUserRetired = await repository.authUserCreatedByInvite(tx, account.id);
+  await repository.deleteAccount(tx, account.id);
+  if (authUserRetired) {
+    await deps.authAdmin.setBanned(account.authUserId, true);
+    await deps.authAdmin.updateUserEmail(
+      account.authUserId,
+      `deleted-${crypto.randomUUID()}@${deps.anonymousDomain}`,
+    );
+  }
+  return {
+    accountId: account.id,
+    emails: [account.email, account.loginEmail].filter((e): e is string => Boolean(e)),
+    authUserRetired,
+  };
+}
+
 // ── D-045: undangan akun untuk calon/karyawan dari onboarding (dipanggil modul employee) ─────────
 
 export type EmployeeInviteOutcome =
@@ -1060,9 +1250,11 @@ export async function inviteEmployeeAccount(input: {
   requestId?: string | null;
 }): Promise<EmployeeInviteOutcome> {
   const email = input.email.trim().toLowerCase();
-  if (await repository.findAccountByEmail(email)) return { ok: false, code: "EMAIL_HAS_ACCOUNT" };
+  // Akun milik karyawan ini dicek DULU: kirim ulang ke email akunnya sendiri bukan "email dipakai akun
+  // lain" (ONB-D1; dulu selalu gagal EMAIL_HAS_ACCOUNT).
   const linked = await repository.findAccountsForEmployees([input.employeeId]);
   if (linked.length > 0) return { ok: false, code: "EMPLOYEE_HAS_ACCOUNT" };
+  if (await repository.findAccountByEmail(email)) return { ok: false, code: "EMAIL_HAS_ACCOUNT" };
   let authUser: { id: string };
   let emailSent = false;
   try {
@@ -1107,6 +1299,8 @@ export interface EmployeeAccountState {
   employeeId: string;
   accountId: string;
   email: string;
+  /** Email user Auth akun ini (alamat NIP D-048 bila sudah aktif) — tujuan tautan atur password. */
+  authEmail: string;
   hasLoggedIn: boolean;
   isActive: boolean;
 }
@@ -1215,6 +1409,7 @@ export async function getEmployeeAccountStates(
     employeeId: row.employeeId as string,
     accountId: row.id,
     email: row.email,
+    authEmail: row.loginEmail ?? row.email,
     hasLoggedIn: row.lastLoginAt !== null,
     isActive: row.isActive,
   }));

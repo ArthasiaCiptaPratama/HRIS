@@ -288,7 +288,7 @@ export function CompleteStep({
       {optional > 0 ? (
         <details className="bg-card group rounded-2xl border p-5">
           <summary className="cursor-pointer text-sm font-medium">
-            Opsional: {optional} jabatan, grade, lokasi, atau homebase baru akan dibuat.
+            Opsional: {optional} jabatan, lokasi, atau homebase baru akan dibuat.
             <span className="text-muted-foreground font-normal">
               {" "}
               Buka bila ada yang sebenarnya sama dengan data yang sudah ada.

@@ -53,6 +53,17 @@ export const routes: RouteObject[] = [
                   { path: "tukar-shift", lazy: pages.rosterChanges },
                   { path: "kalender", lazy: pages.holidays },
                   {
+                    // #102: lembur karyawan di dalam bingkai HP (halaman & hak akses sama dengan web).
+                    path: "lembur",
+                    element: <RequireAccessRoute check={tmAccess.overtime} />,
+                    children: [
+                      {
+                        index: true,
+                        lazy: tmOn("tmOvertime") ? pages.overtime : pages.maintenance,
+                      },
+                    ],
+                  },
+                  {
                     path: "approval",
                     element: (
                       <RequireAccessRoute
@@ -204,6 +215,9 @@ export const routes: RouteObject[] = [
               { index: true, element: <Navigate to="perusahaan" replace /> },
               // D-051: pos jabatan (bagan organisasi).
               { path: "pos-jabatan", lazy: pages.orgPosts },
+              // ORG-D8: Grade = Level — tab Grade diganti Level (baca saja); tautan lama dialihkan.
+              { path: "level", lazy: pages.levels },
+              { path: "grade", element: <Navigate to="../level" replace /> },
               // D-055: jenis dokumen karyawan.
               {
                 path: "jenis-dokumen",

@@ -588,7 +588,6 @@ function WorkCard({ data }: { data: OnboardingReview }) {
           ["Status kepegawaian", name(master?.employmentStatuses, data.work.employmentStatusId)],
           ["Jabatan", name(master?.positions, data.work.positionId)],
           ["Lokasi kerja", name(master?.workLocations, data.work.workLocationId)],
-          ["Grade", name(master?.grades, data.work.gradeId)],
           ["Tanggal masuk", formatDate(data.work.joinDate)],
           ["PTKP", data.ptkpStatus ? PTKP_LABELS[data.ptkpStatus] : null],
         ]}

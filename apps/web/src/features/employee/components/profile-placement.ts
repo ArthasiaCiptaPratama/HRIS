@@ -19,6 +19,8 @@ export interface ProfilePlacement {
   division: string | null;
   department: string | null;
   level: string | null;
+  /** ORG-D8: kode level jabatan (pembanding penanda kode HR). */
+  levelCode: PositionLevel | null;
 }
 
 /** Cari unit berjenis tertentu pada unit karyawan atau induk-induknya (paling dekat). */
@@ -42,11 +44,17 @@ export function profilePlacement(
 ): ProfilePlacement {
   const level = master?.positions.find((p) => p.id === employee.position.id)?.level ?? null;
   const levelLabel = level ? POSITION_LEVEL_LABELS[level] : null;
-  if (!employee.department) return { division: null, department: null, level: levelLabel };
+  if (!employee.department)
+    return { division: null, department: null, level: levelLabel, levelCode: level };
   // Master data belum termuat / unit di luar cakupan: tampilkan unit karyawan sebagai departemen.
   const units = new Map((master?.departments ?? []).map((u) => [u.id, u]));
   if (!units.has(employee.department.id)) {
-    return { division: null, department: employee.department.name, level: levelLabel };
+    return {
+      division: null,
+      department: employee.department.name,
+      level: levelLabel,
+      levelCode: level,
+    };
   }
   return {
     division: nearest(employee.department.id, units, "DIVISION")?.name ?? null,
@@ -57,5 +65,6 @@ export function profilePlacement(
         ? null
         : employee.department.name),
     level: levelLabel,
+    levelCode: level,
   };
 }

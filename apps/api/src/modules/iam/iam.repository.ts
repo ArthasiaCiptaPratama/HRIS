@@ -88,6 +88,8 @@ export interface AccountFilter {
   q?: string;
   /** D-040: cakupan HR — akun tertaut karyawan di daftar ini, atau belum tertaut karyawan. */
   employeeScope?: { employeeIds: string[] };
+  /** ONB-D2: akun Karyawan/Manager tanpa data karyawan tertaut. */
+  unlinked?: boolean | undefined;
 }
 
 function accountWhere(filter: AccountFilter): Prisma.AccountWhereInput {
@@ -95,6 +97,9 @@ function accountWhere(filter: AccountFilter): Prisma.AccountWhereInput {
     ...(filter.role ? { role: filter.role } : {}),
     ...(filter.isActive === undefined ? {} : { isActive: filter.isActive }),
     ...(filter.q ? { email: { contains: filter.q, mode: "insensitive" } } : {}),
+    ...(filter.unlinked === true
+      ? { employeeId: null, AND: [{ role: { in: ["EMPLOYEE" as const, "MANAGER" as const] } }] }
+      : {}),
     ...(filter.employeeScope
       ? {
           OR: [{ employeeId: null }, { employeeId: { in: filter.employeeScope.employeeIds } }],
@@ -332,8 +337,33 @@ export async function findAccountsForEmployees(employeeIds: string[]) {
   if (employeeIds.length === 0) return [];
   return getPrisma().account.findMany({
     where: { employeeId: { in: employeeIds } },
-    select: { id: true, employeeId: true, email: true, lastLoginAt: true, isActive: true },
+    select: {
+      id: true,
+      employeeId: true,
+      email: true,
+      loginEmail: true,
+      lastLoginAt: true,
+      isActive: true,
+    },
   });
+}
+
+/**
+ * ONB-D1: apakah user Auth akun ini DIBUAT oleh undangan onboarding (bukan user Auth yang sudah ada &
+ * dipakai bersama lingkungan lain, D-023). Sumbernya audit `iam.account.invite` (`emailSent`).
+ */
+export async function authUserCreatedByInvite(tx: IamTx, accountId: string): Promise<boolean> {
+  const row = await tx.auditLog.findFirst({
+    where: { entityType: "iam.account", entityId: accountId, action: "iam.account.invite" },
+    orderBy: { occurredAt: "desc" },
+    select: { after: true },
+  });
+  // Undangan onboarding mencatat `emailSent`; Akun › Undang akun (ONB-D2) `invitationEmailSent`.
+  const after = row?.after as
+    | { emailSent?: unknown; invitationEmailSent?: unknown }
+    | null
+    | undefined;
+  return after?.emailSent === true || after?.invitationEmailSent === true;
 }
 
 /** D-047: penerima notifikasi review onboarding — HR_ADMIN aktif ber-grant aktif di PT itu. */

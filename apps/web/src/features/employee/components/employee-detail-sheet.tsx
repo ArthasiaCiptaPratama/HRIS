@@ -77,6 +77,7 @@ import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeeFormDialog } from "./employee-form-dialog";
 import { useHomebaseEditor } from "./employee-homebase-editor";
 import { EmployeePhotoControl } from "./employee-photo-control";
+import { HrLevelChip } from "./hr-level-chip";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { profilePlacement } from "./profile-placement";
 
@@ -234,6 +235,7 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
             <dl className="space-y-2.5">
               <ProfileRow label="Level" narrow>
                 {placement.level}
+                <HrLevelChip code={employee.hrLevelCode} level={placement.levelCode} />
               </ProfileRow>
               <ProfileRow label="Tanggal Masuk" narrow>
                 {formatDate(employee.joinDate)}
@@ -647,6 +649,8 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 function WorkTab({ employee }: { employee: EmployeeDetail }) {
+  const master = useMasterData();
+  const placement = profilePlacement(employee, master.data);
   return (
     <div className="space-y-8">
       <section>
@@ -657,7 +661,15 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           </Field>
           <Field label="Jabatan">{employee.position.name}</Field>
           <Field label="Unit organisasi">{employee.department?.name}</Field>
-          <Field label="Grade">{employee.grade?.name}</Field>
+          {/* ORG-D8: Grade = Level — level karyawan ikut jabatan; kode HR asli sebagai penanda. */}
+          <Field label="Level">
+            {placement.level || employee.hrLevelCode ? (
+              <>
+                {placement.level ?? "—"}
+                <HrLevelChip code={employee.hrLevelCode} level={placement.levelCode} />
+              </>
+            ) : null}
+          </Field>
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
           {/* EMP-D6: hanya homebase yang berlaku sekarang; diubah lewat Ubah data, riwayatnya di tab Riwayat. */}
           <Field label="Homebase (POH)">{employee.homebase?.name}</Field>

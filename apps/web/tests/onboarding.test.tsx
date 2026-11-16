@@ -76,6 +76,11 @@ function mockFetch(role: ReturnType<typeof me>) {
           candidateRow(2, "INVITED", {
             invitation: { status: "SENT", sentAt: "2026-10-02T03:00:00.000Z", errorCode: null },
           }),
+          candidateRow(4, "APPROVED", {
+            completionRequired: true,
+            invitation: { status: "SENT", sentAt: "2026-10-02T03:00:00.000Z", errorCode: null },
+            account: { hasLoggedIn: true },
+          }),
           candidateRow(3, "CANCELLED", {
             account: { hasLoggedIn: true },
             cancellation: {
@@ -132,6 +137,12 @@ function mockFetch(role: ReturnType<typeof me>) {
     }
     if (path.endsWith("/restore"))
       return json(200, { data: { employeeId: ID(8), status: "SUBMITTED" } });
+    if (path.endsWith("/invitation-email") && method === "PUT")
+      return json(200, {
+        data: { employeeId: ID(7), email: body.email, queued: true, authUserRetired: true },
+      });
+    if (path.endsWith("/invitation") && method === "DELETE")
+      return json(200, { data: { employeeId: ID(7), cancelled: true, authUserRetired: true } });
     if (path.endsWith("/resend-invitation"))
       return json(200, { data: { employeeId: ID(6), queued: true } });
     return json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
@@ -176,6 +187,41 @@ describe.skipIf(!FEATURES.onboarding)("Penerimaan Karyawan Baru (D-045)", () => 
     await waitFor(() =>
       expect(
         calls.some((c) => c.method === "POST" && c.path === `/onboarding/${ID(8)}/restore`),
+      ).toBe(true),
+    );
+  });
+
+  it("ONB-D1: ubah email & batalkan undangan hanya untuk akun yang belum pernah login", async () => {
+    const user = userEvent.setup();
+    const calls = mockFetch(me("HR_ADMIN"));
+    renderAt("/penerimaan");
+    const table = await screen.findByRole("table", { name: "Daftar calon karyawan" });
+    await within(table).findByText("Calon 2");
+    // Sudah pernah login → tidak ada menu aksi undangan.
+    expect(
+      within(table).queryByRole("button", { name: "Aksi undangan Calon 4" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(table).getByRole("button", { name: "Aksi undangan Calon 2" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Ubah email undangan/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ubah email undangan" });
+    await user.type(within(dialog).getByLabelText("Email baru"), "Benar@Example.test");
+    await user.click(within(dialog).getByRole("button", { name: /Simpan & kirim ulang/ }));
+    await waitFor(() =>
+      expect(
+        calls.find((c) => c.method === "PUT" && c.path === `/onboarding/${ID(7)}/invitation-email`)
+          ?.body,
+      ).toEqual({ email: "benar@example.test" }),
+    );
+
+    await user.click(within(table).getByRole("button", { name: "Aksi undangan Calon 2" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Batalkan undangan/ }));
+    const confirm = await screen.findByRole("dialog", { name: "Batalkan undangan" });
+    expect(within(confirm).getByText(/kembali ke status Belum diundang/)).toBeInTheDocument();
+    await user.click(within(confirm).getByRole("button", { name: "Batalkan undangan" }));
+    await waitFor(() =>
+      expect(
+        calls.some((c) => c.method === "DELETE" && c.path === `/onboarding/${ID(7)}/invitation`),
       ).toBe(true),
     );
   });
