@@ -153,6 +153,13 @@ export const previewSchema = z
             choice: z.union([z.uuid(), z.literal("NEW")]).nullable(),
           })
           .nullable(),
+        /** IMP-D3: karyawan yang cocok & masih aktif akan dinonaktifkan (alasan + tanggal dari file). */
+        deactivate: z
+          .object({
+            reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]),
+            date: z.iso.date(),
+          })
+          .nullable(),
       }),
     ),
     /**

@@ -82,7 +82,8 @@ import {
   toHomebaseEntry,
   writeInitialHomebase,
 } from "./homebase-history.ts";
-import { markActivatedOnLogin } from "./onboarding.service.ts";
+import * as onboardingRepo from "./onboarding.repository.ts";
+import { inviteExisting, markActivatedOnLogin } from "./onboarding.service.ts";
 import {
   assertPositionCompany,
   employeePostSupport,
@@ -165,6 +166,43 @@ export const employeeScopeForIam = {
     return new Map(
       rows.map((row) => [row.id, `${row.fullName} (${row.employeeNumber ?? "NIP belum ada"})`]),
     );
+  },
+  // ONB-D2: tautan akun ↔ karyawan dari menu Akun.
+  async linkCandidates(employeeIds: string[]) {
+    const rows = await onboardingRepo.findEmployeesForInvite(employeeIds);
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        {
+          companyId: row.companyId,
+          isActive: row.isActive,
+          approved: row.onboardingStatus === "APPROVED",
+          personalEmail: row.personalEmail,
+          workEmail: row.workEmail,
+        },
+      ]),
+    );
+  },
+  async employeesByEmail(email: string, companyIds: string[] | null) {
+    const rows = await onboardingRepo.findEmployeesByEmail(email.toLowerCase(), companyIds);
+    return rows.map((row) => ({
+      employeeId: row.id,
+      fullName: row.fullName,
+      employeeNumber: row.employeeNumber,
+      companyId: row.companyId,
+      matchedBy:
+        row.personalEmail?.toLowerCase() === email.toLowerCase()
+          ? ("PERSONAL_EMAIL" as const)
+          : ("WORK_EMAIL" as const),
+    }));
+  },
+  /** Q1a: undang role Karyawan = "Undang Karyawan Terdaftar" (D-045 poin 9) — satu logika. */
+  async inviteExisting(
+    ctx: { actor: Actor; requestId?: string | undefined; ip?: string | undefined },
+    employeeId: string,
+    email: string,
+  ) {
+    return inviteExisting(ctx, { employees: [{ employeeId, email: email.toLowerCase() }] });
   },
 };
 
@@ -742,6 +780,7 @@ export async function getEmployee(
   const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
   const detail: EmployeeDetail = {
     ...toListItem(row, lookup, photoUrls),
+    hrLevelCode: row.hrLevelCode,
     emergencyPhone: workOnly ? null : row.emergencyPhone,
     emergencyContactName: workOnly ? null : row.emergencyContactName,
     emergencyContactRelationship: workOnly ? null : row.emergencyContactRelationship,

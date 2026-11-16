@@ -81,6 +81,31 @@ export function canSetActive(actor: Actor, target: AccountTarget): boolean {
   );
 }
 
+// ONB-D2: tautkan akun ke data karyawan. SA: akun mana pun (SUPER_ADMIN lain hanya oleh Utama); HR:
+// akun Karyawan/Manager dan karyawan tujuan harus di PT yang ditugaskan.
+export function canLinkEmployee(
+  actor: Actor,
+  target: AccountTarget,
+  employeeCompanyId: string,
+): boolean {
+  if (isSuperAdmin(actor)) {
+    return (
+      target.role !== ROLE.SUPER_ADMIN || isSelfAccount(actor, target) || actor.isPrimarySuperAdmin
+    );
+  }
+  return (
+    isHrAdmin(actor) &&
+    (target.role === ROLE.EMPLOYEE || target.role === ROLE.MANAGER) &&
+    (actor.companyIds === null || actor.companyIds.has(employeeCompanyId))
+  );
+}
+
+/** ONB-D2: HR hanya boleh memilih karyawan di PT yang ditugaskan. */
+export function canPickEmployeeOfCompany(actor: Actor, employeeCompanyId: string): boolean {
+  if (isSuperAdmin(actor)) return true;
+  return isHrAdmin(actor) && (actor.companyIds === null || actor.companyIds.has(employeeCompanyId));
+}
+
 // D-040: penugasan PT = bagian kelola akses (§4.3 "Beri/cabut role & grant": SA); untuk role HR
 // (HR_ADMIN, HR_PERSONNEL — IAM-D1).
 export function canAssignCompanies(actor: Actor, target: AccountTarget): boolean {

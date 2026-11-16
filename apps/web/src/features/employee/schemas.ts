@@ -117,6 +117,8 @@ export const employeeHomebaseEntrySchema = z.object({
 export type EmployeeHomebaseEntry = z.infer<typeof employeeHomebaseEntrySchema>;
 
 export const employeeDetailSchema = employeeListItemSchema.extend({
+  /** ORG-D8: kode level asli dari file HR; opsional agar respons lama tetap terbaca. */
+  hrLevelCode: z.string().nullable().optional(),
   emergencyPhone: z.string().nullable(),
   emergencyContactName: z.string().nullable(),
   emergencyContactRelationship: z.string().nullable(),
@@ -369,7 +371,6 @@ export const employeeFormSchema = z.object({
   homebaseId: z.string(),
   homebaseEffectiveFrom: z.string(),
   homebaseDecreeNumber: z.string(),
-  gradeId: z.string(),
   managerId: z.string(),
   // D-051/D-053: pos jabatan (opsional) & atasan diatur manual.
   orgPostId: z.string(),

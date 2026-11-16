@@ -3,6 +3,7 @@ export { type IamRouteDeps, registerIamRoutes } from "./iam.routes.ts";
 export type { MeResponse } from "./iam.schema.ts";
 export {
   type AccountDeactivationOutcome,
+  type AccountLinkSuggestion,
   type AccountSummary,
   accountEmailsInUse,
   type BootstrapOutcome,
@@ -12,6 +13,7 @@ export {
   type EmployeeAccountLink,
   type EmployeeAccountState,
   type EmployeeInviteOutcome,
+  type EmployeeLinkCandidate,
   getAccountLinksForEmployees,
   getAccountSummaries,
   getEmployeeAccountStates,
@@ -32,6 +34,7 @@ export {
   type RequestContext,
   reactivateAccountOfEmployee,
   recoverPrimarySuperAdmin,
+  retireUnusedEmployeeAccount,
 } from "./iam.service.ts";
 export {
   applyNikLogin,

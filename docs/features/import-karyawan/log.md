@@ -11,6 +11,19 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-16 — Kolom Grade/Level = kode level HR (IMP-D4) (Oatse)
+- **Dikerjakan:** `employee-import.service.ts` — diff kode HR (`hrLevelCode`), tanpa master Grade (cek arsip & nama baru dihapus), peringatan `HR_LEVEL_*` di Pratinjau (`levelVotes`, `knownPosition`), simpan `hrLevelCode` + `fillEmptyPositionLevels`; shared label "Level (kode HR)" + pesan isu; web teks "Lengkapi data" tanpa grade.
+- **Keputusan:** IMP-D4 (README).
+- **Verifikasi:** `import.test.ts` 44/44 (+1 ORG-D8: peringatan per kode, penanda tersimpan, level jabatan kosong terisi, bentrok tidak diisi, ber-level tidak diubah; 2 test lama disesuaikan); web `employee-import.test.tsx` ✔.
+- **Masalah / catatan:** —
+- **Berikutnya:** commit bersama ORG-D8.
+
+### 2026-11-13 — Status keluar di file menonaktifkan karyawan yang sudah ada (IMP-D3) (Oatse)
+- **Dikerjakan:** `employee-import.service.ts`: `EXIT_EXISTING_IGNORED` diganti `plan.deactivate` (aktif, berizin, bukan akun sendiri, tanggal ≥ tanggal masuk); simpan = `updateEmployee` nonaktif + lepas pos + `syncPostManagers`, riwayat DEACTIVATED, `deactivateAccountOfEmployee`, audit deactivate; baris dengan `deactivate` tidak jadi SKIP; pratinjau `rows[].deactivate`. Shared: pesan `EXIT_ALREADY_INACTIVE` / `EXIT_OWN_ACCOUNT` / `EXIT_FORBIDDEN`. Web: "Akan dinonaktifkan: <alasan> per <tanggal>" di Keterangan Pratinjau.
+- **Keputusan:** IMP-D3 (mengubah design.md §6 butir 4).
+- **Verifikasi:** test import api 43 ✔ (+3: UPSERT & FILL_EMPTY aktif → nonaktif + riwayat + akun + audit, sudah nonaktif tidak berubah; tanggal sebelum masuk → error, CREATE_ONLY dilewati); web import 15 ✔ (baris "Akan dinonaktifkan").
+- **Masalah / catatan:** tanpa migrasi. Smoke browser tidak dilakukan (hanya satu baris teks di Pratinjau; dicakup test web).
+
 ### 2026-11-13 — Mode import "Isi yang kosong saja" (IMP-D2) (Oatse)
 - **Dikerjakan:** handoff supervisor 14:21 (keputusan pengguna 14:20). Migrasi `20261113073214_add_import_mode_fill_empty` (enum `ImportMode` + `FILL_EMPTY`). API `employee-import.service.ts`: `diff` memisah `changes` (field kosong → diisi) dan `kept` (sudah berisi & beda → dibiarkan) bila `fillEmpty`; status nikah turunan PTKP ikut dibiarkan bila PTKP dibiarkan; baris yang jabatannya sudah terisi tidak ikut `resolveUnits` (tanpa unit baru); simpan: data pribadi per kunci yang masih kosong, bank per field; pratinjau `rows[].kept`. Shared `detect.ts`: kolom email berisi email gratis tanpa kata kantor → Email pribadi. Web: kartu "Isi yang kosong saja" (tengah, bawaan tetap "Tambah + perbarui"), Pratinjau "Diisi:" + "Dibiarkan (sudah berisi, beda):", mode di ringkasan Pengaturan.
 - **Keputusan:** IMP-D2.

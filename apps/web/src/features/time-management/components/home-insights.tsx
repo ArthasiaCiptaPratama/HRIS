@@ -1,6 +1,9 @@
-import { AlarmClock, CalendarX2, ChevronRight, Plane } from "lucide-react";
+import { AlarmClock, CalendarX2, ChevronRight, ClipboardList, ListTodo, Plane } from "lucide-react";
 import { Link } from "react-router";
+import type { Me } from "@/features/auth/schemas";
+import { cn } from "@/lib/utils";
 import { useMyLeave } from "../leave-api";
+import { ABSEN_TASK_LINKS, usePersonalTasks } from "../personal-tasks";
 import { useMyAttendanceRecord } from "../record-api";
 import type { Today } from "../schemas";
 import { addDays, DayStatusBadge, hhmm, todayIn, workDateLabel } from "./display";
@@ -38,6 +41,62 @@ export function PunchReminder({ data, clock }: { data: Today; clock: Date | null
       {late % 60} menit). Tanpa absen sama sekali, hari ini dihitung Alpha dan gaji hari itu tidak
       dihitung.
     </Banner>
+  );
+}
+
+/** D-045 poin 9 di beranda absen (#102): HR meminta karyawan melengkapi data — sama dengan banner web. */
+export function CompleteDataBanner({ me }: { me: Me }) {
+  if (!me.onboarding?.completionRequired || me.onboarding.submitted) return null;
+  return (
+    <Link to="/onboarding" className="block">
+      <Banner tone="amber" icon={ClipboardList} title="Lengkapi data Anda" link>
+        HR meminta Anda melengkapi data karyawan (data pribadi, rekening, dokumen).
+      </Banner>
+    </Link>
+  );
+}
+
+// Clock In/Out sudah ditangani kartu hari ini & pengingat absen di beranda absen.
+const PUNCH_TASKS = new Set(["clock-in", "clock-out"]);
+
+/** #102: "Perlu ditindaklanjuti" di beranda absen — isi sama dengan dashboard pribadi web. */
+export function PersonalTasksCard({ me }: { me: Me }) {
+  const { tasks, loading } = usePersonalTasks(me, ABSEN_TASK_LINKS);
+  const items = tasks.filter((t) => !PUNCH_TASKS.has(t.id));
+  if (loading || items.length === 0) return null;
+  return (
+    <section aria-labelledby="perlu-tindakan" className="bg-card rounded-2xl border p-3 shadow-xs">
+      <h2 id="perlu-tindakan" className="mb-2 flex items-center gap-2 px-1 text-sm font-semibold">
+        <ListTodo className="size-4" /> Perlu ditindaklanjuti
+      </h2>
+      <ul className="space-y-2">
+        {items.map((t) => (
+          <li key={t.id}>
+            <Link
+              to={t.to}
+              className={cn(
+                "flex items-center gap-3 rounded-xl border p-3 transition active:scale-[0.99]",
+                t.tone === "danger"
+                  ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40"
+                  : t.tone === "warning"
+                    ? "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40"
+                    : "bg-muted/40",
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">{t.title}</p>
+                {t.detail ? (
+                  <p className="text-muted-foreground truncate text-xs">{t.detail}</p>
+                ) : null}
+              </div>
+              <span className="flex shrink-0 items-center text-xs font-medium">
+                {t.cta} <ChevronRight className="size-4" aria-hidden />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

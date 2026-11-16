@@ -121,6 +121,45 @@ export function useResendInvitation() {
   });
 }
 
+// ONB-D1: ubah email / batalkan undangan akun yang belum pernah login.
+export function useChangeInvitationEmail() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ employeeId, email }: { employeeId: string; email: string }) =>
+      api(`/onboarding/${employeeId}/invitation-email`, {
+        method: "PUT",
+        body: { email },
+        schema: one(
+          z.object({
+            employeeId: z.string(),
+            email: z.string(),
+            queued: z.boolean(),
+            authUserRetired: z.boolean(),
+          }),
+        ),
+      }).then((r) => r.data),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCancelInvitation() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (employeeId: string) =>
+      api(`/onboarding/${employeeId}/invitation`, {
+        method: "DELETE",
+        schema: one(
+          z.object({
+            employeeId: z.string(),
+            cancelled: z.boolean(),
+            authUserRetired: z.boolean(),
+          }),
+        ),
+      }).then((r) => r.data),
+    onSuccess: invalidate,
+  });
+}
+
 export function useInviteExisting() {
   const invalidate = useInvalidate();
   return useMutation({

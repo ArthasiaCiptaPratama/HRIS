@@ -86,6 +86,64 @@ export const POSITION_LEVEL_LABELS: Record<PositionLevel, string> = {
   L0: "L0 · Magang",
 };
 
+/**
+ * ORG-D8 (Grade = Level, langkah cepat): kode level dari file HR ("3A", "1B", "L4", "1").
+ * - EXACT: kode sama dengan level bagan (0, 1A, 1B, 2–7; awalan "L"/"Level" boleh).
+ * - SUB_LEVEL: 2–7 + huruf (mis. 3A) → dimasukkan ke level angkanya, ditandai (sub-level belum ada).
+ * - AMBIGUOUS: "1" tanpa A/B → level tidak diisi (L1A atau L1B?), ditandai.
+ * - UNKNOWN: bentuk lain → hanya disimpan sebagai kode HR.
+ */
+export type HrLevelMatch = "EXACT" | "SUB_LEVEL" | "AMBIGUOUS" | "UNKNOWN";
+export interface HrLevelCode {
+  /** Kode yang disimpan (huruf besar, tanpa spasi, maks 10). */
+  code: string;
+  level: PositionLevel | null;
+  match: HrLevelMatch;
+}
+
+export function parseHrLevelCode(raw: string | null | undefined): HrLevelCode | null {
+  const code = (raw ?? "").replace(/\s+/g, "").toUpperCase().slice(0, 10);
+  if (!code) return null;
+  const core = code.replace(/^(LEVEL|LV|L)/, "");
+  const m = /^(\d)([A-Z]?)$/.exec(core);
+  if (!m) return { code, level: null, match: "UNKNOWN" };
+  const digit = Number(m[1]);
+  const letter = m[2] ?? "";
+  if (digit === 0 && !letter) return { code, level: "L0", match: "EXACT" };
+  if (digit === 1) {
+    if (letter === "A") return { code, level: "L1A", match: "EXACT" };
+    if (letter === "B") return { code, level: "L1B", match: "EXACT" };
+    return { code, level: null, match: letter ? "UNKNOWN" : "AMBIGUOUS" };
+  }
+  if (digit >= 2 && digit <= 7) {
+    const level = `L${digit}` as PositionLevel;
+    return { code, level, match: letter ? "SUB_LEVEL" : "EXACT" };
+  }
+  return { code, level: null, match: "UNKNOWN" };
+}
+
+/** ORG-D8: penanda kode HR tampil bila kode tidak sama persis dengan level jabatan. */
+export function hrLevelCodeDiffers(code: string | null, level: PositionLevel | null): boolean {
+  if (!code) return false;
+  const parsed = parseHrLevelCode(code);
+  return !(parsed?.match === "EXACT" && parsed.level === level);
+}
+
+/** Teks penjelasan penanda kode HR (tooltip detail/header & peringatan Pratinjau import). */
+export function hrLevelCodeNote(code: string, level: PositionLevel | null): string {
+  const parsed = parseHrLevelCode(code);
+  const label = (l: PositionLevel) => POSITION_LEVEL_LABELS[l].split(" · ")[0];
+  if (!parsed || parsed.match === "UNKNOWN") return `Kode HR ${code} tidak dikenal sebagai level.`;
+  if (parsed.match === "AMBIGUOUS") return `Kode HR ${code} tanpa A/B: L1a atau L1b belum jelas.`;
+  if (parsed.match === "SUB_LEVEL" && parsed.level) {
+    return `Kode HR ${code} dimasukkan ke ${label(parsed.level)} (sub-level belum ada).`;
+  }
+  if (parsed.level && level && parsed.level !== level) {
+    return `Kode HR ${code} berbeda dengan level jabatan ${label(level)}.`;
+  }
+  return `Kode HR ${code}.`;
+}
+
 export const MASTER_DATA_VIEWS = ["active", "archived", "all"] as const;
 export const masterDataViewSchema = z.enum(MASTER_DATA_VIEWS);
 export type MasterDataView = z.infer<typeof masterDataViewSchema>;

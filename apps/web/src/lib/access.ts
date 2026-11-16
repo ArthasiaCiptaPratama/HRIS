@@ -26,6 +26,17 @@ export const access = {
     return isHrAdmin(me) && (target.role === ROLE.EMPLOYEE || target.role === ROLE.MANAGER);
   },
   transferPrimary: (me: Me) => me.isPrimarySuperAdmin,
+  /** ONB-D2: tautkan akun ke data karyawan — SA akun mana pun (SA lain: Utama); HR: Karyawan/Manager. */
+  linkEmployee: (
+    me: Me,
+    target: { id: string; role: string; isPrimarySuperAdmin: boolean; employeeId: string | null },
+  ) => {
+    if (target.employeeId !== null) return false;
+    if (isSuperAdmin(me)) {
+      return target.role !== ROLE.SUPER_ADMIN || target.id === me.id || me.isPrimarySuperAdmin;
+    }
+    return isHrAdmin(me) && (target.role === ROLE.EMPLOYEE || target.role === ROLE.MANAGER);
+  },
   manageGrants: (me: Me) => isSuperAdmin(me),
   readAuditLogs: (me: Me) => isSuperAdmin(me),
   // D-049 (modules/organization/organization.policy.ts): SA kelola, HR lihat.

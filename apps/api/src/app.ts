@@ -33,6 +33,7 @@ import { createSupabaseStorage, type StorageAdmin, UNCONFIGURED_STORAGE } from "
 import {
   type AuthAdmin,
   createSupabaseAdmin,
+  FALLBACK_ANONYMOUS_AUTH_DOMAIN,
   UNCONFIGURED_AUTH_ADMIN,
 } from "./core/supabase-admin.ts";
 import { type Env, getEnv } from "./env.ts";
@@ -330,7 +331,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
         purge: await purgeCancelledCandidates({
           authAdmin: deps.authAdmin,
           storage: deps.storage,
-          anonymousDomain: deps.loginEmailDomain ?? "deleted.akselerasi.invalid",
+          anonymousDomain: deps.loginEmailDomain ?? FALLBACK_ANONYMOUS_AUTH_DOMAIN,
           logger: deps.logger,
         }),
         reminders: await remindStaleInvitations(),
