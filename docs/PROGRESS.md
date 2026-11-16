@@ -159,6 +159,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-16** — Sinkron skema migrasi Mat (lembur klaim, pola kerja) ke develop tanpa kode fitur, agar `db:check` staging lolos (#104). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-16** — "Akses ditolak" setelah ganti akun di satu browser: Karyawan dialihkan ke Absen, layar Akses ditolak menampilkan akun aktif + Ke Beranda / Masuk dengan akun lain (TM-D26 susulan, #103). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-16** — Karyawan langsung ke halaman absen setelah login; menu web Absen + Akun Saya; beranda absen + banner Lengkapi data, Perlu ditindaklanjuti, Lembur, Layanan Mandiri (TM-D26, #102). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-16** — Grade = Level langkah cepat: level ikut jabatan, penanda Kode HR, Master Data › Level, import kode HR (ORG-D8, IMP-D4; migrasi `hr_level_code`). (Oatse) → [organisasi/log](features/organisasi/log.md)
