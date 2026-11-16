@@ -8,6 +8,7 @@
 
 ```
 │       ├── time-management/          [wip] 2026-10-13 (gabung `HRIS/Mat/windows`, saklar `FEATURES.timeManagement`): PWA `/absen` (`pages/absen-page.tsx` shell HP + beranda; `pages/mobile-pages.tsx` aplikasi HP mandiri `/absen/{riwayat,roster,cuti,koreksi,tukar-shift,kalender,approval,notifikasi,profil}`, 2026-10-13; `capture.ts` kamera+GPS, `public/absen.webmanifest` + `absen-sw.js` tanpa cache), `/time/*` (absen harian, rekap & tutup periode, roster + pengaturan shift/pola/crew, perubahan roster, cuti, persetujuan cuti, saldo, master cuti, kalender libur, pengaturan, koreksi & surat pernyataan); `access.ts`, `api.ts`/`leave-api.ts`/`period-api.ts`, `roster-file.ts` (import Excel roster); **TM-D2 (2026-10-20):** `queue-api.ts` (badge menu `queueKey`), `components/home-insights.tsx` (beranda HP); **TM-D3 (2026-10-19):** `components/attendance-record.tsx` + `record-api.ts` (halaman Koreksi & tab Absensi detail karyawan); **TM-D1 (2026-10-15):** `/time/lokasi-absen` (`pages/location-settings-page.tsx` + `location-api.ts`, akses `tmAccess.manageAttendanceLocations`)
+│       │   └── (2026-11-16, TM-D26) `access.ts` `absenHome` (EMPLOYEE tertaut → beranda `/absen`); `personal-tasks.ts` hook `usePersonalTasks` (dashboard pribadi + beranda absen); `components/home-insights.tsx` `CompleteDataBanner`, `PersonalTasksCard`; rute `/absen/lembur`; redirect di `system/pages/dashboard-page.tsx`, grup nav `absen` di `app/navigation.ts`
 ```
 
 ## Tabel & rincian

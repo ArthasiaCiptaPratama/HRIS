@@ -24,8 +24,9 @@ describe("Sapaan & kartu akun (BUG-004)", () => {
       "/me": [
         200,
         {
+          // #102: EMPLOYEE tertaut berberanda di /absen — sapaan dashboard diuji lewat MANAGER tertaut.
           data: {
-            ...me("EMPLOYEE", false, "emp-1"),
+            ...me("MANAGER", false, "emp-1"),
             email: "oatse2458@gmail.com",
             employeeName: "Calon Uji Oatse",
           },

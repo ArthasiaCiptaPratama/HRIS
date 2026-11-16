@@ -1,11 +1,13 @@
 import { ROLE } from "@hris/shared";
 import { lazy, Suspense } from "react";
+import { Navigate } from "react-router";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
 import { useDashboard } from "@/features/employee/api";
+import { tmAccess } from "@/features/time-management/access";
 import { access } from "@/lib/access";
 
 // D-065: board widget (ECharts, dnd-kit) dimuat lazy supaya role lain tidak mengunduhnya.
@@ -152,6 +154,8 @@ export function DashboardPage() {
   const canSeeStats = access.manageEmployees(me);
   const query = useDashboard(canSeeStats);
 
+  // #102: karyawan (EMPLOYEE tertaut) berberanda di halaman absen — mencakup login, atur password, root.
+  if (tmAccess.absenHome(me)) return <Navigate to="/absen" replace />;
   if (!canSeeStats) return <GreetingDashboard me={me} />;
   if (query.isPending) return <DashboardSkeleton />;
 

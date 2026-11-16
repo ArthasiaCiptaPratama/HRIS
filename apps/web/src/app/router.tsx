@@ -53,6 +53,17 @@ export const routes: RouteObject[] = [
                   { path: "tukar-shift", lazy: pages.rosterChanges },
                   { path: "kalender", lazy: pages.holidays },
                   {
+                    // #102: lembur karyawan di dalam bingkai HP (halaman & hak akses sama dengan web).
+                    path: "lembur",
+                    element: <RequireAccessRoute check={tmAccess.overtime} />,
+                    children: [
+                      {
+                        index: true,
+                        lazy: tmOn("tmOvertime") ? pages.overtime : pages.maintenance,
+                      },
+                    ],
+                  },
+                  {
                     path: "approval",
                     element: (
                       <RequireAccessRoute

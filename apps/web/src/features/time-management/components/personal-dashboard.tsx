@@ -26,10 +26,10 @@ import { useNotifications } from "@/features/notification/api";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
-import { useAttendanceDays, useMyHistory, useRosterChanges, useTimezone, useToday } from "../api";
-import { useLeaveRequests, useMyLeave } from "../leave-api";
-import { useCorrections, useMyStatements } from "../period-api";
-import { addDays, hhmm, timeIn, todayIn, workDateLabel } from "./display";
+import { useMyHistory, useTimezone, useToday } from "../api";
+import { useMyLeave } from "../leave-api";
+import { type PersonalTaskTone, usePersonalTasks } from "../personal-tasks";
+import { hhmm, timeIn, todayIn, workDateLabel } from "./display";
 import { RosterWeek } from "./roster-week";
 
 // Dashboard karyawan & atasan (bukan SA/HR): widget saja — kehadiran hari ini, hal yang perlu
@@ -67,17 +67,7 @@ function Widget({
   );
 }
 
-type Tone = "danger" | "warning" | "info";
-interface Task {
-  id: string;
-  tone: Tone;
-  title: string;
-  detail?: string;
-  to: string;
-  cta: string;
-}
-
-const TONE: Record<Tone, string> = {
+const TONE: Record<PersonalTaskTone, string> = {
   danger: "border-destructive/30 bg-destructive/5",
   warning: "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30",
   info: "border-border bg-muted/40",
@@ -93,15 +83,6 @@ export function PersonalDashboard({ me }: { me: Me }) {
   const todayQ = useToday(hasEmployee);
   const history = useMyHistory(monthStart, today, hasEmployee);
   const leave = useMyLeave(hasEmployee);
-  const statements = useMyStatements(hasEmployee);
-  const myChanges = useRosterChanges("mine", hasEmployee);
-  const dayInbox = useAttendanceDays(
-    { scope: "inbox", from: addDays(today, -60), to: today },
-    isDecider,
-  );
-  const leaveInbox = useLeaveRequests({ scope: "inbox" }, tmAccess.decideLeave(me));
-  const changeInbox = useRosterChanges("inbox", tmAccess.decideRosterChanges(me));
-  const correctionInbox = useCorrections("inbox", isDecider);
   const notifications = useNotifications(1, 5);
 
   const data = todayQ.data;
@@ -113,111 +94,9 @@ export function PersonalDashboard({ me }: { me: Me }) {
   const days = history.data ?? [];
   const count = (fn: (d: (typeof days)[number]) => boolean) => days.filter(fn).length;
 
-  // ── Hal yang perlu ditindaklanjuti ──────────────────────────────────────────────
-  const tasks: Task[] = [];
-  if (data) {
-    if (data.openDay && !outAt) {
-      tasks.push({
-        id: "clock-out",
-        tone: "warning",
-        title: "Belum Clock Out",
-        detail: `Clock In ${inAt ? timeIn(inAt, timezone) : "-"} (${workDateLabel(data.openDay.workDate)}).`,
-        to: "/absen",
-        cta: "Clock Out",
-      });
-    } else if (rosterToday?.shift && !inAt) {
-      tasks.push({
-        id: "clock-in",
-        tone: "warning",
-        title: "Belum Clock In hari ini",
-        detail: `Shift ${rosterToday.shift.code} ${hhmm(rosterToday.shift.startMinute)}–${hhmm(rosterToday.shift.endMinute)}.`,
-        to: "/absen",
-        cta: "Clock In",
-      });
-    }
-  }
-  const alphaNoStatement = (statements.data ?? []).filter((s) => !s.statement);
-  if (alphaNoStatement.length > 0) {
-    tasks.push({
-      id: "statements",
-      tone: "danger",
-      title: `${alphaNoStatement.length} hari Alpha belum ada surat pernyataan`,
-      detail: alphaNoStatement
-        .slice(0, 3)
-        .map((s) => workDateLabel(s.workDate))
-        .join(", "),
-      to: "/time/pernyataan",
-      cta: "Buat pernyataan",
-    });
-  }
-  const rejected = days.filter(
-    (d) => d.status === "REJECTED" || d.punches.some((p) => p.status === "REJECTED"),
-  );
-  if (rejected.length > 0) {
-    tasks.push({
-      id: "rejected",
-      tone: "danger",
-      title: `${rejected.length} absen ditolak bulan ini`,
-      detail: "Ajukan koreksi sebelum periode ditutup supaya tidak menjadi Alpha.",
-      to: "/time/pernyataan",
-      cta: "Ajukan koreksi",
-    });
-  }
-  const noCheckout = days.filter((d) => d.labels.includes("NO_CHECKOUT") && d.status === "PENDING");
-  if (noCheckout.length > 0) {
-    tasks.push({
-      id: "no-checkout",
-      tone: "warning",
-      title: `${noCheckout.length} hari tanpa Clock Out`,
-      detail: "Ajukan koreksi jam pulang atau minta HR memasukkannya secara manual.",
-      to: "/time/pernyataan",
-      cta: "Koreksi",
-    });
-  }
-  const consents = (myChanges.data ?? []).filter((c) => c.awaitingMyConsent);
-  if (consents.length > 0) {
-    tasks.push({
-      id: "swap",
-      tone: "warning",
-      title: `${consents.length} permintaan tukar shift menunggu jawaban Anda`,
-      to: "/time/perubahan-roster",
-      cta: "Jawab",
-    });
-  }
-  const inbox: [string, number, string][] = [
-    ["absen menunggu persetujuan Anda", dayInbox.data?.length ?? 0, "/time/absen-harian"],
-    [
-      "pengajuan cuti/izin menunggu persetujuan",
-      leaveInbox.data?.length ?? 0,
-      "/time/persetujuan-cuti",
-    ],
-    [
-      "perubahan roster menunggu keputusan",
-      changeInbox.data?.length ?? 0,
-      "/time/perubahan-roster",
-    ],
-    ["koreksi absensi menunggu keputusan", correctionInbox.data?.length ?? 0, "/time/pernyataan"],
-  ];
-  for (const [label, n, to] of inbox) {
-    if (n > 0) {
-      tasks.push({ id: label, tone: "info", title: `${n} ${label}`, to, cta: "Periksa" });
-    }
-  }
+  const { tasks, loading: tasksLoading } = usePersonalTasks(me);
   const myPendingLeave = (leave.data?.requests ?? []).filter((r) => r.status === "PENDING").length;
   const balance = leave.data?.balances.find((b) => b.year === leave.data?.year);
-  if (balance && balance.balance < 0) {
-    tasks.push({
-      id: "debt",
-      tone: "info",
-      title: `Saldo cuti minus ${Math.abs(balance.balance)} hari`,
-      detail: "Hutang cuti dilunasi dari jatah tahun berikutnya.",
-      to: "/time/cuti",
-      cta: "Lihat",
-    });
-  }
-  const tasksLoading =
-    (hasEmployee && (todayQ.isPending || history.isPending || statements.isPending)) ||
-    (isDecider && dayInbox.isPending);
 
   const shortcuts: [string, string, LucideIcon, string, boolean][] = [
     ["Absen", "/absen", ScanFace, "bg-violet-100 text-violet-700", hasEmployee],
