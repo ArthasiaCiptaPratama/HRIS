@@ -100,6 +100,8 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-11-16, TM-D26 susulan)** Login mengabaikan `?next` yang dibuat untuk akun lain (simpan id user saat sesi berakhir; abaikan bila yang login berbeda). Gejala sudah ditutup oleh pengalihan Karyawan ke /absen + layar Akses ditolak yang menampilkan akun aktif.
+- **(2026-11-16, TM-D26 susulan)** Notifikasi verifikasi Alpha (`alpha.service.ts`) & perubahan roster (`roster-edit-app.service.ts`) dikirim ke atasan menurut data karyawan (`managerEmployeeId`) bertautan `/absen/approval`; bila akun atasan ber-role EMPLOYEE ia tidak berhak (web & API mensyaratkan MANAGER). Staging 2026-11-16: 0 kasus. Usul: atasan di struktur wajib ber-role MANAGER, atau notifikasi hanya ke akun yang berhak.
 - **(2026-11-16, ORG-D8)** Penggabungan penuh Grade = Level sesudah produksi: hapus `grade_id`/tabel grades/`EmployeeListItem.grade`, upah lembur/labor cost/cuti keluar/pesangon per level (bersama Mat, TM-D6).
 - **(2026-11-16, ONB-D2 review supervisor)** Akun milik karyawan resign/nonaktif masih bisa diaktifkan ulang manual lewat menu Akun (absen tetap menolak, tetapi login terbuka) → tolak atau beri peringatan saat Aktifkan.
 - **(2026-11-16, ONB-D2)** Lepas tautan akun ↔ karyawan (salah tautan) belum ada; sementara lewat SA/DB dengan kata pengguna. Menautkan akun Manager tidak otomatis menyinkronkan atasan (pakai Sinkronkan atasan, D-053).
@@ -157,6 +159,8 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-16** — Sinkron skema migrasi Mat (lembur klaim, pola kerja) ke develop tanpa kode fitur, agar `db:check` staging lolos (#104). (Oatse) → [time-management/log](features/time-management/log.md)
+- **2026-11-16** — "Akses ditolak" setelah ganti akun di satu browser: Karyawan dialihkan ke Absen, layar Akses ditolak menampilkan akun aktif + Ke Beranda / Masuk dengan akun lain (TM-D26 susulan, #103). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-16** — Karyawan langsung ke halaman absen setelah login; menu web Absen + Akun Saya; beranda absen + banner Lengkapi data, Perlu ditindaklanjuti, Lembur, Layanan Mandiri (TM-D26, #102). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-16** — Grade = Level langkah cepat: level ikut jabatan, penanda Kode HR, Master Data › Level, import kode HR (ORG-D8, IMP-D4; migrasi `hr_level_code`). (Oatse) → [organisasi/log](features/organisasi/log.md)
 - **2026-11-16** — Akun Karyawan/Manager wajib tertaut ke data karyawan: undang pilih karyawan, Tautkan ke karyawan, badge "Belum tertaut" (ONB-D2). (Oatse) → [onboarding/log](features/onboarding/log.md)
