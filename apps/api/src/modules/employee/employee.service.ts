@@ -33,7 +33,6 @@ import {
   getAccountLinksForEmployees,
   getAccountSummaries,
   getEmployeeAccountStates,
-  listManagerEmployeeIds,
   type NikLoginDeps,
 } from "../iam/index.ts";
 import { notify } from "../notification/index.ts";
@@ -230,6 +229,7 @@ export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
           locked: status !== "APPROVED",
         }
       : null,
+    isSupervisor: (employee?._count.subordinates ?? 0) > 0,
   };
   if (actor.role === "SUPER_ADMIN" || usesAssignedCompanies(actor.role)) return withOnboarding;
   return { ...withOnboarding, companyIds: new Set(employee ? [employee.companyId] : []) };
@@ -905,25 +905,16 @@ export function assertRefs(lookup: MasterLookup, input: RefInput) {
   check(lookup.homebases, input.homebaseId, "Homebase");
 }
 
-// PLAN §4.1: manager_id wajib menunjuk karyawan aktif ber-akun MANAGER/SUPER_ADMIN; tanpa siklus.
+// PLAN §4.1 + ORG-D9: manager_id menunjuk karyawan aktif (apa pun role akunnya); tanpa siklus.
 async function assertManager(
   managerId: string,
   employeeId: string | null,
   tx: repository.EmployeeTx,
 ) {
   if (managerId === employeeId) throw new BusinessRuleError("Atasan tidak boleh dirinya sendiri.");
-  const [manager, allowed] = await Promise.all([
-    repository.findEmployee(managerId, tx),
-    listManagerEmployeeIds(),
-  ]);
-  if (
-    !manager?.isActive ||
-    manager.onboardingStatus !== "APPROVED" ||
-    !allowed.includes(managerId)
-  ) {
-    throw new BusinessRuleError(
-      "Atasan harus karyawan aktif yang memiliki akun Manager atau Super Admin.",
-    );
+  const manager = await repository.findEmployee(managerId, tx);
+  if (!manager?.isActive || manager.onboardingStatus !== "APPROVED") {
+    throw new BusinessRuleError("Atasan harus karyawan aktif.");
   }
   if (!employeeId) return;
   let cursor: string | null = manager.managerId;
@@ -1558,18 +1549,19 @@ export async function getOrgStructure(ctx: RequestContext): Promise<OrgStructure
 
 export async function listManagerOptions(ctx: RequestContext): Promise<ManagerOption[]> {
   assertCanManage(ctx.actor);
-  const [lookup, ids] = await Promise.all([getMasterLookup(), listManagerEmployeeIds()]);
-  const rows = (await repository.findManyByIds(ids)).filter(
-    (row) => row.onboardingStatus === "APPROVED",
-  );
-  return rows
-    .filter((row) => row.isActive)
-    .map((row) => ({
-      id: row.id,
-      fullName: row.fullName,
-      employeeNumber: row.employeeNumber,
-      position: lookup.positions.get(row.positionId)?.name ?? "—",
-    }));
+  const [lookup, rows] = await Promise.all([
+    getMasterLookup(),
+    // D-040: HR hanya melihat karyawan PT yang ditugaskan; SA semua PT.
+    repository.findActiveApprovedBriefs(
+      ctx.actor.companyIds === null ? null : [...ctx.actor.companyIds],
+    ),
+  ]);
+  return rows.map((row) => ({
+    id: row.id,
+    fullName: row.fullName,
+    employeeNumber: row.employeeNumber,
+    position: lookup.positions.get(row.positionId)?.name ?? "—",
+  }));
 }
 
 // ── Foto profil (D-037) ─────────────────────────────────────────────────────

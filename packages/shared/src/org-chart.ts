@@ -91,32 +91,42 @@ export function canReportTo(
 }
 
 /**
- * D-053: atasan langsung otomatis untuk setiap pemegang pos = pemegang pos atasan terdekat (naik terus
- * melewati pos kosong) yang boleh menjadi atasan (PLAN §4.1: akun MANAGER/SUPER_ADMIN aktif). Pos
- * berisi banyak orang → pemegang pertama sesuai urutan `holders`.
+ * ORG-D9 (menggantikan D-053): atasan langsung otomatis setiap pemegang pos = pemegang aktif pos tepat di
+ * atasnya (`reportsToId`), apa pun role/akunnya. Pos atas kosong → naik terus ke pos berikutnya. Pos atas
+ * berisi lebih dari satu orang → NIK (`employeeNumber`) terkecil (urutan kode karakter; NIK kosong terakhir;
+ * tidak bergantung pada urutan masukan). `holders` = pemegang aktif saja (disaring pemanggil).
  */
 export function resolvePostManagers(input: {
   posts: readonly PostLink[];
-  holders: readonly { employeeId: string; postId: string }[];
-  eligibleManagers: ReadonlySet<string>;
+  holders: readonly { employeeId: string; employeeNumber: string | null; postId: string }[];
 }): Map<string, string | null> {
+  type Holder = { employeeId: string; employeeNumber: string | null };
   const parentOf = new Map(input.posts.map((post) => [post.id, post.reportsToId]));
-  const holdersOf = new Map<string, string[]>();
+  const holdersOf = new Map<string, Holder[]>();
   for (const holder of input.holders) {
     const list = holdersOf.get(holder.postId) ?? [];
-    list.push(holder.employeeId);
+    list.push(holder);
     holdersOf.set(holder.postId, list);
   }
+  // NIK kosong di urutan terakhir; NIK sama → id (tetap deterministik).
+  const cmp = (x: string, y: string) => (x < y ? -1 : x > y ? 1 : 0);
+  const byNumber = (a: Holder, b: Holder) => {
+    if (a.employeeNumber === null || b.employeeNumber === null) {
+      if (a.employeeNumber !== b.employeeNumber) return a.employeeNumber === null ? 1 : -1;
+    } else if (a.employeeNumber !== b.employeeNumber) {
+      return cmp(a.employeeNumber, b.employeeNumber);
+    }
+    return cmp(a.employeeId, b.employeeId);
+  };
+  for (const list of holdersOf.values()) list.sort(byNumber);
   const result = new Map<string, string | null>();
   for (const holder of input.holders) {
     let manager: string | null = null;
     let cursor = parentOf.get(holder.postId) ?? null;
     for (let depth = 0; cursor && depth < MAX_DEPTH && cursor !== holder.postId; depth += 1) {
-      const found = (holdersOf.get(cursor) ?? []).find(
-        (id) => id !== holder.employeeId && input.eligibleManagers.has(id),
-      );
+      const found = (holdersOf.get(cursor) ?? []).find((h) => h.employeeId !== holder.employeeId);
       if (found) {
-        manager = found;
+        manager = found.employeeId;
         break;
       }
       cursor = parentOf.get(cursor) ?? null;

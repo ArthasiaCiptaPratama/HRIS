@@ -80,7 +80,7 @@ describe("canReportTo (D-052: pos milik PT, unit tanpa PT = fungsi korporat grup
   });
 });
 
-describe("resolvePostManagers (D-053)", () => {
+describe("resolvePostManagers (ORG-D9)", () => {
   const posts = [
     { id: ID.dir, reportsToId: null },
     { id: ID.ktt, reportsToId: ID.dir },
@@ -89,44 +89,62 @@ describe("resolvePostManagers (D-053)", () => {
     { id: ID.asst, reportsToId: ID.op },
     { id: ID.helper, reportsToId: ID.asst },
   ];
+  const h = (employeeId: string, postId: string, employeeNumber: string | null = employeeId) => ({
+    employeeId,
+    employeeNumber,
+    postId,
+  });
 
-  test("atasan = pemegang pos atasan terdekat yang boleh menjadi atasan (akun Manager/SA)", () => {
+  test("atasan = pemegang pos tepat di atasnya, apa pun role/akunnya; pos kosong dilewati", () => {
     const result = resolvePostManagers({
       posts,
       holders: [
-        { employeeId: "e-dir", postId: ID.dir },
-        { employeeId: "e-ktt", postId: ID.ktt },
-        { employeeId: "e-op", postId: ID.op },
-        { employeeId: "e-asst", postId: ID.asst },
-        { employeeId: "e-helper", postId: ID.helper },
+        h("e-dir", ID.dir),
+        h("e-ktt", ID.ktt),
+        h("e-op", ID.op),
+        h("e-asst", ID.asst),
+        h("e-helper", ID.helper),
       ],
-      eligibleManagers: new Set(["e-dir", "e-ktt", "e-op"]),
     });
     expect(result.get("e-dir")).toBeNull();
     expect(result.get("e-ktt")).toBe("e-dir");
     // Wakil KTT kosong → naik ke KTT.
     expect(result.get("e-op")).toBe("e-ktt");
     expect(result.get("e-asst")).toBe("e-op");
-    // Assisten bukan Manager → dilewati, naik ke Operator.
-    expect(result.get("e-helper")).toBe("e-op");
+    // Assisten tetap atasan Helper walau tidak ber-akun Manager (D-053 lama melewatinya).
+    expect(result.get("e-helper")).toBe("e-asst");
   });
 
-  test("pos berisi banyak orang: pemegang pertama yang memenuhi syarat; tidak menunjuk diri sendiri", () => {
+  test("pos atas berisi banyak orang: NIK terkecil, tidak bergantung urutan masukan", () => {
+    const twoPosts = [
+      { id: ID.dir, reportsToId: null },
+      { id: ID.ktt, reportsToId: ID.dir },
+    ];
+    const holders = [
+      h("a", ID.dir, "2608.ACP.050"),
+      h("b", ID.dir, "2608.ACP.007"),
+      h("c", ID.ktt, "2608.ACP.100"),
+      h("d", ID.dir, null),
+    ];
+    for (const order of [holders, [...holders].reverse()]) {
+      const result = resolvePostManagers({ posts: twoPosts, holders: order });
+      expect(result.get("c")).toBe("b");
+      // Sesama pemegang pos teratas tidak saling menjadi atasan.
+      expect(result.get("a")).toBeNull();
+      expect(result.get("b")).toBeNull();
+      expect(result.get("d")).toBeNull();
+    }
+  });
+
+  test("tidak menunjuk diri sendiri walau memegang pos atas juga", () => {
     const result = resolvePostManagers({
       posts: [
         { id: ID.dir, reportsToId: null },
         { id: ID.ktt, reportsToId: ID.dir },
       ],
-      holders: [
-        { employeeId: "a", postId: ID.dir },
-        { employeeId: "b", postId: ID.dir },
-        { employeeId: "c", postId: ID.ktt },
-      ],
-      eligibleManagers: new Set(["b"]),
+      holders: [h("x", ID.ktt), h("x", ID.dir)],
     });
-    expect(result.get("c")).toBe("b");
-    expect(result.get("b")).toBeNull();
-    expect(result.get("a")).toBeNull();
+    expect(result.get("x")).toBeNull();
   });
 
   test("data rusak berbentuk siklus tidak membuat loop tanpa akhir", () => {
@@ -135,8 +153,7 @@ describe("resolvePostManagers (D-053)", () => {
         { id: ID.dir, reportsToId: ID.ktt },
         { id: ID.ktt, reportsToId: ID.dir },
       ],
-      holders: [{ employeeId: "x", postId: ID.dir }],
-      eligibleManagers: new Set(),
+      holders: [h("x", ID.dir)],
     });
     expect(result.get("x")).toBeNull();
   });
