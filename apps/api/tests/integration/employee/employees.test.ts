@@ -355,12 +355,16 @@ describe("POST /employees & PATCH /employees/:id", () => {
     expect(logs.data[0].entityLabel).toBe(`Uji ${RUN} Baru (${NUM("N1")})`);
   });
 
-  test("nomor induk duplikat 409; atasan bukan akun MANAGER 422; MANAGER 403; body salah 400", async () => {
+  test("nomor induk duplikat 409; atasan bukan karyawan aktif 422; MANAGER 403; body salah 400", async () => {
     expect(await code(await call("POST", "/employees", sa.headers, payload()))).toBe("CONFLICT");
     const notManager = { ...payload(), employeeNumber: NUM("N2"), workEmail: null };
     expect(
       await code(
-        await call("POST", "/employees", sa.headers, { ...notManager, managerId: ids.hrEmp }),
+        // ORG-D9: atasan boleh role akun apa pun, tetapi wajib karyawan aktif yang ada.
+        await call("POST", "/employees", sa.headers, {
+          ...notManager,
+          managerId: crypto.randomUUID(),
+        }),
       ),
     ).toBe("BUSINESS_RULE_VIOLATION");
     expect(await code(await call("POST", "/employees", mgr.headers, notManager))).toBe("FORBIDDEN");
@@ -862,11 +866,15 @@ describe("Struktur organisasi, master data, pilihan atasan", () => {
     expect(data.employmentStatuses.some((s: { id: string }) => s.id === ids.status)).toBe(true);
   });
 
-  test("GET /employees/manager-options: hanya karyawan ber-akun MANAGER/SA aktif; MANAGER 403", async () => {
+  test("GET /employees/manager-options: karyawan aktif mana pun, apa pun akunnya (ORG-D9); MANAGER 403", async () => {
     const { data } = await body(await call("GET", "/employees/manager-options", hr.headers));
     const optionIds = data.map((o: { id: string }) => o.id);
     expect(optionIds).toContain(ids.managerEmp);
-    expect(optionIds).not.toContain(ids.hrEmp);
+    expect(optionIds).toContain(ids.hrEmp);
+    // D-040: HR tidak melihat karyawan PT di luar cakupannya; SA melihat semua PT.
+    expect(optionIds).not.toContain(ids.otherCompanyEmp);
+    const all = await body(await call("GET", "/employees/manager-options", sa.headers));
+    expect(all.data.map((o: { id: string }) => o.id)).toContain(ids.otherCompanyEmp);
     expect((await call("GET", "/employees/manager-options", mgr.headers)).status).toBe(403);
   });
 });

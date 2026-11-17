@@ -626,7 +626,7 @@ function MenuTile({
 }
 
 function MenuGrid({ me }: { me: Me }) {
-  const approver = tmAccess.reviewDays(me) || tmAccess.decideLeave(me);
+  const approver = tmAccess.approvalInbox(me);
   const queue = useTimeQueue(approver).data;
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">

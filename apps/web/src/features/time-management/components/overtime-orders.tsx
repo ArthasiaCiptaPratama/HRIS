@@ -1,4 +1,5 @@
-import { ClipboardList, Pencil, Plus, X } from "lucide-react";
+import { ROLE } from "@hris/shared";
+import { ClipboardList, Pencil, Plus, Search, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -19,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
 import { EmployeePicker } from "@/features/employee/components/employee-picker";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage } from "@/lib/errors";
 import { tmAccess } from "../access";
 import { useTimezone } from "../api";
@@ -26,6 +28,7 @@ import {
   type OvertimeOrder,
   useCancelOvertimeOrder,
   useOvertimeOrders,
+  useOvertimeSubordinates,
   useSetOvertimeOrder,
 } from "../overtime-api";
 import { timeIn, todayIn, workDateLabel } from "./display";
@@ -161,7 +164,11 @@ function OrderDialog({ row, onClose }: { row: OvertimeOrder | null; onClose: () 
   const tz = useTimezone();
   const save = useSetOvertimeOrder();
   // Q1 opsi B: HR / SA boleh memilih tanggal lampau (SPL susulan, periode belum ditutup).
-  const retroactiveAllowed = tmAccess.orderOvertimeRetroactive(useMe().data as Me);
+  const me = useMe().data as Me;
+  const retroactiveAllowed = tmAccess.orderOvertimeRetroactive(me);
+  // ORG-D9: atasan non-MANAGER tidak membuka daftar karyawan umum → pilih dari bawahan langsungnya.
+  const directOnly =
+    me.role !== ROLE.SUPER_ADMIN && me.role !== ROLE.HR_ADMIN && me.role !== ROLE.MANAGER;
   const [employee, setEmployee] = useState<{ id: string; fullName: string } | null>(
     row ? { id: row.employee.id, fullName: row.employee.fullName } : null,
   );
@@ -209,6 +216,8 @@ function OrderDialog({ row, onClose }: { row: OvertimeOrder | null; onClose: () 
                 Ganti
               </Button>
             </div>
+          ) : directOnly ? (
+            <SubordinatePicker onSelect={setEmployee} />
           ) : (
             <EmployeePicker
               active
@@ -274,5 +283,55 @@ function OrderDialog({ row, onClose }: { row: OvertimeOrder | null; onClose: () 
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** ORG-D9: pilihan karyawan SPL untuk atasan ber-akun Karyawan = bawahan langsung aktif. */
+function SubordinatePicker({
+  onSelect,
+}: {
+  onSelect: (employee: { id: string; fullName: string }) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const q = useDebouncedValue(search.trim(), 250);
+  const query = useOvertimeSubordinates(q);
+  const rows = query.data ?? [];
+  return (
+    <div className="flex h-64 flex-col overflow-hidden rounded-2xl border">
+      <div className="relative border-b p-2">
+        <Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-5 size-4 -translate-y-1/2"
+          aria-hidden
+        />
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Cari bawahan…"
+          aria-label="Cari bawahan"
+          className="h-9 pl-9"
+        />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        {query.isPending ? (
+          <Skeleton className="m-1 h-24" />
+        ) : rows.length === 0 ? (
+          <p className="text-muted-foreground p-3 text-sm">Tidak ada bawahan langsung.</p>
+        ) : (
+          rows.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onSelect({ id: row.id, fullName: row.fullName })}
+              className="hover:bg-muted flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm"
+            >
+              <span className="font-medium">{row.fullName}</span>
+              <span className="text-muted-foreground font-mono text-xs">
+                {row.employeeNumber ?? "—"}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
   );
 }

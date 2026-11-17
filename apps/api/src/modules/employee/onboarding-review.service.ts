@@ -20,7 +20,6 @@ import {
   deactivateAccountOfEmployee,
   getAccountSummaries,
   getEmployeeAccountStates,
-  listManagerEmployeeIds,
   reactivateAccountOfEmployee,
 } from "../iam/index.ts";
 import { notify } from "../notification/index.ts";
@@ -129,7 +128,7 @@ type WorkCorrection = NonNullable<
   Extract<OnboardingDecisionBody, { decision: "APPROVED" }>["work"]
 >;
 
-/** Koreksi data kerja wajib merujuk master data aktif; atasan = karyawan aktif ber-akun Manager/SA. */
+/** Koreksi data kerja wajib merujuk master data aktif; atasan = karyawan aktif (ORG-D9). */
 async function assertWorkRefs(work: WorkCorrection, row: Row) {
   const lookup = await getMasterLookup();
   const live = <T extends { deleted: boolean }>(map: Map<string, T>, id?: string | null) =>
@@ -146,19 +145,13 @@ async function assertWorkRefs(work: WorkCorrection, row: Row) {
   if (!live(lookup.homebases, work.homebaseId))
     issues.push({ path: "work.homebaseId", message: "Homebase tidak valid." });
   if (work.managerId) {
-    const [managers, [manager]] = await Promise.all([
-      listManagerEmployeeIds(),
-      employeeRepo.findManyByIds([work.managerId]),
-    ]);
+    const [manager] = await employeeRepo.findManyByIds([work.managerId]);
     const valid =
-      manager?.isActive &&
-      manager.onboardingStatus === "APPROVED" &&
-      manager.id !== row.id &&
-      managers.includes(manager.id);
+      manager?.isActive && manager.onboardingStatus === "APPROVED" && manager.id !== row.id;
     if (!valid)
       issues.push({
         path: "work.managerId",
-        message: "Atasan harus karyawan aktif ber-akun Manager.",
+        message: "Atasan harus karyawan aktif.",
       });
   }
   if (issues.length > 0) throw new BusinessRuleError("Data kerja tidak valid.", issues);

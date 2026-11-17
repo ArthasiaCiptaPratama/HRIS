@@ -192,6 +192,22 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
   };
 }
 
+/**
+ * ORG-D9: pilihan atasan manual = karyawan aktif yang sudah disetujui (apa pun role akunnya), dalam PT
+ * `companyIds` (null = semua PT, SUPER_ADMIN; D-040).
+ */
+export function findActiveApprovedBriefs(companyIds: readonly string[] | null) {
+  return getPrisma().employee.findMany({
+    where: {
+      isActive: true,
+      onboardingStatus: "APPROVED",
+      ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
+    },
+    select: { id: true, fullName: true, employeeNumber: true, positionId: true },
+    orderBy: { fullName: "asc" },
+  });
+}
+
 export async function findManyByIds(ids: string[]) {
   if (ids.length === 0) return [];
   return getPrisma().employee.findMany({
@@ -279,6 +295,10 @@ export async function findActorEmployee(id: string) {
       onboardingStatus: true,
       completionRequired: true,
       completionSubmittedAt: true,
+      // ORG-D9: atasan = punya bawahan langsung aktif (indeks manager_id).
+      _count: {
+        select: { subordinates: { where: { isActive: true, onboardingStatus: "APPROVED" } } },
+      },
     },
   });
 }

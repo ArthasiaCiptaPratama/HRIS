@@ -438,8 +438,8 @@ export function EmployeeWorkFields({
               <span>
                 Atur atasan langsung secara manual
                 <span className="text-muted-foreground block text-xs">
-                  Tanpa centang: atasan = pemegang pos di atasnya yang ber-akun Manager/Super Admin
-                  (ikut berubah otomatis bila struktur berubah).
+                  Tanpa centang: atasan = pemegang pos tepat di atasnya di bagan (ikut berubah
+                  otomatis bila struktur berubah).
                 </span>
               </span>
             </label>
@@ -452,7 +452,7 @@ export function EmployeeWorkFields({
           hint={
             selectedPost && !managerManual
               ? "Otomatis dari pos jabatan."
-              : "Hanya karyawan yang punya akun Manager/Super Admin."
+              : "Karyawan aktif mana pun."
           }
         >
           <Controller

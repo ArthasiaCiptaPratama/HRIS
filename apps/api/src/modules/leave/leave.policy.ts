@@ -24,16 +24,15 @@ export interface LeaveTarget {
   managerId: string | null;
 }
 
-/** Lihat saldo & pengajuan seorang karyawan: SA; HR PT-nya; MANAGER tim; karyawan sendiri. */
+/**
+ * Lihat saldo & pengajuan seorang karyawan: SA; HR PT-nya; karyawan sendiri; atasan langsungnya apa pun
+ * role akunnya (ORG-D9 — konteks memutuskan cuti bawahan). Daftar cuti tim (scope all) tetap MANAGER.
+ */
 export function canViewEmployeeLeave(actor: Actor, target: LeaveTarget): boolean {
   if (isSa(actor)) return true;
   if (actor.employeeId !== null && actor.employeeId === target.employeeId) return true;
   if (hrOf(actor, target.companyId)) return true;
-  return (
-    actor.role === ROLE.MANAGER &&
-    actor.employeeId !== null &&
-    target.managerId === actor.employeeId
-  );
+  return actor.employeeId !== null && target.managerId === actor.employeeId;
 }
 
 /** Daftar saldo/pengajuan per PT & penyesuaian/import saldo: SA; HR PT ditugaskan. */

@@ -242,7 +242,7 @@ describe("penempatan karyawan & atasan otomatis (D-053)", () => {
     expect(list.find((p: { id: string }) => p.id === staffPost).holderCount).toBe(2);
   });
 
-  test("atasan = pemegang pos atasan terdekat ber-akun Manager; pos kosong dilewati; manual tidak disentuh", async () => {
+  test("atasan = pemegang pos tepat di atasnya apa pun akunnya (ORG-D9); pos kosong dilewati; manual tidak disentuh", async () => {
     const [dirPost, , mgrPost] = ids.posts as [string, string, string];
     const { s1, s2 } = people;
     const boss = await employee("B1", ids.posDir);
@@ -251,16 +251,16 @@ describe("penempatan karyawan & atasan otomatis (D-053)", () => {
     // Pos Manajer kosong → staf naik ke Direktur.
     expect((await place(boss, dirPost)).status).toBe(200);
     expect(await managerOf(s1)).toBe(boss);
-    // Manajer ditempatkan & ber-akun MANAGER → staf pindah ke Manajer.
+    // Manajer ditempatkan TANPA akun → langsung jadi atasan staf (D-053 lama mensyaratkan akun Manager).
     const m = await employee("M1", ids.posMgr);
     people.mgr = m;
-    await auth.loginAs("MANAGER", { employeeId: m });
     expect((await place(m, mgrPost)).status).toBe(200);
-    // Akun Manager baru dibuat SETELAH penempatan → perlu sinkron ulang (tombol SA).
+    expect(await managerOf(s1)).toBe(m);
+    expect(await managerOf(m)).toBe(boss);
+    // Sinkron ulang tidak mengubah apa pun (aturan sama).
     const sync = await call("POST", "/org-posts/sync-managers", sa.headers);
     expect(sync.status).toBe(200);
     expect(await managerOf(s1)).toBe(m);
-    expect(await managerOf(m)).toBe(boss);
     // Atasan manual pada s2 tidak diubah sinkron.
     expect((await call("PATCH", `/employees/${s2}`, sa.headers, { managerId: boss })).status).toBe(
       200,
