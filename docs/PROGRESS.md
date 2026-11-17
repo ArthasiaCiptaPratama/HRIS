@@ -140,6 +140,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 - ~~Sinkron atasan otomatis saat role akun berubah (hook iam → employee; sementara tombol Sinkronkan atasan) (D-053)~~ → tidak diperlukan, ORG-D9 (2026-11-17)
 - Edit struktur bagan dengan seret-sambung di kanvas (D-051, tidak dipilih saat ini)
 - Menu web Struktur Organisasi untuk EMPLOYEE (lewat ESS; API sudah mendukung) (D-051)
+- Atasan manual lintas PT: validasi `assertManager` (ubah/tambah karyawan) tidak memeriksa PT atasan — HR bisa memasang atasan PT lain lewat ID; dibiarkan seperti perilaku lama (dari tugas ORG-D9, 2026-11-17)
 - Aktifkan *Leaked Password Protection* Supabase Auth bila tersedia di paket (advisor WARN, dari tugas deploy Vercel 2026-09-29)
 - **(2026-10-15, dari audit Surat Peringatan)** Helper `todayInJakarta` / `isUniqueViolation` (P2002) terduplikasi ±7 kali di modul `asset`, `discipline`, `employee`, `leave`, `attendance` → satukan di `core/` (mis. `core/dates.ts`, `core/prisma-errors.ts`); cron `discipline-daily` lalu tidak perlu mengimpor `discipline.service.ts`.
 - **(2026-10-16, dari Laporan batch 1, ARS-D18)** Penanda lokasi **site** (mis. kolom jenis lokasi kerja) agar dokumen wajib lingkup `SITE` bisa dihitung di laporan Kelengkapan; snapshot historis unit/status untuk headcount per periode; riwayat keluar yang tetap tercatat saat karyawan diaktifkan kembali.

@@ -24,6 +24,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Keputusan:** ORG-D9 (menggantikan D-053 & syarat PLAN §4.1). Tambahan di luar rencana (atasan manual bebas role, endpoint subordinates, ringkasan antrean) disetujui supervisor atas nama pengguna.
 - **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ (1 warning lama `roster-edit.service.ts:577`) · `check:boundaries` ✔ (569 modul) · shared 391 ✔ · api 1377 ✔ (baru: `tests/supervisor-policy.test.ts` 4, `tests/integration/time-management/supervisor-approval.test.ts` 6; disesuaikan: `org-chart.test.ts`, `employees.test.ts` ×2) · web 395 ✔ (`--maxWorkers=4`).
 - **Masalah / catatan:** pengajuan lama tetap dengan snapshotnya; staging perlu rilis + "Sinkronkan atasan" (kata pengguna). App Arthasia-Mobile perlu `Me.isSupervisor` & `listOvertimeSubordinates` (tab Approval/SPL masih menyaring role MANAGER).
+- **Susulan (review keamanan otomatis setelah push `bb17c86`):** `GET /employees/manager-options` sempat memuat karyawan aktif semua PT untuk HR_ADMIN (D-040) → dibatasi `actor.companyIds` (`findActiveApprovedBriefs(companyIds)`), test `employees.test.ts` + karyawan PT lain; api 1377 ✔, CI `bb17c86` run 44013268302 ✔.
 - **Berikutnya:** commit + push develop (persetujuan), kabari Mat (approval & org-chart), handoff app mobile lewat supervisor.
 
 ### 2026-11-16 — Grade = Level, langkah cepat (ORG-D8) (Oatse)

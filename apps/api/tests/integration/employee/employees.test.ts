@@ -871,6 +871,10 @@ describe("Struktur organisasi, master data, pilihan atasan", () => {
     const optionIds = data.map((o: { id: string }) => o.id);
     expect(optionIds).toContain(ids.managerEmp);
     expect(optionIds).toContain(ids.hrEmp);
+    // D-040: HR tidak melihat karyawan PT di luar cakupannya; SA melihat semua PT.
+    expect(optionIds).not.toContain(ids.otherCompanyEmp);
+    const all = await body(await call("GET", "/employees/manager-options", sa.headers));
+    expect(all.data.map((o: { id: string }) => o.id)).toContain(ids.otherCompanyEmp);
     expect((await call("GET", "/employees/manager-options", mgr.headers)).status).toBe(403);
   });
 });

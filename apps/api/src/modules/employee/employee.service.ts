@@ -1551,7 +1551,10 @@ export async function listManagerOptions(ctx: RequestContext): Promise<ManagerOp
   assertCanManage(ctx.actor);
   const [lookup, rows] = await Promise.all([
     getMasterLookup(),
-    repository.findActiveApprovedBriefs(),
+    // D-040: HR hanya melihat karyawan PT yang ditugaskan; SA semua PT.
+    repository.findActiveApprovedBriefs(
+      ctx.actor.companyIds === null ? null : [...ctx.actor.companyIds],
+    ),
   ]);
   return rows.map((row) => ({
     id: row.id,

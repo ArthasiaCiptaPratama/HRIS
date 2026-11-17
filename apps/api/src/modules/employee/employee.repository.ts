@@ -192,10 +192,17 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
   };
 }
 
-/** ORG-D9: pilihan atasan manual = semua karyawan aktif yang sudah disetujui (apa pun role akunnya). */
-export function findActiveApprovedBriefs() {
+/**
+ * ORG-D9: pilihan atasan manual = karyawan aktif yang sudah disetujui (apa pun role akunnya), dalam PT
+ * `companyIds` (null = semua PT, SUPER_ADMIN; D-040).
+ */
+export function findActiveApprovedBriefs(companyIds: readonly string[] | null) {
   return getPrisma().employee.findMany({
-    where: { isActive: true, onboardingStatus: "APPROVED" },
+    where: {
+      isActive: true,
+      onboardingStatus: "APPROVED",
+      ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
+    },
     select: { id: true, fullName: true, employeeNumber: true, positionId: true },
     orderBy: { fullName: "asc" },
   });
