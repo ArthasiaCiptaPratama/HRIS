@@ -316,7 +316,33 @@ export async function listOvertimeOrders(
   const employees = await directory.employeesByIds([...new Set(rows.map((r) => r.employeeId))]);
   return rows.flatMap((r) => {
     const e = employees.get(r.employeeId);
+    // ORG-D9: atasan langsung (role apa pun) melihat SPL bawahannya lewat canViewEmployeeRoster.
     if (!e || !policy.canViewEmployeeRoster(ctx.actor, targetOf(e))) return [];
     return [toView(r, e, policy.canOrderOvertime(ctx.actor, targetOf(e)))];
   });
+}
+
+/**
+ * ORG-D9: pemilih karyawan SPL — bawahan langsung aktif aktor (role akun apa pun). Daftar karyawan umum
+ * (`/employees`) tetap khusus SA/HR/MANAGER; SA/HR memilih dari sana. Maks 100, urut nama.
+ */
+export async function listOvertimeSubordinates(
+  ctx: RequestContext,
+  q?: string,
+): Promise<{ id: string; fullName: string; employeeNumber: string | null }[]> {
+  // Akun tanpa data karyawan tidak punya bawahan (dan tidak membuka endpoint, mis. HR Kepegawaian).
+  if (!ctx.actor.employeeId) throw new ForbiddenError();
+  const people = await directory.employeesByIds(await directory.teamIds(ctx.actor.employeeId));
+  const term = q?.trim().toLowerCase() ?? "";
+  return [...people.values()]
+    .filter((e) => e.isActive)
+    .filter(
+      (e) =>
+        term === "" ||
+        e.fullName.toLowerCase().includes(term) ||
+        (e.employeeNumber ?? "").toLowerCase().includes(term),
+    )
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, "id"))
+    .slice(0, 100)
+    .map((e) => ({ id: e.id, fullName: e.fullName, employeeNumber: e.employeeNumber }));
 }

@@ -168,4 +168,12 @@ assertExact<z.infer<typeof overtimeOrderViewSchema>, OvertimeOrderView>(true);
 export const overtimeOrderListSchema = z
   .array(overtimeOrderViewSchema)
   .openapi("OvertimeOrderList");
+/** ORG-D9: bawahan langsung aktif yang bisa diberi SPL oleh atasan (role akun apa pun). */
+export const overtimeSubordinateListSchema = z
+  .array(
+    z
+      .object({ id: z.uuid(), fullName: z.string(), employeeNumber: z.string().nullable() })
+      .openapi("OvertimeSubordinate"),
+  )
+  .openapi("OvertimeSubordinateList");
 export const overtimeOrderCancelSchema = z.object({ id: z.uuid() }).openapi("OvertimeOrderCancel");

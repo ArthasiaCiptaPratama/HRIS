@@ -81,7 +81,7 @@ const previousMonth = () => addDays(`${todayIn().slice(0, 7)}-01`, -1).slice(0, 
 export function CorrectionsStatementsPage() {
   const me = useMe().data as Me;
   const self = me.employeeId !== null;
-  const decide = tmAccess.decideLeave(me);
+  const decide = tmAccess.approvalInbox(me);
   return (
     <div>
       <PageHeader

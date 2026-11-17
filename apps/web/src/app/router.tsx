@@ -65,11 +65,7 @@ export const routes: RouteObject[] = [
                   },
                   {
                     path: "approval",
-                    element: (
-                      <RequireAccessRoute
-                        check={(me) => tmAccess.reviewDays(me) || tmAccess.decideLeave(me)}
-                      />
-                    ),
+                    element: <RequireAccessRoute check={tmAccess.approvalInbox} />,
                     children: [{ index: true, lazy: pages.mobileApprovals }],
                   },
                   { path: "notifikasi", lazy: pages.mobileNotifications },

@@ -18,6 +18,7 @@ import {
   overtimeOrderCancelSchema,
   overtimeOrderListSchema,
   overtimeOrderViewSchema,
+  overtimeSubordinateListSchema,
   overtimeSummarySchema,
   rosterTemplateResultSchema,
 } from "./overtime.contract.ts";
@@ -99,6 +100,18 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
       },
     ),
     (c) => orders.listOvertimeOrders(ctxOf(c), strict(orderQuery, c.req.query())),
+  ],
+  [
+    route(
+      "get",
+      "/overtime-orders/subordinates",
+      "Bawahan langsung aktif yang bisa diberi SPL oleh atasan, role akun apa pun (ORG-D9)",
+      {
+        query: z.object({ q: z.string().max(100).optional() }),
+        response: overtimeSubordinateListSchema,
+      },
+    ),
+    (c) => orders.listOvertimeSubordinates(ctxOf(c), c.req.query("q")),
   ],
   [
     route("put", "/overtime-orders", "Buat / ubah perintah lembur (Atasan, HR PT, SA) (TM-D17)", {

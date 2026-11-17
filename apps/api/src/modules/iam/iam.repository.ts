@@ -233,10 +233,21 @@ export async function listActiveAccountsByEmailSuffix(suffix: string) {
 }
 
 /** Akun aktif yang bisa memutuskan approval Time Management (ringkasan antrean harian). */
+/** Calon pemutus antrean: SA/HR/MANAGER + (ORG-D9) akun role apa pun yang punya bawahan langsung aktif. */
 export async function listApproverAccounts() {
   return getPrisma().account.findMany({
-    where: { role: { in: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"] }, isActive: true },
-    select: { id: true, email: true, authUserId: true },
+    where: {
+      isActive: true,
+      OR: [
+        { role: { in: ["SUPER_ADMIN", "HR_ADMIN", "MANAGER"] } },
+        {
+          employee: {
+            subordinates: { some: { isActive: true, onboardingStatus: "APPROVED" } },
+          },
+        },
+      ],
+    },
+    select: { id: true, email: true, authUserId: true, role: true },
   });
 }
 
@@ -275,9 +286,11 @@ export async function findAccountsByIds(ids: string[]) {
   });
 }
 
-export async function findEmployeeIdsByRoles(roles: NonNullable<Prisma.AccountWhereInput["role"]>) {
+/** ORG-D9: karyawan (dari daftar) yang punya akun aktif tertaut, role apa pun. */
+export async function findEmployeeIdsWithActiveAccount(employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
   const rows = await getPrisma().account.findMany({
-    where: { role: roles, isActive: true, employeeId: { not: null } },
+    where: { isActive: true, employeeId: { in: employeeIds } },
     select: { employeeId: true },
   });
   return rows.map((row) => row.employeeId as string);

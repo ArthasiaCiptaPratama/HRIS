@@ -10,6 +10,8 @@ export const meSchema = z.object({
   employeeId: z.string().nullable(),
   // BUG-004: nama karyawan tertaut (sapaan & kartu akun); null/absen = pakai email.
   employeeName: z.string().nullable().optional(),
+  // ORG-D9: punya bawahan langsung aktif → antrean Approval & SPL untuk bawahan langsungnya.
+  isSupervisor: z.boolean().optional(),
   lastLoginAt: z.string().nullable(),
   grants: z.array(z.object({ permission: permissionSchema, expiresAt: z.string().nullable() })),
   // D-045 b: status onboarding (locked = calon belum disetujui → hanya wizard).
