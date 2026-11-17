@@ -28,6 +28,12 @@ export interface Actor {
    * yang belum disetujui → hanya endpoint wizard yang boleh (middleware kunci di app.ts).
    */
   onboarding?: OnboardingState | null;
+  /**
+   * ORG-D9: punya ≥1 bawahan langsung aktif (manager_id = karyawan aktor), apa pun role akunnya. Diisi modul
+   * employee saat aktor dimuat; tidak diisi = false. Hanya membuka antrean/keputusan langkah "Atasan" untuk
+   * bawahan langsung — bukan hak tim MANAGER lain (direktori, arsip, aset, SP, analitik, rekap).
+   */
+  isSupervisor?: boolean;
 }
 
 export function hasRole(actor: Actor, roles: readonly Role[]): boolean {
@@ -67,6 +73,14 @@ export function isSelf(actor: Actor, target: EmployeeTarget): boolean {
 // PLAN §4.1 / D-009: tim = bawahan langsung (manager_id target = employee aktor), satu tingkat.
 export function isInTeam(actor: Actor, target: EmployeeTarget): boolean {
   return actor.employeeId !== null && target.managerId === actor.employeeId;
+}
+
+/**
+ * ORG-D9: pemutus langkah "Atasan" (antrean approval, verifikasi Alpha, SPL): akun MANAGER ber-karyawan atau
+ * akun role apa pun yang punya bawahan langsung aktif. Cakupan tetap bawahan langsung (dicek per target).
+ */
+export function isApprover(actor: Actor): boolean {
+  return actor.employeeId !== null && (actor.role === ROLE.MANAGER || actor.isSupervisor === true);
 }
 
 // D-040: karyawan target berada di perusahaan dalam cakupan aktor (SUPER_ADMIN: semua).

@@ -64,3 +64,7 @@
 ### Hardening CSV (audit R1, 2026-11-03)
 
 Kedua unduhan CSV di `apps/web/src/features/time-management/pages/period-pages.tsx` (rekap bulanan dan rincian karyawan) memakai `apps/web/src/lib/csv.ts` → `escapeCsvCell`: awalan `=`, `+`, `-`, `@`, tab, CR dinetralkan dengan apostrof sebelum quoting/doubling kutip. Test: `apps/web/tests/csv.test.ts`. Tidak ditemukan generator CSV dinamis lain di web/API.
+
+### ORG-D9 atasan role apa pun (2026-11-17)
+
+`attendance.policy.ts`: `canViewAlphaVerifications` & `canListAttendanceInbox` (baru, scope `inbox` tanpa `employeeId` di `listDays`) memakai `isApprover` (core/access: MANAGER atau `actor.isSupervisor`); `canViewEmployeeRoster` = atasan langsung tanpa syarat role. `overtime-order.service.ts` `listOvertimeSubordinates` → `GET /overtime-orders/subordinates` (operationId `listOvertimeSubordinates`, bawahan langsung aktif, maks 100). `time-notify.service.ts` ringkasan antrean: penerima dari `listApproverAccounts` (+ akun ber-bawahan), tautan `/absen/approval` untuk role EMPLOYEE. Test: `apps/api/tests/supervisor-policy.test.ts`, `tests/integration/time-management/supervisor-approval.test.ts`.

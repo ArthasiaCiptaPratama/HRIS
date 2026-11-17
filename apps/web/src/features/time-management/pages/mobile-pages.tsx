@@ -398,8 +398,9 @@ function LeaveApprovalCard({ request }: { request: LeaveRequest }) {
 
 export function MobileApprovalsPage() {
   const { me, tz } = useMobileApp();
-  const canDays = tmAccess.reviewDays(me);
-  const canLeave = tmAccess.decideLeave(me);
+  // ORG-D9: hanya antrean "perlu keputusan" → atasan role apa pun (bawahan langsung).
+  const canDays = tmAccess.approvalInbox(me);
+  const canLeave = tmAccess.approvalInbox(me);
   const canAlpha = tmAccess.verifyAlpha(me);
   const canEdits = tmAccess.decideRosterChanges(me);
   const [tab, setTab] = useState<"absen" | "cuti" | "alpha" | "jadwal">(canDays ? "absen" : "cuti");

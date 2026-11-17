@@ -13,6 +13,19 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-17 — Atasan dari bagan apa pun role akunnya (ORG-D9) (Oatse)
+- **Dikerjakan:** item "Atasan langsung = pemegang pos tepat di atasnya (ORG-D9)" (handoff supervisor 10:31, laporan "Atasan belum diatur" Mohammad Isnaini 2608.ACP.050):
+  - shared `resolvePostManagers` tanpa `eligibleManagers` (pos >1 pemegang → NIK terkecil); `syncPostManagers` & `scripts/import-org-local.ts` memakai aturan baru;
+  - `iam.listManagerEmployeeIds` dihapus; atasan manual (form, onboarding, review) = karyawan aktif mana pun, `manager-options` = semua karyawan aktif;
+  - approval: snapshot atasan tanpa akun aktif = null (`iam.employeesWithActiveAccount`);
+  - `Actor.isSupervisor` (employee: bawahan langsung aktif) + `isApprover` (core/access) + `Me.isSupervisor`; gerbang API: `canViewAlphaVerifications`, `canListAttendanceInbox` (baru), `canViewEmployeeRoster`, `canViewEmployeeLeave` (atasan langsung tanpa syarat role);
+  - `GET /overtime-orders/subordinates` (`listOvertimeSubordinates`); ringkasan antrean harian ke akun ber-bawahan (tautan `/absen/approval`);
+  - web: `tmAccess.approvalInbox`/`overtimeInbox`, `verifyAlpha`/`decideRosterChanges` pakai atasan role apa pun; tile & route `/absen/approval`, tab koreksi perlu keputusan, halaman Lembur (inbox + SPL), `SubordinatePicker` SPL, teks petunjuk atasan di form karyawan.
+- **Keputusan:** ORG-D9 (menggantikan D-053 & syarat PLAN §4.1). Tambahan di luar rencana (atasan manual bebas role, endpoint subordinates, ringkasan antrean) disetujui supervisor atas nama pengguna.
+- **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ (1 warning lama `roster-edit.service.ts:577`) · `check:boundaries` ✔ (569 modul) · shared 391 ✔ · api 1377 ✔ (baru: `tests/supervisor-policy.test.ts` 4, `tests/integration/time-management/supervisor-approval.test.ts` 6; disesuaikan: `org-chart.test.ts`, `employees.test.ts` ×2) · web 395 ✔ (`--maxWorkers=4`).
+- **Masalah / catatan:** pengajuan lama tetap dengan snapshotnya; staging perlu rilis + "Sinkronkan atasan" (kata pengguna). App Arthasia-Mobile perlu `Me.isSupervisor` & `listOvertimeSubordinates` (tab Approval/SPL masih menyaring role MANAGER).
+- **Berikutnya:** commit + push develop (persetujuan), kabari Mat (approval & org-chart), handoff app mobile lewat supervisor.
+
 ### 2026-11-16 — Grade = Level, langkah cepat (ORG-D8) (Oatse)
 - **Dikerjakan:** item "Grade = Level, langkah cepat (ORG-D8)": migrasi `20261116031709_employee_hr_level_code`; shared `parseHrLevelCode`/`hrLevelCodeDiffers`/`hrLevelCodeNote`; organization `fillEmptyPositionLevels`; detail karyawan `hrLevelCode`; web `HrLevelChip` (tab Kepegawaian Grade → Level + header profil), form tanpa Grade, Master Data › Level (`levels-page.tsx`, `/master-data/grade` dialihkan), dimensi dashboard Grade disembunyikan, review onboarding tanpa Grade. Import: IMP-D4 (log import-karyawan).
 - **Keputusan:** ORG-D8 (+ IMP-D4).

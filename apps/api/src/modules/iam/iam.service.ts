@@ -347,6 +347,7 @@ export async function getMe(actor: Actor, now: Date = new Date()): Promise<MeRes
     employeeId: account.employeeId,
     employeeName: account.employee?.fullName ?? null,
     employeeCompanyId: account.employee?.companyId ?? null,
+    isSupervisor: account.employeeId !== null && actor.isSupervisor === true,
     lastLoginAt: account.lastLoginAt?.toISOString() ?? null,
     grants: account.grants
       .filter((grant) => isGrantActive(grant, now))
@@ -1100,9 +1101,12 @@ export async function getAccountSummaries(
   );
 }
 
-/** PLAN §4.1: manager_id wajib menunjuk ke karyawan ber-akun MANAGER/SUPER_ADMIN (aktif). */
-export async function listManagerEmployeeIds(): Promise<string[]> {
-  return repository.findEmployeeIdsByRoles({ in: [ROLE.MANAGER, ROLE.SUPER_ADMIN] });
+/**
+ * ORG-D9: atasan tanpa akun aktif belum bisa memutuskan → modul approval memperlakukan pengajuan bawahannya
+ * sebagai "tanpa atasan" (diambil HR PT-nya / SA). Mengembalikan karyawan yang punya akun aktif tertaut.
+ */
+export async function employeesWithActiveAccount(employeeIds: string[]): Promise<Set<string>> {
+  return new Set(await repository.findEmployeeIdsWithActiveAccount([...new Set(employeeIds)]));
 }
 
 export type AccountDeactivationOutcome = "none" | "already_inactive" | "deactivated";
@@ -1368,12 +1372,13 @@ export async function listTestAccounts(
 }
 
 export async function listApproverAccounts(): Promise<
-  { accountId: string; email: string; authUserId: string }[]
+  { accountId: string; email: string; authUserId: string; role: Role }[]
 > {
   return (await repository.listApproverAccounts()).map((a) => ({
     accountId: a.id,
     email: a.email,
     authUserId: a.authUserId,
+    role: a.role,
   }));
 }
 

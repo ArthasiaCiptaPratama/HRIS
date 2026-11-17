@@ -94,7 +94,7 @@ const routes = {
     path: `${base}/sync-managers`,
     tags: TAGS,
     summary:
-      "Hitung ulang atasan langsung otomatis dari pos (D-053), mis. setelah role Manager berubah (SA / HR berizin di PT-nya)",
+      "Hitung ulang atasan langsung otomatis dari pos (ORG-D9: pemegang aktif pos tepat di atasnya), mis. setelah data lama (SA / HR berizin di PT-nya)",
     security,
     responses: {
       200: json("Jumlah karyawan yang atasannya berubah", dataEnvelope(syncManagersResultSchema)),

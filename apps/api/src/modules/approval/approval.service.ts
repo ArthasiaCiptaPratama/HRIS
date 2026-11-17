@@ -8,6 +8,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../core/errors.ts";
+import { employeesWithActiveAccount } from "../iam/index.ts";
 import * as policy from "./approval.policy.ts";
 import * as repository from "./approval.repository.ts";
 
@@ -73,8 +74,20 @@ export interface CreateApprovalInput {
   mode?: "PARALLEL" | "SINGLE";
 }
 
+/**
+ * ORG-D9: snapshot atasan saat pengajuan. Atasan tanpa akun aktif tertaut (role apa pun) belum bisa
+ * memutuskan → disimpan null = "tanpa atasan" (SA memutuskan langkah atasan, HR PT-nya mengambil alih
+ * dengan alasan). Akun yang dibuat kemudian tidak memindahkan pengajuan yang sudah berjalan.
+ */
+async function decidingManager(managerEmployeeId: string | null): Promise<string | null> {
+  if (managerEmployeeId === null) return null;
+  const withAccount = await employeesWithActiveAccount([managerEmployeeId]);
+  return withAccount.has(managerEmployeeId) ? managerEmployeeId : null;
+}
+
 export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprovalInput) {
   const mode = input.mode ?? "PARALLEL";
+  const managerEmployeeId = await decidingManager(input.managerEmployeeId);
   return repository.createRequest(
     tx,
     {
@@ -83,7 +96,7 @@ export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprova
       requesterEmployeeId: input.requesterEmployeeId,
       submittedByAccountId: input.submittedByAccountId ?? null,
       companyId: input.companyId,
-      managerEmployeeId: input.managerEmployeeId,
+      managerEmployeeId,
       mode,
     },
     mode === "PARALLEL" ? ["MANAGER", "HR"] : ["MANAGER"],

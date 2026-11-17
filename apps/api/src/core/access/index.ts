@@ -6,6 +6,7 @@ export {
   type GrantValidity,
   hasPermission,
   hasRole,
+  isApprover,
   isGrantActive,
   isInCompanyScope,
   isInTeam,

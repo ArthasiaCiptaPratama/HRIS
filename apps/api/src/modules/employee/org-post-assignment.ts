@@ -1,12 +1,11 @@
 import { resolvePostManagers } from "@hris/shared";
 import { BusinessRuleError } from "../../core/errors.ts";
-import { listManagerEmployeeIds } from "../iam/index.ts";
 import { getMasterLookup, listOrgPosts } from "../organization/index.ts";
 import type { EmployeeTx } from "./employee.repository.ts";
 import { recordFieldChanges } from "./field-change.ts";
 import * as repository from "./org-chart.repository.ts";
 
-// D-051/D-053: penempatan karyawan ke pos jabatan & atasan langsung otomatis dari pos.
+// D-051/ORG-D9: penempatan karyawan ke pos jabatan & atasan langsung otomatis dari pos.
 // Dipakai employee.service (tulis) & app.ts (hook organization) — tidak meng-import employee.service.
 
 /**
@@ -18,18 +17,15 @@ export async function syncPostManagers(
   postIds?: ReadonlySet<string>,
   actorAccountId?: string,
 ): Promise<number> {
-  const [posts, holders, eligible] = await Promise.all([
-    listOrgPosts(tx),
-    repository.listPostHolders(tx),
-    listManagerEmployeeIds(),
-  ]);
+  const [posts, holders] = await Promise.all([listOrgPosts(tx), repository.listPostHolders(tx)]);
   const active = posts.filter((post) => !post.archived);
   const desired = resolvePostManagers({
     posts: active,
     holders: holders.flatMap((h) =>
-      h.orgPostId ? [{ employeeId: h.id, postId: h.orgPostId }] : [],
+      h.orgPostId
+        ? [{ employeeId: h.id, employeeNumber: h.employeeNumber, postId: h.orgPostId }]
+        : [],
     ),
-    eligibleManagers: new Set(eligible),
   });
   const managerIds = [
     ...new Set(
