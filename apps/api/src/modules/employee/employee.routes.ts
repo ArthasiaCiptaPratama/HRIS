@@ -43,6 +43,8 @@ import {
   updateEmployeeBodySchema,
 } from "./employee.schema.ts";
 import * as service from "./employee.service.ts";
+import { employeeExportBodySchema, employeeExportFileSchema } from "./employee-export.schema.ts";
+import { exportEmployees } from "./employee-export.service.ts";
 import * as employeeForm from "./employee-form.service.ts";
 import { registerEmployeeImportRoutes } from "./employee-import.routes.ts";
 import * as homebase from "./homebase.service.ts";
@@ -508,6 +510,25 @@ export function registerEmployeeRoutes(app: OpenAPIHono, deps: EmployeeRouteDeps
       perHour: 25,
     },
   });
+
+  app.openapi(
+    guard(
+      createRoute({
+        method: "post",
+        path: `${P}/employees/export`,
+        tags: TAGS,
+        security,
+        summary:
+          "Ekspor massal data karyawan aktif ke Excel — SA/HR sesuai cakupan PT dan izin baca",
+        request: body(employeeExportBodySchema),
+        responses: {
+          200: json("File Excel karyawan", dataEnvelope(employeeExportFileSchema)),
+          ...errors(400, 401, 403, 422, 500),
+        },
+      }),
+    ),
+    async (c) => c.json(ok(await exportEmployees(ctx(c), c.req.valid("json"))), 200),
+  );
 
   app.openapi(guard(routes.fieldChanges), async (c) =>
     c.json(
