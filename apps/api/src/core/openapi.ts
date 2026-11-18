@@ -62,6 +62,11 @@ export const APP_OPERATION_IDS: Record<string, string> = {
   "GET /api/v1/employees": "listEmployees",
   "PUT /api/v1/overtime-orders": "setOvertimeOrder",
   "POST /api/v1/overtime-orders/{id}/cancel": "cancelOvertimeOrder",
+  // TM-D27: pengajuan lembur karyawan.
+  "GET /api/v1/overtime-claims": "listOvertimeClaims",
+  "POST /api/v1/overtime-claims": "createOvertimeClaim",
+  "POST /api/v1/overtime-claims/{id}/cancel": "cancelOvertimeClaim",
+  "POST /api/v1/overtime-claims/{id}/decision": "decideOvertimeClaim",
   "GET /api/v1/time/queue": "getTimeQueue",
   "GET /api/v1/approvals/{id}": "getApproval",
   "POST /api/v1/approvals/{id}/decision": "decideApproval",

@@ -182,7 +182,7 @@ function EditCard({ row, scope }: { row: RosterEdit; scope: "inbox" | "mine" }) 
             disabled={cancel.isPending}
             onClick={() =>
               cancel.mutate(row.id, {
-                onSuccess: () => toast.success("Pengajuan dibatalkan; roster tidak berubah."),
+                onSuccess: () => toast.success("Pengajuan dibatalkan; jadwal tidak berubah."),
                 onError: (e) => toast.error(errorMessage(e)),
               })
             }

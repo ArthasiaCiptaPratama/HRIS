@@ -514,6 +514,8 @@ function PunchCell({
           text: `Luar radius${siteName ? ` ${siteName}` : ""}${distance}`,
           tone: "text-destructive",
         };
+  // TM-D29 (STAGING): absen mandiri → koordinat GPS HP ditampilkan (bukan "dipilih HR").
+  const selfReport = punch.labels.includes("SELF_REPORT");
   return (
     <div className="flex min-w-56 items-start gap-2.5">
       <SelfieThumb punch={punch} />
@@ -522,11 +524,12 @@ function PunchCell({
           <TimeText iso={punch.at} tz={tz} />
           {punch.source === "MANUAL" ? (
             <Badge variant="muted" className="text-[10px]">
-              Manual
+              {/* TM-D29 (STAGING): absen mandiri karyawan tersimpan sebagai MANUAL berlabel SELF_REPORT. */}
+              {selfReport ? "Mandiri" : "Manual"}
             </Badge>
           ) : null}
         </div>
-        {punch.source === "MANUAL" && punch.location ? (
+        {punch.source === "MANUAL" && !selfReport && punch.location ? (
           <p
             className="text-brand flex items-center gap-1 text-[11px] whitespace-nowrap"
             title="Lokasi dipilih HR saat input manual (bukan GPS HP)"
@@ -761,7 +764,12 @@ function PunchPanel({
         <p className="text-sm font-medium">
           {KIND_TEXT[kind]} · <span className="tabular-nums">{timeIn(punch.at, tz)}</span>
         </p>
-        {punch.source === "MANUAL" ? <Badge variant="muted">Input manual</Badge> : null}
+        {punch.source === "MANUAL" ? (
+          <Badge variant="muted">
+            {/* TM-D29 (STAGING): absen mandiri = MANUAL berlabel SELF_REPORT. */}
+            {punch.labels.includes("SELF_REPORT") ? "Absen mandiri" : "Input manual"}
+          </Badge>
+        ) : null}
       </div>
       <div className="bg-muted aspect-[3/4] overflow-hidden rounded-lg">
         {punch.selfieUrl ? (
@@ -879,7 +887,7 @@ function DayDialog({
           </DialogTitle>
           <DialogDescription>
             {d
-              ? `${d.employee.employeeNumber ?? "—"} · ${d.shiftCode ? `Shift ${d.shiftCode} ${scheduleLabel(d.workDate, d.scheduledStart, d.scheduledEnd, tz)}` : "Tanpa jadwal roster"}${d.workLocation ? ` · ${d.workLocation.name}` : ""}`
+              ? `${d.employee.employeeNumber ?? "—"} · ${d.shiftCode ? `Shift ${d.shiftCode} ${scheduleLabel(d.workDate, d.scheduledStart, d.scheduledEnd, tz)}` : "Tanpa jadwal"}${d.workLocation ? ` · ${d.workLocation.name}` : ""}`
               : "Memuat…"}
           </DialogDescription>
         </DialogHeader>

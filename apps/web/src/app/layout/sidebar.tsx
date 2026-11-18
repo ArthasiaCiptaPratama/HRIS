@@ -9,8 +9,19 @@ import { ACTIVE_BASE, activeCount } from "@/features/employee/active-views";
 import { prefetchEmployees, useCompanyScope, useEmployeeSummary } from "@/features/employee/api";
 import type { EmployeeSummary } from "@/features/employee/schemas";
 import { useHealth } from "@/features/system/api";
-import { useTimeQueue } from "@/features/time-management/queue-api";
+import {
+  type TimeQueue,
+  type TimeQueueKey,
+  useTimeQueue,
+} from "@/features/time-management/queue-api";
 import { cn } from "@/lib/utils";
+
+/** Badge antrean: jumlah satu atau beberapa kunci (0 → tanpa badge). */
+function queueCount(queue: TimeQueue | undefined, key: TimeQueueKey | TimeQueueKey[]) {
+  if (!queue) return undefined;
+  const total = (Array.isArray(key) ? key : [key]).reduce((sum, k) => sum + queue[k], 0);
+  return total || undefined;
+}
 
 function summaryCount(summary: EmployeeSummary | undefined, key: SummaryKey | undefined) {
   if (!summary || !key) return undefined;
@@ -178,7 +189,7 @@ function SidebarItem({
         <Count
           value={
             item.queueKey
-              ? queue?.[item.queueKey] || undefined
+              ? queueCount(queue, item.queueKey)
               : summaryCount(summary, item.summaryKey)
           }
           active={selfActive}

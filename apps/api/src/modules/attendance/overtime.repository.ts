@@ -146,4 +146,35 @@ export const upsertOrder = (
   });
 export const deleteOrder = (tx: Tx, id: string) => tx.overtimeOrder.delete({ where: { id } });
 
+// ── TM-D27 pengajuan lembur karyawan ───────────────────────────────────────────
+export type ClaimRow = Prisma.OvertimeClaimGetPayload<object>;
+export const findClaimById = (id: string) =>
+  getPrisma().overtimeClaim.findUnique({ where: { id } });
+export const countPendingClaims = (employeeId: string, workDate: Date) =>
+  getPrisma().overtimeClaim.count({ where: { employeeId, workDate, status: "PENDING" } });
+/** Pengajuan menunggu (antrean HR/SA); `companyIds` null = semua PT; pengajuan `excludeEmployeeId` tidak dihitung. */
+export const countPendingClaimsFor = (
+  companyIds: string[] | null,
+  excludeEmployeeId: string | null,
+) =>
+  getPrisma().overtimeClaim.count({
+    where: {
+      status: "PENDING",
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+      ...(excludeEmployeeId ? { employeeId: { not: excludeEmployeeId } } : {}),
+    },
+  });
+export const createClaim = (
+  data: Omit<Prisma.OvertimeClaimUncheckedCreateInput, "id" | "createdAt" | "updatedAt">,
+) => getPrisma().overtimeClaim.create({ data });
+/** Ubah status hanya bila masih PENDING (aman dari keputusan ganda bersamaan). */
+export const updatePendingClaim = (id: string, data: Prisma.OvertimeClaimUncheckedUpdateInput) =>
+  getPrisma().overtimeClaim.updateMany({ where: { id, status: "PENDING" }, data });
+export const listClaimRows = (where: Prisma.OvertimeClaimWhereInput) =>
+  getPrisma().overtimeClaim.findMany({
+    where,
+    orderBy: [{ workDate: "desc" }, { createdAt: "desc" }],
+    take: 1000,
+  });
+
 export const withTransaction = <T>(run: (tx: Tx) => Promise<T>) => getPrisma().$transaction(run);

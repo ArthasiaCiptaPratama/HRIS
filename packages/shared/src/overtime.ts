@@ -321,6 +321,58 @@ export const overtimeOrderInputSchema = z
   });
 export type OvertimeOrderInput = z.infer<typeof overtimeOrderInputSchema>;
 
+/**
+ * TM-D27: pengajuan lembur oleh karyawan untuk jam yang sudah/sedang dijalani (absen pulang bebas, tidak
+ * otomatis lembur). HR PT / SA menetapkan rentang yang diakui lalu menyetujui → menjadi SPL susulan (TM-D19)
+ * dan jam aktual di dalam rentang itu dihitung sebagai lembur. Jam = jam lokal pengaturan TM, seperti SPL.
+ */
+export const OVERTIME_CLAIM_STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
+export type OvertimeClaimStatus = (typeof OVERTIME_CLAIM_STATUSES)[number];
+export const OVERTIME_CLAIM_STATUS_LABELS: Record<OvertimeClaimStatus, string> = {
+  PENDING: "Menunggu HR",
+  APPROVED: "Disetujui",
+  REJECTED: "Ditolak",
+  CANCELLED: "Dibatalkan",
+};
+const claimTimes = {
+  startTime: clockTime.nullish().transform((v) => v ?? null),
+  endTime: clockTime.nullish().transform((v) => v ?? null),
+};
+const claimHasTime = (v: { startTime: string | null; endTime: string | null }) =>
+  v.startTime !== null || v.endTime !== null;
+export const overtimeClaimInputSchema = z
+  .object({
+    workDate: z.iso.date(),
+    ...claimTimes,
+    reason: z.string().trim().min(3).max(300),
+  })
+  .refine(claimHasTime, {
+    message: "Isi jam mulai lebih awal dan/atau jam selesai lebih lambat.",
+    path: ["endTime"],
+  });
+export type OvertimeClaimInput = z.infer<typeof overtimeClaimInputSchema>;
+export const overtimeClaimDecisionSchema = z
+  .object({
+    decision: z.enum(["APPROVED", "REJECTED"]),
+    // Rentang yang diakui HR (wajib saat disetujui; boleh berbeda dari yang diajukan).
+    ...claimTimes,
+    note: z
+      .string()
+      .trim()
+      .max(300)
+      .nullish()
+      .transform((v) => v || null),
+  })
+  .refine((v) => v.decision === "REJECTED" || claimHasTime(v), {
+    message: "Tetapkan jam lembur yang diakui sebelum menyetujui.",
+    path: ["endTime"],
+  })
+  .refine((v) => v.decision === "APPROVED" || v.note !== null, {
+    message: "Alasan penolakan wajib diisi.",
+    path: ["note"],
+  });
+export type OvertimeClaimDecision = z.infer<typeof overtimeClaimDecisionSchema>;
+
 /** Template roster siap pakai (TM-D8). Hanya JT untuk saat ini. */
 /**
  * Template roster siap pakai (TM-D8): JT (Jetty & Loading, 3 shift rotasi 6+1), 13+1 (13 kerja + 1 OFF,

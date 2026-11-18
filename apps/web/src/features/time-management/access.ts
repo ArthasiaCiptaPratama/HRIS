@@ -21,7 +21,7 @@ export const tmAccess = {
   /** Absen PWA: akun yang terhubung ke data karyawan (D-067). */
   punch: (me: Me) => me.employeeId !== null,
   /**
-   * #102 (TM-D26): akun EMPLOYEE yang tertaut karyawan memakai halaman absen sebagai beranda —
+   * #102 (TM-D30): akun EMPLOYEE yang tertaut karyawan memakai halaman absen sebagai beranda —
    * "/" dialihkan ke /absen dan menu web Dashboard/Time Management diganti satu tab "Absen".
    * MANAGER/HR/SA (walau punya data karyawan) tetap memakai dashboard.
    */

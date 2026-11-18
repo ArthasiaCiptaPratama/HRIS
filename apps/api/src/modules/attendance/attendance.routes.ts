@@ -11,7 +11,9 @@ import { configurePeriod, registerPeriodIntegrations } from "./period.service.ts
 import { registerRosterRoutes } from "./roster.routes.ts";
 import { registerRosterChangeHandler } from "./roster-change.service.ts";
 import { registerRosterEditHandler } from "./roster-edit.service.ts";
+import { registerSelfReportRoutes } from "./self-report.routes.ts"; // TM-D29 (staging)
 import { registerTimeNotifyRoutes } from "./time-notify.routes.ts";
+import { registerWorkRosterRoutes } from "./work-roster.routes.ts";
 
 // Pintu masuk route modul attendance (Time Management, D-067–D-072). Tahap berikutnya menambah grup route di sini.
 export interface AttendanceRouteDeps {
@@ -41,4 +43,8 @@ export function registerAttendanceRoutes(app: OpenAPIHono, deps: AttendanceRoute
   registerTimeNotifyRoutes(app, deps.protect);
   // TM-D6–TM-D8: lembur & upah grade, lokasi wajib istirahat, template roster.
   registerOvertimeRoutes(app, deps.protect);
+  // TM-D28: roster (siklus kerja–libur), Homebase lokal, lokal/non-lokal, isi jadwal dengan roster.
+  registerWorkRosterRoutes(app, deps.protect);
+  // TM-D29 (STAGING): absen mandiri crew berizin — hapus baris ini + import-nya saat fitur dicabut.
+  registerSelfReportRoutes(app, deps.protect);
 }

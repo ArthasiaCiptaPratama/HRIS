@@ -3,7 +3,12 @@ import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
 import * as dayRepo from "./attendance.repository.ts";
-import { localDate, orderInstants, shiftWindow } from "./attendance-engine.ts";
+import {
+  localDate,
+  orderInstants,
+  relaxedCheckOutDeadline,
+  shiftWindow,
+} from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
 import * as directory from "./directory.ts";
 import * as repository from "./overtime.repository.ts";
@@ -138,8 +143,17 @@ async function syncOpenDay(
   const day = await dayRepo.findDay(employeeId, toDate(workDate), tx);
   if (day?.status !== "OPEN") return;
   const base = day.scheduledEnd ? new Date(day.scheduledEnd.getTime() + closeMin * MINUTE) : null;
+  const deadline = deadlineWithOrder(base, order, closeMin);
+  const { requireCheckOut, timezone } = await readTimeSettings();
   await dayRepo.updateDay(tx, day.id, {
-    checkOutDeadline: deadlineWithOrder(base, order, closeMin),
+    // TM-D26: wajib absen pulang → tetap bebas s.d. 24:00 tanggal jam pulang terakhir (jadwal / SPL).
+    checkOutDeadline: requireCheckOut
+      ? relaxedCheckOutDeadline(
+          deadline,
+          [day.scheduledEnd, order?.endsAt, day.punches.find((p) => p.kind === "IN")?.at],
+          timezone,
+        )
+      : deadline,
   });
 }
 

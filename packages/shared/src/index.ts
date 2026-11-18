@@ -23,6 +23,8 @@ export * from "./report.ts";
 export * from "./roles.ts";
 export * from "./roster-template.ts";
 export * from "./schemas/common.ts";
+export * from "./self-report.ts"; // TM-D29 (staging)
 export * from "./severance.ts";
 export * from "./time-management.ts";
+export * from "./work-roster.ts";
 export * from "./xlsx.ts";

@@ -34,7 +34,7 @@ import {
   useTimeSettings,
 } from "../api";
 import type { CustomTemplate, Shift } from "../schemas";
-import { hhmm, todayIn, workDateLabel } from "./display";
+import { hhmm, isTimeOff, TIME_OFF_TITLE, TIME_OFF_TONE, todayIn, workDateLabel } from "./display";
 import { PatternChips } from "./pattern-chips";
 
 // TM-D23: template roster buatan HR — pola + jumlah crew + jarak geser, pratinjau langsung (jeda/bentrok,
@@ -161,7 +161,7 @@ function Field({
 }
 
 const shiftTime = (s: Shift) =>
-  `${hhmm(s.startMinute)}–${hhmm(s.endMinute)}${s.startsNextDay ? " (malam setelah tanggal roster)" : ""}`;
+  `${hhmm(s.startMinute)}–${hhmm(s.endMinute)}${s.startsNextDay ? " (malam setelah tanggal jadwal)" : ""}`;
 
 function TemplateBuilderDialog({
   companyId,
@@ -187,7 +187,9 @@ function TemplateBuilderDialog({
   const [quickCode, setQuickCode] = useState("");
   const active = (shifts.data ?? []).filter((s) => !s.archived);
   const unknown = [
-    ...new Set(steps.filter((s) => s !== OFF_CODE && !active.some((a) => a.code === s))),
+    ...new Set(
+      steps.filter((s) => s !== OFF_CODE && !isTimeOff(s) && !active.some((a) => a.code === s)),
+    ),
   ];
   const preview =
     steps.length > 0
@@ -227,7 +229,7 @@ function TemplateBuilderDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{template ? "Ubah template roster" : "Buat template roster"}</DialogTitle>
+          <DialogTitle>{template ? "Ubah template jadwal" : "Buat template jadwal"}</DialogTitle>
           <DialogDescription>
             Klik kode shift untuk menyusun pola satu siklus. Pratinjau menunjukkan jadwal tiap crew
             dan jeda antarshift.
@@ -447,9 +449,11 @@ function TemplatePreview({
                   <td
                     // biome-ignore lint/suspicious/noArrayIndexKey: kolom = tanggal pratinjau
                     key={i}
+                    title={isTimeOff(code) ? TIME_OFF_TITLE : undefined}
                     className={cn(
                       "px-1 py-1 font-mono font-semibold",
                       code === OFF_CODE && "text-muted-foreground bg-muted/40",
+                      isTimeOff(code) && TIME_OFF_TONE,
                     )}
                     style={code !== OFF_CODE && color(code) ? { color: color(code) } : undefined}
                   >

@@ -99,7 +99,8 @@ export function usePrecheck() {
 
 export class SelfieUploadError extends Error {}
 
-async function uploadSelfie(blob: Blob, contentType: "image/jpeg" | "image/webp") {
+/** Juga dipakai absen mandiri TM-D29 (STAGING) untuk foto galeri. */
+export async function uploadSelfie(blob: Blob, contentType: "image/jpeg" | "image/webp") {
   const { data: upload } = await api("/attendance/selfie-upload", {
     method: "POST",
     body: { contentType },

@@ -7,6 +7,7 @@ import {
   type AttendanceLabel,
   ROSTER_CHANGE_STATUS_LABELS,
   type RosterChangeStatus,
+  TIME_OFF_CODE,
 } from "@hris/shared";
 import { Ban, Check, Clock, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -155,7 +156,7 @@ export function todayIn(timeZone = "Asia/Jakarta", base = new Date()): string {
 
 /**
  * TM-D14: jadwal terkunci beserta tanggal nyata — "00.00–08.00" bila mulai di tanggal kerja, atau
- * "00.00–08.00 (mulai Rab, 28 Okt)" bila dijalani setelah tanggal roster (pilihan "malam setelah tanggal roster").
+ * "00.00–08.00 (mulai Rab, 28 Okt)" bila dijalani setelah tanggal jadwal (pilihan "malam setelah tanggal roster").
  */
 export function scheduleLabel(
   workDate: string,
@@ -175,9 +176,15 @@ export function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Warna sel shift: warna dari master shift, OFF abu-abu. */
+/** TM-D28: hari time off roster (kode "TO") — libur pulang ke homebase, bukan cuti, tidak Alpha. */
+export const isTimeOff = (code: string | null | undefined): boolean => code === TIME_OFF_CODE;
+export const TIME_OFF_TITLE = "Time off (bukan cuti)";
+/** Warna sel time off (beda dari OFF abu-abu & warna shift). */
+export const TIME_OFF_TONE = "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200";
+
+/** Warna sel shift: warna dari master shift, OFF abu-abu, TO (time off) memakai TIME_OFF_TONE. */
 export function shiftColor(code: string, shifts: { code: string; color: string | null }[]) {
-  if (code === "OFF") return undefined;
+  if (code === "OFF" || isTimeOff(code)) return undefined;
   return shifts.find((s) => s.code === code)?.color ?? undefined;
 }
 

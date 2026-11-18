@@ -27,7 +27,7 @@ import {
   useTemplateAssignPreview,
   useTimeSettings,
 } from "../api";
-import type { RosterGrid } from "../schemas";
+import type { RosterGrid, TemplateAssignPlan } from "../schemas";
 import { todayIn, workDateLabel } from "./display";
 import { PatternChips } from "./pattern-chips";
 
@@ -52,8 +52,6 @@ export function TemplateAssignDialog({
   const [locationId, setLocationId] = useState("");
   const [effectiveDate, setEffectiveDate] = useState(monthStart > today ? monthStart : today);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState("");
-  const q = useDeferredValue(search.trim().toLowerCase());
   const { assign } = useCustomTemplateMutations();
 
   const template = (templates.data ?? []).find((t) => t.id === templateId);
@@ -67,19 +65,6 @@ export function TemplateAssignDialog({
     body,
     Boolean(templateId && locationId && selected.size > 0 && effectiveDate),
   );
-  const people = grid.employees.filter(
-    (e) =>
-      !q ||
-      e.fullName.toLowerCase().includes(q) ||
-      (e.employeeNumber ?? "").toLowerCase().includes(q),
-  );
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   const pickTemplate = (id: string) => {
     setTemplateId(id);
     // Lokasi bawaan: lokasi tempat template sudah terpasang (bila hanya satu).
@@ -114,9 +99,9 @@ export function TemplateAssignDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Isi roster dengan template</DialogTitle>
+          <DialogTitle>Isi jadwal dengan template</DialogTitle>
           <DialogDescription>
-            Karyawan terpilih dibagi rata ke crew template mulai tanggal berlaku, dan roster lamanya
+            Karyawan terpilih dibagi rata ke crew template mulai tanggal berlaku, dan jadwal lamanya
             ditimpa penuh. Pola berulang otomatis ke minggu-minggu berikutnya. Hari yang absennya
             sudah disetujui atau periodenya ditutup tidak berubah.
           </DialogDescription>
@@ -126,7 +111,7 @@ export function TemplateAssignDialog({
         ) : (templates.data ?? []).length === 0 ? (
           <EmptyState
             icon={LayoutTemplate}
-            title="Belum ada template roster"
+            title="Belum ada template jadwal"
             description="Buat dulu di Shift, pola & crew › Template."
             action={
               <Button variant="outline" asChild>
@@ -182,69 +167,8 @@ export function TemplateAssignDialog({
                 </p>
               </div>
             ) : null}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Label className="flex-1">Karyawan ({selected.size} dipilih)</Label>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() =>
-                    setSelected(
-                      people.every((p) => selected.has(p.id))
-                        ? new Set([...selected].filter((id) => !people.some((p) => p.id === id)))
-                        : new Set([...selected, ...people.map((p) => p.id)]),
-                    )
-                  }
-                >
-                  {people.length > 0 && people.every((p) => selected.has(p.id))
-                    ? "Batalkan semua"
-                    : "Pilih semua"}
-                </Button>
-              </div>
-              <SearchField
-                value={search}
-                onChange={setSearch}
-                placeholder="Cari nama atau NIK…"
-                aria-label="Cari karyawan roster"
-              />
-              <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
-                {people.map((p) => (
-                  <li key={p.id}>
-                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm">
-                      <input
-                        type="checkbox"
-                        className="accent-brand size-4"
-                        checked={selected.has(p.id)}
-                        onChange={() => toggle(p.id)}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{p.fullName}</span>
-                      <span className="text-muted-foreground font-mono text-xs">
-                        {p.employeeNumber ?? "—"}
-                      </span>
-                      {p.crew ? <Badge variant="secondary">{p.crew}</Badge> : null}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {plan && (plan.replacedDays > 0 || plan.lockedDays > 0) ? (
-              <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-                {plan.replacedDays > 0
-                  ? `${plan.replacedDays} sel roster lama (kuas / import / tukar shift) mulai tanggal ini akan ditimpa template.`
-                  : ""}
-                {plan.lockedDays > 0
-                  ? ` ${plan.lockedDays} hari sudah ada absennya / terkunci — jadwalnya tidak diubah.`
-                  : ""}
-              </p>
-            ) : null}
-            {plan && plan.newAlphaDays > 0 ? (
-              <p className="bg-destructive/10 text-destructive rounded-lg p-2 text-xs">
-                Tanggal berlaku di masa lalu: {plan.newAlphaDays} hari lalu menjadi hari kerja tanpa
-                absen dan akan ditandai Alpha (menunggu verifikasi atasan). Pastikan memang begitu,
-                atau majukan tanggal berlaku.
-              </p>
-            ) : null}
-            {plan ? <PlanView plan={plan} /> : null}
+            <EmployeePicker employees={grid.employees} selected={selected} onChange={setSelected} />
+            {plan ? <AssignPlanDetails plan={plan} /> : null}
           </div>
         )}
         <DialogFooter>
@@ -269,11 +193,108 @@ export function TemplateAssignDialog({
   );
 }
 
-function PlanView({
-  plan,
+type PickerEmployee = RosterGrid["employees"][number];
+
+/** Pilih karyawan dari grid jadwal (cari nama/NIK, pilih semua yang tampil). Dipakai juga Isi dengan pola kerja. */
+export function EmployeePicker({
+  employees,
+  selected,
+  onChange,
 }: {
-  plan: NonNullable<ReturnType<typeof useTemplateAssignPreview>["data"]>;
+  employees: PickerEmployee[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
 }) {
+  const [search, setSearch] = useState("");
+  const q = useDeferredValue(search.trim().toLowerCase());
+  const people = employees.filter(
+    (e) =>
+      !q ||
+      e.fullName.toLowerCase().includes(q) ||
+      (e.employeeNumber ?? "").toLowerCase().includes(q),
+  );
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(next);
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label className="flex-1">Karyawan ({selected.size} dipilih)</Label>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() =>
+            onChange(
+              people.every((p) => selected.has(p.id))
+                ? new Set([...selected].filter((id) => !people.some((p) => p.id === id)))
+                : new Set([...selected, ...people.map((p) => p.id)]),
+            )
+          }
+        >
+          {people.length > 0 && people.every((p) => selected.has(p.id))
+            ? "Batalkan semua"
+            : "Pilih semua"}
+        </Button>
+      </div>
+      <SearchField
+        value={search}
+        onChange={setSearch}
+        placeholder="Cari nama atau NIK…"
+        aria-label="Cari karyawan jadwal"
+      />
+      <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+        {people.map((p) => (
+          <li key={p.id}>
+            <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                className="accent-brand size-4"
+                checked={selected.has(p.id)}
+                onChange={() => toggle(p.id)}
+              />
+              <span className="min-w-0 flex-1 truncate">{p.fullName}</span>
+              <span className="text-muted-foreground font-mono text-xs">
+                {p.employeeNumber ?? "—"}
+              </span>
+              {p.crew ? <Badge variant="secondary">{p.crew}</Badge> : null}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Rincian rencana pemasangan template: sel ditimpa / terkunci / Alpha baru, crew, & persetujuan. */
+export function AssignPlanDetails({ plan }: { plan: TemplateAssignPlan }) {
+  return (
+    <>
+      {plan.replacedDays > 0 || plan.lockedDays > 0 ? (
+        <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          {plan.replacedDays > 0
+            ? `${plan.replacedDays} sel roster lama (kuas / import / tukar shift) mulai tanggal ini akan ditimpa template.`
+            : ""}
+          {plan.lockedDays > 0
+            ? ` ${plan.lockedDays} hari sudah ada absennya / terkunci — jadwalnya tidak diubah.`
+            : ""}
+        </p>
+      ) : null}
+      {plan.newAlphaDays > 0 ? (
+        <p className="bg-destructive/10 text-destructive rounded-lg p-2 text-xs">
+          Tanggal berlaku di masa lalu: {plan.newAlphaDays} hari lalu menjadi hari kerja tanpa absen
+          dan akan ditandai Alpha (menunggu verifikasi atasan). Pastikan memang begitu, atau majukan
+          tanggal berlaku.
+        </p>
+      ) : null}
+      <PlanView plan={plan} />
+    </>
+  );
+}
+
+function PlanView({ plan }: { plan: TemplateAssignPlan }) {
   return (
     <div className="space-y-2">
       {!plan.installed ? (
@@ -307,7 +328,7 @@ function PlanView({
                 <td className="text-muted-foreground px-3 py-1.5 text-xs">
                   {a.stays
                     ? a.needsApproval
-                      ? "Sudah di crew ini · roster lama ditimpa"
+                      ? "Sudah di crew ini · jadwal lama ditimpa"
                       : "Sudah di crew ini · tidak ada perubahan"
                     : a.fromCrew
                       ? `Pindah dari ${a.fromCrew}`
@@ -333,7 +354,7 @@ function PlanView({
       {plan.approvalCount > 0 ? (
         <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
           {plan.approvalCount} karyawan sudah ber-crew: perubahannya diajukan ke atasan + HR dan
-          baru berlaku setelah disetujui. Roster lama tetap berlaku sampai saat itu.
+          baru berlaku setelah disetujui. Jadwal lama tetap berlaku sampai saat itu.
         </p>
       ) : null}
       {plan.restWarnings.length > 0 ? (
