@@ -32,6 +32,7 @@ import {
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
+import { tmOn } from "@/app/feature-flags";
 import { BrandLogo } from "@/components/brand-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +69,7 @@ import { AlphaBanner, HomeSummary, PunchReminder } from "../components/home-insi
 import { RosterWeek } from "../components/roster-week";
 import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
+import { SelfReportCard } from "./self-report-absen"; // TM-D29 (STAGING)
 
 // D-067: absen lewat PWA (tata letak HP, wajib online). Login sama dengan web. Selfie kamera langsung +
 // GPS + waktu server; foto diberi cap waktu, lat/long/alt, & lokasi geofence. Label D-070 tidak
@@ -166,6 +168,7 @@ const MOBILE_TITLES: [prefix: string, title: string][] = [
   ["/absen/approval", "Approval"],
   ["/absen/notifikasi", "Notifikasi"],
   ["/absen/profil", "Profil"],
+  ["/absen/mandiri", "Absen Mandiri"], // TM-D29 (STAGING)
 ];
 
 /**
@@ -339,6 +342,8 @@ export function AbsenHome() {
         onPunch={startPunch}
         onOffDayOvertime={startOffDayOvertime}
       />
+      {/* TM-D29 (STAGING): absen mandiri — hanya crew berizin (The Intern's). */}
+      {tmOn("tmSelfReport") ? <SelfReportCard /> : null}
       <HomeSummary data={data} />
       <MenuGrid me={me} />
       <RosterStrip data={data} today={todayIn(tz)} />

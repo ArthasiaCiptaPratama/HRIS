@@ -64,6 +64,10 @@ export const routes: RouteObject[] = [
                   },
                   { path: "notifikasi", lazy: pages.mobileNotifications },
                   { path: "profil", lazy: pages.mobileProfile },
+                  // TM-D29 (STAGING): absen mandiri crew berizin.
+                  ...(tmOn("tmSelfReport")
+                    ? [{ path: "mandiri", lazy: pages.selfReportAbsen }]
+                    : []),
                   { path: "*", element: <Navigate to="/absen" replace /> },
                 ],
               },

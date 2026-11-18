@@ -764,7 +764,12 @@ function PunchPanel({
         <p className="text-sm font-medium">
           {KIND_TEXT[kind]} · <span className="tabular-nums">{timeIn(punch.at, tz)}</span>
         </p>
-        {punch.source === "MANUAL" ? <Badge variant="muted">Input manual</Badge> : null}
+        {punch.source === "MANUAL" ? (
+          <Badge variant="muted">
+            {/* TM-D29 (STAGING): absen mandiri = MANUAL berlabel SELF_REPORT. */}
+            {punch.labels.includes("SELF_REPORT") ? "Absen mandiri" : "Input manual"}
+          </Badge>
+        ) : null}
       </div>
       <div className="bg-muted aspect-[3/4] overflow-hidden rounded-lg">
         {punch.selfieUrl ? (

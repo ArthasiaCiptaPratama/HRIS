@@ -130,6 +130,11 @@ export const pages = {
     import("@/features/time-management/pages/roster-page").then((m) => ({
       Component: m.RosterPage,
     })),
+  // TM-D29 (STAGING): Absen Mandiri — form karyawan di /absen/mandiri.
+  selfReportAbsen: () =>
+    import("@/features/time-management/pages/self-report-absen").then((m) => ({
+      Component: m.SelfReportAbsenPage,
+    })),
   // TM-D29 (STAGING): Absen Mandiri.
   selfReport: () =>
     import("@/features/time-management/pages/self-report-page").then((m) => ({

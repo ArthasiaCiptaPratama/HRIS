@@ -48,8 +48,9 @@ Untuk mencari punch mandiri yang sudah ada: `SELECT * FROM attendance.attendance
 | `apps/api/src/modules/attendance/self-report.contract.ts` | skema respons |
 | `apps/api/src/modules/attendance/self-report.routes.ts` | `GET /attendance/self-report/me`, `POST /attendance/self-report`, `GET/PUT /attendance/self-report/crews` |
 | `apps/api/tests/integration/time-management/self-report.test.ts` | test API |
-| `apps/web/src/features/time-management/self-report-api.ts` | hook web |
+| `apps/web/src/features/time-management/self-report-api.ts` | hook web (HR: crew; karyawan: status & kirim absen mandiri) |
 | `apps/web/src/features/time-management/pages/self-report-page.tsx` | halaman `/time/absen-mandiri` |
+| `apps/web/src/features/time-management/pages/self-report-absen.tsx` | kartu beranda `/absen` (`SelfReportCard`) + form `/absen/mandiri` (PWA; foto galeri dicap "ABSEN MANDIRI - FOTO GALERI" + waktu unggah sebenarnya) |
 | `apps/web/tests/self-report.test.tsx` | test web |
 | `docs/features/time-management/tm-d29-absen-mandiri.md` | dokumen ini |
 
@@ -64,17 +65,37 @@ Untuk mencari punch mandiri yang sudah ada: `SELECT * FROM attendance.attendance
 | `apps/api/src/modules/attendance/attendance.service.ts` | `assertUploadedPhoto` (refaktor netral dari `recordPunch`, **boleh dibiarkan**) |
 | `apps/web/src/app/feature-flags.ts` | `tmSelfReport` |
 | `apps/web/src/app/navigation.ts` | menu "Absen Mandiri" |
-| `apps/web/src/app/router.tsx` | route `absen-mandiri` |
-| `apps/web/src/app/route-preload.ts` | `selfReport` + entri `/time/absen-mandiri` |
-| `apps/web/src/features/time-management/pages/attendance-days-page.tsx` | badge "Mandiri" & GPS untuk punch `SELF_REPORT` |
-| `apps/web/src/features/time-management/pages/absen-page.tsx` | teks "· mandiri" |
+| `apps/web/src/app/router.tsx` | route `/time/absen-mandiri` + `/absen/mandiri` |
+| `apps/web/src/app/route-preload.ts` | `selfReport`, `selfReportAbsen` + entri `/time/absen-mandiri` |
+| `apps/web/src/features/time-management/pages/attendance-days-page.tsx` | badge "Mandiri" & GPS untuk punch `SELF_REPORT` (tabel) + badge "Absen mandiri" (dialog detail) |
+| `apps/web/src/features/time-management/pages/absen-page.tsx` | teks "· mandiri", import + kartu `SelfReportCard` di beranda, judul `/absen/mandiri` |
+| `apps/web/src/features/time-management/api.ts` | `uploadSelfie` diekspor (netral, **boleh dibiarkan**) |
 | `apps/web/src/features/time-management/pages/period-pages.tsx` | badge "Mandiri" |
+| `apps/web/src/features/time-management/pages/mobile-pages.tsx` | badge "Mandiri" di approval `/absen/approval` |
 | `docs/features/time-management/README.md`, `log.md`, `docs/codemap/attendance.md` | baris TM-D29 |
 
 ### 4. Arthasia-Mobile
 
 Lihat bagian "Mobile" di bawah (diisi setelah app selesai). Hapus file/baris bertanda `TM-D29 (STAGING)`.
 
-## Mobile
+## Mobile (Arthasia-Mobile, branch `HRIS/Mat/IOS`)
 
-_(diisi setelah pengerjaan app)_
+Tombol "Absen mandiri" di beranda Absen hanya tampil bila `GET /attendance/self-report/me` → `enabled` (galat/404 → tersembunyi, jadi app aman dipakai ke API tanpa TM-D29). Foto galeri diputar sesuai EXIF, sisi panjang ≤ 1280 px, diberi cap **"ABSEN MANDIRI - FOTO GALERI"**, JPEG ≤ 1 MB.
+
+**File baru (hapus):** `lib/features/attendance/self_report.dart`, `lib/features/attendance/self_report_screen.dart`, `test/features/attendance/self_report_test.dart`; hasil generate `lib/api/generated/models/` → `api_v1_attendance_self_report_request_body.*`, `get_api_v1_attendance_self_report_me_response.*`, `post_api_v1_attendance_self_report_response.*`, `self_report_status.*`, `location5.*`, `kind.dart`.
+
+**File disentuh (hapus blok bertanda `TM-D29 (STAGING)`):**
+
+| File | Sentuhan |
+|---|---|
+| `swagger_parser.yaml` | 2 include path self-report |
+| `openapi/hris.json` | 3 path `/attendance/self-report*`, skema `SelfReportStatus`/`SelfReportCrew(List)`, label `SELF_REPORT`/`GALLERY_PHOTO` (digabung ke snapshot, bukan ganti snapshot) |
+| `lib/api/generated/clients/time_management_client(.g).dart`, `export.dart`, `models/attendance_precheck_labels.dart`, `attendance_precheck.g.dart` | hasil generate → jalankan ulang fetch-spec + generate setelah spec dibersihkan |
+| `lib/features/attendance/selfie.dart` | `processGalleryPhoto` |
+| `lib/features/attendance/attendance_text.dart` | teks label + `punchSourceSuffix()` |
+| `lib/features/attendance/widgets/punch_row.dart`, `lib/features/approval/approvals_screen.dart` | "· absen mandiri"; saat dicabut kembalikan `if (punch.source == AttendancePunchSource.manual) const TextSpan(text: ' · manual HR')` + import-nya |
+| `lib/features/attendance/attendance_home.dart` | kartu `SelfReportShortcut` + refresh status |
+| `lib/app/router.dart` | route `/absen-mandiri` |
+| `docs/CODEMAP.md`, `docs/phases/m4-pengajuan.log.md` | entri STAGING TM-D29 |
+
+Catatan: TM-D29 sengaja menyimpang dari aturan app #4 (waktu selalu dari server) dan #6 (selfie hanya kamera langsung) — penyimpangan ini tercatat dan diberi label di data.

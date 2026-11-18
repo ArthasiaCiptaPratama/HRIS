@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tmOn } from "@/app/feature-flags";
@@ -6,6 +6,12 @@ import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
   supabase: (await import("./supabase-mock")).supabaseMock,
+}));
+// jsdom tanpa canvas/createImageBitmap: kompres & cap foto diganti blob tetap.
+vi.mock("@/features/time-management/capture", async (orig) => ({
+  ...(await orig<typeof import("@/features/time-management/capture")>()),
+  compressSelfieFile: vi.fn(async () => new Blob(["raw"], { type: "image/jpeg" })),
+  stampSelfie: vi.fn(async () => new Blob(["stamped"], { type: "image/jpeg" })),
 }));
 
 // TM-D29 (STAGING): Absen Mandiri — HR/SA mengizinkan crew mengisi jam sendiri dari HP.
@@ -110,3 +116,146 @@ describe.skipIf(!tmOn("tmSelfReport"))("Absen Mandiri (TM-D29, staging)", () => 
     expect(screen.getAllByRole("button", { name: "Cabut izin" })).toHaveLength(2);
   });
 });
+
+// ── /absen (PWA): kartu & form absen mandiri hanya untuk crew berizin ───────────────────────
+
+const employee = { id: "emp-1", fullName: "Intern Satu", employeeNumber: "INT-1" };
+const today = {
+  serverTime: "2026-11-18T03:00:00.000Z",
+  timezone: "Asia/Jakarta",
+  gpsAccuracyMaxM: 100,
+  employee,
+  location: { id: "loc", name: "Kantor Magang", latitude: -6.2, longitude: 106.8, radiusM: 200 },
+  anywhere: false,
+  locationSource: "CREW",
+  roster: [],
+  openDay: null,
+  recent: [],
+  next: "IN",
+  breakState: "NOT_REQUIRED",
+  offDay: false,
+  checkOutOpensAt: null,
+  breakOpensAt: null,
+  breakClosesAt: null,
+};
+const status = (enabled: boolean) => ({
+  enabled,
+  crewName: enabled ? "The Intern's" : null,
+  location: enabled
+    ? { id: "loc", name: "Kantor Magang", latitude: -6.2, longitude: 106.8, radiusM: 200 }
+    : null,
+});
+
+function mockAbsen(enabled: boolean) {
+  const calls: Call[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname.replace("/api/v1", "");
+      const method = init?.method ?? "GET";
+      calls.push({ method, path, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      const json = (code: number, payload: unknown) =>
+        new Response(JSON.stringify(payload), {
+          status: code,
+          headers: { "Content-Type": "application/json" },
+        });
+      const data = (payload: unknown) => json(200, { data: payload });
+      if (path === "/me") return data(me("EMPLOYEE", false, "emp-1"));
+      if (path === "/health") return data({ status: "ok", checks: { database: "ok" }, time: "x" });
+      if (path === "/attendance/me/today") return data(today);
+      if (path === "/attendance/self-report/me") return data(status(enabled));
+      if (path === "/attendance/selfie-upload")
+        return data({
+          bucket: "attendance-selfies",
+          path: "attendance/emp-1/foto.jpg",
+          token: "t",
+          signedUrl: "https://x",
+          maxBytes: 1_048_576,
+        });
+      if (path === "/attendance/self-report" && method === "POST")
+        return data({
+          id: "d1",
+          employee,
+          workDate: "2026-11-16",
+          shiftCode: null,
+          scheduledStart: null,
+          scheduledEnd: null,
+          workLocation: { id: "loc", name: "Kantor Magang" },
+          status: "OPEN",
+          labels: ["SELF_REPORT", "GALLERY_PHOTO"],
+          punches: [],
+          approval: null,
+        });
+      return json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
+    }),
+  );
+  return calls;
+}
+
+describe.skipIf(!tmOn("tmSelfReport") || !tmOn("tmAbsen"))(
+  "/absen › Absen mandiri (TM-D29, staging)",
+  () => {
+    beforeEach(() => {
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: {
+          watchPosition: (ok: PositionCallback) => {
+            ok({
+              coords: { latitude: -6.2001, longitude: 106.8, accuracy: 8, altitude: null },
+              timestamp: Date.now(),
+            } as unknown as GeolocationPosition);
+            return 1;
+          },
+          clearWatch: () => {},
+        },
+      });
+      URL.createObjectURL = vi.fn(() => "blob:x");
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    it("anggota crew berizin: kartu Absen mandiri tampil", async () => {
+      mockAbsen(true);
+      renderAt("/absen");
+      expect(await screen.findByText("Absen mandiri")).toBeInTheDocument();
+      expect(screen.getByText(/Crew The Intern's/)).toBeInTheDocument();
+    });
+
+    it("bukan crew berizin: kartu tidak tampil, form /absen/mandiri menolak", async () => {
+      mockAbsen(false);
+      renderAt("/absen");
+      expect(await screen.findByText("Intern Satu")).toBeInTheDocument();
+      expect(screen.queryByText("Absen mandiri")).not.toBeInTheDocument();
+      renderAt("/absen/mandiri");
+      expect(await screen.findByText(/hanya untuk crew yang diizinkan HR/)).toBeInTheDocument();
+    });
+
+    it("form: tanggal, Pulang, jam, foto galeri, GPS → POST /attendance/self-report", async () => {
+      const user = userEvent.setup();
+      const calls = mockAbsen(true);
+      renderAt("/absen/mandiri");
+      const save = await screen.findByRole("button", { name: /Simpan jam masuk/ });
+      expect(save).toBeDisabled();
+      fireEvent.change(screen.getByLabelText("Tanggal"), { target: { value: "2026-11-16" } });
+      await user.click(screen.getByRole("button", { name: "Pulang" }));
+      fireEvent.change(screen.getByLabelText("Jam"), { target: { value: "18:00" } });
+      await user.upload(
+        screen.getByLabelText("Foto dari galeri"),
+        new File(["x"], "galeri.jpg", { type: "image/jpeg" }),
+      );
+      const send = await screen.findByRole("button", { name: /Simpan jam pulang/ });
+      await waitFor(() => expect(send).toBeEnabled());
+      await user.click(send);
+      await waitFor(() =>
+        expect(calls.find((c) => c.path === "/attendance/self-report")?.body).toMatchObject({
+          workDate: "2026-11-16",
+          kind: "OUT",
+          time: "18:00",
+          photoPath: "attendance/emp-1/foto.jpg",
+          latitude: -6.2001,
+          longitude: 106.8,
+          accuracyM: 8,
+        }),
+      );
+    });
+  },
+);
