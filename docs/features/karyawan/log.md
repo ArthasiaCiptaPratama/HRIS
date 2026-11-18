@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-18 — Ekspor massal data karyawan ke Excel (EMP-D7) (Oatse)
+- Permintaan pengguna: ekspor bulk data karyawan dengan pilihan data, hasil Excel, tombol di samping Import tiap kategori Data Karyawan Aktif. Grill: baris + kolom, multi-sheet, SA + HR dengan kolom sensitif ber-grant, kode setelah merge Mat; rencana disetujui "lanjut".
+- Implementasi didelegasikan ke Codex (sol-medium, worktree `cw` 1118-105829, 2 ronde: ronde 2 = label enum Indonesia). Review penuh (risiko tinggi): cakupan `scopeWhere`/`buildWhere` dipakai ulang, relasi diambil ulang dengan cakupan yang sama, izin per PT karyawan, batas 5.000 dibaca sebelum relasi sensitif. Deviasi diterima: Keluarga ikut butuh grant data pribadi.
+- Perbaikan sendiri: `employeeListFilter` menerima field daftar (bukan objek `list`) agar `useMemo` lolos biome `useExhaustiveDependencies`.
+- Cek tampilan lokal (Zen headless, SA, DB lokal): tombol di samping Import, dialog 62 karyawan, semua kelompok → `data-karyawan-2026-11-18.xlsx` 6 sheet (Karyawan 62 baris), label ("Laki-laki", "L3 · Supervisor / Manager", "Menikah") & tanggal Excel benar — `QA/2026-11-18-ekspor-karyawan/`.
+- Verifikasi: typecheck ✔, biome ci ✔ (1 peringatan lama), verifikasi ulang `cw` (export + policy + employees api, openapi, test web employee) ✔; suite penuh ✔ (shared 396 · api 1432 · web 419, `--maxWorkers=4`).
+
 ### 2026-11-13 — Tombol Kembali kembali ke posisi asli, ikut tergulir (Oatse)
 - **Dikerjakan:** kutipan pengguna 12:41 WIB (menolak tombol di bar tab, minta kembali ke posisi asli). `employee-detail-sheet.tsx`: `BackButton` "← Kembali" (berlabel) lagi di kiri atas di atas banner hijau, tetapi kini di dalam area gulir `DetailBody` (`relative`), jadi ikut tergulir bersama banner dan tidak lagi menimpa bar tab/judul. Bar tab sticky tetap opak, `pl-28` dihapus. Versi di bar tab (`compact`) dihapus. Saat memuat/galat, tombol ada di `SheetContent`.
 - **Verifikasi:** test detail 21 ✔ (test tombol diperbarui: absolute di dalam area gulir, bukan di bar tab); screenshot `QA/2026-11-13-riwayat-ui/11-kembali-asli-{desktop,390px}-{atas,gulir}.png`.
