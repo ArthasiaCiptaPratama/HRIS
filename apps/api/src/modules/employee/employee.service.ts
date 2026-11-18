@@ -361,7 +361,7 @@ export function scopeWhere(actor: Actor): repository.EmployeeWhere {
   return { ...APPROVED_ONLY };
 }
 
-function buildWhere(
+export function buildWhere(
   actor: Actor,
   query: ListEmployeesQuery,
   lookup: MasterLookup,
