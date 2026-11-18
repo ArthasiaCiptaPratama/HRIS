@@ -31,6 +31,10 @@ export const FEATURES = {
   tmRoster: true, // Roster Bulanan (D-069)
   tmRosterChanges: true, // Perubahan / tukar shift (D-069)
   tmRosterSetup: true, // Shift, Pola & Crew + template JT (D-069, TM-D8)
+  // TM-D29 (STAGING): Absen Mandiri — crew berizin mengisi jam sendiri dari HP. `false` = menu Maintenance;
+  // cabut total: docs/features/time-management/tm-d29-absen-mandiri.md
+  tmSelfReport: true,
+  tmWorkRoster: true, // Pola Kerja: siklus kerja–libur, lokasi kantor/Homebase lokal, kelompok karyawan, Isi dengan pola kerja (TM-D28)
   tmAttendanceLocations: true, // Lokasi Absen + wajib absen istirahat (TM-D1, TM-D7)
   tmLeave: true, // Cuti, Izin & Sakit — pengajuan (D-072, TM-D4, TM-D5)
   tmLeaveApprovals: true, // Persetujuan Cuti (D-072)

@@ -5,6 +5,7 @@ import {
   type AlphaVerificationState,
   ATTENDANCE_RECORD_OUTCOMES,
   type AttendanceRecordOutcome,
+  CORRECTABLE_ALPHA_LABELS,
   canStillCorrect,
   correctionDeadline,
 } from "@hris/shared";
@@ -323,7 +324,10 @@ async function buildRecord(employee: directory.DirectoryEmployee): Promise<Atten
       where: {
         employeeId: employee.id,
         // Hari Alpha yang akhirnya disetujui cuti (TM-D9) bukan lagi rekam jejak Alpha.
-        OR: [{ status: "ALPHA" }, { labels: { has: "NO_ATTENDANCE" }, status: { not: "LEAVE" } }],
+        OR: [
+          { status: "ALPHA" },
+          { labels: { hasSome: [...CORRECTABLE_ALPHA_LABELS] }, status: { not: "LEAVE" } },
+        ],
       },
       select: { workDate: true, status: true, labels: true, shiftCode: true },
     }),
@@ -343,7 +347,9 @@ async function buildRecord(employee: directory.DirectoryEmployee): Promise<Atten
   const items: AttendanceRecordItem[] = [...dates].map((date) => {
     const day = dayMap.get(date);
     const correction = latest.get(date) ?? null;
-    const noAttendance = day?.labels.includes("NO_ATTENDANCE") ?? false;
+    // TM-D3/TM-D26: Alpha tanpa absen / tanpa absen pulang (bisa dikoreksi), bukan Alpha tutup periode.
+    const noAttendance =
+      day?.labels.some((l) => (CORRECTABLE_ALPHA_LABELS as readonly string[]).includes(l)) ?? false;
     let outcome: AttendanceRecordOutcome;
     if (correction?.status === "PENDING") outcome = "CORRECTION_PENDING";
     else if (day?.status === "ALPHA") {

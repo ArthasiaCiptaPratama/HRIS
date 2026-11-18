@@ -29,7 +29,7 @@ import { tmAccess } from "../access";
 import { useMyHistory, useTimezone, useToday } from "../api";
 import { useMyLeave } from "../leave-api";
 import { type PersonalTaskTone, usePersonalTasks } from "../personal-tasks";
-import { hhmm, timeIn, todayIn, workDateLabel } from "./display";
+import { hhmm, isTimeOff, timeIn, todayIn, workDateLabel } from "./display";
 import { RosterWeek } from "./roster-week";
 
 // Dashboard karyawan & atasan (bukan SA/HR): widget saja — kehadiran hari ini, hal yang perlu
@@ -102,7 +102,7 @@ export function PersonalDashboard({ me }: { me: Me }) {
     ["Absen", "/absen", ScanFace, "bg-violet-100 text-violet-700", hasEmployee],
     ["Cuti & Izin", "/time/cuti", Plane, "bg-sky-100 text-sky-700", hasEmployee],
     ["Koreksi Absen", "/time/pernyataan", FilePenLine, "bg-amber-100 text-amber-700", true],
-    ["Roster", "/time/roster", CalendarRange, "bg-emerald-100 text-emerald-700", true],
+    ["Jadwal", "/time/roster", CalendarRange, "bg-emerald-100 text-emerald-700", true],
     ["Tukar Shift", "/time/perubahan-roster", Repeat, "bg-rose-100 text-rose-700", true],
     ["Kalender Libur", "/time/kalender", CalendarDays, "bg-orange-100 text-orange-700", true],
     [
@@ -139,8 +139,10 @@ export function PersonalDashboard({ me }: { me: Me }) {
               {rosterToday?.shift
                 ? `Shift ${rosterToday.shift.code} ${hhmm(rosterToday.shift.startMinute)}–${hhmm(rosterToday.shift.endMinute)}`
                 : rosterToday
-                  ? "Libur (OFF)"
-                  : "Tanpa roster"}
+                  ? isTimeOff(rosterToday.code)
+                    ? "Time off (bukan cuti)"
+                    : "Libur (OFF)"
+                  : "Tanpa jadwal"}
               {data.location ? ` · ${data.location.name}` : ""}
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -281,11 +283,11 @@ export function PersonalDashboard({ me }: { me: Me }) {
 
       {/* Roster 7 hari */}
       {hasEmployee ? (
-        <Widget title="Roster 7 hari" icon={CalendarRange}>
+        <Widget title="Jadwal 7 hari" icon={CalendarRange}>
           {todayQ.isPending ? (
             <Skeleton className="h-20" />
           ) : (data?.roster.length ?? 0) === 0 ? (
-            <p className="text-muted-foreground text-sm">Belum ada roster.</p>
+            <p className="text-muted-foreground text-sm">Belum ada jadwal.</p>
           ) : (
             <RosterWeek roster={data?.roster ?? []} today={today} />
           )}

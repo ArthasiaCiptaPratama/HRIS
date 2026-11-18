@@ -1,5 +1,5 @@
 import type { TmNotificationTarget } from "@hris/shared";
-import { type ApprovalSubject, correctionDeadline } from "@hris/shared";
+import { type ApprovalSubject, correctionDeadline, ROLE } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import { listActionable } from "../approval/index.ts";
@@ -12,6 +12,7 @@ import {
 import { notify, type Recipient } from "../notification/index.ts";
 import { localDate, shiftWindow } from "./attendance-engine.ts";
 import { type RequestContext, readTimeSettings, toDate, toIso } from "./calendar.service.ts";
+import * as claimRepository from "./overtime.repository.ts";
 import { isoAddDays } from "./roster-engine.ts";
 
 // Notifikasi Time Management (paket UX 2026-10-20): keputusan ke karyawan, pengajuan baru ke atasan,
@@ -96,10 +97,15 @@ export interface TimeQueue {
   corrections: number;
   rosterChanges: number;
   overtime: number;
+  /** TM-D27: pengajuan lembur karyawan yang menunggu keputusan HR PT / SA (bukan approval). */
+  overtimeClaims: number;
   total: number;
 }
 
-const QUEUE_SUBJECTS: Record<Exclude<keyof TimeQueue, "total">, ApprovalSubject[]> = {
+const QUEUE_SUBJECTS: Record<
+  Exclude<keyof TimeQueue, "total" | "overtimeClaims">,
+  ApprovalSubject[]
+> = {
   attendance: ["ATTENDANCE_PUNCH"],
   leave: ["LEAVE", "PERMIT"],
   corrections: ["ATTENDANCE_CORRECTION"],
@@ -109,14 +115,30 @@ const QUEUE_SUBJECTS: Record<Exclude<keyof TimeQueue, "total">, ApprovalSubject[
 
 /** Jumlah pengajuan yang menunggu keputusan aktor ini (sama dengan inbox masing-masing). */
 export async function queueFor(actor: Actor): Promise<TimeQueue> {
-  const counts = { attendance: 0, leave: 0, corrections: 0, rosterChanges: 0, overtime: 0 };
+  const counts = {
+    attendance: 0,
+    leave: 0,
+    corrections: 0,
+    rosterChanges: 0,
+    overtime: 0,
+    overtimeClaims: await pendingOvertimeClaimsFor(actor),
+  };
   for (const [key, subjects] of Object.entries(QUEUE_SUBJECTS) as [
-    keyof typeof counts,
+    keyof typeof QUEUE_SUBJECTS,
     ApprovalSubject[],
   ][]) {
     for (const subject of subjects) counts[key] += (await listActionable(actor, subject)).length;
   }
   return { ...counts, total: Object.values(counts).reduce((a, b) => a + b, 0) };
+}
+
+/** TM-D27: pemutus pengajuan lembur = SA (semua PT) / HR PT-nya (sama dengan `canOrderOvertimeRetroactive`). */
+function pendingOvertimeClaimsFor(actor: Actor): Promise<number> {
+  if (actor.role === ROLE.SUPER_ADMIN) {
+    return claimRepository.countPendingClaimsFor(null, actor.employeeId);
+  }
+  if (actor.role !== ROLE.HR_ADMIN || !actor.companyIds?.size) return Promise.resolve(0);
+  return claimRepository.countPendingClaimsFor([...actor.companyIds], actor.employeeId);
 }
 
 export const myQueue = (ctx: RequestContext) => queueFor(ctx.actor);
@@ -132,7 +154,7 @@ export const myQueue = (ctx: RequestContext) => queueFor(ctx.actor);
  * Setiap pengingat sekali per karyawan per tanggal (dedupeKey).
  */
 export async function runAttendanceReminders(now = new Date(), employeeIds?: string[]) {
-  const { timezone } = await readTimeSettings();
+  const { timezone, requireCheckOut } = await readTimeSettings();
   const today = localDate(now, timezone);
   const scope = employeeIds ? { employeeId: { in: employeeIds } } : {};
   const dates = [isoAddDays(today, -1), today];
@@ -191,7 +213,10 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
         employeeId: r.employeeId,
         type: "attendance.reminder_out",
         title: `Belum Clock Out — shift ${r.shift.code} ${dateLabel(date)}`,
-        body: "Jam pulang sudah lewat. Lakukan Clock Out sebelum batas absen pulang agar hari ini bisa disetujui.",
+        // TM-D26: wajib absen pulang → tanpa absen pulang s.d. 24:00 dihitung Alpha.
+        body: requireCheckOut
+          ? "Jam pulang sudah lewat. Wajib Clock Out: tanpa absen pulang s.d. pukul 24:00, hari ini dihitung Alpha. Jam setelah jadwal pulang bukan lembur kecuali ada SPL / pengajuan lembur yang disetujui HR."
+          : "Jam pulang sudah lewat. Lakukan Clock Out sebelum batas absen pulang agar hari ini bisa disetujui.",
         link: "/absen",
         dedupeKey: `tm-remind-out:${r.employeeId}:${date}`,
         target: { type: "ATTENDANCE_TODAY", id: date },
@@ -214,7 +239,9 @@ export async function runAttendanceReminders(now = new Date(), employeeIds?: str
       employeeId: day.employeeId,
       type: "attendance.reminder_out",
       title: `Belum Clock Out — lembur hari libur ${dateLabel(date)}`,
-      body: "Jam selesai perintah lembur sudah lewat. Lakukan Clock Out sebelum batas absen pulang.",
+      body: requireCheckOut
+        ? "Jam selesai perintah lembur sudah lewat. Wajib Clock Out: tanpa absen pulang s.d. pukul 24:00, hari ini dihitung Alpha."
+        : "Jam selesai perintah lembur sudah lewat. Lakukan Clock Out sebelum batas absen pulang.",
       link: "/absen",
       dedupeKey: `tm-remind-out:${day.employeeId}:${date}`,
       target: { type: "ATTENDANCE_TODAY", id: date },
@@ -279,6 +306,7 @@ export async function runApprovalDigest(now = new Date()) {
       queue.corrections ? `${queue.corrections} koreksi` : null,
       queue.rosterChanges ? `${queue.rosterChanges} perubahan roster` : null,
       queue.overtime ? `${queue.overtime} lembur` : null,
+      queue.overtimeClaims ? `${queue.overtimeClaims} pengajuan lembur karyawan` : null,
     ].filter(Boolean);
     try {
       const r = await notify(
@@ -287,7 +315,7 @@ export async function runApprovalDigest(now = new Date()) {
           type: "attendance.approval_digest",
           title: `${queue.total} pengajuan menunggu keputusan Anda`,
           body: `${parts.join(", ")}.`,
-          // ORG-D9: atasan ber-akun Karyawan memakai beranda /absen (TM-D26) → tab Approval-nya.
+          // ORG-D9: atasan ber-akun Karyawan memakai beranda /absen (TM-D30) → tab Approval-nya.
           link:
             account.role === "EMPLOYEE"
               ? "/absen/approval"
@@ -297,7 +325,9 @@ export async function runApprovalDigest(now = new Date()) {
                   ? "/time/persetujuan-cuti"
                   : queue.overtime && !queue.corrections
                     ? "/time/lembur"
-                    : "/time/pernyataan",
+                    : queue.overtimeClaims && !queue.corrections && !queue.rosterChanges
+                      ? "/time/lembur?tab=claims"
+                      : "/time/pernyataan",
           dedupeKey: `tm-digest:${account.accountId}:${today}`,
           target: { type: "APPROVAL_QUEUE", id: today },
           email: false,

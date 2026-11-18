@@ -50,11 +50,14 @@ export const routes: RouteObject[] = [
                   { path: "roster", lazy: pages.mobileRoster },
                   { path: "cuti", lazy: pages.leave },
                   { path: "koreksi", lazy: pages.correctionsStatements },
+                  { path: "lembur", lazy: pages.myOvertimeClaims },
                   { path: "tukar-shift", lazy: pages.rosterChanges },
                   { path: "kalender", lazy: pages.holidays },
                   {
                     // #102: lembur karyawan di dalam bingkai HP (halaman & hak akses sama dengan web).
-                    path: "lembur",
+                    // /absen/lembur = Ajukan Lembur (TM-D27); halaman ini di /absen/lembur-spl (pilihan A
+                    // pengguna 2026-11-18 saat merge HRIS/Mat/Mac).
+                    path: "lembur-spl",
                     element: <RequireAccessRoute check={tmAccess.overtime} />,
                     children: [
                       {
@@ -70,6 +73,10 @@ export const routes: RouteObject[] = [
                   },
                   { path: "notifikasi", lazy: pages.mobileNotifications },
                   { path: "profil", lazy: pages.mobileProfile },
+                  // TM-D29 (STAGING): absen mandiri crew berizin.
+                  ...(tmOn("tmSelfReport")
+                    ? [{ path: "mandiri", lazy: pages.selfReportAbsen }]
+                    : []),
                   { path: "*", element: <Navigate to="/absen" replace /> },
                 ],
               },
@@ -272,6 +279,16 @@ export const routes: RouteObject[] = [
                   {
                     path: "roster/pengaturan",
                     lazy: tmOn("tmRosterSetup") ? pages.rosterSetup : pages.maintenance,
+                  },
+                  {
+                    // TM-D28: Pola Kerja (siklus kerja–libur), lokasi kantor/Homebase lokal, kelompok karyawan.
+                    path: "pola-kerja",
+                    lazy: tmOn("tmWorkRoster") ? pages.workRoster : pages.maintenance,
+                  },
+                  {
+                    // TM-D29 (STAGING): Absen Mandiri — izin crew mengisi jam sendiri dari HP.
+                    path: "absen-mandiri",
+                    lazy: tmOn("tmSelfReport") ? pages.selfReport : pages.maintenance,
                   },
                 ],
               },

@@ -4,6 +4,7 @@ import {
   type ExitedEmployeeBrief,
   getEmployeeBriefs,
   getEmployeeExitStatuses,
+  getHomebasesOn,
   listActiveEmployeeJoinDates,
   listAnalyticsEmployees,
   listEmployeeBriefs,
@@ -12,6 +13,7 @@ import {
 import {
   type GradeBrief,
   getEmploymentStatusCategories,
+  getMasterLookup,
   getWorkLocationBriefs,
   listActiveGrades,
   listActiveWorkLocations,
@@ -175,4 +177,36 @@ export async function analyticsEmployees(input: {
     ...row,
     category: employmentStatusId ? (categories.get(employmentStatusId) ?? null) : null,
   }));
+}
+
+// ── TM-D28: Homebase (EMP-D6) untuk menentukan karyawan lokal / non-lokal ──────────
+
+export interface DirectoryHomebase {
+  id: string;
+  name: string;
+  city: string | null;
+  province: string | null;
+}
+
+/** Homebase aktif (master lintas PT). */
+export async function activeHomebases(): Promise<DirectoryHomebase[]> {
+  const lookup = await getMasterLookup();
+  return [...lookup.homebases.values()]
+    .filter((h) => !h.deleted)
+    .map((h) => ({ id: h.id, name: h.name, city: h.city ?? null, province: h.province ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name, "id"));
+}
+
+/** Homebase yang berlaku per karyawan pada tanggal itu (null = belum diisi). */
+export async function homebasesOn(
+  employeeIds: string[],
+  date: string,
+): Promise<Map<string, { homebaseId: string; name: string } | null>> {
+  const rows = await getHomebasesOn(employeeIds, date);
+  return new Map(
+    [...rows.entries()].map(([id, hb]) => [
+      id,
+      hb ? { homebaseId: hb.homebaseId, name: hb.name } : null,
+    ]),
+  );
 }

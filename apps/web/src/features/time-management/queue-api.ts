@@ -10,6 +10,8 @@ export const timeQueueSchema = z.object({
   corrections: z.number(),
   rosterChanges: z.number(),
   overtime: z.number().default(0),
+  /** TM-D27: pengajuan lembur karyawan yang menunggu HR PT / SA (API lama tanpa field ini → 0). */
+  overtimeClaims: z.number().default(0),
   total: z.number(),
 });
 export type TimeQueue = z.infer<typeof timeQueueSchema>;

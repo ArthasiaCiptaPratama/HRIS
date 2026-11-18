@@ -33,6 +33,7 @@ import {
   Network,
   Package,
   Plane,
+  RefreshCcw,
   Repeat,
   Scale,
   Settings2,
@@ -78,8 +79,8 @@ export interface NavItem {
   maintenance?: boolean;
   /** Angka badge dari GET /employees/summary. */
   summaryKey?: SummaryKey;
-  /** Angka antrean keputusan dari GET /time/queue (tampil bila > 0). */
-  queueKey?: TimeQueueKey;
+  /** Angka antrean keputusan dari GET /time/queue (tampil bila > 0); beberapa kunci dijumlahkan. */
+  queueKey?: TimeQueueKey | TimeQueueKey[];
   children?: NavItem[];
   keywords?: string;
 }
@@ -209,7 +210,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // #102 (TM-D26): pengganti Dashboard + Time Management untuk karyawan — semua menu absen,
+    // #102 (TM-D30): pengganti Dashboard + Time Management untuk karyawan — semua menu absen,
     // cuti, koreksi, roster, dan lembur ada di halaman absen (/absen/*).
     id: "absen",
     label: "Absen",
@@ -415,7 +416,8 @@ export const NAV_GROUPS: NavGroup[] = [
             maintenance: !tmOn("tmOvertime"),
             label: "Lembur",
             to: "/time/lembur",
-            queueKey: "overtime",
+            // TM-D27: usulan lembur (approval) + pengajuan lembur karyawan (diputus HR).
+            queueKey: ["overtime", "overtimeClaims"],
             icon: Timer,
             visible: tmAccess.overtime,
             keywords: "lembur overtime jam setara upah rekap persetujuan regular",
@@ -424,12 +426,12 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       {
         id: "roster",
-        label: "Roster",
+        label: "Jadwal",
         items: [
           {
             id: "roster-grid",
             maintenance: !tmOn("tmRoster"),
-            label: "Roster Bulanan",
+            label: "Jadwal Bulanan",
             to: "/time/roster",
             icon: CalendarRange,
             keywords: "jadwal shift crew roster tambang",
@@ -437,7 +439,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             id: "roster-changes",
             maintenance: !tmOn("tmRosterChanges"),
-            label: "Perubahan Roster",
+            label: "Perubahan Jadwal",
             to: "/time/perubahan-roster",
             queueKey: "rosterChanges",
             icon: Repeat,
@@ -451,7 +453,28 @@ export const NAV_GROUPS: NavGroup[] = [
             to: "/time/roster/pengaturan",
             icon: CalendarCog,
             visible: tmAccess.manageRoster,
-            keywords: "master shift pola siklus crew anggota import roster",
+            keywords: "master shift pola siklus crew anggota import jadwal roster",
+          },
+          {
+            // TM-D28: Pola Kerja = siklus kerja–libur (office 5/2, lapangan non-lokal 13/1 + time off, lokal 6/1).
+            id: "work-roster",
+            maintenance: !tmOn("tmWorkRoster"),
+            label: "Pola Kerja",
+            to: "/time/pola-kerja",
+            icon: RefreshCcw,
+            visible: tmAccess.manageRoster,
+            keywords:
+              "pola kerja office kantor roster siklus kerja libur time off lokal non-lokal lapangan homebase 13/1 6/1 5/2",
+          },
+          {
+            // TM-D29 (STAGING): Absen Mandiri — crew berizin mengisi jam sendiri dari HP (perlu persetujuan).
+            id: "self-report",
+            maintenance: !tmOn("tmSelfReport"),
+            label: "Absen Mandiri",
+            to: "/time/absen-mandiri",
+            icon: Smartphone,
+            visible: tmAccess.manageRoster,
+            keywords: "absen mandiri magang intern isi jam sendiri galeri foto staging",
           },
           {
             id: "attendance-locations",

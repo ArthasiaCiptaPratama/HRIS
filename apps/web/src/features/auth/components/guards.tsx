@@ -95,7 +95,7 @@ const EMPLOYEE_REDIRECT_TEXT =
   "Halaman itu tidak tersedia untuk akun Karyawan — dibuka halaman Absen.";
 
 /**
- * #102 (TM-D26) susulan: akun Karyawan (beranda /absen) tidak diberi layar "Akses ditolak" — rute yang
+ * #102 (TM-D30) susulan: akun Karyawan (beranda /absen) tidak diberi layar "Akses ditolak" — rute yang
  * ditolak (mis. ?next dari akun lain di browser yang sama, tab yang sesinya berganti) dialihkan ke /absen.
  */
 function RedirectToAbsen() {

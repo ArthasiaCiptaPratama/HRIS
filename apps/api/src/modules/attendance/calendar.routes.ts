@@ -52,6 +52,14 @@ const settingsSchema = z
       .min(0)
       .max(24)
       .openapi({ description: "TM-D13: jeda minimal antarshift (jam); kurang → label SHORT_REST" }),
+    requireCheckOut: z.boolean().default(true).openapi({
+      description:
+        "TM-D26: wajib absen pulang — absen pulang bebas s.d. 24:00; tanpa absen pulang → Alpha",
+    }),
+    freeOutsideCheckOutsPerMonth: z.number().int().min(0).max(31).default(2).openapi({
+      description:
+        "TM-D26: absen pulang di luar kantor per bulan yang langsung disetujui (0 = selalu approval)",
+    }),
   })
   .openapi("TimeSettings");
 const idParam = z.object({ id: z.uuid() });

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { Shift } from "../schemas";
-import { addDays, hhmm } from "./display";
+import { addDays, hhmm, isTimeOff, TIME_OFF_TITLE, TIME_OFF_TONE } from "./display";
 
 // Roster 7 hari mulai hari ini dalam grid 7 kolom (selalu muat lebar kartu, tanpa scroll / potong).
 
@@ -34,15 +34,21 @@ export function RosterWeek({
         {days.map((date) => {
           const day = byDate.get(date);
           const isToday = date === today;
-          const off = day && !day.shift;
+          const timeOff = isTimeOff(day?.code);
+          const off = day && !day.shift && !timeOff;
           const color = day?.shift?.color ?? undefined;
           return (
             <li
               key={date}
-              title={day?.changed ? "Jadwal berubah" : undefined}
+              title={
+                [timeOff ? TIME_OFF_TITLE : null, day?.changed ? "Jadwal berubah" : null]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              }
               className={cn(
                 "relative flex min-w-0 flex-col items-center rounded-lg border px-0.5 py-1.5 text-center",
                 off && "bg-muted text-muted-foreground border-transparent",
+                timeOff && cn("border-transparent", TIME_OFF_TONE),
                 !day && "border-dashed",
                 isToday && "border-brand bg-brand-soft/60 border-2",
               )}
@@ -62,7 +68,7 @@ export function RosterWeek({
               <span
                 className={cn(
                   "mt-1.5 w-full truncate rounded px-0.5 py-0.5 font-mono text-[11px] leading-none font-bold",
-                  !color && !off && "text-foreground",
+                  !color && !off && !timeOff && "text-foreground",
                 )}
                 style={color ? { color, backgroundColor: `${color}1a` } : undefined}
               >
@@ -82,7 +88,7 @@ export function RosterWeek({
           );
         })}
       </ol>
-      {showLegend && legend.length > 0 ? (
+      {showLegend && (legend.length > 0 || roster.some((r) => isTimeOff(r.code))) ? (
         <div className="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
           {legend.map((s) => (
             <span key={s.code} className="flex items-center gap-1">
@@ -98,6 +104,12 @@ export function RosterWeek({
           <span className="flex items-center gap-1">
             <span className="font-mono font-bold">OFF</span> Libur
           </span>
+          {roster.some((r) => isTimeOff(r.code)) ? (
+            <span className="flex items-center gap-1" title={TIME_OFF_TITLE}>
+              <span className={cn("rounded px-0.5 font-mono font-bold", TIME_OFF_TONE)}>TO</span>{" "}
+              Time off
+            </span>
+          ) : null}
           {roster.some((r) => r.changed) ? (
             <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
               <span className="size-2 rounded-full bg-amber-500" /> Jadwal berubah

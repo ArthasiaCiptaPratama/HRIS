@@ -82,6 +82,27 @@ export function breakWindow(
   return { opens, closes };
 }
 
+/** 24:00 (= 00:00 hari berikutnya) tanggal lokal tempat instan `at` jatuh, di zona pengaturan TM. */
+export function endOfLocalDay(at: Date, timezone: string): Date {
+  const next = isoAddDays(localDate(at, timezone), 1);
+  return new Date(Date.parse(`${next}T00:00:00.000Z`) - offsetMinutes(timezone) * MINUTE);
+}
+
+/**
+ * TM-D26 (wajib absen pulang menyala): absen pulang bebas s.d. 24:00 tanggal jam pulang terakhir (jadwal /
+ * akhir SPL). Shift malam 20:00–05:00 → s.d. 24:00 tanggal 05:00 itu. Tidak pernah lebih awal dari batas lama.
+ */
+export function relaxedCheckOutDeadline(
+  deadline: Date | null,
+  ends: (Date | null | undefined)[],
+  timezone: string,
+): Date | null {
+  const last = Math.max(...ends.filter((d): d is Date => !!d).map((d) => d.getTime()));
+  if (!Number.isFinite(last)) return deadline;
+  const eod = endOfLocalDay(new Date(last), timezone);
+  return deadline && deadline.getTime() > eod.getTime() ? deadline : eod;
+}
+
 /** TM-D12: Clock Out normal dibuka `earlyMin` menit sebelum jam pulang (tanpa lembur rutin). */
 export const checkOutOpensAt = (normalEnd: Date, earlyMin: number) =>
   new Date(normalEnd.getTime() - earlyMin * MINUTE);

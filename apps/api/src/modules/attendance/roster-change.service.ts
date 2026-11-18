@@ -115,10 +115,10 @@ export async function createRosterChange(
   const target = { employeeId, companyId: employee.companyId, managerId: employee.managerId };
   if (!policy.canRequestRosterChange(ctx.actor, target)) throw new ForbiddenError();
   if (input.date < (await todayIso()))
-    throw new BusinessRuleError("Perubahan roster hanya untuk hari ini atau setelahnya.");
+    throw new BusinessRuleError("Perubahan jadwal hanya untuk hari ini atau setelahnya.");
 
   const day = await repository.rosterDay(employeeId, toDate(input.date));
-  if (!day) throw new BusinessRuleError("Belum ada roster pada tanggal itu.");
+  if (!day) throw new BusinessRuleError("Belum ada jadwal pada tanggal itu.");
   const fromShiftId = day.shiftId;
   let toShiftId: string | null;
   let peerEmployeeId: string | null = null;
@@ -131,7 +131,7 @@ export async function createRosterChange(
       throw new BusinessRuleError("Rekan harus karyawan aktif di perusahaan yang sama.");
     }
     const peerDay = await repository.rosterDay(peer.id, toDate(input.date));
-    if (!peerDay) throw new BusinessRuleError("Rekan belum punya roster pada tanggal itu.");
+    if (!peerDay) throw new BusinessRuleError("Rekan belum punya jadwal pada tanggal itu.");
     if (peerDay.shiftId === fromShiftId)
       throw new BusinessRuleError("Shift rekan pada tanggal itu sama; tidak ada yang ditukar.");
     toShiftId = peerDay.shiftId;
@@ -145,7 +145,7 @@ export async function createRosterChange(
       toShiftId = shift.id;
     }
     if (toShiftId === fromShiftId)
-      throw new BusinessRuleError("Shift tujuan sama dengan roster saat ini.");
+      throw new BusinessRuleError("Shift tujuan sama dengan jadwal saat ini.");
   }
 
   await assertDayUnlocked(employeeId, peerEmployeeId, input.date);

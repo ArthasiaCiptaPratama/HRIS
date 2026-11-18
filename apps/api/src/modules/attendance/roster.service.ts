@@ -8,6 +8,7 @@ import {
   type RosterPatternInput,
   type RosterSource,
   type ShiftInput,
+  TIME_OFF_CODE,
 } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
@@ -245,7 +246,7 @@ const patternDto = (row: {
   name: row.name,
   steps: row.steps,
   cycleLength: row.steps.length,
-  workDays: row.steps.filter((s) => s !== OFF_CODE).length,
+  workDays: row.steps.filter((s) => s !== OFF_CODE && s !== TIME_OFF_CODE).length,
   crewCount: row._count?.crews ?? 0,
 });
 
@@ -256,13 +257,15 @@ export async function listPatterns(ctx: RequestContext, companyId: string): Prom
 
 export async function validateSteps(companyId: string, steps: string[]) {
   const codes = await shiftCodeMap(companyId);
-  const unknown = [...new Set(steps.filter((step) => step !== OFF_CODE && !codes.has(step)))];
+  // TM-D28: TO = hari time off roster (libur, tanpa shift).
+  const isOff = (step: string) => step === OFF_CODE || step === TIME_OFF_CODE;
+  const unknown = [...new Set(steps.filter((step) => !isOff(step) && !codes.has(step)))];
   if (unknown.length > 0) {
     throw new BusinessRuleError(
       `Kode shift tidak dikenal di perusahaan ini: ${unknown.join(", ")}.`,
     );
   }
-  if (steps.every((step) => step === OFF_CODE)) {
+  if (steps.every(isOff)) {
     throw new BusinessRuleError("Pola harus berisi minimal satu hari kerja.");
   }
 }
@@ -640,6 +643,7 @@ export async function regenerateCrew(
           shiftId: day.code === OFF_CODE ? null : (codes.get(day.code)?.id ?? null),
           crewId,
           source: "PATTERN" as const,
+          timeOff: day.code === TIME_OFF_CODE,
         })),
       );
     }
@@ -652,6 +656,7 @@ export async function regenerateCrew(
         shiftId: day.code === OFF_CODE ? null : (codes.get(day.code)?.id ?? null),
         crewId,
         source: "PATTERN" as const,
+        timeOff: day.code === TIME_OFF_CODE,
       })),
     );
     return result.count;
@@ -767,7 +772,7 @@ export async function getRosterGrid(
     days: days.map((d) => ({
       employeeId: d.employeeId,
       date: toIso(d.workDate),
-      code: d.shift?.code ?? OFF_CODE,
+      code: d.timeOff ? TIME_OFF_CODE : (d.shift?.code ?? OFF_CODE),
       source: d.source,
     })),
     canEdit: policy.canManageRoster(ctx.actor, companyId),
@@ -795,7 +800,7 @@ export async function getEmployeeRoster(
   const days = await repository.rosterDaysBetween([employeeId], toDate(from), toDate(to));
   return days.map((d) => ({
     date: toIso(d.workDate),
-    code: d.shift?.code ?? OFF_CODE,
+    code: d.timeOff ? TIME_OFF_CODE : (d.shift?.code ?? OFF_CODE),
     shift: d.shift ? shiftDto(d.shift) : null,
     source: d.source,
   }));
@@ -991,7 +996,7 @@ async function selfDirectCellIssues(
             index,
             employeeId: cell.employeeId,
             date: cell.date,
-            message: "Anda tidak boleh mengubah roster milik sendiri tanpa persetujuan.",
+            message: "Anda tidak boleh mengubah jadwal milik sendiri tanpa persetujuan.",
           },
         ];
   });

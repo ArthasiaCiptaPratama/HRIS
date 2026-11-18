@@ -22,7 +22,7 @@ export const APPROVAL_SUBJECT_LABELS: Record<ApprovalSubject, string> = {
   ATTENDANCE_CORRECTION: "Koreksi absensi",
   OVERTIME: "Lembur",
   ATTENDANCE_DAY: "Hari absen",
-  ROSTER_CHANGE: "Perubahan roster",
+  ROSTER_CHANGE: "Perubahan jadwal",
   ATTENDANCE_PUNCH: "Absen masuk/pulang",
   ROSTER_EDIT: "Perubahan jadwal oleh HR",
 };
@@ -106,6 +106,17 @@ export const timeSettingsSchema = z.object({
   checkOutEarlyMin: z.number().int().min(0).max(240),
   /** TM-D13: jeda minimal dari Clock Out ke Clock In berikutnya (jam); kurang → label SHORT_REST + alasan. */
   minRestHours: z.number().int().min(0).max(24),
+  /**
+   * TM-D26: wajib absen datang & pulang. Menyala → absen pulang bebas s.d. 24:00 tanggal jam pulang
+   * (tanpa batas jam pulang + 30 menit); lewat itu tanpa absen pulang → Alpha (bisa dikoreksi s.d. H+3).
+   * Mati → perilaku lama (D-070: NO_CHECKOUT + approval, Alpha saat tutup periode).
+   */
+  requireCheckOut: z.boolean().default(true),
+  /**
+   * TM-D26: jatah absen pulang di luar lokasi kantor per bulan yang langsung disetujui (tetap wajib alasan
+   * + peringatan). Lewat jatah → approval Atasan + HR seperti biasa. 0 = selalu perlu persetujuan.
+   */
+  freeOutsideCheckOutsPerMonth: z.number().int().min(0).max(31).default(2),
 });
 export type TimeSettings = z.infer<typeof timeSettingsSchema>;
 export const DEFAULT_TIME_SETTINGS: TimeSettings = {
@@ -116,6 +127,8 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = {
   rosterHorizonDays: 92,
   checkOutEarlyMin: 30,
   minRestHours: 8,
+  requireCheckOut: true,
+  freeOutsideCheckOutsPerMonth: 2,
 };
 
 // ── Roster tambang (D-069) ───────────────────────────────────────────────────────
@@ -125,7 +138,9 @@ const shiftCode = z
   .trim()
   .toUpperCase()
   .regex(/^[A-Z0-9]{1,10}$/, "Kode shift 1–10 huruf/angka")
-  .refine((code) => code !== OFF_CODE, "OFF dipakai untuk hari libur roster");
+  .refine((code) => code !== OFF_CODE, "OFF dipakai untuk hari libur jadwal")
+  // TM-D28: "TO" = hari time off roster (lihat work-roster.ts).
+  .refine((code) => code !== "TO", "TO dipakai untuk hari time off roster");
 const minuteOfDay = z.number().int().min(0).max(1439);
 const minutes = (max: number) => z.number().int().min(0).max(max);
 
@@ -166,7 +181,7 @@ export const rosterStepSchema = z
 export const rosterPatternInputSchema = z.object({
   companyId: z.uuid(),
   name: z.string().trim().min(1).max(80),
-  steps: z.array(rosterStepSchema).min(1).max(120),
+  steps: z.array(rosterStepSchema).min(1).max(400),
 });
 export type RosterPatternInput = z.infer<typeof rosterPatternInputSchema>;
 
@@ -333,11 +348,17 @@ export const ATTENDANCE_LABELS = [
   "MOCK_LOCATION",
   // TM-D13: jeda dari Clock Out shift sebelumnya kurang dari pengaturan (bawaan 8 jam). Ditandai, alasan wajib.
   "SHORT_REST",
+  // TM-D26: hanya absen datang sampai 24:00 tanggal jam pulang → Alpha (bisa dikoreksi s.d. H+3).
+  "NO_CHECKOUT_ALPHA",
+  // TM-D29 (STAGING, mudah dihapus — docs/features/time-management/tm-d29-absen-mandiri.md): absen mandiri
+  // karyawan crew berizin (jam diisi sendiri) & foto dari galeri, bukan selfie langsung.
+  "SELF_REPORT",
+  "GALLERY_PHOTO",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
-  OUTSIDE_ROSTER: "Di luar jadwal roster",
-  NO_ROSTER: "Tanpa roster",
+  OUTSIDE_ROSTER: "Di luar jadwal",
+  NO_ROSTER: "Tanpa jadwal",
   OUTSIDE_RADIUS: "Di luar radius lokasi",
   LOW_ACCURACY: "Akurasi GPS rendah",
   OTHER_LOCATION: "Di lokasi lain",
@@ -353,13 +374,34 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   LEAVE_AFTER_CLOSE: "Cuti disetujui setelah tutup periode",
   MOCK_LOCATION: "Lokasi palsu terdeteksi",
   SHORT_REST: "Jeda antarshift kurang",
+  NO_CHECKOUT_ALPHA: "Alpha: tidak absen pulang",
+  SELF_REPORT: "Absen mandiri", // TM-D29
+  GALLERY_PHOTO: "Foto galeri", // TM-D29
 };
+
+/**
+ * Alpha yang masih boleh dikoreksi / diisi manual dalam batas waktu (s.d. H+3, periode belum ditutup):
+ * TM-D3 tanpa absen sama sekali, TM-D26 hanya absen datang. Alpha hasil tutup periode tidak termasuk.
+ */
+export const CORRECTABLE_ALPHA_LABELS: readonly AttendanceLabel[] = [
+  "NO_ATTENDANCE",
+  "NO_CHECKOUT_ALPHA",
+];
+export const isCorrectableAlpha = (day: { status: string; labels: readonly string[] }) =>
+  day.status === "ALPHA" &&
+  day.labels.some((l) => (CORRECTABLE_ALPHA_LABELS as readonly string[]).includes(l));
 
 /**
  * Label yang tidak mewajibkan alasan dari karyawan (penanda untuk approver saja). TM-D25: + Akurasi GPS rendah.
  * Lembur hari libur ber-SPL tidak berlabel Di luar jadwal roster (`applyOrder`), jadi juga tanpa wajib alasan.
  */
-export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = ["MOCK_LOCATION", "LOW_ACCURACY"];
+export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = [
+  "MOCK_LOCATION",
+  "LOW_ACCURACY",
+  // TM-D29: penanda asal absen mandiri, bukan pelanggaran → tanpa wajib alasan.
+  "SELF_REPORT",
+  "GALLERY_PHOTO",
+];
 
 /**
  * MOB-D6: target notifikasi Time Management untuk app mobile (layar yang dibuka saat notifikasi diketuk).
