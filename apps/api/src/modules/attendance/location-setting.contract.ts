@@ -58,6 +58,7 @@ export const timeQueueSchema = z
     corrections: z.number().int(),
     rosterChanges: z.number().int(),
     overtime: z.number().int(),
+    overtimeClaims: z.number().int(),
     total: z.number().int(),
   })
   .openapi("TimeNotifyQueue");

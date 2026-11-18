@@ -70,6 +70,21 @@ export const daysByIds = (ids: string[]) =>
   getPrisma().attendanceDay.findMany({ where: { id: { in: ids } }, include: withPunches });
 
 /** Hari OPEN yang lewat batas absen pulang (cron attendance-no-checkout). */
+/** TM-D26: jumlah absen pulang di luar lokasi kantor (label OUTSIDE_RADIUS) pada rentang tanggal kerja. */
+export const countOutsideCheckOuts = (
+  employeeId: string,
+  from: Date,
+  to: Date,
+  tx?: AttendanceTx,
+) =>
+  db(tx).attendancePunch.count({
+    where: {
+      kind: "OUT",
+      labels: { has: "OUTSIDE_RADIUS" },
+      day: { employeeId, workDate: { gte: from, lte: to } },
+    },
+  });
+
 export const overdueOpenDays = (now: Date, employeeIds?: string[]) =>
   getPrisma().attendanceDay.findMany({
     where: {

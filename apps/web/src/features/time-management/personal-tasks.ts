@@ -149,7 +149,7 @@ export function usePersonalTasks(
       "/time/persetujuan-cuti",
     ],
     [
-      "perubahan roster menunggu keputusan",
+      "perubahan jadwal menunggu keputusan",
       changeInbox.data?.length ?? 0,
       "/time/perubahan-roster",
     ],

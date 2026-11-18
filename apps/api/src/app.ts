@@ -29,6 +29,7 @@ import { type DatabaseCheck, registerHealth } from "./core/health.ts";
 import { createLogger, type Logger, requestLogger } from "./core/logger.ts";
 import { registerOpenApi } from "./core/openapi.ts";
 import { createFcmSender, type PushSender, UNCONFIGURED_PUSH } from "./core/push.ts";
+import { detectSchemaGap, SchemaOutdatedError } from "./core/schema-drift.ts";
 import { createSupabaseStorage, type StorageAdmin, UNCONFIGURED_STORAGE } from "./core/storage.ts";
 import {
   type AuthAdmin,
@@ -382,6 +383,17 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
           code === "VALIDATION_ERROR" ? "Format permintaan tidak valid." : "Permintaan ditolak.";
         return errorJson(c, err.status, code, message);
       }
+    }
+    // Skema DB aktif tertinggal dari kode (tabel/kolom belum ada) → 503 SCHEMA_OUTDATED yang jelas.
+    const gap = detectSchemaGap(err);
+    if (gap) {
+      const outdated = new SchemaOutdatedError(gap, getEnv().NODE_ENV !== "production");
+      deps.logger.warn("schema outdated", {
+        requestId: c.get("requestId"),
+        path: c.req.path,
+        ...gap,
+      });
+      return errorJson(c, outdated.status, outdated.code, outdated.message, outdated.details);
     }
     // Detail hanya di log server (PROMPT §5: 500 INTERNAL_ERROR).
     deps.logger.error("unhandled error", { requestId: c.get("requestId"), error: err });

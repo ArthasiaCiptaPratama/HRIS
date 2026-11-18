@@ -126,7 +126,7 @@ export function LeavePage() {
     <div>
       <PageHeader
         title="Cuti, Izin & Sakit"
-        description="Hanya hari kerja roster yang dihitung. Cuti tahunan memotong saldo; izin dan sakit tidak. Persetujuan oleh Atasan dan HR."
+        description="Hanya hari kerja jadwal yang dihitung. Cuti tahunan memotong saldo; izin dan sakit tidak. Persetujuan oleh Atasan dan HR."
         actions={
           <Button variant="brand" onClick={() => setDialog({})} disabled={!data}>
             <CalendarPlus /> Ajukan
@@ -372,7 +372,7 @@ function RequestDialog({
           <DialogDescription>
             {resubmit
               ? `Pengajuan ${dateRange(resubmit.startDate, resubmit.endDate)} ditolak. Pilih tanggal baru mulai besok; pengajuan ulang diputuskan lagi oleh Atasan & HR.`
-              : "Hari OFF roster dan tanggal merah tidak dihitung."}
+              : "Hari OFF jadwal dan tanggal merah tidak dihitung."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -472,7 +472,7 @@ function RequestDialog({
               ) : null}
               {p.days === 0 ? (
                 <p className="text-destructive text-xs">
-                  Tidak ada hari kerja roster di rentang ini.
+                  Tidak ada hari kerja jadwal di rentang ini.
                 </p>
               ) : null}
               {tooMany ? (

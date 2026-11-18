@@ -2,6 +2,7 @@ import {
   type CorrectionInput,
   canStillCorrect,
   correctionDeadline,
+  isCorrectableAlpha,
   type PeriodCloseInput,
   STATEMENT_ATTACHMENT_MAX_BYTES,
   STATEMENT_ATTACHMENT_TYPES,
@@ -89,7 +90,7 @@ async function audit(ctx: RequestContext, action: string, entityId: string | nul
 }
 
 /** D-073: batalkan approval absen (masuk/pulang) yang masih menunggu pada satu hari. */
-async function cancelPunchApprovals(tx: Prisma.TransactionClient, dayId: string, now: Date) {
+export async function cancelPunchApprovals(tx: Prisma.TransactionClient, dayId: string, now: Date) {
   const punches = await tx.attendancePunch.findMany({
     where: { dayId, status: "PENDING" },
     select: { id: true },
@@ -699,8 +700,9 @@ async function submitCorrection(
   const day = await db().attendanceDay.findUnique({
     where: { employeeId_workDate: { employeeId, workDate: toDate(input.workDate) } },
   });
-  // TM-D3: Alpha karena tidak absen (NO_ATTENDANCE) boleh dikoreksi dalam batas waktu; Alpha tutup periode tidak.
-  const correctableAlpha = day?.status === "ALPHA" && day.labels.includes("NO_ATTENDANCE");
+  // TM-D3/TM-D26: Alpha karena tidak absen / hanya absen datang boleh dikoreksi dalam batas waktu;
+  // Alpha tutup periode tidak.
+  const correctableAlpha = day ? isCorrectableAlpha(day) : false;
   if (
     day &&
     !correctableAlpha &&
@@ -836,8 +838,7 @@ export function registerPeriodIntegrations() {
     });
     // Hari absen menjadi disetujui; approval hari absen yang masih menunggu dibatalkan (diganti koreksi).
     if (day) {
-      const noAttendanceAlpha = day.status === "ALPHA" && day.labels.includes("NO_ATTENDANCE");
-      if ((day.status === "ALPHA" && !noAttendanceAlpha) || day.status === "LEAVE") return;
+      if ((day.status === "ALPHA" && !isCorrectableAlpha(day)) || day.status === "LEAVE") return;
       await cancelApprovalRequest(tx, "ATTENDANCE_DAY", day.id, event.decidedAt);
       await cancelPunchApprovals(tx, day.id, event.decidedAt);
       await tx.attendanceDay.update({

@@ -9,7 +9,7 @@ vi.mock("@/lib/supabase", async () => ({
   supabase: (await import("./supabase-mock")).supabaseMock,
 }));
 
-// #102 (TM-D26): akun EMPLOYEE yang tertaut karyawan berberanda di halaman absen — "/" (login, atur
+// #102 (TM-D30): akun EMPLOYEE yang tertaut karyawan berberanda di halaman absen — "/" (login, atur
 // password, root) → /absen; menu web Dashboard/Time Management diganti tab "Absen"; beranda absen
 // memuat banner Lengkapi data, kartu Perlu ditindaklanjuti, menu Lembur & Layanan Mandiri.
 
@@ -153,7 +153,10 @@ describe.skipIf(!tmOn("tmAbsen"))("#102: karyawan berberanda di halaman absen", 
       within(tasks).getByRole("link", { name: /1 hari Alpha belum ada surat pernyataan/ }),
     ).toHaveAttribute("href", "/absen/koreksi");
     if (tmOn("tmOvertime")) {
-      expect(screen.getByRole("link", { name: "Lembur" })).toHaveAttribute("href", "/absen/lembur");
+      expect(screen.getByRole("link", { name: "Lembur & SPL" })).toHaveAttribute(
+        "href",
+        "/absen/lembur-spl",
+      );
     }
     if (FEATURES.selfService) {
       expect(screen.getByRole("link", { name: "Layanan Mandiri" })).toHaveAttribute("href", "/ess");

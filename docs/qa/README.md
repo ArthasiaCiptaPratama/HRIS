@@ -2,7 +2,7 @@
 
 Jejak **aturan (PLAN) → kasus uji → test otomatis/manual → hasil**. Format: skill `hris-qa-docs`.
 
-**Aturan umum uji manual (2026-11-16):** satu akun per browser — pakai jendela privat atau browser/profil lain untuk akun kedua. Sesi Supabase disimpan di `localStorage` dan dipakai bersama **semua tab** di satu browser: login/aktivasi akun lain di satu tab mengganti akun di tab lain, dan tab yang sesinya berakhir menyimpan `?next=<halaman tab itu>` untuk login berikutnya (investigasi "Akses ditolak", TM-D26 susulan). Sesi per tab hanya ada di dev (switcher akun uji).
+**Aturan umum uji manual (2026-11-16):** satu akun per browser — pakai jendela privat atau browser/profil lain untuk akun kedua. Sesi Supabase disimpan di `localStorage` dan dipakai bersama **semua tab** di satu browser: login/aktivasi akun lain di satu tab mengganti akun di tab lain, dan tab yang sesinya berakhir menyimpan `?next=<halaman tab itu>` untuk login berikutnya (investigasi "Akses ditolak", TM-D30 susulan). Sesi per tab hanya ada di dev (switcher akun uji).
 
 | Jenis | File | Keterangan |
 |---|---|---|

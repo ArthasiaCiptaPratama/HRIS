@@ -10,6 +10,8 @@ export const ERROR_CODES = [
   "BUSINESS_RULE_VIOLATION",
   // MOB-D7: app mobile lebih lama dari versi minimum (426) → app menampilkan layar perbarui.
   "APP_UPDATE_REQUIRED",
+  // 503: database aktif belum memuat migrasi yang dibutuhkan fitur (tabel/kolom belum ada).
+  "SCHEMA_OUTDATED",
   "INTERNAL_ERROR",
 ] as const;
 

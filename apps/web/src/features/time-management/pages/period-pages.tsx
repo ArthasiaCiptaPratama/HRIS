@@ -462,7 +462,7 @@ const RECAP_COLUMNS: { key: keyof Omit<RecapRow, "employee">; label: string }[] 
   { key: "leave", label: "Cuti/izin/sakit" },
   { key: "late", label: "Telat" },
   { key: "earlyLeave", label: "Pulang cepat" },
-  { key: "outsideRoster", label: "Di luar roster" },
+  { key: "outsideRoster", label: "Di luar jadwal" },
   { key: "statements", label: "Pernyataan" },
 ];
 
@@ -694,7 +694,7 @@ function CloseDialog({
         <DialogHeader>
           <DialogTitle>Tutup periode {month}</DialogTitle>
           <DialogDescription>
-            Tindakan ini tidak bisa dibatalkan dari aplikasi. Absen, roster, koreksi, dan cuti pada
+            Tindakan ini tidak bisa dibatalkan dari aplikasi. Absen, jadwal, koreksi, dan cuti pada
             bulan ini akan terkunci.
           </DialogDescription>
         </DialogHeader>
@@ -941,7 +941,8 @@ function EmployeeRecapDialog({
                             {punch ? timeIn(punch.at, TZ) : "—"}
                             {punch?.source === "MANUAL" ? (
                               <Badge variant="muted" className="ml-1 text-[10px]">
-                                Manual
+                                {/* TM-D29 (STAGING): absen mandiri = MANUAL berlabel SELF_REPORT. */}
+                                {punch.labels.includes("SELF_REPORT") ? "Mandiri" : "Manual"}
                               </Badge>
                             ) : null}
                           </td>,

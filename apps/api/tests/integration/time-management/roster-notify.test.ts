@@ -101,7 +101,7 @@ describe("notifikasi perubahan jadwal (TM-D13 Fase C)", () => {
     const list = await notices("A");
     expect(list).toHaveLength(1);
     expect(list[0]?.title).toBe("Jadwal Anda diubah HR");
-    expect(list[0]?.body).toContain(`tanpa roster → ${code}`);
+    expect(list[0]?.body).toContain(`tanpa jadwal → ${code}`);
     expect(list[0]).toMatchObject({ targetType: "ROSTER", targetId: date });
 
     await call("PUT", "/roster/cells", hr, {

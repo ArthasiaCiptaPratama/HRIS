@@ -155,6 +155,16 @@ export const todayViewSchema = z
       description:
         "TM-D17: perintah lembur hari terbuka / shift berikutnya; endsAt = jam pulang untuk alarm (TM-D16)",
     }),
+    requireCheckOut: z.boolean().openapi({
+      description:
+        "TM-D26: wajib absen pulang — tanpa absen pulang s.d. checkOutDeadline (24:00) dihitung Alpha",
+    }),
+    checkOutDeadline: z.iso.datetime().nullable().openapi({
+      description: "Batas absen pulang hari terbuka (null = tidak ada hari terbuka)",
+    }),
+    freeOutsideCheckOutsPerMonth: z.number().int().openapi({
+      description: "TM-D26: jatah absen pulang di luar kantor per bulan yang langsung disetujui",
+    }),
   })
   .openapi("AttendanceToday");
 assertExact<z.infer<typeof todayViewSchema>, TodayView>(true);
@@ -181,6 +191,24 @@ export const precheckResultSchema = z
     checkOutOpensAt: z.iso.datetime().nullable(),
     breakOpensAt: z.iso.datetime().nullable(),
     breakClosesAt: z.iso.datetime().nullable(),
+    outsideCheckOut: z
+      .object({
+        nth: z.number().int().openapi({ description: "Urutan bulan ini bila absen ini disimpan" }),
+        freeQuota: z.number().int(),
+        free: z
+          .boolean()
+          .openapi({ description: "true = langsung disetujui; false = perlu Atasan + HR" }),
+      })
+      .nullable()
+      .openapi({
+        description:
+          "TM-D26: Clock Out di luar lokasi kantor — tampilkan peringatan (alasan tetap wajib)",
+      }),
+    requireCheckOut: z.boolean(),
+    checkOutDeadline: z.iso.datetime().nullable().openapi({
+      description:
+        "TM-D26: batas absen pulang (Clock In: yang akan dikunci; lainnya: hari terbuka)",
+    }),
   })
   .openapi("AttendancePrecheck");
 assertExact<z.infer<typeof precheckResultSchema>, PrecheckResult>(true);
