@@ -17,6 +17,7 @@ import {
 } from "../active-views";
 import { useCompanyScope, useEmployeeSummary, useMasterData } from "../api";
 import { EmployeeDetailSheet, useEmployeeSheet } from "../components/employee-detail-sheet";
+import { EmployeeExportDialog } from "../components/employee-export-dialog";
 import { EmployeeFormDialog } from "../components/employee-form-dialog";
 import { EmployeeListView, employeeColumns } from "../components/employee-list-view";
 import type { EmployeeDetail } from "../schemas";
@@ -68,6 +69,7 @@ export function ActiveEmployeesPage() {
                   <FileUp /> Import
                 </Link>
               </Button>
+              <EmployeeExportDialog key={view.slug} me={me} category={category} group={group} />
               <Button asChild>
                 <Link to={`/personal/tambah-karyawan?dari=${view.slug}`}>
                   <UserPlus /> Tambah karyawan
