@@ -160,6 +160,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-18** — Perbaikan keamanan: isi jadwal dengan pola kerja (TM-D28) menolak karyawan PT lain & tidak membocorkan nama di pratinjau (juga pratinjau template); ikut gel. 32 (#107). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-18** — Merge `HRIS/Mat/Mac` `da16915` ke develop (TM-D26–D29: wajib absen pulang, pengajuan lembur karyawan, Pola Kerja, Absen Mandiri STAGING, `SCHEMA_OUTDATED`); `/absen/lembur` = Ajukan Lembur, Lembur develop → `/absen/lembur-spl`; TM-D26 develop → TM-D30; antre gel. 32 (#106). (Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-17** — Atasan langsung = pemegang pos tepat di atasnya apa pun role akunnya (ORG-D9 menggantikan D-053): atasan ber-akun Karyawan memutus/melihat antrean bawahan langsung (`isSupervisor`), atasan tanpa akun → pengajuan ke HR/SA (snapshot), SPL `/overtime-orders/subordinates`. (Oatse) → [organisasi/log](features/organisasi/log.md)
 - **2026-11-16** — Sinkron skema migrasi Mat (lembur klaim, pola kerja) ke develop tanpa kode fitur, agar `db:check` staging lolos (#104). (Oatse) → [time-management/log](features/time-management/log.md)

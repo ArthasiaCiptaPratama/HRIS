@@ -411,3 +411,8 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - Temuan (tidak diubah, milik Mat): review keamanan otomatis — `work-roster.service.ts` assign/preview pola kerja tidak memeriksa `employeeIds` satu PT dengan `companyId` (beda dengan `setEmployeeResidency`) dan `workLocationId` milik PT; diteruskan ke supervisor.
 - Verifikasi: lihat Hasil di handoff `.handoff/2026-11-18-1115-HRIS-rilis-ke-HRIS-merge-mat-mac-da16915.md` dan baris RELEASE #106.
 
+## 2026-11-18 — Perbaikan keamanan isi jadwal pola kerja lintas PT (TM-D28) (Oatse)
+- Temuan review keamanan otomatis saat merge `da16915`: `planWorkRoster` (`work-roster.service.ts`) tidak memeriksa PT `employeeIds` → HR PT A bisa memicu pratinjau/pemasangan untuk karyawan PT B; `unresolved` pratinjau mengembalikan nama + catatan kelompok karyawan PT lain. Pengguna (via supervisor): "Kita perbaiki saja langsung".
+- Perbaikan: cek PT semua karyawan sebelum kelompok/nama diproses (BusinessRuleError 422 "Semua karyawan harus dari PT yang dipilih.", sama dengan `setEmployeeResidency`; ID tak dikenal ikut ditolak); `workLocationId` tak dikenal → 404 (lokasi kerja master global, tidak ada kepemilikan PT untuk dicek). Lapisan template (`planAssignment`) sudah melewatkan karyawan PT lain, tetapi `skipped[].fullName` masih membawa nama → kini PT dicek lebih dulu dan nama dikosongkan; ID tak dikenal kini beralasan "Bukan karyawan PT template ini" (sebelumnya "Tidak aktif").
+- Test: `work-roster.test.ts` +1 (preview & assign: PT lain / ID acak → 422 tanpa nama di respons, lokasi acak → 404, tanpa jadwal tertulis), `roster-custom-template.test.ts` +1 (skipped tanpa nama); 17/17 lulus.
+

@@ -355,6 +355,54 @@ describe("isi jadwal dengan roster (TM-D28)", () => {
     );
   });
 
+  test("karyawan PT lain / ID tak dikenal → 422 tanpa nama; lokasi tak dikenal → 404", async () => {
+    const today = await settingsToday();
+    const foreignName = `Roster asing ${RUN}`;
+    const foreign = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `WR-${RUN}-foreign`,
+          fullName: foreignName,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId: otherCompany,
+          employmentStatusId: ids.status,
+          positionId: ids.position,
+          workLocationId: locationId,
+          homebaseId: hb.local,
+        },
+      })
+    ).id;
+    try {
+      const base = {
+        companyId,
+        workLocationId: locationId,
+        effectiveDate: today,
+        shiftCode: SHIFT,
+        localRosterId: localId,
+        nonLocalRosterId: nonLocalId,
+      };
+      for (const path of ["/work-rosters/assign/preview", "/work-rosters/assign"]) {
+        for (const employeeIds of [
+          [emp.local, foreign],
+          [emp.local, crypto.randomUUID()],
+        ]) {
+          const res = await call("POST", path, h.hr, { ...base, employeeIds });
+          expect(res.status).toBe(422);
+          expect(await res.text()).not.toContain(foreignName);
+        }
+        const res = await call("POST", path, h.hr, {
+          ...base,
+          workLocationId: crypto.randomUUID(),
+          employeeIds: [emp.local],
+        });
+        expect(res.status).toBe(404);
+      }
+      expect(await prisma.rosterDay.count({ where: { employeeId: foreign } })).toBe(0);
+    } finally {
+      await prisma.employee.delete({ where: { id: foreign } });
+    }
+  });
+
   test("roster yang sudah dipakai: siklus terkunci, nama boleh diubah", async () => {
     const rosters = await data<Roster[]>(
       await call("GET", `/work-rosters?companyId=${companyId}`, h.hr),
