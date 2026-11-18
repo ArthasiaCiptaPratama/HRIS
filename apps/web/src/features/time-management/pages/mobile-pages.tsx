@@ -40,8 +40,11 @@ import {
   CoordLink,
   DayStatusBadge,
   hhmm,
+  isTimeOff,
   LabelChips,
   StepBadge,
+  TIME_OFF_TITLE,
+  TIME_OFF_TONE,
   timeIn,
   todayIn,
   workDateLabel,
@@ -209,7 +212,11 @@ export function MobileRosterPage() {
                 >
                   <span className="w-20 shrink-0 text-xs tabular-nums">{workDateLabel(date)}</span>
                   <span
-                    className="w-12 shrink-0 rounded px-1 text-center font-mono text-xs font-bold"
+                    title={isTimeOff(r?.code) ? TIME_OFF_TITLE : undefined}
+                    className={cn(
+                      "w-12 shrink-0 rounded px-1 text-center font-mono text-xs font-bold",
+                      isTimeOff(r?.code) && TIME_OFF_TONE,
+                    )}
                     style={
                       r?.shift?.color
                         ? { color: r.shift.color, backgroundColor: `${r.shift.color}1a` }
@@ -222,8 +229,10 @@ export function MobileRosterPage() {
                     {r?.shift
                       ? `${hhmm(r.shift.startMinute)}–${hhmm(r.shift.endMinute)}`
                       : r
-                        ? "Libur"
-                        : "Tanpa roster"}
+                        ? isTimeOff(r.code)
+                          ? "Time off (bukan cuti)"
+                          : "Libur"
+                        : "Tanpa jadwal"}
                     {h ? (
                       <span
                         className={cn(
@@ -311,7 +320,8 @@ function PunchApprovalCard({ day, punch, tz }: { day: AttendanceDay; punch: Punc
             {label} <span className="font-semibold tabular-nums">{timeIn(punch.at, tz)}</span>
             {punch.source === "MANUAL" ? (
               <Badge variant="muted" className="ml-1 text-[10px]">
-                Manual
+                {/* TM-D29 (STAGING): absen mandiri = MANUAL berlabel SELF_REPORT. */}
+                {punch.labels.includes("SELF_REPORT") ? "Mandiri" : "Manual"}
               </Badge>
             ) : null}
           </p>

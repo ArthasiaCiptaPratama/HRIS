@@ -228,7 +228,7 @@ function OrderDialog({ row, onClose }: { row: OvertimeOrder | null; onClose: () 
             />
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="ot-date">Tanggal kerja (tanggal roster)</Label>
+            <Label htmlFor="ot-date">Tanggal kerja (tanggal jadwal)</Label>
             <Input
               id="ot-date"
               type="date"

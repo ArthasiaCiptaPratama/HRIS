@@ -16,13 +16,13 @@ export interface RosterChange {
 export type RosterChangeReason = "swap" | "edit" | "import" | "pattern";
 
 const codeText = (code: string | null | undefined) =>
-  code === undefined ? "tanpa roster" : code === null ? "OFF" : code;
+  code === undefined ? "tanpa jadwal" : code === null ? "OFF" : code;
 
 const TITLES: Record<RosterChangeReason, string> = {
   swap: "Tukar shift disetujui — jadwal Anda berubah",
   edit: "Jadwal Anda diubah HR",
-  import: "Jadwal Anda diperbarui (import roster)",
-  pattern: "Jadwal Anda diperbarui (pola roster)",
+  import: "Jadwal Anda diperbarui (import jadwal)",
+  pattern: "Jadwal Anda diperbarui (pola jadwal)",
 };
 
 /** Kode shift per (karyawan, tanggal) sebelum perubahan. */

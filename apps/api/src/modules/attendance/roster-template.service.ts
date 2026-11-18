@@ -358,7 +358,7 @@ export async function updateCustomTemplate(
     input.startOnMonday !== before.startOnMonday;
   if (patternChanged && before.patterns.length > 0) {
     throw new BusinessRuleError(
-      "Template sudah dipasang; pola, jumlah crew, dan jarak geser belum bisa diubah. Buat template baru, atau ubah pola di tab Pola roster.",
+      "Template sudah dipasang; pola, jumlah crew, dan jarak geser belum bisa diubah. Buat template baru, atau ubah pola di tab Pola jadwal.",
     );
   }
   await validateSteps(before.companyId, input.steps);
@@ -554,10 +554,10 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const skipped: RosterTemplateAssignPlan["skipped"] = [];
   const valid = [...new Set(input.employeeIds)].filter((employeeId) => {
     const e = people.get(employeeId);
-    if (!e?.isActive)
-      skipped.push({ employeeId, fullName: e?.fullName ?? null, reason: "Tidak aktif" });
-    else if (e.companyId !== template.companyId)
-      skipped.push({ employeeId, fullName: e.fullName, reason: "Bukan karyawan PT template ini" });
+    // PT dicek lebih dulu & nama dikosongkan: pratinjau tidak membocorkan data karyawan PT lain.
+    if (!e || e.companyId !== template.companyId)
+      skipped.push({ employeeId, fullName: null, reason: "Bukan karyawan PT template ini" });
+    else if (!e.isActive) skipped.push({ employeeId, fullName: e.fullName, reason: "Tidak aktif" });
     else return true;
     return false;
   });
@@ -708,7 +708,7 @@ export async function applyTemplateAssignment(
   const direct = plan.assignments.filter((a) => !a.stays && !a.needsApproval);
   const approval = plan.assignments.filter((a) => a.needsApproval);
   if (direct.length === 0 && approval.length === 0) {
-    throw new BusinessRuleError("Tidak ada perubahan roster untuk karyawan terpilih.");
+    throw new BusinessRuleError("Tidak ada perubahan jadwal untuk karyawan terpilih.");
   }
   if (!plan.installed) {
     await installCustomTemplate(ctx, id, {

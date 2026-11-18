@@ -7,7 +7,7 @@ import {
   purgeSelfies,
   readTimeSettings,
 } from "../../../src/modules/attendance/index.ts";
-import { deleteAttendanceData } from "../../helpers/attendance.ts";
+import { deleteAttendanceData, patchAttendanceSettings } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -65,7 +65,15 @@ async function selfie(headers: Record<string, string>) {
   return upload.path;
 }
 
+// Perilaku lama (D-070 / TM-D17): wajib absen pulang & jatah pulang di luar kantor (TM-D26) dimatikan;
+// aturan TM-D26 diuji di require-checkout.test.ts.
+let restoreSettings: () => Promise<void>;
+
 beforeAll(async () => {
+  restoreSettings = await patchAttendanceSettings({
+    requireCheckOut: false,
+    freeOutsideCheckOutsPerMonth: 0,
+  });
   companyId = await acpCompanyId();
   ids.status = (await prisma.employmentStatus.create({ data: { name: `AT ${RUN}` } })).id;
   ids.department = (await prisma.department.create({ data: { name: `AT ${RUN}` } })).id;
@@ -145,6 +153,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await restoreSettings();
   await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: ids.employees } } });

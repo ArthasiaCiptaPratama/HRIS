@@ -68,7 +68,7 @@ export function RosterChangesPage() {
   return (
     <div>
       <PageHeader
-        title="Perubahan Roster"
+        title="Perubahan Jadwal"
         description="Ajukan ganti shift atau tukar dengan rekan. Tukar shift menunggu persetujuan rekan, lalu Atasan dan HR."
         actions={
           canRequest ? (
@@ -334,7 +334,7 @@ function CreateDialog({ me, onClose }: { me: Me; onClose: () => void }) {
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Ajukan perubahan roster</DialogTitle>
+          <DialogTitle>Ajukan perubahan jadwal</DialogTitle>
           <DialogDescription>
             Hari yang absennya sudah disetujui tidak bisa diubah.
           </DialogDescription>

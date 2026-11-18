@@ -298,6 +298,44 @@ describe("template roster buatan HR (TM-D23)", () => {
     expect(warnings).toEqual([`Langkah 1→2: ${code("N")} lalu ${code("M2")} bertabrakan 7 jam.`]);
   });
 
+  test("isi roster: karyawan PT lain & ID tak dikenal dilewati tanpa nama", async () => {
+    const t = await data<Template>(
+      await call("POST", "/roster-custom-templates", h.hr, def({ name: `Asing ${RUN}` })),
+    );
+    const foreignName = `Asing RT ${RUN}`;
+    const foreign = (
+      await prisma.employee.create({
+        data: {
+          employeeNumber: `RT-${RUN}-asing`,
+          fullName: foreignName,
+          joinDate: new Date("2024-01-01T00:00:00Z"),
+          companyId: otherCompany,
+          employmentStatusId: people.status,
+          positionId: people.position,
+        },
+      })
+    ).id;
+    try {
+      const unknown = crypto.randomUUID();
+      const res = await call("POST", `/roster-custom-templates/${t.id}/assign/preview`, h.hr, {
+        workLocationId: people.location2,
+        employeeIds: [foreign, unknown],
+        effectiveDate: plusDays(today, 3),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).not.toContain(foreignName);
+      const preview = (JSON.parse(body) as { data: { skipped: unknown[]; assignments: [] } }).data;
+      expect(preview.assignments).toEqual([]);
+      expect(preview.skipped).toEqual([
+        { employeeId: foreign, fullName: null, reason: "Bukan karyawan PT template ini" },
+        { employeeId: unknown, fullName: null, reason: "Bukan karyawan PT template ini" },
+      ]);
+    } finally {
+      await prisma.employee.delete({ where: { id: foreign } });
+    }
+  });
+
   test("isi roster dengan template: belum terpasang → dipasang otomatis, 5 karyawan dibagi rata 2/2/1", async () => {
     const t = await data<Template>(
       await call("POST", "/roster-custom-templates", h.hr, def({ name: `Auto ${RUN}` })),

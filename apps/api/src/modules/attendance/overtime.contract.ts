@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  OVERTIME_CLAIM_STATUSES,
   OVERTIME_DAY_TYPES,
   OVERTIME_FLAGS,
   OVERTIME_FORMULAS,
@@ -14,6 +15,7 @@ import type {
   OvertimeSummary,
   OvertimeView,
 } from "./overtime.service.ts";
+import type { OvertimeClaimView } from "./overtime-claim.service.ts";
 import type { OvertimeOrderView } from "./overtime-order.service.ts";
 import type { RosterTemplateResult } from "./roster-template.service.ts";
 
@@ -177,3 +179,33 @@ export const overtimeSubordinateListSchema = z
   )
   .openapi("OvertimeSubordinateList");
 export const overtimeOrderCancelSchema = z.object({ id: z.uuid() }).openapi("OvertimeOrderCancel");
+
+// TM-D27: pengajuan lembur oleh karyawan → HR menetapkan rentang & memutus → SPL susulan.
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+export const overtimeClaimViewSchema = z
+  .object({
+    id: z.uuid(),
+    employee: employeeRef,
+    companyId: z.uuid(),
+    workDate: z.iso.date(),
+    startTime: clock.nullable().openapi({ description: "Mulai lebih awal yang diajukan (HH:mm)" }),
+    endTime: clock
+      .nullable()
+      .openapi({ description: "Selesai lebih lambat yang diajukan (HH:mm)" }),
+    reason: z.string(),
+    status: z.enum(OVERTIME_CLAIM_STATUSES).openapi("OvertimeClaimStatus"),
+    approvedStartTime: clock.nullable(),
+    approvedEndTime: clock.nullable(),
+    decisionNote: z.string().nullable(),
+    decidedAt: z.iso.datetime().nullable(),
+    createdAt: z.iso.datetime(),
+    checkInAt: z.iso.datetime().nullable().openapi({ description: "Jam absen masuk aktual" }),
+    checkOutAt: z.iso.datetime().nullable().openapi({ description: "Jam absen pulang aktual" }),
+    canDecide: z.boolean(),
+    canCancel: z.boolean(),
+  })
+  .openapi("OvertimeClaim");
+assertExact<z.infer<typeof overtimeClaimViewSchema>, OvertimeClaimView>(true);
+export const overtimeClaimListSchema = z
+  .array(overtimeClaimViewSchema)
+  .openapi("OvertimeClaimList");

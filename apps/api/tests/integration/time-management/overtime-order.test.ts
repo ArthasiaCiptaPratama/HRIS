@@ -4,7 +4,7 @@ import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import { holidaysBetween, readTimeSettings } from "../../../src/modules/attendance/index.ts";
 import { overtimeOrderViewSchema } from "../../../src/modules/attendance/overtime.contract.ts";
-import { deleteAttendanceData } from "../../helpers/attendance.ts";
+import { deleteAttendanceData, patchAttendanceSettings } from "../../helpers/attendance.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
 import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { acpCompanyId } from "../../helpers/company.ts";
@@ -61,7 +61,15 @@ const emp = { mgr: "", a: "", other: "" };
 let h: Record<"sa" | "hr" | "hr2" | "mgr" | "a" | "otherMgr", Record<string, string>>;
 let accountA = "";
 
+// Perilaku lama (D-070 / TM-D17): wajib absen pulang & jatah pulang di luar kantor (TM-D26) dimatikan;
+// aturan TM-D26 diuji di require-checkout.test.ts.
+let restoreSettings: () => Promise<void>;
+
 beforeAll(async () => {
+  restoreSettings = await patchAttendanceSettings({
+    requireCheckOut: false,
+    freeOutsideCheckOutsPerMonth: 0,
+  });
   companyId = await acpCompanyId();
   ids.status = (await prisma.employmentStatus.create({ data: { name: `SPL ${RUN}` } })).id;
   ids.department = (await prisma.department.create({ data: { name: `SPL ${RUN}` } })).id;
@@ -181,6 +189,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await restoreSettings();
   await deleteAttendanceData(ids.employees);
   await prisma.rosterDay.deleteMany({ where: { employeeId: { in: ids.employees } } });
   await prisma.shift.deleteMany({ where: { id: { in: [shiftId, officeId] } } });

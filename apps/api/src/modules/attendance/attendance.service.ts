@@ -3,6 +3,7 @@ import {
   type AttendanceLocationSource,
   canStillCorrect,
   correctionDeadline,
+  isCorrectableAlpha,
   LABELS_WITHOUT_REASON,
   type ManualPunchInput,
   PUNCH_CANCEL_WINDOW_MIN,
@@ -14,6 +15,7 @@ import {
   type PunchSuspicion,
   SELFIE_CONTENT_TYPES,
   SELFIE_MAX_BYTES,
+  TIME_OFF_CODE,
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import {
@@ -43,10 +45,12 @@ import {
   checkGeofence,
   checkOutLabels,
   checkOutOpensAt,
+  endOfLocalDay,
   type GeofenceSite,
   localDate,
   offsetMinutes,
   planCheckIn,
+  relaxedCheckOutDeadline,
   restShortfall,
   type ShiftTimes,
   shiftWindow,
@@ -61,7 +65,12 @@ import {
   type OrderRow,
   ordersOfEmployee,
 } from "./overtime-order.service.ts";
-import { closedMonths, correctionInstant, isDateClosed } from "./period.service.ts";
+import {
+  cancelPunchApprovals,
+  closedMonths,
+  correctionInstant,
+  isDateClosed,
+} from "./period.service.ts";
 import * as rosterRepo from "./roster.repository.ts";
 import { configureRosterLocks, dayKey, shiftDto } from "./roster.service.ts";
 import { isoAddDays } from "./roster-engine.ts";
@@ -163,6 +172,19 @@ interface Evaluation {
   breakWindow: { opens: Date; closes: Date } | null;
   /** TM-D17: perintah lembur untuk tanggal kerja Clock In (null = tidak ada). */
   overtimeOrder: OrderRow | null;
+  /** Batas absen pulang yang dikunci saat Clock In (TM-D26: s.d. 24:00 bila wajib absen pulang). */
+  checkOutDeadline: Date | null;
+  /** TM-D26: absen pulang di luar lokasi kantor bulan ini (null = bukan kasus itu). */
+  outsideCheckOut: OutsideCheckOut | null;
+}
+
+/** TM-D26: absen pulang di luar lokasi kantor — urutan bulan ini & apakah masih dalam jatah tanpa persetujuan. */
+export interface OutsideCheckOut {
+  /** Urutan absen pulang di luar kantor bulan ini bila absen ini disimpan (1 = pertama). */
+  nth: number;
+  freeQuota: number;
+  /** Masih dalam jatah → absen pulang langsung disetujui (tetap wajib alasan + peringatan). */
+  free: boolean;
 }
 
 /** TM-D17: kandidat planCheckIn; SPL "mulai lebih awal" membuka absen masuk lebih awal. */
@@ -341,6 +363,10 @@ async function evaluate(
     );
     const isOut = input.kind === "OUT";
     const normalEnd = times.normalEnd;
+    const outsideCheckOut =
+      isOut && geofence.labels.includes("OUTSIDE_RADIUS")
+        ? await outsideCheckOutOf(employee.id, toIso(open.workDate), settings)
+        : null;
     return {
       kind: input.kind,
       workDate: toIso(open.workDate),
@@ -361,6 +387,8 @@ async function evaluate(
       checkOutOpensAt: times.checkOutOpensAt,
       breakWindow: times.breakWindow,
       overtimeOrder: null,
+      checkOutDeadline: null,
+      outsideCheckOut,
     };
   }
 
@@ -386,7 +414,22 @@ async function evaluate(
     takenDates(nearby),
   );
   const overtimeOrder = orders.get(plan.workDate) ?? null;
-  const scheduled = applyOrder(plan, overtimeOrder);
+  const ordered = applyOrder(plan, overtimeOrder);
+  // TM-D26: wajib absen pulang → absen pulang bebas s.d. 24:00 tanggal jam pulang (jadwal / akhir SPL).
+  const scheduled =
+    settings.requireCheckOut && ordered.window
+      ? {
+          ...ordered,
+          window: {
+            ...ordered.window,
+            checkOutDeadline: relaxedCheckOutDeadline(
+              ordered.window.checkOutDeadline,
+              [ordered.window.end, overtimeOrder?.endsAt],
+              settings.timezone,
+            ) as Date,
+          },
+        }
+      : ordered;
   const shortRest = restShortfall(nearby, now, settings.minRestHours);
   const rosterDay = byDate.get(plan.workDate);
   const resolved = await expectedLocation(employee, plan.workDate);
@@ -418,6 +461,29 @@ async function evaluate(
     checkOutOpensAt: null,
     breakWindow: null,
     overtimeOrder,
+    // Tanpa jadwal: wajib absen pulang → s.d. 24:00 hari ini; selain itu null (cron: 24 jam setelah masuk).
+    checkOutDeadline:
+      scheduled.window?.checkOutDeadline ??
+      (settings.requireCheckOut ? endOfLocalDay(now, settings.timezone) : null),
+    outsideCheckOut: null,
+  };
+}
+
+/** TM-D26: urutan absen pulang di luar kantor bulan tanggal kerja ini (bila absen ini disimpan). */
+async function outsideCheckOutOf(
+  employeeId: string,
+  workDate: string,
+  settings: { freeOutsideCheckOutsPerMonth: number },
+): Promise<OutsideCheckOut> {
+  const month = workDate.slice(0, 7);
+  const from = toDate(`${month}-01`);
+  const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 0));
+  const before = await repository.countOutsideCheckOuts(employeeId, from, to);
+  const nth = before + 1;
+  return {
+    nth,
+    freeQuota: settings.freeOutsideCheckOutsPerMonth,
+    free: nth <= settings.freeOutsideCheckOutsPerMonth,
   };
 }
 
@@ -632,6 +698,12 @@ export interface TodayView {
     endsAt: string | null;
     reason: string;
   } | null;
+  /** TM-D26: wajib absen pulang aktif → tampilkan "tanpa absen pulang s.d. batas = Alpha". */
+  requireCheckOut: boolean;
+  /** Batas absen pulang hari terbuka (null = tidak ada hari terbuka). */
+  checkOutDeadline: string | null;
+  /** TM-D26: jatah absen pulang di luar kantor tanpa persetujuan per bulan. */
+  freeOutsideCheckOutsPerMonth: number;
 }
 
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
@@ -689,7 +761,7 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
     roster: rosterDays
       .map((d) => ({
         date: toIso(d.workDate),
-        code: d.shift?.code ?? "OFF",
+        code: d.timeOff ? TIME_OFF_CODE : (d.shift?.code ?? "OFF"),
         shift: d.shift ? shiftDto(d.shift) : null,
         changed: recentlyChanged(d, now),
       }))
@@ -722,6 +794,9 @@ export async function getToday(ctx: RequestContext, now = new Date()): Promise<T
           reason: order.reason,
         }
       : null,
+    requireCheckOut: settings.requireCheckOut,
+    checkOutDeadline: open?.checkOutDeadline?.toISOString() ?? null,
+    freeOutsideCheckOutsPerMonth: settings.freeOutsideCheckOutsPerMonth,
     // TM-D13: ada shift terbuka yang belum di-Clock In → IN; tidak ada & tanggal hari ini sudah absen → DONE.
     next: open
       ? "OUT"
@@ -757,6 +832,20 @@ export interface PrecheckResult {
   checkOutOpensAt: string | null;
   breakOpensAt: string | null;
   breakClosesAt: string | null;
+  /** TM-D26: Clock Out di luar lokasi kantor — urutan bulan ini, jatah, & tanpa persetujuan atau tidak. */
+  outsideCheckOut: OutsideCheckOut | null;
+  /** TM-D26: wajib absen pulang aktif (tanpa absen pulang s.d. `checkOutDeadline` → Alpha). */
+  requireCheckOut: boolean;
+  /** Batas absen pulang (Clock In: yang akan dikunci; Clock Out/istirahat: milik hari terbuka). */
+  checkOutDeadline: string | null;
+}
+
+/** TM-D26: teks peringatan absen pulang di luar lokasi kantor (web, app, notifikasi). */
+export function outsideCheckOutWarning(o: OutsideCheckOut): string {
+  const left = Math.max(0, o.freeQuota - o.nth);
+  return o.free
+    ? `Absen pulang di luar lokasi kantor (ke-${o.nth} bulan ini). Kali ini langsung disetujui, tetapi jangan diulangi — sisa ${left} kali lagi tanpa persetujuan; setelah itu wajib disetujui Atasan & HR.`
+    : `Absen pulang di luar lokasi kantor (ke-${o.nth} bulan ini) melebihi jatah ${o.freeQuota} kali tanpa persetujuan. Absen ini wajib disetujui Atasan & HR. Jangan diulangi.`;
 }
 
 const openDayInfo = (open: repository.DayRow | null) =>
@@ -819,6 +908,10 @@ export async function precheck(
     checkOutOpensAt: e.checkOutOpensAt?.toISOString() ?? null,
     breakOpensAt: e.breakWindow?.opens.toISOString() ?? null,
     breakClosesAt: e.breakWindow?.closes.toISOString() ?? null,
+    outsideCheckOut: e.outsideCheckOut,
+    requireCheckOut: (await readTimeSettings()).requireCheckOut,
+    checkOutDeadline:
+      (e.checkOutDeadline ?? e.openDay?.checkOutDeadline ?? null)?.toISOString() ?? null,
   };
 }
 
@@ -845,6 +938,24 @@ const SUSPICION_TEXT: Record<PunchSuspicion, string> = {
   IN_WHILE_OPEN: "Anda masih tercatat Clock In. Pastikan Anda tidak bermaksud Clock Out.",
   IN_AFTER_END: "Sudah mendekati/lewat jam pulang. Pastikan Anda memang ingin Clock In.",
 };
+
+/** Foto absen wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah (≤ 1 MB, jpeg/webp). */
+export async function assertUploadedPhoto(employeeId: string, path: string, retryHint: string) {
+  assertOwnedPath(
+    path,
+    `${storage().storagePathPrefix}attendance/${employeeId}/`,
+    `Foto tidak valid. ${retryHint}`,
+  );
+  const info = await storage().storage.getObjectInfo(ATTENDANCE_SELFIE_BUCKET, path);
+  if (
+    !info ||
+    info.size <= 0 ||
+    info.size > SELFIE_MAX_BYTES ||
+    !(SELFIE_CONTENT_TYPES as readonly string[]).includes(info.contentType ?? "")
+  ) {
+    throw new BusinessRuleError(`Foto belum terunggah atau formatnya tidak sesuai. ${retryHint}`);
+  }
+}
 
 export interface PunchClient {
   userAgent?: string | undefined;
@@ -896,22 +1007,7 @@ async function recordPunch(
   const employee = await directory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
   // Selfie wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah.
-  assertOwnedPath(
-    input.selfiePath,
-    `${storage().storagePathPrefix}attendance/${employeeId}/`,
-    "Foto tidak valid. Ambil ulang selfie.",
-  );
-  const info = await storage().storage.getObjectInfo(ATTENDANCE_SELFIE_BUCKET, input.selfiePath);
-  if (
-    !info ||
-    info.size <= 0 ||
-    info.size > SELFIE_MAX_BYTES ||
-    !(SELFIE_CONTENT_TYPES as readonly string[]).includes(info.contentType ?? "")
-  ) {
-    throw new BusinessRuleError(
-      "Foto belum terunggah atau formatnya tidak sesuai. Ambil ulang selfie.",
-    );
-  }
+  await assertUploadedPhoto(employeeId, input.selfiePath, "Ambil ulang selfie.");
 
   const e = withMockLabel(await evaluate(employee, input, now), input);
   // Absen masuk ganda pada tanggal kerja yang sama → bentrok (bukan sekadar peringatan).
@@ -1013,7 +1109,7 @@ async function recordPunch(
           shiftCode: e.shift?.code ?? null,
           scheduledStart: e.window?.start ?? null,
           scheduledEnd: e.window?.end ?? null,
-          checkOutDeadline: e.window?.checkOutDeadline ?? null,
+          checkOutDeadline: e.checkOutDeadline,
           workLocationId: e.location?.id ?? e.geofence.workLocationId,
           status: "OPEN",
           labels: e.labels,
@@ -1026,13 +1122,24 @@ async function recordPunch(
       managerEmployeeId = day.managerEmployeeId;
     } else {
       const open = e.openDay as repository.DayRow;
-      const added = await repository.addPunch(tx, { ...punchData, dayId: open.id });
+      // TM-D26: absen pulang di luar kantor dalam jatah bulanan → langsung disetujui (tanpa approval).
+      const free = e.outsideCheckOut?.free === true;
+      const added = await repository.addPunch(tx, {
+        ...punchData,
+        dayId: open.id,
+        ...(free ? { status: "APPROVED" as const, decidedAt: now } : {}),
+      });
       await repository.updateDay(tx, open.id, {
         status: "PENDING",
         labels: [...new Set([...open.labels, ...e.labels])],
       });
       // TM-D6/TM-D7: usulan lembur & label istirahat/lembur rutin.
       await syncOvertime(tx, open.id);
+      if (free) {
+        // Status hari mengikuti absen masuk (masih menunggu / sudah disetujui).
+        await recomputeDay(tx, open.id);
+        return (await repository.findDayById(open.id, tx)) as repository.DayRow;
+      }
       dayId = open.id;
       punchId = added.id;
       companyId = open.companyId;
@@ -1050,13 +1157,35 @@ async function recordPunch(
   });
 
   if (e.kind === "OUT") await warnBreak(row);
+  if (e.kind === "OUT" && e.outsideCheckOut) {
+    // TM-D26: peringatan tertulis untuk karyawan (juga tampil di layar setelah absen).
+    await notifyEmployees(
+      [
+        {
+          employeeId,
+          type: "attendance.outside_checkout",
+          title: `Absen pulang di luar lokasi kantor — ${dateLabel(e.workDate)}`,
+          body: outsideCheckOutWarning(e.outsideCheckOut),
+          link: "/absen",
+          dedupeKey: `tm-outside-out:${row.id}`,
+          target: { type: "ATTENDANCE_DATE", id: e.workDate },
+        },
+      ],
+      now,
+    );
+  }
   await writeAudit({
     actorAccountId: ctx.actor.accountId,
     action: e.kind === "IN" ? "attendance.check_in" : "attendance.check_out",
     entityType: "attendance.day",
     entityId: row.id,
     before: null,
-    after: { workDate: e.workDate, labels: e.labels, distanceM: e.geofence.distanceM },
+    after: {
+      workDate: e.workDate,
+      labels: e.labels,
+      distanceM: e.geofence.distanceM,
+      ...(e.outsideCheckOut ? { outsideCheckOut: e.outsideCheckOut } : {}),
+    },
     requestId: ctx.requestId ?? null,
     ip: ctx.ip ?? null,
   });
@@ -1211,8 +1340,21 @@ export async function closeOverdueDays(
   employeeIds?: string[],
 ): Promise<{ closed: number }> {
   const overdue = await repository.overdueOpenDays(now, employeeIds);
+  if (overdue.length === 0) return { closed: 0 };
+  const { requireCheckOut, timezone } = await readTimeSettings();
   for (const day of overdue) {
     await repository.withTransactionDay(async (tx) => {
+      if (requireCheckOut) {
+        // TM-D26: hanya absen datang s.d. batas (24:00) → Alpha; approval absen masuk yang menunggu
+        // dibatalkan. Masih bisa dikoreksi / diisi manual s.d. H+3 selama periode belum ditutup.
+        await cancelApprovalRequest(tx, "ATTENDANCE_DAY", day.id, now);
+        await cancelPunchApprovals(tx, day.id, now);
+        await repository.updateDay(tx, day.id, {
+          status: "ALPHA",
+          labels: [...new Set([...day.labels, "NO_CHECKOUT", "NO_CHECKOUT_ALPHA"])],
+        });
+        return;
+      }
       // D-073: absen masuk sudah punya approval sendiri; hari menunggu koreksi / input manual pulang.
       await repository.updateDay(tx, day.id, {
         status: "PENDING",
@@ -1220,7 +1362,40 @@ export async function closeOverdueDays(
       });
     });
   }
+  if (requireCheckOut) await notifyNoCheckOutAlpha(overdue, localDate(now, timezone), now);
   return { closed: overdue.length };
+}
+
+/** TM-D26: karyawan & atasan diberi tahu hari yang menjadi Alpha karena tidak absen pulang. */
+async function notifyNoCheckOutAlpha(days: repository.DayRow[], today: string, now: Date) {
+  const people = await directory.employeesByIds(days.map((d) => d.employeeId));
+  const notices: EmployeeNotice[] = [];
+  for (const d of days) {
+    const date = toIso(d.workDate);
+    const open = canStillCorrect(date, today);
+    notices.push({
+      employeeId: d.employeeId,
+      type: "attendance.alpha",
+      title: `Tidak absen pulang ${dateLabel(date)} — dihitung Alpha`,
+      body: open
+        ? `Absen datang tanpa absen pulang s.d. pukul 24:00 dihitung Alpha. Ajukan koreksi jam pulang paling lambat ${dateLabel(correctionDeadline(date))} bila ada kesalahan.`
+        : "Batas koreksi sudah lewat; hari itu tetap Alpha.",
+      link: "/time/pernyataan",
+      dedupeKey: `tm-alpha:${d.employeeId}:${date}`,
+      target: { type: "ATTENDANCE_DATE", id: date },
+    });
+    if (d.managerEmployeeId) {
+      notices.push({
+        employeeId: d.managerEmployeeId,
+        type: "attendance.alpha_team",
+        title: `${people.get(d.employeeId)?.fullName ?? "Karyawan"} tidak absen pulang ${dateLabel(date)} — Alpha`,
+        link: "/time/absen-harian",
+        dedupeKey: `tm-alpha-team:${d.employeeId}:${date}`,
+        target: { type: "ATTENDANCE_DATE", id: date },
+      });
+    }
+  }
+  await notifyEmployees(notices, now);
 }
 
 /** Cron `purge-selfies`: hapus file selfie melewati masa simpan (data absen tetap). */
@@ -1260,7 +1435,9 @@ export async function recomputeDay(tx: repository.AttendanceTx, dayId: string) {
   const labels = [
     ...new Set([
       ...day.punches.flatMap((p) => p.labels),
-      ...day.labels.filter((l) => l === "NO_CHECKOUT" || l === "CORRECTED"),
+      ...day.labels.filter(
+        (l) => l === "NO_CHECKOUT" || l === "CORRECTED" || l === "NO_CHECKOUT_ALPHA",
+      ),
     ]),
   ];
   await repository.updateDay(tx, dayId, { status, labels });
@@ -1410,8 +1587,9 @@ export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) 
   if (input.workLocationId && !manualLocation) throw new NotFoundError("Lokasi tidak ditemukan.");
   const result = await repository.withTransactionDay(async (tx) => {
     let day = await repository.findDay(employee.id, workDate, tx);
-    // TM-D3: Alpha karena tidak absen boleh diisi manual (dalam batas waktu); penanda NO_ATTENDANCE tetap.
-    if (day?.status === "ALPHA" && day.labels.includes("NO_ATTENDANCE")) {
+    // TM-D3/TM-D26: Alpha karena tidak absen / tidak absen pulang boleh diisi manual (dalam batas waktu);
+    // penandanya tetap.
+    if (day && isCorrectableAlpha(day)) {
       await repository.updateDay(tx, day.id, { status: "OPEN" });
       day = (await repository.findDay(employee.id, workDate, tx)) as repository.DayRow;
     }

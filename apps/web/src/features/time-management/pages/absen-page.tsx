@@ -59,6 +59,7 @@ import {
 import {
   DayStatusBadge,
   hhmm,
+  isTimeOff,
   LabelChips,
   StepChips,
   timeIn,
@@ -75,6 +76,7 @@ import {
 import { RosterWeek } from "../components/roster-week";
 import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
+import { SelfReportCard } from "./self-report-absen"; // TM-D29 (STAGING)
 
 // D-067: absen lewat PWA (tata letak HP, wajib online). Login sama dengan web. Selfie kamera langsung +
 // GPS + waktu server; foto diberi cap waktu, lat/long/alt, & lokasi geofence. Label D-070 tidak
@@ -164,15 +166,18 @@ export function useMobileApp(): MobileContextValue {
 
 const MOBILE_TITLES: [prefix: string, title: string][] = [
   ["/absen/riwayat", "Riwayat Absen"],
-  ["/absen/roster", "Roster Saya"],
+  ["/absen/roster", "Jadwal Saya"],
   ["/absen/cuti", "Cuti & Izin"],
   ["/absen/koreksi", "Koreksi & Pernyataan"],
+  // Urutan penting (cocok awalan): /absen/lembur-spl sebelum /absen/lembur.
+  ["/absen/lembur-spl", "Lembur & SPL"],
+  ["/absen/lembur", "Pengajuan Lembur"],
   ["/absen/tukar-shift", "Tukar Shift"],
   ["/absen/kalender", "Kalender Libur"],
-  ["/absen/lembur", "Lembur"],
   ["/absen/approval", "Approval"],
   ["/absen/notifikasi", "Notifikasi"],
   ["/absen/profil", "Profil"],
+  ["/absen/mandiri", "Absen Mandiri"], // TM-D29 (STAGING)
 ];
 
 /**
@@ -347,6 +352,8 @@ export function AbsenHome() {
         onPunch={startPunch}
         onOffDayOvertime={startOffDayOvertime}
       />
+      {/* TM-D29 (STAGING): absen mandiri — hanya crew berizin (The Intern's). */}
+      {tmOn("tmSelfReport") ? <SelfReportCard /> : null}
       <PersonalTasksCard me={me} />
       <HomeSummary data={data} />
       <MenuGrid me={me} />
@@ -419,8 +426,10 @@ function TodayCard({
             {roster?.shift
               ? ` · ${roster.shift.code} ${hhmm(roster.shift.startMinute)}–${hhmm(roster.shift.endMinute)}`
               : roster
-                ? " · OFF"
-                : " · Tanpa roster"}
+                ? isTimeOff(roster.code)
+                  ? " · TO (time off)"
+                  : " · OFF"
+                : " · Tanpa jadwal"}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -506,6 +515,15 @@ function TodayCard({
         </button>
       </div>
       <BreakButton data={data} now={now} online={online} onPunch={onPunch} />
+      {data.requireCheckOut && data.next !== "DONE" ? (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-center text-[11px] text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          <b>Wajib absen datang &amp; pulang.</b>{" "}
+          {data.next === "OUT" && data.checkOutDeadline
+            ? `Tanpa absen pulang s.d. ${shortDate(data.checkOutDeadline, tz)} ${timeIn(data.checkOutDeadline, tz)}, hari ini dihitung Alpha.`
+            : "Hanya absen datang tanpa absen pulang s.d. pukul 24:00 dihitung Alpha."}{" "}
+          Pulang lewat jadwal bukan lembur kecuali disetujui HR.
+        </p>
+      ) : null}
       <p className="text-muted-foreground mt-2 text-center text-[11px]">
         {data.next === "DONE"
           ? DONE_TEXT
@@ -635,7 +653,7 @@ function MenuGrid({ me }: { me: Me }) {
         <MenuTile
           to="/absen/roster"
           icon={CalendarRange}
-          label="Roster"
+          label="Jadwal"
           tone="bg-violet-100 text-violet-700"
         />
         <MenuTile
@@ -649,6 +667,12 @@ function MenuGrid({ me }: { me: Me }) {
           icon={HistoryIcon}
           label="Riwayat"
           tone="bg-emerald-100 text-emerald-700"
+        />
+        <MenuTile
+          to="/absen/lembur"
+          icon={Timer}
+          label="Ajukan Lembur"
+          tone="bg-indigo-100 text-indigo-700"
         />
         <MenuTile
           to="/absen/cuti"
@@ -679,9 +703,9 @@ function MenuGrid({ me }: { me: Me }) {
         ) : null}
         {tmAccess.overtime(me) && tmOn("tmOvertime") ? (
           <MenuTile
-            to="/absen/lembur"
+            to="/absen/lembur-spl"
             icon={Timer}
-            label="Lembur"
+            label="Lembur & SPL"
             tone="bg-indigo-100 text-indigo-700"
           />
         ) : null}
@@ -708,7 +732,7 @@ function RosterStrip({ data, today }: { data: Today; today: string }) {
   if (data.roster.length === 0) return null;
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">
-      <h2 className="mb-2 px-1 text-sm font-semibold">Roster 7 hari</h2>
+      <h2 className="mb-2 px-1 text-sm font-semibold">Jadwal 7 hari</h2>
       <RosterWeek roster={data.roster} today={today} />
     </section>
   );
@@ -783,7 +807,10 @@ export function PunchRow({
         <span>
           {label} <span className="font-semibold tabular-nums">{timeIn(punch.at, tz)}</span>
           {punch.source === "MANUAL" ? (
-            <span className="text-muted-foreground"> · manual HR</span>
+            <span className="text-muted-foreground">
+              {/* TM-D29 (STAGING): absen mandiri tersimpan sebagai MANUAL berlabel SELF_REPORT. */}
+              {punch.labels.includes("SELF_REPORT") ? " · mandiri" : " · manual HR"}
+            </span>
           ) : null}
         </span>
         {punch.canCancel ? (
@@ -1233,6 +1260,17 @@ function PunchFlow({
             onConfirm={setConfirmed}
             onSwitch={switchKind}
           />
+        ) : null}
+
+        {check?.outsideCheckOut ? (
+          <Alert variant={check.outsideCheckOut.free ? "default" : "destructive"}>
+            <AlertTriangle />
+            <AlertDescription>
+              {check.outsideCheckOut.free
+                ? `Anda absen pulang di luar lokasi kantor (ke-${check.outsideCheckOut.nth} bulan ini). Kali ini langsung disetujui, tetapi jangan diulangi — sisa ${Math.max(0, check.outsideCheckOut.freeQuota - check.outsideCheckOut.nth)} kali lagi tanpa persetujuan.`
+                : `Absen pulang di luar lokasi kantor (ke-${check.outsideCheckOut.nth} bulan ini) melebihi jatah ${check.outsideCheckOut.freeQuota} kali. Absen ini wajib disetujui Atasan & HR. Jangan diulangi.`}
+            </AlertDescription>
+          </Alert>
         ) : null}
 
         {blocked ? (
