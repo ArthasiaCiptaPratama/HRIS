@@ -441,6 +441,16 @@ export const NAV_GROUPS: NavGroup[] = [
               "pola kerja office kantor roster siklus kerja libur time off lokal non-lokal lapangan homebase 13/1 6/1 5/2",
           },
           {
+            // TM-D29 (STAGING): Absen Mandiri — crew berizin mengisi jam sendiri dari HP (perlu persetujuan).
+            id: "self-report",
+            maintenance: !tmOn("tmSelfReport"),
+            label: "Absen Mandiri",
+            to: "/time/absen-mandiri",
+            icon: Smartphone,
+            visible: tmAccess.manageRoster,
+            keywords: "absen mandiri magang intern isi jam sendiri galeri foto staging",
+          },
+          {
             id: "attendance-locations",
             maintenance: !tmOn("tmAttendanceLocations"),
             label: "Lokasi Absen",

@@ -272,6 +272,11 @@ export const routes: RouteObject[] = [
                     path: "pola-kerja",
                     lazy: tmOn("tmWorkRoster") ? pages.workRoster : pages.maintenance,
                   },
+                  {
+                    // TM-D29 (STAGING): Absen Mandiri — izin crew mengisi jam sendiri dari HP.
+                    path: "absen-mandiri",
+                    lazy: tmOn("tmSelfReport") ? pages.selfReport : pages.maintenance,
+                  },
                 ],
               },
               {

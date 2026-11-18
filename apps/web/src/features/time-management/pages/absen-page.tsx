@@ -775,7 +775,10 @@ export function PunchRow({
         <span>
           {label} <span className="font-semibold tabular-nums">{timeIn(punch.at, tz)}</span>
           {punch.source === "MANUAL" ? (
-            <span className="text-muted-foreground"> · manual HR</span>
+            <span className="text-muted-foreground">
+              {/* TM-D29 (STAGING): absen mandiri tersimpan sebagai MANUAL berlabel SELF_REPORT. */}
+              {punch.labels.includes("SELF_REPORT") ? " · mandiri" : " · manual HR"}
+            </span>
           ) : null}
         </span>
         {punch.canCancel ? (

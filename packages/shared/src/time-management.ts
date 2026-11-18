@@ -350,6 +350,10 @@ export const ATTENDANCE_LABELS = [
   "SHORT_REST",
   // TM-D26: hanya absen datang sampai 24:00 tanggal jam pulang → Alpha (bisa dikoreksi s.d. H+3).
   "NO_CHECKOUT_ALPHA",
+  // TM-D29 (STAGING, mudah dihapus — docs/features/time-management/tm-d29-absen-mandiri.md): absen mandiri
+  // karyawan crew berizin (jam diisi sendiri) & foto dari galeri, bukan selfie langsung.
+  "SELF_REPORT",
+  "GALLERY_PHOTO",
 ] as const;
 export type AttendanceLabel = (typeof ATTENDANCE_LABELS)[number];
 export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
@@ -371,6 +375,8 @@ export const ATTENDANCE_LABEL_TEXT: Record<AttendanceLabel, string> = {
   MOCK_LOCATION: "Lokasi palsu terdeteksi",
   SHORT_REST: "Jeda antarshift kurang",
   NO_CHECKOUT_ALPHA: "Alpha: tidak absen pulang",
+  SELF_REPORT: "Absen mandiri", // TM-D29
+  GALLERY_PHOTO: "Foto galeri", // TM-D29
 };
 
 /**
@@ -389,7 +395,13 @@ export const isCorrectableAlpha = (day: { status: string; labels: readonly strin
  * Label yang tidak mewajibkan alasan dari karyawan (penanda untuk approver saja). TM-D25: + Akurasi GPS rendah.
  * Lembur hari libur ber-SPL tidak berlabel Di luar jadwal roster (`applyOrder`), jadi juga tanpa wajib alasan.
  */
-export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = ["MOCK_LOCATION", "LOW_ACCURACY"];
+export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = [
+  "MOCK_LOCATION",
+  "LOW_ACCURACY",
+  // TM-D29: penanda asal absen mandiri, bukan pelanggaran → tanpa wajib alasan.
+  "SELF_REPORT",
+  "GALLERY_PHOTO",
+];
 
 /**
  * MOB-D6: target notifikasi Time Management untuk app mobile (layar yang dibuka saat notifikasi diketuk).

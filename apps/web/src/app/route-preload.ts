@@ -130,6 +130,11 @@ export const pages = {
     import("@/features/time-management/pages/roster-page").then((m) => ({
       Component: m.RosterPage,
     })),
+  // TM-D29 (STAGING): Absen Mandiri.
+  selfReport: () =>
+    import("@/features/time-management/pages/self-report-page").then((m) => ({
+      Component: m.SelfReportPage,
+    })),
   workRoster: () =>
     import("@/features/time-management/pages/work-roster-page").then((m) => ({
       Component: m.WorkRosterPage,
@@ -225,6 +230,7 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
     tmOn("tmAttendanceLocations") ? pages.locationSettings : pages.maintenance,
   ],
   ["/time/pola-kerja", tmOn("tmWorkRoster") ? pages.workRoster : pages.maintenance],
+  ["/time/absen-mandiri", tmOn("tmSelfReport") ? pages.selfReport : pages.maintenance], // TM-D29 (STAGING)
   ["/time/roster", tmOn("tmRoster") ? pages.roster : pages.maintenance],
   ["/time/perubahan-roster", tmOn("tmRosterChanges") ? pages.rosterChanges : pages.maintenance],
   ["/time/kalender", tmOn("tmHolidays") ? pages.holidays : pages.maintenance],

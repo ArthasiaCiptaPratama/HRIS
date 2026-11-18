@@ -514,6 +514,8 @@ function PunchCell({
           text: `Luar radius${siteName ? ` ${siteName}` : ""}${distance}`,
           tone: "text-destructive",
         };
+  // TM-D29 (STAGING): absen mandiri → koordinat GPS HP ditampilkan (bukan "dipilih HR").
+  const selfReport = punch.labels.includes("SELF_REPORT");
   return (
     <div className="flex min-w-56 items-start gap-2.5">
       <SelfieThumb punch={punch} />
@@ -522,11 +524,12 @@ function PunchCell({
           <TimeText iso={punch.at} tz={tz} />
           {punch.source === "MANUAL" ? (
             <Badge variant="muted" className="text-[10px]">
-              Manual
+              {/* TM-D29 (STAGING): absen mandiri karyawan tersimpan sebagai MANUAL berlabel SELF_REPORT. */}
+              {selfReport ? "Mandiri" : "Manual"}
             </Badge>
           ) : null}
         </div>
-        {punch.source === "MANUAL" && punch.location ? (
+        {punch.source === "MANUAL" && !selfReport && punch.location ? (
           <p
             className="text-brand flex items-center gap-1 text-[11px] whitespace-nowrap"
             title="Lokasi dipilih HR saat input manual (bukan GPS HP)"
