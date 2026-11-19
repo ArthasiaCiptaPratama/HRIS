@@ -181,7 +181,7 @@ describe("Import Data Karyawan", () => {
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
     await user.click(await screen.findByRole("button", { name: "Lanjut" }));
-    expect(await screen.findByText(/3 lampiran Google Drive/)).toBeInTheDocument();
+    expect(await screen.findByText(/3 foto\/dokumen dari tautan Google Drive/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Simpan 3 lampiran" })).toBeEnabled();
   });
 
@@ -239,6 +239,13 @@ describe("Import Data Karyawan", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Simpan 1 karyawan" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    const save = await screen.findByRole("dialog", { name: "Simpan 1 karyawan?" });
+    expect(
+      within(save).getByText(/1 baris yang perlu diperbaiki tidak ikut disimpan/),
+    ).toBeInTheDocument();
+    expect(within(save).getByRole("button", { name: /Unduh 1 baris dulu/ })).toBeInTheDocument();
+    await user.click(within(save).getByRole("button", { name: "Ya, simpan 1" }));
     expect(await screen.findByText("Import selesai")).toBeInTheDocument();
     const commitReq = requests.find((r) => r.path === "/employee-imports" && r.method === "POST");
     expect(commitReq?.body).toMatchObject({ previewHash: "hash-1" });
@@ -257,6 +264,8 @@ describe("Import Data Karyawan", () => {
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
     await user.click(await screen.findByRole("button", { name: "Lanjut" }));
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan + 1 lampiran" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
 
     expect(await screen.findByText("Data karyawan tersimpan")).toBeInTheDocument();
     expect(screen.getByText("Memproses lampiran")).toBeInTheDocument();
@@ -279,10 +288,14 @@ describe("Import Data Karyawan", () => {
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
     await user.click(await screen.findByRole("button", { name: "Lanjut" }));
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
     await waitFor(() =>
       expect(requests.filter((r) => r.path === "/employee-imports/preview")).toHaveLength(2),
     );
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
     expect(await screen.findByText("Import selesai")).toBeInTheDocument();
   });
 
@@ -354,6 +367,26 @@ describe("Import Data Karyawan", () => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ defaultEmploymentStatusId: "st-2" });
     });
+
+    // IMP-D5: sudah ada pilihan → "Ganti file" minta konfirmasi; Batal mempertahankan langkah.
+    await user.click(screen.getByRole("button", { name: /Kembali ke pemetaan/ }));
+    await user.click(await screen.findByRole("button", { name: /Ganti file/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ganti file?" });
+    await user.click(within(dialog).getByRole("button", { name: "Batal" }));
+    expect(screen.getByRole("button", { name: /Ganti file/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Ganti file/ }));
+    await user.click(await screen.findByRole("button", { name: "Ya, ganti file" }));
+    expect(await screen.findByLabelText("Pilih file import")).toBeInTheDocument();
+  });
+
+  it("IMP-D5: Ganti file tanpa pilihan apa pun langsung kembali ke Unggah (tanpa dialog)", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: /Ganti file/ }));
+    expect(screen.queryByRole("dialog", { name: "Ganti file?" })).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Pilih file import")).toBeInTheDocument();
   });
 
   it("EMP-D6: homebase baru tampil di master data baru; pemetaan ke homebase yang ada dikirim", async () => {
@@ -500,8 +533,11 @@ describe("Import Data Karyawan", () => {
       expect(last?.body).toMatchObject({ chartHolderChoices: { "2": "h-1" } });
     });
     // Baris tanpa saran tetap bisa memilih manual dari pemegang bagan lain.
+    // IMP-D5 (opsi a): satu tautan di atas tabel membuka pilihan untuk semua baris.
     await user.click(
-      screen.getByRole("button", { name: "Orang ini sudah ada di Struktur Organisasi?" }),
+      screen.getByRole("button", {
+        name: /Ada karyawan yang sudah tercatat di Struktur Organisasi dengan nama lain/,
+      }),
     );
     await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 3" }));
     await user.click(screen.getByRole("option", { name: /Budi C\. · ASLI-ACP-Y-1/ }));

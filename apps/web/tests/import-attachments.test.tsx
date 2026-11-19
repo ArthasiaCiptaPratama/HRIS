@@ -136,8 +136,10 @@ describe("Lampiran Google Drive di Import", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
 
-    expect(await screen.findByText("Lampiran Google Drive belum selesai")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Lanjutkan" }));
+    expect(
+      await screen.findByText("Foto & dokumen dari Google Drive yang belum selesai diambil"),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lihat & lanjutkan" }));
 
     expect(await screen.findByText("File Drive tidak bisa dibuka")).toBeInTheDocument();
     expect(
@@ -165,7 +167,7 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
 
     // Batas waktu longgar: 5 panggilan berurutan + jeda coba ulang, aman saat CI/mesin sibuk.
     expect(
@@ -183,7 +185,7 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
     expect(
       await screen.findByText(/1 masuk · 0 dilewati · 0 gagal/, {}, { timeout: 5000 }),
     ).toBeInTheDocument();
@@ -199,7 +201,7 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
     expect(
       await screen.findByText("Tidak dapat terhubung ke server.", {}, { timeout: 5000 }),
     ).toBeInTheDocument();
@@ -220,7 +222,7 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
     expect(
       await screen.findByText(/Google Drive belum dikonfigurasi di server/),
     ).toBeInTheDocument();

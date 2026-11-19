@@ -134,13 +134,12 @@ function NotesTable({ notes }: { notes: Item[] }) {
           aria-label="Daftar lampiran yang perlu dicek"
           className="focus-visible:ring-ring/50 max-h-80 overflow-auto outline-none focus-visible:ring-[3px] [scrollbar-width:thin]"
         >
-          <table className="w-full min-w-max text-sm">
+          <table className="w-full text-sm">
             <thead className="bg-card sticky top-0 z-10 border-b">
               <tr>
                 <th className={head}>Karyawan</th>
                 <th className={head}>Lampiran</th>
                 <th className={head}>Status</th>
-                <th className={head}>Keterangan</th>
               </tr>
             </thead>
             <tbody>
@@ -152,15 +151,18 @@ function NotesTable({ notes }: { notes: Item[] }) {
                       {item.employeeNumber ?? "NIP belum ada"}
                     </p>
                   </td>
-                  <td className="px-3 py-2 align-top whitespace-nowrap">
-                    {attachmentTargetLabel(item.field)}
-                    {item.fileCount > 1 ? ` (${item.fileCount} file)` : ""}
+                  {/* IMP-D5: alasan di bawah nama lampiran (tanpa kolom Keterangan di ujung kanan). */}
+                  <td className="px-3 py-2 align-top whitespace-normal">
+                    <p>
+                      {attachmentTargetLabel(item.field)}
+                      {item.fileCount > 1 ? ` (${item.fileCount} file)` : ""}
+                    </p>
+                    {item.reason ? (
+                      <p className="text-muted-foreground text-xs">{item.reason}</p>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <Badge variant={STATUS[item.status].variant}>{STATUS[item.status].label}</Badge>
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2 align-top whitespace-nowrap">
-                    {item.reason ?? "—"}
                   </td>
                 </tr>
               ))}

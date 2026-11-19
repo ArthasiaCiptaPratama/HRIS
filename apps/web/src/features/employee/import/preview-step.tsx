@@ -256,9 +256,12 @@ export function PreviewStep({
     () => preview.rows.filter((r) => matchesFilter(filter, r.action)),
     [preview.rows, filter],
   );
-  // IMP-D5: pilihan pemegang bagan hanya tampil di baris yang namanya mirip (atau sudah dipilih);
-  // baris lain cukup tautan kecil yang membukanya.
-  const [openHolderRows, setOpenHolderRows] = useState<Set<number>>(() => new Set());
+  // IMP-D5 (pengguna 19 Nov, opsi a): pilihan pemegang bagan hanya tampil di baris yang namanya mirip
+  // (atau sudah dipilih); baris lain lewat satu tautan di atas tabel, bukan tautan per baris.
+  const [showAllHolders, setShowAllHolders] = useState(false);
+  const canPickOtherHolder =
+    preview.chartHolders.length > 0 &&
+    preview.rows.some((r) => r.chartHolder && r.chartHolder.candidates.length === 0);
   const similarHolderRows = preview.rows.filter(
     (r) => (r.chartHolder?.candidates.length ?? 0) > 0,
   ).length;
@@ -366,9 +369,9 @@ export function PreviewStep({
         <Alert>
           <CloudDownload />
           <AlertDescription>
-            {counts.attachments} lampiran Google Drive (foto & dokumen) akan diambil setelah data
-            disimpan. Lampiran yang sama dengan yang sudah pernah diimpor dilewati; file berbeda
-            menjadi versi dokumen baru.
+            {counts.attachments} foto/dokumen dari tautan Google Drive akan diambil setelah data
+            disimpan. File yang sama dengan yang sudah pernah diambil dilewati; file yang berbeda
+            disimpan sebagai dokumen terbaru.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -432,29 +435,50 @@ export function PreviewStep({
         </div>
       ) : null}
 
-      <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
-        {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
-          const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
-          if (key === "SKIP" && count === 0) return null;
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
+          {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
+            const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
+            if (key === "SKIP" && count === 0) return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={filter === key}
+                onClick={() => setFilter(key)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
+                  filter === key
+                    ? "border-foreground bg-foreground text-background"
+                    : "bg-card text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {FILTER_LABELS[key]}
+                <span className="font-mono text-xs tabular-nums">{count}</span>
+              </button>
+            );
+          })}
+        </nav>
+        {canPickOtherHolder ? (
+          <button
+            type="button"
+            aria-expanded={showAllHolders}
+            onClick={() => setShowAllHolders((v) => !v)}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-left text-sm underline-offset-4 hover:underline"
+          >
+            {showAllHolders
+              ? "Sembunyikan pilihan Struktur Organisasi per baris"
+              : "Ada karyawan yang sudah tercatat di Struktur Organisasi dengan nama lain? Tampilkan pilihan"}
+            <ChevronDown
               className={cn(
-                "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
-                filter === key
-                  ? "border-foreground bg-foreground text-background"
-                  : "bg-card text-muted-foreground hover:text-foreground",
+                "size-3.5 shrink-0 transition-transform",
+                showAllHolders && "rotate-180",
               )}
-            >
-              {FILTER_LABELS[key]}
-              <span className="font-mono text-xs tabular-nums">{count}</span>
-            </button>
-          );
-        })}
-      </nav>
+              aria-hidden
+            />
+          </button>
+        ) : null}
+      </div>
 
       <div
         className={cn(
@@ -483,22 +507,9 @@ export function PreviewStep({
                     </p>
                     {r.chartHolder &&
                     preview.chartHolders.length > 0 &&
-                    r.chartHolder.candidates.length === 0 &&
-                    !r.chartHolder.choice &&
-                    !openHolderRows.has(r.sourceRow) ? (
-                      <button
-                        type="button"
-                        onClick={() => setOpenHolderRows((s) => new Set(s).add(r.sourceRow))}
-                        className="text-muted-foreground hover:text-foreground mt-1 text-xs underline-offset-4 hover:underline"
-                      >
-                        Orang ini sudah ada di Struktur Organisasi?
-                      </button>
-                    ) : null}
-                    {r.chartHolder &&
-                    preview.chartHolders.length > 0 &&
                     (r.chartHolder.candidates.length > 0 ||
                       r.chartHolder.choice ||
-                      openHolderRows.has(r.sourceRow)) ? (
+                      showAllHolders) ? (
                       <div className="mt-1.5 max-w-64">
                         <LazySelect
                           aria-label={`Pemegang bagan baris ${r.sourceRow}`}
@@ -584,11 +595,11 @@ export function PreviewStep({
         </div>
       </div>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft /> Kembali
         </Button>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row sm:ml-auto sm:flex-wrap sm:justify-end">
           {errorRows.length > 0 ? (
             <Button variant="outline" onClick={onDownloadIssues}>
               <Download /> Unduh {errorRows.length} baris yang perlu diperbaiki

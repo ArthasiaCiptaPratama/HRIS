@@ -190,6 +190,9 @@ export function ImportEmployeesPage() {
   const [attachmentJobId, setAttachmentJobId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentsState | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  // IMP-D5 (pengguna 19 Nov, a + b): konfirmasi hanya saat berisiko.
+  const [confirmChangeFile, setConfirmChangeFile] = useState(false);
+  const [confirmSave, setConfirmSave] = useState(false);
   const queryClient = useQueryClient();
   const onAttachmentsState = useCallback((next: AttachmentsState) => setAttachments(next), []);
   // Lampiran masih diunduh di langkah Selesai → stepper & judul tidak menyatakan "selesai" dulu.
@@ -463,6 +466,7 @@ export function ImportEmployeesPage() {
     setAttachmentJobId(null);
     setAttachments(null);
     setConfirmReset(false);
+    setConfirmChangeFile(false);
     // Pemrosesan lampiran berhenti saat panel dilepas → daftar "belum selesai" disegarkan.
     void queryClient.invalidateQueries({ queryKey: importKeys.openAttachments });
     setMasterMap(EMPTY_MAP);
@@ -478,6 +482,25 @@ export function ImportEmployeesPage() {
   function requestReset() {
     if (attachments?.active) setConfirmReset(true);
     else reset();
+  }
+
+  /** Sudah ada pilihan yang dibuat di Lengkapi data / Pratinjau → "Ganti file" minta konfirmasi. */
+  const hasChoices =
+    visitedComplete ||
+    Object.keys(statusOverrides).length > 0 ||
+    Object.keys(companyOverrides).length > 0 ||
+    Object.keys(chartHolderChoices).length > 0 ||
+    Object.values(masterMap).some((group) => Object.keys(group).length > 0);
+
+  function requestChangeFile() {
+    if (hasChoices) setConfirmChangeFile(true);
+    else reset();
+  }
+
+  /** Ada baris yang perlu diperbaiki → konfirmasi dulu bahwa baris itu tidak ikut disimpan. */
+  function requestCommit() {
+    if (preview && preview.counts.error > 0) setConfirmSave(true);
+    else void commit();
   }
 
   /** Panel lampiran yang dibuka dari langkah Unggah (lembar samping) ditutup → proses dijeda. */
@@ -651,7 +674,7 @@ export function ImportEmployeesPage() {
           savedProfile={savedProfile}
           saveProfile={saveProfile}
           onSaveProfileChange={setSaveProfile}
-          onBack={reset}
+          onBack={requestChangeFile}
           onNext={() => void runPreview()}
           busy={previewMutation.isPending}
         />
@@ -721,7 +744,7 @@ export function ImportEmployeesPage() {
           onBack={() =>
             setStep(visitedComplete || completionState(preview).needed ? "complete" : "mapping")
           }
-          onCommit={() => void commit()}
+          onCommit={requestCommit}
           onDownloadIssues={downloadIssues}
           saving={commitMutation.isPending}
           updating={previewMutation.isPending}
@@ -814,6 +837,58 @@ export function ImportEmployeesPage() {
         </div>
       ) : null}
 
+      <Dialog open={confirmChangeFile} onOpenChange={setConfirmChangeFile}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ganti file?</DialogTitle>
+            <DialogDescription>
+              Pilihan yang sudah Anda buat untuk file ini (departemen, status, PT, dan lainnya) akan
+              hilang.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmChangeFile(false)}>
+              Batal
+            </Button>
+            <Button variant="brand" onClick={reset}>
+              Ya, ganti file
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {preview ? (
+        <Dialog open={confirmSave} onOpenChange={setConfirmSave}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{saveQuestion(preview.counts)}</DialogTitle>
+              <DialogDescription>
+                {preview.counts.error} baris yang perlu diperbaiki tidak ikut disimpan. Anda bisa
+                memperbaikinya lalu mengunggahnya lagi nanti — yang sudah tersimpan tidak akan
+                dobel.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:flex-wrap">
+              <Button variant="outline" onClick={() => setConfirmSave(false)}>
+                Batal
+              </Button>
+              <Button variant="outline" onClick={downloadIssues}>
+                <Download /> Unduh {preview.counts.error} baris dulu
+              </Button>
+              <Button
+                variant="brand"
+                onClick={() => {
+                  setConfirmSave(false);
+                  void commit();
+                }}
+              >
+                {saveConfirmLabel(preview.counts)}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
         <DialogContent>
           <DialogHeader>
@@ -838,4 +913,18 @@ export function ImportEmployeesPage() {
       </Dialog>
     </>
   );
+}
+
+type SaveCounts = { create: number; update: number; attachments: number };
+
+/** Judul dialog konfirmasi simpan — sama dengan tombol Simpan (karyawan dan/atau lampiran). */
+function saveQuestion(c: SaveCounts): string {
+  const writable = c.create + c.update;
+  if (writable === 0) return `Simpan ${c.attachments} lampiran?`;
+  return `Simpan ${writable} karyawan${c.attachments > 0 ? ` + ${c.attachments} lampiran` : ""}?`;
+}
+
+function saveConfirmLabel(c: SaveCounts): string {
+  const writable = c.create + c.update;
+  return writable === 0 ? `Ya, simpan ${c.attachments} lampiran` : `Ya, simpan ${writable}`;
 }
