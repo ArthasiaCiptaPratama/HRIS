@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Paket B: cari, editedCells (web), grid tanpa celah (IMP-D6) (Oatse)
+- **Dikerjakan:** kotak cari nama/NIP (`preview-step.tsx`); web mengirim `editedCells` saat Simpan (`api.ts`, `import-page.tsx`; API membuangnya sampai B3-API digabung); grid mengisi lebar kotak (`stretchColumns`) & tinggi mengikuti isi dengan batas sisa layar, tebal scrollbar diukur; kotak "Perlu diperbaiki" maks 5 baris (KUTIPAN PENGGUNA "otomatis fill gada gap" via supervisor). API audit `editedCells` dikerjakan di worktree `HRIS-b3` (commit lokal `25da3ed`, integration 63 ✔) dan ditahan supaya API dev tidak restart selama pengguna menguji tempel.
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); web 63→64 file test ✔ (baru `import-sheet-grid` 3). Uji visual 977/1440/1630 px × 3/13/2.000 baris (`paket-b/`): lebar penuh tanpa celah, tinggi pas isi (selisih 0 px), 2.000 baris dibatasi sisa layar & bisa digulir sampai baris 2.000.
+- **Masalah / catatan:** `f6260c7` sempat masuk dengan 1 error lint test, diperbaiki `7bde3ca`. Temuan lama: tombol Simpan berlabel "Simpan 0 lampiran" saat tidak ada baris siap (dinonaktifkan; label membingungkan) — usulkan "Simpan" saja.
+- **Berikutnya:** gabung B3-API setelah uji tempel; B2.
+
 ### 2026-11-19 — Paket B: spike B0 + B1 Pratinjau seperti spreadsheet (IMP-D6) (Oatse)
 - **Dikerjakan:** spike B0 (TanStack Table + Virtual, 2.000×40) → GO. B1: shared `import/edits.ts` (`applyCellEdits`, `editedCellList`); web `import/sheet/` (`sheet-grid.tsx` grid tervirtualisasi: kolom beku, kunci per slot, overscan 6, `scrollPaddingStart` kolom beku, editor teks & dropdown, keyboard, tempel TSV, undo, ARIA grid + `aria-activedescendant`; `clipboard.ts` `parseClipboardGrid`; `preview-sheet.tsx` kolom penting + error + "Kolom lain", PT/Status/Struktur Organisasi per baris, validasi instan, keterangan baris aktif), `preview-step.tsx` (tabel lama diganti grid, kotak Perlu diperbaiki → lompat ke sel), `import-page.tsx` (`edits` + cap waktu sel, pratinjau ulang 1 dtk, `beforeunload`, unduh baris memakai ubahan), `template/build-template.ts` `FIXED_CHOICES`; dependensi `@tanstack/react-virtual` 3.14.25 (tepat).
 - **Keputusan:** IMP-D6.

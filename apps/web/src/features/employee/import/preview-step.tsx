@@ -35,6 +35,9 @@ export const positionKey = (department: string, name: string) =>
 
 type Filter = "ALL" | "READY" | "SKIP" | "ERROR";
 
+/** Kotak "Perlu diperbaiki" menampilkan paling banyak sekian baris; sisanya lewat filter tabel. */
+const ERROR_LIST_MAX = 5;
+
 const FILTER_LABELS: Record<Filter, string> = {
   ALL: "Semua",
   READY: "Siap disimpan",
@@ -279,7 +282,7 @@ export function PreviewStep({
             Perlu diperbaiki ({errorRows.length} baris)
           </h3>
           <ul className="mt-2 space-y-1 text-sm">
-            {errorRows.map((r) => {
+            {errorRows.slice(0, ERROR_LIST_MAX).map((r) => {
               const errors = r.issues.filter((i) => i.severity === "ERROR");
               return (
                 <li key={r.sourceRow} className="truncate">
@@ -306,6 +309,19 @@ export function PreviewStep({
               );
             })}
           </ul>
+          {/* "Sekali lihat": file besar → hanya beberapa baris pertama; sisanya lewat filter di tabel. */}
+          {errorRows.length > ERROR_LIST_MAX ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFilter("ERROR");
+                setQuery("");
+              }}
+              className="text-destructive mt-1 text-sm font-medium underline-offset-4 hover:underline"
+            >
+              +{errorRows.length - ERROR_LIST_MAX} baris lainnya · tampilkan di tabel
+            </button>
+          ) : null}
           <p className="text-muted-foreground mt-2 text-xs">
             Klik untuk menuju selnya, lalu ketik isi yang benar ·{" "}
             <button

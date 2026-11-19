@@ -335,9 +335,30 @@ const RowView = memo(function RowView({
   );
 });
 
+/**
+ * Kolom lebih sempit dari kotak → sisa lebar dibagi proporsional ke kolom teks yang bisa diubah (tanpa
+ * celah kosong di kanan; pengguna 19 Nov "otomatis fill gada gap"). Lebih lebar → tetap digeser ke samping.
+ */
+export function stretchColumns(columns: SheetColumn[], boxWidth: number): SheetColumn[] {
+  const natural = columns.reduce((sum, c) => sum + c.width, 0);
+  const extra = Math.floor(boxWidth - natural);
+  if (boxWidth <= 0 || extra <= 0 || columns.length === 0) return columns;
+  let growers = columns.flatMap((c, i) => (c.kind === "text" && !c.locked ? [i] : []));
+  if (growers.length === 0) growers = [columns.length - 1];
+  const weight = growers.reduce((sum, i) => sum + (columns[i]?.width ?? 0), 0);
+  let given = 0;
+  return columns.map((c, i) => {
+    if (!growers.includes(i)) return c;
+    const last = i === growers[growers.length - 1];
+    const add = last ? extra - given : Math.floor((extra * c.width) / weight);
+    given += add;
+    return { ...c, width: c.width + add };
+  });
+}
+
 export function SheetGrid({
   label,
-  columns,
+  columns: baseColumns,
   rows,
   onChange,
   onActiveChange,
@@ -359,6 +380,26 @@ export function SheetGrid({
   const [edit, setEdit] = useState<Edit | null>(null);
   const [notice, setNotice] = useState("");
   const undo = useRef<SheetChange[][]>([]);
+  // Lebar kotak (tanpa scrollbar) → kolom diregangkan mengisi penuh.
+  const [boxWidth, setBoxWidth] = useState(0);
+  // Tebal scrollbar mendatar sebenarnya (0 = belum ada) supaya tinggi kotak pas tanpa sisa.
+  const [barHeight, setBarHeight] = useState(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const update = () => {
+      setBoxWidth(el.clientWidth);
+      // offsetHeight − clientHeight = border atas+bawah (2) + scrollbar mendatar.
+      setBarHeight(
+        el.scrollWidth > el.clientWidth ? Math.max(0, el.offsetHeight - el.clientHeight - 2) : 0,
+      );
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const columns = useMemo(() => stretchColumns(baseColumns, boxWidth), [baseColumns, boxWidth]);
   const frozenWidth = columns[0]?.width ?? 200;
 
   const rowV = useVirtualizer({
@@ -593,6 +634,10 @@ export function SheetGrid({
   };
 
   const totalWidth = frozenWidth + colV.getTotalSize();
+  // Tinggi mengikuti isi (tanpa baris kosong palsu); batasnya sisa tinggi layar, lebih dari itu digulir.
+  const hScroll = boxWidth > 0 && totalWidth > boxWidth + 1;
+  const contentHeight =
+    HEAD_H + (rows.length > 0 ? rows.length * ROW_H : 96) + 2 + (hScroll ? barHeight || 16 : 0);
   const activeId = rows.length > 0 ? `${gridId}-${active.r}-${active.c}` : undefined;
   return (
     <div className={cn("space-y-1", className)}>
@@ -625,7 +670,8 @@ export function SheetGrid({
           const pos = cellFromEvent(e);
           if (pos) startEdit(pos.r, pos.c);
         }}
-        className="bg-card focus-visible:ring-ring/50 relative h-[min(60vh,560px)] min-h-72 overflow-auto rounded-xl border text-sm outline-none focus-visible:ring-[3px]"
+        className="bg-card focus-visible:ring-ring/50 relative overflow-auto rounded-xl border text-sm outline-none focus-visible:ring-[3px]"
+        style={{ height: `min(${contentHeight}px, max(18rem, calc(100dvh - 240px)))` }}
       >
         <div
           className="relative"
