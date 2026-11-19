@@ -280,7 +280,7 @@ export function AttachmentsPanel({
   ).slice(0, 4);
 
   const status = !data.driveConfigured
-    ? { label: "Menunggu konfigurasi", variant: "warning" as const }
+    ? { label: "Google Drive belum tersambung", variant: "warning" as const }
     : finished
       ? counts.failed > 0
         ? { label: "Selesai dengan catatan", variant: "warning" as const }
@@ -305,8 +305,8 @@ export function AttachmentsPanel({
           </div>
           <p className="text-muted-foreground text-sm">
             {finished
-              ? "Semua tautan Drive sudah diproses."
-              : "Foto & dokumen diambil bertahap. Bila halaman ditutup, proses dijeda dan bisa dilanjutkan dari halaman Import."}
+              ? "Semua tautan Google Drive sudah diproses."
+              : "Foto & dokumen diambil satu per satu. Biarkan halaman ini terbuka; bila ditutup, pengambilan dijeda dan bisa dilanjutkan dari halaman Import Data Karyawan."}
           </p>
         </div>
         <div className="flex gap-2">

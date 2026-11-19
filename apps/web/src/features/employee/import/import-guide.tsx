@@ -61,9 +61,11 @@ const STEPS: {
     ),
     body: (
       <>
-        Unduh Sheet respons Google Form sebagai <strong>.xlsx</strong> (File → Download → Microsoft
-        Excel), lalu tarik ke kotak unggah. Pilih <strong>Tambah + perbarui</strong> bila sebagian
-        karyawan sudah ada di sistem.
+        Pilih mode dulu (biasanya <strong>Tambah + perbarui</strong>). Belum punya file? Klik{" "}
+        <strong>Unduh template Excel</strong>, isi satu karyawan per baris (kolom kuning wajib,
+        pilih dari panah ▾ bila ada), simpan, lalu tarik file ke kotak unggah. File data karyawan
+        kantor yang sudah ada juga bisa langsung diunggah. Kolom bertanda 🔒 hanya tersimpan bila
+        akun Anda punya izin data pribadi.
       </>
     ),
   },
@@ -83,12 +85,10 @@ const STEPS: {
     ),
     body: (
       <>
-        Setiap kolom file sudah dipasangkan ke data karyawan. Periksa kolom yang kecocokannya{" "}
-        <em>rendah</em> atau <em>belum dipetakan</em>. File wajib punya kolom <strong>NIP</strong>{" "}
-        atau <strong>NIK KTP</strong>. Pemetaan disimpan untuk file dengan judul kolom yang sama.
-        Kolom <strong>HOMEBASE</strong> (Point of Hire) dan <strong>HOMEBASE BERLAKU MULAI</strong>{" "}
-        opsional; tanggal kosong berarti tanggal masuk untuk karyawan baru, atau hari ini untuk
-        karyawan yang diperbarui.
+        HRIS mengenali kolom file Anda sendiri. Bila semua dikenali, cukup klik{" "}
+        <strong>Lanjut</strong>. Bila ada kolom bertanda kuning, pilih isinya dari daftar. File
+        wajib punya kolom <strong>NIP</strong> atau <strong>No. KTP</strong>. Pilihan Anda diingat
+        untuk file dengan judul kolom yang sama.
       </>
     ),
   },
@@ -150,10 +150,10 @@ const STEPS: {
     ),
     body: (
       <>
-        Baris yang error langsung ditampilkan beserta cara memperbaikinya. Kesalahan isi file (mis.
-        NIK salah dan NIP kosong) diperbaiki di file: klik <em>Unduh baris bermasalah</em>,
-        perbaiki, lalu unggah ulang. PT dan status bisa diubah per karyawan. Peringatan tidak
-        menghalangi penyimpanan. Klik <strong>Simpan</strong> bila sudah sesuai.
+        Kotak <strong>Perlu diperbaiki</strong> di atas daftar menyebut baris yang salah, apa
+        salahnya, dan contoh isian yang benar. Baris itu tidak ikut disimpan; yang lain tetap bisa
+        disimpan sekarang. Perbaiki nanti lewat <em>Unduh baris yang perlu diperbaiki</em>: betulkan
+        di Excel, lalu unggah file itu lagi — karyawan yang sudah tersimpan tidak menjadi dobel.
       </>
     ),
   },
@@ -171,9 +171,10 @@ const STEPS: {
     ),
     body: (
       <>
-        Foto & dokumen dari tautan Google Drive diambil setelah simpan (panel progres). Karyawan
-        tanpa NIP ditandai <em>NIP belum ada</em> di daftar. Lengkapi NIP lewat edit karyawan atau
-        impor ulang file yang sudah berisi NIP (karyawan dikenali dari NIK KTP).
+        Setelah simpan, hasilnya tampil (berapa yang baru, diperbarui, dan perlu diperbaiki). Bila
+        file berisi tautan Google Drive (dari Google Form), foto & dokumen diambil sesudahnya —
+        biarkan halaman terbuka sampai selesai. Karyawan tanpa NIP ditandai <em>NIP belum ada</em>.
+        Lengkapi lewat Ubah data karyawan atau import ulang file yang sudah berisi NIP.
       </>
     ),
   },
@@ -183,8 +184,8 @@ export function ImportGuide({ current }: { current: GuideStep }) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon" aria-label="Panduan import">
-          <CircleHelp />
+        <Button variant="outline" aria-label="Panduan import">
+          <CircleHelp /> Panduan
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">

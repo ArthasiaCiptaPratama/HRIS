@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   Loader2,
   RotateCcw,
+  ShieldAlert,
   Users,
 } from "lucide-react";
 import { type DragEvent, useCallback, useMemo, useRef, useState } from "react";
@@ -38,6 +39,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useMe } from "@/features/auth/api";
+import type { Me } from "@/features/auth/schemas";
+import { access } from "@/lib/access";
 import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -63,6 +67,7 @@ import { MappingStep } from "./mapping-step";
 import { OpenAttachments } from "./open-attachments";
 import { type ParsedWorkbook, parseImportFile, serializeCell, signatureOf } from "./parse-file";
 import { type MasterMap, PreviewStep } from "./preview-step";
+import { buildImportTemplate, IMPORT_TEMPLATE_FILE_NAME } from "./template/build-template";
 import { suggestedChoices } from "./unit-matching";
 
 // D-042: halaman import karyawan (Unggah → Pemetaan → Lengkapi data → Pratinjau → Selesai). File
@@ -143,8 +148,13 @@ function Stepper({ current, processing }: { current: Step; processing?: boolean 
 export function ImportEmployeesPage() {
   const [params] = useSearchParams();
   const back = params.get("dari") ?? "semua";
+  const me = useMe().data as Me | undefined;
   const scope = useCompanyScope();
   const master = useMasterData();
+  // IMP-D5: akun tanpa izin tulis data pribadi/rekening → kolom 🔒 dilewati (izin tidak berubah); diberi
+  // tahu sejak langkah Unggah dan ditandai di template.
+  const canWritePersonal = me ? access.writePersonalOnCreate(me) : true;
+  const canWriteBank = me ? access.writeBankOnCreate(me) : true;
   const previewMutation = usePreviewImport();
   const commitMutation = useCommitImport();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -204,13 +214,13 @@ export function ImportEmployeesPage() {
           })();
     if (!chosen) {
       setFileError(
-        "Tidak menemukan tabel data karyawan di file ini. Pastikan ada baris judul kolom (mis. NAMA, NIK, JABATAN).",
+        "Daftar karyawan tidak ditemukan di file ini. Pastikan ada baris judul kolom (mis. NAMA, NIP, JABATAN) di atas data, atau pakai Unduh template Excel.",
       );
       return false;
     }
     if (chosen.detected.rows.length > IMPORT_MAX_ROWS) {
       setFileError(
-        `File berisi ${chosen.detected.rows.length} baris; maksimal ${IMPORT_MAX_ROWS} per import.`,
+        `File berisi ${chosen.detected.rows.length.toLocaleString("id-ID")} baris; maksimal ${IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris sekali import. Bagi menjadi beberapa file.`,
       );
       return false;
     }
@@ -331,7 +341,7 @@ export function ImportEmployeesPage() {
     const request = buildRequest(c);
     if (!request) return;
     if (request.rows.length === 0) {
-      toast.error("Tidak ada baris data yang bisa diimpor.");
+      toast.error("File tidak berisi data karyawan (semua baris kosong).");
       return;
     }
     try {
@@ -369,13 +379,13 @@ export function ImportEmployeesPage() {
       setStep("done");
       toast.success(
         saved.counts.attachments > 0
-          ? "Data tersimpan. Lampiran Google Drive sedang diproses."
-          : "Import selesai.",
+          ? "Data karyawan tersimpan. Foto & dokumen dari Google Drive sedang diambil — biarkan halaman ini terbuka."
+          : "Data karyawan tersimpan.",
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         toast.warning(
-          "Data berubah sejak pratinjau. Pratinjau diperbarui — periksa lalu simpan lagi.",
+          "Ada data karyawan yang berubah sejak Anda memeriksa. Daftar sudah diperbarui — periksa lagi lalu klik Simpan.",
         );
         await runPreview(choices, "stay");
         return;
@@ -404,27 +414,42 @@ export function ImportEmployeesPage() {
     return index >= 0 ? index : undefined;
   };
 
-  /** Baris asli bermasalah + kolom "Keterangan import" → .xlsx untuk diperbaiki lalu diimpor ulang. */
+  /** Baris asli yang error (tidak ikut disimpan) + kolom "Yang perlu diperbaiki" → .xlsx untuk diperbaiki
+   *  lalu diunggah ulang (IMP-D5: hanya baris error, jumlahnya = angka "perlu diperbaiki"). */
   function downloadIssues() {
     if (!detected || !preview || !workbook) return;
     const byRow = new Map(preview.rows.map((r) => [r.sourceRow, r]));
-    const header = [...detected.headers, "Keterangan import"];
+    const header = [...detected.headers, "Yang perlu diperbaiki"];
     const body = detected.rows
-      .filter((row) => (byRow.get(row.sourceRow)?.issues.length ?? 0) > 0)
+      .filter((row) => byRow.get(row.sourceRow)?.action === "ERROR")
       .map((row) => {
         const result = byRow.get(row.sourceRow);
         const notes = (result?.issues ?? [])
           .map(
             (i) =>
-              `${i.severity === "ERROR" ? "ERROR" : "Peringatan"} — ${fieldLabel(i.field)}: ${IMPORT_ISSUE_MESSAGES[i.code] ?? i.code}`,
+              `${i.severity === "ERROR" ? "Perbaiki" : "Catatan"} — ${fieldLabel(i.field)}: ${IMPORT_ISSUE_MESSAGES[i.code] ?? i.code}`,
           )
           .join("; ");
         return [...row.cells, `Baris ${row.sourceRow}: ${notes}`];
       });
     const name = workbook.fileName.replace(/\.[^.]+$/, "");
     downloadBytes(
-      buildXlsx("Baris bermasalah", [header, ...body]),
-      `${name} - baris bermasalah.xlsx`,
+      buildXlsx("Perlu diperbaiki", [header, ...body]),
+      `${name} - perlu diperbaiki.xlsx`,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+  }
+
+  /** IMP-D5: template HRIS dibangun di browser (dropdown PT dalam cakupan & status aktif). */
+  function downloadTemplate() {
+    const bytes = buildImportTemplate({
+      companies: scope.companies.map((c) => ({ code: c.code, name: c.name })),
+      statuses: (master.data?.employmentStatuses ?? []).map((s) => s.name),
+      canWriteSensitive: canWritePersonal && canWriteBank,
+    });
+    downloadBytes(
+      bytes,
+      IMPORT_TEMPLATE_FILE_NAME,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
   }
@@ -507,93 +532,108 @@ export function ImportEmployeesPage() {
       </Sheet>
 
       {step === "upload" ? (
-        <div className="grid gap-5 lg:grid-cols-[1fr_minmax(280px,360px)]">
-          <div className="space-y-4">
-            <label
-              htmlFor="import-file"
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-              className={cn(
-                "bg-card focus-within:ring-ring/50 flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus-within:ring-[3px]",
-                dragging ? "border-brand bg-brand-soft" : "hover:border-foreground/30",
-              )}
-            >
-              <span className="bg-muted grid size-12 place-items-center rounded-xl">
-                {parsing ? (
-                  <Loader2 className="size-6 animate-spin" aria-hidden />
-                ) : (
-                  <FileSpreadsheet className="size-6" aria-hidden />
-                )}
-              </span>
-              <span className="text-sm font-medium" aria-live="polite">
-                {parsing
-                  ? "Membaca & mengenali struktur file…"
-                  : "Tarik file ke sini atau klik untuk memilih"}
-              </span>
-              <span className="text-muted-foreground text-xs">
-                .xlsx atau .csv · maks 5 MB · maks {IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris
-              </span>
-              <input
-                ref={fileInput}
-                id="import-file"
-                type="file"
-                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="sr-only"
-                aria-label="Pilih file import"
-                onChange={(e) => void onFile(e.target.files?.[0])}
-                disabled={parsing}
+        <div className="space-y-4">
+          {/* IMP-D5 (pengguna 19 Nov): mode dipilih dulu — begitu file dipilih halaman langsung pindah. */}
+          <div className="bg-card space-y-2 rounded-2xl border p-4">
+            <Label>1. Pilih mode import</Label>
+            <div role="radiogroup" aria-label="Mode import" className="grid gap-2 md:grid-cols-3">
+              <ChoiceCard
+                selected={mode === "UPSERT"}
+                onSelect={() => setMode("UPSERT")}
+                title="Tambah + perbarui"
+                description="Karyawan baru dibuat; yang sudah ada diperbarui. Sel kosong tidak menghapus data."
               />
-            </label>
-            {fileError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{fileError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <p className="text-muted-foreground text-sm">
-              Belum punya format?{" "}
-              <a
-                href="/template/Template-import-karyawan.xlsx"
-                download
-                className="text-foreground inline-flex items-center gap-1 font-medium underline underline-offset-4"
-              >
-                <Download className="size-3.5" aria-hidden /> Unduh template contoh
-              </a>{" "}
-              — file kantor dengan susunan kolom lain juga bisa langsung diunggah.
-            </p>
+              <ChoiceCard
+                selected={mode === "FILL_EMPTY"}
+                onSelect={() => setMode("FILL_EMPTY")}
+                title="Isi yang kosong saja"
+                description="Karyawan baru dibuat; untuk yang sudah ada hanya data yang masih kosong diisi. Data yang sudah berisi tidak ditimpa."
+              />
+              <ChoiceCard
+                selected={mode === "CREATE_ONLY"}
+                onSelect={() => setMode("CREATE_ONLY")}
+                title="Tambah baru saja"
+                description="Karyawan yang NIP-nya sudah ada dilewati."
+              />
+            </div>
           </div>
 
-          <div className="bg-card space-y-5 rounded-2xl border p-5">
-            <div className="space-y-2">
-              <Label>Mode import</Label>
-              <div role="radiogroup" aria-label="Mode import" className="grid gap-2">
-                <ChoiceCard
-                  selected={mode === "UPSERT"}
-                  onSelect={() => setMode("UPSERT")}
-                  title="Tambah + perbarui"
-                  description="Karyawan baru dibuat; yang sudah ada diperbarui. Sel kosong tidak menghapus data."
-                />
-                <ChoiceCard
-                  selected={mode === "FILL_EMPTY"}
-                  onSelect={() => setMode("FILL_EMPTY")}
-                  title="Isi yang kosong saja"
-                  description="Karyawan baru dibuat; untuk yang sudah ada hanya data yang masih kosong diisi. Data yang sudah berisi tidak ditimpa."
-                />
-                <ChoiceCard
-                  selected={mode === "CREATE_ONLY"}
-                  onSelect={() => setMode("CREATE_ONLY")}
-                  title="Tambah baru saja"
-                  description="Karyawan yang NIP-nya sudah ada dilewati."
-                />
-              </div>
-            </div>
-            <p className="text-muted-foreground text-xs">
-              PT, unit organisasi, dan status kepegawaian ditentukan setelah kolom file diperiksa.
-            </p>
+          <p className="text-sm font-medium">2. Unggah file</p>
+          <label
+            htmlFor="import-file"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            className={cn(
+              "bg-card focus-within:ring-ring/50 flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus-within:ring-[3px]",
+              dragging ? "border-brand bg-brand-soft" : "hover:border-foreground/30",
+            )}
+          >
+            <span className="bg-muted grid size-12 place-items-center rounded-xl">
+              {parsing ? (
+                <Loader2 className="size-6 animate-spin" aria-hidden />
+              ) : (
+                <FileSpreadsheet className="size-6" aria-hidden />
+              )}
+            </span>
+            <span className="text-sm font-medium" aria-live="polite">
+              {parsing
+                ? "Membaca & mengenali struktur file…"
+                : "Tarik file ke sini atau klik untuk memilih"}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              .xlsx atau .csv · maks 5 MB · maks {IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris
+            </span>
+            <input
+              ref={fileInput}
+              id="import-file"
+              type="file"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="sr-only"
+              aria-label="Pilih file import"
+              onChange={(e) => void onFile(e.target.files?.[0])}
+              disabled={parsing}
+            />
+          </label>
+          {fileError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{fileError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-muted-foreground shrink-0 text-sm">Belum punya file?</span>
+            <Button variant="outline" size="sm" onClick={downloadTemplate} className="w-fit">
+              <Download /> Unduh template Excel
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              Berisi petunjuk & pilihan siap pakai. File data karyawan kantor yang sudah ada juga
+              bisa langsung diunggah.
+            </span>
           </div>
+          {!canWritePersonal || !canWriteBank ? (
+            <Alert>
+              <ShieldAlert />
+              <AlertDescription>
+                {`Akun Anda belum punya izin ${
+                  !canWritePersonal && !canWriteBank
+                    ? "data pribadi & rekening"
+                    : !canWritePersonal
+                      ? "data pribadi"
+                      : "rekening"
+                }. Kolom bertanda 🔒 (${
+                  !canWritePersonal ? "No. KTP, NPWP, tanggal lahir, alamat, keluarga" : ""
+                }${!canWritePersonal && !canWriteBank ? ", " : ""}${
+                  !canWriteBank ? "nama bank, No. rekening" : ""
+                }, …) tidak akan tersimpan; kolom lain tetap masuk.`}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <p className="text-muted-foreground text-xs">
+            PT, unit organisasi, dan status kepegawaian ditentukan setelah kolom file diperiksa.
+          </p>
         </div>
       ) : null}
 
@@ -755,7 +795,7 @@ export function ImportEmployeesPage() {
               </Button>
               {result.error ? (
                 <Button variant="outline" onClick={downloadIssues}>
-                  <Download /> Unduh baris bermasalah
+                  <Download /> Unduh {result.error} baris yang perlu diperbaiki
                 </Button>
               ) : null}
               <Button variant="ghost" onClick={requestReset}>
@@ -777,13 +817,13 @@ export function ImportEmployeesPage() {
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Lampiran masih diproses</DialogTitle>
+            <DialogTitle>Foto & dokumen masih diambil</DialogTitle>
             <DialogDescription>
               {attachments
-                ? `${attachments.handled} dari ${attachments.total} lampiran sudah diproses. `
+                ? `${attachments.handled} dari ${attachments.total} lampiran sudah diambil. `
                 : ""}
-              Bila Anda mulai import file lain, pengunduhan dijeda. Sisa lampiran bisa dilanjutkan
-              kapan saja dari halaman Unggah.
+              Bila Anda import file lain sekarang, pengambilan dijeda. Sisanya bisa dilanjutkan
+              kapan saja dari halaman Import Data Karyawan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -791,7 +831,7 @@ export function ImportEmployeesPage() {
               Tetap di sini
             </Button>
             <Button variant="brand" onClick={reset}>
-              Jeda & import file lain
+              Ya, jeda & import file lain
             </Button>
           </DialogFooter>
         </DialogContent>

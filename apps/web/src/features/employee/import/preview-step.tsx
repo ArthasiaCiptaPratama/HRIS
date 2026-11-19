@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ChevronDown,
   CircleAlert,
+  CircleCheck,
   CloudDownload,
   Download,
   Info,
@@ -28,10 +29,12 @@ import {
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "./api";
-import { ACTION_LABELS, fieldLabel, issueHint, issueText } from "./labels";
+import { fieldLabel, issueHint, issueText } from "./labels";
 
 // Pratinjau (langkah terakhir sebelum simpan): ringkasan, pengaturan yang dipakai (ubah → kembali ke
-// Lengkapi data), dan tabel baris. Pilihan untuk banyak baris ada di langkah Lengkapi data.
+// Lengkapi data), daftar "Perlu diperbaiki", dan tabel baris. Pilihan untuk banyak baris ada di langkah
+// Lengkapi data. IMP-D5: bahasa sehari-hari; alasan error di bawah nama (tanpa kolom Keterangan di ujung
+// kanan) supaya terbaca di laptop tanpa menggeser tabel.
 
 export type MasterMap = {
   departments: Record<string, string>;
@@ -44,7 +47,18 @@ export const masterKey = (name: string) => name.trim().replace(/\s+/g, " ").toLo
 export const positionKey = (department: string, name: string) =>
   `${masterKey(department)}|${masterKey(name)}`;
 
-type Filter = "ALL" | "CREATE" | "UPDATE" | "SKIP" | "ERROR";
+type Filter = "ALL" | "READY" | "SKIP" | "ERROR";
+
+const FILTER_LABELS: Record<Filter, string> = {
+  ALL: "Semua",
+  READY: "Siap disimpan",
+  ERROR: "Perlu diperbaiki",
+  SKIP: "Dilewati",
+};
+
+const matchesFilter = (filter: Filter, action: ImportPreview["rows"][number]["action"]) =>
+  filter === "ALL" ||
+  (filter === "READY" ? action === "CREATE" || action === "UPDATE" : action === filter);
 
 const AUTO = "__auto__";
 
@@ -55,11 +69,49 @@ const ACTION_BADGE = {
   ERROR: "destructive",
 } as const;
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
+function Summary({ counts }: { counts: ImportPreview["counts"] }) {
+  const ready = counts.create + counts.update;
+  const parts = [
+    counts.create > 0 ? `${counts.create} baru` : null,
+    counts.update > 0 ? `${counts.update} diperbarui` : null,
+  ].filter(Boolean);
+  const other = [
+    counts.skip > 0 ? `${counts.skip} dilewati (tidak ada perubahan)` : null,
+    counts.blank > 0 ? `${counts.blank} baris kosong diabaikan` : null,
+  ].filter(Boolean);
   return (
-    <div className="bg-card rounded-xl border p-4">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className={cn("mt-1 text-2xl font-semibold tabular-nums", tone)}>{value}</p>
+    <div className="bg-card grid gap-3 rounded-2xl border p-4 sm:grid-cols-2">
+      <div className="flex items-start gap-3">
+        <CircleCheck className="text-success-soft-foreground mt-0.5 size-5 shrink-0" aria-hidden />
+        <div>
+          <p className="text-base font-semibold">
+            <span className="tabular-nums">{ready}</span> karyawan siap disimpan
+          </p>
+          {parts.length > 0 ? (
+            <p className="text-muted-foreground text-sm">{parts.join(" · ")}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex items-start gap-3">
+        <CircleAlert
+          className={cn(
+            "mt-0.5 size-5 shrink-0",
+            counts.error ? "text-destructive" : "text-muted-foreground",
+          )}
+          aria-hidden
+        />
+        <div>
+          <p className={cn("text-base font-semibold", counts.error ? "text-destructive" : "")}>
+            <span className="tabular-nums">{counts.error}</span> baris perlu diperbaiki
+          </p>
+          <p className="text-muted-foreground text-sm">
+            {counts.error ? "Tidak ikut disimpan sampai diperbaiki" : "Tidak ada yang salah"}
+          </p>
+        </div>
+      </div>
+      {other.length > 0 ? (
+        <p className="text-muted-foreground text-xs sm:col-span-2">{other.join(" · ")}</p>
+      ) : null}
     </div>
   );
 }
@@ -107,9 +159,6 @@ function RowMessages({
       {row.action === "SKIP" && row.issues.length === 0 && row.kept.length === 0 ? (
         <p className="text-muted-foreground">Tidak ada perubahan data</p>
       ) : null}
-      {row.action === "CREATE" && row.issues.length === 0 ? (
-        <p className="text-muted-foreground">Siap dibuat</p>
-      ) : null}
       {row.attachments > 0 ? (
         <p className="text-muted-foreground">Lampiran Google Drive: {row.attachments}</p>
       ) : null}
@@ -120,7 +169,7 @@ function RowMessages({
       ))}
       {hint ? (
         <p className="text-foreground text-xs">
-          <span className="font-medium">Perbaikan:</span> {hint}
+          <span className="font-medium">Cara memperbaiki:</span> {hint}
         </p>
       ) : null}
       {warnings.length > 0 ? (
@@ -202,11 +251,17 @@ export function PreviewStep({
   // Dibuka dengan "Semua" (urutan baris file) supaya terlihat bahwa PT & status setiap baris bisa diubah.
   const [filter, setFilter] = useState<Filter>("ALL");
   const writable = counts.create + counts.update;
-  const problems = preview.rows.filter((r) => r.issues.length > 0).length;
+  const errorRows = useMemo(() => preview.rows.filter((r) => r.action === "ERROR"), [preview.rows]);
   const rows = useMemo(
-    () => (filter === "ALL" ? preview.rows : preview.rows.filter((r) => r.action === filter)),
+    () => preview.rows.filter((r) => matchesFilter(filter, r.action)),
     [preview.rows, filter],
   );
+  // IMP-D5: pilihan pemegang bagan hanya tampil di baris yang namanya mirip (atau sudah dipilih);
+  // baris lain cukup tautan kecil yang membukanya.
+  const [openHolderRows, setOpenHolderRows] = useState<Set<number>>(() => new Set());
+  const similarHolderRows = preview.rows.filter(
+    (r) => (r.chartHolder?.candidates.length ?? 0) > 0,
+  ).length;
   const hasNewRows = preview.rows.some((r) => r.newEmployee);
   const rowStatusOptions = useMemo(
     () => [{ value: AUTO, label: "Ikuti kolom file / bawaan" }, ...statusOptions],
@@ -258,17 +313,7 @@ export function PreviewStep({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 max-sm:[&>*:last-child]:col-span-2">
-        <Stat label="Akan dibuat" value={counts.create} tone="text-success-soft-foreground" />
-        <Stat label="Akan diperbarui" value={counts.update} />
-        <Stat label="Dilewati" value={counts.skip} />
-        <Stat
-          label="Error (tidak diimpor)"
-          value={counts.error}
-          tone={counts.error ? "text-destructive" : ""}
-        />
-        <Stat label="Baris kosong" value={counts.blank} />
-      </div>
+      <Summary counts={counts} />
 
       <div className="bg-card flex flex-col gap-2 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
@@ -295,15 +340,15 @@ export function PreviewStep({
         </div>
       </div>
 
-      {preview.chartHolders.length > 0 ? (
+      {similarHolderRows > 0 ? (
         <details className="bg-card rounded-2xl border px-4 py-3 text-sm">
           <summary className="cursor-pointer">
             <span className="font-medium">
-              Pemegang bagan yang belum dilengkapi: {pendingHolders.length}
+              {similarHolderRows} nama mirip orang di Struktur Organisasi
             </span>{" "}
             <span className="text-muted-foreground">
-              (NIP sementara ASLI-; pilih di kolom Karyawan supaya tidak dobel
-              {chosenHolders.size > 0 ? ` · ${chosenHolders.size} dilengkapi import ini` : ""})
+              — data mereka belum lengkap. Pilih di bawah nama: orang yang sama, atau karyawan baru
+              {chosenHolders.size > 0 ? ` · ${chosenHolders.size} dilengkapi import ini` : ""}
             </span>
           </summary>
           <ul className="text-muted-foreground mt-2 grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
@@ -331,53 +376,66 @@ export function PreviewStep({
       {preview.skippedFields.length > 0 ? (
         <Alert>
           <ShieldAlert />
-          <AlertTitle>Kolom sensitif dilewati</AlertTitle>
+          <AlertTitle>
+            {preview.skippedFields.length} kolom data pribadi tidak ikut tersimpan
+          </AlertTitle>
           <AlertDescription>
-            Akun Anda tidak punya izin menulis data pribadi/rekening, jadi kolom berikut tidak
-            diimpor: {preview.skippedFields.map(fieldLabel).join(", ")}. Minta Super Admin memberi
-            grant bila perlu.
+            Akun Anda belum punya izin data pribadi, jadi kolom ini dilewati:{" "}
+            {preview.skippedFields.map(fieldLabel).join(", ")}. Kolom lain tetap tersimpan. Bila
+            data ini perlu masuk, minta Super Admin memberi izin data pribadi untuk akun Anda.
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {counts.error > 0 || choosePt || hasNewRows ? (
-        <div className="grid gap-2 text-sm">
-          {counts.error > 0 ? (
-            <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2.5 rounded-xl border px-4 py-3">
-              <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <p>
-                {counts.error} baris error tidak akan disimpan.{" "}
-                <button
-                  type="button"
-                  onClick={() => setFilter("ERROR")}
-                  className="font-medium underline underline-offset-4"
-                >
-                  Lihat baris error saja
-                </button>
-              </p>
-            </div>
-          ) : null}
-          {choosePt || hasNewRows ? (
-            <div className="bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-xl border px-4 py-3">
-              <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <p>
-                {choosePt && hasNewRows
-                  ? "PT dan status karyawan baru bisa diubah langsung di tabel."
-                  : choosePt
-                    ? "PT bisa diubah langsung di tabel."
-                    : "Status karyawan baru bisa diubah langsung di tabel."}
-              </p>
-            </div>
-          ) : null}
+      {errorRows.length > 0 ? (
+        <section
+          aria-label="Perlu diperbaiki"
+          className="border-destructive/30 bg-destructive/5 rounded-2xl border p-4"
+        >
+          <h3 className="text-destructive flex items-center gap-2 text-sm font-semibold">
+            <CircleAlert className="size-4" aria-hidden />
+            Perlu diperbaiki ({errorRows.length} baris)
+          </h3>
+          <ul className="mt-3 space-y-3">
+            {errorRows.map((r) => {
+              const hint = issueHint(r.issues);
+              return (
+                <li key={r.sourceRow} className="text-sm">
+                  <p className="font-medium">
+                    Baris {r.sourceRow} · {r.fullName ?? "(tanpa nama)"}
+                  </p>
+                  {r.issues
+                    .filter((i) => i.severity === "ERROR")
+                    .map((i) => (
+                      <p key={`${i.field}-${i.code}`} className="text-destructive">
+                        {issueText(i, columnOf)}
+                      </p>
+                    ))}
+                  {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {choosePt || hasNewRows ? (
+        <div className="bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>
+            {choosePt && hasNewRows
+              ? "PT dan status karyawan baru bisa diubah langsung di daftar."
+              : choosePt
+                ? "PT bisa diubah langsung di daftar."
+                : "Status karyawan baru bisa diubah langsung di daftar."}
+          </p>
         </div>
       ) : null}
 
       <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
-        {(["ALL", "CREATE", "UPDATE", "SKIP", "ERROR"] as const).map((key) => {
-          const count =
-            key === "ALL"
-              ? preview.rows.length
-              : preview.rows.filter((r) => r.action === key).length;
+        {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
+          const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
+          if (key === "SKIP" && count === 0) return null;
           return (
             <button
               key={key}
@@ -391,7 +449,7 @@ export function PreviewStep({
                   : "bg-card text-muted-foreground hover:text-foreground",
               )}
             >
-              {key === "ALL" ? "Semua" : ACTION_LABELS[key]}
+              {FILTER_LABELS[key]}
               <span className="font-mono text-xs tabular-nums">{count}</span>
             </button>
           );
@@ -408,24 +466,39 @@ export function PreviewStep({
           <Table aria-label="Pratinjau baris import">
             <TableHeader className="bg-card sticky top-0 z-10">
               <TableRow>
-                <TableHead className="w-16">Baris</TableHead>
-                <TableHead>Karyawan</TableHead>
-                <TableHead className={choosePt ? "min-w-[170px]" : "w-16"}>PT</TableHead>
-                <TableHead className="w-28">Aksi</TableHead>
-                {hasNewRows ? <TableHead className="min-w-[200px]">Status</TableHead> : null}
-                <TableHead className="min-w-[260px]">Keterangan</TableHead>
+                <TableHead className="min-w-[220px]">Karyawan</TableHead>
+                <TableHead className={choosePt ? "w-[150px]" : "w-16"}>PT</TableHead>
+                {hasNewRows ? <TableHead className="w-[170px]">Status</TableHead> : null}
+                <TableHead className="w-24">Hasil</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
                 <TableRow key={r.sourceRow} className="align-top">
-                  <TableCell className="font-mono text-xs">{r.sourceRow}</TableCell>
                   <TableCell className="whitespace-normal">
                     <p className="font-medium">{r.fullName ?? "-"}</p>
-                    <p className="text-muted-foreground font-mono text-xs">
-                      {r.employeeNumber ?? "NIP belum ada"}
+                    <p className="text-muted-foreground text-xs">
+                      Baris {r.sourceRow} ·{" "}
+                      <span className="font-mono">{r.employeeNumber ?? "NIP belum ada"}</span>
                     </p>
-                    {r.chartHolder && preview.chartHolders.length > 0 ? (
+                    {r.chartHolder &&
+                    preview.chartHolders.length > 0 &&
+                    r.chartHolder.candidates.length === 0 &&
+                    !r.chartHolder.choice &&
+                    !openHolderRows.has(r.sourceRow) ? (
+                      <button
+                        type="button"
+                        onClick={() => setOpenHolderRows((s) => new Set(s).add(r.sourceRow))}
+                        className="text-muted-foreground hover:text-foreground mt-1 text-xs underline-offset-4 hover:underline"
+                      >
+                        Orang ini sudah ada di Struktur Organisasi?
+                      </button>
+                    ) : null}
+                    {r.chartHolder &&
+                    preview.chartHolders.length > 0 &&
+                    (r.chartHolder.candidates.length > 0 ||
+                      r.chartHolder.choice ||
+                      openHolderRows.has(r.sourceRow)) ? (
                       <div className="mt-1.5 max-w-64">
                         <LazySelect
                           aria-label={`Pemegang bagan baris ${r.sourceRow}`}
@@ -433,8 +506,8 @@ export function PreviewStep({
                           onChange={(v) => onChartHolderChoice(r.sourceRow, v)}
                           placeholder={
                             r.chartHolder.candidates.length > 0
-                              ? "Pilih: gabungkan atau buat baru"
-                              : "Gabungkan dengan pemegang bagan…"
+                              ? "Pilih: orang yang sama atau karyawan baru"
+                              : "Pilih orang di Struktur Organisasi…"
                           }
                           options={holderOptions(r)}
                           searchable
@@ -442,15 +515,18 @@ export function PreviewStep({
                         />
                         {r.chartHolder.choice && r.chartHolder.choice !== "NEW" ? (
                           <p className="text-brand mt-1 text-xs">
-                            Melengkapi pemegang bagan (pos tetap, NIP sementara diganti)
+                            Melengkapi data orang di Struktur Organisasi (posisinya tetap)
                           </p>
                         ) : r.chartHolder.candidates.length > 0 && !r.chartHolder.choice ? (
                           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                            Mirip pemegang bagan — pilih dulu
+                            Nama mirip orang di Struktur Organisasi — pilih dulu
                           </p>
                         ) : null}
                       </div>
                     ) : null}
+                    <div className="mt-1.5">
+                      <RowMessages row={r} columnOf={columnOf} fillEmpty={fillEmpty} />
+                    </div>
                   </TableCell>
                   <TableCell className="font-mono text-xs">
                     {choosePt ? (
@@ -470,9 +546,6 @@ export function PreviewStep({
                       (r.companyCode ?? "—")
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={ACTION_BADGE[r.action]}>{ACTION_LABELS[r.action]}</Badge>
-                  </TableCell>
                   {hasNewRows ? (
                     <TableCell>
                       {r.newEmployee ? (
@@ -487,21 +560,19 @@ export function PreviewStep({
                           invalid={r.issues.some((i) => i.field === "employmentStatusText")}
                         />
                       ) : (
-                        <span className="text-muted-foreground text-xs">
-                          Sudah ada · tidak diubah
-                        </span>
+                        <span className="text-muted-foreground text-xs">Sudah ada</span>
                       )}
                     </TableCell>
                   ) : null}
-                  <TableCell className="min-w-[280px] whitespace-normal">
-                    <RowMessages row={r} columnOf={columnOf} fillEmpty={fillEmpty} />
+                  <TableCell>
+                    <Badge variant={ACTION_BADGE[r.action]}>{RESULT_LABELS[r.action]}</Badge>
                   </TableCell>
                 </TableRow>
               ))}
               {rows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={hasNewRows ? 6 : 5}
+                    colSpan={hasNewRows ? 4 : 3}
                     className="text-muted-foreground py-10 text-center"
                   >
                     Tidak ada baris pada kategori ini.
@@ -518,9 +589,9 @@ export function PreviewStep({
           <ArrowLeft /> Kembali
         </Button>
         <div className="flex flex-col gap-2 sm:flex-row">
-          {problems > 0 ? (
+          {errorRows.length > 0 ? (
             <Button variant="outline" onClick={onDownloadIssues}>
-              <Download /> Unduh baris bermasalah ({problems})
+              <Download /> Unduh {errorRows.length} baris yang perlu diperbaiki
             </Button>
           ) : null}
           <Button
@@ -537,3 +608,11 @@ export function PreviewStep({
 }
 
 const CHART_NEW = "NEW";
+
+/** Label hasil per baris di Pratinjau (IMP-D5: bahasa sehari-hari). */
+const RESULT_LABELS = {
+  CREATE: "Baru",
+  UPDATE: "Diperbarui",
+  SKIP: "Dilewati",
+  ERROR: "Perbaiki",
+} as const;

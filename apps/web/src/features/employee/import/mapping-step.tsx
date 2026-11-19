@@ -6,7 +6,15 @@ import {
   type ImportFieldKey,
 } from "@hris/shared";
 import { ArrowLeft, ArrowRight, Info, TriangleAlert } from "lucide-react";
-import { type Dispatch, memo, type SetStateAction, useCallback, useMemo } from "react";
+import {
+  type Dispatch,
+  memo,
+  type SetStateAction,
+  useCallback,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 import { FormSelect } from "@/components/form-select";
 import { LazySelect } from "@/components/lazy-select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -88,9 +96,9 @@ function ConfidenceBadge({
       </Badge>
     );
   if (field !== suggestion.field) return <Badge variant="secondary">Dipilih manual</Badge>;
-  if (suggestion.confidence >= 0.85) return <Badge variant="success">Tinggi</Badge>;
-  if (suggestion.confidence >= 0.6) return <Badge variant="warning">Sedang</Badge>;
-  return <Badge variant="warning">Rendah</Badge>;
+  if (suggestion.confidence >= 0.85) return <Badge variant="success">Ya</Badge>;
+  if (suggestion.confidence >= 0.6) return <Badge variant="warning">Mungkin</Badge>;
+  return <Badge variant="warning">Kurang yakin</Badge>;
 }
 
 // Satu baris pemetaan; memo → mencentang "Ingat pemetaan" atau mengubah satu kolom hanya menggambar
@@ -101,22 +109,26 @@ const MappingRow = memo(function MappingRow({
   field,
   merged,
   onSetField,
+  needsReview,
 }: {
   suggestion: ColumnSuggestion;
   rows: DataRow[];
   field: ImportFieldKey | null;
   merged: boolean;
+  needsReview: boolean;
   onSetField: (column: number, value: string) => void;
 }) {
   const sample = useMemo(() => sampleOf(rows, s.column, field), [rows, s.column, field]);
   const onChange = useCallback((v: string) => onSetField(s.column, v), [onSetField, s.column]);
   return (
-    <TableRow>
+    <TableRow
+      className={needsReview ? "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30" : undefined}
+    >
       <TableCell className="font-mono text-xs">{s.letter}</TableCell>
-      <TableCell className="max-w-[220px] truncate font-medium" title={s.header}>
+      <TableCell className="truncate font-medium" title={s.header}>
         {s.header || <span className="text-muted-foreground">(tanpa header)</span>}
       </TableCell>
-      <TableCell className="text-muted-foreground hidden max-w-[220px] truncate text-xs md:table-cell">
+      <TableCell className="text-muted-foreground hidden truncate text-xs lg:table-cell">
         {sample}
       </TableCell>
       <TableCell>
@@ -168,6 +180,8 @@ export function MappingStep({
   onNext: () => void;
   busy: boolean;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   const mapped = mapping.filter(Boolean).length;
   const fieldCount = useMemo(() => {
     const count = new Map<ImportFieldKey, number>();
@@ -176,6 +190,35 @@ export function MappingStep({
   }, [mapping]);
   // D-063: karyawan dikenali lewat NIP atau NIK KTP — salah satu kolom harus dipetakan.
   const hasNumber = mapping.includes("employeeNumber") || mapping.includes("ktpNumber");
+  const reviewColumns = useMemo(() => {
+    const columns = new Set<number>();
+    for (const s of suggestions) {
+      const field = mapping[s.column] ?? null;
+      // Pilihan manual (termasuk mengabaikan saran) tidak perlu diperiksa lagi.
+      if (field !== s.field) continue;
+      if (
+        field
+          ? s.confidence < 0.85
+          : !s.derived &&
+            rows.some((row) => {
+              const cell = row.cells[s.column];
+              return cell !== null && cell !== undefined && String(cell).trim() !== "";
+            })
+      )
+        columns.add(s.column);
+    }
+    return columns;
+  }, [suggestions, mapping, rows]);
+  const orderedSuggestions = useMemo(
+    () =>
+      [...suggestions].sort(
+        (a, b) => Number(reviewColumns.has(b.column)) - Number(reviewColumns.has(a.column)),
+      ),
+    [suggestions, reviewColumns],
+  );
+  const unused = suggestions.filter((s) => !mapping[s.column]);
+  const needsReview = reviewColumns.size > 0 || !hasNumber;
+  const showTable = needsReview || detailsOpen;
   // Referensi stabil (updater fungsional) → baris yang tidak berubah tidak digambar ulang.
   const setField = useCallback(
     (column: number, value: string) => {
@@ -201,27 +244,27 @@ export function MappingStep({
           {sheets.length > 1 ? (
             <div className="grid gap-1.5">
               <Label htmlFor="import-sheet" className="text-muted-foreground text-xs font-normal">
-                Sheet
+                Lembar
               </Label>
               <FormSelect
                 id="import-sheet"
                 value={String(sheetIndex)}
                 onChange={(v) => onSheetChange(Number(v))}
-                placeholder="Pilih sheet"
+                placeholder="Pilih lembar"
                 options={sheets.map((name, i) => ({ value: String(i), label: name }))}
               />
             </div>
           ) : (
             <>
-              <p className="text-muted-foreground text-xs">Sheet</p>
+              <p className="text-muted-foreground text-xs">Lembar</p>
               <p className="truncate text-sm font-medium">{sheets[0]}</p>
             </>
           )}
         </div>
         <div>
-          <p className="text-muted-foreground text-xs">Struktur terdeteksi</p>
+          <p className="text-muted-foreground text-xs">Isi file</p>
           <p className="text-sm font-medium">
-            Header baris {headerRow} · {rows.length} baris data · {mapped} kolom dipetakan
+            {rows.length} baris data · judul kolom di baris {headerRow}
           </p>
         </div>
       </div>
@@ -230,8 +273,8 @@ export function MappingStep({
         <Alert>
           <Info />
           <AlertDescription>
-            Pemetaan tersimpan untuk susunan kolom ini dipakai otomatis. Anda tetap bisa
-            mengubahnya.
+            Pilihan kolom dari import sebelumnya dengan susunan kolom yang sama dipakai lagi. Anda
+            tetap bisa mengubahnya.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -239,42 +282,82 @@ export function MappingStep({
         <Alert variant="destructive">
           <TriangleAlert />
           <AlertDescription>
-            Petakan kolom <strong>NIP</strong> atau <strong>NIK KTP</strong> — dipakai untuk
-            mengenali karyawan yang sudah ada.
+            Pilih kolom mana yang berisi <strong>NIP</strong> atau <strong>No. KTP</strong> —
+            dipakai untuk mengenali karyawan yang sudah ada.
           </AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="bg-card overflow-hidden rounded-2xl border">
-        <div className="overflow-x-auto">
-          <Table aria-label="Pemetaan kolom">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16">Kolom</TableHead>
-                <TableHead>Header di file</TableHead>
-                <TableHead className="hidden md:table-cell">Contoh isi</TableHead>
-                <TableHead className="min-w-[240px]">Dipetakan ke</TableHead>
-                <TableHead>Keyakinan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {suggestions.map((s) => {
-                const field = mapping[s.column] ?? null;
-                return (
-                  <MappingRow
-                    key={s.column}
-                    suggestion={s}
-                    rows={rows}
-                    field={field}
-                    merged={field !== null && (fieldCount.get(field) ?? 0) > 1}
-                    onSetField={setField}
-                  />
-                );
-              })}
-            </TableBody>
-          </Table>
+      {needsReview ? (
+        reviewColumns.size > 0 ? (
+          <p className="text-sm">Periksa {reviewColumns.size} kolom yang ditandai kuning</p>
+        ) : null
+      ) : (
+        <div className="bg-card space-y-3 rounded-2xl border p-5">
+          <p className="font-medium">✔ {mapped} kolom dikenali otomatis</p>
+          {unused.length > 0 ? (
+            <p className="text-muted-foreground text-sm">
+              {unused.length} kolom tidak dipakai
+              {unused.length > 0
+                ? ` (${unused
+                    .slice(0, 4)
+                    .map((s) => s.header || "tanpa judul")
+                    .join(", ")}${unused.length > 4 ? ", …" : ""})`
+                : ""}{" "}
+              — tidak apa-apa
+            </p>
+          ) : null}
+          <Button
+            variant="outline"
+            aria-expanded={detailsOpen}
+            aria-controls={detailsId}
+            onClick={() => setDetailsOpen((open) => !open)}
+          >
+            Lihat / ubah rincian
+          </Button>
         </div>
-      </div>
+      )}
+
+      {showTable ? (
+        <div id={detailsId} className="bg-card overflow-hidden rounded-2xl border">
+          <div className="overflow-x-auto">
+            <Table aria-label="Pemetaan kolom" className="table-fixed">
+              <colgroup>
+                <col className="w-12" />
+                <col className="w-[28%]" />
+                <col className="hidden w-[22%] lg:table-column" />
+                <col />
+                <col className="w-32" />
+              </colgroup>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kolom</TableHead>
+                  <TableHead className="whitespace-normal">Judul kolom di file</TableHead>
+                  <TableHead className="hidden lg:table-cell">Contoh isi</TableHead>
+                  <TableHead>Dipetakan ke</TableHead>
+                  <TableHead>Yakin?</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orderedSuggestions.map((s) => {
+                  const field = mapping[s.column] ?? null;
+                  return (
+                    <MappingRow
+                      key={s.column}
+                      suggestion={s}
+                      rows={rows}
+                      field={field}
+                      merged={field !== null && (fieldCount.get(field) ?? 0) > 1}
+                      needsReview={reviewColumns.has(s.column)}
+                      onSetField={setField}
+                    />
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="ghost" onClick={onBack}>
@@ -288,7 +371,7 @@ export function MappingStep({
               checked={saveProfile}
               onChange={(e) => onSaveProfileChange(e.target.checked)}
             />
-            Ingat pemetaan untuk file berformat sama
+            Ingat pilihan kolom untuk file dengan susunan yang sama
           </label>
           <Button variant="brand" onClick={onNext} disabled={!hasNumber || busy}>
             {busy ? "Memeriksa…" : "Lanjut"} <ArrowRight />

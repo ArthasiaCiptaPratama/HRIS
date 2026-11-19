@@ -1,4 +1,12 @@
-import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, Loader2 } from "lucide-react";
+import { findSimilarMaster } from "@hris/shared";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleAlert,
+  CircleCheck,
+  Loader2,
+  TriangleAlert,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { FormSelect, type SelectOption } from "@/components/form-select";
 import { Button } from "@/components/ui/button";
@@ -163,30 +171,70 @@ export function CompleteStep({
     masterData.workLocations.length +
     masterData.homebases.length;
   const departmentsById = new Map((master?.departments ?? []).map((d) => [d.id, d.name]));
-  const pick = (group: keyof MasterMap, key: string, label: string, options: SelectOption[]) => (
-    <div
-      key={`${group}-${key}`}
-      className="grid gap-1.5 sm:grid-cols-[1fr_minmax(0,280px)] sm:items-center"
-    >
-      <p className="truncate text-sm" title={label}>
-        {label}
-      </p>
-      <FormSelect
-        aria-label={`Pemetaan ${label}`}
-        value={masterMap[group][key] ?? ""}
-        onChange={(value) => {
-          const next = { ...masterMap[group] };
-          if (value) next[key] = value;
-          else delete next[key];
-          onMasterMapChange({ ...masterMap, [group]: next });
-        }}
-        noneLabel="Buat baru"
-        placeholder="Buat baru"
-        options={options}
-      />
-    </div>
-  );
-
+  // IMP-D5: daftar "Akan dibuat baru" selalu terlihat; nilai yang mirip data lama diberi tanda +
+  // "Pakai yang ada" (tidak pernah dipilih otomatis — bawaan tetap Buat baru).
+  const GROUP_TITLES: Record<keyof MasterMap, string> = {
+    departments: "Unit",
+    positions: "Jabatan",
+    grades: "Grade",
+    workLocations: "Lokasi kerja",
+    homebases: "Homebase",
+  };
+  const setMaster = (group: keyof MasterMap, key: string, value: string) => {
+    const next = { ...masterMap[group] };
+    if (value) next[key] = value;
+    else delete next[key];
+    onMasterMapChange({ ...masterMap, [group]: next });
+  };
+  const pick = (
+    group: keyof MasterMap,
+    key: string,
+    name: string,
+    label: string,
+    options: SelectOption[],
+  ) => {
+    const chosen = masterMap[group][key];
+    const similar = chosen
+      ? null
+      : findSimilarMaster(
+          name,
+          options.map((o) => ({ id: o.value, name: o.label })),
+        );
+    return (
+      <div
+        key={`${group}-${key}`}
+        className="grid gap-1.5 sm:grid-cols-[1fr_minmax(0,280px)] sm:items-center"
+      >
+        <div className="min-w-0">
+          <p className="truncate text-sm" title={label}>
+            {label}
+          </p>
+          {similar ? (
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-amber-700 dark:text-amber-300">
+              <span className="inline-flex items-center gap-1">
+                <TriangleAlert className="size-3.5" aria-hidden /> Mirip: {similar.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMaster(group, key, similar.id)}
+                className="text-foreground font-medium underline underline-offset-4"
+              >
+                Pakai yang ada
+              </button>
+            </p>
+          ) : null}
+        </div>
+        <FormSelect
+          aria-label={`Pemetaan ${GROUP_TITLES[group]}: ${label}`}
+          value={chosen ?? ""}
+          onChange={(value) => setMaster(group, key, value)}
+          noneLabel="Buat baru"
+          placeholder="Buat baru"
+          options={options}
+        />
+      </div>
+    );
+  };
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -286,53 +334,83 @@ export function CompleteStep({
       </Task>
 
       {optional > 0 ? (
-        <details className="bg-card group rounded-2xl border p-5">
-          <summary className="cursor-pointer text-sm font-medium">
-            Opsional: {optional} jabatan, lokasi, atau homebase baru akan dibuat.
-            <span className="text-muted-foreground font-normal">
-              {" "}
-              Buka bila ada yang sebenarnya sama dengan data yang sudah ada.
-            </span>
-          </summary>
-          <div className="mt-4 space-y-2">
-            {masterData.positions.map((p) =>
-              pick(
-                "positions",
-                positionKey(p.department, p.name),
-                `Jabatan: ${p.name} (${p.department})`,
-                (master?.positions ?? []).map((pos) => ({
-                  value: pos.id,
-                  label: pos.name,
-                  hint: departmentsById.get(pos.departmentId),
-                })),
-              ),
-            )}
-            {masterData.grades.map((name) =>
-              pick(
-                "grades",
-                masterKey(name),
-                `Grade: ${name}`,
-                (master?.grades ?? []).map((g) => ({ value: g.id, label: g.name })),
-              ),
-            )}
-            {masterData.workLocations.map((name) =>
-              pick(
-                "workLocations",
-                masterKey(name),
-                `Lokasi kerja: ${name}`,
-                (master?.workLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
-              ),
-            )}
-            {masterData.homebases.map((name) =>
-              pick(
-                "homebases",
-                masterKey(name),
-                `Homebase: ${name}`,
-                (master?.homebases ?? []).map((h) => ({ value: h.id, label: h.name })),
-              ),
-            )}
+        <section aria-label="Akan dibuat baru" className="bg-card space-y-4 rounded-2xl border p-5">
+          <div>
+            <h3 className="text-sm font-semibold">Akan dibuat baru ({optional})</h3>
+            <p className="text-muted-foreground text-sm">
+              Periksa yang sebenarnya sudah ada di HRIS. Yang bertanda Mirip kemungkinan sama — klik
+              Pakai yang ada bila benar.
+            </p>
           </div>
-        </details>
+          {masterData.positions.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Jabatan
+              </h4>
+              {masterData.positions.map((p) =>
+                pick(
+                  "positions",
+                  positionKey(p.department, p.name),
+                  p.name,
+                  `${p.name} (${p.department})`,
+                  (master?.positions ?? []).map((pos) => ({
+                    value: pos.id,
+                    label: pos.name,
+                    hint: departmentsById.get(pos.departmentId),
+                  })),
+                ),
+              )}
+            </div>
+          ) : null}
+          {masterData.grades.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Grade
+              </h4>
+              {masterData.grades.map((name) =>
+                pick(
+                  "grades",
+                  masterKey(name),
+                  name,
+                  name,
+                  (master?.grades ?? []).map((g) => ({ value: g.id, label: g.name })),
+                ),
+              )}
+            </div>
+          ) : null}
+          {masterData.workLocations.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Lokasi kerja
+              </h4>
+              {masterData.workLocations.map((name) =>
+                pick(
+                  "workLocations",
+                  masterKey(name),
+                  name,
+                  name,
+                  (master?.workLocations ?? []).map((l) => ({ value: l.id, label: l.name })),
+                ),
+              )}
+            </div>
+          ) : null}
+          {masterData.homebases.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                Homebase
+              </h4>
+              {masterData.homebases.map((name) =>
+                pick(
+                  "homebases",
+                  masterKey(name),
+                  name,
+                  name,
+                  (master?.homebases ?? []).map((h) => ({ value: h.id, label: h.name })),
+                ),
+              )}
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       {/* Bilah aksi menempel di bawah layar: sisa pekerjaan & tombol lanjut selalu terlihat. */}

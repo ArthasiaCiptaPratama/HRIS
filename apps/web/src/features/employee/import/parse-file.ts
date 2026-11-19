@@ -28,11 +28,13 @@ function decodeText(buffer: ArrayBuffer): string {
 export async function parseImportFile(file: File): Promise<ParsedWorkbook> {
   const name = file.name.toLowerCase();
   if (file.size > IMPORT_MAX_FILE_BYTES) {
-    throw new ImportFileError("Ukuran file melebihi 5 MB.");
+    throw new ImportFileError(
+      "File terlalu besar (lebih dari 5 MB). Hapus lembar yang tidak perlu atau bagi menjadi beberapa file.",
+    );
   }
   if (name.endsWith(".xls")) {
     throw new ImportFileError(
-      "Format .xls (Excel 97–2003) belum didukung. Buka di Excel lalu simpan sebagai .xlsx.",
+      "File .xls (Excel versi lama) belum bisa dibaca. Buka di Excel, pilih Simpan Sebagai → Excel Workbook (.xlsx), lalu unggah lagi.",
     );
   }
   const buffer = await file.arrayBuffer();
@@ -47,7 +49,9 @@ export async function parseImportFile(file: File): Promise<ParsedWorkbook> {
   }
 
   if (!name.endsWith(".xlsx")) {
-    throw new ImportFileError("Format file tidak didukung. Gunakan .xlsx atau .csv.");
+    throw new ImportFileError(
+      "Jenis file ini tidak bisa dibaca. Unggah file Excel (.xlsx) atau .csv.",
+    );
   }
   const { default: readXlsxFile } = await import("read-excel-file/browser");
   try {
@@ -62,7 +66,7 @@ export async function parseImportFile(file: File): Promise<ParsedWorkbook> {
     };
   } catch {
     throw new ImportFileError(
-      "File Excel tidak bisa dibaca. Pastikan file tidak rusak atau terkunci.",
+      "File Excel tidak bisa dibuka. Pastikan file tidak rusak dan tidak dikunci kata sandi, lalu coba lagi.",
     );
   }
 }
