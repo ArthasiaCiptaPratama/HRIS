@@ -90,7 +90,17 @@ export const importBodySchema = z
 export type ImportBody = z.infer<typeof importBodySchema>;
 
 export const commitBodySchema = importBodySchema
-  .extend({ previewHash: z.string().regex(/^[a-f0-9]{64}$/) })
+  .extend({
+    previewHash: z.string().regex(/^[a-f0-9]{64}$/),
+    /**
+     * IMP-D6 (paket B): sel yang diubah pengguna di Pratinjau spreadsheet — baris + isian, TANPA nilai
+     * (nilainya sudah ada di `rows[].raw`). Hanya untuk audit; tidak memengaruhi validasi/hash pratinjau.
+     */
+    editedCells: z
+      .array(z.object({ sourceRow: z.number().int().min(1).max(1_000_000), field: fieldKey }))
+      .max(IMPORT_MAX_ROWS * IMPORT_FIELD_KEYS.length)
+      .optional(),
+  })
   .openapi("EmployeeImportCommit");
 export type CommitBody = z.infer<typeof commitBodySchema>;
 
