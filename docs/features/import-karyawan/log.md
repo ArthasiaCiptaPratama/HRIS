@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Paket B: spike B0 + B1 Pratinjau seperti spreadsheet (IMP-D6) (Oatse)
+- **Dikerjakan:** spike B0 (TanStack Table + Virtual, 2.000×40) → GO. B1: shared `import/edits.ts` (`applyCellEdits`, `editedCellList`); web `import/sheet/` (`sheet-grid.tsx` grid tervirtualisasi: kolom beku, kunci per slot, overscan 6, `scrollPaddingStart` kolom beku, editor teks & dropdown, keyboard, tempel TSV, undo, ARIA grid + `aria-activedescendant`; `clipboard.ts` `parseClipboardGrid`; `preview-sheet.tsx` kolom penting + error + "Kolom lain", PT/Status/Struktur Organisasi per baris, validasi instan, keterangan baris aktif), `preview-step.tsx` (tabel lama diganti grid, kotak Perlu diperbaiki → lompat ke sel), `import-page.tsx` (`edits` + cap waktu sel, pratinjau ulang 1 dtk, `beforeunload`, unduh baris memakai ubahan), `template/build-template.ts` `FIXED_CHOICES`; dependensi `@tanstack/react-virtual` 3.14.25 (tepat).
+- **Keputusan:** IMP-D6.
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); boundaries ✔; shared 408 test ✔ (baru `import-edits` 4); web 63 file / 441 test ✔ (employee-import 20, baru `import-sheet-clipboard` 3). Uji visual Zen headless akun HR tanpa izin data pribadi 977 + 1440 px `QA/2026-11-19-import-ux/paket-b/`: PT "PNR" & No. HP salah dibetulkan di sel → pratinjau server 12 siap · 1 perlu diperbaiki; kolom 🔒 terkunci & disamarkan. Temuan visual diperbaiki: sel PT tidak bisa diubah bila hanya satu PT.
+- **Masalah / catatan:** tempel sungguhan dari Excel belum diuji di peramban (event sintetis Firefox kosong; clipboard pengguna tidak dipakai) — menunggu dicoba pengguna. Kontrak API belum berubah (audit `editedCells` = B3).
+- **Berikutnya:** uji tempel oleh pengguna; B2 pilih blok; B3 audit `editedCells` + cari.
+
 ### 2026-11-19 — Pangkas paket A "sekali lihat" (IMP-D5) (Oatse)
 - **Dikerjakan:** web `features/employee/import/`: `import-page.tsx` (mode dilipat, template tautan, 🔒 di Rincian, Pemetaan dilewati otomatis + `goMapping`, Selesai satu baris, dialog Simpan/lampiran pendek), `mapping-step.tsx` (`mappingHasIdentity`/`mappingReviewColumns` diekspor), `complete-step.tsx` (kartu wajib bernomor + `DoneLine` ✔, Mirip paling atas), `unit-matching.tsx` (hanya yang perlu dipilih/diubah di layar + "Lihat semua (N)"), `preview-step.tsx` (ringkasan satu baris, `issueShort` + tooltip), `attachments-panel.tsx` (satu baris progres + Rincian), `import-guide.tsx` (hanya langkah aktif terbuka), `info-tip.tsx` baru, `labels.ts` `issueShort`. Sesi hris-14 terputus restart 12:00; dilanjutkan dari working tree.
 - **Keputusan:** IMP-D5 butir (7) "sekali lihat" + Pemetaan dilewati otomatis.
