@@ -5,17 +5,12 @@ import {
   CircleAlert,
   CircleCheck,
   CloudDownload,
-  Download,
-  Info,
   Loader2,
   Save,
-  Settings2,
-  ShieldAlert,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SelectOption } from "@/components/form-select";
 import { LazySelect } from "@/components/lazy-select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +24,7 @@ import {
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "./api";
-import { fieldLabel, issueHint, issueText } from "./labels";
+import { fieldLabel, issueHint, issueShort, issueText } from "./labels";
 
 // Pratinjau (langkah terakhir sebelum simpan): ringkasan, pengaturan yang dipakai (ubah → kembali ke
 // Lengkapi data), daftar "Perlu diperbaiki", dan tabel baris. Pilihan untuk banyak baris ada di langkah
@@ -71,48 +66,24 @@ const ACTION_BADGE = {
 
 function Summary({ counts }: { counts: ImportPreview["counts"] }) {
   const ready = counts.create + counts.update;
-  const parts = [
-    counts.create > 0 ? `${counts.create} baru` : null,
-    counts.update > 0 ? `${counts.update} diperbarui` : null,
-  ].filter(Boolean);
-  const other = [
-    counts.skip > 0 ? `${counts.skip} dilewati (tidak ada perubahan)` : null,
-    counts.blank > 0 ? `${counts.blank} baris kosong diabaikan` : null,
-  ].filter(Boolean);
   return (
-    <div className="bg-card grid gap-3 rounded-2xl border p-4 sm:grid-cols-2">
-      <div className="flex items-start gap-3">
-        <CircleCheck className="text-success-soft-foreground mt-0.5 size-5 shrink-0" aria-hidden />
-        <div>
-          <p className="text-base font-semibold">
-            <span className="tabular-nums">{ready}</span> karyawan siap disimpan
-          </p>
-          {parts.length > 0 ? (
-            <p className="text-muted-foreground text-sm">{parts.join(" · ")}</p>
-          ) : null}
-        </div>
-      </div>
-      <div className="flex items-start gap-3">
-        <CircleAlert
-          className={cn(
-            "mt-0.5 size-5 shrink-0",
-            counts.error ? "text-destructive" : "text-muted-foreground",
-          )}
-          aria-hidden
-        />
-        <div>
-          <p className={cn("text-base font-semibold", counts.error ? "text-destructive" : "")}>
-            <span className="tabular-nums">{counts.error}</span> baris perlu diperbaiki
-          </p>
-          <p className="text-muted-foreground text-sm">
-            {counts.error ? "Tidak ikut disimpan sampai diperbaiki" : "Tidak ada yang salah"}
-          </p>
-        </div>
-      </div>
-      {other.length > 0 ? (
-        <p className="text-muted-foreground text-xs sm:col-span-2">{other.join(" · ")}</p>
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base font-semibold">
+      <span className="inline-flex items-center gap-1.5">
+        <CircleCheck className="text-success-soft-foreground size-5" aria-hidden />
+        <span className="tabular-nums">{ready}</span> siap disimpan
+      </span>
+      {counts.error > 0 ? (
+        <span className="text-destructive inline-flex items-center gap-1.5">
+          <CircleAlert className="size-5" aria-hidden />
+          <span className="tabular-nums">{counts.error}</span> perlu diperbaiki
+        </span>
       ) : null}
-    </div>
+      {counts.skip > 0 ? (
+        <span className="text-muted-foreground text-sm font-normal">
+          {counts.skip} tanpa perubahan
+        </span>
+      ) : null}
+    </p>
   );
 }
 
@@ -163,15 +134,14 @@ function RowMessages({
         <p className="text-muted-foreground">Lampiran Google Drive: {row.attachments}</p>
       ) : null}
       {errors.map((i) => (
-        <p key={`${i.field}-${i.code}`} className="text-destructive">
-          {issueText(i, columnOf)}
+        <p
+          key={`${i.field}-${i.code}`}
+          className="text-destructive"
+          title={`${issueText(i, columnOf)}${hint ? `\n${hint}` : ""}`}
+        >
+          {issueShort(i)}
         </p>
       ))}
-      {hint ? (
-        <p className="text-foreground text-xs">
-          <span className="font-medium">Cara memperbaiki:</span> {hint}
-        </p>
-      ) : null}
       {warnings.length > 0 ? (
         <div>
           <button
@@ -180,7 +150,7 @@ function RowMessages({
             aria-expanded={showWarnings}
             className="text-warning-soft-foreground inline-flex items-center gap-1 text-xs hover:underline"
           >
-            {warnings.length} peringatan (baris tetap disimpan)
+            {warnings.length} catatan (tetap disimpan)
             <ChevronDown
               className={cn("size-3.5 transition-transform", showWarnings && "rotate-180")}
               aria-hidden
@@ -316,30 +286,23 @@ export function PreviewStep({
 
   return (
     <div className="space-y-5">
-      <Summary counts={counts} />
-
-      <div className="bg-card flex flex-col gap-2 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <Settings2 className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
-          <p className="text-sm">
-            <span className="font-medium">Pengaturan: </span>
-            <span className="text-muted-foreground">{settings.join(" · ")}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={cn(
-              "text-muted-foreground flex items-center gap-1.5 text-xs transition-opacity",
-              updating ? "opacity-100" : "opacity-0",
-            )}
-            aria-live="polite"
-          >
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
-            {updating ? "Memperbarui…" : ""}
+      {/* IMP-D5 "sekali lihat": ringkasan + pengaturan dalam satu baris. */}
+      <div className="bg-card flex flex-col gap-2 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <Summary counts={counts} />
+        <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm">
+          {updating ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label="Memperbarui…" />
+          ) : null}
+          <span className="truncate" title={settings.join(" · ")}>
+            {settings.join(" · ")}
           </span>
-          <Button variant="outline" size="sm" onClick={onEditSettings}>
+          <button
+            type="button"
+            onClick={onEditSettings}
+            className="text-foreground shrink-0 font-medium underline-offset-4 hover:underline"
+          >
             Ubah pengaturan
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -366,73 +329,63 @@ export function PreviewStep({
       ) : null}
 
       {counts.attachments > 0 ? (
-        <Alert>
-          <CloudDownload />
-          <AlertDescription>
-            {counts.attachments} foto/dokumen dari tautan Google Drive akan diambil setelah data
-            disimpan. File yang sama dengan yang sudah pernah diambil dilewati; file yang berbeda
-            disimpan sebagai dokumen terbaru.
-          </AlertDescription>
-        </Alert>
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <CloudDownload className="size-4 shrink-0" aria-hidden />
+          {counts.attachments} foto/dokumen dari Google Drive diambil setelah disimpan.
+        </p>
       ) : null}
 
       {preview.skippedFields.length > 0 ? (
-        <Alert>
-          <ShieldAlert />
-          <AlertTitle>
-            {preview.skippedFields.length} kolom data pribadi tidak ikut tersimpan
-          </AlertTitle>
-          <AlertDescription>
-            Akun Anda belum punya izin data pribadi, jadi kolom ini dilewati:{" "}
-            {preview.skippedFields.map(fieldLabel).join(", ")}. Kolom lain tetap tersimpan. Bila
-            data ini perlu masuk, minta Super Admin memberi izin data pribadi untuk akun Anda.
-          </AlertDescription>
-        </Alert>
+        <details className="text-muted-foreground text-sm">
+          <summary className="cursor-pointer">
+            🔒 {preview.skippedFields.length} kolom data pribadi tidak tersimpan untuk akun Anda ·{" "}
+            <span className="text-foreground underline underline-offset-4">Rincian</span>
+          </summary>
+          <p className="mt-1 pl-5">
+            {preview.skippedFields.map(fieldLabel).join(", ")}. Minta Super Admin memberi izin data
+            pribadi bila data ini perlu masuk.
+          </p>
+        </details>
       ) : null}
 
       {errorRows.length > 0 ? (
         <section
           aria-label="Perlu diperbaiki"
-          className="border-destructive/30 bg-destructive/5 rounded-2xl border p-4"
+          className="border-destructive/30 bg-destructive/5 rounded-2xl border px-4 py-3"
         >
           <h3 className="text-destructive flex items-center gap-2 text-sm font-semibold">
             <CircleAlert className="size-4" aria-hidden />
             Perlu diperbaiki ({errorRows.length} baris)
           </h3>
-          <ul className="mt-3 space-y-3">
+          <ul className="mt-2 space-y-1 text-sm">
             {errorRows.map((r) => {
-              const hint = issueHint(r.issues);
+              const errors = r.issues.filter((i) => i.severity === "ERROR");
               return (
-                <li key={r.sourceRow} className="text-sm">
-                  <p className="font-medium">
-                    Baris {r.sourceRow} · {r.fullName ?? "(tanpa nama)"}
-                  </p>
-                  {r.issues
-                    .filter((i) => i.severity === "ERROR")
-                    .map((i) => (
-                      <p key={`${i.field}-${i.code}`} className="text-destructive">
-                        {issueText(i, columnOf)}
-                      </p>
-                    ))}
-                  {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
+                <li
+                  key={r.sourceRow}
+                  className="truncate"
+                  title={errors.map((i) => issueText(i, columnOf)).join("\n")}
+                >
+                  <span className="text-muted-foreground">Baris {r.sourceRow} · </span>
+                  <span className="font-medium">{r.fullName ?? "(tanpa nama)"}</span>
+                  <span className="text-destructive"> — {errors.map(issueShort).join("; ")}</span>
                 </li>
               );
             })}
           </ul>
-        </section>
-      ) : null}
-
-      {choosePt || hasNewRows ? (
-        <div className="bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
-          <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <p>
-            {choosePt && hasNewRows
-              ? "PT dan status karyawan baru bisa diubah langsung di daftar."
-              : choosePt
-                ? "PT bisa diubah langsung di daftar."
-                : "Status karyawan baru bisa diubah langsung di daftar."}
+          <p className="text-muted-foreground mt-2 text-xs">
+            {errorRows.some((r) => issueHint(r.issues)?.includes("Excel"))
+              ? "Perbaiki di Excel lalu unggah lagi · "
+              : ""}
+            <button
+              type="button"
+              onClick={onDownloadIssues}
+              className="text-foreground font-medium underline underline-offset-4"
+            >
+              Unduh {errorRows.length} baris
+            </button>
           </p>
-        </div>
+        </section>
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -467,8 +420,8 @@ export function PreviewStep({
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-left text-sm underline-offset-4 hover:underline"
           >
             {showAllHolders
-              ? "Sembunyikan pilihan Struktur Organisasi per baris"
-              : "Ada karyawan yang sudah tercatat di Struktur Organisasi dengan nama lain? Tampilkan pilihan"}
+              ? "Sembunyikan pilihan Struktur Organisasi"
+              : "Nama lain di Struktur Organisasi?"}
             <ChevronDown
               className={cn(
                 "size-3.5 shrink-0 transition-transform",
@@ -600,11 +553,6 @@ export function PreviewStep({
           <ArrowLeft /> Kembali
         </Button>
         <div className="flex flex-col gap-2 sm:flex-row sm:ml-auto sm:flex-wrap sm:justify-end">
-          {errorRows.length > 0 ? (
-            <Button variant="outline" onClick={onDownloadIssues}>
-              <Download /> Unduh {errorRows.length} baris yang perlu diperbaiki
-            </Button>
-          ) : null}
           <Button
             variant="brand"
             onClick={onCommit}

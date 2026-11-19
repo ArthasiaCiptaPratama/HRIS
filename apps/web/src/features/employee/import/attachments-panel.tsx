@@ -202,7 +202,7 @@ export function AttachmentsPanel({
   const { process, retry } = useAttachmentActions(jobId);
   const [running, setRunning] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showNotes, setShowNotes] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
   /** Jumlah coba ulang berturut-turut karena gangguan sementara (0 = koneksi normal). */
   const [retries, setRetries] = useState(0);
   const data = query.data;
@@ -305,11 +305,9 @@ export function AttachmentsPanel({
               {status.label}
             </Badge>
           </div>
-          <p className="text-muted-foreground text-sm">
-            {finished
-              ? "Semua tautan Google Drive sudah diproses."
-              : "Foto & dokumen diambil satu per satu. Biarkan halaman ini terbuka; bila ditutup, pengambilan dijeda dan bisa dilanjutkan dari halaman Import Data Karyawan."}
-          </p>
+          {finished ? null : (
+            <p className="text-muted-foreground text-sm">Biarkan halaman ini terbuka.</p>
+          )}
         </div>
         <div className="flex gap-2">
           {canRun && running ? (
@@ -374,18 +372,10 @@ export function AttachmentsPanel({
         </Alert>
       ) : null}
 
+      {/* IMP-D5 "sekali lihat": satu baris progres; angka per status, antrean & catatan di Rincian. */}
       <div className="space-y-2">
-        <div className="flex items-end justify-between gap-3">
-          <p className="text-3xl font-semibold tabular-nums">
-            {percent}
-            <span className="text-muted-foreground text-lg">%</span>
-          </p>
-          <p className="text-muted-foreground text-sm tabular-nums">
-            {handled} / {counts.total} lampiran
-          </p>
-        </div>
         <div
-          className="bg-muted h-2 overflow-hidden rounded-full"
+          className="bg-muted h-1.5 overflow-hidden rounded-full"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -400,48 +390,57 @@ export function AttachmentsPanel({
             style={{ width: `${percent}%` }}
           />
         </div>
-        <p className="text-muted-foreground text-xs" aria-live="polite">
-          {handled} dari {counts.total} lampiran · {counts.done} masuk · {counts.skipped} dilewati ·{" "}
-          {counts.failed} gagal
-          {active ? " · memproses…" : ""}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Stat label="Masuk" value={counts.done} tone="bg-success" />
-        <Stat label="Menunggu" value={counts.pending} tone="bg-muted-foreground/50" />
-        <Stat label="Dilewati" value={counts.skipped} tone="bg-warning" />
-        <Stat label="Gagal" value={counts.failed} tone="bg-destructive" />
-      </div>
-
-      {upcoming.length > 0 ? (
-        <div>
-          <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            {processing.length > 0 ? "Sedang diproses" : "Berikutnya di antrean"}
-          </h3>
-          <ul className="divide-y">
-            {upcoming.map((item) => (
-              <ItemLine key={item.id} item={item} />
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {notes.length > 0 ? (
-        <div className="rounded-xl border">
+        <p className="text-sm" aria-live="polite">
+          <span className="tabular-nums">
+            {handled} dari {counts.total} diambil · {counts.done} masuk
+          </span>
+          {counts.skipped > 0 ? (
+            <span className="text-warning-soft-foreground"> · {counts.skipped} dilewati</span>
+          ) : null}
+          {counts.failed > 0 ? (
+            <span className="text-destructive"> · {counts.failed} gagal</span>
+          ) : null}{" "}
           <button
             type="button"
-            onClick={() => setShowNotes((v) => !v)}
-            aria-expanded={showNotes}
-            className="hover:bg-muted/50 flex w-full items-center justify-between gap-2 rounded-xl px-4 py-3 text-left text-sm font-medium"
+            onClick={() => setShowDetails((v) => !v)}
+            aria-expanded={showDetails}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 underline-offset-4 hover:underline"
           >
-            <span>Perlu dicek ({notes.length})</span>
+            · Rincian{notes.length > 0 ? ` (${notes.length} perlu dicek)` : ""}
             <ChevronDown
-              className={cn("size-4 transition-transform", showNotes && "rotate-180")}
+              className={cn("size-3.5 transition-transform", showDetails && "rotate-180")}
               aria-hidden
             />
           </button>
-          {showNotes ? <NotesTable notes={notes} /> : null}
+        </p>
+      </div>
+
+      {showDetails ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Stat label="Masuk" value={counts.done} tone="bg-success" />
+            <Stat label="Menunggu" value={counts.pending} tone="bg-muted-foreground/50" />
+            <Stat label="Dilewati" value={counts.skipped} tone="bg-warning" />
+            <Stat label="Gagal" value={counts.failed} tone="bg-destructive" />
+          </div>
+          {upcoming.length > 0 ? (
+            <div>
+              <h3 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                {processing.length > 0 ? "Sedang diproses" : "Berikutnya di antrean"}
+              </h3>
+              <ul className="divide-y">
+                {upcoming.map((item) => (
+                  <ItemLine key={item.id} item={item} />
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {notes.length > 0 ? (
+            <div className="rounded-xl border">
+              <p className="px-4 py-3 text-sm font-medium">Perlu dicek ({notes.length})</p>
+              <NotesTable notes={notes} />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>

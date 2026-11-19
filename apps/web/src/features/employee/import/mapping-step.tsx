@@ -189,26 +189,11 @@ export function MappingStep({
     return count;
   }, [mapping]);
   // D-063: karyawan dikenali lewat NIP atau NIK KTP — salah satu kolom harus dipetakan.
-  const hasNumber = mapping.includes("employeeNumber") || mapping.includes("ktpNumber");
-  const reviewColumns = useMemo(() => {
-    const columns = new Set<number>();
-    for (const s of suggestions) {
-      const field = mapping[s.column] ?? null;
-      // Pilihan manual (termasuk mengabaikan saran) tidak perlu diperiksa lagi.
-      if (field !== s.field) continue;
-      if (
-        field
-          ? s.confidence < 0.85
-          : !s.derived &&
-            rows.some((row) => {
-              const cell = row.cells[s.column];
-              return cell !== null && cell !== undefined && String(cell).trim() !== "";
-            })
-      )
-        columns.add(s.column);
-    }
-    return columns;
-  }, [suggestions, mapping, rows]);
+  const hasNumber = mappingHasIdentity(mapping);
+  const reviewColumns = useMemo(
+    () => mappingReviewColumns(suggestions, mapping, rows),
+    [suggestions, mapping, rows],
+  );
   const orderedSuggestions = useMemo(
     () =>
       [...suggestions].sort(
@@ -380,4 +365,36 @@ export function MappingStep({
       </div>
     </div>
   );
+}
+
+/** D-063: karyawan dikenali lewat NIP atau NIK KTP — salah satu kolom harus dipetakan. */
+export const mappingHasIdentity = (mapping: readonly (ImportFieldKey | null)[]) =>
+  mapping.includes("employeeNumber") || mapping.includes("ktpNumber");
+
+/**
+ * Kolom yang perlu dicek pengguna: saran berkeyakinan < 0,85 yang belum diubah manual, atau kolom berisi
+ * data yang tidak dikenali. Kosong + ada NIP/NIK → langkah Pemetaan dilewati otomatis (IMP-D5).
+ */
+export function mappingReviewColumns(
+  suggestions: readonly ColumnSuggestion[],
+  mapping: readonly (ImportFieldKey | null)[],
+  rows: readonly DataRow[],
+): Set<number> {
+  const columns = new Set<number>();
+  for (const s of suggestions) {
+    const field = mapping[s.column] ?? null;
+    // Pilihan manual (termasuk mengabaikan saran) tidak perlu diperiksa lagi.
+    if (field !== s.field) continue;
+    if (
+      field
+        ? s.confidence < 0.85
+        : !s.derived &&
+          rows.some((row) => {
+            const cell = row.cells[s.column];
+            return cell !== null && cell !== undefined && String(cell).trim() !== "";
+          })
+    )
+      columns.add(s.column);
+  }
+  return columns;
 }
