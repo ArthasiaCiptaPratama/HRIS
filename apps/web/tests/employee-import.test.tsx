@@ -716,9 +716,8 @@ describe("Import Data Karyawan", () => {
     expect(commit?.body).toMatchObject({
       editedCells: [{ sourceRow: 3, field: "employeeNumber" }],
     });
-    expect(JSON.stringify((commit?.body as { editedCells: unknown }).editedCells)).not.toContain(
-      "ACP-9999",
-    );
+    const sent = commit?.body as { editedCells?: unknown } | undefined;
+    expect(JSON.stringify(sent?.editedCells)).not.toContain("ACP-9999");
   });
 
   it("Paket B: sel dikosongkan → langsung ditandai (cek di browser) sebelum server memeriksa", async () => {
