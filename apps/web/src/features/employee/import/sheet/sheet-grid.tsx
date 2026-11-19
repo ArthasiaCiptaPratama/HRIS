@@ -85,6 +85,7 @@ const Cell = memo(function Cell({
   colIndex,
   left,
   active,
+  inSel,
   frozen,
 }: {
   id: string;
@@ -93,6 +94,8 @@ const Cell = memo(function Cell({
   colIndex: number;
   left: number;
   active: boolean;
+  /** Bagian dari blok terpilih (B2) — latar tipis, tanpa bingkai per sel. */
+  inSel: boolean;
   frozen: boolean;
 }) {
   const text = cell?.text ?? "";
@@ -104,7 +107,7 @@ const Cell = memo(function Cell({
       role="gridcell"
       tabIndex={-1}
       aria-colindex={colIndex + 1}
-      aria-selected={active}
+      aria-selected={active || inSel}
       aria-invalid={cell?.error ? true : undefined}
       aria-readonly={readOnly || undefined}
       data-col={colIndex}
@@ -115,6 +118,7 @@ const Cell = memo(function Cell({
         column.locked && "bg-muted text-muted-foreground",
         cell?.muted && "text-muted-foreground",
         cell?.error && "bg-destructive/10 text-destructive",
+        inSel && !active && "bg-brand-soft",
         active && "ring-brand z-20 ring-2 ring-inset",
       )}
       style={{ width: column.width, height: ROW_H, left: frozen ? undefined : left }}
@@ -272,6 +276,8 @@ const RowView = memo(function RowView({
   virtualCols,
   frozenWidth,
   activeCol,
+  selFrom,
+  selTo,
   edit,
   onEditChange,
   onEditCommit,
@@ -285,6 +291,9 @@ const RowView = memo(function RowView({
   virtualCols: { index: number; start: number }[];
   frozenWidth: number;
   activeCol: number;
+  /** Kolom blok terpilih di baris ini (-1 = baris tidak masuk blok). */
+  selFrom: number;
+  selTo: number;
   edit: Edit | null;
   onEditChange: (patch: Partial<Edit>) => void;
   onEditCommit: (value: string, move: "down" | "right" | "left" | "none") => void;
@@ -317,6 +326,7 @@ const RowView = memo(function RowView({
         colIndex={c}
         left={left}
         active={activeCol === c}
+        inSel={selFrom >= 0 && c >= selFrom && c <= selTo}
         frozen={frozen}
       />
     );
@@ -381,6 +391,9 @@ export function SheetGrid({
   const [active, setActive] = useState<Pos>({ r: 0, c: 0 });
   const [edit, setEdit] = useState<Edit | null>(null);
   const [notice, setNotice] = useState("");
+  // B2: titik awal blok (Shift+panah/Shift+klik/seret); null = hanya sel aktif.
+  const [anchor, setAnchor] = useState<Pos | null>(null);
+  const dragging = useRef(false);
   const undo = useRef<SheetChange[][]>([]);
   // Lebar kotak (tanpa scrollbar) → kolom diregangkan mengisi penuh.
   const [boxWidth, setBoxWidth] = useState(0);
@@ -439,7 +452,9 @@ export function SheetGrid({
   const clampRow = (r: number) => Math.max(0, Math.min(rows.length - 1, r));
   const clampCol = (c: number) => Math.max(0, Math.min(columns.length - 1, c));
   const focusGrid = () => scrollRef.current?.focus({ preventScroll: true });
-  const activate = (r: number, c: number, scroll = true) => {
+  const activate = (r: number, c: number, scroll = true, extend = false) => {
+    if (extend) setAnchor((a) => a ?? active);
+    else setAnchor(null);
     const nr = clampRow(r);
     const nc = clampCol(c);
     setActive({ r: nr, c: nc });
@@ -454,6 +469,7 @@ export function SheetGrid({
   // Daftar baris berubah (filter) → sel aktif tetap di dalam tabel.
   // biome-ignore lint/correctness/useExhaustiveDependencies: hanya saat jumlah baris/kolom berubah
   useEffect(() => {
+    setAnchor(null);
     if (active.r >= rows.length || active.c >= columns.length)
       activate(Math.min(active.r, rows.length - 1), Math.min(active.c, columns.length - 1), false);
     else if (rows.length > 0) onActiveChange?.(active.r, columns[active.c]?.key ?? "");
@@ -477,6 +493,17 @@ export function SheetGrid({
     const cell = column ? rows[r]?.cells[column.key] : undefined;
     return cell?.value ?? cell?.text ?? "";
   };
+
+  /** Blok terpilih (baris & kolom, inklusif). */
+  const sel = anchor
+    ? {
+        r1: Math.min(anchor.r, active.r),
+        r2: Math.max(anchor.r, active.r),
+        c1: Math.min(anchor.c, active.c),
+        c2: Math.max(anchor.c, active.c),
+      }
+    : { r1: active.r, r2: active.r, c1: active.c, c2: active.c };
+  const multi = sel.r1 !== sel.r2 || sel.c1 !== sel.c2;
 
   const emit = (changes: SheetChange[], source: "edit" | "paste" | "clear") => {
     const real = changes.filter((ch) => {
@@ -506,6 +533,7 @@ export function SheetGrid({
     const value = cellValue(r, c);
     const select = columns[c]?.kind === "select";
     const text = rows[r]?.cells[columns[c]?.key ?? ""]?.text ?? "";
+    setAnchor(null);
     setEdit({ r, c, value, query: typed ?? (select ? "" : text) });
   };
 
@@ -567,7 +595,10 @@ export function SheetGrid({
     const d = nav[e.key];
     if (d) {
       e.preventDefault();
-      activate(r + d[0], c + d[1]);
+      activate(r + d[0], c + d[1], true, e.shiftKey);
+    } else if (e.key === "Escape" && anchor) {
+      e.preventDefault();
+      setAnchor(null);
     } else if (e.key === "Tab") {
       e.preventDefault();
       activate(r, c + (e.shiftKey ? -1 : 1));
@@ -576,8 +607,19 @@ export function SheetGrid({
       startEdit(r, c);
     } else if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
-      const column = columns[c];
-      if (column && editable(r, c)) emit([{ row: r, column: column.key, value: "" }], "clear");
+      const changes: SheetChange[] = [];
+      let skipped = 0;
+      for (let rr = sel.r1; rr <= sel.r2; rr++)
+        for (let cc = sel.c1; cc <= sel.c2; cc++) {
+          const column = columns[cc];
+          if (column && editable(rr, cc)) changes.push({ row: rr, column: column.key, value: "" });
+          else if (column?.kind !== "readonly") skipped++;
+        }
+      emit(changes, "clear");
+      if (multi || skipped > 0)
+        setNotice(
+          `${changes.length} sel dikosongkan${skipped > 0 ? `, ${skipped} dilewati (terkunci)` : ""}.`,
+        );
     } else if (e.key.length === 1) {
       e.preventDefault();
       startEdit(r, c, e.key);
@@ -587,13 +629,19 @@ export function SheetGrid({
   const onPaste = (e: ClipboardEvent<HTMLDivElement>) => {
     if (edit) return;
     e.preventDefault();
-    const block = parseClipboardGrid(e.clipboardData.getData("text/plain"));
+    let block = parseClipboardGrid(e.clipboardData.getData("text/plain"));
+    // Satu nilai ditempel ke blok terpilih → mengisi seluruh blok (seperti Excel).
+    const single = block.length === 1 && block[0]?.length === 1 ? (block[0]?.[0] ?? "") : null;
+    if (single !== null && multi)
+      block = Array.from({ length: sel.r2 - sel.r1 + 1 }, () =>
+        Array.from({ length: sel.c2 - sel.c1 + 1 }, () => single),
+      );
     const changes: SheetChange[] = [];
     let skipped = 0;
     block.forEach((line, dr) => {
       line.forEach((text, dc) => {
-        const r = active.r + dr;
-        const c = active.c + dc;
+        const r = sel.r1 + dr;
+        const c = sel.c1 + dc;
         const column = columns[c];
         if (!column || r >= rows.length || !editable(r, c)) {
           skipped++;
@@ -620,11 +668,19 @@ export function SheetGrid({
   const onCopy = (e: ClipboardEvent<HTMLDivElement>) => {
     if (edit) return;
     e.preventDefault();
-    const column = columns[active.c];
-    e.clipboardData.setData(
-      "text/plain",
-      column && !column.locked ? (rows[active.r]?.cells[column.key]?.text ?? "") : "",
-    );
+    // Blok → TSV (baris dipisah baris baru, sel dipisah tab); kolom 🔒 disalin kosong.
+    const quote = (t: string) => (/[\t\n"]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t);
+    const lines: string[] = [];
+    for (let rr = sel.r1; rr <= sel.r2; rr++) {
+      const cells: string[] = [];
+      for (let cc = sel.c1; cc <= sel.c2; cc++) {
+        const column = columns[cc];
+        cells.push(column && !column.locked ? quote(rows[rr]?.cells[column.key]?.text ?? "") : "");
+      }
+      lines.push(cells.join("\t"));
+    }
+    e.clipboardData.setData("text/plain", lines.join("\r\n"));
+    if (multi) setNotice(`${lines.length * (sel.c2 - sel.c1 + 1)} sel disalin.`);
   };
 
   const cellFromEvent = (e: MouseEvent) => {
@@ -663,10 +719,26 @@ export function SheetGrid({
           }
           const pos = cellFromEvent(e);
           if (!pos || (edit && edit.r === pos.r && edit.c === pos.c)) return;
-          activate(pos.r, pos.c, false);
+          activate(pos.r, pos.c, false, e.shiftKey);
+          // Seret untuk memilih blok (B2).
+          if (!e.shiftKey) {
+            dragging.current = true;
+            setAnchor(pos);
+          }
           // Panah ▾ di sel pilihan langsung membuka daftar.
           if ((e.target as HTMLElement).closest("svg") && columns[pos.c]?.kind === "select")
             startEdit(pos.r, pos.c);
+        }}
+        onMouseMove={(e) => {
+          if (!dragging.current || e.buttons !== 1) return;
+          const pos = cellFromEvent(e);
+          if (pos && (pos.r !== active.r || pos.c !== active.c))
+            activate(pos.r, pos.c, false, true);
+        }}
+        onMouseUp={() => {
+          dragging.current = false;
+          // Klik biasa (tanpa seret) → tidak ada blok.
+          setAnchor((a) => (a && a.r === active.r && a.c === active.c ? null : a));
         }}
         onDoubleClick={(e) => {
           const pos = cellFromEvent(e);
@@ -731,6 +803,8 @@ export function SheetGrid({
                 virtualCols={virtualCols}
                 frozenWidth={frozenWidth}
                 activeCol={vr.index === active.r ? active.c : -1}
+                selFrom={multi && vr.index >= sel.r1 && vr.index <= sel.r2 ? sel.c1 : -1}
+                selTo={multi && vr.index >= sel.r1 && vr.index <= sel.r2 ? sel.c2 : -1}
                 edit={edit && edit.r === vr.index ? edit : null}
                 onEditChange={stable.change}
                 onEditCommit={stable.commit}

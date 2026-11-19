@@ -792,6 +792,62 @@ describe("Import Data Karyawan", () => {
     expect(screen.queryByText("Simpan 0 lampiran")).not.toBeInTheDocument();
   });
 
+  it("Paket B2: pilih blok (Shift+panah / Shift+klik), salin blok TSV, Delete blok, Ctrl+Z satu langkah, Esc", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.click(cell(0, "NIP"));
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    expect(cell(0, "NIP")).toHaveAttribute("aria-selected", "true");
+    expect(cell(1, "NIP")).toHaveAttribute("aria-selected", "true");
+    expect(cell(1, "Nama lengkap")).toHaveAttribute("aria-selected", "false");
+
+    // Shift+klik memperluas blok sampai kolom Jabatan.
+    await user.keyboard("{Shift>}");
+    await user.click(cell(1, "Jabatan"));
+    await user.keyboard("{/Shift}");
+    expect(cell(0, "Jabatan")).toHaveAttribute("aria-selected", "true");
+    expect(cell(0, "PT")).toHaveAttribute("aria-selected", "true");
+
+    // Salin blok → TSV dari NIP s.d. Jabatan, dua baris.
+    let copied = "";
+    fireEvent.copy(sheet(), {
+      clipboardData: { setData: (_type: string, text: string) => (copied = text) },
+    });
+    const lines = copied.split("\r\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]?.split("\t")[0]).toBe("ACP-9001");
+    expect(lines[1]?.split("\t").at(-1)).toBe("Staff Uji");
+
+    // Esc membatalkan blok; pilih ulang NIP dua baris lalu Delete → keduanya kosong, Ctrl+Z sekali kembali.
+    await user.keyboard("{Escape}");
+    expect(cell(0, "NIP")).toHaveAttribute("aria-selected", "false");
+    await user.click(cell(0, "NIP"));
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}{Delete}");
+    expect(cell(0, "NIP")).toHaveTextContent("");
+    expect(cell(1, "NIP")).toHaveTextContent("");
+    expect(screen.getByText("2 sel dikosongkan.")).toBeInTheDocument();
+    await user.keyboard("{Control>}z{/Control}");
+    expect(cell(0, "NIP")).toHaveTextContent("ACP-9001");
+    expect(cell(1, "NIP")).toHaveTextContent("ACP-9002");
+  });
+
+  it("Paket B2: satu nilai ditempel ke blok → mengisi seluruh blok", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.click(cell(0, "Jabatan"));
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    fireEvent.paste(sheet(), { clipboardData: { getData: () => "Operator\r\n" } });
+    expect(cell(0, "Jabatan")).toHaveTextContent("Operator");
+    expect(cell(1, "Jabatan")).toHaveTextContent("Operator");
+    expect(screen.getByText("2 sel ditempel.")).toBeInTheDocument();
+  });
+
   it("Paket B3: cari nama/NIP menyaring baris grid (termasuk NIP yang sudah diubah)", async () => {
     mockBackend();
     const user = userEvent.setup();
