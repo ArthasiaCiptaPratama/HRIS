@@ -773,6 +773,25 @@ describe("Import Data Karyawan", () => {
     expect(cell(0, "NIK KTP")).toHaveTextContent("••••0001");
   });
 
+  it("tanpa baris siap & tanpa lampiran → tombol nonaktif berlabel Simpan (bukan Simpan 0 lampiran)", async () => {
+    mockBackend({
+      previewData: {
+        ...preview,
+        counts: { ...preview.counts, create: 0, error: 2 },
+        rows: preview.rows.map((r) => ({
+          ...r,
+          action: "ERROR",
+          issues: [{ field: "workEmail", code: "EMAIL_TAKEN", severity: "ERROR" }],
+        })),
+      },
+    });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    expect(await screen.findByRole("button", { name: "Simpan" })).toBeDisabled();
+    expect(screen.queryByText("Simpan 0 lampiran")).not.toBeInTheDocument();
+  });
+
   it("Paket B3: cari nama/NIP menyaring baris grid (termasuk NIP yang sudah diubah)", async () => {
     mockBackend();
     const user = userEvent.setup();

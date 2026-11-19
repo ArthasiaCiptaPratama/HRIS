@@ -74,6 +74,8 @@ function Summary({ counts }: { counts: ImportPreview["counts"] }) {
 
 // D-060: baris tanpa perubahan data tetap bisa disimpan bila membawa lampiran Google Drive.
 function saveLabel(writable: number, attachments: number) {
+  // Tidak ada yang bisa disimpan (tombol nonaktif) → cukup "Simpan", bukan "Simpan 0 lampiran".
+  if (writable === 0 && attachments === 0) return "Simpan";
   if (writable === 0) return `Simpan ${attachments} lampiran`;
   return `Simpan ${writable} karyawan${attachments > 0 ? ` + ${attachments} lampiran` : ""}`;
 }
