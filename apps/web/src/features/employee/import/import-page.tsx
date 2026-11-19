@@ -1,28 +1,32 @@
 import {
+  applyCellEdits,
   applySavedMapping,
   buildRawRows,
   type ColumnSuggestion,
   type DetectedSheet,
   detectSheet,
+  editedCellList,
   headerSignatureSource,
   IMPORT_ISSUE_MESSAGES,
   IMPORT_MAX_ROWS,
+  type ImportCellEdits,
   type ImportFieldKey,
   pickSheet,
   profileKeys,
+  type RawImportRow,
   suggestMapping,
 } from "@hris/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
-  CloudDownload,
+  ChevronDown,
   Download,
   FileSpreadsheet,
   Loader2,
   RotateCcw,
   Users,
 } from "lucide-react";
-import { type DragEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
@@ -36,8 +40,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useMe } from "@/features/auth/api";
+import type { Me } from "@/features/auth/schemas";
+import { access } from "@/lib/access";
 import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -59,10 +65,12 @@ import { AttachmentsPanel, type AttachmentsState } from "./attachments-panel";
 import { CompleteStep, completionState } from "./complete-step";
 import { ImportGuide } from "./import-guide";
 import { fieldLabel } from "./labels";
-import { MappingStep } from "./mapping-step";
+import { MappingStep, mappingHasIdentity, mappingReviewColumns } from "./mapping-step";
 import { OpenAttachments } from "./open-attachments";
 import { type ParsedWorkbook, parseImportFile, serializeCell, signatureOf } from "./parse-file";
 import { type MasterMap, PreviewStep } from "./preview-step";
+import { displayRaw } from "./sheet/preview-sheet";
+import { buildImportTemplate, IMPORT_TEMPLATE_FILE_NAME } from "./template/build-template";
 import { suggestedChoices } from "./unit-matching";
 
 // D-042: halaman import karyawan (Unggah → Pemetaan → Lengkapi data → Pratinjau → Selesai). File
@@ -105,11 +113,23 @@ type Choices = {
   chartHolderChoices: Record<string, string>;
 };
 
-function Stepper({ current, processing }: { current: Step; processing?: boolean }) {
-  const index = STEPS.findIndex((s) => s.key === current);
+function Stepper({
+  current,
+  processing,
+  skipMapping,
+}: {
+  current: Step;
+  processing?: boolean;
+  /** IMP-D5: Pemetaan tidak tampil (belum/tidak perlu) → stepper 4 langkah. */
+  skipMapping?: boolean;
+}) {
+  const steps = skipMapping ? STEPS.filter((s) => s.key !== "mapping") : STEPS;
+  // Sedang memeriksa file (Pemetaan belum/tidak tampil) → masih di langkah Unggah.
+  const shown = skipMapping && current === "mapping" ? "upload" : current;
+  const index = steps.findIndex((s) => s.key === shown);
   return (
     <ol className="mb-6 flex flex-wrap items-center gap-2 text-sm" aria-label="Langkah import">
-      {STEPS.map((step, i) => (
+      {steps.map((step, i) => (
         <li
           key={step.key}
           className="flex items-center gap-2"
@@ -131,7 +151,7 @@ function Stepper({ current, processing }: { current: Step; processing?: boolean 
           {step.key === "done" && processing ? (
             <Loader2 className="text-brand size-3.5 animate-spin" aria-hidden />
           ) : null}
-          {i < STEPS.length - 1 ? (
+          {i < steps.length - 1 ? (
             <span className="bg-border mx-1 hidden h-px w-8 sm:block" aria-hidden />
           ) : null}
         </li>
@@ -143,8 +163,13 @@ function Stepper({ current, processing }: { current: Step; processing?: boolean 
 export function ImportEmployeesPage() {
   const [params] = useSearchParams();
   const back = params.get("dari") ?? "semua";
+  const me = useMe().data as Me | undefined;
   const scope = useCompanyScope();
   const master = useMasterData();
+  // IMP-D5: akun tanpa izin tulis data pribadi/rekening → kolom 🔒 dilewati (izin tidak berubah); diberi
+  // tahu sejak langkah Unggah dan ditandai di template.
+  const canWritePersonal = me ? access.writePersonalOnCreate(me) : true;
+  const canWriteBank = me ? access.writeBankOnCreate(me) : true;
   const previewMutation = usePreviewImport();
   const commitMutation = useCommitImport();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -180,6 +205,19 @@ export function ImportEmployeesPage() {
   const [attachmentJobId, setAttachmentJobId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentsState | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  // IMP-D5 (pengguna 19 Nov, a + b): konfirmasi hanya saat berisiko.
+  const [confirmChangeFile, setConfirmChangeFile] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
+  // IMP-D5 (pengguna 11:40 WIB): semua kolom dikenali + ada NIP/NIK → langkah Pemetaan dilewati otomatis.
+  const [autoPreview, setAutoPreview] = useState(false);
+  const [mappingSkipped, setMappingSkipped] = useState(false);
+  const [confirmSave, setConfirmSave] = useState(false);
+  // Paket B (IMP-D6): sel yang diubah di Pratinjau. Cap waktu per sel → sel yang belum diperiksa server
+  // dicek di browser dulu (aturan shared yang sama).
+  const [edits, setEdits] = useState<ImportCellEdits>({});
+  const editSeq = useRef(0);
+  const editStamps = useRef(new Map<string, number>());
+  const [appliedStamp, setAppliedStamp] = useState(0);
   const queryClient = useQueryClient();
   const onAttachmentsState = useCallback((next: AttachmentsState) => setAttachments(next), []);
   // Lampiran masih diunduh di langkah Selesai → stepper & judul tidak menyatakan "selesai" dulu.
@@ -193,6 +231,35 @@ export function ImportEmployeesPage() {
     "";
   const effectiveCompany = companyFor(companyId);
 
+  // Isi file per baris (nilai siap kirim; tanggal = ISO) — dasar Pratinjau spreadsheet & ubahan sel.
+  const rawRows = useMemo(
+    () =>
+      detected
+        ? buildRawRows(detected.rows, mapping).map(({ sourceRow, raw }) => ({
+            sourceRow,
+            raw: Object.fromEntries(
+              Object.entries(raw).map(([k, v]) => [k, serializeCell(v ?? null)]),
+            ) as ImportRequest["rows"][number]["raw"],
+          }))
+        : [],
+    [detected, mapping],
+  );
+  const rawBySource = useMemo(
+    () => new Map(rawRows.map((r) => [r.sourceRow, r.raw as RawImportRow])),
+    [rawRows],
+  );
+  const fileFields = useMemo(
+    () => [...new Set(mapping.filter((f): f is ImportFieldKey => f !== null))],
+    [mapping],
+  );
+  const editCount = Object.values(edits).reduce((n, row) => n + Object.keys(row).length, 0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cap waktu dibaca dari ref saat ubahan/pratinjau berubah
+  const pendingCells = useMemo(() => {
+    const out = new Set<string>();
+    for (const [key, stamp] of editStamps.current) if (stamp > appliedStamp) out.add(key);
+    return out;
+  }, [edits, appliedStamp]);
+
   async function analyzeSheet(book: ParsedWorkbook, index: number | null) {
     const chosen =
       index === null
@@ -204,13 +271,13 @@ export function ImportEmployeesPage() {
           })();
     if (!chosen) {
       setFileError(
-        "Tidak menemukan tabel data karyawan di file ini. Pastikan ada baris judul kolom (mis. NAMA, NIK, JABATAN).",
+        "Daftar karyawan tidak ditemukan di file ini. Pastikan ada baris judul kolom (mis. NAMA, NIP, JABATAN) di atas data, atau pakai Unduh template Excel.",
       );
       return false;
     }
     if (chosen.detected.rows.length > IMPORT_MAX_ROWS) {
       setFileError(
-        `File berisi ${chosen.detected.rows.length} baris; maksimal ${IMPORT_MAX_ROWS} per import.`,
+        `File berisi ${chosen.detected.rows.length.toLocaleString("id-ID")} baris; maksimal ${IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris sekali import. Bagi menjadi beberapa file.`,
       );
       return false;
     }
@@ -243,6 +310,8 @@ export function ImportEmployeesPage() {
     setCompanyOverrides({});
     setChartHolderChoices({});
     setUnitChoices(savedUnits);
+    setEdits({});
+    editStamps.current.clear();
     return true;
   }
 
@@ -255,6 +324,7 @@ export function ImportEmployeesPage() {
       if (await analyzeSheet(book, null)) {
         setWorkbook(book);
         setStep("mapping");
+        setAutoPreview(true);
       }
     } catch (error) {
       setFileError(error instanceof Error ? error.message : "File tidak bisa dibaca.");
@@ -294,14 +364,29 @@ export function ImportEmployeesPage() {
     void runPreview(next, "stay");
   }
 
+  /** Paket B: ubahan sel dari grid Pratinjau → disimpan, pratinjau diulang 1 dtk setelah ketikan terakhir. */
+  function editCells(changes: { sourceRow: number; field: ImportFieldKey; value: string }[]) {
+    const original = new Map(rawRows.map((r) => [r.sourceRow, r.raw]));
+    for (const { sourceRow, field } of changes)
+      editStamps.current.set(`${sourceRow}:${field}`, ++editSeq.current);
+    setEdits((prev) => {
+      const next = { ...prev };
+      for (const { sourceRow, field, value } of changes) {
+        const row = { ...(next[sourceRow] ?? {}) };
+        const before = original.get(sourceRow)?.[field];
+        // Dikembalikan ke isi file → bukan ubahan lagi.
+        if (value === displayRaw(before)) delete row[field];
+        else row[field] = value;
+        if (Object.keys(row).length > 0) next[sourceRow] = row;
+        else delete next[sourceRow];
+      }
+      return next;
+    });
+  }
+
   function buildRequest(c: Choices = choices): ImportRequest | null {
     if (!workbook || !detected) return null;
-    const rows = buildRawRows(detected.rows, mapping).map(({ sourceRow, raw }) => ({
-      sourceRow,
-      raw: Object.fromEntries(
-        Object.entries(raw).map(([k, v]) => [k, serializeCell(v ?? null)]),
-      ) as ImportRequest["rows"][number]["raw"],
-    }));
+    const rows = applyCellEdits(rawRows, edits);
     return {
       fileName: workbook.fileName,
       fileSha256: workbook.sha256,
@@ -331,7 +416,7 @@ export function ImportEmployeesPage() {
     const request = buildRequest(c);
     if (!request) return;
     if (request.rows.length === 0) {
-      toast.error("Tidak ada baris data yang bisa diimpor.");
+      toast.error("File tidak berisi data karyawan (semua baris kosong).");
       return;
     }
     try {
@@ -342,9 +427,11 @@ export function ImportEmployeesPage() {
         void saveMapping(signature, profile, c.unitChoices).catch(() => undefined);
       }
       const seq = ++previewSeq.current;
+      const stamp = editSeq.current;
       const result = await previewMutation.mutateAsync(request);
       if (seq !== previewSeq.current) return;
       setPreview(result);
+      setAppliedStamp(stamp);
       if (go === "next") {
         const needed = completionState(result).needed;
         if (needed) setVisitedComplete(true);
@@ -359,9 +446,11 @@ export function ImportEmployeesPage() {
     const request = buildRequest();
     if (!request || !preview) return;
     try {
+      const edited = editedCellList(edits);
       const saved = await commitMutation.mutateAsync({
         ...request,
         previewHash: preview.previewHash,
+        ...(edited.length > 0 ? { editedCells: edited } : {}),
       });
       setResult(saved.counts);
       setAttachmentJobId(saved.counts.attachments > 0 ? saved.jobId : null);
@@ -369,13 +458,13 @@ export function ImportEmployeesPage() {
       setStep("done");
       toast.success(
         saved.counts.attachments > 0
-          ? "Data tersimpan. Lampiran Google Drive sedang diproses."
-          : "Import selesai.",
+          ? "Data karyawan tersimpan. Foto & dokumen dari Google Drive sedang diambil — biarkan halaman ini terbuka."
+          : "Data karyawan tersimpan.",
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         toast.warning(
-          "Data berubah sejak pratinjau. Pratinjau diperbarui — periksa lalu simpan lagi.",
+          "Ada data karyawan yang berubah sejak Anda memeriksa. Daftar sudah diperbarui — periksa lagi lalu klik Simpan.",
         );
         await runPreview(choices, "stay");
         return;
@@ -404,30 +493,102 @@ export function ImportEmployeesPage() {
     return index >= 0 ? index : undefined;
   };
 
-  /** Baris asli bermasalah + kolom "Keterangan import" → .xlsx untuk diperbaiki lalu diimpor ulang. */
+  /** Baris asli yang error (tidak ikut disimpan) + kolom "Yang perlu diperbaiki" → .xlsx untuk diperbaiki
+   *  lalu diunggah ulang (IMP-D5: hanya baris error, jumlahnya = angka "perlu diperbaiki"). */
   function downloadIssues() {
     if (!detected || !preview || !workbook) return;
     const byRow = new Map(preview.rows.map((r) => [r.sourceRow, r]));
-    const header = [...detected.headers, "Keterangan import"];
+    // Paket B: nilai yang sudah diubah di layar ikut terunduh; isian tanpa kolom di file → kolom tambahan.
+    const extraFields = [
+      ...new Set(Object.values(edits).flatMap((row) => Object.keys(row) as ImportFieldKey[])),
+    ].filter((f) => !mapping.includes(f));
+    const header = [...detected.headers, ...extraFields.map(fieldLabel), "Yang perlu diperbaiki"];
     const body = detected.rows
-      .filter((row) => (byRow.get(row.sourceRow)?.issues.length ?? 0) > 0)
+      .filter((row) => byRow.get(row.sourceRow)?.action === "ERROR")
       .map((row) => {
+        const changed = edits[row.sourceRow] ?? {};
+        const cells = row.cells.map((cell, column) => {
+          const field = mapping[column];
+          return field && field in changed ? (changed[field] ?? "") : cell;
+        });
         const result = byRow.get(row.sourceRow);
         const notes = (result?.issues ?? [])
           .map(
             (i) =>
-              `${i.severity === "ERROR" ? "ERROR" : "Peringatan"} — ${fieldLabel(i.field)}: ${IMPORT_ISSUE_MESSAGES[i.code] ?? i.code}`,
+              `${i.severity === "ERROR" ? "Perbaiki" : "Catatan"} — ${fieldLabel(i.field)}: ${IMPORT_ISSUE_MESSAGES[i.code] ?? i.code}`,
           )
           .join("; ");
-        return [...row.cells, `Baris ${row.sourceRow}: ${notes}`];
+        return [
+          ...cells,
+          ...extraFields.map((f) => changed[f] ?? ""),
+          `Baris ${row.sourceRow}: ${notes}`,
+        ];
       });
     const name = workbook.fileName.replace(/\.[^.]+$/, "");
     downloadBytes(
-      buildXlsx("Baris bermasalah", [header, ...body]),
-      `${name} - baris bermasalah.xlsx`,
+      buildXlsx("Perlu diperbaiki", [header, ...body]),
+      `${name} - perlu diperbaiki.xlsx`,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
   }
+
+  /** IMP-D5: template HRIS dibangun di browser (dropdown PT dalam cakupan & status aktif). */
+  function downloadTemplate() {
+    const bytes = buildImportTemplate({
+      companies: scope.companies.map((c) => ({ code: c.code, name: c.name })),
+      statuses: (master.data?.employmentStatuses ?? []).map((s) => s.name),
+      canWriteSensitive: canWritePersonal && canWriteBank,
+    });
+    downloadBytes(
+      bytes,
+      IMPORT_TEMPLATE_FILE_NAME,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+  }
+
+  // Setelah state pemetaan terisi (render berikutnya), lewati langkah Pemetaan bila tidak ada yang perlu dicek.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dijalankan sekali per file (autoPreview)
+  useEffect(() => {
+    if (!autoPreview || step !== "mapping" || !detected) return;
+    setAutoPreview(false);
+    const clean =
+      mappingHasIdentity(mapping) &&
+      mappingReviewColumns(suggestions, mapping, detected.rows).size === 0;
+    setMappingSkipped(clean);
+    if (clean) void runPreview();
+  }, [autoPreview, step, detected]);
+
+  /** Kembali ke Pemetaan (juga setelah dilewati otomatis) → langkahnya tampil lagi di stepper. */
+  // Paket B: ubahan sel → pratinjau server diulang 1 dtk setelah ketikan terakhir (permintaan lama diabaikan
+  // lewat previewSeq). Sementara itu sel diperiksa di browser.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hanya saat ubahan berubah
+  useEffect(() => {
+    if (step !== "preview" || editSeq.current <= appliedStamp) return;
+    const timer = setTimeout(() => void runPreview(choices, "stay"), 1000);
+    return () => clearTimeout(timer);
+  }, [edits]);
+
+  // Ubahan sel belum disimpan → tanya dulu sebelum halaman ditutup/dimuat ulang.
+  useEffect(() => {
+    if (editCount === 0 || step === "done") return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editCount, step]);
+
+  function goMapping() {
+    setMappingSkipped(false);
+    setStep("mapping");
+  }
+
+  // IMP-D5 (supervisor 19 Nov): stepper 4 langkah sejak awal; "Pemetaan kolom" disisipkan hanya bila langkah itu
+  // benar-benar tampil (ada kolom yang kurang yakin / NIP & No. KTP tidak ada, atau dibuka lewat "Ubah").
+  const mappingChecking =
+    step === "mapping" && (autoPreview || (mappingSkipped && previewMutation.isPending));
+  const mappingShown = step !== "upload" && !mappingSkipped && !mappingChecking;
 
   function reset() {
     setStep("upload");
@@ -438,6 +599,7 @@ export function ImportEmployeesPage() {
     setAttachmentJobId(null);
     setAttachments(null);
     setConfirmReset(false);
+    setConfirmChangeFile(false);
     // Pemrosesan lampiran berhenti saat panel dilepas → daftar "belum selesai" disegarkan.
     void queryClient.invalidateQueries({ queryKey: importKeys.openAttachments });
     setMasterMap(EMPTY_MAP);
@@ -446,6 +608,10 @@ export function ImportEmployeesPage() {
     setChartHolderChoices({});
     setUnitChoices({});
     setVisitedComplete(false);
+    setAutoPreview(false);
+    setMappingSkipped(false);
+    setEdits({});
+    editStamps.current.clear();
     if (fileInput.current) fileInput.current.value = "";
   }
 
@@ -453,6 +619,25 @@ export function ImportEmployeesPage() {
   function requestReset() {
     if (attachments?.active) setConfirmReset(true);
     else reset();
+  }
+
+  /** Sudah ada pilihan yang dibuat di Lengkapi data / Pratinjau → "Ganti file" minta konfirmasi. */
+  const hasChoices =
+    visitedComplete ||
+    Object.keys(statusOverrides).length > 0 ||
+    Object.keys(companyOverrides).length > 0 ||
+    Object.keys(chartHolderChoices).length > 0 ||
+    Object.values(masterMap).some((group) => Object.keys(group).length > 0);
+
+  function requestChangeFile() {
+    if (hasChoices) setConfirmChangeFile(true);
+    else reset();
+  }
+
+  /** Ada baris yang perlu diperbaiki → konfirmasi dulu bahwa baris itu tidak ikut disimpan. */
+  function requestCommit() {
+    if (preview && preview.counts.error > 0) setConfirmSave(true);
+    else void commit();
   }
 
   /** Panel lampiran yang dibuka dari langkah Unggah (lembar samping) ditutup → proses dijeda. */
@@ -472,7 +657,7 @@ export function ImportEmployeesPage() {
     <>
       <PageHeader
         title="Import Data Karyawan"
-        description="Unggah file data karyawan (.xlsx atau .csv) apa adanya. Sistem mengenali kolomnya, lalu Anda memeriksa hasilnya sebelum data disimpan."
+        description="Unggah file Excel karyawan, periksa, lalu simpan."
         actions={
           <div className="flex gap-2">
             <ImportGuide current={step} />
@@ -484,7 +669,19 @@ export function ImportEmployeesPage() {
           </div>
         }
       />
-      <Stepper current={step} processing={attachmentsBusy} />
+      <Stepper current={step} processing={attachmentsBusy} skipMapping={!mappingShown} />
+      {mappingSkipped && (step === "complete" || step === "preview") ? (
+        <p className="text-muted-foreground -mt-3 mb-4 text-sm">
+          ✔ {mapping.filter(Boolean).length} kolom dikenali ·{" "}
+          <button
+            type="button"
+            onClick={goMapping}
+            className="text-foreground font-medium underline-offset-4 hover:underline"
+          >
+            Ubah
+          </button>
+        </p>
+      ) : null}
 
       {step === "upload" ? <OpenAttachments onOpen={setAttachmentJobId} /> : null}
       <Sheet
@@ -507,97 +704,127 @@ export function ImportEmployeesPage() {
       </Sheet>
 
       {step === "upload" ? (
-        <div className="grid gap-5 lg:grid-cols-[1fr_minmax(280px,360px)]">
-          <div className="space-y-4">
-            <label
-              htmlFor="import-file"
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-              className={cn(
-                "bg-card focus-within:ring-ring/50 flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus-within:ring-[3px]",
-                dragging ? "border-brand bg-brand-soft" : "hover:border-foreground/30",
-              )}
-            >
-              <span className="bg-muted grid size-12 place-items-center rounded-xl">
-                {parsing ? (
-                  <Loader2 className="size-6 animate-spin" aria-hidden />
-                ) : (
-                  <FileSpreadsheet className="size-6" aria-hidden />
-                )}
-              </span>
-              <span className="text-sm font-medium" aria-live="polite">
-                {parsing
-                  ? "Membaca & mengenali struktur file…"
-                  : "Tarik file ke sini atau klik untuk memilih"}
-              </span>
-              <span className="text-muted-foreground text-xs">
-                .xlsx atau .csv · maks 5 MB · maks {IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris
-              </span>
-              <input
-                ref={fileInput}
-                id="import-file"
-                type="file"
-                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="sr-only"
-                aria-label="Pilih file import"
-                onChange={(e) => void onFile(e.target.files?.[0])}
-                disabled={parsing}
-              />
-            </label>
-            {fileError ? (
-              <Alert variant="destructive">
-                <AlertDescription>{fileError}</AlertDescription>
-              </Alert>
-            ) : null}
-            <p className="text-muted-foreground text-sm">
-              Belum punya format?{" "}
-              <a
-                href="/template/Template-import-karyawan.xlsx"
-                download
-                className="text-foreground inline-flex items-center gap-1 font-medium underline underline-offset-4"
+        <div className="space-y-4">
+          {/* IMP-D5: mode di atas kotak unggah (begitu file dipilih halaman pindah), dilipat jadi satu
+              baris karena jarang diubah ("sekali lihat", pengguna 11:36/11:40 WIB). */}
+          <div className="space-y-2">
+            <p className="text-sm">
+              <span className="text-muted-foreground">Mode: </span>
+              <span className="font-medium">{MODE_LABELS[mode]}</span>{" "}
+              <button
+                type="button"
+                aria-expanded={modeOpen}
+                onClick={() => setModeOpen((v) => !v)}
+                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 underline-offset-4 hover:underline"
               >
-                <Download className="size-3.5" aria-hidden /> Unduh template contoh
-              </a>{" "}
-              — file kantor dengan susunan kolom lain juga bisa langsung diunggah.
+                · Ubah{" "}
+                <ChevronDown className={cn("size-3.5", modeOpen && "rotate-180")} aria-hidden />
+              </button>
             </p>
+            {modeOpen ? (
+              <div role="radiogroup" aria-label="Mode import" className="grid gap-2 md:grid-cols-3">
+                {(["UPSERT", "FILL_EMPTY", "CREATE_ONLY"] as const).map((m) => (
+                  <ChoiceCard
+                    key={m}
+                    selected={mode === m}
+                    onSelect={() => {
+                      setMode(m);
+                      setModeOpen(false);
+                    }}
+                    title={MODE_LABELS[m]}
+                    description={MODE_HINTS[m]}
+                  />
+                ))}
+              </div>
+            ) : null}
           </div>
 
-          <div className="bg-card space-y-5 rounded-2xl border p-5">
-            <div className="space-y-2">
-              <Label>Mode import</Label>
-              <div role="radiogroup" aria-label="Mode import" className="grid gap-2">
-                <ChoiceCard
-                  selected={mode === "UPSERT"}
-                  onSelect={() => setMode("UPSERT")}
-                  title="Tambah + perbarui"
-                  description="Karyawan baru dibuat; yang sudah ada diperbarui. Sel kosong tidak menghapus data."
-                />
-                <ChoiceCard
-                  selected={mode === "FILL_EMPTY"}
-                  onSelect={() => setMode("FILL_EMPTY")}
-                  title="Isi yang kosong saja"
-                  description="Karyawan baru dibuat; untuk yang sudah ada hanya data yang masih kosong diisi. Data yang sudah berisi tidak ditimpa."
-                />
-                <ChoiceCard
-                  selected={mode === "CREATE_ONLY"}
-                  onSelect={() => setMode("CREATE_ONLY")}
-                  title="Tambah baru saja"
-                  description="Karyawan yang NIP-nya sudah ada dilewati."
-                />
-              </div>
-            </div>
-            <p className="text-muted-foreground text-xs">
-              PT, unit organisasi, dan status kepegawaian ditentukan setelah kolom file diperiksa.
-            </p>
-          </div>
+          <label
+            htmlFor="import-file"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            className={cn(
+              "bg-card focus-within:ring-ring/50 flex min-h-[240px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-colors focus-within:ring-[3px]",
+              dragging ? "border-brand bg-brand-soft" : "hover:border-foreground/30",
+            )}
+          >
+            <span className="bg-muted grid size-12 place-items-center rounded-xl">
+              {parsing ? (
+                <Loader2 className="size-6 animate-spin" aria-hidden />
+              ) : (
+                <FileSpreadsheet className="size-6" aria-hidden />
+              )}
+            </span>
+            <span className="text-sm font-medium" aria-live="polite">
+              {parsing
+                ? "Membaca & mengenali struktur file…"
+                : "Tarik file ke sini atau klik untuk memilih"}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              .xlsx atau .csv · maks 5 MB · maks {IMPORT_MAX_ROWS.toLocaleString("id-ID")} baris
+            </span>
+            <input
+              ref={fileInput}
+              id="import-file"
+              type="file"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="sr-only"
+              aria-label="Pilih file import"
+              onChange={(e) => void onFile(e.target.files?.[0])}
+              disabled={parsing}
+            />
+          </label>
+          {fileError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{fileError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <p className="text-muted-foreground text-sm">
+            Belum punya file?{" "}
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              className="text-foreground inline-flex items-center gap-1 font-medium underline underline-offset-4"
+            >
+              <Download className="size-3.5" aria-hidden /> Unduh template Excel
+            </button>
+          </p>
+          {!canWritePersonal || !canWriteBank ? (
+            <details className="text-muted-foreground text-sm">
+              <summary className="cursor-pointer">
+                🔒 Data pribadi tidak tersimpan untuk akun Anda ·{" "}
+                <span className="text-foreground underline underline-offset-4">Rincian</span>
+              </summary>
+              <p className="mt-1 pl-5">
+                {`Akun Anda belum punya izin ${
+                  !canWritePersonal && !canWriteBank
+                    ? "data pribadi & rekening"
+                    : !canWritePersonal
+                      ? "data pribadi"
+                      : "rekening"
+                }: kolom bertanda 🔒 (${
+                  !canWritePersonal ? "No. KTP, NPWP, tanggal lahir, alamat, keluarga" : ""
+                }${!canWritePersonal && !canWriteBank ? ", " : ""}${
+                  !canWriteBank ? "nama bank, No. rekening" : ""
+                }) dilewati; kolom lain tetap masuk.`}
+              </p>
+            </details>
+          ) : null}
         </div>
       ) : null}
 
-      {step === "mapping" && workbook && detected ? (
+      {mappingChecking ? (
+        <p
+          className="text-muted-foreground flex items-center gap-2 py-10 text-sm"
+          aria-live="polite"
+        >
+          <Loader2 className="size-4 animate-spin" aria-hidden /> Memeriksa isi file…
+        </p>
+      ) : step === "mapping" && workbook && detected ? (
         <MappingStep
           fileName={workbook.fileName}
           sheets={workbook.sheets.map((s) => s.name)}
@@ -611,7 +838,7 @@ export function ImportEmployeesPage() {
           savedProfile={savedProfile}
           saveProfile={saveProfile}
           onSaveProfileChange={setSaveProfile}
-          onBack={reset}
+          onBack={requestChangeFile}
           onNext={() => void runPreview()}
           busy={previewMutation.isPending}
         />
@@ -639,7 +866,7 @@ export function ImportEmployeesPage() {
           }
           masterMap={masterMap}
           onMasterMapChange={(next) => changeChoices({ masterMap: next })}
-          onBack={() => setStep("mapping")}
+          onBack={goMapping}
           onNext={() => setStep("preview")}
           updating={previewMutation.isPending}
         />
@@ -674,14 +901,19 @@ export function ImportEmployeesPage() {
             changeChoices({ chartHolderChoices: next });
           }}
           columnOf={columnOf}
+          rawBySource={rawBySource}
+          fields={fileFields}
+          edits={edits}
+          pending={pendingCells}
+          onEdit={editCells}
           onEditSettings={() => {
             setVisitedComplete(true);
             setStep("complete");
           }}
           onBack={() =>
-            setStep(visitedComplete || completionState(preview).needed ? "complete" : "mapping")
+            visitedComplete || completionState(preview).needed ? setStep("complete") : goMapping()
           }
-          onCommit={() => void commit()}
+          onCommit={requestCommit}
           onDownloadIssues={downloadIssues}
           saving={commitMutation.isPending}
           updating={previewMutation.isPending}
@@ -702,65 +934,56 @@ export function ImportEmployeesPage() {
               !attachmentJobId && "max-w-2xl",
             )}
           >
+            {/* IMP-D5 "sekali lihat": judul + satu baris angka; aksi lain berupa tautan kecil. */}
             <div className="flex items-start gap-3">
-              <span className="bg-success-soft text-success-soft-foreground grid size-10 shrink-0 place-items-center rounded-xl">
-                <CheckCircle2 className="size-5" aria-hidden />
-              </span>
-              <div className="min-w-0">
+              <CheckCircle2
+                className="text-success-soft-foreground mt-0.5 size-6 shrink-0"
+                aria-hidden
+              />
+              <div className="min-w-0 space-y-1">
                 <h2 id="import-done-title" className="text-lg font-semibold">
                   {attachmentsBusy ? "Data karyawan tersimpan" : "Import selesai"}
                 </h2>
-                <p className="text-muted-foreground text-sm">
-                  {attachmentsBusy
-                    ? "Lampiran Google Drive masih diunduh di panel samping."
-                    : `${result.create + result.update} karyawan berhasil diproses dari file.`}
+                <p className="text-sm">
+                  {result.create} baru · {result.update} diperbarui
+                  {result.skip > 0 ? ` · ${result.skip} tanpa perubahan` : ""}
+                  {result.error > 0 ? (
+                    <span className="text-destructive">
+                      {" "}
+                      · {result.error} perlu diperbaiki (tidak disimpan)
+                    </span>
+                  ) : null}
                 </p>
               </div>
             </div>
 
-            <dl className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  ["Dibuat", result.create],
-                  ["Diperbarui", result.update],
-                  ["Dilewati", result.skip],
-                  ["Error", result.error],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label} className="bg-background rounded-xl border px-3 py-2.5">
-                  <dt className="text-muted-foreground text-xs">{label}</dt>
-                  <dd
-                    className={cn(
-                      "mt-0.5 text-xl font-semibold tabular-nums",
-                      label === "Error" && value > 0 && "text-destructive",
-                    )}
-                  >
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            {result.attachments > 0 ? (
-              <p className="text-muted-foreground flex items-center gap-2 text-sm">
-                <CloudDownload className="size-4 shrink-0" aria-hidden />
-                {result.attachments} lampiran Google Drive ikut diproses.
-              </p>
-            ) : null}
-
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Button variant="brand" asChild>
                 <Link to={`/personal/pegawai-aktif/${back}`}>
                   <Users /> Lihat Data Karyawan Aktif
                 </Link>
               </Button>
-              {result.error ? (
-                <Button variant="outline" onClick={downloadIssues}>
-                  <Download /> Unduh baris bermasalah
-                </Button>
-              ) : null}
-              <Button variant="ghost" onClick={requestReset}>
-                <RotateCcw /> Import file lain
-              </Button>
+              <p className="text-muted-foreground flex flex-wrap items-center gap-x-1 text-sm">
+                {result.error ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={downloadIssues}
+                      className="text-foreground font-medium underline-offset-4 hover:underline"
+                    >
+                      Unduh {result.error} baris yang perlu diperbaiki
+                    </button>
+                    <span aria-hidden>·</span>
+                  </>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={requestReset}
+                  className="text-foreground inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+                >
+                  <RotateCcw className="size-3.5" aria-hidden /> Import file lain
+                </button>
+              </p>
             </div>
           </section>
 
@@ -774,16 +997,63 @@ export function ImportEmployeesPage() {
         </div>
       ) : null}
 
+      <Dialog open={confirmChangeFile} onOpenChange={setConfirmChangeFile}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ganti file?</DialogTitle>
+            <DialogDescription>
+              Pilihan yang sudah Anda buat untuk file ini (departemen, status, PT, dan lainnya) akan
+              hilang.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmChangeFile(false)}>
+              Batal
+            </Button>
+            <Button variant="brand" onClick={reset}>
+              Ya, ganti file
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {preview ? (
+        <Dialog open={confirmSave} onOpenChange={setConfirmSave}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{saveQuestion(preview.counts)}</DialogTitle>
+              <DialogDescription>
+                {preview.counts.error} baris yang perlu diperbaiki tidak ikut disimpan. Bisa
+                diunggah lagi nanti tanpa dobel.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:flex-wrap">
+              <Button variant="outline" onClick={() => setConfirmSave(false)}>
+                Batal
+              </Button>
+              <Button variant="outline" onClick={downloadIssues}>
+                <Download /> Unduh {preview.counts.error} baris
+              </Button>
+              <Button
+                variant="brand"
+                onClick={() => {
+                  setConfirmSave(false);
+                  void commit();
+                }}
+              >
+                {saveConfirmLabel(preview.counts)}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Lampiran masih diproses</DialogTitle>
+            <DialogTitle>Foto & dokumen masih diambil</DialogTitle>
             <DialogDescription>
-              {attachments
-                ? `${attachments.handled} dari ${attachments.total} lampiran sudah diproses. `
-                : ""}
-              Bila Anda mulai import file lain, pengunduhan dijeda. Sisa lampiran bisa dilanjutkan
-              kapan saja dari halaman Unggah.
+              Pengambilan dijeda dan bisa dilanjutkan nanti dari halaman ini.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -791,7 +1061,7 @@ export function ImportEmployeesPage() {
               Tetap di sini
             </Button>
             <Button variant="brand" onClick={reset}>
-              Jeda & import file lain
+              Ya, import file lain
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -799,3 +1069,29 @@ export function ImportEmployeesPage() {
     </>
   );
 }
+
+type SaveCounts = { create: number; update: number; attachments: number };
+
+/** Judul dialog konfirmasi simpan — sama dengan tombol Simpan (karyawan dan/atau lampiran). */
+function saveQuestion(c: SaveCounts): string {
+  const writable = c.create + c.update;
+  if (writable === 0) return `Simpan ${c.attachments} lampiran?`;
+  return `Simpan ${writable} karyawan${c.attachments > 0 ? ` + ${c.attachments} lampiran` : ""}?`;
+}
+
+function saveConfirmLabel(c: SaveCounts): string {
+  const writable = c.create + c.update;
+  return writable === 0 ? `Ya, simpan ${c.attachments} lampiran` : `Ya, simpan ${writable}`;
+}
+
+const MODE_LABELS = {
+  UPSERT: "Tambah + perbarui",
+  FILL_EMPTY: "Isi yang kosong saja",
+  CREATE_ONLY: "Tambah baru saja",
+} as const;
+
+const MODE_HINTS = {
+  UPSERT: "Karyawan baru dibuat, yang sudah ada diperbarui.",
+  FILL_EMPTY: "Yang sudah ada hanya diisi bagian yang masih kosong.",
+  CREATE_ONLY: "Hanya karyawan baru; yang sudah ada dilewati.",
+} as const;

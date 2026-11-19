@@ -1,37 +1,26 @@
-import { EXIT_REASON_LABELS, type ImportFieldKey } from "@hris/shared";
+import type { ImportCellEdits, ImportFieldKey, RawImportRow } from "@hris/shared";
 import {
   ArrowLeft,
   ChevronDown,
   CircleAlert,
+  CircleCheck,
   CloudDownload,
-  Download,
-  Info,
   Loader2,
   Save,
-  Settings2,
-  ShieldAlert,
+  Search,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import type { SelectOption } from "@/components/form-select";
-import { LazySelect } from "@/components/lazy-select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "./api";
-import { ACTION_LABELS, fieldLabel, issueHint, issueText } from "./labels";
+import { fieldLabel, issueShort, issueText } from "./labels";
+import { CHART_NEW, PreviewSheet } from "./sheet/preview-sheet";
 
 // Pratinjau (langkah terakhir sebelum simpan): ringkasan, pengaturan yang dipakai (ubah → kembali ke
-// Lengkapi data), dan tabel baris. Pilihan untuk banyak baris ada di langkah Lengkapi data.
+// Lengkapi data), daftar "Perlu diperbaiki", dan tabel baris. Pilihan untuk banyak baris ada di langkah
+// Lengkapi data. IMP-D5: bahasa sehari-hari; alasan error di bawah nama (tanpa kolom Keterangan di ujung
+// kanan) supaya terbaca di laptop tanpa menggeser tabel.
 
 export type MasterMap = {
   departments: Record<string, string>;
@@ -44,110 +33,51 @@ export const masterKey = (name: string) => name.trim().replace(/\s+/g, " ").toLo
 export const positionKey = (department: string, name: string) =>
   `${masterKey(department)}|${masterKey(name)}`;
 
-type Filter = "ALL" | "CREATE" | "UPDATE" | "SKIP" | "ERROR";
+type Filter = "ALL" | "READY" | "SKIP" | "ERROR";
 
-const AUTO = "__auto__";
+/** Kotak "Perlu diperbaiki" menampilkan paling banyak sekian baris; sisanya lewat filter tabel. */
+const ERROR_LIST_MAX = 5;
 
-const ACTION_BADGE = {
-  CREATE: "success",
-  UPDATE: "secondary",
-  SKIP: "muted",
-  ERROR: "destructive",
-} as const;
+const FILTER_LABELS: Record<Filter, string> = {
+  ALL: "Semua",
+  READY: "Siap disimpan",
+  ERROR: "Perlu diperbaiki",
+  SKIP: "Dilewati",
+};
 
-function Stat({ label, value, tone }: { label: string; value: number; tone?: string }) {
+const matchesFilter = (filter: Filter, action: ImportPreview["rows"][number]["action"]) =>
+  filter === "ALL" ||
+  (filter === "READY" ? action === "CREATE" || action === "UPDATE" : action === filter);
+
+function Summary({ counts }: { counts: ImportPreview["counts"] }) {
+  const ready = counts.create + counts.update;
   return (
-    <div className="bg-card rounded-xl border p-4">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className={cn("mt-1 text-2xl font-semibold tabular-nums", tone)}>{value}</p>
-    </div>
+    <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base font-semibold">
+      <span className="inline-flex items-center gap-1.5">
+        <CircleCheck className="text-success-soft-foreground size-5" aria-hidden />
+        <span className="tabular-nums">{ready}</span> siap disimpan
+      </span>
+      {counts.error > 0 ? (
+        <span className="text-destructive inline-flex items-center gap-1.5">
+          <CircleAlert className="size-5" aria-hidden />
+          <span className="tabular-nums">{counts.error}</span> perlu diperbaiki
+        </span>
+      ) : null}
+      {counts.skip > 0 ? (
+        <span className="text-muted-foreground text-sm font-normal">
+          {counts.skip} tanpa perubahan
+        </span>
+      ) : null}
+    </p>
   );
 }
 
 // D-060: baris tanpa perubahan data tetap bisa disimpan bila membawa lampiran Google Drive.
 function saveLabel(writable: number, attachments: number) {
+  // Tidak ada yang bisa disimpan (tombol nonaktif) → cukup "Simpan", bukan "Simpan 0 lampiran".
+  if (writable === 0 && attachments === 0) return "Simpan";
   if (writable === 0) return `Simpan ${attachments} lampiran`;
   return `Simpan ${writable} karyawan${attachments > 0 ? ` + ${attachments} lampiran` : ""}`;
-}
-
-type Row = ImportPreview["rows"][number];
-
-function RowMessages({
-  row,
-  columnOf,
-  fillEmpty,
-}: {
-  row: Row;
-  columnOf: (field: ImportFieldKey) => number | undefined;
-  fillEmpty: boolean;
-}) {
-  const [showWarnings, setShowWarnings] = useState(false);
-  const errors = row.issues.filter((i) => i.severity === "ERROR");
-  const warnings = row.issues.filter((i) => i.severity === "WARNING");
-  const hint = issueHint(row.issues);
-  return (
-    <div className="space-y-1 text-sm">
-      {row.deactivate ? (
-        <p className="text-foreground">
-          Akan dinonaktifkan: {EXIT_REASON_LABELS[row.deactivate.reason]} per{" "}
-          {formatDate(row.deactivate.date)}
-        </p>
-      ) : null}
-      {row.action === "UPDATE" && row.changes.length > 0 ? (
-        <p className="text-muted-foreground">
-          {fillEmpty ? "Diisi" : "Berubah"}: {row.changes.map(fieldLabel).join(", ")}
-        </p>
-      ) : null}
-      {/* IMP-D2: info konflik, bukan error — nilai di sistem dipertahankan. */}
-      {row.kept.length > 0 ? (
-        <p className="text-muted-foreground">
-          Dibiarkan (sudah berisi, beda): {row.kept.map(fieldLabel).join(", ")}
-        </p>
-      ) : null}
-      {row.action === "SKIP" && row.issues.length === 0 && row.kept.length === 0 ? (
-        <p className="text-muted-foreground">Tidak ada perubahan data</p>
-      ) : null}
-      {row.action === "CREATE" && row.issues.length === 0 ? (
-        <p className="text-muted-foreground">Siap dibuat</p>
-      ) : null}
-      {row.attachments > 0 ? (
-        <p className="text-muted-foreground">Lampiran Google Drive: {row.attachments}</p>
-      ) : null}
-      {errors.map((i) => (
-        <p key={`${i.field}-${i.code}`} className="text-destructive">
-          {issueText(i, columnOf)}
-        </p>
-      ))}
-      {hint ? (
-        <p className="text-foreground text-xs">
-          <span className="font-medium">Perbaikan:</span> {hint}
-        </p>
-      ) : null}
-      {warnings.length > 0 ? (
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowWarnings((v) => !v)}
-            aria-expanded={showWarnings}
-            className="text-warning-soft-foreground inline-flex items-center gap-1 text-xs hover:underline"
-          >
-            {warnings.length} peringatan (baris tetap disimpan)
-            <ChevronDown
-              className={cn("size-3.5 transition-transform", showWarnings && "rotate-180")}
-              aria-hidden
-            />
-          </button>
-          {showWarnings
-            ? warnings.map((i) => (
-                <p key={`${i.field}-${i.code}`} className="text-warning-soft-foreground text-xs">
-                  {issueText(i, columnOf)}
-                </p>
-              ))
-            : null}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 export function PreviewStep({
@@ -163,6 +93,11 @@ export function PreviewStep({
   chartHolderChoices,
   onChartHolderChoice,
   columnOf,
+  rawBySource,
+  fields,
+  edits,
+  pending,
+  onEdit,
   onEditSettings,
   onBack,
   onCommit,
@@ -189,6 +124,12 @@ export function PreviewStep({
   /** Nilai kosong = belum memilih (kembali ke saran). */
   onChartHolderChoice: (sourceRow: number, value: string) => void;
   columnOf: (field: ImportFieldKey) => number | undefined;
+  /** Paket B: isi file per baris, isian yang ada di file, & ubahan sel di layar. */
+  rawBySource: ReadonlyMap<number, RawImportRow>;
+  fields: ImportFieldKey[];
+  edits: ImportCellEdits;
+  pending: ReadonlySet<string>;
+  onEdit: (changes: { sourceRow: number; field: ImportFieldKey; value: string }[]) => void;
   /** Kembali ke langkah Lengkapi data. */
   onEditSettings: () => void;
   onBack: () => void;
@@ -202,21 +143,34 @@ export function PreviewStep({
   // Dibuka dengan "Semua" (urutan baris file) supaya terlihat bahwa PT & status setiap baris bisa diubah.
   const [filter, setFilter] = useState<Filter>("ALL");
   const writable = counts.create + counts.update;
-  const problems = preview.rows.filter((r) => r.issues.length > 0).length;
-  const rows = useMemo(
-    () => (filter === "ALL" ? preview.rows : preview.rows.filter((r) => r.action === filter)),
-    [preview.rows, filter],
-  );
-  const hasNewRows = preview.rows.some((r) => r.newEmployee);
-  const rowStatusOptions = useMemo(
-    () => [{ value: AUTO, label: "Ikuti kolom file / bawaan" }, ...statusOptions],
-    [statusOptions],
-  );
-  const choosePt = companyOptions.length > 1;
-  const rowCompanyOptions = useMemo(
-    () => [{ value: AUTO, label: "Ikuti kolom file / bawaan" }, ...companyOptions],
-    [companyOptions],
-  );
+  const errorRows = useMemo(() => preview.rows.filter((r) => r.action === "ERROR"), [preview.rows]);
+  // Paket B3: cari nama/NIP (nilai file atau yang sudah diubah di layar).
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return preview.rows.filter((r) => {
+      if (!matchesFilter(filter, r.action)) return false;
+      if (!q) return true;
+      const changed = edits[r.sourceRow] ?? {};
+      return [r.fullName, r.employeeNumber, changed.fullName, changed.employeeNumber].some((v) =>
+        v?.toLowerCase().includes(q),
+      );
+    });
+  }, [preview.rows, filter, query, edits]);
+  // IMP-D5 (pengguna 19 Nov, opsi a): pilihan pemegang bagan hanya tampil di baris yang namanya mirip
+  // (atau sudah dipilih); baris lain lewat satu tautan di atas tabel, bukan tautan per baris.
+  const [showAllHolders, setShowAllHolders] = useState(false);
+  const canPickOtherHolder =
+    preview.chartHolders.length > 0 &&
+    preview.rows.some((r) => r.chartHolder && r.chartHolder.candidates.length === 0);
+  const similarHolderRows = preview.rows.filter(
+    (r) => (r.chartHolder?.candidates.length ?? 0) > 0,
+  ).length;
+  const [jump, setJump] = useState<{
+    sourceRow: number;
+    field: string | null;
+    nonce: number;
+  } | null>(null);
   const companyIdByCode = new Map(companyOptions.map((c) => [c.label, c.value]));
   // IMP-D1: pemegang bagan ber-NIP sementara — saran per baris + pilihan manual (PT baris sama).
   const holderById = useMemo(
@@ -256,54 +210,104 @@ export function PreviewStep({
     ];
   };
 
+  // Toolbar di atas grid: filter + cari (kiri), pemegang bagan & "Tampilkan kolom lain" (kanan).
+  const toolbar = (columnsButton: ReactNode) => (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
+          {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
+            const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
+            if (key === "SKIP" && count === 0) return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={filter === key}
+                onClick={() => setFilter(key)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
+                  filter === key
+                    ? "border-foreground bg-foreground text-background"
+                    : "bg-card text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {FILTER_LABELS[key]}
+                <span className="font-mono text-xs tabular-nums">{count}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <label className="relative">
+          <Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+            aria-hidden
+          />
+          <input
+            type="search"
+            aria-label="Cari nama atau NIP"
+            placeholder="Cari nama/NIP"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="bg-card focus-visible:ring-ring/50 h-8 w-44 rounded-full border pr-3 pl-8 text-sm outline-none focus-visible:ring-[3px]"
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {canPickOtherHolder ? (
+          <button
+            type="button"
+            aria-expanded={showAllHolders}
+            onClick={() => setShowAllHolders((v) => !v)}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-left text-sm underline-offset-4 hover:underline"
+          >
+            {showAllHolders
+              ? "Sembunyikan pilihan Struktur Organisasi"
+              : "Nama lain di Struktur Organisasi?"}
+            <ChevronDown
+              className={cn(
+                "size-3.5 shrink-0 transition-transform",
+                showAllHolders && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+        ) : null}
+        {columnsButton}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 max-sm:[&>*:last-child]:col-span-2">
-        <Stat label="Akan dibuat" value={counts.create} tone="text-success-soft-foreground" />
-        <Stat label="Akan diperbarui" value={counts.update} />
-        <Stat label="Dilewati" value={counts.skip} />
-        <Stat
-          label="Error (tidak diimpor)"
-          value={counts.error}
-          tone={counts.error ? "text-destructive" : ""}
-        />
-        <Stat label="Baris kosong" value={counts.blank} />
-      </div>
-
-      <div className="bg-card flex flex-col gap-2 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <Settings2 className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
-          <p className="text-sm">
-            <span className="font-medium">Pengaturan: </span>
-            <span className="text-muted-foreground">{settings.join(" · ")}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span
-            className={cn(
-              "text-muted-foreground flex items-center gap-1.5 text-xs transition-opacity",
-              updating ? "opacity-100" : "opacity-0",
-            )}
-            aria-live="polite"
-          >
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
-            {updating ? "Memperbarui…" : ""}
+      {/* IMP-D5 "sekali lihat": ringkasan + pengaturan dalam satu baris. */}
+      <div className="bg-card flex flex-col gap-2 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <Summary counts={counts} />
+        <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm">
+          {updating ? (
+            <Loader2 className="size-3.5 shrink-0 animate-spin" aria-label="Memperbarui…" />
+          ) : null}
+          <span className="truncate" title={settings.join(" · ")}>
+            {settings.join(" · ")}
           </span>
-          <Button variant="outline" size="sm" onClick={onEditSettings}>
+          <button
+            type="button"
+            onClick={onEditSettings}
+            className="text-foreground shrink-0 font-medium underline-offset-4 hover:underline"
+          >
             Ubah pengaturan
-          </Button>
+          </button>
         </div>
       </div>
 
-      {preview.chartHolders.length > 0 ? (
+      {similarHolderRows > 0 ? (
         <details className="bg-card rounded-2xl border px-4 py-3 text-sm">
           <summary className="cursor-pointer">
             <span className="font-medium">
-              Pemegang bagan yang belum dilengkapi: {pendingHolders.length}
+              {similarHolderRows} nama mirip orang di Struktur Organisasi
             </span>{" "}
             <span className="text-muted-foreground">
-              (NIP sementara ASLI-; pilih di kolom Karyawan supaya tidak dobel
-              {chosenHolders.size > 0 ? ` · ${chosenHolders.size} dilengkapi import ini` : ""})
+              — data mereka belum lengkap. Pilih di bawah nama: orang yang sama, atau karyawan baru
+              {chosenHolders.size > 0 ? ` · ${chosenHolders.size} dilengkapi import ini` : ""}
             </span>
           </summary>
           <ul className="text-muted-foreground mt-2 grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">
@@ -318,211 +322,121 @@ export function PreviewStep({
       ) : null}
 
       {counts.attachments > 0 ? (
-        <Alert>
-          <CloudDownload />
-          <AlertDescription>
-            {counts.attachments} lampiran Google Drive (foto & dokumen) akan diambil setelah data
-            disimpan. Lampiran yang sama dengan yang sudah pernah diimpor dilewati; file berbeda
-            menjadi versi dokumen baru.
-          </AlertDescription>
-        </Alert>
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <CloudDownload className="size-4 shrink-0" aria-hidden />
+          {counts.attachments} foto/dokumen dari Google Drive diambil setelah disimpan.
+        </p>
       ) : null}
 
       {preview.skippedFields.length > 0 ? (
-        <Alert>
-          <ShieldAlert />
-          <AlertTitle>Kolom sensitif dilewati</AlertTitle>
-          <AlertDescription>
-            Akun Anda tidak punya izin menulis data pribadi/rekening, jadi kolom berikut tidak
-            diimpor: {preview.skippedFields.map(fieldLabel).join(", ")}. Minta Super Admin memberi
-            grant bila perlu.
-          </AlertDescription>
-        </Alert>
+        <details className="text-muted-foreground text-sm">
+          <summary className="cursor-pointer">
+            🔒 {preview.skippedFields.length} kolom data pribadi tidak tersimpan untuk akun Anda ·{" "}
+            <span className="text-foreground underline underline-offset-4">Rincian</span>
+          </summary>
+          <p className="mt-1 pl-5">
+            {preview.skippedFields.map(fieldLabel).join(", ")}. Minta Super Admin memberi izin data
+            pribadi bila data ini perlu masuk.
+          </p>
+        </details>
       ) : null}
 
-      {counts.error > 0 || choosePt || hasNewRows ? (
-        <div className="grid gap-2 text-sm">
-          {counts.error > 0 ? (
-            <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2.5 rounded-xl border px-4 py-3">
-              <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <p>
-                {counts.error} baris error tidak akan disimpan.{" "}
-                <button
-                  type="button"
-                  onClick={() => setFilter("ERROR")}
-                  className="font-medium underline underline-offset-4"
-                >
-                  Lihat baris error saja
-                </button>
-              </p>
-            </div>
-          ) : null}
-          {choosePt || hasNewRows ? (
-            <div className="bg-muted/40 text-muted-foreground flex items-start gap-2.5 rounded-xl border px-4 py-3">
-              <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <p>
-                {choosePt && hasNewRows
-                  ? "PT dan status karyawan baru bisa diubah langsung di tabel."
-                  : choosePt
-                    ? "PT bisa diubah langsung di tabel."
-                    : "Status karyawan baru bisa diubah langsung di tabel."}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
-        {(["ALL", "CREATE", "UPDATE", "SKIP", "ERROR"] as const).map((key) => {
-          const count =
-            key === "ALL"
-              ? preview.rows.length
-              : preview.rows.filter((r) => r.action === key).length;
-          return (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={filter === key}
-              onClick={() => setFilter(key)}
-              className={cn(
-                "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
-                filter === key
-                  ? "border-foreground bg-foreground text-background"
-                  : "bg-card text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {key === "ALL" ? "Semua" : ACTION_LABELS[key]}
-              <span className="font-mono text-xs tabular-nums">{count}</span>
-            </button>
-          );
-        })}
-      </nav>
-
-      <div
-        className={cn(
-          "bg-card overflow-hidden rounded-2xl border transition-opacity",
-          updating && "opacity-70",
-        )}
-      >
-        <div className="max-h-[60vh] overflow-auto">
-          <Table aria-label="Pratinjau baris import">
-            <TableHeader className="bg-card sticky top-0 z-10">
-              <TableRow>
-                <TableHead className="w-16">Baris</TableHead>
-                <TableHead>Karyawan</TableHead>
-                <TableHead className={choosePt ? "min-w-[170px]" : "w-16"}>PT</TableHead>
-                <TableHead className="w-28">Aksi</TableHead>
-                {hasNewRows ? <TableHead className="min-w-[200px]">Status</TableHead> : null}
-                <TableHead className="min-w-[260px]">Keterangan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.sourceRow} className="align-top">
-                  <TableCell className="font-mono text-xs">{r.sourceRow}</TableCell>
-                  <TableCell className="whitespace-normal">
-                    <p className="font-medium">{r.fullName ?? "-"}</p>
-                    <p className="text-muted-foreground font-mono text-xs">
-                      {r.employeeNumber ?? "NIP belum ada"}
-                    </p>
-                    {r.chartHolder && preview.chartHolders.length > 0 ? (
-                      <div className="mt-1.5 max-w-64">
-                        <LazySelect
-                          aria-label={`Pemegang bagan baris ${r.sourceRow}`}
-                          value={r.chartHolder.choice ?? ""}
-                          onChange={(v) => onChartHolderChoice(r.sourceRow, v)}
-                          placeholder={
-                            r.chartHolder.candidates.length > 0
-                              ? "Pilih: gabungkan atau buat baru"
-                              : "Gabungkan dengan pemegang bagan…"
-                          }
-                          options={holderOptions(r)}
-                          searchable
-                          invalid={r.issues.some((i) => i.code.startsWith("CHART_HOLDER"))}
-                        />
-                        {r.chartHolder.choice && r.chartHolder.choice !== "NEW" ? (
-                          <p className="text-brand mt-1 text-xs">
-                            Melengkapi pemegang bagan (pos tetap, NIP sementara diganti)
-                          </p>
-                        ) : r.chartHolder.candidates.length > 0 && !r.chartHolder.choice ? (
-                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                            Mirip pemegang bagan — pilih dulu
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {choosePt ? (
-                      <LazySelect
-                        aria-label={`PT baris ${r.sourceRow}`}
-                        value={
-                          companyOverrides[String(r.sourceRow)] ??
-                          (r.companyCode ? companyIdByCode.get(r.companyCode) : undefined) ??
-                          AUTO
-                        }
-                        onChange={(v) => onCompanyOverride(r.sourceRow, v === AUTO ? "" : v)}
-                        placeholder="Pilih PT"
-                        options={rowCompanyOptions}
-                        invalid={r.issues.some((i) => i.field === "companyCode")}
-                      />
-                    ) : (
-                      (r.companyCode ?? "—")
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={ACTION_BADGE[r.action]}>{ACTION_LABELS[r.action]}</Badge>
-                  </TableCell>
-                  {hasNewRows ? (
-                    <TableCell>
-                      {r.newEmployee ? (
-                        <LazySelect
-                          aria-label={`Status kepegawaian baris ${r.sourceRow}`}
-                          value={
-                            statusOverrides[String(r.sourceRow)] ?? r.employmentStatusId ?? AUTO
-                          }
-                          onChange={(v) => onStatusOverride(r.sourceRow, v === AUTO ? "" : v)}
-                          placeholder="Pilih status"
-                          options={rowStatusOptions}
-                          invalid={r.issues.some((i) => i.field === "employmentStatusText")}
-                        />
-                      ) : (
-                        <span className="text-muted-foreground text-xs">
-                          Sudah ada · tidak diubah
-                        </span>
-                      )}
-                    </TableCell>
-                  ) : null}
-                  <TableCell className="min-w-[280px] whitespace-normal">
-                    <RowMessages row={r} columnOf={columnOf} fillEmpty={fillEmpty} />
-                  </TableCell>
-                </TableRow>
-              ))}
-              {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={hasNewRows ? 6 : 5}
-                    className="text-muted-foreground py-10 text-center"
+      {errorRows.length > 0 ? (
+        <section
+          aria-label="Perlu diperbaiki"
+          className="border-destructive/30 bg-destructive/5 rounded-2xl border px-4 py-3"
+        >
+          <h3 className="text-destructive flex items-center gap-2 text-sm font-semibold">
+            <CircleAlert className="size-4" aria-hidden />
+            Perlu diperbaiki ({errorRows.length} baris)
+          </h3>
+          <ul className="mt-2 space-y-1 text-sm">
+            {errorRows.slice(0, ERROR_LIST_MAX).map((r) => {
+              const errors = r.issues.filter((i) => i.severity === "ERROR");
+              return (
+                <li key={r.sourceRow} className="truncate">
+                  {/* Paket B: klik → lompat ke sel yang salah di tabel. */}
+                  <button
+                    type="button"
+                    title={errors.map((i) => issueText(i, columnOf)).join("\n")}
+                    onClick={() => {
+                      if (filter === "READY" || filter === "SKIP") setFilter("ALL");
+                      setQuery("");
+                      setJump((j) => ({
+                        sourceRow: r.sourceRow,
+                        field: errors[0]?.field ?? null,
+                        nonce: (j?.nonce ?? 0) + 1,
+                      }));
+                    }}
+                    className="hover:bg-destructive/10 max-w-full truncate rounded text-left"
                   >
-                    Tidak ada baris pada kategori ini.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </div>
+                    <span className="text-muted-foreground">Baris {r.sourceRow} · </span>
+                    <span className="font-medium">{r.fullName ?? "(tanpa nama)"}</span>
+                    <span className="text-destructive"> — {errors.map(issueShort).join("; ")}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {/* "Sekali lihat": file besar → hanya beberapa baris pertama; sisanya lewat filter di tabel. */}
+          {errorRows.length > ERROR_LIST_MAX ? (
+            <button
+              type="button"
+              onClick={() => {
+                setFilter("ERROR");
+                setQuery("");
+              }}
+              className="text-destructive mt-1 text-sm font-medium underline-offset-4 hover:underline"
+            >
+              +{errorRows.length - ERROR_LIST_MAX} baris lainnya · tampilkan di tabel
+            </button>
+          ) : null}
+          <p className="text-muted-foreground mt-2 text-xs">
+            Klik untuk menuju selnya, lalu ketik isi yang benar ·{" "}
+            <button
+              type="button"
+              onClick={onDownloadIssues}
+              className="text-foreground font-medium underline underline-offset-4"
+            >
+              Unduh {errorRows.length} baris
+            </button>
+          </p>
+        </section>
+      ) : null}
+
+      <div className={cn("transition-opacity", updating && "opacity-80")}>
+        <PreviewSheet
+          preview={preview}
+          rows={rows}
+          rawBySource={rawBySource}
+          fields={fields}
+          edits={edits}
+          pending={pending}
+          onEdit={onEdit}
+          fillEmpty={fillEmpty}
+          columnOf={columnOf}
+          companyOptions={companyOptions}
+          companyOverrides={companyOverrides}
+          onCompanyOverride={onCompanyOverride}
+          statusOptions={statusOptions}
+          statusOverrides={statusOverrides}
+          onStatusOverride={onStatusOverride}
+          holders={{
+            column: preview.chartHolders.length > 0 && (similarHolderRows > 0 || showAllHolders),
+            all: showAllHolders,
+          }}
+          holderOptions={holderOptions}
+          onChartHolderChoice={onChartHolderChoice}
+          jumpTo={jump}
+          toolbar={toolbar}
+        />
       </div>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeft /> Kembali
         </Button>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          {problems > 0 ? (
-            <Button variant="outline" onClick={onDownloadIssues}>
-              <Download /> Unduh baris bermasalah ({problems})
-            </Button>
-          ) : null}
+        <div className="flex flex-col gap-2 sm:flex-row sm:ml-auto sm:flex-wrap sm:justify-end">
           <Button
             variant="brand"
             onClick={onCommit}
@@ -535,5 +449,3 @@ export function PreviewStep({
     </div>
   );
 }
-
-const CHART_NEW = "NEW";

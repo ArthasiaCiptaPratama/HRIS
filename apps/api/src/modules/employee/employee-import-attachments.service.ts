@@ -166,14 +166,20 @@ async function processOne(ctx: RequestContext, row: Claimed): Promise<Outcome> {
       return {
         status: "FAILED",
         reason:
-          "File Drive tidak bisa dibuka — pastikan folder unggahan Form dibagikan ke service account.",
+          "File di Google Drive tidak bisa dibuka. Minta admin HRIS memastikan folder file Form sudah dibagikan ke akun HRIS (service account).",
       };
     }
     if (meta.mimeType.startsWith("application/vnd.google-apps")) {
-      return { status: "SKIPPED", reason: "Bukan file unggahan (dokumen Google) — unggah manual." };
+      return {
+        status: "SKIPPED",
+        reason: "Tautan ini dokumen Google, bukan file — unggah manual lewat Ubah data karyawan.",
+      };
     }
     if (meta.size > SOURCE_MAX_BYTES) {
-      return { status: "SKIPPED", reason: "File di Drive lebih dari 20 MB — unggah manual." };
+      return {
+        status: "SKIPPED",
+        reason: "File di Google Drive lebih dari 20 MB — unggah manual lewat Ubah data karyawan.",
+      };
     }
     metas.push(meta);
   }
@@ -190,7 +196,7 @@ async function processOne(ctx: RequestContext, row: Claimed): Promise<Outcome> {
   if (known && (await same(known))) {
     return {
       status: "SKIPPED",
-      reason: "Sama dengan lampiran yang sudah diimpor.",
+      reason: "Sama dengan file yang sudah pernah diambil.",
       sourceSha256: known,
     };
   }
@@ -232,7 +238,7 @@ async function processOne(ctx: RequestContext, row: Claimed): Promise<Outcome> {
   if (!known && (await same(sha))) {
     return {
       status: "SKIPPED",
-      reason: "Sama dengan lampiran yang sudah diimpor.",
+      reason: "Sama dengan file yang sudah pernah diambil.",
       sourceSha256: sha,
     };
   }

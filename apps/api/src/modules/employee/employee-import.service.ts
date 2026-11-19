@@ -1388,6 +1388,8 @@ export async function commit(
           },
           skippedFields: result.skippedFields,
           attachments: attachments.length,
+          // IMP-D6: sel yang diubah di layar (tanpa nilai; nilai lama/baru tercatat di riwayat karyawan).
+          editedCells: summarizeEditedCells(body),
         },
       },
       tx,
@@ -1395,6 +1397,19 @@ export async function commit(
     return id;
   });
   return { jobId, counts: result.counts };
+}
+
+/** IMP-D6: ringkasan sel yang diubah di Pratinjau — hanya baris yang ada di file, isian unik per baris. */
+function summarizeEditedCells(body: CommitBody): { count: number; rows: Record<string, string[]> } {
+  const fileRows = new Set(body.rows.map((r) => r.sourceRow));
+  const rows: Record<string, string[]> = {};
+  for (const { sourceRow, field } of body.editedCells ?? []) {
+    if (!fileRows.has(sourceRow)) continue;
+    const list = rows[String(sourceRow)] ?? [];
+    if (!list.includes(field)) list.push(field);
+    rows[String(sourceRow)] = list;
+  }
+  return { count: Object.values(rows).reduce((n, list) => n + list.length, 0), rows };
 }
 
 function toJobDto(job: NonNullable<Awaited<ReturnType<typeof importRepo.findJob>>>): ImportJobDto {

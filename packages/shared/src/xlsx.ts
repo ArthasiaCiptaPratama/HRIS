@@ -22,8 +22,12 @@ export interface XlsxSheet {
   title?: string;
   /** Baris keterangan di bawah judul (filter, tanggal data, kerahasiaan). */
   info?: string[];
-  /** Format per kolom tabel; kosong = teks. */
+  /** Format per kolom laporan/template (columnChoices/headerFills); kosong = teks. */
   formats?: (XlsxFormat | undefined)[];
+  /** Pilihan per kolom (indeks mulai 0); berlaku sampai baris 1000. */
+  columnChoices?: (readonly string[] | undefined)[];
+  /** Warna judul kolom; kosong mempertahankan gaya ekspor lama. */
+  headerFills?: ("required" | "sensitive" | undefined)[];
   /** Baris terakhir `rows` adalah total (tebal, garis atas, di luar autofilter). */
   totalRow?: boolean;
   /** Jumlah kolom kiri yang ikut dibekukan (mis. NIP + Nama). */
@@ -148,6 +152,26 @@ const STYLES_XML = (() => {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${list("numFmts", numFmts)}${list("fonts", fonts)}${list("fills", fills)}${list("borders", borders)}<cellStyleXfs count="1"><xf/></cellStyleXfs>${list("cellXfs", xfs)}<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
 })();
 
+// Gaya tambahan hanya disertakan bila diminta; indeks gaya lama tetap sama.
+const S_REQUIRED = 21;
+const S_SENSITIVE = 22;
+const S_TEXT = 23;
+const S_DATE = 24;
+function templateStyles(): string {
+  return STYLES_XML.replace('<fills count="5">', '<fills count="7">')
+    .replace(
+      "</fills>",
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill></fills>',
+    )
+    .replace('<cellXfs count="21">', '<cellXfs count="25">')
+    .replace(
+      "</cellXfs>",
+      '<xf fontId="1" fillId="5" applyFont="1" applyFill="1"/><xf fontId="1" fillId="6" applyFont="1" applyFill="1"/><xf numFmtId="49" applyNumberFormat="1"/><xf numFmtId="164" applyNumberFormat="1"/></cellXfs>',
+    );
+}
+const headerStyle = (fill: "required" | "sensitive" | undefined, fallback: number) =>
+  fill === "required" ? S_REQUIRED : fill === "sensitive" ? S_SENSITIVE : fallback;
+
 // --- Sheet mode lama (tanpa judul) ---
 
 /** `styled` = memakai gaya penulis ini (1 = tanggal, 2 = header tebal); false = tanpa atribut gaya. */
@@ -182,29 +206,53 @@ function displayLength(cell: XlsxCell, format: XlsxFormat = "text"): number {
   return String(value).length;
 }
 
-function sheetXml(rows: XlsxCell[][], styled: boolean): string {
+function sheetXml(rows: XlsxCell[][], styled: boolean, options?: XlsxSheet): string {
   const columns = Math.max(0, ...rows.map((row) => row.length));
   const widths = Array.from({ length: columns }, (_, c) =>
     Math.min(60, Math.max(8, ...rows.slice(0, 500).map((row) => displayLength(row[c]) + 2))),
   );
   const cols =
     columns > 0
-      ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`
+      ? `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"${options?.formats?.[i] === "text" ? ` style="${S_TEXT}"` : options?.formats?.[i] === "date" ? ` style="${S_DATE}"` : ""}/>`).join("")}</cols>`
       : "";
   // Baris header dibekukan supaya tetap terlihat saat menggulir.
   const views =
     rows.length > 1
       ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
       : "";
+  const freezeCols = Math.max(0, Math.min(options?.freezeColumns ?? 0, columns - 1));
+  const sheetViews =
+    freezeCols > 0
+      ? `<sheetViews><sheetView workbookViewId="0"><pane xSplit="${freezeCols}" ySplit="1" topLeftCell="${columnName(freezeCols)}2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>`
+      : views;
   const sheetRows = rows
     .map((row, r) => {
       const cells = row
-        .map((value, c) => cellXml(`${columnName(c)}${r + 1}`, value, r === 0, styled))
+        .map((value, c) => {
+          const ref = `${columnName(c)}${r + 1}`;
+          let xml = cellXml(ref, value, r === 0, styled);
+          const fill = options?.headerFills?.[c];
+          const format = options?.formats?.[c];
+          const style =
+            r === 0 && fill
+              ? headerStyle(fill, 2)
+              : r > 0 && format === "text"
+                ? S_TEXT
+                : r > 0 && format === "date"
+                  ? S_DATE
+                  : undefined;
+          if (style !== undefined && xml) {
+            xml = xml
+              .replace(/ s="\d+"/, "")
+              .replace(`<c r="${ref}"`, `<c r="${ref}" s="${style}"`);
+          }
+          return xml;
+        })
         .join("");
       return `<row r="${r + 1}">${cells}</row>`;
     })
     .join("");
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${views}${cols}<sheetData>${sheetRows}</sheetData></worksheet>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${sheetViews}${cols}<sheetData>${sheetRows}</sheetData></worksheet>`;
 }
 
 // --- Sheet laporan (ber-judul) ---
@@ -261,7 +309,11 @@ function reportSheetXml(sheet: XlsxSheet, index: number, name: string): ReportSh
   push(
     header
       .map((cell, c) =>
-        textCell(`${columnName(c)}${headerRow}`, String(plain(cell) ?? ""), S_HEADER),
+        textCell(
+          `${columnName(c)}${headerRow}`,
+          String(plain(cell) ?? ""),
+          headerStyle(sheet.headerFills?.[c], S_HEADER),
+        ),
       )
       .join(""),
     30,
@@ -346,14 +398,70 @@ function coreXml(meta: XlsxMeta, now: Date): string {
 
 /** Workbook baru berisi satu atau beberapa sheet. `meta` = judul & pembuat di properti berkas. */
 export function buildWorkbook(sheets: XlsxSheet[], meta?: XlsxMeta, now = new Date()): Uint8Array {
-  const list = sheets.length > 0 ? sheets : [{ name: "Sheet1", rows: [] }];
+  const list: XlsxSheet[] = sheets.length > 0 ? [...sheets] : [{ name: "Sheet1", rows: [] }];
+  const choiceRows: XlsxCell[][] = [];
+  const validations = new Map<XlsxSheet, string>();
+  const choiceNames: string[] = [];
+  let choiceSheetName = "Pilihan";
+  const usedNames = new Set(list.map((sheet) => sheetName(sheet.name).toLowerCase()));
+  for (let n = 2; usedNames.has(choiceSheetName.toLowerCase()); n++)
+    choiceSheetName = `Pilihan (${n})`;
+  let choiceColumn = 0;
+  for (const [index, sheet] of list.entries()) {
+    const rules: string[] = [];
+    sheet.columnChoices?.forEach((values, column) => {
+      if (!values?.length) return;
+      const inline = values.join(",");
+      let formula: string;
+      // Koma, kutip, dan baris baru tidak aman dalam daftar inline Excel.
+      if (inline.length + 2 < 255 && !values.some((value) => /[,"\r\n]/.test(value))) {
+        formula = `"${inline}"`;
+      } else {
+        const letter = columnName(choiceColumn++);
+        values.forEach((value, row) => {
+          choiceRows[row] ??= [];
+          const cells = choiceRows[row];
+          if (cells) cells[choiceColumn - 1] = value;
+        });
+        formula = `_xlsx_choices_${index}_${column}`;
+        choiceNames.push(
+          `<definedName name="${formula}">${esc(`${quoted(choiceSheetName)}!$${letter}$1:$${letter}$${values.length}`)}</definedName>`,
+        );
+      }
+      const firstRow = sheet.title ? (sheet.info?.length ?? 0) + 4 : 2;
+      const letter = columnName(column);
+      rules.push(
+        `<dataValidation type="list" allowBlank="1" showErrorMessage="1" errorStyle="stop" sqref="${letter}${firstRow}:${letter}${Math.max(1000, firstRow)}"><formula1>${esc(formula)}</formula1></dataValidation>`,
+      );
+    });
+    if (rules.length)
+      validations.set(
+        sheet,
+        `<dataValidations count="${rules.length}">${rules.join("")}</dataValidations>`,
+      );
+  }
+  const hiddenIndex = choiceRows.length ? list.length : -1;
+  if (choiceRows.length) list.push({ name: choiceSheetName, rows: choiceRows });
+  const extendedStyles = list.some(
+    (sheet) =>
+      sheet.headerFills?.some(Boolean) ||
+      (!sheet.title &&
+        (sheet.columnChoices || sheet.headerFills) &&
+        sheet.formats?.some((format) => format === "text" || format === "date")),
+  );
   const names = list.map((s) => sheetName(s.name));
-  const definedNames: string[] = [];
+  const definedNames: string[] = [...choiceNames];
   const sheetFiles = list.map((sheet, i) => {
-    if (!sheet.title) return sheetXml(sheet.rows, true);
-    const out = reportSheetXml(sheet, i, names[i] as string);
-    definedNames.push(...out.definedNames);
-    return out.xml;
+    const out = sheet.title ? reportSheetXml(sheet, i, names[i] as string) : undefined;
+    if (out) definedNames.push(...out.definedNames);
+    const xml =
+      out?.xml ??
+      sheetXml(sheet.rows, true, sheet.columnChoices || sheet.headerFills ? sheet : undefined);
+    const validation = validations.get(sheet);
+    // dataValidations harus berada sesudah autoFilter dan sebelum pengaturan cetak.
+    return validation
+      ? xml.replace(/<pageMargins|<\/worksheet>/, (tag) => `${validation}${tag}`)
+      : xml;
   });
   const defined =
     definedNames.length > 0 ? `<definedNames>${definedNames.join("")}</definedNames>` : "";
@@ -366,15 +474,19 @@ export function buildWorkbook(sheets: XlsxSheet[], meta?: XlsxMeta, now = new Da
   const files: Record<string, string> = {
     "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${list.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="${SHEET_TYPE}"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${core.types}</Types>`,
     "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL_NS}/officeDocument" Target="xl/workbook.xml"/>${core.rel}</Relationships>`,
-    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${REL_NS}"><sheets>${names.map((name, i) => `<sheet name="${esc(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets>${defined}</workbook>`,
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${REL_NS}"><sheets>${names.map((name, i) => `<sheet name="${esc(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"${i === hiddenIndex ? ' state="hidden"' : ""}/>`).join("")}</sheets>${defined}</workbook>`,
     "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL_NS}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${list.length + 1}" Type="${REL_NS}/styles" Target="styles.xml"/></Relationships>`,
-    "xl/styles.xml": STYLES_XML,
+    "xl/styles.xml": extendedStyles ? templateStyles() : STYLES_XML,
   };
   if (meta) files["docProps/core.xml"] = coreXml(meta, now);
   sheetFiles.forEach((xml, i) => {
     files[`xl/worksheets/sheet${i + 1}.xml`] = xml;
   });
-  return zipSync(Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)])));
+  return zipSync(
+    Object.fromEntries(Object.entries(files).map(([k, v]) => [k, strToU8(v)])),
+    // Template dapat memasok waktu tetap agar bytes hanya bergantung pada isinya.
+    sheets.some((sheet) => sheet.columnChoices || sheet.headerFills) ? { mtime: now } : undefined,
+  );
 }
 
 /** Workbook satu sheet (kompatibel dengan pemakaian lama). */
