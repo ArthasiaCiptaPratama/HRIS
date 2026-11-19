@@ -5,6 +5,7 @@ import {
   type ColumnSuggestion,
   type DetectedSheet,
   detectSheet,
+  editedCellList,
   headerSignatureSource,
   IMPORT_ISSUE_MESSAGES,
   IMPORT_MAX_ROWS,
@@ -445,9 +446,11 @@ export function ImportEmployeesPage() {
     const request = buildRequest();
     if (!request || !preview) return;
     try {
+      const edited = editedCellList(edits);
       const saved = await commitMutation.mutateAsync({
         ...request,
         previewHash: preview.previewHash,
+        ...(edited.length > 0 ? { editedCells: edited } : {}),
       });
       setResult(saved.counts);
       setAttachmentJobId(saved.counts.attachments > 0 ? saved.jobId : null);

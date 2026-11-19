@@ -695,6 +695,32 @@ describe("Import Data Karyawan", () => {
     expect(within(cell(1, "NIP")).queryByLabelText("diubah")).not.toBeInTheDocument();
   });
 
+  it("Paket B3: Simpan setelah mengubah sel → editedCells (baris + isian, tanpa nilai) ikut dikirim", async () => {
+    const requests = mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.dblClick(cell(1, "NIP"));
+    const input = screen.getByRole("textbox", { name: "NIP baris 3" });
+    await user.clear(input);
+    await user.type(input, "ACP-9999{Enter}");
+    await waitFor(
+      () => expect(lastPreview(requests).rows[1]?.raw.employeeNumber).toBe("ACP-9999"),
+      { timeout: 4000 },
+    );
+    await user.click(screen.getByRole("button", { name: "Simpan 1 karyawan" }));
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
+    await screen.findByText("Import selesai");
+    const commit = requests.find((r) => r.path === "/employee-imports" && r.method === "POST");
+    expect(commit?.body).toMatchObject({
+      editedCells: [{ sourceRow: 3, field: "employeeNumber" }],
+    });
+    expect(JSON.stringify((commit?.body as { editedCells: unknown }).editedCells)).not.toContain(
+      "ACP-9999",
+    );
+  });
+
   it("Paket B: sel dikosongkan → langsung ditandai (cek di browser) sebelum server memeriksa", async () => {
     mockBackend();
     const user = userEvent.setup();
