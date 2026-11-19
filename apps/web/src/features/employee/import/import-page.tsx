@@ -1,4 +1,5 @@
 import {
+  applyCellEdits,
   applySavedMapping,
   buildRawRows,
   type ColumnSuggestion,
@@ -7,9 +8,11 @@ import {
   headerSignatureSource,
   IMPORT_ISSUE_MESSAGES,
   IMPORT_MAX_ROWS,
+  type ImportCellEdits,
   type ImportFieldKey,
   pickSheet,
   profileKeys,
+  type RawImportRow,
   suggestMapping,
 } from "@hris/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,6 +68,7 @@ import { MappingStep, mappingHasIdentity, mappingReviewColumns } from "./mapping
 import { OpenAttachments } from "./open-attachments";
 import { type ParsedWorkbook, parseImportFile, serializeCell, signatureOf } from "./parse-file";
 import { type MasterMap, PreviewStep } from "./preview-step";
+import { displayRaw } from "./sheet/preview-sheet";
 import { buildImportTemplate, IMPORT_TEMPLATE_FILE_NAME } from "./template/build-template";
 import { suggestedChoices } from "./unit-matching";
 
@@ -207,6 +211,12 @@ export function ImportEmployeesPage() {
   const [autoPreview, setAutoPreview] = useState(false);
   const [mappingSkipped, setMappingSkipped] = useState(false);
   const [confirmSave, setConfirmSave] = useState(false);
+  // Paket B (IMP-D6): sel yang diubah di Pratinjau. Cap waktu per sel → sel yang belum diperiksa server
+  // dicek di browser dulu (aturan shared yang sama).
+  const [edits, setEdits] = useState<ImportCellEdits>({});
+  const editSeq = useRef(0);
+  const editStamps = useRef(new Map<string, number>());
+  const [appliedStamp, setAppliedStamp] = useState(0);
   const queryClient = useQueryClient();
   const onAttachmentsState = useCallback((next: AttachmentsState) => setAttachments(next), []);
   // Lampiran masih diunduh di langkah Selesai → stepper & judul tidak menyatakan "selesai" dulu.
@@ -219,6 +229,35 @@ export function ImportEmployeesPage() {
     (scope.companies.length === 1 ? scope.companies[0]?.id : "") ||
     "";
   const effectiveCompany = companyFor(companyId);
+
+  // Isi file per baris (nilai siap kirim; tanggal = ISO) — dasar Pratinjau spreadsheet & ubahan sel.
+  const rawRows = useMemo(
+    () =>
+      detected
+        ? buildRawRows(detected.rows, mapping).map(({ sourceRow, raw }) => ({
+            sourceRow,
+            raw: Object.fromEntries(
+              Object.entries(raw).map(([k, v]) => [k, serializeCell(v ?? null)]),
+            ) as ImportRequest["rows"][number]["raw"],
+          }))
+        : [],
+    [detected, mapping],
+  );
+  const rawBySource = useMemo(
+    () => new Map(rawRows.map((r) => [r.sourceRow, r.raw as RawImportRow])),
+    [rawRows],
+  );
+  const fileFields = useMemo(
+    () => [...new Set(mapping.filter((f): f is ImportFieldKey => f !== null))],
+    [mapping],
+  );
+  const editCount = Object.values(edits).reduce((n, row) => n + Object.keys(row).length, 0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cap waktu dibaca dari ref saat ubahan/pratinjau berubah
+  const pendingCells = useMemo(() => {
+    const out = new Set<string>();
+    for (const [key, stamp] of editStamps.current) if (stamp > appliedStamp) out.add(key);
+    return out;
+  }, [edits, appliedStamp]);
 
   async function analyzeSheet(book: ParsedWorkbook, index: number | null) {
     const chosen =
@@ -270,6 +309,8 @@ export function ImportEmployeesPage() {
     setCompanyOverrides({});
     setChartHolderChoices({});
     setUnitChoices(savedUnits);
+    setEdits({});
+    editStamps.current.clear();
     return true;
   }
 
@@ -322,14 +363,29 @@ export function ImportEmployeesPage() {
     void runPreview(next, "stay");
   }
 
+  /** Paket B: ubahan sel dari grid Pratinjau → disimpan, pratinjau diulang 1 dtk setelah ketikan terakhir. */
+  function editCells(changes: { sourceRow: number; field: ImportFieldKey; value: string }[]) {
+    const original = new Map(rawRows.map((r) => [r.sourceRow, r.raw]));
+    for (const { sourceRow, field } of changes)
+      editStamps.current.set(`${sourceRow}:${field}`, ++editSeq.current);
+    setEdits((prev) => {
+      const next = { ...prev };
+      for (const { sourceRow, field, value } of changes) {
+        const row = { ...(next[sourceRow] ?? {}) };
+        const before = original.get(sourceRow)?.[field];
+        // Dikembalikan ke isi file → bukan ubahan lagi.
+        if (value === displayRaw(before)) delete row[field];
+        else row[field] = value;
+        if (Object.keys(row).length > 0) next[sourceRow] = row;
+        else delete next[sourceRow];
+      }
+      return next;
+    });
+  }
+
   function buildRequest(c: Choices = choices): ImportRequest | null {
     if (!workbook || !detected) return null;
-    const rows = buildRawRows(detected.rows, mapping).map(({ sourceRow, raw }) => ({
-      sourceRow,
-      raw: Object.fromEntries(
-        Object.entries(raw).map(([k, v]) => [k, serializeCell(v ?? null)]),
-      ) as ImportRequest["rows"][number]["raw"],
-    }));
+    const rows = applyCellEdits(rawRows, edits);
     return {
       fileName: workbook.fileName,
       fileSha256: workbook.sha256,
@@ -370,9 +426,11 @@ export function ImportEmployeesPage() {
         void saveMapping(signature, profile, c.unitChoices).catch(() => undefined);
       }
       const seq = ++previewSeq.current;
+      const stamp = editSeq.current;
       const result = await previewMutation.mutateAsync(request);
       if (seq !== previewSeq.current) return;
       setPreview(result);
+      setAppliedStamp(stamp);
       if (go === "next") {
         const needed = completionState(result).needed;
         if (needed) setVisitedComplete(true);
@@ -437,10 +495,19 @@ export function ImportEmployeesPage() {
   function downloadIssues() {
     if (!detected || !preview || !workbook) return;
     const byRow = new Map(preview.rows.map((r) => [r.sourceRow, r]));
-    const header = [...detected.headers, "Yang perlu diperbaiki"];
+    // Paket B: nilai yang sudah diubah di layar ikut terunduh; isian tanpa kolom di file → kolom tambahan.
+    const extraFields = [
+      ...new Set(Object.values(edits).flatMap((row) => Object.keys(row) as ImportFieldKey[])),
+    ].filter((f) => !mapping.includes(f));
+    const header = [...detected.headers, ...extraFields.map(fieldLabel), "Yang perlu diperbaiki"];
     const body = detected.rows
       .filter((row) => byRow.get(row.sourceRow)?.action === "ERROR")
       .map((row) => {
+        const changed = edits[row.sourceRow] ?? {};
+        const cells = row.cells.map((cell, column) => {
+          const field = mapping[column];
+          return field && field in changed ? (changed[field] ?? "") : cell;
+        });
         const result = byRow.get(row.sourceRow);
         const notes = (result?.issues ?? [])
           .map(
@@ -448,7 +515,11 @@ export function ImportEmployeesPage() {
               `${i.severity === "ERROR" ? "Perbaiki" : "Catatan"} — ${fieldLabel(i.field)}: ${IMPORT_ISSUE_MESSAGES[i.code] ?? i.code}`,
           )
           .join("; ");
-        return [...row.cells, `Baris ${row.sourceRow}: ${notes}`];
+        return [
+          ...cells,
+          ...extraFields.map((f) => changed[f] ?? ""),
+          `Baris ${row.sourceRow}: ${notes}`,
+        ];
       });
     const name = workbook.fileName.replace(/\.[^.]+$/, "");
     downloadBytes(
@@ -485,6 +556,26 @@ export function ImportEmployeesPage() {
   }, [autoPreview, step, detected]);
 
   /** Kembali ke Pemetaan (juga setelah dilewati otomatis) → langkahnya tampil lagi di stepper. */
+  // Paket B: ubahan sel → pratinjau server diulang 1 dtk setelah ketikan terakhir (permintaan lama diabaikan
+  // lewat previewSeq). Sementara itu sel diperiksa di browser.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hanya saat ubahan berubah
+  useEffect(() => {
+    if (step !== "preview" || editSeq.current <= appliedStamp) return;
+    const timer = setTimeout(() => void runPreview(choices, "stay"), 1000);
+    return () => clearTimeout(timer);
+  }, [edits]);
+
+  // Ubahan sel belum disimpan → tanya dulu sebelum halaman ditutup/dimuat ulang.
+  useEffect(() => {
+    if (editCount === 0 || step === "done") return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [editCount, step]);
+
   function goMapping() {
     setMappingSkipped(false);
     setStep("mapping");
@@ -516,6 +607,8 @@ export function ImportEmployeesPage() {
     setVisitedComplete(false);
     setAutoPreview(false);
     setMappingSkipped(false);
+    setEdits({});
+    editStamps.current.clear();
     if (fileInput.current) fileInput.current.value = "";
   }
 
@@ -805,6 +898,11 @@ export function ImportEmployeesPage() {
             changeChoices({ chartHolderChoices: next });
           }}
           columnOf={columnOf}
+          rawBySource={rawBySource}
+          fields={fileFields}
+          edits={edits}
+          pending={pendingCells}
+          onEdit={editCells}
           onEditSettings={() => {
             setVisitedComplete(true);
             setStep("complete");

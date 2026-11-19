@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSelectedCompany } from "@/features/employee/company-scope";
@@ -161,6 +161,23 @@ function mockBackend({
 
 const csvFile = (name = "karyawan.csv", content = CSV) =>
   new File([content], name, { type: "text/csv" });
+
+// Paket B (IMP-D6): sel grid Pratinjau berdasarkan urutan baris tampil & judul kolom.
+const sheet = () => screen.getByRole("grid", { name: "Pratinjau baris import" });
+function cell(rowIndex: number, header: string): HTMLElement {
+  const head = within(sheet())
+    .getAllByRole("columnheader")
+    .find((h) => h.textContent?.trim() === header);
+  if (!head) throw new Error(`kolom ${header} tidak ada`);
+  const col = Number(head.getAttribute("aria-colindex")) - 1;
+  const el = sheet().querySelector<HTMLElement>(`[data-row="${rowIndex}"] [data-col="${col}"]`);
+  if (!el) throw new Error(`sel ${rowIndex}:${header} tidak ada`);
+  return el;
+}
+const lastPreview = (requests: { path: string; body: unknown }[]) =>
+  requests.filter((r) => r.path === "/employee-imports/preview").at(-1)?.body as {
+    rows: { sourceRow: number; raw: Record<string, unknown> }[];
+  } & Record<string, unknown>;
 
 beforeEach(() => {
   authState.session = { access_token: "t", user: { id: "u" } };
@@ -442,7 +459,10 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Status kepegawaian baris 3" }));
+    // Paket B: status per baris = sel pilihan di grid (klik dua kali → daftar).
+    await screen.findByText(/siap disimpan/);
+    await user.dblClick(cell(1, "Status"));
+    expect(screen.getByRole("combobox", { name: "Status baris 3" })).toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: "PKWT" }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
@@ -488,6 +508,8 @@ describe("Import Data Karyawan", () => {
     };
     expect(body.mode).toBe("FILL_EMPTY");
     expect(screen.getByText(/Isi yang kosong saja · PT ACP/)).toBeInTheDocument();
+    // Paket B: rincian baris aktif tampil di bawah grid.
+    await user.click(cell(1, "NIP"));
     expect(screen.getByText(/^Diisi: /)).toBeInTheDocument();
     expect(screen.getByText(/^Dibiarkan \(sudah berisi, beda\): /)).toBeInTheDocument();
     expect(screen.queryByText(/^Berubah: /)).not.toBeInTheDocument();
@@ -529,14 +551,15 @@ describe("Import Data Karyawan", () => {
     expect(
       await screen.findByText("1 nama mirip orang di Struktur Organisasi"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Nama mirip orang di Struktur Organisasi — pilih dulu"),
-    ).toBeInTheDocument();
-    // IMP-D5: baris tanpa kemiripan tidak menampilkan pilihan sampai dibuka.
-    expect(
-      screen.queryByRole("button", { name: "Pemegang bagan baris 3" }),
-    ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 2" }));
+    // Paket B: kolom Struktur Organisasi di grid; baris mirip ditandai sampai dipilih.
+    expect(cell(0, "Struktur Organisasi")).toHaveAttribute(
+      "title",
+      "Nama mirip orang di Struktur Organisasi — pilih dulu",
+    );
+    expect(cell(0, "Struktur Organisasi")).toHaveAttribute("aria-invalid", "true");
+    // IMP-D5: baris tanpa kemiripan tidak bisa dipilih sampai dibuka.
+    expect(cell(1, "Struktur Organisasi")).toHaveAttribute("aria-readonly", "true");
+    await user.dblClick(cell(0, "Struktur Organisasi"));
     await user.click(screen.getByRole("option", { name: /Ani Contoh · ASLI-ACP-X-1/ }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
@@ -549,7 +572,7 @@ describe("Import Data Karyawan", () => {
         name: /Nama lain di Struktur Organisasi/,
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 3" }));
+    await user.dblClick(cell(1, "Struktur Organisasi"));
     await user.click(screen.getByRole("option", { name: /Budi C\. · ASLI-ACP-Y-1/ }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
@@ -640,6 +663,98 @@ describe("Import Data Karyawan", () => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ companyId: CD2.id });
     });
+  });
+
+  it("Paket B: ubah sel di grid → pratinjau diulang dengan nilai baru, penanda ubahan, Ctrl+Z membatalkan", async () => {
+    const requests = mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    // Kolom penting + kolom yang punya error (Email kantor) tampil; sel salah ditandai.
+    expect(cell(1, "Email kantor")).toHaveAttribute("aria-invalid", "true");
+    expect(cell(1, "Email kantor")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/Email kantor: Email ini sudah dipakai/),
+    );
+
+    await user.dblClick(cell(1, "NIP"));
+    const input = screen.getByRole("textbox", { name: "NIP baris 3" });
+    await user.clear(input);
+    await user.type(input, "ACP-9999{Enter}");
+    expect(cell(1, "NIP")).toHaveTextContent("ACP-9999");
+    expect(within(cell(1, "NIP")).getByLabelText("diubah")).toBeInTheDocument();
+    await waitFor(
+      () => expect(lastPreview(requests).rows[1]?.raw.employeeNumber).toBe("ACP-9999"),
+      { timeout: 4000 },
+    );
+
+    await user.click(cell(1, "NIP"));
+    await user.keyboard("{Control>}z{/Control}");
+    expect(cell(1, "NIP")).toHaveTextContent("ACP-9002");
+    expect(within(cell(1, "NIP")).queryByLabelText("diubah")).not.toBeInTheDocument();
+  });
+
+  it("Paket B: sel dikosongkan → langsung ditandai (cek di browser) sebelum server memeriksa", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.click(cell(0, "NIP"));
+    await user.keyboard("{Delete}");
+    expect(cell(0, "NIP")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/^NIP \(kolom B\): /, { selector: "p" })).toBeInTheDocument();
+  });
+
+  it("Paket B: kolom 🔒 (akun tanpa izin) terkunci; tempel blok dari Excel melewatinya", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(
+      await screen.findByLabelText("Pilih file import"),
+      csvFile(
+        "ktp.csv",
+        "NO;NIK KARYAWAN;NAMA;NO KTP;NO HP\n1;ACP-9001;Ani Contoh;3201010101010001;0812-abc\n2;ACP-9002;Budi Contoh;3201010101010002;081299990002",
+      ),
+    );
+    await screen.findByText(/siap disimpan/);
+    // skippedFields = ktpNumber → kolom NIK KTP abu-abu, isi disamarkan, tidak bisa diubah.
+    await user.click(screen.getByRole("button", { name: /Kolom lain/ }));
+    await user.click(screen.getByRole("checkbox", { name: /NIK KTP/ }));
+    await user.keyboard("{Escape}");
+    const ktp = cell(0, "NIK KTP");
+    expect(ktp).toHaveTextContent("••••0001");
+    expect(ktp).toHaveAttribute("aria-readonly", "true");
+    await user.dblClick(ktp);
+    expect(screen.queryByRole("textbox", { name: /NIK KTP baris/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/NIK KTP tidak tersimpan untuk akun Anda/)).toBeInTheDocument();
+
+    // Tempel 1 baris × 2 sel mulai kolom NIK KTP: KTP dilewati, sel sesudahnya terisi.
+    const header = within(sheet())
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    const next = header[header.indexOf("NIK KTP") + 1] as string;
+    await user.click(ktp);
+    fireEvent.paste(sheet(), {
+      clipboardData: { getData: () => "3209999999999999\tisi baru\r\n" },
+    });
+    expect(screen.getByText(/1 sel ditempel, 1 dilewati/)).toBeInTheDocument();
+    expect(cell(0, next)).toHaveTextContent("isi baru");
+    expect(cell(0, "NIK KTP")).toHaveTextContent("••••0001");
+  });
+
+  it("Paket B: klik baris di kotak Perlu diperbaiki → sel yang salah aktif di grid", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    const fix = await screen.findByRole("region", { name: "Perlu diperbaiki" });
+    await user.click(within(fix).getByRole("button", { name: /Budi Contoh/ }));
+    const target = cell(1, "Email kantor");
+    expect(target).toHaveAttribute("aria-selected", "true");
+    expect(sheet()).toHaveAttribute("aria-activedescendant", target.id);
+    expect(sheet()).toHaveFocus();
   });
 
   it("Data Karyawan Aktif menampilkan tombol Import untuk HR; EMPLOYEE tidak bisa membuka halaman import", async () => {

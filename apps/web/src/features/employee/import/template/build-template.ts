@@ -47,14 +47,19 @@ const REQUIRED = new Set<ImportFieldKey>([
 const sensitive = (key: ImportFieldKey) =>
   ["personal", "bank", "family"].includes(IMPORT_FIELDS[key].section);
 
+/** Pilihan tetap (dropdown template & editor sel Pratinjau, paket B). */
+export const FIXED_CHOICES: Partial<Record<ImportFieldKey, string[]>> = {
+  gender: ["Laki-laki", "Perempuan"],
+  religion: ["Islam", "Kristen Protestan", "Katolik", "Hindu", "Buddha", "Konghucu", "Lainnya"],
+  ptkpStatus: ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"],
+};
+
 /** Dibangun sepenuhnya dari data pemanggil; tidak mengambil data atau mengunduh berkas. */
 export function buildImportTemplate(input: ImportTemplateInput): Uint8Array {
   const choices: Partial<Record<ImportFieldKey, string[]>> = {
     companyCode: input.companies.map((company) => company.code),
     employmentStatusText: input.statuses,
-    gender: ["Laki-laki", "Perempuan"],
-    religion: ["Islam", "Kristen Protestan", "Katolik", "Hindu", "Buddha", "Konghucu", "Lainnya"],
-    ptkpStatus: ["TK/0", "TK/1", "TK/2", "TK/3", "K/0", "K/1", "K/2", "K/3"],
+    ...FIXED_CHOICES,
   };
   const examples = [1, 2].map((number) => [
     `CONTOH-00${number}`,

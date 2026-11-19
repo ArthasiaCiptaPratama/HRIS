@@ -1,4 +1,4 @@
-import { EXIT_REASON_LABELS, type ImportFieldKey } from "@hris/shared";
+import type { ImportCellEdits, ImportFieldKey, RawImportRow } from "@hris/shared";
 import {
   ArrowLeft,
   ChevronDown,
@@ -10,21 +10,11 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SelectOption } from "@/components/form-select";
-import { LazySelect } from "@/components/lazy-select";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "./api";
-import { fieldLabel, issueHint, issueShort, issueText } from "./labels";
+import { fieldLabel, issueShort, issueText } from "./labels";
+import { CHART_NEW, PreviewSheet } from "./sheet/preview-sheet";
 
 // Pratinjau (langkah terakhir sebelum simpan): ringkasan, pengaturan yang dipakai (ubah → kembali ke
 // Lengkapi data), daftar "Perlu diperbaiki", dan tabel baris. Pilihan untuk banyak baris ada di langkah
@@ -55,15 +45,6 @@ const matchesFilter = (filter: Filter, action: ImportPreview["rows"][number]["ac
   filter === "ALL" ||
   (filter === "READY" ? action === "CREATE" || action === "UPDATE" : action === filter);
 
-const AUTO = "__auto__";
-
-const ACTION_BADGE = {
-  CREATE: "success",
-  UPDATE: "secondary",
-  SKIP: "muted",
-  ERROR: "destructive",
-} as const;
-
 function Summary({ counts }: { counts: ImportPreview["counts"] }) {
   const ready = counts.create + counts.update;
   return (
@@ -93,82 +74,6 @@ function saveLabel(writable: number, attachments: number) {
   return `Simpan ${writable} karyawan${attachments > 0 ? ` + ${attachments} lampiran` : ""}`;
 }
 
-type Row = ImportPreview["rows"][number];
-
-function RowMessages({
-  row,
-  columnOf,
-  fillEmpty,
-}: {
-  row: Row;
-  columnOf: (field: ImportFieldKey) => number | undefined;
-  fillEmpty: boolean;
-}) {
-  const [showWarnings, setShowWarnings] = useState(false);
-  const errors = row.issues.filter((i) => i.severity === "ERROR");
-  const warnings = row.issues.filter((i) => i.severity === "WARNING");
-  const hint = issueHint(row.issues);
-  return (
-    <div className="space-y-1 text-sm">
-      {row.deactivate ? (
-        <p className="text-foreground">
-          Akan dinonaktifkan: {EXIT_REASON_LABELS[row.deactivate.reason]} per{" "}
-          {formatDate(row.deactivate.date)}
-        </p>
-      ) : null}
-      {row.action === "UPDATE" && row.changes.length > 0 ? (
-        <p className="text-muted-foreground">
-          {fillEmpty ? "Diisi" : "Berubah"}: {row.changes.map(fieldLabel).join(", ")}
-        </p>
-      ) : null}
-      {/* IMP-D2: info konflik, bukan error — nilai di sistem dipertahankan. */}
-      {row.kept.length > 0 ? (
-        <p className="text-muted-foreground">
-          Dibiarkan (sudah berisi, beda): {row.kept.map(fieldLabel).join(", ")}
-        </p>
-      ) : null}
-      {row.action === "SKIP" && row.issues.length === 0 && row.kept.length === 0 ? (
-        <p className="text-muted-foreground">Tidak ada perubahan data</p>
-      ) : null}
-      {row.attachments > 0 ? (
-        <p className="text-muted-foreground">Lampiran Google Drive: {row.attachments}</p>
-      ) : null}
-      {errors.map((i) => (
-        <p
-          key={`${i.field}-${i.code}`}
-          className="text-destructive"
-          title={`${issueText(i, columnOf)}${hint ? `\n${hint}` : ""}`}
-        >
-          {issueShort(i)}
-        </p>
-      ))}
-      {warnings.length > 0 ? (
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowWarnings((v) => !v)}
-            aria-expanded={showWarnings}
-            className="text-warning-soft-foreground inline-flex items-center gap-1 text-xs hover:underline"
-          >
-            {warnings.length} catatan (tetap disimpan)
-            <ChevronDown
-              className={cn("size-3.5 transition-transform", showWarnings && "rotate-180")}
-              aria-hidden
-            />
-          </button>
-          {showWarnings
-            ? warnings.map((i) => (
-                <p key={`${i.field}-${i.code}`} className="text-warning-soft-foreground text-xs">
-                  {issueText(i, columnOf)}
-                </p>
-              ))
-            : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 export function PreviewStep({
   preview,
   settings,
@@ -182,6 +87,11 @@ export function PreviewStep({
   chartHolderChoices,
   onChartHolderChoice,
   columnOf,
+  rawBySource,
+  fields,
+  edits,
+  pending,
+  onEdit,
   onEditSettings,
   onBack,
   onCommit,
@@ -208,6 +118,12 @@ export function PreviewStep({
   /** Nilai kosong = belum memilih (kembali ke saran). */
   onChartHolderChoice: (sourceRow: number, value: string) => void;
   columnOf: (field: ImportFieldKey) => number | undefined;
+  /** Paket B: isi file per baris, isian yang ada di file, & ubahan sel di layar. */
+  rawBySource: ReadonlyMap<number, RawImportRow>;
+  fields: ImportFieldKey[];
+  edits: ImportCellEdits;
+  pending: ReadonlySet<string>;
+  onEdit: (changes: { sourceRow: number; field: ImportFieldKey; value: string }[]) => void;
   /** Kembali ke langkah Lengkapi data. */
   onEditSettings: () => void;
   onBack: () => void;
@@ -235,16 +151,11 @@ export function PreviewStep({
   const similarHolderRows = preview.rows.filter(
     (r) => (r.chartHolder?.candidates.length ?? 0) > 0,
   ).length;
-  const hasNewRows = preview.rows.some((r) => r.newEmployee);
-  const rowStatusOptions = useMemo(
-    () => [{ value: AUTO, label: "Ikuti kolom file / bawaan" }, ...statusOptions],
-    [statusOptions],
-  );
-  const choosePt = companyOptions.length > 1;
-  const rowCompanyOptions = useMemo(
-    () => [{ value: AUTO, label: "Ikuti kolom file / bawaan" }, ...companyOptions],
-    [companyOptions],
-  );
+  const [jump, setJump] = useState<{
+    sourceRow: number;
+    field: string | null;
+    nonce: number;
+  } | null>(null);
   const companyIdByCode = new Map(companyOptions.map((c) => [c.label, c.value]));
   // IMP-D1: pemegang bagan ber-NIP sementara — saran per baris + pilihan manual (PT baris sama).
   const holderById = useMemo(
@@ -361,22 +272,31 @@ export function PreviewStep({
             {errorRows.map((r) => {
               const errors = r.issues.filter((i) => i.severity === "ERROR");
               return (
-                <li
-                  key={r.sourceRow}
-                  className="truncate"
-                  title={errors.map((i) => issueText(i, columnOf)).join("\n")}
-                >
-                  <span className="text-muted-foreground">Baris {r.sourceRow} · </span>
-                  <span className="font-medium">{r.fullName ?? "(tanpa nama)"}</span>
-                  <span className="text-destructive"> — {errors.map(issueShort).join("; ")}</span>
+                <li key={r.sourceRow} className="truncate">
+                  {/* Paket B: klik → lompat ke sel yang salah di tabel. */}
+                  <button
+                    type="button"
+                    title={errors.map((i) => issueText(i, columnOf)).join("\n")}
+                    onClick={() => {
+                      if (filter === "READY" || filter === "SKIP") setFilter("ALL");
+                      setJump((j) => ({
+                        sourceRow: r.sourceRow,
+                        field: errors[0]?.field ?? null,
+                        nonce: (j?.nonce ?? 0) + 1,
+                      }));
+                    }}
+                    className="hover:bg-destructive/10 max-w-full truncate rounded text-left"
+                  >
+                    <span className="text-muted-foreground">Baris {r.sourceRow} · </span>
+                    <span className="font-medium">{r.fullName ?? "(tanpa nama)"}</span>
+                    <span className="text-destructive"> — {errors.map(issueShort).join("; ")}</span>
+                  </button>
                 </li>
               );
             })}
           </ul>
           <p className="text-muted-foreground mt-2 text-xs">
-            {errorRows.some((r) => issueHint(r.issues)?.includes("Excel"))
-              ? "Perbaiki di Excel lalu unggah lagi · "
-              : ""}
+            Klik untuk menuju selnya, lalu ketik isi yang benar ·{" "}
             <button
               type="button"
               onClick={onDownloadIssues}
@@ -433,119 +353,31 @@ export function PreviewStep({
         ) : null}
       </div>
 
-      <div
-        className={cn(
-          "bg-card overflow-hidden rounded-2xl border transition-opacity",
-          updating && "opacity-70",
-        )}
-      >
-        <div className="max-h-[60vh] overflow-auto">
-          <Table aria-label="Pratinjau baris import">
-            <TableHeader className="bg-card sticky top-0 z-10">
-              <TableRow>
-                <TableHead className="min-w-[220px]">Karyawan</TableHead>
-                <TableHead className={choosePt ? "w-[150px]" : "w-16"}>PT</TableHead>
-                {hasNewRows ? <TableHead className="w-[170px]">Status</TableHead> : null}
-                <TableHead className="w-24">Hasil</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => (
-                <TableRow key={r.sourceRow} className="align-top">
-                  <TableCell className="whitespace-normal">
-                    <p className="font-medium">{r.fullName ?? "-"}</p>
-                    <p className="text-muted-foreground text-xs">
-                      Baris {r.sourceRow} ·{" "}
-                      <span className="font-mono">{r.employeeNumber ?? "NIP belum ada"}</span>
-                    </p>
-                    {r.chartHolder &&
-                    preview.chartHolders.length > 0 &&
-                    (r.chartHolder.candidates.length > 0 ||
-                      r.chartHolder.choice ||
-                      showAllHolders) ? (
-                      <div className="mt-1.5 max-w-64">
-                        <LazySelect
-                          aria-label={`Pemegang bagan baris ${r.sourceRow}`}
-                          value={r.chartHolder.choice ?? ""}
-                          onChange={(v) => onChartHolderChoice(r.sourceRow, v)}
-                          placeholder={
-                            r.chartHolder.candidates.length > 0
-                              ? "Pilih: orang yang sama atau karyawan baru"
-                              : "Pilih orang di Struktur Organisasi…"
-                          }
-                          options={holderOptions(r)}
-                          searchable
-                          invalid={r.issues.some((i) => i.code.startsWith("CHART_HOLDER"))}
-                        />
-                        {r.chartHolder.choice && r.chartHolder.choice !== "NEW" ? (
-                          <p className="text-brand mt-1 text-xs">
-                            Melengkapi data orang di Struktur Organisasi (posisinya tetap)
-                          </p>
-                        ) : r.chartHolder.candidates.length > 0 && !r.chartHolder.choice ? (
-                          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                            Nama mirip orang di Struktur Organisasi — pilih dulu
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <div className="mt-1.5">
-                      <RowMessages row={r} columnOf={columnOf} fillEmpty={fillEmpty} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {choosePt ? (
-                      <LazySelect
-                        aria-label={`PT baris ${r.sourceRow}`}
-                        value={
-                          companyOverrides[String(r.sourceRow)] ??
-                          (r.companyCode ? companyIdByCode.get(r.companyCode) : undefined) ??
-                          AUTO
-                        }
-                        onChange={(v) => onCompanyOverride(r.sourceRow, v === AUTO ? "" : v)}
-                        placeholder="Pilih PT"
-                        options={rowCompanyOptions}
-                        invalid={r.issues.some((i) => i.field === "companyCode")}
-                      />
-                    ) : (
-                      (r.companyCode ?? "—")
-                    )}
-                  </TableCell>
-                  {hasNewRows ? (
-                    <TableCell>
-                      {r.newEmployee ? (
-                        <LazySelect
-                          aria-label={`Status kepegawaian baris ${r.sourceRow}`}
-                          value={
-                            statusOverrides[String(r.sourceRow)] ?? r.employmentStatusId ?? AUTO
-                          }
-                          onChange={(v) => onStatusOverride(r.sourceRow, v === AUTO ? "" : v)}
-                          placeholder="Pilih status"
-                          options={rowStatusOptions}
-                          invalid={r.issues.some((i) => i.field === "employmentStatusText")}
-                        />
-                      ) : (
-                        <span className="text-muted-foreground text-xs">Sudah ada</span>
-                      )}
-                    </TableCell>
-                  ) : null}
-                  <TableCell>
-                    <Badge variant={ACTION_BADGE[r.action]}>{RESULT_LABELS[r.action]}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={hasNewRows ? 4 : 3}
-                    className="text-muted-foreground py-10 text-center"
-                  >
-                    Tidak ada baris pada kategori ini.
-                  </TableCell>
-                </TableRow>
-              ) : null}
-            </TableBody>
-          </Table>
-        </div>
+      <div className={cn("transition-opacity", updating && "opacity-80")}>
+        <PreviewSheet
+          preview={preview}
+          rows={rows}
+          rawBySource={rawBySource}
+          fields={fields}
+          edits={edits}
+          pending={pending}
+          onEdit={onEdit}
+          fillEmpty={fillEmpty}
+          columnOf={columnOf}
+          companyOptions={companyOptions}
+          companyOverrides={companyOverrides}
+          onCompanyOverride={onCompanyOverride}
+          statusOptions={statusOptions}
+          statusOverrides={statusOverrides}
+          onStatusOverride={onStatusOverride}
+          holders={{
+            column: preview.chartHolders.length > 0 && (similarHolderRows > 0 || showAllHolders),
+            all: showAllHolders,
+          }}
+          holderOptions={holderOptions}
+          onChartHolderChoice={onChartHolderChoice}
+          jumpTo={jump}
+        />
       </div>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -565,13 +397,3 @@ export function PreviewStep({
     </div>
   );
 }
-
-const CHART_NEW = "NEW";
-
-/** Label hasil per baris di Pratinjau (IMP-D5: bahasa sehari-hari). */
-const RESULT_LABELS = {
-  CREATE: "Baru",
-  UPDATE: "Diperbarui",
-  SKIP: "Dilewati",
-  ERROR: "Perbaiki",
-} as const;
