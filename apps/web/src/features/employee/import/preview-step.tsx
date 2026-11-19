@@ -9,7 +9,7 @@ import {
   Save,
   Search,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import type { SelectOption } from "@/components/form-select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -208,6 +208,73 @@ export function PreviewStep({
     ];
   };
 
+  // Toolbar di atas grid: filter + cari (kiri), pemegang bagan & "Tampilkan kolom lain" (kanan).
+  const toolbar = (columnsButton: ReactNode) => (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
+          {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
+            const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
+            if (key === "SKIP" && count === 0) return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={filter === key}
+                onClick={() => setFilter(key)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
+                  filter === key
+                    ? "border-foreground bg-foreground text-background"
+                    : "bg-card text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {FILTER_LABELS[key]}
+                <span className="font-mono text-xs tabular-nums">{count}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <label className="relative">
+          <Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+            aria-hidden
+          />
+          <input
+            type="search"
+            aria-label="Cari nama atau NIP"
+            placeholder="Cari nama/NIP"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="bg-card focus-visible:ring-ring/50 h-8 w-44 rounded-full border pr-3 pl-8 text-sm outline-none focus-visible:ring-[3px]"
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {canPickOtherHolder ? (
+          <button
+            type="button"
+            aria-expanded={showAllHolders}
+            onClick={() => setShowAllHolders((v) => !v)}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-left text-sm underline-offset-4 hover:underline"
+          >
+            {showAllHolders
+              ? "Sembunyikan pilihan Struktur Organisasi"
+              : "Nama lain di Struktur Organisasi?"}
+            <ChevronDown
+              className={cn(
+                "size-3.5 shrink-0 transition-transform",
+                showAllHolders && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+        ) : null}
+        {columnsButton}
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* IMP-D5 "sekali lihat": ringkasan + pengaturan dalam satu baris. */}
@@ -335,67 +402,6 @@ export function PreviewStep({
         </section>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
-            {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
-              const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
-              if (key === "SKIP" && count === 0) return null;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={filter === key}
-                  onClick={() => setFilter(key)}
-                  className={cn(
-                    "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
-                    filter === key
-                      ? "border-foreground bg-foreground text-background"
-                      : "bg-card text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {FILTER_LABELS[key]}
-                  <span className="font-mono text-xs tabular-nums">{count}</span>
-                </button>
-              );
-            })}
-          </nav>
-          <label className="relative">
-            <Search
-              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
-              aria-hidden
-            />
-            <input
-              type="search"
-              aria-label="Cari nama atau NIP"
-              placeholder="Cari nama/NIP"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="bg-card focus-visible:ring-ring/50 h-8 w-44 rounded-full border pr-3 pl-8 text-sm outline-none focus-visible:ring-[3px]"
-            />
-          </label>
-        </div>
-        {canPickOtherHolder ? (
-          <button
-            type="button"
-            aria-expanded={showAllHolders}
-            onClick={() => setShowAllHolders((v) => !v)}
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-left text-sm underline-offset-4 hover:underline"
-          >
-            {showAllHolders
-              ? "Sembunyikan pilihan Struktur Organisasi"
-              : "Nama lain di Struktur Organisasi?"}
-            <ChevronDown
-              className={cn(
-                "size-3.5 shrink-0 transition-transform",
-                showAllHolders && "rotate-180",
-              )}
-              aria-hidden
-            />
-          </button>
-        ) : null}
-      </div>
-
       <div className={cn("transition-opacity", updating && "opacity-80")}>
         <PreviewSheet
           preview={preview}
@@ -420,6 +426,7 @@ export function PreviewStep({
           holderOptions={holderOptions}
           onChartHolderChoice={onChartHolderChoice}
           jumpTo={jump}
+          toolbar={toolbar}
         />
       </div>
 

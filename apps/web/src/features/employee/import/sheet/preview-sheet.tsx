@@ -8,7 +8,8 @@ import {
   type RawImportRow,
 } from "@hris/shared";
 import { Columns3 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDate } from "@/lib/format";
 import type { ImportPreview } from "../api";
@@ -98,6 +99,7 @@ export function PreviewSheet({
   holderOptions,
   onChartHolderChoice,
   jumpTo,
+  toolbar,
 }: {
   preview: ImportPreview;
   /** Baris yang tampil (sudah disaring). */
@@ -123,6 +125,8 @@ export function PreviewSheet({
   holderOptions: (row: Row) => SheetOption[];
   onChartHolderChoice: (sourceRow: number, value: string) => void;
   jumpTo?: { sourceRow: number; field: string | null; nonce: number } | null;
+  /** Toolbar di atas grid; menerima tombol "Tampilkan kolom lain" untuk diletakkan di kanan. */
+  toolbar: (columnsButton: ReactNode) => ReactNode;
 }) {
   const locked = useMemo(() => new Set(preview.skippedFields), [preview.skippedFields]);
   // Pilihan per baris dibaca lewat ref → daftar kolom tidak dihitung ulang tiap render.
@@ -275,6 +279,8 @@ export function PreviewSheet({
           text: RESULT[r.action].label,
           tone: RESULT[r.action].tone,
           error: errorText(rowLevel),
+          // Rincian non-error (Diisi/Dibiarkan/nonaktif/catatan) di tooltip sel Hasil (pengguna 19 Nov).
+          hint: rowInfo(r, fillEmpty, columnOf),
         };
         const companyOverride = companyOverrides[String(r.sourceRow)];
         const fileCompany =
@@ -368,9 +374,11 @@ export function PreviewSheet({
     if (fieldChanges.length > 0) onEdit(fieldChanges);
   };
 
-  // Keterangan baris aktif (satu baris di bawah grid): alasan error lengkap + perubahan yang akan terjadi.
+  // Pengguna 19 Nov ("Ganti jadi pesan error"): di bawah grid hanya pesan untuk sel terpilih yang bermasalah.
   const [active, setActive] = useState<{ row: number; column: string } | null>(null);
-  const activeRow = active ? rows[active.row] : undefined;
+  const activeError = active
+    ? sheetRows[active.row]?.cells[active.column]?.error?.replace(/\n/g, " · ")
+    : undefined;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: dipicu nonce
   const gridJump = useMemo(() => {
@@ -388,8 +396,41 @@ export function PreviewSheet({
     return { row: index, column, nonce: jumpTo.nonce };
   }, [jumpTo?.nonce]);
 
+  const columnsButton =
+    otherFields.length > 0 ? (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="shrink-0 rounded-full">
+            <Columns3 aria-hidden /> + Tampilkan kolom lain ({otherFields.length})
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="max-h-80 w-64 overflow-auto p-2">
+          <fieldset className="space-y-1">
+            <legend className="text-muted-foreground px-1 pb-1 text-xs">Tampilkan kolom</legend>
+            {otherFields.map((f) => (
+              <label
+                key={f}
+                className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={extra.includes(f)}
+                  onChange={(e) =>
+                    setExtra((cur) => (e.target.checked ? [...cur, f] : cur.filter((x) => x !== f)))
+                  }
+                />
+                <span className="truncate">{fieldLabel(f)}</span>
+                {locked.has(f) ? <span title="Tidak tersimpan untuk akun Anda">🔒</span> : null}
+              </label>
+            ))}
+          </fieldset>
+        </PopoverContent>
+      </Popover>
+    ) : null;
+
   return (
     <div className="space-y-2">
+      <div className="pb-1">{toolbar(columnsButton)}</div>
       <SheetGrid
         label="Pratinjau baris import"
         columns={columns}
@@ -398,61 +439,9 @@ export function PreviewSheet({
         onActiveChange={(row, column) => setActive({ row, column })}
         jumpTo={gridJump}
       />
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-        {activeRow ? (
-          <RowDetails
-            row={activeRow}
-            activeField={active?.column.startsWith("f:") ? active.column.slice(2) : null}
-            issues={[
-              ...activeRow.issues.filter(
-                (i) => !(i.field && pending.has(cellId(activeRow.sourceRow, i.field))),
-              ),
-              ...(clientIssues.get(activeRow.sourceRow) ?? []).filter(
-                (i) => i.field && pending.has(cellId(activeRow.sourceRow, i.field)),
-              ),
-            ]}
-            fillEmpty={fillEmpty}
-            columnOf={columnOf}
-          />
-        ) : (
-          <span />
-        )}
-        {otherFields.length > 0 ? (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1 text-sm underline-offset-4 hover:underline"
-              >
-                <Columns3 className="size-3.5" aria-hidden /> Kolom lain ({otherFields.length})
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="max-h-80 w-64 overflow-auto p-2">
-              <fieldset className="space-y-1">
-                <legend className="text-muted-foreground px-1 pb-1 text-xs">Tampilkan kolom</legend>
-                {otherFields.map((f) => (
-                  <label
-                    key={f}
-                    className="hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={extra.includes(f)}
-                      onChange={(e) =>
-                        setExtra((cur) =>
-                          e.target.checked ? [...cur, f] : cur.filter((x) => x !== f),
-                        )
-                      }
-                    />
-                    <span className="truncate">{fieldLabel(f)}</span>
-                    {locked.has(f) ? <span title="Tidak tersimpan untuk akun Anda">🔒</span> : null}
-                  </label>
-                ))}
-              </fieldset>
-            </PopoverContent>
-          </Popover>
-        ) : null}
-      </div>
+      <p className="text-destructive text-sm" aria-live="polite">
+        {activeError ? `⚠ ${activeError}` : ""}
+      </p>
     </div>
   );
 }
@@ -471,55 +460,26 @@ function fieldColumn(field: ImportFieldKey, isLocked: boolean): SheetColumn {
   };
 }
 
-function RowDetails({
-  row,
-  activeField,
-  issues,
-  fillEmpty,
-  columnOf,
-}: {
-  row: Row;
-  activeField: string | null;
-  issues: ImportRowIssue[];
-  fillEmpty: boolean;
-  columnOf: (field: ImportFieldKey) => number | undefined;
-}) {
-  const errors = issues
-    .filter((i) => i.severity === "ERROR")
-    .sort((a, b) => Number(b.field === activeField) - Number(a.field === activeField));
-  const warnings = issues.filter((i) => i.severity === "WARNING");
-  return (
-    <div className="min-w-0 space-y-0.5 text-sm" aria-live="polite">
-      <p className="text-muted-foreground">
-        Baris {row.sourceRow} · <span className="text-foreground">{row.fullName ?? "-"}</span>
-        {row.attachments > 0 ? ` · ${row.attachments} lampiran Google Drive` : ""}
-      </p>
-      {errors.map((i) => (
-        <p key={`${i.field}-${i.code}`} className="text-destructive">
-          {issueText(i, columnOf)}
-        </p>
-      ))}
-      {row.deactivate ? (
-        <p>
-          Akan dinonaktifkan: {EXIT_REASON_LABELS[row.deactivate.reason]} per{" "}
-          {formatDate(row.deactivate.date)}
-        </p>
-      ) : null}
-      {row.action === "UPDATE" && row.changes.length > 0 ? (
-        <p className="text-muted-foreground">
-          {fillEmpty ? "Diisi" : "Berubah"}: {row.changes.map(fieldLabel).join(", ")}
-        </p>
-      ) : null}
-      {row.kept.length > 0 ? (
-        <p className="text-muted-foreground">
-          Dibiarkan (sudah berisi, beda): {row.kept.map(fieldLabel).join(", ")}
-        </p>
-      ) : null}
-      {warnings.map((i) => (
-        <p key={`w-${i.field}-${i.code}`} className="text-warning-soft-foreground text-xs">
-          {issueText(i, columnOf)}
-        </p>
-      ))}
-    </div>
-  );
+/** Rincian baris yang bukan error: yang akan berubah/dibiarkan/dinonaktifkan, catatan, lampiran. */
+function rowInfo(
+  row: Row,
+  fillEmpty: boolean,
+  columnOf: (field: ImportFieldKey) => number | undefined,
+): string | undefined {
+  const lines = [
+    row.deactivate
+      ? `Akan dinonaktifkan: ${EXIT_REASON_LABELS[row.deactivate.reason]} per ${formatDate(row.deactivate.date)}`
+      : null,
+    row.action === "UPDATE" && row.changes.length > 0
+      ? `${fillEmpty ? "Diisi" : "Berubah"}: ${row.changes.map(fieldLabel).join(", ")}`
+      : null,
+    row.kept.length > 0
+      ? `Dibiarkan (sudah berisi, beda): ${row.kept.map(fieldLabel).join(", ")}`
+      : null,
+    ...row.issues
+      .filter((i) => i.severity === "WARNING")
+      .map((i) => `Catatan — ${issueText(i, columnOf)}`),
+    row.attachments > 0 ? `${row.attachments} lampiran Google Drive` : null,
+  ].filter(Boolean);
+  return lines.length > 0 ? lines.join("\n") : undefined;
 }

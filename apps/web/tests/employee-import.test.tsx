@@ -508,15 +508,16 @@ describe("Import Data Karyawan", () => {
     };
     expect(body.mode).toBe("FILL_EMPTY");
     expect(screen.getByText(/Isi yang kosong saja · PT ACP/)).toBeInTheDocument();
-    // Paket B: rincian baris aktif tampil di bawah grid.
-    await user.click(cell(1, "NIP"));
-    expect(screen.getByText(/^Diisi: /)).toBeInTheDocument();
-    expect(screen.getByText(/^Dibiarkan \(sudah berisi, beda\): /)).toBeInTheDocument();
-    expect(screen.queryByText(/^Berubah: /)).not.toBeInTheDocument();
+    // Paket B (pengguna 19 Nov): rincian non-error ada di tooltip sel Hasil; di bawah grid hanya pesan error.
+    const info = cell(1, "Hasil").getAttribute("title") ?? "";
+    expect(info).toMatch(/^Diisi: /m);
+    expect(info).toMatch(/^Dibiarkan \(sudah berisi, beda\): /m);
+    expect(info).not.toMatch(/^Berubah: /m);
     // IMP-D3: karyawan yang cocok & masih aktif dinonaktifkan dari kolom status keluar.
-    expect(
-      screen.getByText(/^Akan dinonaktifkan: Mengundurkan diri per 31 Mei 2026/),
-    ).toBeInTheDocument();
+    expect(info).toMatch(/^Akan dinonaktifkan: Mengundurkan diri per 31 Mei 2026/m);
+    await user.click(cell(1, "NIP"));
+    expect(screen.queryByText(/^⚠/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Baris 3 · /)).not.toBeInTheDocument();
   });
 
   it("IMP-D1: saran pemegang bagan per baris + daftar belum dilengkapi; pilihan dikirim", async () => {
@@ -729,7 +730,10 @@ describe("Import Data Karyawan", () => {
     await user.click(cell(0, "NIP"));
     await user.keyboard("{Delete}");
     expect(cell(0, "NIP")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByText(/^NIP \(kolom B\): /, { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByText(/^⚠ NIP \(kolom B\): /, { selector: "p" })).toBeInTheDocument();
+    // Sel tanpa masalah dipilih → tidak ada teks di bawah grid.
+    await user.click(cell(1, "Nama lengkap"));
+    expect(screen.queryByText(/^⚠/)).not.toBeInTheDocument();
   });
 
   it("Paket B: kolom 🔒 (akun tanpa izin) terkunci; tempel blok dari Excel melewatinya", async () => {
@@ -745,7 +749,7 @@ describe("Import Data Karyawan", () => {
     );
     await screen.findByText(/siap disimpan/);
     // skippedFields = ktpNumber → kolom NIK KTP abu-abu, isi disamarkan, tidak bisa diubah.
-    await user.click(screen.getByRole("button", { name: /Kolom lain/ }));
+    await user.click(screen.getByRole("button", { name: /Tampilkan kolom lain/ }));
     await user.click(screen.getByRole("checkbox", { name: /NIK KTP/ }));
     await user.keyboard("{Escape}");
     const ktp = cell(0, "NIK KTP");

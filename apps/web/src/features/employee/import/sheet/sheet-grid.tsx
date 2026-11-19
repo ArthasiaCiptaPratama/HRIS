@@ -44,6 +44,8 @@ export type SheetCell = {
   value?: string;
   /** Pesan kesalahan → sel merah, aria-invalid, tooltip. */
   error?: string;
+  /** Keterangan non-error (tooltip). */
+  hint?: string;
   /** Diubah di layar (titik biru). */
   edited?: boolean;
   /** Nilai turunan/bawaan (bukan dari file) → abu-abu. */
@@ -106,7 +108,7 @@ const Cell = memo(function Cell({
       aria-invalid={cell?.error ? true : undefined}
       aria-readonly={readOnly || undefined}
       data-col={colIndex}
-      title={cell?.error}
+      title={cell?.error ?? cell?.hint}
       className={cn(
         "absolute top-0 flex items-center gap-1 overflow-hidden border-r border-b px-2 whitespace-nowrap",
         frozen ? "bg-card sticky left-0 z-10 font-medium" : "bg-card",
@@ -746,7 +748,7 @@ export function SheetGrid({
           ) : null}
         </div>
       </div>
-      <p className="text-muted-foreground min-h-5 text-xs" aria-live="polite">
+      <p className="text-muted-foreground text-xs" aria-live="polite">
         {notice}
       </p>
     </div>

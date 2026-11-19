@@ -8,6 +8,7 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Keputusan:** —
 - **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); web 63→64 file test ✔ (baru `import-sheet-grid` 3). Uji visual 977/1440/1630 px × 3/13/2.000 baris (`paket-b/`): lebar penuh tanpa celah, tinggi pas isi (selisih 0 px), 2.000 baris dibatasi sisa layar & bisa digulir sampai baris 2.000.
 - **Masalah / catatan:** `f6260c7` sempat masuk dengan 1 error lint test, diperbaiki `7bde3ca`. Temuan lama: tombol Simpan berlabel "Simpan 0 lampiran" saat tidak ada baris siap (dinonaktifkan; label membingungkan) — usulkan "Simpan" saja.
+- **Susulan:** tombol "Tampilkan kolom lain" pindah ke toolbar atas; keterangan "Baris N · Nama" diganti pesan error sel terpilih saja; rincian non-error ke tooltip sel Hasil (jawaban dialog pengguna via supervisor). Web 446 ✔.
 - **Berikutnya:** gabung B3-API setelah uji tempel; B2.
 
 ### 2026-11-19 — Paket B: spike B0 + B1 Pratinjau seperti spreadsheet (IMP-D6) (Oatse)
