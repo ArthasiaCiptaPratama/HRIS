@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Paket B3 API: audit sel yang diubah (IMP-D6) (Oatse)
+- **Dikerjakan:** API `employee-import.schema.ts` `editedCells` opsional di commit; `employee-import.service.ts` `summarizeEditedCells` → audit `employee.import.completed`; test integration (audit tanpa nilai, isian tak dikenal 400, regresi HR tanpa izin). Dikerjakan di worktree terpisah supaya API dev tidak restart selama pengguna menguji tempel, lalu di-cherry-pick (`57ab6f3`).
+- **Keputusan:** — (IMP-D6 butir 1: audit tanpa nilai)
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); API 1.434 test ✔ (import + openapi 63). Uji tempel sungguhan dari Excel oleh pengguna ✔ (14:57 WIB).
+- **Masalah / catatan:** OpenAPI `EmployeeImportCommit` bertambah field opsional `editedCells` → kabar Mat ditunda (supervisor).
+- **Berikutnya:** B2 pilih blok.
+
 ### 2026-11-19 — Paket B: cari, editedCells (web), grid tanpa celah (IMP-D6) (Oatse)
 - **Dikerjakan:** kotak cari nama/NIP (`preview-step.tsx`); web mengirim `editedCells` saat Simpan (`api.ts`, `import-page.tsx`; API membuangnya sampai B3-API digabung); grid mengisi lebar kotak (`stretchColumns`) & tinggi mengikuti isi dengan batas sisa layar, tebal scrollbar diukur; kotak "Perlu diperbaiki" maks 5 baris (KUTIPAN PENGGUNA "otomatis fill gada gap" via supervisor). API audit `editedCells` dikerjakan di worktree `HRIS-b3` (commit lokal `25da3ed`, integration 63 ✔) dan ditahan supaya API dev tidak restart selama pengguna menguji tempel.
 - **Keputusan:** —
