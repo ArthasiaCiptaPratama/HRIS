@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Paket B2: pilih blok di grid Pratinjau (IMP-D6) (Oatse)
+- **Dikerjakan:** `sheet/sheet-grid.tsx`: `anchor` blok (Shift+panah, Shift+klik, seret), salin blok TSV, tempel ke blok (satu nilai mengisi blok), Delete blok, Esc, `aria-selected` pada sel blok, penanda `bg-brand-soft`.
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); web test ✔ (employee-import 25, baru 2 test B2); uji visual 1440 px `paket-b/1440-b2-blok.png`.
+- **Masalah / catatan:** uji tempel sungguhan oleh pengguna lulus (14:57 WIB) untuk B1; tempel ke blok dari Excel belum diuji pengguna.
+- **Berikutnya:** paket C (wizard/riwayat) setelah uji dengan staf HR; rilis staging sesuai antrean.
+
 ### 2026-11-19 — Paket B3 API: audit sel yang diubah (IMP-D6) (Oatse)
 - **Dikerjakan:** API `employee-import.schema.ts` `editedCells` opsional di commit; `employee-import.service.ts` `summarizeEditedCells` → audit `employee.import.completed`; test integration (audit tanpa nilai, isian tak dikenal 400, regresi HR tanpa izin). Dikerjakan di worktree terpisah supaya API dev tidak restart selama pengguna menguji tempel, lalu di-cherry-pick (`57ab6f3`).
 - **Keputusan:** — (IMP-D6 butir 1: audit tanpa nilai)
