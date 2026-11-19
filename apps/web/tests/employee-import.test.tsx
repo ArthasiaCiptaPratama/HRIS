@@ -744,6 +744,26 @@ describe("Import Data Karyawan", () => {
     expect(cell(0, "NIK KTP")).toHaveTextContent("••••0001");
   });
 
+  it("Paket B3: cari nama/NIP menyaring baris grid (termasuk NIP yang sudah diubah)", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    const search = screen.getByRole("searchbox", { name: "Cari nama atau NIP" });
+    await user.type(search, "budi");
+    expect(cell(0, "Nama lengkap")).toHaveTextContent("Budi Contoh");
+    expect(sheet().querySelector('[data-row="1"]')).toBeNull();
+    await user.clear(search);
+    await user.dblClick(cell(0, "NIP"));
+    const input = screen.getByRole("textbox", { name: "NIP baris 2" });
+    await user.clear(input);
+    await user.type(input, "BARU-77{Enter}");
+    await user.type(search, "baru-77");
+    expect(cell(0, "Nama lengkap")).toHaveTextContent("Ani Contoh");
+    expect(sheet().querySelector('[data-row="1"]')).toBeNull();
+  });
+
   it("Paket B: klik baris di kotak Perlu diperbaiki → sel yang salah aktif di grid", async () => {
     mockBackend();
     const user = userEvent.setup();

@@ -7,6 +7,7 @@ import {
   CloudDownload,
   Loader2,
   Save,
+  Search,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { SelectOption } from "@/components/form-select";
@@ -138,10 +139,19 @@ export function PreviewStep({
   const [filter, setFilter] = useState<Filter>("ALL");
   const writable = counts.create + counts.update;
   const errorRows = useMemo(() => preview.rows.filter((r) => r.action === "ERROR"), [preview.rows]);
-  const rows = useMemo(
-    () => preview.rows.filter((r) => matchesFilter(filter, r.action)),
-    [preview.rows, filter],
-  );
+  // Paket B3: cari nama/NIP (nilai file atau yang sudah diubah di layar).
+  const [query, setQuery] = useState("");
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return preview.rows.filter((r) => {
+      if (!matchesFilter(filter, r.action)) return false;
+      if (!q) return true;
+      const changed = edits[r.sourceRow] ?? {};
+      return [r.fullName, r.employeeNumber, changed.fullName, changed.employeeNumber].some((v) =>
+        v?.toLowerCase().includes(q),
+      );
+    });
+  }, [preview.rows, filter, query, edits]);
   // IMP-D5 (pengguna 19 Nov, opsi a): pilihan pemegang bagan hanya tampil di baris yang namanya mirip
   // (atau sudah dipilih); baris lain lewat satu tautan di atas tabel, bukan tautan per baris.
   const [showAllHolders, setShowAllHolders] = useState(false);
@@ -279,6 +289,7 @@ export function PreviewStep({
                     title={errors.map((i) => issueText(i, columnOf)).join("\n")}
                     onClick={() => {
                       if (filter === "READY" || filter === "SKIP") setFilter("ALL");
+                      setQuery("");
                       setJump((j) => ({
                         sourceRow: r.sourceRow,
                         field: errors[0]?.field ?? null,
@@ -309,29 +320,45 @@ export function PreviewStep({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
-          {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
-            const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
-            if (key === "SKIP" && count === 0) return null;
-            return (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={filter === key}
-                onClick={() => setFilter(key)}
-                className={cn(
-                  "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
-                  filter === key
-                    ? "border-foreground bg-foreground text-background"
-                    : "bg-card text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {FILTER_LABELS[key]}
-                <span className="font-mono text-xs tabular-nums">{count}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <div className="flex flex-wrap items-center gap-2">
+          <nav aria-label="Saring baris" className="flex flex-wrap gap-1.5">
+            {(["ALL", "READY", "ERROR", "SKIP"] as const).map((key) => {
+              const count = preview.rows.filter((r) => matchesFilter(key, r.action)).length;
+              if (key === "SKIP" && count === 0) return null;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={filter === key}
+                  onClick={() => setFilter(key)}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
+                    filter === key
+                      ? "border-foreground bg-foreground text-background"
+                      : "bg-card text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {FILTER_LABELS[key]}
+                  <span className="font-mono text-xs tabular-nums">{count}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <label className="relative">
+            <Search
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+              aria-hidden
+            />
+            <input
+              type="search"
+              aria-label="Cari nama atau NIP"
+              placeholder="Cari nama/NIP"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="bg-card focus-visible:ring-ring/50 h-8 w-44 rounded-full border pr-3 pl-8 text-sm outline-none focus-visible:ring-[3px]"
+            />
+          </label>
+        </div>
         {canPickOtherHolder ? (
           <button
             type="button"
