@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSelectedCompany } from "@/features/employee/company-scope";
@@ -162,6 +162,23 @@ function mockBackend({
 const csvFile = (name = "karyawan.csv", content = CSV) =>
   new File([content], name, { type: "text/csv" });
 
+// Paket B (IMP-D6): sel grid Pratinjau berdasarkan urutan baris tampil & judul kolom.
+const sheet = () => screen.getByRole("grid", { name: "Pratinjau baris import" });
+function cell(rowIndex: number, header: string): HTMLElement {
+  const head = within(sheet())
+    .getAllByRole("columnheader")
+    .find((h) => h.textContent?.trim() === header);
+  if (!head) throw new Error(`kolom ${header} tidak ada`);
+  const col = Number(head.getAttribute("aria-colindex")) - 1;
+  const el = sheet().querySelector<HTMLElement>(`[data-row="${rowIndex}"] [data-col="${col}"]`);
+  if (!el) throw new Error(`sel ${rowIndex}:${header} tidak ada`);
+  return el;
+}
+const lastPreview = (requests: { path: string; body: unknown }[]) =>
+  requests.filter((r) => r.path === "/employee-imports/preview").at(-1)?.body as {
+    rows: { sourceRow: number; raw: Record<string, unknown> }[];
+  } & Record<string, unknown>;
+
 beforeEach(() => {
   authState.session = { access_token: "t", user: { id: "u" } };
   setSelectedCompany(null);
@@ -180,8 +197,9 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
-    expect(await screen.findByText(/3 lampiran Google Drive/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/3 foto\/dokumen dari Google Drive diambil setelah disimpan/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Simpan 3 lampiran" })).toBeEnabled();
   });
 
@@ -189,16 +207,20 @@ describe("Import Data Karyawan", () => {
     const requests = mockBackend();
     const user = userEvent.setup();
     renderAt("/personal/import?dari=pkwt");
+    // IMP-D5: stepper 4 langkah sejak awal (Pemetaan hanya disisipkan bila perlu).
+    expect(
+      within(await screen.findByRole("list", { name: "Langkah import" })).queryByText(/Pemetaan/),
+    ).not.toBeInTheDocument();
 
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
 
-    // Pemetaan: kolom NO diabaikan, NIK KARYAWAN → nomor induk, NAMA → nama lengkap.
-    expect(await screen.findByRole("table", { name: "Pemetaan kolom" })).toBeInTheDocument();
-    expect(screen.getByText(/Header baris 1 · 2 baris data/)).toBeInTheDocument();
-    expect(screen.queryByText(/Petakan kolom/)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Lanjut" }));
-    expect(await screen.findByText("Akan dibuat")).toBeInTheDocument();
+    // IMP-D5: semua kolom dikenali + ada NIP → langkah Pemetaan dilewati otomatis (kolom NO diabaikan,
+    // NIK KARYAWAN → nomor induk, NAMA → nama lengkap); stepper tinggal 4 langkah.
+    expect(await screen.findByText(/siap disimpan/)).toBeInTheDocument();
+    expect(screen.getByText(/✔ 4 kolom dikenali/)).toBeInTheDocument();
+    const stepper = screen.getByRole("list", { name: "Langkah import" });
+    expect(within(stepper).queryByText(/Pemetaan/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Pilih kolom mana yang berisi/)).not.toBeInTheDocument();
     // Pratinjau dibuka dengan "Semua" (bukan hanya Error) supaya pilihan per baris terlihat.
     expect(screen.getByRole("button", { name: /^Semua/ })).toHaveAttribute("aria-pressed", "true");
 
@@ -229,12 +251,23 @@ describe("Import Data Karyawan", () => {
     // pengaturan, kolom sensitif dilewati, masalah per baris dengan letak kolom.
     expect(screen.queryByText("Lengkapi data", { selector: "h2" })).not.toBeInTheDocument();
     expect(screen.getByText(/1 nilai unit \(1 unit baru\)/)).toBeInTheDocument();
-    expect(screen.getByText("Kolom sensitif dilewati")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Unduh baris bermasalah \(1\)/ }),
+      screen.getByText(/kolom data pribadi tidak tersimpan untuk akun Anda/),
     ).toBeInTheDocument();
+    // IMP-D5: baris error dirangkum di atas tabel dengan pesan sehari-hari + nama isian & kolom.
+    const fix = screen.getByRole("region", { name: "Perlu diperbaiki" });
+    expect(within(fix).getByText(/Perlu diperbaiki \(1 baris\)/)).toBeInTheDocument();
+    expect(within(fix).getByText(/Email sudah dipakai/)).toBeInTheDocument();
+    expect(within(fix).getByRole("button", { name: "Unduh 1 baris" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Simpan 1 karyawan" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    const save = await screen.findByRole("dialog", { name: "Simpan 1 karyawan?" });
+    expect(
+      within(save).getByText(/1 baris yang perlu diperbaiki tidak ikut disimpan/),
+    ).toBeInTheDocument();
+    expect(within(save).getByRole("button", { name: /Unduh 1 baris/ })).toBeInTheDocument();
+    await user.click(within(save).getByRole("button", { name: "Ya, simpan 1" }));
     expect(await screen.findByText("Import selesai")).toBeInTheDocument();
     const commitReq = requests.find((r) => r.path === "/employee-imports" && r.method === "POST");
     expect(commitReq?.body).toMatchObject({ previewHash: "hash-1" });
@@ -251,20 +284,21 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan + 1 lampiran" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
 
     expect(await screen.findByText("Data karyawan tersimpan")).toBeInTheDocument();
     expect(screen.getByText("Memproses lampiran")).toBeInTheDocument();
     expect(await screen.findByText("Mengunduh…")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Import file lain/ }));
-    const dialog = await screen.findByRole("dialog", { name: "Lampiran masih diproses" });
+    const dialog = await screen.findByRole("dialog", { name: "Foto & dokumen masih diambil" });
     await user.click(within(dialog).getByRole("button", { name: "Tetap di sini" }));
     expect(screen.getByText("Data karyawan tersimpan")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Import file lain/ }));
-    await user.click(await screen.findByRole("button", { name: "Jeda & import file lain" }));
+    await user.click(await screen.findByRole("button", { name: "Ya, import file lain" }));
     expect(await screen.findByLabelText("Pilih file import")).toBeInTheDocument();
   });
 
@@ -273,12 +307,15 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
     await waitFor(() =>
       expect(requests.filter((r) => r.path === "/employee-imports/preview")).toHaveLength(2),
     );
     await user.click(await screen.findByRole("button", { name: "Simpan 1 karyawan" }));
+    // IMP-D5: ada baris yang perlu diperbaiki → konfirmasi simpan.
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
     expect(await screen.findByText("Import selesai")).toBeInTheDocument();
   });
 
@@ -287,6 +324,12 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    // Pemetaan dilewati otomatis → "Ubah" membukanya lagi (dan langkahnya kembali ke stepper).
+    await user.click(await screen.findByRole("button", { name: "Ubah" }));
+    expect(
+      within(screen.getByRole("list", { name: "Langkah import" })).getByText(/Pemetaan/),
+    ).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Lihat / ubah rincian" }));
     await screen.findByRole("table", { name: "Pemetaan kolom" });
     // Tertutup: tidak ada pilihan field di DOM (penyebab lag pada file ratusan kolom).
     expect(screen.queryAllByRole("option")).toHaveLength(0);
@@ -330,12 +373,12 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
 
     expect(await screen.findByText("Lengkapi data", { selector: "h2" })).toBeInTheDocument();
     expect(screen.getByText(/2 karyawan baru belum punya status/)).toBeInTheDocument();
-    expect(screen.getByText(/1 nilai belum jelas unitnya/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Lanjut ke pratinjau/ })).toBeDisabled();
+    expect(screen.getByText("— 1 perlu dipilih")).toBeInTheDocument();
+    expect(screen.getByText("2 hal perlu dipilih")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lanjut" })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: /Pakai saran untuk 1 nilai/ }));
     await waitFor(() => {
@@ -349,6 +392,27 @@ describe("Import Data Karyawan", () => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ defaultEmploymentStatusId: "st-2" });
     });
+
+    // IMP-D5: sudah ada pilihan → "Ganti file" minta konfirmasi; Batal mempertahankan langkah.
+    await user.click(screen.getByRole("button", { name: "Kembali" }));
+    await user.click(await screen.findByRole("button", { name: /Ganti file/ }));
+    const dialog = await screen.findByRole("dialog", { name: "Ganti file?" });
+    await user.click(within(dialog).getByRole("button", { name: "Batal" }));
+    expect(screen.getByRole("button", { name: /Ganti file/ })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Ganti file/ }));
+    await user.click(await screen.findByRole("button", { name: "Ya, ganti file" }));
+    expect(await screen.findByLabelText("Pilih file import")).toBeInTheDocument();
+  });
+
+  it("IMP-D5: Ganti file tanpa pilihan apa pun langsung kembali ke Unggah (tanpa dialog)", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await user.click(await screen.findByRole("button", { name: "Ubah" }));
+    await user.click(await screen.findByRole("button", { name: /Ganti file/ }));
+    expect(screen.queryByRole("dialog", { name: "Ganti file?" })).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Pilih file import")).toBeInTheDocument();
   });
 
   it("EMP-D6: homebase baru tampil di master data baru; pemetaan ke homebase yang ada dikirim", async () => {
@@ -368,13 +432,16 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
 
     expect(await screen.findByText("Lengkapi data", { selector: "h2" })).toBeInTheDocument();
-    await user.click(screen.getByText(/2 jabatan, lokasi, atau homebase baru akan dibuat/));
-    expect(screen.getByText("Homebase: Palangkaraya")).toBeInTheDocument();
-    await user.click(screen.getByRole("combobox", { name: "Pemetaan Homebase: Palangkaraya" }));
-    await user.click(await screen.findByRole("option", { name: "Palangka Raya" }));
+    // IMP-D5: daftar master baru selalu terlihat; yang mirip data lama diberi tanda + "Pakai yang ada".
+    const fresh = screen.getByRole("region", { name: "Akan dibuat baru" });
+    expect(within(fresh).getByText("Akan dibuat baru (2)")).toBeInTheDocument();
+    expect(within(fresh).getByText(/Mirip: Palangka Raya/)).toBeInTheDocument();
+    expect(
+      within(fresh).getByRole("combobox", { name: "Pemetaan Homebase: Palangkaraya" }),
+    ).toBeInTheDocument();
+    await user.click(within(fresh).getByRole("button", { name: "Pakai yang ada" }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({
@@ -392,8 +459,10 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
-    await user.click(await screen.findByRole("button", { name: "Status kepegawaian baris 3" }));
+    // Paket B: status per baris = sel pilihan di grid (klik dua kali → daftar).
+    await screen.findByText(/siap disimpan/);
+    await user.dblClick(cell(1, "Status"));
+    expect(screen.getByRole("combobox", { name: "Status baris 3" })).toBeInTheDocument();
     await user.click(screen.getByRole("option", { name: "PKWT" }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
@@ -420,28 +489,35 @@ describe("Import Data Karyawan", () => {
     const requests = mockBackend({ previewData: fill });
     const user = userEvent.setup();
     renderAt("/personal/import");
+    // IMP-D5: mode dilipat jadi satu baris "Mode: … · Ubah".
+    expect(await screen.findByText("Tambah + perbarui")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Ubah/ }));
     const card = await screen.findByRole("radio", { name: /Isi yang kosong saja/ });
     expect(screen.getByRole("radio", { name: /Tambah \+ perbarui/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     await user.click(card);
-    expect(card).toHaveAttribute("aria-checked", "true");
+    // Setelah memilih, pilihan dilipat lagi dan baris Mode menampilkan mode terpilih.
+    expect(screen.queryByRole("radio", { name: /Isi yang kosong saja/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Isi yang kosong saja")).toBeInTheDocument();
     await user.upload(screen.getByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
-    expect(await screen.findByText("Akan dibuat")).toBeInTheDocument();
+    expect(await screen.findByText(/siap disimpan/)).toBeInTheDocument();
     const body = requests.find((r) => r.path === "/employee-imports/preview")?.body as {
       mode: string;
     };
     expect(body.mode).toBe("FILL_EMPTY");
     expect(screen.getByText(/Isi yang kosong saja · PT ACP/)).toBeInTheDocument();
-    expect(screen.getByText(/^Diisi: /)).toBeInTheDocument();
-    expect(screen.getByText(/^Dibiarkan \(sudah berisi, beda\): /)).toBeInTheDocument();
-    expect(screen.queryByText(/^Berubah: /)).not.toBeInTheDocument();
+    // Paket B (pengguna 19 Nov): rincian non-error ada di tooltip sel Hasil; di bawah grid hanya pesan error.
+    const info = cell(1, "Hasil").getAttribute("title") ?? "";
+    expect(info).toMatch(/^Diisi: /m);
+    expect(info).toMatch(/^Dibiarkan \(sudah berisi, beda\): /m);
+    expect(info).not.toMatch(/^Berubah: /m);
     // IMP-D3: karyawan yang cocok & masih aktif dinonaktifkan dari kolom status keluar.
-    expect(
-      screen.getByText(/^Akan dinonaktifkan: Mengundurkan diri per 31 Mei 2026/),
-    ).toBeInTheDocument();
+    expect(info).toMatch(/^Akan dinonaktifkan: Mengundurkan diri per 31 Mei 2026/m);
+    await user.click(cell(1, "NIP"));
+    expect(screen.queryByText(/^⚠/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Baris 3 · /)).not.toBeInTheDocument();
   });
 
   it("IMP-D1: saran pemegang bagan per baris + daftar belum dilengkapi; pilihan dikirim", async () => {
@@ -473,17 +549,31 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
-    expect(await screen.findByText("Pemegang bagan yang belum dilengkapi: 2")).toBeInTheDocument();
-    expect(screen.getByText("Mirip pemegang bagan — pilih dulu")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 2" }));
+    expect(
+      await screen.findByText("1 nama mirip orang di Struktur Organisasi"),
+    ).toBeInTheDocument();
+    // Paket B: kolom Struktur Organisasi di grid; baris mirip ditandai sampai dipilih.
+    expect(cell(0, "Struktur Organisasi")).toHaveAttribute(
+      "title",
+      "Nama mirip orang di Struktur Organisasi — pilih dulu",
+    );
+    expect(cell(0, "Struktur Organisasi")).toHaveAttribute("aria-invalid", "true");
+    // IMP-D5: baris tanpa kemiripan tidak bisa dipilih sampai dibuka.
+    expect(cell(1, "Struktur Organisasi")).toHaveAttribute("aria-readonly", "true");
+    await user.dblClick(cell(0, "Struktur Organisasi"));
     await user.click(screen.getByRole("option", { name: /Ani Contoh · ASLI-ACP-X-1/ }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ chartHolderChoices: { "2": "h-1" } });
     });
     // Baris tanpa saran tetap bisa memilih manual dari pemegang bagan lain.
-    await user.click(screen.getByRole("button", { name: "Pemegang bagan baris 3" }));
+    // IMP-D5 (opsi a): satu tautan di atas tabel membuka pilihan untuk semua baris.
+    await user.click(
+      screen.getByRole("button", {
+        name: /Nama lain di Struktur Organisasi/,
+      }),
+    );
+    await user.dblClick(cell(1, "Struktur Organisasi"));
     await user.click(screen.getByRole("option", { name: /Budi C\. · ASLI-ACP-Y-1/ }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
@@ -498,7 +588,15 @@ describe("Import Data Karyawan", () => {
     await user.click(await screen.findByRole("button", { name: "Panduan import" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Panduan import data karyawan")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Lengkapi data/, { selector: "p" })).toBeInTheDocument();
+    // IMP-D5: hanya langkah aktif yang terbuka; langkah lain berupa judul yang bisa diklik.
+    expect(within(dialog).getByRole("button", { name: /Unggah file/ })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    const complete = within(dialog).getByRole("button", { name: /Lengkapi data/ });
+    expect(complete).toHaveAttribute("aria-expanded", "false");
+    await user.click(complete);
+    expect(within(dialog).getByText(/Pakai saran/)).toBeInTheDocument();
     const current = within(dialog)
       .getAllByRole("listitem")
       .find((li) => li.getAttribute("aria-current") === "step");
@@ -510,7 +608,9 @@ describe("Import Data Karyawan", () => {
     const user = userEvent.setup({ applyAccept: false });
     renderAt("/personal/import");
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile("lama.xls"));
-    expect(await screen.findByText(/\.xls \(Excel 97–2003\) belum didukung/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/\.xls \(Excel versi lama\) belum bisa dibaca/),
+    ).toBeInTheDocument();
     // Isi file tidak dikirim (cek lampiran tertunda D-060 bukan kiriman file).
     expect(
       requests.some(
@@ -528,8 +628,12 @@ describe("Import Data Karyawan", () => {
       await screen.findByLabelText("Pilih file import"),
       csvFile("x.csv", "NAMA;JABATAN\nAni Contoh;Staff\nBudi Contoh;Staff"),
     );
-    expect(await screen.findByText(/Petakan kolom/)).toBeInTheDocument();
+    expect(await screen.findByText(/Pilih kolom mana yang berisi/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lanjut" })).toBeDisabled();
+    // Pemetaan perlu dicek → langkahnya disisipkan ke stepper.
+    expect(
+      within(screen.getByRole("list", { name: "Langkah import" })).getByText(/Pemetaan/),
+    ).toBeInTheDocument();
   });
 
   it("SA dengan 2 PT: PT tidak dipilih di langkah Unggah, tetapi di Lengkapi data (per baris di Pratinjau)", async () => {
@@ -552,15 +656,229 @@ describe("Import Data Karyawan", () => {
     await screen.findByLabelText("Pilih file import");
     expect(screen.queryByText("Perusahaan bawaan")).not.toBeInTheDocument();
     await user.upload(screen.getByLabelText("Pilih file import"), csvFile());
-    await user.click(await screen.findByRole("button", { name: "Lanjut" }));
     expect(await screen.findByText(/2 karyawan belum punya PT/)).toBeInTheDocument();
-    expect(screen.getByText("1 bagian lagi perlu diselesaikan")).toBeInTheDocument();
+    expect(screen.getByText("1 hal perlu dipilih")).toBeInTheDocument();
     await user.click(screen.getByRole("combobox", { name: "Perusahaan bawaan" }));
     await user.click(await screen.findByRole("option", { name: /CD2/ }));
     await waitFor(() => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ companyId: CD2.id });
     });
+  });
+
+  it("Paket B: ubah sel di grid → pratinjau diulang dengan nilai baru, penanda ubahan, Ctrl+Z membatalkan", async () => {
+    const requests = mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    // Kolom penting + kolom yang punya error (Email kantor) tampil; sel salah ditandai.
+    expect(cell(1, "Email kantor")).toHaveAttribute("aria-invalid", "true");
+    expect(cell(1, "Email kantor")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/Email kantor: Email ini sudah dipakai/),
+    );
+
+    await user.dblClick(cell(1, "NIP"));
+    const input = screen.getByRole("textbox", { name: "NIP baris 3" });
+    await user.clear(input);
+    await user.type(input, "ACP-9999{Enter}");
+    expect(cell(1, "NIP")).toHaveTextContent("ACP-9999");
+    expect(within(cell(1, "NIP")).getByLabelText("diubah")).toBeInTheDocument();
+    await waitFor(
+      () => expect(lastPreview(requests).rows[1]?.raw.employeeNumber).toBe("ACP-9999"),
+      { timeout: 4000 },
+    );
+
+    await user.click(cell(1, "NIP"));
+    await user.keyboard("{Control>}z{/Control}");
+    expect(cell(1, "NIP")).toHaveTextContent("ACP-9002");
+    expect(within(cell(1, "NIP")).queryByLabelText("diubah")).not.toBeInTheDocument();
+  });
+
+  it("Paket B3: Simpan setelah mengubah sel → editedCells (baris + isian, tanpa nilai) ikut dikirim", async () => {
+    const requests = mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.dblClick(cell(1, "NIP"));
+    const input = screen.getByRole("textbox", { name: "NIP baris 3" });
+    await user.clear(input);
+    await user.type(input, "ACP-9999{Enter}");
+    await waitFor(
+      () => expect(lastPreview(requests).rows[1]?.raw.employeeNumber).toBe("ACP-9999"),
+      { timeout: 4000 },
+    );
+    await user.click(screen.getByRole("button", { name: "Simpan 1 karyawan" }));
+    await user.click(await screen.findByRole("button", { name: "Ya, simpan 1" }));
+    await screen.findByText("Import selesai");
+    const commit = requests.find((r) => r.path === "/employee-imports" && r.method === "POST");
+    expect(commit?.body).toMatchObject({
+      editedCells: [{ sourceRow: 3, field: "employeeNumber" }],
+    });
+    const sent = commit?.body as { editedCells?: unknown } | undefined;
+    expect(JSON.stringify(sent?.editedCells)).not.toContain("ACP-9999");
+  });
+
+  it("Paket B: sel dikosongkan → langsung ditandai (cek di browser) sebelum server memeriksa", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.click(cell(0, "NIP"));
+    await user.keyboard("{Delete}");
+    expect(cell(0, "NIP")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/^⚠ NIP \(kolom B\): /, { selector: "p" })).toBeInTheDocument();
+    // Sel tanpa masalah dipilih → tidak ada teks di bawah grid.
+    await user.click(cell(1, "Nama lengkap"));
+    expect(screen.queryByText(/^⚠/)).not.toBeInTheDocument();
+  });
+
+  it("Paket B: kolom 🔒 (akun tanpa izin) terkunci; tempel blok dari Excel melewatinya", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(
+      await screen.findByLabelText("Pilih file import"),
+      csvFile(
+        "ktp.csv",
+        "NO;NIK KARYAWAN;NAMA;NO KTP;NO HP\n1;ACP-9001;Ani Contoh;3201010101010001;0812-abc\n2;ACP-9002;Budi Contoh;3201010101010002;081299990002",
+      ),
+    );
+    await screen.findByText(/siap disimpan/);
+    // skippedFields = ktpNumber → kolom NIK KTP abu-abu, isi disamarkan, tidak bisa diubah.
+    await user.click(screen.getByRole("button", { name: /Tampilkan kolom lain/ }));
+    await user.click(screen.getByRole("checkbox", { name: /NIK KTP/ }));
+    await user.keyboard("{Escape}");
+    const ktp = cell(0, "NIK KTP");
+    expect(ktp).toHaveTextContent("••••0001");
+    expect(ktp).toHaveAttribute("aria-readonly", "true");
+    await user.dblClick(ktp);
+    expect(screen.queryByRole("textbox", { name: /NIK KTP baris/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/NIK KTP tidak tersimpan untuk akun Anda/)).toBeInTheDocument();
+
+    // Tempel 1 baris × 2 sel mulai kolom NIK KTP: KTP dilewati, sel sesudahnya terisi.
+    const header = within(sheet())
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent?.trim());
+    const next = header[header.indexOf("NIK KTP") + 1] as string;
+    await user.click(ktp);
+    fireEvent.paste(sheet(), {
+      clipboardData: { getData: () => "3209999999999999\tisi baru\r\n" },
+    });
+    expect(screen.getByText(/1 sel ditempel, 1 dilewati/)).toBeInTheDocument();
+    expect(cell(0, next)).toHaveTextContent("isi baru");
+    expect(cell(0, "NIK KTP")).toHaveTextContent("••••0001");
+  });
+
+  it("tanpa baris siap & tanpa lampiran → tombol nonaktif berlabel Simpan (bukan Simpan 0 lampiran)", async () => {
+    mockBackend({
+      previewData: {
+        ...preview,
+        counts: { ...preview.counts, create: 0, error: 2 },
+        rows: preview.rows.map((r) => ({
+          ...r,
+          action: "ERROR",
+          issues: [{ field: "workEmail", code: "EMAIL_TAKEN", severity: "ERROR" }],
+        })),
+      },
+    });
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    expect(await screen.findByRole("button", { name: "Simpan" })).toBeDisabled();
+    expect(screen.queryByText("Simpan 0 lampiran")).not.toBeInTheDocument();
+  });
+
+  it("Paket B2: pilih blok (Shift+panah / Shift+klik), salin blok TSV, Delete blok, Ctrl+Z satu langkah, Esc", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.click(cell(0, "NIP"));
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    expect(cell(0, "NIP")).toHaveAttribute("aria-selected", "true");
+    expect(cell(1, "NIP")).toHaveAttribute("aria-selected", "true");
+    expect(cell(1, "Nama lengkap")).toHaveAttribute("aria-selected", "false");
+
+    // Shift+klik memperluas blok sampai kolom Jabatan.
+    await user.keyboard("{Shift>}");
+    await user.click(cell(1, "Jabatan"));
+    await user.keyboard("{/Shift}");
+    expect(cell(0, "Jabatan")).toHaveAttribute("aria-selected", "true");
+    expect(cell(0, "PT")).toHaveAttribute("aria-selected", "true");
+
+    // Salin blok → TSV dari NIP s.d. Jabatan, dua baris.
+    let copied = "";
+    fireEvent.copy(sheet(), {
+      clipboardData: { setData: (_type: string, text: string) => (copied = text) },
+    });
+    const lines = copied.split("\r\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]?.split("\t")[0]).toBe("ACP-9001");
+    expect(lines[1]?.split("\t").at(-1)).toBe("Staff Uji");
+
+    // Esc membatalkan blok; pilih ulang NIP dua baris lalu Delete → keduanya kosong, Ctrl+Z sekali kembali.
+    await user.keyboard("{Escape}");
+    expect(cell(0, "NIP")).toHaveAttribute("aria-selected", "false");
+    await user.click(cell(0, "NIP"));
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}{Delete}");
+    expect(cell(0, "NIP")).toHaveTextContent("");
+    expect(cell(1, "NIP")).toHaveTextContent("");
+    expect(screen.getByText("2 sel dikosongkan.")).toBeInTheDocument();
+    await user.keyboard("{Control>}z{/Control}");
+    expect(cell(0, "NIP")).toHaveTextContent("ACP-9001");
+    expect(cell(1, "NIP")).toHaveTextContent("ACP-9002");
+  });
+
+  it("Paket B2: satu nilai ditempel ke blok → mengisi seluruh blok", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    await user.click(cell(0, "Jabatan"));
+    await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+    fireEvent.paste(sheet(), { clipboardData: { getData: () => "Operator\r\n" } });
+    expect(cell(0, "Jabatan")).toHaveTextContent("Operator");
+    expect(cell(1, "Jabatan")).toHaveTextContent("Operator");
+    expect(screen.getByText("2 sel ditempel.")).toBeInTheDocument();
+  });
+
+  it("Paket B3: cari nama/NIP menyaring baris grid (termasuk NIP yang sudah diubah)", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    await screen.findByText(/siap disimpan/);
+    const search = screen.getByRole("searchbox", { name: "Cari nama atau NIP" });
+    await user.type(search, "budi");
+    expect(cell(0, "Nama lengkap")).toHaveTextContent("Budi Contoh");
+    expect(sheet().querySelector('[data-row="1"]')).toBeNull();
+    await user.clear(search);
+    await user.dblClick(cell(0, "NIP"));
+    const input = screen.getByRole("textbox", { name: "NIP baris 2" });
+    await user.clear(input);
+    await user.type(input, "BARU-77{Enter}");
+    await user.type(search, "baru-77");
+    expect(cell(0, "Nama lengkap")).toHaveTextContent("Ani Contoh");
+    expect(sheet().querySelector('[data-row="1"]')).toBeNull();
+  });
+
+  it("Paket B: klik baris di kotak Perlu diperbaiki → sel yang salah aktif di grid", async () => {
+    mockBackend();
+    const user = userEvent.setup();
+    renderAt("/personal/import");
+    await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
+    const fix = await screen.findByRole("region", { name: "Perlu diperbaiki" });
+    await user.click(within(fix).getByRole("button", { name: /Budi Contoh/ }));
+    const target = cell(1, "Email kantor");
+    expect(target).toHaveAttribute("aria-selected", "true");
+    expect(sheet()).toHaveAttribute("aria-activedescendant", target.id);
+    expect(sheet()).toHaveFocus();
   });
 
   it("Data Karyawan Aktif menampilkan tombol Import untuk HR; EMPLOYEE tidak bisa membuka halaman import", async () => {

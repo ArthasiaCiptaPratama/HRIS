@@ -136,20 +136,23 @@ describe("Lampiran Google Drive di Import", () => {
     const user = userEvent.setup();
     renderAt("/personal/import");
 
-    expect(await screen.findByText("Lampiran Google Drive belum selesai")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Lanjutkan" }));
-
-    expect(await screen.findByText("File Drive tidak bisa dibuka")).toBeInTheDocument();
     expect(
-      screen.getByText(/2 dari 2 lampiran · 1 masuk · 0 dilewati · 1 gagal/),
+      await screen.findByText("Foto & dokumen dari Google Drive yang belum selesai diambil"),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lihat & lanjutkan" }));
+
+    // IMP-D5: satu baris progres; alasan per lampiran ada di Rincian.
+    expect(await screen.findByText("1 gagal", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/2 dari 2 diambil · 1 masuk/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Rincian \(1 perlu dicek\)/ }));
+    expect(screen.getByText("File Drive tidak bisa dibuka")).toBeInTheDocument();
     const processCalls = () =>
       requests.filter((r) => r.path.endsWith("/attachments/process")).length;
     expect(processCalls()).toBe(2);
 
     await user.click(screen.getByRole("button", { name: /Coba lagi yang gagal/ }));
     await waitFor(() => expect(processCalls()).toBe(3));
-    expect(await screen.findByText(/2 masuk · 0 dilewati · 0 gagal/)).toBeInTheDocument();
+    expect(await screen.findByText(/2 dari 2 diambil · 2 masuk/)).toBeInTheDocument();
   });
 
   it("koneksi putus / 503 sesaat → dicoba ulang otomatis tanpa error, lalu selesai", async () => {
@@ -165,11 +168,11 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
 
     // Batas waktu longgar: 5 panggilan berurutan + jeda coba ulang, aman saat CI/mesin sibuk.
     expect(
-      await screen.findByText(/2 masuk · 0 dilewati · 0 gagal/, {}, { timeout: 5000 }),
+      await screen.findByText(/2 dari 2 diambil · 2 masuk/, {}, { timeout: 5000 }),
     ).toBeInTheDocument();
     expect(requests.filter((r) => r.path.endsWith("/attachments/process"))).toHaveLength(5);
     expect(screen.queryByText("Tidak dapat terhubung ke server.")).not.toBeInTheDocument();
@@ -183,9 +186,9 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
     expect(
-      await screen.findByText(/1 masuk · 0 dilewati · 0 gagal/, {}, { timeout: 5000 }),
+      await screen.findByText(/1 dari 1 diambil · 1 masuk/, {}, { timeout: 5000 }),
     ).toBeInTheDocument();
     expect(requests.filter((r) => r.path.endsWith("/attachments/process"))).toHaveLength(2);
     expect(screen.queryByText("Tidak dapat terhubung ke server.")).not.toBeInTheDocument();
@@ -199,7 +202,7 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
     expect(
       await screen.findByText("Tidak dapat terhubung ke server.", {}, { timeout: 5000 }),
     ).toBeInTheDocument();
@@ -220,7 +223,7 @@ describe("Lampiran Google Drive di Import", () => {
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    await user.click(await screen.findByRole("button", { name: "Lanjutkan" }));
+    await user.click(await screen.findByRole("button", { name: "Lihat & lanjutkan" }));
     expect(
       await screen.findByText(/Google Drive belum dikonfigurasi di server/),
     ).toBeInTheDocument();

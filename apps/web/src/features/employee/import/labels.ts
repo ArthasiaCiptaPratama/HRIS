@@ -24,7 +24,7 @@ export function maskValue(value: string): string {
   return `••••${text.slice(-4)}`;
 }
 
-/** "Kolom AC · NIK KTP: Harus 16 digit". */
+/** "No. HP (kolom AD): Bukan nomor HP. Contoh …" — nama isian dulu, letak kolom sebagai keterangan (IMP-D5). */
 export function issueText(
   issue: Pick<ImportRowIssue, "field" | "code">,
   columnOf: (field: ImportFieldKey) => number | undefined,
@@ -32,8 +32,10 @@ export function issueText(
   const message = IMPORT_ISSUE_MESSAGES[issue.code] ?? issue.code;
   if (!issue.field) return message;
   const column = columnOf(issue.field);
-  const where = column === undefined ? "" : `Kolom ${columnLetter(column)} · `;
-  return `${where}${fieldLabel(issue.field)}: ${message}`;
+  const where = column === undefined ? "" : ` (kolom ${columnLetter(column)})`;
+  // "NIP (nomor induk pegawai)" → "NIP" supaya tidak ada kurung ganda dengan letak kolom.
+  const label = fieldLabel(issue.field).replace(/\s*\([^)]*\)$/, "");
+  return `${label}${where}: ${message}`;
 }
 
 /** D-060: tujuan lampiran → teks. */
@@ -46,16 +48,18 @@ export const ACTION_LABELS = {
   ERROR: "Error",
 } as const;
 
-/** Petunjuk tindakan untuk error baris di Pratinjau (yang tidak tercantum: perbaiki di file). */
+/** Petunjuk tindakan untuk error baris di Pratinjau (yang tidak tercantum: perbaiki di file Excel). */
 const ISSUE_HINTS: Record<string, string> = {
-  NO_IDENTITY: "Isi NIP atau perbaiki NIK KTP di file, lalu unggah ulang.",
-  UNIT_UNMATCHED: "Pilih unitnya di langkah Lengkapi data.",
-  UNIT_INVALID: "Pilih ulang unitnya di langkah Lengkapi data.",
-  COMPANY_REQUIRED: "Pilih PT di kolom PT baris ini atau PT bawaan di Lengkapi data.",
+  NO_IDENTITY: "Isi NIP atau No. KTP di file Excel, lalu unggah ulang.",
+  UNIT_UNMATCHED: "Kembali ke langkah Lengkapi data dan pilih departemennya.",
+  UNIT_INVALID: "Kembali ke langkah Lengkapi data dan pilih ulang departemennya.",
+  COMPANY_REQUIRED: "Pilih PT di kolom PT baris ini.",
   CATEGORY_REQUIRED: "Pilih status di kolom Status baris ini.",
   STATUS_INVALID: "Pilih status lain di kolom Status baris ini.",
+  CHART_HOLDER_CHOICE_REQUIRED:
+    "Pilih di bawah nama karyawan: orang yang sama, atau karyawan baru.",
   HOMEBASE_FUTURE_DATE:
-    "Isi tanggal berlaku homebase paling lambat hari ini di file (kosongkan = tanggal masuk/hari ini).",
+    "Isi tanggal berlaku homebase paling lambat hari ini di file Excel (boleh dikosongkan).",
 };
 
 /** Satu kalimat "apa yang harus dilakukan" untuk error-error satu baris. */
@@ -64,6 +68,45 @@ export function issueHint(issues: Pick<ImportRowIssue, "code" | "severity">[]): 
   if (errors.length === 0) return null;
   const hints = [...new Set(errors.map((i) => ISSUE_HINTS[i.code]).filter(Boolean))];
   if (errors.some((i) => !ISSUE_HINTS[i.code]))
-    hints.push("Perbaiki di file (Unduh baris bermasalah), lalu unggah ulang.");
+    hints.push("Perbaiki isinya di file Excel, lalu unggah ulang file itu.");
   return hints.join(" ");
+}
+
+/** IMP-D5 "sekali lihat": ringkasan pendek per kode untuk daftar/tabel; pesan lengkap + contoh di tooltip. */
+const SHORT_ISSUES: Record<string, string> = {
+  INVALID_PHONE: "salah",
+  INVALID_EMAIL: "tidak lengkap",
+  INVALID_NPWP: "harus 15/16 angka",
+  INVALID_LENGTH_16: "harus 16 angka",
+  INVALID_DATE: "tidak terbaca",
+  REQUIRED: "belum diisi",
+  NO_IDENTITY: "isi NIP atau No. KTP",
+  UNKNOWN_GENDER: "tidak dikenali",
+  UNKNOWN_PTKP: "tidak dikenali",
+  UNKNOWN_EMPLOYMENT_STATUS: "tidak dikenali",
+  COMPANY_UNKNOWN: "PT belum terdaftar",
+  COMPANY_REQUIRED: "PT belum dipilih",
+  CATEGORY_REQUIRED: "status belum dipilih",
+  JOIN_DATE_REQUIRED: "tanggal masuk belum diisi",
+  POSITION_REQUIRED: "jabatan/departemen belum diisi",
+  DUPLICATE_IN_FILE: "NIP dobel di file",
+  DUPLICATE_KTP_IN_FILE: "No. KTP dobel di file",
+  KTP_TAKEN: "No. KTP sudah dipakai",
+  EMAIL_TAKEN: "email sudah dipakai",
+  PERSONAL_EMAIL_TAKEN: "email sudah dipakai",
+  CHART_HOLDER_CHOICE_REQUIRED: "pilih: orang yang sama atau baru",
+};
+
+/** "No. HP salah", "Isi NIP atau No. KTP" — satu frasa pendek; fallback = pesan lengkap. */
+export function issueShort(issue: Pick<ImportRowIssue, "field" | "code">): string {
+  const short = SHORT_ISSUES[issue.code];
+  if (!short) return IMPORT_ISSUE_MESSAGES[issue.code] ?? issue.code;
+  if (
+    issue.code === "NO_IDENTITY" ||
+    !issue.field ||
+    /^(PT|status|tanggal|jabatan|NIP|No\. KTP|email|pilih)/.test(short)
+  )
+    return short.charAt(0).toUpperCase() + short.slice(1);
+  const label = fieldLabel(issue.field).replace(/\s*\([^)]*\)$/, "");
+  return `${label} ${short}`;
 }
