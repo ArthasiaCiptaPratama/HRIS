@@ -115,11 +115,13 @@ function Stepper({
 }: {
   current: Step;
   processing?: boolean;
-  /** IMP-D5: Pemetaan dilewati otomatis → stepper 4 langkah. */
+  /** IMP-D5: Pemetaan tidak tampil (belum/tidak perlu) → stepper 4 langkah. */
   skipMapping?: boolean;
 }) {
   const steps = skipMapping ? STEPS.filter((s) => s.key !== "mapping") : STEPS;
-  const index = steps.findIndex((s) => s.key === current);
+  // Sedang memeriksa file (Pemetaan belum/tidak tampil) → masih di langkah Unggah.
+  const shown = skipMapping && current === "mapping" ? "upload" : current;
+  const index = steps.findIndex((s) => s.key === shown);
   return (
     <ol className="mb-6 flex flex-wrap items-center gap-2 text-sm" aria-label="Langkah import">
       {steps.map((step, i) => (
@@ -488,6 +490,12 @@ export function ImportEmployeesPage() {
     setStep("mapping");
   }
 
+  // IMP-D5 (supervisor 19 Nov): stepper 4 langkah sejak awal; "Pemetaan kolom" disisipkan hanya bila langkah itu
+  // benar-benar tampil (ada kolom yang kurang yakin / NIP & No. KTP tidak ada, atau dibuka lewat "Ubah").
+  const mappingChecking =
+    step === "mapping" && (autoPreview || (mappingSkipped && previewMutation.isPending));
+  const mappingShown = step !== "upload" && !mappingSkipped && !mappingChecking;
+
   function reset() {
     setStep("upload");
     setWorkbook(null);
@@ -565,11 +573,7 @@ export function ImportEmployeesPage() {
           </div>
         }
       />
-      <Stepper
-        current={step}
-        processing={attachmentsBusy}
-        skipMapping={mappingSkipped && step !== "mapping"}
-      />
+      <Stepper current={step} processing={attachmentsBusy} skipMapping={!mappingShown} />
       {mappingSkipped && (step === "complete" || step === "preview") ? (
         <p className="text-muted-foreground -mt-3 mb-4 text-sm">
           ✔ {mapping.filter(Boolean).length} kolom dikenali ·{" "}
@@ -717,7 +721,7 @@ export function ImportEmployeesPage() {
         </div>
       ) : null}
 
-      {step === "mapping" && (autoPreview || (mappingSkipped && previewMutation.isPending)) ? (
+      {mappingChecking ? (
         <p
           className="text-muted-foreground flex items-center gap-2 py-10 text-sm"
           aria-live="polite"

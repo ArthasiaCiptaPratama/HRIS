@@ -190,6 +190,10 @@ describe("Import Data Karyawan", () => {
     const requests = mockBackend();
     const user = userEvent.setup();
     renderAt("/personal/import?dari=pkwt");
+    // IMP-D5: stepper 4 langkah sejak awal (Pemetaan hanya disisipkan bila perlu).
+    expect(
+      within(await screen.findByRole("list", { name: "Langkah import" })).queryByText(/Pemetaan/),
+    ).not.toBeInTheDocument();
 
     await user.upload(await screen.findByLabelText("Pilih file import"), csvFile());
 
@@ -602,6 +606,10 @@ describe("Import Data Karyawan", () => {
     );
     expect(await screen.findByText(/Pilih kolom mana yang berisi/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lanjut" })).toBeDisabled();
+    // Pemetaan perlu dicek → langkahnya disisipkan ke stepper.
+    expect(
+      within(screen.getByRole("list", { name: "Langkah import" })).getByText(/Pemetaan/),
+    ).toBeInTheDocument();
   });
 
   it("SA dengan 2 PT: PT tidak dipilih di langkah Unggah, tetapi di Lengkapi data (per baris di Pratinjau)", async () => {
