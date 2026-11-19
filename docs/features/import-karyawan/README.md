@@ -56,7 +56,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] (tambahan 2026-11-19: kutipan pengguna 11:01 WIB "Pastikan setiap dialog pop up dsb jg diperhatikann") teks dialog, toast, pesan gagal baca file & keadaan memuat di alur import ditinjau ulang (bahasa sehari-hari, tombol "Ya, …")
   - [x] Uji visual lokal (Zen headless, akun HR Admin, template HRIS + baris salah): Unggah, dialog Panduan, pesan file .xls, pemetaan ringkas, Lengkapi data + tanda Mirip, Pratinjau 977 & 1440 px tanpa geser — `QA/2026-11-19-import-ux/sesudah/01–08`; **belum diverifikasi visual**: Simpan/Selesai & toast tersimpan (tidak menulis DB lokal), dialog "Foto & dokumen masih diambil" & panel lampiran (butuh Drive), toast 409
   - [x] (tambahan 2026-11-19: temuan uji visual) teks kartu info Pemetaan ("Lembar", "Isi file", "Ingat pilihan kolom…"), label isian tanpa kurung ganda, singkatan "Asst/Spv/Mgr" ikut ditandai Mirip
-  - [ ] Paket B (perbaiki langsung di layar) — setelah A, menunggu rencana
+  - [x] (tambahan 2026-11-19: jawaban pengguna 11:23 WIB via supervisor) tautan pemegang bagan per baris diganti **satu tautan di atas tabel** (baris mirip tetap selalu menampilkan pilihan); konfirmasi **"Ganti file?"** (hanya bila sudah ada pilihan) & **"Simpan N karyawan?"** (hanya bila ada baris perlu diperbaiki; tombol Batal / Unduh N baris dulu / Ya, simpan); kartu & panel lampiran: teks sehari-hari, alasan di bawah nama lampiran (tanpa geser), alasan API lampiran tanpa istilah IT; tombol Pratinjau tidak terpotong di 977 px. Uji visual `sesudah/09–14`; dialog "Foto & dokumen masih diambil" & toast 409 hanya lewat test unit (lampiran uji gagal seketika; ubah No. HP tidak memicu 409)
+  - [ ] Paket B versi spreadsheet (arahan pengguna 11:30 WIB "tampilan seperti spreadsheets … ubah langsung") — rencana dulu
 
 ## Keputusan
 

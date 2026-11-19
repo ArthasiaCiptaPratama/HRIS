@@ -16,7 +16,8 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Keputusan:** IMP-D5 (README).
 - **Verifikasi:** lihat entri commit (test import shared/web, typecheck, biome, boundaries; uji visual lokal).
 - **Masalah / catatan:** alasan lampiran Drive per item (`reason`) berasal dari API — belum ditinjau (paket A tanpa ubah API). Konfirmasi baru untuk "Ganti file"/"Simpan" tidak ditambahkan (butuh sketsa).
-- **Berikutnya:** paket B (perbaiki di layar) setelah A disetujui pengguna.
+- **Tambahan (jawaban pengguna 11:23 WIB):** satu tautan pemegang bagan di atas tabel; dialog "Ganti file?" & "Simpan N karyawan?" (judul ikut lampiran bila tanpa karyawan); teks kartu/panel/alasan lampiran (`open-attachments.tsx`, `attachments-panel.tsx`, api `employee-import-attachments.service.ts` teks saja); bilah tombol Pratinjau bisa turun baris. Verifikasi: web import 45 ✔, api `import-attachments` 8 ✔, shared 138 ✔, typecheck/boundaries ✔. Catatan uji: tab headless di latar menahan animasi (judul halaman `animate-fade-up` kosong, dialog tertutup tetap terlihat) — perilaku browser untuk tab tersembunyi, bukan bug paket A. Data uji lokal: karyawan dummy QA-UX-01/02 + 2 job lampiran gagal (kartu "belum selesai" di akun HR lokal) — dibersihkan setelah ada kata pengguna.
+- **Berikutnya:** rencana paket B versi spreadsheet (arahan pengguna 11:30 WIB).
 
 ### 2026-11-16 — Kolom Grade/Level = kode level HR (IMP-D4) (Oatse)
 - **Dikerjakan:** `employee-import.service.ts` — diff kode HR (`hrLevelCode`), tanpa master Grade (cek arsip & nama baru dihapus), peringatan `HR_LEVEL_*` di Pratinjau (`levelVotes`, `knownPosition`), simpan `hrLevelCode` + `fillEmptyPositionLevels`; shared label "Level (kode HR)" + pesan isu; web teks "Lengkapi data" tanpa grade.
