@@ -3,6 +3,10 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-18 — EMP-D7 dirilis ke staging gel. 33 (supervisor/Oatse)
+- PR #103/#104, Deploy #44243406376 ✔ (isi `488267e`; tanpa migrasi/env; OpenAPI staging 369 operasi, `POST /employees/export` baru — tidak dipakai app mobile).
+- Data staging: karyawan uji baru Oatse Rizqy Hendarto `TEST-2026-0008` (`oatse@arthasia.test`, Magang · TI · ACP · Kantor Head Office, akun Karyawan; sandi tidak dicatat di docs), lihat log TM 2026-11-18.
+
 ### 2026-11-18 — Ekspor massal data karyawan ke Excel (EMP-D7) (Oatse)
 - Permintaan pengguna: ekspor bulk data karyawan dengan pilihan data, hasil Excel, tombol di samping Import tiap kategori Data Karyawan Aktif. Grill: baris + kolom, multi-sheet, SA + HR dengan kolom sensitif ber-grant, kode setelah merge Mat; rencana disetujui "lanjut".
 - Implementasi didelegasikan ke Codex (sol-medium, worktree `cw` 1118-105829, 2 ronde: ronde 2 = label enum Indonesia). Review penuh (risiko tinggi): cakupan `scopeWhere`/`buildWhere` dipakai ulang, relasi diambil ulang dengan cakupan yang sama, izin per PT karyawan, batas 5.000 dibaca sebelum relasi sensitif. Deviasi diterima: Keluarga ikut butuh grant data pribadi.

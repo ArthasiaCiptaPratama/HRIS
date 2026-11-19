@@ -93,3 +93,61 @@ export function childUnitType(parent: OrgUnitType): OrgUnitType {
   if (parent === "DIVISION") return "DEPARTMENT";
   return "SECTION";
 }
+
+/** Kata-kata nama (tanpa keterangan kurung), huruf kecil. */
+function nameWords(value: string): string[] {
+  return value
+    .replace(/\([^)]*\)/g, " ")
+    .normalize("NFKD")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+/** "asst" ⊂ "assistant", "spv" ⊂ "supervisor": huruf awal sama, sisanya muncul berurutan. */
+function isAbbreviationOf(short: string, long: string): boolean {
+  if (short[0] !== long[0]) return false;
+  let i = 0;
+  for (const ch of long) if (ch === short[i]) i++;
+  return i === short.length;
+}
+
+/**
+ * IMP-D5: kata demi kata sama atau salah satunya singkatan (≥ 3 huruf: awalan "Ass", atau huruf
+ * berurutan "Asst"/"Spv"/"Mgr") dari kata di posisi yang sama — "Ass Master Bor" ≈ "Assistant Master
+ * Bor", "Spv HSE" ≈ "Supervisor HSE". Hanya penanda, jadi longgar.
+ */
+export function wordPrefixSimilar(value: string, name: string): boolean {
+  const a = nameWords(value);
+  const b = nameWords(name);
+  if (a.length === 0 || a.length !== b.length) return false;
+  let shortened = false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i] ?? "";
+    const y = b[i] ?? "";
+    if (x === y) continue;
+    const [short, long] = x.length < y.length ? [x, y] : [y, x];
+    if (short.length < 3 || !isAbbreviationOf(short, long)) return false;
+    shortened = true;
+  }
+  return shortened;
+}
+
+/**
+ * IMP-D5: master yang mirip dengan nilai baru dari file (jabatan, lokasi kerja, homebase) — hanya
+ * PENANDA di langkah Lengkapi data, tidak pernah dipilih otomatis. Urutan: nama sama → kata disingkat →
+ * kemiripan unit (ejaan, singkatan huruf awal, awalan).
+ */
+export function findSimilarMaster<T extends { name: string }>(
+  value: string,
+  candidates: readonly T[],
+): T | null {
+  const key = unitKey(value);
+  if (!key) return null;
+  return (
+    candidates.find((c) => unitKey(c.name) === key) ??
+    candidates.find((c) => wordPrefixSimilar(value, c.name)) ??
+    candidates.find((c) => unitSimilarity(value, c.name) !== null) ??
+    null
+  );
+}

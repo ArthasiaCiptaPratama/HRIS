@@ -250,7 +250,7 @@ describe("Lampiran Google Drive di Import (D-060)", () => {
     const reason = (field: string) =>
       result.items.find((i: { field: string }) => i.field === field).reason;
     expect(reason("attachCertPop")).toContain("wajib tanggal kedaluwarsa");
-    expect(reason("attachDiploma")).toContain("dibagikan ke service account");
+    expect(reason("attachDiploma")).toContain("dibagikan ke akun HRIS (service account)");
 
     const employee = await prisma.employee.findUniqueOrThrow({ where: { id: employees.A } });
     expect(employee.photoPath).toContain(`employees/${employees.A}/`);

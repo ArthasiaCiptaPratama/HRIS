@@ -4,7 +4,7 @@ import {
   type OrgUnitType,
   UNIT_SIMILARITY_LABELS,
 } from "@hris/shared";
-import { CheckCheck, ListFilter } from "lucide-react";
+import { CheckCheck, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FormSelect, type SelectOption } from "@/components/form-select";
 import { LazySelect } from "@/components/lazy-select";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { MasterData } from "../schemas";
 import type { UnitChoice, UnitPreview } from "./api";
+import { InfoTip } from "./info-tip";
 
 // D-064: nilai kolom Departemen/Divisi → unit organisasi, per PT. Satu daftar dengan urutan tetap dari
 // server (baris tidak berpindah setelah dipilih). Nilai dropdown: "" = otomatis, "u:<id>" = unit yang
@@ -239,47 +240,25 @@ export function UnitMatching({
   onApplySuggestions: () => void;
   busy: boolean;
 }) {
-  const [onlyPending, setOnlyPending] = useState(false);
+  // IMP-D5 "sekali lihat": bawaannya hanya nilai yang perlu dipilih (dan yang diubah di layar ini, supaya
+  // baris tidak hilang setelah dipilih). Pilihan dari profil tersimpan tidak ikut; semua lewat "Lihat semua".
+  const [showAll, setShowAll] = useState(false);
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
+  const touch = (keys: string[]) => setTouched((prev) => new Set([...prev, ...keys]));
+  const choose = (key: string, choice: UnitChoice | null) => {
+    touch([key]);
+    onChoice(key, choice);
+  };
   const departments = master?.departments ?? [];
-  const pending = units.filter(needsUnitChoice).length;
-  const created = units.filter((u) => u.create).length;
-  const existing = units.length - pending - created;
   const suggestable = units.filter(
     (u) => u.status === "NEEDS_REVIEW" && u.suggestions.length > 0 && !choices[u.key],
   ).length;
   const showCompany = new Set(units.map((u) => u.companyId)).size > 1;
-  const shown = onlyPending ? units.filter(needsUnitChoice) : units;
+  const focused = units.filter((u) => needsUnitChoice(u) || touched.has(u.key));
+  const shown = showAll ? units : focused;
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm">
-          <span className={cn(pending > 0 && "text-warning-soft-foreground font-medium")}>
-            {pending} perlu dipilih
-          </span>
-          <span className="text-muted-foreground">
-            {" "}
-            · {existing} sudah ada · {created} unit baru
-          </span>
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {pending > 0 || onlyPending ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-pressed={onlyPending}
-              onClick={() => setOnlyPending((v) => !v)}
-            >
-              <ListFilter /> {onlyPending ? "Tampilkan semua" : "Hanya yang perlu dipilih"}
-            </Button>
-          ) : null}
-          {suggestable > 0 ? (
-            <Button variant="outline" size="sm" onClick={onApplySuggestions} disabled={busy}>
-              <CheckCheck /> Pakai saran untuk {suggestable} nilai
-            </Button>
-          ) : null}
-        </div>
-      </div>
       {shown.length > 0 ? (
         <ul className="divide-y overflow-hidden rounded-xl border">
           {shown.map((unit) => (
@@ -290,19 +269,44 @@ export function UnitMatching({
               choice={choices[unit.key]}
               departments={departments}
               showCompany={showCompany}
-              onChoice={onChoice}
+              onChoice={choose}
             />
           ))}
         </ul>
-      ) : (
-        <p className="text-muted-foreground rounded-xl border p-4 text-sm">
-          Tidak ada lagi yang perlu dipilih.
-        </p>
-      )}
-      <p className="text-muted-foreground text-xs">
-        Karyawan ditempatkan di unit paling bawah dari kolom Departemen dan Divisi. Nilai yang belum
-        ada dibuat sebagai unit baru milik PT karyawannya.
-      </p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        {suggestable > 0 ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              touch(units.filter(needsUnitChoice).map((u) => u.key));
+              onApplySuggestions();
+            }}
+            disabled={busy}
+          >
+            <CheckCheck /> Pakai saran untuk {suggestable} nilai
+          </Button>
+        ) : null}
+        {units.length > focused.length ? (
+          <button
+            type="button"
+            aria-expanded={showAll}
+            onClick={() => setShowAll((v) => !v)}
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 underline-offset-4 hover:underline"
+          >
+            {showAll ? "Sembunyikan" : `Lihat semua (${units.length})`}
+            <ChevronRight
+              className={cn("size-3.5 transition-transform", showAll && "rotate-90")}
+              aria-hidden
+            />
+          </button>
+        ) : null}
+        <InfoTip label="Tentang unit organisasi">
+          Karyawan ditempatkan di unit paling bawah dari kolom Departemen dan Divisi. Nilai yang
+          belum ada dibuat sebagai unit baru milik PT karyawannya.
+        </InfoTip>
+      </div>
     </div>
   );
 }

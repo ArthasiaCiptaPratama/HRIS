@@ -20,7 +20,7 @@ export function OpenAttachments({ onOpen }: { onOpen: (jobId: string) => void })
           <CloudDownload className="size-4" aria-hidden />
         </span>
         <h2 id="open-attachments-title" className="text-sm font-semibold">
-          Lampiran Google Drive belum selesai
+          Foto & dokumen dari Google Drive yang belum selesai diambil
         </h2>
       </div>
       <ul className="divide-y">
@@ -31,10 +31,10 @@ export function OpenAttachments({ onOpen }: { onOpen: (jobId: string) => void })
               <p className="text-muted-foreground text-xs">{formatDateTime(job.createdAt)}</p>
             </div>
             <div className="flex items-center gap-2">
-              {job.pending > 0 ? <Badge variant="muted">{job.pending} menunggu</Badge> : null}
+              {job.pending > 0 ? <Badge variant="muted">{job.pending} belum diambil</Badge> : null}
               {job.failed > 0 ? <Badge variant="destructive">{job.failed} gagal</Badge> : null}
               <Button size="sm" variant="outline" onClick={() => onOpen(job.jobId)}>
-                <Play /> Lanjutkan
+                <Play /> Lihat & lanjutkan
               </Button>
             </div>
           </li>

@@ -176,7 +176,13 @@ export function usePreviewImport() {
 export function useCommitImport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: ImportRequest & { previewHash: string }) =>
+    mutationFn: (
+      body: ImportRequest & {
+        previewHash: string;
+        /** IMP-D6: sel yang diubah di Pratinjau (tanpa nilai) — untuk audit. */
+        editedCells?: { sourceRow: number; field: ImportFieldKey }[];
+      },
+    ) =>
       api("/employee-imports", {
         method: "POST",
         body,

@@ -1,5 +1,5 @@
 import { CircleHelp } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 
 // Panduan import (tombol "?"): langkah bernomor + ilustrasi mini (bukan tangkapan layar — tidak basi
-// saat UI berubah & tanpa data asli). Langkah yang sedang dibuka disorot.
+// saat UI berubah & tanpa data asli). Langkah yang sedang dibuka disorot dan terbuka.
 
 export type GuideStep = "upload" | "mapping" | "complete" | "preview" | "done";
 
@@ -61,9 +61,9 @@ const STEPS: {
     ),
     body: (
       <>
-        Unduh Sheet respons Google Form sebagai <strong>.xlsx</strong> (File → Download → Microsoft
-        Excel), lalu tarik ke kotak unggah. Pilih <strong>Tambah + perbarui</strong> bila sebagian
-        karyawan sudah ada di sistem.
+        Belum punya file? Klik <strong>Unduh template Excel</strong>, isi satu karyawan per baris
+        (kolom kuning wajib), lalu tarik file ke kotak unggah. File karyawan kantor yang sudah ada
+        juga bisa langsung diunggah.
       </>
     ),
   },
@@ -83,12 +83,8 @@ const STEPS: {
     ),
     body: (
       <>
-        Setiap kolom file sudah dipasangkan ke data karyawan. Periksa kolom yang kecocokannya{" "}
-        <em>rendah</em> atau <em>belum dipetakan</em>. File wajib punya kolom <strong>NIP</strong>{" "}
-        atau <strong>NIK KTP</strong>. Pemetaan disimpan untuk file dengan judul kolom yang sama.
-        Kolom <strong>HOMEBASE</strong> (Point of Hire) dan <strong>HOMEBASE BERLAKU MULAI</strong>{" "}
-        opsional; tanggal kosong berarti tanggal masuk untuk karyawan baru, atau hari ini untuk
-        karyawan yang diperbarui.
+        Biasanya dilewati otomatis. Bila muncul, pilih isi kolom yang bertanda kuning. File wajib
+        punya kolom <strong>NIP</strong> atau <strong>No. KTP</strong>.
       </>
     ),
   },
@@ -114,22 +110,8 @@ const STEPS: {
     ),
     body: (
       <>
-        Muncul bila ada data yang perlu ditentukan untuk banyak karyawan sekaligus. Kerjakan dari
-        atas; bagian yang belum selesai ditandai kuning.
-        <ol className="mt-1 list-decimal space-y-0.5 pl-5">
-          <li>
-            <strong>PT</strong> untuk karyawan yang tidak punya kolom PT di file.
-          </li>
-          <li>
-            <strong>Unit organisasi</strong>: nilai Departemen/Divisi yang berlabel{" "}
-            <em>Perlu dipilih</em> mirip unit lain (salah ketik atau singkatan, mis. “Enginering”,
-            “HRGA”). Gunakan <em>Pakai saran</em>, lalu periksa satu per satu. Untuk unit baru,
-            periksa jenis (Departemen, Divisi, Seksi) dan induknya. Unit dicocokkan per PT.
-          </li>
-          <li>
-            <strong>Status kepegawaian</strong> untuk karyawan yang belum ada di sistem.
-          </li>
-        </ol>
+        Pilih yang bertanda kuning: PT, Departemen yang mirip (klik <em>Pakai saran</em>), atau
+        status karyawan baru.
       </>
     ),
   },
@@ -150,10 +132,8 @@ const STEPS: {
     ),
     body: (
       <>
-        Baris yang error langsung ditampilkan beserta cara memperbaikinya. Kesalahan isi file (mis.
-        NIK salah dan NIP kosong) diperbaiki di file: klik <em>Unduh baris bermasalah</em>,
-        perbaiki, lalu unggah ulang. PT dan status bisa diubah per karyawan. Peringatan tidak
-        menghalangi penyimpanan. Klik <strong>Simpan</strong> bila sudah sesuai.
+        Baris yang salah tidak ikut disimpan; yang lain bisa disimpan sekarang. Unduh baris yang
+        salah, betulkan di Excel, lalu unggah lagi — tidak akan dobel.
       </>
     ),
   },
@@ -171,61 +151,68 @@ const STEPS: {
     ),
     body: (
       <>
-        Foto & dokumen dari tautan Google Drive diambil setelah simpan (panel progres). Karyawan
-        tanpa NIP ditandai <em>NIP belum ada</em> di daftar. Lengkapi NIP lewat edit karyawan atau
-        impor ulang file yang sudah berisi NIP (karyawan dikenali dari NIK KTP).
+        Foto & dokumen dari Google Drive diambil setelah simpan. Biarkan halaman terbuka sampai
+        selesai.
       </>
     ),
   },
 ];
 
 export function ImportGuide({ current }: { current: GuideStep }) {
+  // IMP-D5 "sekali lihat": hanya langkah yang sedang dibuka yang terbuka; langkah lain satu baris judul.
+  const [expanded, setExpanded] = useState<GuideStep>(current);
   return (
-    <Dialog>
+    <Dialog onOpenChange={(open) => open && setExpanded(current)}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon" aria-label="Panduan import">
-          <CircleHelp />
+        <Button variant="outline" aria-label="Panduan import">
+          <CircleHelp /> Panduan
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Panduan import data karyawan</DialogTitle>
-          <DialogDescription>
-            Urutan pengisian dari atas ke bawah. Langkah yang sedang Anda buka ditandai.
-          </DialogDescription>
+          <DialogDescription>Klik langkah untuk membaca caranya.</DialogDescription>
         </DialogHeader>
-        <ol className="space-y-3">
+        <ol className="space-y-2">
           {STEPS.map((step, i) => {
             const active = step.key === current;
+            const open = step.key === expanded;
             return (
               <li
                 key={step.key}
                 aria-current={active ? "step" : undefined}
-                className={cn(
-                  "flex flex-col gap-3 rounded-xl border p-3 sm:flex-row",
-                  active && "border-brand bg-brand-soft/40",
-                )}
+                className={cn("rounded-xl border", active && "border-brand bg-brand-soft/40")}
               >
-                {step.mock}
-                <div className="min-w-0 text-sm">
-                  <p className="font-medium">
-                    {i + 1}. {step.title}
-                    {active ? (
-                      <span className="bg-brand text-brand-foreground ml-2 rounded px-1.5 py-0.5 text-xs font-normal">
-                        Langkah saat ini
-                      </span>
-                    ) : null}
-                  </p>
-                  <div className="text-muted-foreground mt-1">{step.body}</div>
-                </div>
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setExpanded(step.key)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium"
+                >
+                  {i + 1}. {step.title}
+                  {active ? (
+                    <span className="bg-brand text-brand-foreground rounded px-1.5 py-0.5 text-xs font-normal">
+                      Sekarang
+                    </span>
+                  ) : null}
+                </button>
+                {open ? (
+                  <div className="flex flex-col gap-3 px-3 pb-3 sm:flex-row">
+                    {step.mock}
+                    <p className="text-muted-foreground min-w-0 text-sm">{step.body}</p>
+                  </div>
+                ) : null}
               </li>
             );
           })}
         </ol>
-        <p className="text-muted-foreground text-xs">
-          Tips Sheet Google Form: atur lokal ke <strong>Indonesia</strong> (File → Setelan) supaya
-          tanggal terbaca benar. Setelah import, batasi akses Sheet karena berisi data pribadi.
-        </p>
+        <details className="text-muted-foreground text-xs">
+          <summary className="cursor-pointer">Untuk file Google Form</summary>
+          <p className="mt-1">
+            Atur lokal Sheet ke <strong>Indonesia</strong> (File → Setelan) supaya tanggal terbaca
+            benar. Setelah import, batasi akses Sheet karena berisi data pribadi.
+          </p>
+        </details>
       </DialogContent>
     </Dialog>
   );

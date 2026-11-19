@@ -3,6 +3,42 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Paket B2: pilih blok di grid Pratinjau (IMP-D6) (Oatse)
+- **Dikerjakan:** `sheet/sheet-grid.tsx`: `anchor` blok (Shift+panah, Shift+klik, seret), salin blok TSV, tempel ke blok (satu nilai mengisi blok), Delete blok, Esc, `aria-selected` pada sel blok, penanda `bg-brand-soft`.
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); web test ✔ (employee-import 25, baru 2 test B2); uji visual 1440 px `paket-b/1440-b2-blok.png`.
+- **Masalah / catatan:** uji tempel sungguhan oleh pengguna lulus (14:57 WIB) untuk B1; tempel ke blok dari Excel belum diuji pengguna.
+- **Berikutnya:** paket C (wizard/riwayat) setelah uji dengan staf HR; rilis staging sesuai antrean.
+
+### 2026-11-19 — Paket B3 API: audit sel yang diubah (IMP-D6) (Oatse)
+- **Dikerjakan:** API `employee-import.schema.ts` `editedCells` opsional di commit; `employee-import.service.ts` `summarizeEditedCells` → audit `employee.import.completed`; test integration (audit tanpa nilai, isian tak dikenal 400, regresi HR tanpa izin). Dikerjakan di worktree terpisah supaya API dev tidak restart selama pengguna menguji tempel, lalu di-cherry-pick (`57ab6f3`).
+- **Keputusan:** — (IMP-D6 butir 1: audit tanpa nilai)
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); API 1.434 test ✔ (import + openapi 63). Uji tempel sungguhan dari Excel oleh pengguna ✔ (14:57 WIB).
+- **Masalah / catatan:** OpenAPI `EmployeeImportCommit` bertambah field opsional `editedCells` → kabar Mat ditunda (supervisor).
+- **Berikutnya:** B2 pilih blok.
+
+### 2026-11-19 — Paket B: cari, editedCells (web), grid tanpa celah (IMP-D6) (Oatse)
+- **Dikerjakan:** kotak cari nama/NIP (`preview-step.tsx`); web mengirim `editedCells` saat Simpan (`api.ts`, `import-page.tsx`; API membuangnya sampai B3-API digabung); grid mengisi lebar kotak (`stretchColumns`) & tinggi mengikuti isi dengan batas sisa layar, tebal scrollbar diukur; kotak "Perlu diperbaiki" maks 5 baris (KUTIPAN PENGGUNA "otomatis fill gada gap" via supervisor). API audit `editedCells` dikerjakan di worktree `HRIS-b3` (commit lokal `25da3ed`, integration 63 ✔) dan ditahan supaya API dev tidak restart selama pengguna menguji tempel.
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); web 63→64 file test ✔ (baru `import-sheet-grid` 3). Uji visual 977/1440/1630 px × 3/13/2.000 baris (`paket-b/`): lebar penuh tanpa celah, tinggi pas isi (selisih 0 px), 2.000 baris dibatasi sisa layar & bisa digulir sampai baris 2.000.
+- **Masalah / catatan:** `f6260c7` sempat masuk dengan 1 error lint test, diperbaiki `7bde3ca`. Temuan lama: tombol Simpan berlabel "Simpan 0 lampiran" saat tidak ada baris siap (dinonaktifkan; label membingungkan) — usulkan "Simpan" saja.
+- **Susulan:** tombol "Tampilkan kolom lain" pindah ke toolbar atas; keterangan "Baris N · Nama" diganti pesan error sel terpilih saja; rincian non-error ke tooltip sel Hasil (jawaban dialog pengguna via supervisor). Web 446 ✔.
+- **Berikutnya:** gabung B3-API setelah uji tempel; B2.
+
+### 2026-11-19 — Paket B: spike B0 + B1 Pratinjau seperti spreadsheet (IMP-D6) (Oatse)
+- **Dikerjakan:** spike B0 (TanStack Table + Virtual, 2.000×40) → GO. B1: shared `import/edits.ts` (`applyCellEdits`, `editedCellList`); web `import/sheet/` (`sheet-grid.tsx` grid tervirtualisasi: kolom beku, kunci per slot, overscan 6, `scrollPaddingStart` kolom beku, editor teks & dropdown, keyboard, tempel TSV, undo, ARIA grid + `aria-activedescendant`; `clipboard.ts` `parseClipboardGrid`; `preview-sheet.tsx` kolom penting + error + "Kolom lain", PT/Status/Struktur Organisasi per baris, validasi instan, keterangan baris aktif), `preview-step.tsx` (tabel lama diganti grid, kotak Perlu diperbaiki → lompat ke sel), `import-page.tsx` (`edits` + cap waktu sel, pratinjau ulang 1 dtk, `beforeunload`, unduh baris memakai ubahan), `template/build-template.ts` `FIXED_CHOICES`; dependensi `@tanstack/react-virtual` 3.14.25 (tepat).
+- **Keputusan:** IMP-D6.
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); boundaries ✔; shared 408 test ✔ (baru `import-edits` 4); web 63 file / 441 test ✔ (employee-import 20, baru `import-sheet-clipboard` 3). Uji visual Zen headless akun HR tanpa izin data pribadi 977 + 1440 px `QA/2026-11-19-import-ux/paket-b/`: PT "PNR" & No. HP salah dibetulkan di sel → pratinjau server 12 siap · 1 perlu diperbaiki; kolom 🔒 terkunci & disamarkan. Temuan visual diperbaiki: sel PT tidak bisa diubah bila hanya satu PT.
+- **Masalah / catatan:** tempel sungguhan dari Excel belum diuji di peramban (event sintetis Firefox kosong; clipboard pengguna tidak dipakai) — menunggu dicoba pengguna. Kontrak API belum berubah (audit `editedCells` = B3).
+- **Berikutnya:** uji tempel oleh pengguna; B2 pilih blok; B3 audit `editedCells` + cari.
+
+### 2026-11-19 — Pangkas paket A "sekali lihat" (IMP-D5) (Oatse)
+- **Dikerjakan:** web `features/employee/import/`: `import-page.tsx` (mode dilipat, template tautan, 🔒 di Rincian, Pemetaan dilewati otomatis + `goMapping`, Selesai satu baris, dialog Simpan/lampiran pendek), `mapping-step.tsx` (`mappingHasIdentity`/`mappingReviewColumns` diekspor), `complete-step.tsx` (kartu wajib bernomor + `DoneLine` ✔, Mirip paling atas), `unit-matching.tsx` (hanya yang perlu dipilih/diubah di layar + "Lihat semua (N)"), `preview-step.tsx` (ringkasan satu baris, `issueShort` + tooltip), `attachments-panel.tsx` (satu baris progres + Rincian), `import-guide.tsx` (hanya langkah aktif terbuka), `info-tip.tsx` baru, `labels.ts` `issueShort`. Sesi hris-14 terputus restart 12:00; dilanjutkan dari working tree.
+- **Keputusan:** IMP-D5 butir (7) "sekali lihat" + Pemetaan dilewati otomatis.
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama `roster-edit.service.ts`); boundaries ✔; web 62 file / 434 test ✔ (employee-import 16, import-attachments 5). Uji visual Zen headless akun HR Admin 977 px + 1440 px (iframe) `QA/2026-11-19-import-ux/sesudah-pangkas/`; temuan uji visual diperbaiki: unit dari profil tersimpan ikut tampil, nilai dobel "PKWT [PKWT ▾]". Susulan (tinjauan supervisor): stepper 4 langkah sejak Unggah, "Pemetaan kolom" hanya disisipkan bila langkahnya tampil (test + screenshot `977-01-unggah`).
+- **Masalah / catatan:** Selesai & panel lampiran belum diverifikasi visual (tidak menulis DB lokal); DB lokal tanpa job `qa-ux*`.
+- **Berikutnya:** paket B spike B0 (TanStack Table + react-virtual).
+
 ### YYYY-MM-DD — <judul singkat> (<PIC>)
 - **Dikerjakan:** … (rujuk item checklist README)
 - **Keputusan:** <PREFIX>-Dn baru / OD terjawab
@@ -10,6 +46,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Masalah / catatan:** …
 - **Berikutnya:** …
 ```
+
+### 2026-11-19 — Import ramah pengguna awam: analisis + paket A (IMP-D5) (Oatse + worker Codex)
+- **Dikerjakan:** analisis alur (screenshot lokal `QA/2026-11-19-import-ux/01–07`, bukti staging: 5 import semuanya oleh Super Admin, 0 oleh HR; 20/121 baris error, ±60% masalah error = salah format NPWP/No. HP/email) → 6 jawaban pengguna → paket A: pesan error sehari-hari (`row.ts`, `labels.ts`), Pratinjau tanpa geser (`preview-step.tsx`), pemetaan ringkas (`mapping-step.tsx`, Codex), template HRIS (`template/build-template.ts`, Codex), Unggah mode di atas + catatan 🔒 + tombol template (`import-page.tsx`), daftar master baru + tanda mirip (`complete-step.tsx`, shared `findSimilarMaster`), panduan, teks dialog/toast/pesan file (`parse-file.ts`, `attachments-panel.tsx`).
+- **Keputusan:** IMP-D5 (README).
+- **Verifikasi:** lihat entri commit (test import shared/web, typecheck, biome, boundaries; uji visual lokal).
+- **Masalah / catatan:** alasan lampiran Drive per item (`reason`) berasal dari API — belum ditinjau (paket A tanpa ubah API). Konfirmasi baru untuk "Ganti file"/"Simpan" tidak ditambahkan (butuh sketsa).
+- **Tambahan (jawaban pengguna 11:23 WIB):** satu tautan pemegang bagan di atas tabel; dialog "Ganti file?" & "Simpan N karyawan?" (judul ikut lampiran bila tanpa karyawan); teks kartu/panel/alasan lampiran (`open-attachments.tsx`, `attachments-panel.tsx`, api `employee-import-attachments.service.ts` teks saja); bilah tombol Pratinjau bisa turun baris. Verifikasi: web import 45 ✔, api `import-attachments` 8 ✔, shared 138 ✔, typecheck/boundaries ✔. Catatan uji: tab headless di latar menahan animasi (judul halaman `animate-fade-up` kosong, dialog tertutup tetap terlihat) — perilaku browser untuk tab tersembunyi, bukan bug paket A. Data uji lokal: karyawan dummy QA-UX-01/02 + 2 job lampiran gagal (kartu "belum selesai" di akun HR lokal) — dibersihkan setelah ada kata pengguna.
+- **Berikutnya:** rencana paket B versi spreadsheet (arahan pengguna 11:30 WIB).
 
 ### 2026-11-16 — Kolom Grade/Level = kode level HR (IMP-D4) (Oatse)
 - **Dikerjakan:** `employee-import.service.ts` — diff kode HR (`hrLevelCode`), tanpa master Grade (cek arsip & nama baru dihapus), peringatan `HR_LEVEL_*` di Pratinjau (`levelVotes`, `knownPosition`), simpan `hrLevelCode` + `fillEmptyPositionLevels`; shared label "Level (kode HR)" + pesan isu; web teks "Lengkapi data" tanpa grade.

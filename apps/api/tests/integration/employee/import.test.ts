@@ -474,6 +474,43 @@ describe("POST /employee-imports (simpan)", () => {
     ).toBe(1);
   });
 
+  test("IMP-D6: editedCells (tanpa nilai) masuk audit import; baris di luar file diabaikan; tidak memengaruhi hash", async () => {
+    const payload = body([row(6, baseRow("ED1", { phoneNumber: "0812 3456 7890" }))]);
+    const preview = await data(
+      await call("POST", "/employee-imports/preview", sa.headers, payload),
+    );
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...payload,
+      previewHash: preview.previewHash,
+      editedCells: [
+        { sourceRow: 6, field: "phoneNumber" },
+        { sourceRow: 6, field: "phoneNumber" },
+        { sourceRow: 6, field: "fullName" },
+        { sourceRow: 99, field: "fullName" },
+      ],
+    });
+    expect(res.status).toBe(201);
+    const { jobId } = await data(res);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: "employee.import.completed", entityId: jobId },
+    });
+    expect((audit.after as { editedCells: unknown }).editedCells).toEqual({
+      count: 2,
+      rows: { "6": ["phoneNumber", "fullName"] },
+    });
+    expect(JSON.stringify(audit.after)).not.toContain("0812 3456 7890");
+  });
+
+  test("IMP-D6: editedCells dengan isian tak dikenal → 400", async () => {
+    const payload = body([row(6, baseRow("ED2"))]);
+    const res = await call("POST", "/employee-imports", sa.headers, {
+      ...payload,
+      previewHash: "a".repeat(64),
+      editedCells: [{ sourceRow: 6, field: "gajiPokok" }],
+    });
+    expect(res.status).toBe(400);
+  });
+
   test("UPSERT: sel kosong tidak menimpa; CREATE_ONLY melewati yang sudah ada", async () => {
     const payload = body([
       row(6, { employeeNumber: NUM("E1"), fullName: `Impor ${RUN} Lama Baru` }),
@@ -516,6 +553,8 @@ describe("POST /employee-imports (simpan)", () => {
     await call("POST", "/employee-imports", hr.headers, {
       ...make("H1", "6271011205800981"),
       previewHash: p1.previewHash,
+      // IMP-D6: KTP yang diketik di grid Pratinjau tetap dilewati untuk akun tanpa izin.
+      editedCells: [{ sourceRow: 6, field: "ktpNumber" }],
     });
     const h1 = await prisma.employee.findUniqueOrThrow({
       where: { employeeNumber: NUM("H1") },
