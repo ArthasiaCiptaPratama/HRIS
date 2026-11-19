@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-19 — Import ramah pengguna awam: analisis + paket A (IMP-D5) (Oatse + worker Codex)
+- **Dikerjakan:** analisis alur (screenshot lokal `QA/2026-11-19-import-ux/01–07`, bukti staging: 5 import semuanya oleh Super Admin, 0 oleh HR; 20/121 baris error, ±60% masalah error = salah format NPWP/No. HP/email) → 6 jawaban pengguna → paket A: pesan error sehari-hari (`row.ts`, `labels.ts`), Pratinjau tanpa geser (`preview-step.tsx`), pemetaan ringkas (`mapping-step.tsx`, Codex), template HRIS (`template/build-template.ts`, Codex), Unggah mode di atas + catatan 🔒 + tombol template (`import-page.tsx`), daftar master baru + tanda mirip (`complete-step.tsx`, shared `findSimilarMaster`), panduan, teks dialog/toast/pesan file (`parse-file.ts`, `attachments-panel.tsx`).
+- **Keputusan:** IMP-D5 (README).
+- **Verifikasi:** lihat entri commit (test import shared/web, typecheck, biome, boundaries; uji visual lokal).
+- **Masalah / catatan:** alasan lampiran Drive per item (`reason`) berasal dari API — belum ditinjau (paket A tanpa ubah API). Konfirmasi baru untuk "Ganti file"/"Simpan" tidak ditambahkan (butuh sketsa).
+- **Berikutnya:** paket B (perbaiki di layar) setelah A disetujui pengguna.
+
 ### 2026-11-16 — Kolom Grade/Level = kode level HR (IMP-D4) (Oatse)
 - **Dikerjakan:** `employee-import.service.ts` — diff kode HR (`hrLevelCode`), tanpa master Grade (cek arsip & nama baru dihapus), peringatan `HR_LEVEL_*` di Pratinjau (`levelVotes`, `knownPosition`), simpan `hrLevelCode` + `fillEmptyPositionLevels`; shared label "Level (kode HR)" + pesan isu; web teks "Lengkapi data" tanpa grade.
 - **Keputusan:** IMP-D4 (README).
