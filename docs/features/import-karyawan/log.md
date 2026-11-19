@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Pangkas paket A "sekali lihat" (IMP-D5) (Oatse)
+- **Dikerjakan:** web `features/employee/import/`: `import-page.tsx` (mode dilipat, template tautan, 🔒 di Rincian, Pemetaan dilewati otomatis + `goMapping`, Selesai satu baris, dialog Simpan/lampiran pendek), `mapping-step.tsx` (`mappingHasIdentity`/`mappingReviewColumns` diekspor), `complete-step.tsx` (kartu wajib bernomor + `DoneLine` ✔, Mirip paling atas), `unit-matching.tsx` (hanya yang perlu dipilih/diubah di layar + "Lihat semua (N)"), `preview-step.tsx` (ringkasan satu baris, `issueShort` + tooltip), `attachments-panel.tsx` (satu baris progres + Rincian), `import-guide.tsx` (hanya langkah aktif terbuka), `info-tip.tsx` baru, `labels.ts` `issueShort`. Sesi hris-14 terputus restart 12:00; dilanjutkan dari working tree.
+- **Keputusan:** IMP-D5 butir (7) "sekali lihat" + Pemetaan dilewati otomatis.
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama `roster-edit.service.ts`); boundaries ✔; web 62 file / 434 test ✔ (employee-import 16, import-attachments 5). Uji visual Zen headless akun HR Admin 977 px + 1440 px (iframe) `QA/2026-11-19-import-ux/sesudah-pangkas/`; temuan uji visual diperbaiki: unit dari profil tersimpan ikut tampil, nilai dobel "PKWT [PKWT ▾]".
+- **Masalah / catatan:** Selesai & panel lampiran belum diverifikasi visual (tidak menulis DB lokal); DB lokal tanpa job `qa-ux*`.
+- **Berikutnya:** paket B spike B0 (TanStack Table + react-virtual).
+
 ### YYYY-MM-DD — <judul singkat> (<PIC>)
 - **Dikerjakan:** … (rujuk item checklist README)
 - **Keputusan:** <PREFIX>-Dn baru / OD terjawab
