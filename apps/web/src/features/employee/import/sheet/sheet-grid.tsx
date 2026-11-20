@@ -274,7 +274,6 @@ const RowView = memo(function RowView({
   top,
   columns,
   virtualCols,
-  frozenWidth,
   activeCol,
   selFrom,
   selTo,
@@ -289,7 +288,6 @@ const RowView = memo(function RowView({
   top: number;
   columns: SheetColumn[];
   virtualCols: { index: number; start: number }[];
-  frozenWidth: number;
   activeCol: number;
   /** Kolom blok terpilih di baris ini (-1 = baris tidak masuk blok). */
   selFrom: number;
@@ -342,7 +340,7 @@ const RowView = memo(function RowView({
       style={{ top, height: ROW_H }}
     >
       {render(0, 0)}
-      {virtualCols.map((vc) => render(vc.index + 1, frozenWidth + vc.start))}
+      {virtualCols.map((vc) => render(vc.index + 1, vc.start))}
     </div>
   );
 });
@@ -434,7 +432,9 @@ export function SheetGrid({
     overscan: 2,
     initialRect: FALLBACK_RECT,
     observeElementRect: observeRect,
-    // Sel aktif tidak boleh tertutup kolom beku saat digulir ke dalam pandangan.
+    // Posisi kolom (start) sudah termasuk lebar kolom beku, jadi hitungan "terlihat" dan geser-ke-sel
+    // memakai koordinat gulir yang sama dengan layar; sel aktif tidak tertutup kolom beku.
+    paddingStart: frozenWidth,
     scrollPaddingStart: frozenWidth,
   });
   // biome-ignore lint/correctness/useExhaustiveDependencies: lebar kolom berubah → ukur ulang
@@ -691,7 +691,7 @@ export function SheetGrid({
     return { r: Number(rowEl.dataset.row), c: Number(cellEl.dataset.col) };
   };
 
-  const totalWidth = frozenWidth + colV.getTotalSize();
+  const totalWidth = colV.getTotalSize();
   // Tinggi mengikuti isi (tanpa baris kosong palsu); batasnya sisa tinggi layar, lebih dari itu digulir.
   const hScroll = boxWidth > 0 && totalWidth > boxWidth + 1;
   const contentHeight =
@@ -765,7 +765,7 @@ export function SheetGrid({
               const frozen = c === 0;
               const left = frozen
                 ? 0
-                : frozenWidth + (virtualCols.find((v) => v.index === c - 1)?.start ?? 0);
+                : (virtualCols.find((v) => v.index === c - 1)?.start ?? frozenWidth);
               return (
                 // biome-ignore lint/a11y/useSemanticElements: grid tervirtualisasi (posisi absolut) tidak bisa memakai <table>
                 <div
@@ -801,7 +801,6 @@ export function SheetGrid({
                 top={HEAD_H + vr.start}
                 columns={columns}
                 virtualCols={virtualCols}
-                frozenWidth={frozenWidth}
                 activeCol={vr.index === active.r ? active.c : -1}
                 selFrom={multi && vr.index >= sel.r1 && vr.index <= sel.r2 ? sel.c1 : -1}
                 selTo={multi && vr.index >= sel.r1 && vr.index <= sel.r2 ? sel.c2 : -1}

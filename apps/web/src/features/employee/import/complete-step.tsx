@@ -128,7 +128,14 @@ export function CompleteStep({
   /** Pratinjau sedang dihitung ulang setelah pilihan berubah. */
   updating: boolean;
 }) {
-  const state = completionState(preview);
+  const server = completionState(preview);
+  // Pilihan baru sedang dihitung ulang → hitungan langsung ikut pilihan (pratinjau lama masih tampil);
+  // setelah pratinjau kembali, hasil server yang dipakai.
+  const state = {
+    ...server,
+    needCompany: updating && defaultCompanyId ? 0 : server.needCompany,
+    needStatus: updating && defaultStatusId ? 0 : server.needStatus,
+  };
   const newRows = preview.rows.filter((r) => r.newEmployee).length;
   const companyName = companyOptions.find((c) => c.value === defaultCompanyId)?.label;
   const statusName = statusOptions.find((s) => s.value === defaultStatusId)?.label;
