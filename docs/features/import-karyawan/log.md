@@ -3,6 +3,13 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-19 — Perbaikan uji staging gel. 34: lompat ke sel & hitungan Lengkapi data (IMP-D6) (Oatse)
+- **Dikerjakan:** `sheet/sheet-grid.tsx`: virtualizer kolom memakai `paddingStart` = lebar kolom beku (posisi kolom & gulir dalam koordinat yang sama) → lompat dari "Perlu diperbaiki" ke kolom kanan (mis. No. HP) kini benar-benar memperlihatkan sel; sebelumnya meleset sebesar lebar kolom Nama. `complete-step.tsx`: selama pratinjau dihitung ulang, hitungan PT/Status langsung ikut pilihan bawaan; setelah pratinjau kembali, hasil server dipakai.
+- **Keputusan:** —
+- **Verifikasi:** typecheck ✔; biome ✔ (1 warning lama); web 65 file / 450 test ✔ (baru `import-sheet-jump` 1 + langkah tunggu di test PT; keduanya gagal tanpa perbaikan). Zen headless 977 px lokal: lompat ke No. HP → sel di tepi kanan terlihat; ke PT → tepat di kanan kolom beku (`paket-b/977-lompat-no-hp-sesudah.png`).
+- **Masalah / catatan:** "kolom tanpa judul" yang terlihat supervisor = kolom yang separuhnya tertutup kolom beku (judulnya ikut tertutup), sama seperti Excel. Temuan 2 tidak terulang di lokal (pratinjau cepat); penyebabnya jeda pratinjau ulang di staging.
+- **Berikutnya:** ikut rilis staging gelombang berikutnya (butuh kata pengguna).
+
 ### 2026-11-19 — Paket B2: pilih blok di grid Pratinjau (IMP-D6) (Oatse)
 - **Dikerjakan:** `sheet/sheet-grid.tsx`: `anchor` blok (Shift+panah, Shift+klik, seret), salin blok TSV, tempel ke blok (satu nilai mengisi blok), Delete blok, Esc, `aria-selected` pada sel blok, penanda `bg-brand-soft`.
 - **Keputusan:** —

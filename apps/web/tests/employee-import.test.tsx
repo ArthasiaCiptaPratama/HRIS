@@ -84,12 +84,16 @@ function mockBackend({
   companies = [ACP],
   commitStatus = [201],
   previewData = preview,
+  holdPreview,
 }: {
   role?: "SUPER_ADMIN" | "HR_ADMIN" | "EMPLOYEE";
   companies?: (typeof ACP)[];
   commitStatus?: number[];
   previewData?: typeof preview;
+  /** Pratinjau ulang (setelah yang pertama) menunggu janji ini → meniru server lambat. */
+  holdPreview?: () => Promise<void>;
 } = {}) {
+  let previews = 0;
   const requests: { method: string; path: string; body: unknown }[] = [];
   vi.stubGlobal(
     "fetch",
@@ -122,7 +126,10 @@ function mockBackend({
           ? json(200, { data: { signature: "s", mapping: {}, updatedAt: "2026-09-30T00:00:00Z" } })
           : json(404, { error: { code: "NOT_FOUND", message: "x", requestId: "r" } });
       if (path === "/employee-imports/attachments/open") return json(200, { data: [] });
-      if (path === "/employee-imports/preview") return json(200, { data: previewData });
+      if (path === "/employee-imports/preview") {
+        if (previews++ > 0 && holdPreview) await holdPreview();
+        return json(200, { data: previewData });
+      }
       // D-060: lampiran job-1 — satu masih menunggu; panggilan proses tidak pernah selesai (sedang berjalan).
       if (path === "/employee-imports/job-1/attachments")
         return json(200, {
@@ -650,6 +657,11 @@ describe("Import Data Karyawan", () => {
       role: "SUPER_ADMIN",
       companies: [ACP, CD2],
       previewData: noCompany as unknown as typeof preview,
+      holdPreview: () => held,
+    });
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
     });
     const user = userEvent.setup();
     renderAt("/personal/import");
@@ -664,6 +676,13 @@ describe("Import Data Karyawan", () => {
       const last = requests.filter((r) => r.path === "/employee-imports/preview").at(-1);
       expect(last?.body).toMatchObject({ companyId: CD2.id });
     });
+    // Temuan uji staging 19 Nov: selama pratinjau dihitung ulang, hitungan langsung ikut pilihan.
+    expect(screen.getByText("Semua sudah lengkap")).toBeInTheDocument();
+    expect(screen.queryByText(/karyawan belum punya PT/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Lanjut" })).toBeDisabled();
+    // Pratinjau kembali → hasil server yang dipakai (di sini server tetap menolak).
+    release();
+    expect(await screen.findByText("1 hal perlu dipilih")).toBeInTheDocument();
   });
 
   it("Paket B: ubah sel di grid → pratinjau diulang dengan nilai baru, penanda ubahan, Ctrl+Z membatalkan", async () => {
