@@ -113,6 +113,8 @@ export function EmployeeWorkFields({
   const companyId = watch("companyId");
   const orgPostId = watch("orgPostId");
   const managerManual = watch("managerManual");
+  const managerId = watch("managerId");
+  const selectedManager = managers.data?.find((manager) => manager.id === managerId);
   const postOptions = useMemo(
     () =>
       (posts.data ?? []).filter(
@@ -472,6 +474,15 @@ export function EmployeeWorkFields({
               />
             )}
           />
+          {selectedManager?.hasActiveAccount === false && (!selectedPost || managerManual) ? (
+            <p
+              role="alert"
+              className="rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+            >
+              Atasan ini belum punya akun aktif. Pengajuan bawahannya langsung diputus HR PT (tanpa
+              langkah atasan) sampai atasan diundang.
+            </p>
+          ) : null}
         </FormField>
       </FormSection>
 

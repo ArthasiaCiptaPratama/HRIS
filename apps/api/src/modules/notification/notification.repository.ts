@@ -1,4 +1,5 @@
 import { getPrisma } from "../../core/db.ts";
+import type { Prisma } from "../../generated/prisma/client.ts";
 
 // Satu-satunya tempat query Prisma ke skema notification (PROMPT §4).
 
@@ -130,6 +131,12 @@ export async function findPushTokens(accountId: string) {
     select: { token: true },
   });
   return rows.map((row) => row.token);
+}
+
+/** Audit PM T8: akun dinonaktifkan → semua perangkat push-nya dilepas (di transaksi pemanggil bila ada). */
+export async function deletePushDevicesOfAccount(accountId: string, tx?: Prisma.TransactionClient) {
+  const { count } = await (tx ?? getPrisma()).pushDevice.deleteMany({ where: { accountId } });
+  return count;
 }
 
 export async function deletePushTokens(tokens: string[]) {

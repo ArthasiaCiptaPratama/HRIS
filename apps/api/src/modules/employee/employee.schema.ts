@@ -78,6 +78,11 @@ export const listEmployeesQuerySchema = z.object({
     .openapi("EmployeeMissingNumberFilter")
     .transform((value) => value === "true")
     .optional(),
+  managerWithoutAccount: z
+    .enum(["true", "false"])
+    .openapi("EmployeeManagerWithoutAccountFilter")
+    .transform((value) => value === "true")
+    .optional(),
   sort: z
     .enum(SORTS as [string, ...string[]])
     .openapi("EmployeeSort")
@@ -268,6 +273,7 @@ export const homebaseEntryParamSchema = z.object({ id: z.uuid(), entryId: z.uuid
 
 export const employeeDetailSchema = employeeListItemSchema
   .extend({
+    managerHasActiveAccount: z.boolean().nullable(),
     // ORG-D8: kode level asli dari file HR (penanda; level karyawan = level jabatan).
     hrLevelCode: z.string().nullable(),
     emergencyPhone: z.string().nullable(),
@@ -484,6 +490,7 @@ export const managerOptionSchema = z
     fullName: z.string(),
     employeeNumber: z.string().nullable(),
     position: z.string(),
+    hasActiveAccount: z.boolean(),
   })
   .openapi("ManagerOption");
 export type ManagerOption = z.infer<typeof managerOptionSchema>;

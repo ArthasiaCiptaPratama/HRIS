@@ -249,7 +249,7 @@ describe("absen PWA", () => {
     ).toBe(409);
   });
 
-  test("pulang lebih awal: peringatan salah pencet wajib dikonfirmasi; label + alasan; tiap absen punya approval", async () => {
+  test("pulang lebih awal: peringatan salah pencet wajib dikonfirmasi; label + alasan; hanya absen berlabel punya approval", async () => {
     const pre = await data<{ labels: string[]; suspicion: string; minutesFromEnd: number }>(
       await call("POST", "/attendance/precheck", h.a, { kind: "OUT", ...FAR, accuracyM: 15 }),
     );
@@ -270,7 +270,7 @@ describe("absen PWA", () => {
       status: string;
       labels: string[];
       approval: unknown;
-      punches: { kind: string; status: string; approval: { status: string } }[];
+      punches: { kind: string; status: string; approval: { status: string } | null }[];
     }>(
       await call("POST", "/attendance/punch", h.a, {
         ...body,
@@ -281,8 +281,8 @@ describe("absen PWA", () => {
     expect(day.status).toBe("PENDING");
     expect(day.labels).toEqual(expect.arrayContaining(["OUTSIDE_RADIUS"]));
     expect(day.approval).toBeNull();
-    expect(day.punches.map((p) => [p.kind, p.status, p.approval.status])).toEqual([
-      ["IN", "PENDING", "PENDING"],
+    expect(day.punches.map((p) => [p.kind, p.status, p.approval?.status ?? null])).toEqual([
+      ["IN", "APPROVED", null],
       ["OUT", "PENDING", "PENDING"],
     ]);
   });
@@ -384,7 +384,7 @@ describe("approval per absen & data harian", () => {
     }
   });
 
-  test("masuk disetujui → hari tetap menunggu; pulang disetujui → APPROVED; roster terkunci", async () => {
+  test("masuk otomatis disetujui → hari menunggu pulang; pulang disetujui → APPROVED; roster terkunci", async () => {
     const approvalOf = async (kind: string) =>
       (
         await data<{ punches: { kind: string; approval: { id: string } }[] }>(
@@ -399,7 +399,6 @@ describe("approval per absen & data harian", () => {
         expect(r.status).toBe(200);
       }
     };
-    await approveBoth(await approvalOf("IN"));
     const mid = await data<{ status: string; punches: { kind: string; status: string }[] }>(
       await call("GET", `/attendance/days/${dayId}`, h.a),
     );

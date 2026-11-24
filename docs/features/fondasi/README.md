@@ -63,6 +63,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] Sidebar Administrasi › Master Data jadi bab → sub (Organisasi · Kepegawaian · Arsip & Disiplin, bisa dibuka-tutup seperti Personal Management); sub "Segera" untuk fitur bersaklar mati
   - [x] Header & sidebar tetap, hanya isi (`<main>`) yang di-scroll: tinggi layar dikunci (`h-dvh`), tidak lagi bergantung `position: sticky`; gulir ke atas saat pindah halaman memakai `<main>`
   - [x] QA visual Playwright lokal (Q-01, Q-02 di `docs/qa/runs/2026-10-19-ui-ux-lokal.md`); akar masalah "hanya terjadi di lokal" belum dipastikan (tata letak baru tidak bergantung padanya)
+- [x] **Dashboard & Absen tanpa sidebar desktop** (tambahan 2026-11-24: permintaan pengguna, lewat supervisor). Grup nav 1 halaman diberi `sidebar: false` di `NAV_GROUPS` (`apps/web/src/app/navigation.ts`), dan `<aside>` di `app-layout.tsx` tidak dirender. Isi melebar (tetap `max-w-[1400px]`). Drawer HP, top nav, dan grup lain tidak berubah. `/absen` sendiri adalah shell HP (di luar kerangka web), jadi yang hilang adalah sidebar grup Absen di halaman web karyawan yang jatuh ke grup itu (mis. 404). Test +3. Screenshot `QA/2026-11-24-sidebar-dashboard-absen/` disetujui pengguna ("oke nice"). ✔ develop 2026-11-24 (`7e14277`).
 
 ## Keputusan
 

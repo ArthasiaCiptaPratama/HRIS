@@ -229,19 +229,19 @@ describe("atasan ber-akun EMPLOYEE (ORG-D9)", () => {
 });
 
 describe("atasan tanpa akun aktif (ORG-D9)", () => {
-  test("snapshot pengajuan = tanpa atasan → SA memutus langkah Atasan, HR PT mengambil alih", async () => {
+  test("snapshot pengajuan tanpa atasan → satu langkah HR regular, SA override", async () => {
     const req = await requestPermit(h.noAccSub, "2097-06-02");
     const stored = await prisma.approvalRequest.findFirstOrThrow({
       where: { subjectId: req.id },
     });
     expect(stored.managerEmployeeId).toBeNull();
     const asSa = await data<LeaveDto>(await call("GET", `/leave-requests/${req.id}`, h.sa));
-    expect(asSa.approval).toMatchObject({ canDecide: true });
+    expect(asSa.approval).toMatchObject({ canDecide: false, canOverride: true });
     const asHr = await data<LeaveDto>(await call("GET", `/leave-requests/${req.id}`, h.hr));
-    // HR: langkah HR regular; langkah Atasan hanya lewat ambil alih.
+    // EMP-D8 P1: HR PT memutus satu langkah regular; langkah atasan tidak dibuat.
     expect(asHr.approval).toMatchObject({ canDecide: true });
     const steps = await prisma.approvalStep.findMany({ where: { requestId: stored.id } });
-    expect(steps.map((s) => s.kind).sort()).toEqual(["HR", "MANAGER"]);
+    expect(steps.map((s) => s.kind)).toEqual(["HR"]);
   });
 
   test("atasan yang punya akun aktif tetap disimpan sebagai pemutus", async () => {

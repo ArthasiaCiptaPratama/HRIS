@@ -103,6 +103,17 @@ describe.skipIf(!tmOn("tmAbsen"))("#102: karyawan berberanda di halaman absen", 
     expect(paths).not.toContain("/dashboard");
   });
 
+  // /absen sendiri di bingkai HP (tanpa kerangka web); halaman web lain yang jatuh ke grup Absen
+  // (grup 1 halaman) tidak lagi menampilkan sidebar desktop berisi satu menu.
+  it("halaman web yang jatuh ke grup Absen tanpa sidebar desktop", async () => {
+    mockBackend();
+    renderAt("/tidak-ada");
+    expect(
+      await screen.findByRole("heading", { name: "Halaman tidak ditemukan" }, { timeout: 15000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Menu samping" })).not.toBeInTheDocument();
+  });
+
   it("login: tanpa ?next → beranda absen; ?next tetap dihormati", async () => {
     mockBackend();
     renderAt("/login");

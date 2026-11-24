@@ -259,8 +259,8 @@ export function AttendanceDaysPage() {
         title="Data Absen Harian"
         description={
           <>
-            Hari yang sudah absen, telat, atau diperbaiki — Clock In dan Clock Out disetujui satu
-            per satu oleh Atasan dan HR. Hari Alpha (tidak absen) ada di{" "}
+            Absen normal langsung disetujui. Absen berlabel diperiksa Atasan dan HR, atau HR saja
+            bila tidak ada atasan. Hari Alpha (tidak absen) ada di{" "}
             <Link
               to="/time/rekap?tab=alpha"
               className="text-brand underline-offset-2 hover:underline"
@@ -991,8 +991,8 @@ function ManualDialog({
           <DialogTitle>Input manual absen</DialogTitle>
           <DialogDescription>
             Untuk data yang salah (salah pencet, HP rusak, GPS error). Tercatat di audit log dengan
-            label MANUAL dan tetap disetujui Atasan; bila Anda HR, langkah HR dianggap sudah Anda
-            verifikasi.
+            label MANUAL dan tetap memerlukan persetujuan. Bila ada atasan, input HR menuntaskan
+            langkah HR. Tanpa atasan, pengajuan menunggu HR lain atau Super Admin.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

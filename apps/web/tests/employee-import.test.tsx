@@ -496,18 +496,19 @@ describe("Import Data Karyawan", () => {
     const requests = mockBackend({ previewData: fill });
     const user = userEvent.setup();
     renderAt("/personal/import");
-    // IMP-D5: mode dilipat jadi satu baris "Mode: … · Ubah".
-    expect(await screen.findByText("Tambah + perbarui")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /Ubah/ }));
-    const card = await screen.findByRole("radio", { name: /Isi yang kosong saja/ });
-    expect(screen.getByRole("radio", { name: /Tambah \+ perbarui/ })).toHaveAttribute(
+    // IMP-D5 (pengguna 2026-11-24): tiga pilihan mode selalu tampil tanpa klik "Ubah".
+    const group = await screen.findByRole("radiogroup", { name: "Mode import" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: /Ubah/ })).not.toBeInTheDocument();
+    const card = within(group).getByRole("radio", { name: /Isi yang kosong saja/ });
+    expect(within(group).getByRole("radio", { name: /Tambah \+ perbarui/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );
     await user.click(card);
-    // Setelah memilih, pilihan dilipat lagi dan baris Mode menampilkan mode terpilih.
-    expect(screen.queryByRole("radio", { name: /Isi yang kosong saja/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Isi yang kosong saja")).toBeInTheDocument();
+    // Setelah memilih, kartu tetap tampil dan yang terpilih bertanda.
+    expect(card).toHaveAttribute("aria-checked", "true");
+    expect(within(group).getAllByRole("radio")).toHaveLength(3);
     await user.upload(screen.getByLabelText("Pilih file import"), csvFile());
     expect(await screen.findByText(/siap disimpan/)).toBeInTheDocument();
     const body = requests.find((r) => r.path === "/employee-imports/preview")?.body as {

@@ -146,3 +146,27 @@ export const markSelfiesPurged = (ids: string[], at: Date) =>
 export async function withTransactionDay<T>(run: (tx: AttendanceTx) => Promise<T>): Promise<T> {
   return getPrisma().$transaction(run);
 }
+
+/** EMP-D8 P1: hanya absen perangkat normal; istirahat, manual, Alpha, dan cuti dikecualikan. */
+export function normalPendingPunches(
+  filters: { companyId?: string; before?: Date; id?: string; afterId?: string },
+  tx?: AttendanceTx,
+) {
+  return db(tx).attendancePunch.findMany({
+    where: {
+      ...(filters.id ? { id: filters.id } : filters.afterId ? { id: { gt: filters.afterId } } : {}),
+      kind: { in: ["IN", "OUT"] },
+      status: "PENDING",
+      source: "DEVICE",
+      labels: { isEmpty: true },
+      day: {
+        status: { notIn: ["ALPHA", "LEAVE"] },
+        ...(filters.companyId ? { companyId: filters.companyId } : {}),
+        ...(filters.before ? { workDate: { lt: filters.before } } : {}),
+      },
+    },
+    select: { id: true, day: { select: { companyId: true, workDate: true } } },
+    orderBy: { id: "asc" },
+    take: 500,
+  });
+}

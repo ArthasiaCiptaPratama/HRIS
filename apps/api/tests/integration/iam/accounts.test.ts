@@ -35,7 +35,33 @@ let hr: Awaited<ReturnType<typeof auth.loginAs>>;
 let mgr: Awaited<ReturnType<typeof auth.loginAs>>;
 let emp: Awaited<ReturnType<typeof auth.loginAs>>;
 // ONB-D2: role Manager/Karyawan wajib tertaut karyawan → satu karyawan uji untuk ganti role.
-const fx = { department: "", position: "", status: "", employee: "" };
+const fx = {
+  department: "",
+  position: "",
+  status: "",
+  employee: "",
+  extraEmployees: [] as string[],
+};
+
+/** Karyawan uji tambahan (dihapus di afterAll). */
+async function makeEmployee(tag: string, isActive: boolean) {
+  const row = await prisma.employee.create({
+    data: {
+      companyId: await acpCompanyId(),
+      employeeNumber: `AUTH-${RUN}-${tag}`,
+      fullName: `Auth ${RUN} ${tag}`,
+      joinDate: new Date("2024-01-02T00:00:00.000Z"),
+      employmentStatusId: fx.status,
+      positionId: fx.position,
+      isActive,
+      ...(isActive
+        ? {}
+        : { endDate: new Date("2026-10-31T00:00:00.000Z"), exitReason: "RESIGNATION" }),
+    },
+  });
+  fx.extraEmployees.push(row.id);
+  return row.id;
+}
 
 beforeAll(async () => {
   fx.department = (await prisma.department.create({ data: { name: `Dept Auth ${RUN}` } })).id;
@@ -63,7 +89,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await auth.cleanup();
-  await prisma.employee.deleteMany({ where: { id: fx.employee } });
+  await prisma.employee.deleteMany({ where: { id: { in: [fx.employee, ...fx.extraEmployees] } } });
   await prisma.position.deleteMany({ where: { id: fx.position } });
   await prisma.department.deleteMany({ where: { id: fx.department } });
   await prisma.employmentStatus.deleteMany({ where: { id: fx.status } });
@@ -229,10 +255,15 @@ describe("POST /accounts/:id/deactivate & /reactivate", () => {
   test("nonaktif → user Auth di-ban & token-nya ditolak; aktif kembali → unban", async () => {
     const target = await auth.loginAs("EMPLOYEE");
     expect((await call("GET", "/me", target.headers)).status).toBe(200);
+    // Audit PM T8: perangkat push akun ikut dilepas saat dinonaktifkan.
+    await prisma.pushDevice.create({
+      data: { token: `push-${RUN}-t8`, accountId: target.account.id, platform: "ANDROID" },
+    });
     const res = await call("POST", `/accounts/${target.account.id}/deactivate`, hr.headers);
     expect(res.status).toBe(200);
     expect((await data(res)).isActive).toBe(false);
     expect(fake.banned.get(target.account.authUserId)).toBe(true);
+    expect(await prisma.pushDevice.count({ where: { accountId: target.account.id } })).toBe(0);
     expect((await call("GET", "/me", target.headers)).status).toBe(401);
     expect(
       await code(await call("POST", `/accounts/${target.account.id}/deactivate`, hr.headers)),
@@ -243,6 +274,30 @@ describe("POST /accounts/:id/deactivate & /reactivate", () => {
     ).toBe(200);
     expect(fake.banned.get(target.account.authUserId)).toBe(false);
     expect((await call("GET", "/me", target.headers)).status).toBe(200);
+  });
+
+  test("akun milik karyawan nonaktif tidak bisa diaktifkan kembali (audit PM T6)", async () => {
+    const employeeId = await makeEmployee("T6A", true);
+    const target = await auth.loginAs("EMPLOYEE", { employeeId });
+    expect(
+      (await call("POST", `/accounts/${target.account.id}/deactivate`, hr.headers)).status,
+    ).toBe(200);
+    await prisma.employee.update({ where: { id: employeeId }, data: { isActive: false } });
+    const res = await call("POST", `/accounts/${target.account.id}/reactivate`, sa.headers);
+    expect(res.status).toBe(422);
+    expect(await code(res)).toBe("BUSINESS_RULE_VIOLATION");
+    expect(
+      (await prisma.account.findUniqueOrThrow({ where: { id: target.account.id } })).isActive,
+    ).toBe(false);
+    expect(fake.banned.get(target.account.authUserId)).toBe(true);
+  });
+
+  test("akun aktif yang karyawannya nonaktif ditolak API (401) — lapis kedua T6", async () => {
+    const employeeId = await makeEmployee("T6B", true);
+    const target = await auth.loginAs("EMPLOYEE", { employeeId });
+    expect((await call("GET", "/me", target.headers)).status).toBe(200);
+    await prisma.employee.update({ where: { id: employeeId }, data: { isActive: false } });
+    expect((await call("GET", "/me", target.headers)).status).toBe(401);
   });
 
   test("HR tidak boleh menonaktifkan HR_ADMIN/SUPER_ADMIN; tidak ada yang menonaktifkan diri sendiri", async () => {

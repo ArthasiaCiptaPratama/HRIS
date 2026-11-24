@@ -192,7 +192,7 @@ export function AppLayout() {
         </header>
 
         <div className="flex min-h-0 flex-1">
-          {current ? (
+          {current && current.sidebar !== false ? (
             <aside
               className={cn(
                 "bg-sidebar hidden h-full shrink-0 flex-col border-r transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] md:flex",
