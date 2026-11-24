@@ -320,8 +320,7 @@ function PunchApprovalCard({ day, punch, tz }: { day: AttendanceDay; punch: Punc
             {label} <span className="font-semibold tabular-nums">{timeIn(punch.at, tz)}</span>
             {punch.source === "MANUAL" ? (
               <Badge variant="muted" className="ml-1 text-[10px]">
-                {/* TM-D29 (STAGING): absen mandiri = MANUAL berlabel SELF_REPORT. */}
-                {punch.labels.includes("SELF_REPORT") ? "Mandiri" : "Manual"}
+                Manual
               </Badge>
             ) : null}
           </p>

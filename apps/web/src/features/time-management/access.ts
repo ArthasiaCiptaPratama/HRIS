@@ -32,6 +32,8 @@ export const tmAccess = {
   verifyAlpha: (me: Me) => isSa(me) || isHr(me) || isApprover(me),
   /** Data Absen Harian & inbox keputusan (D-068): SA, HR (PT ditugaskan), MANAGER (tim). */
   reviewDays: (me: Me) => isSa(me) || isHr(me) || isManager(me),
+  /** TM-D31: ekspor Excel data absen (Detail per crew & Flash): SA, HR (PT), MANAGER (tim langsung). */
+  exportDays: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Grid roster: semua yang punya data karyawan + SA/HR. */
   viewRoster: (me: Me) => isSa(me) || isHr(me) || me.employeeId !== null,
   /** Kelola shift, pola, crew, sel grid, import (D-069): SA; HR PT ditugaskan. */

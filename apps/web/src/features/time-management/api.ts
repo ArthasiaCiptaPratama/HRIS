@@ -1,5 +1,6 @@
 import {
   type ApprovalDecisionBody,
+  type AttendanceExportInput,
   DEFAULT_TIME_SETTINGS,
   type HolidayInput,
   type ManualPunchInput,
@@ -15,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { downloadBytes } from "@/lib/xlsx-write";
 import {
   bulkResultSchema,
   crewSchema,
@@ -99,8 +101,7 @@ export function usePrecheck() {
 
 export class SelfieUploadError extends Error {}
 
-/** Juga dipakai absen mandiri TM-D29 (STAGING) untuk foto galeri. */
-export async function uploadSelfie(blob: Blob, contentType: "image/jpeg" | "image/webp") {
+async function uploadSelfie(blob: Blob, contentType: "image/jpeg" | "image/webp") {
   const { data: upload } = await api("/attendance/selfie-upload", {
     method: "POST",
     body: { contentType },
@@ -159,6 +160,34 @@ export function useManualPunch() {
         (r) => r.data,
       ),
     onSuccess: refresh,
+  });
+}
+
+const exportFileSchema = z.object({
+  fileName: z.string(),
+  rows: z.number().int(),
+  contentBase64: z.string(),
+});
+
+/**
+ * TM-D31: ekspor Excel data absen (Detail per crew / Flash). Data sensitif → mutasi (tidak masuk cache
+ * TanStack Query); berkas diunduh di sini lalu `{ fileName, rows }` dikembalikan.
+ */
+export function useExportAttendanceDays() {
+  return useMutation({
+    mutationFn: async (input: AttendanceExportInput) => {
+      const { data } = await api("/attendance/days/export", {
+        method: "POST",
+        body: input,
+        schema: one(exportFileSchema),
+      });
+      downloadBytes(
+        Uint8Array.from(atob(data.contentBase64), (c) => c.charCodeAt(0)),
+        data.fileName,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      return data;
+    },
   });
 }
 

@@ -1,5 +1,6 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import {
+  attendanceExportInputSchema,
   manualPunchInputSchema,
   punchInputSchema,
   punchPrecheckSchema,
@@ -20,6 +21,8 @@ import {
   todayViewSchema,
 } from "./attendance.contract.ts";
 import * as service from "./attendance.service.ts";
+import { attendanceExportFileSchema } from "./attendance-export.contract.ts";
+import { exportAttendance } from "./attendance-export.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import { strict } from "./roster.routes.ts";
 
@@ -191,6 +194,16 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
         employeeId: c.req.query("employeeId"),
         q: c.req.query("q"),
       }),
+  ],
+  [
+    // TM-D31 (web saja): ekspor Excel DETAIL (per crew) / FLASH (5 kolom). Tanpa selfie & koordinat.
+    route(
+      "post",
+      "/attendance/days/export",
+      "Ekspor Excel data absen: Detail per crew (rentang tanggal) atau Flash 5 kolom — SA/HR PT/MANAGER tim",
+      { body: attendanceExportInputSchema, response: attendanceExportFileSchema },
+    ),
+    async (c) => exportAttendance(ctxOf(c), strict(attendanceExportInputSchema, await body(c))),
   ],
   [
     route("get", "/attendance/days/{id}", "Detail hari absen (foto, peta, label, approval)", {

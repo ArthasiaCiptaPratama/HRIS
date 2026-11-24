@@ -940,24 +940,6 @@ const SUSPICION_TEXT: Record<PunchSuspicion, string> = {
   IN_AFTER_END: "Sudah mendekati/lewat jam pulang. Pastikan Anda memang ingin Clock In.",
 };
 
-/** Foto absen wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah (≤ 1 MB, jpeg/webp). */
-export async function assertUploadedPhoto(employeeId: string, path: string, retryHint: string) {
-  assertOwnedPath(
-    path,
-    `${storage().storagePathPrefix}attendance/${employeeId}/`,
-    `Foto tidak valid. ${retryHint}`,
-  );
-  const info = await storage().storage.getObjectInfo(ATTENDANCE_SELFIE_BUCKET, path);
-  if (
-    !info ||
-    info.size <= 0 ||
-    info.size > SELFIE_MAX_BYTES ||
-    !(SELFIE_CONTENT_TYPES as readonly string[]).includes(info.contentType ?? "")
-  ) {
-    throw new BusinessRuleError(`Foto belum terunggah atau formatnya tidak sesuai. ${retryHint}`);
-  }
-}
-
 export interface PunchClient {
   userAgent?: string | undefined;
   /** MOB-D3: diisi dari header `X-App-Version` (app Android); kosong = PWA. */
@@ -1008,7 +990,22 @@ async function recordPunch(
   const employee = await directory.employeeById(employeeId);
   if (!employee?.isActive) throw new ForbiddenError("Karyawan tidak aktif.");
   // Selfie wajib milik karyawan ini dan sudah terunggah sebagai gambar yang sah.
-  await assertUploadedPhoto(employeeId, input.selfiePath, "Ambil ulang selfie.");
+  assertOwnedPath(
+    input.selfiePath,
+    `${storage().storagePathPrefix}attendance/${employeeId}/`,
+    "Foto tidak valid. Ambil ulang selfie.",
+  );
+  const info = await storage().storage.getObjectInfo(ATTENDANCE_SELFIE_BUCKET, input.selfiePath);
+  if (
+    !info ||
+    info.size <= 0 ||
+    info.size > SELFIE_MAX_BYTES ||
+    !(SELFIE_CONTENT_TYPES as readonly string[]).includes(info.contentType ?? "")
+  ) {
+    throw new BusinessRuleError(
+      "Foto belum terunggah atau formatnya tidak sesuai. Ambil ulang selfie.",
+    );
+  }
 
   const e = withMockLabel(await evaluate(employee, input, now), input);
   // Absen masuk ganda pada tanggal kerja yang sama → bentrok (bukan sekadar peringatan).

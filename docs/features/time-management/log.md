@@ -11,6 +11,29 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-24 — TM-D31: dialog export memakai kalender untuk Dari/Sampai (Mat)
+- **Dikerjakan:** kolom tanggal native `<input type="date">` di dialog Export Excel & Flash diganti pemilih rentang berkalender (nama hari tampil, header Sen–Min, pekan mulai Senin, bahasa Indonesia). Komponen baru `ui/calendar.tsx` + `ui/date-range-picker.tsx`; dependensi baru `react-day-picker` 9.14.0 (pin tepat). Batas 92 hari: hari di luar batas nonaktif; validasi RHF + `attendanceExportInputSchema` dan body permintaan tidak berubah (tanggal tetap string `YYYY-MM-DD`).
+- **Keputusan:** tidak ada keputusan baru; aturan TM-D31 tidak berubah (hanya cara memilih tanggal).
+- **Verifikasi:** `bun run typecheck`, `bunx biome ci .`, `bun run check:boundaries`, `bun run --cwd apps/web test attendance-export date-range-picker` (16 lulus; 11 + 5). Tes web: `Date` dibekukan 24 Nov 2026.
+- **Masalah / catatan:** halaman lain masih memakai `type="date"` (di luar cakupan). `pages/attendance-days-page.tsx` memuat dialog export secara lazy (`lazy` + `Suspense`) agar react-day-picker hanya dimuat saat dialog dibuka; tanpa itu render pertama halaman melambat dan `attendance-days-search.test.tsx` gagal.
+- **catatan codemap:** (branch rekan tim, `docs/codemap/` tidak diubah) tambah `components/ui/calendar.tsx` dan `components/ui/date-range-picker.tsx` ke peta web, dan dependensi `react-day-picker` 9.14.0 di `apps/web/package.json`.
+- **Berikutnya:** pakai `DateRangePicker` di halaman lain bila diminta.
+
+### 2026-11-24 — TM-D31: sheet Flash tambah kolom Jabatan & Divisi (Mat)
+- **Dikerjakan:** Flash kini 7 kolom: Nama, Jabatan, Divisi, Tanggal, Clock In, Clock Out, Status (urutan baris tetap Tanggal lalu Nama). Jabatan & Divisi = penempatan SAAT INI; Divisi = unit `DIVISION` terdekat di atas/sama dengan unit jabatan (D-050, penjaga siklus); tanpa divisi tampil "—". Helper baca-saja `positionPlacementByEmployee` di `attendance/directory.ts` (satu `getEmployeeBriefs` + satu `getMasterLookup`); `DirectoryEmployee` tidak diubah.
+- **Keputusan:** TM-D31 diperbarui atas permintaan pengguna (sebelumnya Flash dikunci 5 kolom).
+- **Verifikasi:** typecheck ✔, `biome ci` ✔ (1 warning lama), `check:boundaries` ✔; integrasi `attendance-export.test.ts` + unit ekspor 35 lulus / 0 gagal (DB lokal); shared 9 lulus; web `attendance-export.test.tsx` 11 lulus.
+- **Masalah / catatan:** **Catatan codemap (untuk yang menggabungkan ke develop; `docs/codemap/` tidak diubah di branch ini, PROMPT §8):** `attendance/directory.ts` bertambah `positionPlacementByEmployee`; `flashSheet` memakainya. Tidak ada perubahan `packages/shared`/web.
+
+### 2026-11-24 — TM-D31: Export Excel data absen per crew & Flash (API + web)
+- **Dikerjakan:** checklist Tahap F "Export Excel data absen per crew, rentang tanggal & Flash (TM-D31)" → `[x]`.
+  - **API:** `POST /attendance/days/export` (DETAIL per crew / FLASH 5 kolom), policy `canExportAttendance` (SA / HR PT / MANAGER bawahan langsung), audit `attendance.export`, batas 92 hari / 20.000 baris (terukur 20.000 baris: DETAIL 1,73 MB base64 dalam 6,2 dtk lokal, FLASH 0,58 MB dalam 2,6 dtk), sel tautan `link` di `xlsx.ts` (keluaran lama identik byte), definisi sheet Ringkasan vs rekap bulanan lihat baris TM-D31, crew terhapus → sheet "… (dihapus)".
+  - **Web:** halaman Data Absen Harian punya dua tombol, "Export Excel" (dialog Dari–Sampai, Semua crew / pilih crew, "Sertakan karyawan tanpa crew", info maks. 92 hari) dan "Flash" (hanya Dari–Sampai). Form React Hook Form + `zodResolver` yang memakai `attendanceExportInputSchema` bersama; unduh lewat mutasi `useExportAttendanceDays` (tanpa cache) → `downloadBytes`. `PT` dikirim dari bilah atas bila dipilih; tanpa PT terpilih, pilih crew tertentu dinonaktifkan dengan petunjuk. `includeNoCrew` selalu dikirim eksplisit (bawaan centang untuk Semua crew, tidak untuk crew tertentu). Akses UI `tmAccess.exportDays` (SA, HR, MANAGER ber-karyawan); API tetap penentu. Error 400/422 menampilkan pesan server, 403 pesan "tidak berhak".
+- **Keputusan:** TM-D31 (lihat tabel keputusan README).
+- **Verifikasi:** backend: shared 417 lulus, policy 17, unit service 8, integrasi 10 (83 assertion), TM/attendance/employee-export/report 330 lulus, API penuh 1.469 lulus / 0 gagal. Web: typecheck ✔ · `biome ci` ✔ (hanya peringatan lama `roster-edit.service.ts:577`) · `check:boundaries` ✔ (599 modul) · `attendance-export.test.tsx` 11 lulus · suite web penuh 65 file / 459 test lulus (sesi utama 2026-11-24; timeout ~500 dtk sebelumnya = beban mesin). Ulang verifikasi sesi utama: shared 417 lulus · API penuh 1.468 lulus / 1 gagal (`hr-personnel` sweep timeout 5000 ms yang sudah dikenal; file itu sendirian 6/6 lulus dua kali). **Cek browser belum diverifikasi** (tidak ada server/DB lokal berseed yang aman dipakai; hanya Vitest).
+- **Masalah / catatan:** **Catatan codemap (untuk yang menggabungkan ke develop; `docs/codemap/` tidak diubah di branch ini, PROMPT §8):** berkas baru `packages/shared/src/attendance-export.ts`, `apps/api/src/modules/attendance/attendance-export.service.ts`, `attendance-export.contract.ts`, `apps/web/src/features/time-management/components/attendance-export-dialog.tsx`; fungsi repo baru `attendance.repository.ts` `exportDays`, `roster.repository.ts` `rosterDaysForExport` / `crewMembershipsForExport` / `crewsForExport`, `directory.ts` `employeesInCompanies`; web: `api.ts` `useExportAttendanceDays`, `access.ts` `exportDays`.
+- **Berikutnya:** waktu fungsi Vercel pada 20.000 baris belum diverifikasi di staging; `directory.teamIds` diam-diam dibatasi 5.000 (lama, belum diperbaiki); peringatan biome `roster-edit.service.ts:577` (lama); cek browser Export Excel & Flash.
+
 ### 2026-11-04 — TM-D25: alasan absen opsional untuk Akurasi GPS rendah & Lembur hari libur ber-SPL (Oatse, `HRIS/mobile-app`)
 - **Dikerjakan:** permintaan supervisor (kutipan pengguna 17:05 WIB "Opsional untuk 2 kasus (Recommended)"). `LABELS_WITHOUT_REASON` = `MOCK_LOCATION` + `LOW_ACCURACY` → `needsReason` (precheck `reasonRequired` & penolakan punch) ikut. Lembur hari libur ber-SPL: SPL hari OFF selalu berjam mulai+selesai dan `applyOrder` membuang `OUTSIDE_ROSTER` → sudah tanpa wajib alasan; `OUTSIDE_ROSTER`/`NO_ROSTER` di kasus lain tidak dilonggarkan. Web: tombol "Clock In lembur ber-SPL" (sebelumnya "· wajib alasan"), komentar & contoh placeholder.
 - **Keputusan:** TM-D25 (mengubah TM-D12, D-070).
@@ -429,3 +452,12 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Masih tanpa jadwal:** 45 karyawan Site PIT (ACP) + 1 Jakarta Selatan.
 - **Backlog (belum diputus):** mode jam fleksibel / shift tanpa Telat; toleransi telat maks 240 (PROGRESS Backlog).
 - **Verifikasi:** dari laporan sesi rilis (tidak diulang di sesi ini). Hanya docs, tanpa ubahan kode. Sumber: `.handoff/2026-11-19-0940-supervisor-ke-HRIS-rilis-crew-ho.md` (Hasil) · `HRIS-rilis/docs/RELEASE.md` `c0764cc`.
+
+## 2026-11-24 — TM-D29 Absen Mandiri DICABUT (Mat)
+
+- **Permintaan:** hapus fitur Absen Mandiri (STAGING) yang sebelumnya diberi flag, lalu rilis ke staging.
+- **Kode:** dihapus `self-report.{contract,repository,routes,service}.ts`, test API & web, `self-report-api.ts`, `self-report-page.tsx`, `self-report-absen.tsx`, `packages/shared/src/self-report.ts`; baris `TM-D29` di routes, router, navigation, route-preload, feature-flags (`tmSelfReport`), absen-page, attendance-days-page, period-pages, mobile-pages; refaktor `assertUploadedPhoto` dikembalikan.
+- **DB:** migrasi `20261124102833_tm_d29_remove_self_report_crews` (`DROP TABLE IF EXISTS attendance.self_report_crews`); diterapkan lokal, staging lewat deploy.
+- **Dipertahankan:** label `SELF_REPORT`/`GALLERY_PHOTO` (data lama tetap tampil).
+- Jejak: `tm-d29-absen-mandiri.md` (status DICABUT).
+
