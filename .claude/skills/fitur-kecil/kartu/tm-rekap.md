@@ -3,7 +3,7 @@
 - **Area:** Rekap bulanan, tutup periode, Alpha, surat pernyataan, export Excel absen
 - **Fitur:** Time Management — [docs/features/time-management/README.md](../../../../docs/features/time-management/README.md)
 - **Modul:** `apps/api/src/modules/attendance/` (period, alpha, attendance-export) · `apps/web/src/features/time-management/`
-- **diverifikasi:** f1b1af4 2026-11-24
+- **diverifikasi:** 2777822 2026-11-24
 - **Jalur yang dipantau:** `apps/api/src/modules/attendance/period.service.ts` `apps/api/src/modules/attendance/period.routes.ts` `apps/api/src/modules/attendance/period.contract.ts` `apps/api/src/modules/attendance/alpha.service.ts` `apps/api/src/modules/attendance/attendance-export.service.ts` `apps/api/src/modules/attendance/attendance-export.contract.ts` `apps/api/src/modules/attendance/attendance.policy.ts` `apps/api/src/modules/attendance/attendance-day.routes.ts` `packages/shared/src/attendance-export.ts` `packages/shared/src/xlsx.ts` `packages/shared/src/time-management.ts` `apps/web/src/features/time-management/period-api.ts` `apps/web/src/features/time-management/pages/period-pages.tsx` `apps/web/src/features/time-management/components/attendance-export-dialog.tsx` `apps/web/src/features/time-management/pages/attendance-days-page.tsx` `apps/web/src/components/ui/calendar.tsx` `apps/web/src/components/ui/date-range-picker.tsx` `apps/web/src/features/time-management/components/alpha-verification-list.tsx` `apps/web/src/features/time-management/access.ts`
 
 ## Ringkasan
@@ -16,6 +16,7 @@
 - `TM-D13` — verifikasi Alpha oleh atasan: Alpha/izin/sakit/tugas luar (`ALPHA_VERIFICATION_OUTCOMES`)
 - `TM-D21/D22` — "hari ini" = `settingsToday()`, bawaan WITA
 - `TM-D31` — export Excel: Detail per crew (16 kolom, sel link peta) dan Flash; audit `attendance.export`. Flash 7 kolom (Nama, Jabatan, Divisi, Tanggal, Clock In, Clock Out, Status; diubah pengguna 2026-11-24; jabatan/divisi = SAAT INI, divisi per D-050, tanpa divisi "—"). Kolom Detail/Flash, pengelompokan crew, batas dan akses disetujui pengguna: mengubahnya = mengubah TM-D31, jadi rencana wajib bertanya ke pengguna
+- Cakupan PT di Detail (temuan review Oatse 2026-11-24): bila `scope.companyIds` tidak null, `detailRows` membuang keanggotaan crew PT lain dan baris roster yang shift/crew-nya di luar cakupan (tanpa shift & crew: dibuang hanya bila keanggotaan crew pada tanggal itu milik PT luar cakupan). Karyawan pindah PT tidak membocorkan jadwal/crew PT lama; akses tidak berubah. Test: blok "karyawan pindah PT" di `attendance-export.test.ts` (rentang April 1998)
 - OD terbuka: tidak ada yang tercatat untuk area ini
 
 ## Peta file
@@ -30,7 +31,7 @@
 | Service | `alpha.service.ts` | `markNoAttendanceAlpha`, `listAlphaVerifications`, `verifyAlpha`, `myAttendanceRecord`, `employeeAttendanceRecord` |
 | Export | `directory.ts` | `positionPlacementByEmployee` (jabatan & divisi saat ini untuk Flash) |
 | Export | `attendance-export.service.ts` | `exportAttendance`, `resolveScope`, `detailRows`, `detailSheets`, `flashSheet`, `crewSheetNames`, `mapCell`, `locationText`, `summarize`, `rosterOnlyStatus` |
-| Repository | `attendance.repository.ts` / `roster.repository.ts` | `exportDays` (query ramping tanpa selfie) / `crewMembershipsForExport` (termasuk crew terhapus) |
+| Repository | `attendance.repository.ts` / `roster.repository.ts` | `exportDays` (query ramping tanpa selfie) / `rosterDaysForExport` (+`crewId`, `shift.companyId`), `crewMembershipsForExport` (termasuk crew terhapus), `crewsForExport` |
 | Contract | `period.contract.ts`, `attendance-export.contract.ts` | `recapRowSchema`, `monthlyRecapSchema`, `periodPreviewSchema`, `statementRowSchema`, `alphaVerificationSchema`, `attendanceExportFileSchema` |
 
 ### Shared — `packages/shared/src/`

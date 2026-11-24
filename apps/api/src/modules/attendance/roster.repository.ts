@@ -308,9 +308,11 @@ export const rosterDaysForExport = (employeeIds: string[], from: Date, to: Date,
       employeeId: true,
       workDate: true,
       timeOff: true,
+      crewId: true,
       shift: {
         select: {
           code: true,
+          companyId: true,
           startMinute: true,
           endMinute: true,
           startsNextDay: true,

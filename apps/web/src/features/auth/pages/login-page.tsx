@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { env } from "@/lib/env";
+import { isAbsenPath, isStandalone } from "@/lib/standalone";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "../auth-provider";
 import { type LoginForm, loginFormSchema } from "../schemas";
@@ -41,8 +42,11 @@ export function AuthCard({
 }
 
 // Hanya path internal yang diizinkan sebagai tujuan setelah login (cegah open redirect).
-export function safeNext(next: string | null): string {
-  return next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+// TM-D32: di aplikasi layar utama (standalone) hanya /absen yang boleh jadi tujuan; selain itu → /absen.
+export function safeNext(next: string | null, standalone = isStandalone()): string {
+  const safe = next?.startsWith("/") && !next.startsWith("//") ? next : null;
+  if (standalone) return safe && isAbsenPath(safe.split(/[?#]/)[0] ?? "") ? safe : "/absen";
+  return safe ?? "/";
 }
 
 export function LoginPage() {
