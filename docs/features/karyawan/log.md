@@ -3,6 +3,11 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-24 — EMP-D8 Paket 2 + EMP-D9 Paket 1 dirilis ke staging gel. 36 (supervisor/Oatse)
+- **Rilis:** develop `703c334` → rilis PR #109 merge `304277c`, PR #110 merge `2c35c99`, Deploy staging #45340144173 ✔ (tanpa migrasi). Pasca-rilis: health 200, web 200, filter "Atasan tanpa akun" dan teks EMP-D9 di Data Absen Harian tampil (Zen SA). Catatan rilis: `HRIS-rilis/docs/RELEASE.md` `2d09e84`.
+- **Antrean absen lama (Q-B):** dry-run `db:approve-normal-punches` di staging = 90 absen normal PENDING (PT Arthasia Cipta Pratama; Okt 1, Nov 89). `--apply` **dibatalkan pengguna** 13:3x WIB ("gausah diubh datanya samsek") → antrean tetap PENDING, diputus manual oleh atasan/HR.
+- **Catatan:** periode November jangan ditutup sebelum antrean diproses (tutup periode mengubah hari PENDING jadi Alpha; P3 b hanya memperingatkan).
+
 ### 2026-11-24 — Paket 1 antrean persetujuan bisa habis (EMP-D9) (Oatse)
 - **Dikerjakan:** sesi hris-11, arahan supervisor-3e. KUTIPAN PENGGUNA 11:15 "Paket 1 dlu", 11:2x Q-A "Cukup 1 langkah HR", 11:30 "setuju semua rekomendasi". Codex `sol-medium` (T3 atasan tanpa akun: `employee.{schema,service,repository}.ts`, web detail/form/daftar/Akun) dan `sol-high` (P1/Q-A/P2/script: `approval.{policy,service,repository}.ts` + `index.ts`, `attendance.service.ts` `recordPunch`/`manualPunch`, `attendance.repository.ts` `normalPendingPunches`, `attendance/normal-pending.service.ts`, `scripts/approve-normal-pending-punches.ts`, web keterangan Data Absen Harian); keduanya diverifikasi ulang `cw` + review diff penuh. Sendiri: P3 b dialog tutup periode (`period-pages.tsx` + `tests/period-close-warning.test.tsx`), teks peringatan mengikuti Q-A, "Terpilih: …" di dialog Undang akun.
 - **Keputusan:** EMP-D9 (README). D-073 berubah: absen normal tidak lagi lewat approval.
