@@ -408,8 +408,9 @@ function LeaveApprovalCard({ request }: { request: LeaveRequest }) {
 
 export function MobileApprovalsPage() {
   const { me, tz } = useMobileApp();
-  const canDays = tmAccess.reviewDays(me);
-  const canLeave = tmAccess.decideLeave(me);
+  // ORG-D9: hanya antrean "perlu keputusan" → atasan role apa pun (bawahan langsung).
+  const canDays = tmAccess.approvalInbox(me);
+  const canLeave = tmAccess.approvalInbox(me);
   const canAlpha = tmAccess.verifyAlpha(me);
   const canEdits = tmAccess.decideRosterChanges(me);
   const [tab, setTab] = useState<"absen" | "cuti" | "alpha" | "jadwal">(canDays ? "absen" : "cuti");
@@ -577,6 +578,7 @@ export function MobileNotificationsPage() {
 export function MobileProfilePage() {
   const { me, data } = useMobileApp();
   const { signOut } = useAuth();
+  const absenHome = tmAccess.absenHome(me);
   const roleText: Record<string, string> = {
     SUPER_ADMIN: "Super Admin",
     HR_ADMIN: "HR Admin",
@@ -613,13 +615,17 @@ export function MobileProfilePage() {
       </Card>
       <Card className="divide-y p-0">
         <Link to="/profil" className="flex items-center gap-3 px-3 py-3 text-sm">
-          <KeyRound className="text-muted-foreground size-4" /> Akun & keamanan (versi web)
+          <KeyRound className="text-muted-foreground size-4" />{" "}
+          {absenHome ? "Akun Saya (versi web)" : "Akun & keamanan (versi web)"}
           <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
         </Link>
-        <Link to="/" className="flex items-center gap-3 px-3 py-3 text-sm">
-          <Monitor className="text-muted-foreground size-4" /> Buka HRIS versi web
-          <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
-        </Link>
+        {/* #102: bagi karyawan "/" kembali ke absen — tautan versi web hanya untuk role lain. */}
+        {absenHome ? null : (
+          <Link to="/" className="flex items-center gap-3 px-3 py-3 text-sm">
+            <Monitor className="text-muted-foreground size-4" /> Buka HRIS versi web
+            <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
+          </Link>
+        )}
         <button
           type="button"
           onClick={() => void signOut()}

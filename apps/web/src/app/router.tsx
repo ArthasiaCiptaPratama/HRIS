@@ -54,12 +54,21 @@ export const routes: RouteObject[] = [
                   { path: "tukar-shift", lazy: pages.rosterChanges },
                   { path: "kalender", lazy: pages.holidays },
                   {
+                    // #102: lembur karyawan di dalam bingkai HP (halaman & hak akses sama dengan web).
+                    // /absen/lembur = Ajukan Lembur (TM-D27); halaman ini di /absen/lembur-spl (pilihan A
+                    // pengguna 2026-11-18 saat merge HRIS/Mat/Mac).
+                    path: "lembur-spl",
+                    element: <RequireAccessRoute check={tmAccess.overtime} />,
+                    children: [
+                      {
+                        index: true,
+                        lazy: tmOn("tmOvertime") ? pages.overtime : pages.maintenance,
+                      },
+                    ],
+                  },
+                  {
                     path: "approval",
-                    element: (
-                      <RequireAccessRoute
-                        check={(me) => tmAccess.reviewDays(me) || tmAccess.decideLeave(me)}
-                      />
-                    ),
+                    element: <RequireAccessRoute check={tmAccess.approvalInbox} />,
                     children: [{ index: true, lazy: pages.mobileApprovals }],
                   },
                   { path: "notifikasi", lazy: pages.mobileNotifications },

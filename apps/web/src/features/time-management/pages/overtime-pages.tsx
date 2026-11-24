@@ -63,12 +63,16 @@ const monthRange = (month: string) => {
 
 export function OvertimePage() {
   const me = useMe().data as Me;
+  // ORG-D9: atasan role apa pun → "Perlu keputusan" & SPL bawahan langsung; "Semua"/rekap tim tetap
+  // SA/HR/MANAGER (API scope all).
   const decider = tmAccess.decideOvertime(me);
+  const inboxDecider = tmAccess.overtimeInbox(me);
   const { companies, companyId, setCompanyId } = useRosterCompany();
-  // `?tab=claims`: tautan notifikasi & ringkasan harian pengajuan lembur karyawan (TM-D27).
+  // `?tab=claims`: tautan notifikasi & ringkasan harian pengajuan lembur karyawan (TM-D27); tab
+  // Pengajuan karyawan hanya untuk `decider` (SA/HR/MANAGER), atasan ORG-D9 tetap ke "Perlu keputusan".
   const [params] = useSearchParams();
   const [tab, setTab] = useState<Tab>(
-    decider ? (params.get("tab") === "claims" ? "claims" : "inbox") : "me",
+    decider && params.get("tab") === "claims" ? "claims" : inboxDecider ? "inbox" : "me",
   );
   const [month, setMonth] = useState(() => todayIn().slice(0, 7));
   const range = monthRange(month);
@@ -101,14 +105,14 @@ export function OvertimePage() {
                 options={companies.map((c) => ({ value: c.id, label: `${c.code} · ${c.name}` }))}
               />
             ) : null}
-            {decider ? <RefreshButton /> : null}
+            {inboxDecider ? <RefreshButton /> : null}
           </div>
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsList>
-            {decider ? <TabsTrigger value="inbox">Perlu keputusan</TabsTrigger> : null}
+            {inboxDecider ? <TabsTrigger value="inbox">Perlu keputusan</TabsTrigger> : null}
             {decider ? <TabsTrigger value="all">Semua</TabsTrigger> : null}
             {me.employeeId ? <TabsTrigger value="me">Lembur saya</TabsTrigger> : null}
             <TabsTrigger value="orders">Perintah lembur</TabsTrigger>
@@ -133,7 +137,7 @@ export function OvertimePage() {
         <OvertimeOrdersView
           {...range}
           {...(company ? { companyId: company } : {})}
-          canCreate={decider}
+          canCreate={inboxDecider}
         />
       ) : tab === "summary" ? (
         <SummaryView query={summary} />

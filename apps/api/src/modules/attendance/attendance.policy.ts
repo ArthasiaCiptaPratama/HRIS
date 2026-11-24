@@ -1,5 +1,5 @@
 import { ROLE } from "@hris/shared";
-import { type Actor, hasPermission } from "../../core/access/index.ts";
+import { type Actor, hasPermission, isApprover } from "../../core/access/index.ts";
 
 // Time Management (PLAN §4.3, desain time-management.md §9). Keputusan murni; data target dari pemanggil.
 
@@ -38,16 +38,15 @@ export interface RosterTarget {
   managerId: string | null;
 }
 
-/** Lihat roster seorang karyawan: SA; HR PT-nya; MANAGER tim; karyawan sendiri. */
+/**
+ * Lihat roster/absen seorang karyawan: SA; HR PT-nya; karyawan sendiri; atasan langsungnya apa pun role
+ * akunnya (ORG-D9 — konteks memutuskan pengajuan bawahan). Grid/daftar tim tetap khusus MANAGER.
+ */
 export function canViewEmployeeRoster(actor: Actor, target: RosterTarget): boolean {
   if (isSa(actor)) return true;
   if (actor.employeeId !== null && actor.employeeId === target.employeeId) return true;
   if (isHr(actor) && (actor.companyIds?.has(target.companyId) ?? false)) return true;
-  return (
-    actor.role === ROLE.MANAGER &&
-    actor.employeeId !== null &&
-    target.managerId === actor.employeeId
-  );
+  return actor.employeeId !== null && target.managerId === actor.employeeId;
 }
 
 /**
@@ -64,9 +63,9 @@ export function canVerifyAlpha(
   return actor.employeeId !== null && target.managerEmployeeId === actor.employeeId;
 }
 
-/** Antrean verifikasi Alpha: SA, HR, atau akun yang punya bawahan (atasan). */
+/** Antrean verifikasi Alpha: SA, HR, atau atasan (MANAGER / akun yang punya bawahan langsung, ORG-D9). */
 export const canViewAlphaVerifications = (actor: Actor) =>
-  isSa(actor) || isHr(actor) || (actor.role === ROLE.MANAGER && actor.employeeId !== null);
+  isSa(actor) || isHr(actor) || isApprover(actor);
 
 /** Ajukan perubahan roster: karyawan untuk dirinya; MANAGER juga atas nama tim (desain §4.2). */
 export function canRequestRosterChange(actor: Actor, target: RosterTarget): boolean {
@@ -125,7 +124,11 @@ export function canApplyRosterCell(
   );
 }
 
-/** Data Absen Harian hanya untuk operator HR/SA dan atasan yang terhubung ke karyawan. */
+/** ORG-D9: antrean "Perlu keputusan" absen: SA, HR, atasan (role apa pun yang punya bawahan langsung). */
+export const canListAttendanceInbox = (actor: Actor) =>
+  isSa(actor) || isHr(actor) || isApprover(actor);
+
+/** Data Absen Harian (semua hari tim) hanya untuk operator HR/SA dan MANAGER yang terhubung ke karyawan. */
 export const canListAttendanceDays = (actor: Actor) =>
   isSa(actor) || isHr(actor) || (actor.role === ROLE.MANAGER && actor.employeeId !== null);
 

@@ -213,6 +213,25 @@ export function useListParams(defaults: { sort: string }) {
   };
 }
 
+/** EMP-D7: filter yang sama untuk tabel dan ekspor; paginasi bukan bagian cakupan. */
+export function employeeListFilter(
+  list: Pick<
+    ReturnType<typeof useListParams>,
+    "q" | "departmentId" | "workLocationId" | "homebaseId" | "missingNumber" | "sort"
+  >,
+  view: Pick<EmployeeListParams, "active" | "category" | "group" | "companyId">,
+): Omit<EmployeeListParams, "page" | "pageSize"> {
+  return {
+    ...view,
+    q: list.q || undefined,
+    departmentId: list.departmentId || undefined,
+    workLocationId: list.workLocationId || undefined,
+    homebaseId: list.homebaseId || undefined,
+    missingNumber: list.missingNumber || undefined,
+    sort: list.sort,
+  };
+}
+
 export function EmployeeListView({
   variant,
   category,
@@ -268,16 +287,17 @@ export function EmployeeListView({
     () => ({
       page: list.page,
       pageSize: list.pageSize,
-      active: variant === "active",
-      q: list.q || undefined,
-      category,
-      group,
-      companyId,
-      departmentId: list.departmentId || undefined,
-      workLocationId: list.workLocationId || undefined,
-      homebaseId: list.homebaseId || undefined,
-      missingNumber: list.missingNumber || undefined,
-      sort: list.sort,
+      ...employeeListFilter(
+        {
+          q: list.q,
+          departmentId: list.departmentId,
+          workLocationId: list.workLocationId,
+          homebaseId: list.homebaseId,
+          missingNumber: list.missingNumber,
+          sort: list.sort,
+        },
+        { active: variant === "active", category, group, companyId },
+      ),
     }),
     [
       list.page,

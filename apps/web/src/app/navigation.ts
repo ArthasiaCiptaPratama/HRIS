@@ -199,13 +199,39 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: LayoutDashboard,
     to: "/",
     match: (p) => p === "/",
-    visible: () => true,
+    visible: (me) => !tmAccess.absenHome(me),
     inTopNav: true,
     sections: [
       {
         id: "overview",
         label: "Ringkasan",
         items: [{ id: "dashboard", label: "Dashboard", to: "/", icon: LayoutDashboard }],
+      },
+    ],
+  },
+  {
+    // #102 (TM-D30): pengganti Dashboard + Time Management untuk karyawan — semua menu absen,
+    // cuti, koreksi, roster, dan lembur ada di halaman absen (/absen/*).
+    id: "absen",
+    label: "Absen",
+    icon: Smartphone,
+    to: "/absen",
+    match: (p) => p.startsWith("/absen"),
+    visible: tmAccess.absenHome,
+    inTopNav: true,
+    sections: [
+      {
+        id: "absen",
+        label: "Absen",
+        items: [
+          {
+            id: "absen-home",
+            label: "Absen",
+            to: "/absen",
+            icon: Smartphone,
+            keywords: "absen masuk pulang selfie cuti izin koreksi roster lembur",
+          },
+        ],
       },
     ],
   },
@@ -339,7 +365,7 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: CalendarClock,
     to: "/time/roster",
     match: (p) => p.startsWith("/time") || p.startsWith("/absen"),
-    visible: tmAccess.viewRoster,
+    visible: (me) => tmAccess.viewRoster(me) && !tmAccess.absenHome(me),
     inTopNav: true,
     sections: [
       {

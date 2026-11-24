@@ -20,7 +20,6 @@ import {
   accountEmailsInUse,
   getEmployeeAccountStates,
   inviteEmployeeAccount,
-  listManagerEmployeeIds,
   retireUnusedEmployeeAccount,
 } from "../iam/index.ts";
 import { forgetRecipient } from "../notification/index.ts";
@@ -69,7 +68,7 @@ const ISSUE_MESSAGES: Record<string, string> = {
   POSITION_INVALID: "Jabatan tidak ditemukan atau diarsipkan.",
   LOCATION_INVALID: "Lokasi kerja tidak ditemukan atau diarsipkan.",
   GRADE_INVALID: "Grade tidak ditemukan atau diarsipkan.",
-  MANAGER_INVALID: "Atasan harus karyawan aktif yang memiliki akun Manager/Super Admin.",
+  MANAGER_INVALID: "Atasan harus karyawan aktif.",
   NUMBER_REQUIRED: "NIP wajib diisi.",
 };
 
@@ -140,14 +139,11 @@ async function analyze(
   );
 
   // Rujukan master data aktif + cakupan PT (D-040).
-  const managers = new Set(await listManagerEmployeeIds());
   const managerRows = await employeeRepo.findManyByIds([
     ...new Set(valid.map((r) => r.candidate.managerId).filter((id): id is string => Boolean(id))),
   ]);
   const activeManagers = new Set(
-    managerRows
-      .filter((m) => m.isActive && m.onboardingStatus === "APPROVED" && managers.has(m.id))
-      .map((m) => m.id),
+    managerRows.filter((m) => m.isActive && m.onboardingStatus === "APPROVED").map((m) => m.id),
   );
   const live = <T extends { deleted: boolean }>(
     map: Map<string, T>,

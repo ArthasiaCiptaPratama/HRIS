@@ -134,15 +134,11 @@ await prisma.$transaction(
   { timeout: 120_000, maxWait: 10_000 },
 );
 
-// Atasan otomatis (D-053) untuk pemegang yang punya akun Manager/SA.
+// Atasan otomatis (ORG-D9): pemegang aktif pos tepat di atasnya, apa pun role akunnya.
 const holders = await prisma.employee.findMany({
   where: { isActive: true, orgPostId: { not: null }, managerOverride: false },
-  select: { id: true, orgPostId: true },
+  select: { id: true, employeeNumber: true, orgPostId: true },
   orderBy: { employeeNumber: "asc" },
-});
-const managers = await prisma.account.findMany({
-  where: { isActive: true, role: { in: ["MANAGER", "SUPER_ADMIN"] }, employeeId: { not: null } },
-  select: { employeeId: true },
 });
 const allPosts = await prisma.orgPost.findMany({
   where: { deletedAt: null },
@@ -150,8 +146,11 @@ const allPosts = await prisma.orgPost.findMany({
 });
 const desired = resolvePostManagers({
   posts: allPosts,
-  holders: holders.map((h) => ({ employeeId: h.id, postId: h.orgPostId as string })),
-  eligibleManagers: new Set(managers.map((m) => m.employeeId as string)),
+  holders: holders.map((h) => ({
+    employeeId: h.id,
+    employeeNumber: h.employeeNumber,
+    postId: h.orgPostId as string,
+  })),
 });
 for (const [id, managerId] of desired) {
   await prisma.employee.update({ where: { id }, data: { managerId } });

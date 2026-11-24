@@ -13,6 +13,7 @@ import {
   Camera,
   CircleAlert,
   ClipboardCheck,
+  ClipboardList,
   Coffee,
   FilePenLine,
   History as HistoryIcon,
@@ -32,7 +33,7 @@ import {
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { tmOn } from "@/app/feature-flags";
+import { FEATURES, tmOn } from "@/app/feature-flags";
 import { BrandLogo } from "@/components/brand-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -65,7 +66,13 @@ import {
   todayIn,
   workDateLabel,
 } from "../components/display";
-import { AlphaBanner, HomeSummary, PunchReminder } from "../components/home-insights";
+import {
+  AlphaBanner,
+  CompleteDataBanner,
+  HomeSummary,
+  PersonalTasksCard,
+  PunchReminder,
+} from "../components/home-insights";
 import { RosterWeek } from "../components/roster-week";
 import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
@@ -162,6 +169,8 @@ const MOBILE_TITLES: [prefix: string, title: string][] = [
   ["/absen/roster", "Jadwal Saya"],
   ["/absen/cuti", "Cuti & Izin"],
   ["/absen/koreksi", "Koreksi & Pernyataan"],
+  // Urutan penting (cocok awalan): /absen/lembur-spl sebelum /absen/lembur.
+  ["/absen/lembur-spl", "Lembur & SPL"],
   ["/absen/lembur", "Pengajuan Lembur"],
   ["/absen/tukar-shift", "Tukar Shift"],
   ["/absen/kalender", "Kalender Libur"],
@@ -333,6 +342,7 @@ export function AbsenHome() {
   }
   return (
     <>
+      <CompleteDataBanner me={me} />
       <PunchReminder data={data} clock={clock} />
       <AlphaBanner />
       <TodayCard
@@ -344,6 +354,7 @@ export function AbsenHome() {
       />
       {/* TM-D29 (STAGING): absen mandiri — hanya crew berizin (The Intern's). */}
       {tmOn("tmSelfReport") ? <SelfReportCard /> : null}
+      <PersonalTasksCard me={me} />
       <HomeSummary data={data} />
       <MenuGrid me={me} />
       <RosterStrip data={data} today={todayIn(tz)} />
@@ -633,7 +644,7 @@ function MenuTile({
 }
 
 function MenuGrid({ me }: { me: Me }) {
-  const approver = tmAccess.reviewDays(me) || tmAccess.decideLeave(me);
+  const approver = tmAccess.approvalInbox(me);
   const queue = useTimeQueue(approver).data;
   return (
     <section className="bg-card rounded-2xl border p-3 shadow-xs">
@@ -688,6 +699,22 @@ function MenuGrid({ me }: { me: Me }) {
             label="Approval"
             tone="bg-teal-100 text-teal-700"
             count={queue?.total}
+          />
+        ) : null}
+        {tmAccess.overtime(me) && tmOn("tmOvertime") ? (
+          <MenuTile
+            to="/absen/lembur-spl"
+            icon={Timer}
+            label="Lembur & SPL"
+            tone="bg-indigo-100 text-indigo-700"
+          />
+        ) : null}
+        {FEATURES.selfService ? (
+          <MenuTile
+            to="/ess"
+            icon={ClipboardList}
+            label="Layanan Mandiri"
+            tone="bg-lime-100 text-lime-700"
           />
         ) : null}
         <MenuTile

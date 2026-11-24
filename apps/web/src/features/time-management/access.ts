@@ -1,4 +1,5 @@
 import { ROLE } from "@hris/shared";
+import { tmOn } from "@/app/feature-flags";
 import type { Me } from "@/features/auth/schemas";
 
 // Helper akses UI Time Management (cermin apps/api/src/modules/attendance/attendance.policy.ts &
@@ -8,12 +9,27 @@ import type { Me } from "@/features/auth/schemas";
 const isSa = (me: Me) => me.role === ROLE.SUPER_ADMIN;
 const isHr = (me: Me) => me.role === ROLE.HR_ADMIN;
 const isManager = (me: Me) => me.role === ROLE.MANAGER && me.employeeId !== null;
+/**
+ * ORG-D9 (cermin `isApprover` API): pemutus langkah "Atasan" = MANAGER ber-karyawan atau akun role apa pun
+ * yang punya bawahan langsung aktif (`me.isSupervisor`). Hanya antrean "perlu keputusan" & SPL bawahan
+ * langsung — daftar/rekap tim tetap khusus MANAGER.
+ */
+const isApprover = (me: Me) =>
+  me.employeeId !== null && (isManager(me) || me.isSupervisor === true);
 
 export const tmAccess = {
   /** Absen PWA: akun yang terhubung ke data karyawan (D-067). */
   punch: (me: Me) => me.employeeId !== null,
-  /** TM-D13 Fase B: verifikasi Alpha tim (atasan), SA, HR PT. */
-  verifyAlpha: (me: Me) => isSa(me) || isHr(me) || isManager(me),
+  /**
+   * #102 (TM-D30): akun EMPLOYEE yang tertaut karyawan memakai halaman absen sebagai beranda —
+   * "/" dialihkan ke /absen dan menu web Dashboard/Time Management diganti satu tab "Absen".
+   * MANAGER/HR/SA (walau punya data karyawan) tetap memakai dashboard.
+   */
+  absenHome: (me: Me) => tmOn("tmAbsen") && me.role === ROLE.EMPLOYEE && me.employeeId !== null,
+  /** ORG-D9: antrean "perlu keputusan" (absen, cuti/izin, koreksi, Approval HP): SA, HR, atasan. */
+  approvalInbox: (me: Me) => isSa(me) || isHr(me) || isApprover(me),
+  /** TM-D13 Fase B: verifikasi Alpha bawahan langsung (atasan role apa pun, ORG-D9), SA, HR PT. */
+  verifyAlpha: (me: Me) => isSa(me) || isHr(me) || isApprover(me),
   /** Data Absen Harian & inbox keputusan (D-068): SA, HR (PT ditugaskan), MANAGER (tim). */
   reviewDays: (me: Me) => isSa(me) || isHr(me) || isManager(me),
   /** Grid roster: semua yang punya data karyawan + SA/HR. */
@@ -24,8 +40,8 @@ export const tmAccess = {
   manageAttendanceLocations: (me: Me) => isSa(me) || isHr(me),
   /** Pengajuan perubahan / tukar shift: karyawan & atasan; HR/SA memutuskan dari inbox. */
   rosterChanges: (me: Me) => me.employeeId !== null || isSa(me) || isHr(me),
-  /** Inbox keputusan perubahan roster. */
-  decideRosterChanges: (me: Me) => isSa(me) || isHr(me) || isManager(me),
+  /** Inbox keputusan perubahan roster (atasan role apa pun, ORG-D9). */
+  decideRosterChanges: (me: Me) => isSa(me) || isHr(me) || isApprover(me),
   /** Kalender libur: semua melihat; SA kelola. */
   manageHolidays: (me: Me) => isSa(me),
   /** Pengaturan Time Management: SA ubah; HR lihat. */
@@ -47,6 +63,8 @@ export const tmAccess = {
   /** TM-D6 lembur: karyawan melihat miliknya; SA/HR/MANAGER memutuskan & merekap. */
   overtime: (me: Me) => me.employeeId !== null || isSa(me) || isHr(me),
   decideOvertime: (me: Me) => isSa(me) || isHr(me) || isManager(me),
+  /** ORG-D9: tab "Perlu keputusan" lembur & buat SPL untuk bawahan langsung — atasan role apa pun. */
+  overtimeInbox: (me: Me) => isSa(me) || isHr(me) || isApprover(me),
   /** TM-D17 susulan (Q1 opsi B): SPL tanggal lampau hanya HR PT & SA. */
   orderOvertimeRetroactive: (me: Me) => isSa(me) || isHr(me),
   /** Upah grade: SA ubah; HR ber-grant `labor.cost.read` lihat (cermin canSeeLaborCost). */

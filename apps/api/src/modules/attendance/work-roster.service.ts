@@ -497,10 +497,18 @@ async function planWorkRoster(
   if (!shifts.some((s) => s.code === input.shiftCode)) {
     throw new BusinessRuleError(`Shift ${input.shiftCode} tidak ada di PT ini.`);
   }
+  // Lokasi kerja master global (tanpa PT) → cukup dipastikan ada sebelum dipakai menentukan kelompok.
+  if (!(await directory.locationsByIds([input.workLocationId])).has(input.workLocationId)) {
+    throw new NotFoundError("Lokasi kerja tidak ditemukan.");
+  }
+  // Pola setEmployeeResidency: semua karyawan harus dari PT yang dipilih (dicek sebelum nama/kelompok
+  // diproses, supaya pratinjau tidak membocorkan data karyawan PT lain atau ID yang tidak dikenal).
   const people = await directory.employeesByIds(input.employeeIds);
-  const employees = [...new Set(input.employeeIds)]
-    .map((id) => people.get(id))
-    .filter((e): e is directory.DirectoryEmployee => e !== undefined);
+  const ids = [...new Set(input.employeeIds)];
+  if (ids.some((id) => people.get(id)?.companyId !== input.companyId)) {
+    throw new BusinessRuleError("Semua karyawan harus dari PT yang dipilih.");
+  }
+  const employees = ids.map((id) => people.get(id) as directory.DirectoryEmployee);
   const resolved = await residenciesOf(employees, input.effectiveDate, input.workLocationId);
 
   const unresolved: WorkRosterAssignPreview["unresolved"] = [];

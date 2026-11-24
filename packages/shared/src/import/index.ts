@@ -2,6 +2,7 @@
 export * from "./attachments.ts";
 export * from "./chart-holder.ts";
 export * from "./detect.ts";
+export * from "./edits.ts";
 export * from "./fields.ts";
 export * from "./groups.ts";
 export * from "./normalize.ts";

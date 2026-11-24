@@ -103,6 +103,7 @@ const keys = {
   wages: [...tmKeys.all, "grade-wages"] as const,
   breaks: [...tmKeys.all, "break-locations"] as const,
   orders: (params: object) => [...tmKeys.all, "overtime-orders", params] as const,
+  subordinates: (q: string) => [...tmKeys.all, "overtime-subordinates", q] as const,
   claims: (params: object) => [...tmKeys.all, "overtime-claims", params] as const,
 };
 
@@ -252,6 +253,25 @@ export function useCancelOvertimeOrder() {
         schema: one(z.object({ id: z.string() })),
       }).then((r) => r.data),
     onSuccess: refresh,
+  });
+}
+
+/** ORG-D9: bawahan langsung aktif untuk SPL (atasan role apa pun; SA/HR/MANAGER memakai EmployeePicker). */
+export const overtimeSubordinateSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  employeeNumber: z.string().nullable(),
+});
+
+export function useOvertimeSubordinates(q: string, enabled = true) {
+  return useQuery({
+    queryKey: keys.subordinates(q),
+    enabled,
+    queryFn: ({ signal }) =>
+      api(`/overtime-orders/subordinates${q ? `?${new URLSearchParams({ q })}` : ""}`, {
+        schema: one(z.array(overtimeSubordinateSchema)),
+        signal,
+      }).then((r) => r.data),
   });
 }
 

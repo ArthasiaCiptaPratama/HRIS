@@ -314,3 +314,8 @@ export function canUpdateEmployee(actor: Actor, target: EmployeeTarget): boolean
     !(actor.role === ROLE.HR_ADMIN && isSelf(actor, target))
   );
 }
+
+/** EMP-D7: ekspor massal data karyawan hanya SA/HR; bagian sensitif tetap memerlukan grant. */
+export function canExportEmployees(actor: Actor): boolean {
+  return isAdmin(actor);
+}

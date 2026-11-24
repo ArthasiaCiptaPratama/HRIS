@@ -167,7 +167,7 @@ Catatan untuk Vercel:
 - **Satu akun tepat satu role** (D-028): staf HR ber-role `HR_ADMIN`, atasan ber-role `MANAGER`.
 - **Hak layanan diri** (absen, ajukan cuti/koreksi/lembur, lihat slip & data sendiri, ubah data diri terbatas) melekat pada **akun yang terhubung ke data karyawan**, apa pun role-nya. Karena itu HR_ADMIN/MANAGER tetap bisa absen & cuti, sedangkan SUPER_ADMIN tanpa data karyawan tidak (tanda \* di §4.3).
 - Role **tetap di kode**. SUPER_ADMIN hanya memberi/mencabut role, tidak membuat role baru.
-- **Tim MANAGER** = karyawan yang `manager_id`-nya menunjuk ke dia (satu tingkat). `manager_id` wajib menunjuk ke akun ber-role MANAGER atau SUPER_ADMIN.
+- **Tim MANAGER** = karyawan yang `manager_id`-nya menunjuk ke dia (satu tingkat). `manager_id` menunjuk ke karyawan aktif mana pun — otomatis pemegang pos tepat di atasnya di bagan ([ORG-D9](features/organisasi/README.md#org-d9), menggantikan syarat lama "akun MANAGER/SUPER_ADMIN"). Atasan ber-akun role apa pun memutuskan langkah "Atasan" bawahan langsungnya; hak tim lain tetap MANAGER.
 - Akun SUPER_ADMIN **boleh tanpa data karyawan** (tidak bisa absen, cuti, atau punya slip).
 
 ### 4.2 Grant Izin Per Akun
@@ -480,7 +480,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [D-050](decisions.md#d-050) | Unit organisasi berjenjang & level jabatan | [ORG](features/organisasi/README.md) |
 | [D-051](decisions.md#d-051) | Bagan organisasi berbasis pos jabatan | [ORG](features/organisasi/README.md) |
 | [D-052](decisions.md#d-052) | Unit organisasi milik PT | [ORG](features/organisasi/README.md) |
-| [D-053](decisions.md#d-053) | Atasan langsung otomatis dari pos | [ORG](features/organisasi/README.md) |
+| [D-053](decisions.md#d-053) | ~~Atasan langsung otomatis dari pos~~ → diganti ORG-D9 | [ORG](features/organisasi/README.md) |
 | [D-054](decisions.md#d-054) | Arsip karyawan & perubahan data milik sendiri | [ARS](features/arsip/README.md) |
 | [D-055](decisions.md#d-055) | Dokumen karyawan bermasa berlaku | [ARS](features/arsip/README.md) |
 | [D-056](decisions.md#d-056) | Aset karyawan (rencana) | [ARS](features/arsip/README.md) |
@@ -547,7 +547,15 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [TM-D18](features/time-management/README.md#keputusan) | 45 jam/minggu = patokan jadwal; lembur tetap per hari; selisih PP 35/2021 risiko diterima | [TM](features/time-management/README.md) |
 | [TM-D19](features/time-management/README.md#keputusan) | Perintah lembur susulan: HR PT / SA, periode belum ditutup, bertanda Susulan, usulan lembur dihitung ulang | [TM](features/time-management/README.md) |
 | [TM-D25](features/time-management/README.md#keputusan) | Alasan absen opsional untuk Akurasi GPS rendah & Clock In Lembur hari libur ber-SPL (mengubah TM-D12/D-070); label lain tetap wajib alasan | [TM](features/time-management/README.md) |
+| [TM-D26](features/time-management/README.md#keputusan) | Wajib absen datang & pulang (bawaan menyala): hanya absen datang → Alpha; absen pulang bebas s.d. 24:00, tidak otomatis lembur; jatah pulang di luar kantor per bulan (Mat) |
+| [TM-D27](features/time-management/README.md#keputusan) | Pengajuan lembur oleh karyawan untuk tanggal ber-absen; diputus HR PT (SA bila PT tanpa HR); antrean `overtimeClaims` + ringkasan harian (Mat) |
+| [TM-D28](features/time-management/README.md#keputusan) | Roster (tampilan: Pola Kerja) = siklus kerja–libur (Office / lokal / non-lokal, time off `TO`); Jadwal = jam kerja (Mat) |
+| [TM-D29](features/time-management/README.md#keputusan) | Absen Mandiri (STAGING, sementara): crew berizin mengisi Clock In/Out sendiri dari HP, label `SELF_REPORT`/`GALLERY_PHOTO`, 2 approval (Mat) |
+| [TM-D30](features/time-management/README.md#keputusan) | Akun EMPLOYEE tertaut berberanda di `/absen` (login/atur password/root); menu web Absen + Akun Saya; fitur karyawan dari beranda absen; role lain tidak berubah | [TM](features/time-management/README.md) |
 | [ORG-D8](features/organisasi/README.md#org-d8) | Grade = Level (langkah cepat): level karyawan = level jabatan; kode HR asli (`hr_level_code`) sebagai penanda di detail & header; Master Data › Level baca saja; data Grade dibiarkan untuk TM | [ORG](features/organisasi/README.md) |
+| [ORG-D9](features/organisasi/README.md#org-d9) | Atasan langsung = pemegang aktif pos tepat di atasnya apa pun role akunnya (menggantikan D-053); pos >1 pemegang → NIK terkecil; atasan role apa pun memutus langkah Atasan bawahan langsungnya (`isSupervisor`); atasan tanpa akun → snapshot tanpa atasan (HR/SA) | [ORG](features/organisasi/README.md) |
+| [IMP-D5](features/import-karyawan/README.md#imp-d5) | Import ramah pengguna awam: persona staf HR tiap PT; paket A (teks, Pratinjau tanpa geser, pemetaan ringkas, template HRIS, master baru terlihat + tanda Mirip) → B (perbaiki di layar) → C (mode sederhana); kolom 🔒 tetap dilewati untuk akun tanpa izin | [IMP](features/import-karyawan/README.md) |
+| [IMP-D6](features/import-karyawan/README.md#imp-d6) | Pratinjau import seperti spreadsheet: semua sel isian bisa diubah di layar (ubahan diterapkan ke raw, aturan server sama), grid TanStack + react-virtual, kolom penting + kolom error, 🔒 terkunci, validasi instan + pratinjau ulang 1 dtk | [IMP](features/import-karyawan/README.md) |
 | [IMP-D4](features/import-karyawan/README.md#imp-d4) | Kolom Grade/Level import = kode level HR: peringatan per kode, isi level jabatan yang kosong bila sepakat, tanpa master Grade baru | [IMP](features/import-karyawan/README.md) |
 | [ONB-D2](features/onboarding/README.md#onb-d2) | Akun Karyawan/Manager wajib tertaut karyawan: undang pilih karyawan (Karyawan = Undang Karyawan Terdaftar), Tautkan ke karyawan + saran email, badge/filter Belum tertaut; login tidak diubah | [ONB](features/onboarding/README.md) |
 | [ONB-D1](features/onboarding/README.md#onb-d1) | Ubah email / batalkan undangan akun belum pernah login: akun dilepas, user Auth buatan undangan di-ban + anonim (bersama tidak disentuh), antrean `EMAIL_MISMATCH` alih-alih SENT palsu | [ONB](features/onboarding/README.md) |

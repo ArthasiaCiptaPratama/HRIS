@@ -24,6 +24,9 @@ export const meResponseSchema = z
     employeeName: z.string().nullable(),
     // Perusahaan karyawan tertaut (filter roster/shift/crew di app mobile); null = akun tanpa karyawan.
     employeeCompanyId: z.uuid().nullable(),
+    // ORG-D9: punya bawahan langsung aktif → boleh memutuskan langkah "Atasan" untuk bawahan langsungnya
+    // (antrean Approval & SPL di web/app), apa pun role akunnya.
+    isSupervisor: z.boolean(),
     lastLoginAt: z.iso.datetime().nullable(),
     grants: z.array(
       z.object({ permission: permissionSchema, expiresAt: z.iso.datetime().nullable() }),

@@ -1248,7 +1248,11 @@ export interface DayListQuery {
 /** Data Absen Harian: inbox = menunggu keputusan aktor; all = semua hari dalam cakupan aktor. */
 export async function listDays(ctx: RequestContext, query: DayListQuery): Promise<DayView[]> {
   const actor = ctx.actor;
-  if (!policy.canListAttendanceDays(actor)) throw new ForbiddenError();
+  const allowed =
+    query.scope === "inbox" && !query.employeeId
+      ? policy.canListAttendanceInbox(actor)
+      : policy.canListAttendanceDays(actor);
+  if (!allowed) throw new ForbiddenError();
   if (actor.role === "HR_ADMIN" && query.companyId && !actor.companyIds?.has(query.companyId)) {
     throw new ForbiddenError();
   }

@@ -24,6 +24,7 @@ import { z } from "zod";
 import { api } from "@/lib/api";
 import { prepareProfilePhoto } from "@/lib/image";
 import { supabase } from "@/lib/supabase";
+import { downloadBytes } from "@/lib/xlsx-write";
 import { useStoredCompanyId } from "./company-scope";
 import {
   dashboardSchema,
@@ -496,3 +497,49 @@ export const useReactivateEmployee = () =>
       note?: string;
     }) => api(`/employees/${id}/reactivate`, { method: "POST", body, schema: item }),
   );
+
+export type EmployeeExportSection =
+  | "identity"
+  | "contact"
+  | "personal"
+  | "bank"
+  | "family"
+  | "education"
+  | "training"
+  | "experience"
+  | "employment";
+export type EmployeeExportBody = (
+  | { filter: Omit<EmployeeListParams, "page" | "pageSize"> }
+  | { employeeIds: string[] }
+) & { sections: EmployeeExportSection[] };
+
+/** EMP-D7: data sensitif tidak disimpan ke cache TanStack Query. */
+export async function exportEmployees(body: EmployeeExportBody) {
+  const payload =
+    "filter" in body
+      ? {
+          ...body,
+          filter: {
+            ...body.filter,
+            active: true,
+            missingNumber:
+              body.filter.missingNumber === undefined
+                ? undefined
+                : String(body.filter.missingNumber),
+          },
+        }
+      : body;
+  const { data } = await api("/employees/export", {
+    method: "POST",
+    body: payload,
+    schema: one(
+      z.object({ fileName: z.string(), rows: z.number().int(), contentBase64: z.string() }),
+    ),
+  });
+  downloadBytes(
+    Uint8Array.from(atob(data.contentBase64), (c) => c.charCodeAt(0)),
+    data.fileName,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  return data;
+}

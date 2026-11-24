@@ -6,6 +6,7 @@ import {
   canChangePhoto,
   canCreateInCompany,
   canDeactivateEmployee,
+  canExportEmployees,
   canImportEmployees,
   canManageArchive,
   canManageEmployees,
@@ -577,4 +578,17 @@ describe("canChangeLoginContact", () => {
       });
     });
   }
+});
+
+// EMP-D7: ekspor massal hanya operator SA/HR, termasuk saat memiliki grant sensitif.
+describe("canExportEmployees", () => {
+  test.each([
+    ["SUPER_ADMIN", true],
+    ["HR_ADMIN", true],
+    ["HR_PERSONNEL", false],
+    ["MANAGER", false],
+    ["EMPLOYEE", false],
+  ] as const)("%s → %s", (role, allowed) => {
+    expect(canExportEmployees({ ...actor("HR", ["employee.personal.read"]), role })).toBe(allowed);
+  });
 });

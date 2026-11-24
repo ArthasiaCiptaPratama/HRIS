@@ -315,15 +315,19 @@ export async function runApprovalDigest(now = new Date()) {
           type: "attendance.approval_digest",
           title: `${queue.total} pengajuan menunggu keputusan Anda`,
           body: `${parts.join(", ")}.`,
-          link: queue.attendance
-            ? "/time/absen-harian"
-            : queue.leave
-              ? "/time/persetujuan-cuti"
-              : queue.overtime && !queue.corrections
-                ? "/time/lembur"
-                : queue.overtimeClaims && !queue.corrections && !queue.rosterChanges
-                  ? "/time/lembur?tab=claims"
-                  : "/time/pernyataan",
+          // ORG-D9: atasan ber-akun Karyawan memakai beranda /absen (TM-D30) → tab Approval-nya.
+          link:
+            account.role === "EMPLOYEE"
+              ? "/absen/approval"
+              : queue.attendance
+                ? "/time/absen-harian"
+                : queue.leave
+                  ? "/time/persetujuan-cuti"
+                  : queue.overtime && !queue.corrections
+                    ? "/time/lembur"
+                    : queue.overtimeClaims && !queue.corrections && !queue.rosterChanges
+                      ? "/time/lembur?tab=claims"
+                      : "/time/pernyataan",
           dedupeKey: `tm-digest:${account.accountId}:${today}`,
           target: { type: "APPROVAL_QUEUE", id: today },
           email: false,

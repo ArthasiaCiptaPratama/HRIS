@@ -554,10 +554,10 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const skipped: RosterTemplateAssignPlan["skipped"] = [];
   const valid = [...new Set(input.employeeIds)].filter((employeeId) => {
     const e = people.get(employeeId);
-    if (!e?.isActive)
-      skipped.push({ employeeId, fullName: e?.fullName ?? null, reason: "Tidak aktif" });
-    else if (e.companyId !== template.companyId)
-      skipped.push({ employeeId, fullName: e.fullName, reason: "Bukan karyawan PT template ini" });
+    // PT dicek lebih dulu & nama dikosongkan: pratinjau tidak membocorkan data karyawan PT lain.
+    if (!e || e.companyId !== template.companyId)
+      skipped.push({ employeeId, fullName: null, reason: "Bukan karyawan PT template ini" });
+    else if (!e.isActive) skipped.push({ employeeId, fullName: e.fullName, reason: "Tidak aktif" });
     else return true;
     return false;
   });

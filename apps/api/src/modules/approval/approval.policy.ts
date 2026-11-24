@@ -6,7 +6,10 @@ import { type Actor, isInCompanyScope } from "../../core/access/index.ts";
 export interface ApprovalTarget {
   requesterEmployeeId: string;
   companyId: string;
-  /** Snapshot atasan saat pengajuan; null = tanpa atasan → langkah atasan diambil SUPER_ADMIN. */
+  /**
+   * Snapshot atasan saat pengajuan; null = tanpa atasan (atau atasan tanpa akun aktif, ORG-D9) → langkah
+   * atasan diambil SUPER_ADMIN (HR PT-nya mengambil alih dengan alasan). Role akun atasan tidak disyaratkan.
+   */
   managerEmployeeId: string | null;
   /** TM-D24: akun yang mengajukan atas nama karyawan (HR) — diperlakukan sebagai pengaju. */
   submittedByAccountId?: string | null;
