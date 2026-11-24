@@ -3,6 +3,14 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-24 — Mode import selalu tampil (IMP-D5 diperbarui) (Oatse)
+- **Dikerjakan:** KUTIPAN PENGGUNA 2026-11-24 "fix problem select mode is hidden in first look, change to always show up" (via supervisor-36). `import-page.tsx`: hapus state `modeOpen`, tombol "· Ubah" + chevron, dan lipatan; 3 `ChoiceCard` selalu tampil di bawah judul kecil "Mode import" (radiogroup berlabel), tetap di atas kotak unggah. `import-guide.tsx` tidak menyebut "Ubah" (tidak diubah).
+- **Keputusan:** IMP-D5 poin (5) diperbarui: mode tidak lagi dilipat (membalik pangkas "sekali lihat" 2026-11-19 untuk mode saja).
+- **Verifikasi:** typecheck ✔ · `bunx biome ci .` ✔ (1 peringatan lama) · boundaries ✔ · web 65 file / **453** ✔ (`employee-import`: kartu tampil tanpa klik, tanpa tombol Ubah, tetap tampil setelah memilih). Screenshot dev lokal akun HR `QA/2026-11-24-sidebar-dashboard-absen/04-import-mode-unggah-hr.png`.
+- **Masalah / catatan:** —
+- **Commit:** `957a686` (kode + test), disetujui supervisor-79 atas nama pengguna setelah memeriksa screenshot 04; di-push ke `HRIS/Oatse/Linux-Windows`.
+- **Berikutnya:** ikut rilis staging berikutnya (RELEASE §2 #111).
+
 ### 2026-11-19 — Perbaikan uji staging gel. 34: lompat ke sel & hitungan Lengkapi data (IMP-D6) (Oatse)
 - **Dikerjakan:** `sheet/sheet-grid.tsx`: virtualizer kolom memakai `paddingStart` = lebar kolom beku (posisi kolom & gulir dalam koordinat yang sama) → lompat dari "Perlu diperbaiki" ke kolom kanan (mis. No. HP) kini benar-benar memperlihatkan sel; sebelumnya meleset sebesar lebar kolom Nama. `complete-step.tsx`: selama pratinjau dihitung ulang, hitungan PT/Status langsung ikut pilihan bawaan; setelah pratinjau kembali, hasil server dipakai.
 - **Keputusan:** —
