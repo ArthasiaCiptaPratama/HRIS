@@ -1,4 +1,13 @@
-# TM-D29 — Absen Mandiri (STAGING, fitur sementara)
+# TM-D29 — Absen Mandiri (STAGING, fitur sementara) — DICABUT
+
+> **DICABUT 2026-11-24** atas permintaan Mat. Yang dilakukan:
+> - Semua file baru di bagian 2 dihapus; baris bertanda `TM-D29` di bagian 3 dihapus (termasuk flag `tmSelfReport`, menu & route `/time/absen-mandiri` dan `/absen/mandiri`, badge "Mandiri"). Refaktor netral `assertUploadedPhoto` & ekspor `uploadSelfie` juga dikembalikan seperti semula.
+> - Database: migrasi baru `20261124102833_tm_d29_remove_self_report_crews` (`DROP TABLE attendance.self_report_crews`). Migrasi lama **tidak** dihapus karena sudah tercatat di staging. Diterapkan ke staging oleh pipeline deploy (`migrate deploy`) saat rilis.
+> - **Dipertahankan:** label `SELF_REPORT` / `GALLERY_PHOTO` di `packages/shared/src/time-management.ts`, agar punch absen mandiri yang sudah tercatat tetap tampil (sebagai "Input manual" + label). Tidak ada kode yang menulis label ini lagi.
+> - Arthasia-Mobile: perubahan TM-D29 belum pernah di-commit; dibuang dari working tree.
+>
+> Isi di bawah adalah catatan asli fitur, untuk jejak.
+
 
 > **Status:** sementara untuk staging, atas permintaan Mat (2026-11-18). Dibuat agar **mudah dilacak dan dihapus**.
 > Semua titik sentuh diberi penanda `TM-D29` — `grep -rn "TM-D29"` di repo HRIS dan Arthasia-Mobile menemukan semuanya.

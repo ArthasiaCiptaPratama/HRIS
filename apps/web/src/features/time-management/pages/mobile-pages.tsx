@@ -25,6 +25,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { useMarkAllRead, useMarkRead, useNotifications } from "@/features/notification/api";
 import { errorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
+import { webLinkClick } from "@/lib/standalone";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import {
@@ -320,8 +321,7 @@ function PunchApprovalCard({ day, punch, tz }: { day: AttendanceDay; punch: Punc
             {label} <span className="font-semibold tabular-nums">{timeIn(punch.at, tz)}</span>
             {punch.source === "MANUAL" ? (
               <Badge variant="muted" className="ml-1 text-[10px]">
-                {/* TM-D29 (STAGING): absen mandiri = MANUAL berlabel SELF_REPORT. */}
-                {punch.labels.includes("SELF_REPORT") ? "Mandiri" : "Manual"}
+                Manual
               </Badge>
             ) : null}
           </p>
@@ -614,14 +614,22 @@ export function MobileProfilePage() {
         </p>
       </Card>
       <Card className="divide-y p-0">
-        <Link to="/profil" className="flex items-center gap-3 px-3 py-3 text-sm">
+        <Link
+          to="/profil"
+          onClick={webLinkClick("/profil")}
+          className="flex items-center gap-3 px-3 py-3 text-sm"
+        >
           <KeyRound className="text-muted-foreground size-4" />{" "}
           {absenHome ? "Akun Saya (versi web)" : "Akun & keamanan (versi web)"}
           <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
         </Link>
         {/* #102: bagi karyawan "/" kembali ke absen — tautan versi web hanya untuk role lain. */}
         {absenHome ? null : (
-          <Link to="/" className="flex items-center gap-3 px-3 py-3 text-sm">
+          <Link
+            to="/"
+            onClick={webLinkClick("/")}
+            className="flex items-center gap-3 px-3 py-3 text-sm"
+          >
             <Monitor className="text-muted-foreground size-4" /> Buka HRIS versi web
             <ExternalLink className="text-muted-foreground ml-auto size-3.5" />
           </Link>

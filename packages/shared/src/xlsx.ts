@@ -12,6 +12,11 @@ export type XlsxFormat = "text" | "int" | "decimal" | "percent" | "date";
 export interface XlsxStyledCell {
   value: XlsxPlainCell;
   format?: XlsxFormat;
+  /**
+   * TM-D31: tautan (http/https) — sel teks menjadi rumus HYPERLINK berteks `value`. Hanya di sheet laporan
+   * (ber-`title`); sheet mode lama menulis teksnya saja. Gaya tautan hanya ditambahkan bila dipakai.
+   */
+  link?: string;
 }
 export type XlsxCell = XlsxPlainCell | XlsxStyledCell;
 export interface XlsxSheet {
@@ -172,6 +177,28 @@ function templateStyles(): string {
 const headerStyle = (fill: "required" | "sensitive" | undefined, fallback: number) =>
   fill === "required" ? S_REQUIRED : fill === "sensitive" ? S_SENSITIVE : fallback;
 
+/**
+ * TM-D31: gaya sel tautan (biru bergaris bawah; polos & belang) ditambahkan di akhir — indeks gaya lain tetap.
+ * Mengembalikan styles.xml baru + indeks gaya per varian baris.
+ */
+function withLinkStyles(styles: string): { xml: string; style: (variant: Variant) => number } {
+  const fonts = Number(/<fonts count="(\d+)">/.exec(styles)?.[1]);
+  const xfs = Number(/<cellXfs count="(\d+)">/.exec(styles)?.[1]);
+  const xf = (fill: number) =>
+    `<xf numFmtId="0" fontId="${fonts}" fillId="${fill}" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>`;
+  const xml = styles
+    .replace(`<fonts count="${fonts}">`, `<fonts count="${fonts + 1}">`)
+    .replace(
+      "</fonts>",
+      '<font><u/><sz val="11"/><color rgb="FF0563C1"/><name val="Calibri"/></font></fonts>',
+    )
+    .replace(`<cellXfs count="${xfs}">`, `<cellXfs count="${xfs + 2}">`)
+    .replace("</cellXfs>", `${xf(0)}${xf(3)}</cellXfs>`);
+  return { xml, style: (variant) => xfs + (variant === "zebra" ? 1 : 0) };
+}
+const hasLink = (sheet: XlsxSheet) =>
+  Boolean(sheet.title) && sheet.rows.some((row) => row.some((cell) => isStyled(cell) && cell.link));
+
 // --- Sheet mode lama (tanpa judul) ---
 
 /** `styled` = memakai gaya penulis ini (1 = tanggal, 2 = header tebal); false = tanpa atribut gaya. */
@@ -261,9 +288,25 @@ function textCell(ref: string, text: string, style: number): string {
   return `<c r="${ref}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${esc(text)}</t></is></c>`;
 }
 
-function tableCell(ref: string, cell: XlsxCell, columnFormat: XlsxFormat, variant: Variant) {
+/** Rumus HYPERLINK (tanpa relasi sheet); kutip ganda di dalam teks rumus ditulis dua kali. */
+function linkCell(ref: string, url: string, text: string, style: number): string {
+  const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  return `<c r="${ref}" t="str" s="${style}"><f>${esc(`HYPERLINK(${q(url)},${q(text)})`)}</f><v>${esc(text)}</v></c>`;
+}
+
+function tableCell(
+  ref: string,
+  cell: XlsxCell,
+  columnFormat: XlsxFormat,
+  variant: Variant,
+  linkStyle?: (variant: Variant) => number,
+) {
   const format = (isStyled(cell) ? cell.format : undefined) ?? columnFormat;
   const value = plain(cell);
+  const link = isStyled(cell) ? cell.link : undefined;
+  if (link && linkStyle && typeof value === "string" && value !== "") {
+    return linkCell(ref, link, value, linkStyle(variant));
+  }
   if (value === null || value === undefined || value === "") {
     return `<c r="${ref}" s="${tableStyle(format, variant)}"/>`;
   }
@@ -289,7 +332,12 @@ interface ReportSheetXml {
   definedNames: string[];
 }
 
-function reportSheetXml(sheet: XlsxSheet, index: number, name: string): ReportSheetXml {
+function reportSheetXml(
+  sheet: XlsxSheet,
+  index: number,
+  name: string,
+  linkStyle?: (variant: Variant) => number,
+): ReportSheetXml {
   const [header = [], ...body] = sheet.rows;
   const columns = Math.max(1, header.length, ...body.map((row) => row.length));
   const formatOf = (c: number): XlsxFormat => sheet.formats?.[c] ?? "text";
@@ -325,7 +373,7 @@ function reportSheetXml(sheet: XlsxSheet, index: number, name: string): ReportSh
     const rowNo = r + 1;
     push(
       Array.from({ length: columns }, (_, c) =>
-        tableCell(`${columnName(c)}${rowNo}`, row[c], formatOf(c), variant),
+        tableCell(`${columnName(c)}${rowNo}`, row[c], formatOf(c), variant, linkStyle),
       ).join(""),
     );
   });
@@ -337,7 +385,7 @@ function reportSheetXml(sheet: XlsxSheet, index: number, name: string): ReportSh
     const rowNo = r + 1;
     push(
       Array.from({ length: columns }, (_, c) =>
-        tableCell(`${columnName(c)}${rowNo}`, total[c], formatOf(c), "total"),
+        tableCell(`${columnName(c)}${rowNo}`, total[c], formatOf(c), "total", linkStyle),
       ).join(""),
     );
   }
@@ -451,8 +499,12 @@ export function buildWorkbook(sheets: XlsxSheet[], meta?: XlsxMeta, now = new Da
   );
   const names = list.map((s) => sheetName(s.name));
   const definedNames: string[] = [...choiceNames];
+  const baseStyles = extendedStyles ? templateStyles() : STYLES_XML;
+  const links = list.some(hasLink) ? withLinkStyles(baseStyles) : undefined;
   const sheetFiles = list.map((sheet, i) => {
-    const out = sheet.title ? reportSheetXml(sheet, i, names[i] as string) : undefined;
+    const out = sheet.title
+      ? reportSheetXml(sheet, i, names[i] as string, links?.style)
+      : undefined;
     if (out) definedNames.push(...out.definedNames);
     const xml =
       out?.xml ??
@@ -476,7 +528,7 @@ export function buildWorkbook(sheets: XlsxSheet[], meta?: XlsxMeta, now = new Da
     "_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL_NS}/officeDocument" Target="xl/workbook.xml"/>${core.rel}</Relationships>`,
     "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="${REL_NS}"><sheets>${names.map((name, i) => `<sheet name="${esc(name)}" sheetId="${i + 1}" r:id="rId${i + 1}"${i === hiddenIndex ? ' state="hidden"' : ""}/>`).join("")}</sheets>${defined}</workbook>`,
     "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL_NS}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${list.length + 1}" Type="${REL_NS}/styles" Target="styles.xml"/></Relationships>`,
-    "xl/styles.xml": extendedStyles ? templateStyles() : STYLES_XML,
+    "xl/styles.xml": links?.xml ?? baseStyles,
   };
   if (meta) files["docProps/core.xml"] = coreXml(meta, now);
   sheetFiles.forEach((xml, i) => {
