@@ -13,6 +13,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-24 — Dashboard & Absen tanpa sidebar desktop (Oatse)
+- **Dikerjakan:** kutipan pengguna 2026-11-24 lewat supervisor-36 ("Hilangkan sidebar yg muncul dihalaman dasboard…"; Absen ikut). Properti `sidebar?: false` di `NavGroup`, diset di grup `dashboard` & `absen`; `app-layout.tsx` hanya merender `<aside>` bila `current.sidebar !== false`. Checklist "Dashboard & Absen tanpa sidebar desktop".
+- **Keputusan:** –
+- **Verifikasi:** typecheck ✔ · `bunx biome ci .` ✔ (1 peringatan lama) · boundaries ✔ (601 modul) · web **453** ✔ (+3: `auth-routing` `/` tanpa "Menu samping", `employee-absen-home` 404 karyawan tanpa sidebar, `navigation` hanya dashboard & absen). Dua test render dibuktikan gagal tanpa perubahan layout. Screenshot dev lokal (Zen headless): `QA/2026-11-24-sidebar-dashboard-absen/` (01 dashboard HR, 02a `/absen` karyawan, 02b 404 karyawan, 03 pembanding `/personal`).
+- **Masalah / catatan:** `/absen` dirender `mobileShell` di luar `AppLayout`, jadi sejak awal tanpa sidebar web. Sidebar grup Absen hanya muncul di halaman web yang jatuh ke grup itu (fallback `groups[0]`). Profil/Notifikasi karyawan tetap grup "Akun Saya" bersidebar.
+- **Commit:** `7e14277` (kode + test) setelah pengguna menyetujui screenshot ("oke nice", lewat supervisor-36); di-push ke `HRIS/Oatse/Linux-Windows`.
+- **Berikutnya:** ikut gelombang rilis berikutnya (RELEASE §2 #110).
+
 ### 2026-10-19 — Sidebar Master Data bab → sub + header tetap (Oatse)
 - **Dikerjakan:** Administrasi › Master Data jadi induk berlipat Organisasi/Kepegawaian/Arsip & Disiplin; tata letak aplikasi tinggi layar dikunci, hanya isi yang di-scroll (checklist "Perbaikan tampilan umum").
 - **Keputusan:** –

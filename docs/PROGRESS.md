@@ -164,6 +164,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-24** — Dashboard & Absen tanpa sidebar desktop (`sidebar: false` di `NAV_GROUPS`, `7e14277`); web 453 ✔. (Oatse) → [fondasi/log](features/fondasi/log.md)
 - **2026-11-23** — Audit celah Personal Management (T1 Kritis antrean approval → Alpha; T2/T3 tanpa atasan → SA) + Paket 2 siklus hidup EMP-D8 (keluar tidak masa depan, akun karyawan nonaktif terkunci, push dilepas, langkah atasan PENDING ikut atasan); api 1441 ✔. (Oatse) → [karyawan/log](features/karyawan/log.md)
 - **2026-11-19** — Data staging: shift HO 08:00–17:00 (toleransi telat 240), pola HO Sen–Jum, crew Head Office 13 karyawan mulai 19 Nov (jadwal s.d. 19 Feb 2027); 45 karyawan Site PIT + 1 Jakarta Selatan masih tanpa jadwal; mode fleksibel → Backlog. (supervisor/Oatse) → [time-management/log](features/time-management/log.md)
 - **2026-11-19** — Import paket B2/B3 (IMP-D6): pilih blok (salin/tempel/hapus), cari nama/NIP, audit sel yang diubah (`editedCells`, OpenAPI +1 field opsional). (Oatse) → [import-karyawan/log](features/import-karyawan/log.md)
