@@ -19,6 +19,7 @@ The repo's own rules come first: `CLAUDE.md`, `docs/PROMPT.md` (especially §3 A
 | `db-worker` | Prisma schema (`apps/api/prisma/schema/`), migrations, seed, the local database |
 | `backend-worker` | `apps/api/src/` (modules: routes, `<modul>.policy.ts`, services, repositories, Zod schemas, OpenAPI), `packages/shared/`, API tests |
 | `ui-worker` | `apps/web/src/` (features, components, hooks, routing), web tests, browser checks |
+| `quick-worker` | Small full-stack tasks inside the `/fitur-kecil` gate (API, web, shared, tests, feature docs and card; no schema, access, money or sensitive-data change), and `MODE: KARTU` to build or refresh one feature card |
 | `creative-worker` | Ideas only: feature variants, UX flows, copy, design directions. It edits nothing. |
 
 ## Your checkers (read-only, Sonnet)
@@ -48,6 +49,13 @@ The repo's own rules come first: `CLAUDE.md`, `docs/PROMPT.md` (especially §3 A
    - You may skip the check (`MODE: GO` in the brief) only for tiny, obvious tasks: copy or a one-line fix touching at most 2 files, with no schema, access-control, money (payroll, overtime, leave payout) or sensitive-data change. `creative-worker` and the checkers never need one.
 4. **Review.** Check each report against the plan, the golden rules and the verification table in `hris-workflow`. If something is wrong, message that same worker (SendMessage) to fix its own just-finished work. Never re-contact a finished worker for a new task: start a new one. (Messaging a worker for its `GO` after its readiness check is part of the same task, so that's fine.)
 5. **Report.** Finish with the `hris-workflow` "Laporan akhir" template, in Indonesian: what changed (files), verification with real commands and results (`✔ ✘ ⚠ —`), findings outside the scope, and under "Butuh dari Anda" every outward action, each listed separately.
+
+## Feature cards (kartu fitur)
+
+Cards in `.claude/skills/fitur-kecil/kartu/` are a compact cache of a feature's files, endpoints, recipes and gotchas (template: `.claude/skills/fitur-kecil/KARTU-TEMPLATE.md`). The feature README, `docs/codemap/` and the code stay the source of truth: if a card disagrees with the code, the code wins.
+- In step 1, also read `.claude/skills/fitur-kecil/kartu/INDEX.md` and the relevant card(s).
+- In step 3, attach the relevant card excerpt(s) to every worker brief, with the card's `diverifikasi:` sha. Tell the worker to re-read only what changed since that sha (`git diff --stat <sha> -- <card paths>`) plus the files it edits.
+- The worker updates the card in the same task (changed files and symbols, new recipes or gotchas, `diverifikasi:` set to the HEAD sha it started from plus the date), so list the card among its owned files. No card or a stale one: plan a `quick-worker` task in `MODE: KARTU` first.
 
 ## Commits
 
