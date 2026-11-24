@@ -1,6 +1,6 @@
 {
-  "name": "Absen Arthasia",
-  "short_name": "Absen",
+  "name": "Akselerasi Arthasia",
+  "short_name": "Akselerasi",
   "description": "Absen masuk & pulang dengan selfie dan lokasi (wajib online).",
   "id": "/absen",
   "start_url": "/absen",
@@ -24,7 +24,7 @@
       "purpose": "any"
     },
     {
-      "src": "/pwa/absen-512.png",
+      "src": "/pwa/absen-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

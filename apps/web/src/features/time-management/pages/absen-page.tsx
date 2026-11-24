@@ -44,6 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
 import { errorMessage } from "@/lib/errors";
+import { isAbsenPath, webLinkClick } from "@/lib/standalone";
 import { cn } from "@/lib/utils";
 import { tmAccess } from "../access";
 import { useCancelPunch, usePrecheck, usePunch, useTimezone, useToday } from "../api";
@@ -73,6 +74,7 @@ import {
   PersonalTasksCard,
   PunchReminder,
 } from "../components/home-insights";
+import { InstallBanner } from "../components/install-banner";
 import { RosterWeek } from "../components/roster-week";
 import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
@@ -82,28 +84,13 @@ import type { Precheck, Today } from "../schemas";
 // memblokir tetapi alasan wajib, kecuali Lokasi palsu & Akurasi GPS rendah (TM-D25; ikut `reasonRequired`
 // dari pra-cek). Setiap hari absen disetujui Atasan + HR (D-068).
 
-/** Pasang manifest & service worker absen supaya bisa "Tambahkan ke layar utama". */
+/** Daftarkan service worker absen (syarat pasang ke layar utama; manifest ada di index.html). */
 function usePwaInstall() {
   useEffect(() => {
-    let link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
-    const added = !link;
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "manifest";
-      link.href = "/absen.webmanifest";
-      document.head.appendChild(link);
-    }
-    const theme = document.createElement("meta");
-    theme.name = "theme-color";
-    theme.content = "#17766f";
-    document.head.appendChild(theme);
+    // TM-D32: <link rel="manifest">, theme-color & tag iOS kini statis di index.html (tidak disuntik lagi).
     if ("serviceWorker" in navigator && window.isSecureContext) {
       void navigator.serviceWorker.register("/absen-sw.js").catch(() => undefined);
     }
-    return () => {
-      if (added) link?.remove();
-      theme.remove();
-    };
   }, []);
 }
 
@@ -262,6 +249,7 @@ export function MobileShell() {
           ) : null}
 
           <main className="flex flex-1 flex-col gap-4 px-4 pt-4 pb-28 [&_header>div>h1]:hidden [&_nav[aria-label=Breadcrumb]]:hidden">
+            {isHome ? <InstallBanner /> : null}
             <Outlet />
           </main>
 
@@ -629,7 +617,8 @@ function MenuTile({
   const cls =
     "flex flex-col items-center gap-1.5 rounded-xl p-2 transition active:scale-95 hover:bg-muted";
   return to ? (
-    <Link to={to} className={cls}>
+    // TM-D32: tile ke halaman web (di luar /absen) dibuka di browser HP saat aplikasi layar utama.
+    <Link to={to} className={cls} onClick={isAbsenPath(to) ? undefined : webLinkClick(to)}>
       {inner}
     </Link>
   ) : (

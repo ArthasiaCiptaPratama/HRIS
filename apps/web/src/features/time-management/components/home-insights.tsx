@@ -1,6 +1,7 @@
 import { AlarmClock, CalendarX2, ChevronRight, ClipboardList, ListTodo, Plane } from "lucide-react";
 import { Link } from "react-router";
 import type { Me } from "@/features/auth/schemas";
+import { webLinkClick } from "@/lib/standalone";
 import { cn } from "@/lib/utils";
 import { useMyLeave } from "../leave-api";
 import { ABSEN_TASK_LINKS, usePersonalTasks } from "../personal-tasks";
@@ -48,7 +49,7 @@ export function PunchReminder({ data, clock }: { data: Today; clock: Date | null
 export function CompleteDataBanner({ me }: { me: Me }) {
   if (!me.onboarding?.completionRequired || me.onboarding.submitted) return null;
   return (
-    <Link to="/onboarding" className="block">
+    <Link to="/onboarding" onClick={webLinkClick("/onboarding")} className="block">
       <Banner tone="amber" icon={ClipboardList} title="Lengkapi data Anda" link>
         HR meminta Anda melengkapi data karyawan (data pribadi, rekening, dokumen).
       </Banner>
