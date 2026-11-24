@@ -429,3 +429,12 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Masih tanpa jadwal:** 45 karyawan Site PIT (ACP) + 1 Jakarta Selatan.
 - **Backlog (belum diputus):** mode jam fleksibel / shift tanpa Telat; toleransi telat maks 240 (PROGRESS Backlog).
 - **Verifikasi:** dari laporan sesi rilis (tidak diulang di sesi ini). Hanya docs, tanpa ubahan kode. Sumber: `.handoff/2026-11-19-0940-supervisor-ke-HRIS-rilis-crew-ho.md` (Hasil) · `HRIS-rilis/docs/RELEASE.md` `c0764cc`.
+
+## 2026-11-24 — TM-D29 Absen Mandiri DICABUT (Mat)
+
+- **Permintaan:** hapus fitur Absen Mandiri (STAGING) yang sebelumnya diberi flag, lalu rilis ke staging.
+- **Kode:** dihapus `self-report.{contract,repository,routes,service}.ts`, test API & web, `self-report-api.ts`, `self-report-page.tsx`, `self-report-absen.tsx`, `packages/shared/src/self-report.ts`; baris `TM-D29` di routes, router, navigation, route-preload, feature-flags (`tmSelfReport`), absen-page, attendance-days-page, period-pages, mobile-pages; refaktor `assertUploadedPhoto` dikembalikan.
+- **DB:** migrasi `20261124102833_tm_d29_remove_self_report_crews` (`DROP TABLE IF EXISTS attendance.self_report_crews`); diterapkan lokal, staging lewat deploy.
+- **Dipertahankan:** label `SELF_REPORT`/`GALLERY_PHOTO` (data lama tetap tampil).
+- Jejak: `tm-d29-absen-mandiri.md` (status DICABUT).
+

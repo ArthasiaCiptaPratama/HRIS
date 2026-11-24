@@ -76,7 +76,6 @@ import {
 import { RosterWeek } from "../components/roster-week";
 import { useTimeQueue } from "../queue-api";
 import type { Precheck, Today } from "../schemas";
-import { SelfReportCard } from "./self-report-absen"; // TM-D29 (STAGING)
 
 // D-067: absen lewat PWA (tata letak HP, wajib online). Login sama dengan web. Selfie kamera langsung +
 // GPS + waktu server; foto diberi cap waktu, lat/long/alt, & lokasi geofence. Label D-070 tidak
@@ -177,7 +176,6 @@ const MOBILE_TITLES: [prefix: string, title: string][] = [
   ["/absen/approval", "Approval"],
   ["/absen/notifikasi", "Notifikasi"],
   ["/absen/profil", "Profil"],
-  ["/absen/mandiri", "Absen Mandiri"], // TM-D29 (STAGING)
 ];
 
 /**
@@ -352,8 +350,6 @@ export function AbsenHome() {
         onPunch={startPunch}
         onOffDayOvertime={startOffDayOvertime}
       />
-      {/* TM-D29 (STAGING): absen mandiri — hanya crew berizin (The Intern's). */}
-      {tmOn("tmSelfReport") ? <SelfReportCard /> : null}
       <PersonalTasksCard me={me} />
       <HomeSummary data={data} />
       <MenuGrid me={me} />
@@ -807,10 +803,7 @@ export function PunchRow({
         <span>
           {label} <span className="font-semibold tabular-nums">{timeIn(punch.at, tz)}</span>
           {punch.source === "MANUAL" ? (
-            <span className="text-muted-foreground">
-              {/* TM-D29 (STAGING): absen mandiri tersimpan sebagai MANUAL berlabel SELF_REPORT. */}
-              {punch.labels.includes("SELF_REPORT") ? " · mandiri" : " · manual HR"}
-            </span>
+            <span className="text-muted-foreground"> · manual HR</span>
           ) : null}
         </span>
         {punch.canCancel ? (

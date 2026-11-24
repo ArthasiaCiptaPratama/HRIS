@@ -205,8 +205,6 @@ model Crew {
   updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   members CrewMember[]
-  /// TM-D29 (STAGING): izin absen mandiri crew ini (ada baris = diizinkan).
-  selfReport SelfReportCrew?
 
   @@unique([companyId, name])
   @@index([patternId])
@@ -702,19 +700,5 @@ model OvertimeRequest {
   @@index([companyId, workDate])
   @@index([status])
   @@map("overtime_requests")
-  @@schema("attendance")
-}
-
-// ── TM-D29 (STAGING) — Absen mandiri ──────────────────────────────────────────────────────────
-// Crew yang anggotanya boleh absen mandiri (jam diisi sendiri, foto galeri, GPS HP; tetap butuh
-// persetujuan). Tabel terpisah agar fitur bisa dihapus cepat: DROP TABLE ini + hapus kode bertanda
-// TM-D29 (docs/features/time-management/tm-d29-absen-mandiri.md).
-model SelfReportCrew {
-  crewId             String   @id @map("crew_id") @db.Uuid
-  crew               Crew     @relation(fields: [crewId], references: [id], onDelete: Cascade)
-  enabledByAccountId String   @map("enabled_by_account_id") @db.Uuid
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@map("self_report_crews")
   @@schema("attendance")
 }
