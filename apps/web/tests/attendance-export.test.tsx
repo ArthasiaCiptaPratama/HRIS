@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { FEATURES } from "@/app/feature-flags";
 import type { Me } from "@/features/auth/schemas";
 import { setSelectedCompany } from "@/features/employee/company-scope";
@@ -85,16 +85,40 @@ function backend(
   return { posts };
 }
 
-const setDate = (label: string, value: string) =>
-  fireEvent.change(screen.getByLabelText(label), { target: { value } });
+// Rentang halaman = 10–24 Nov 2026 (hari ini dibekukan 24 Nov 2026). Tanggal dipilih lewat kalender.
+const clickDay = (label: string) =>
+  userEvent.click(screen.getByRole("button", { name: new RegExp(`^\\w+, ${label}( |,|$)`) }));
+const monthsBack = async (n: number) => {
+  for (let i = 0; i < n; i++)
+    await userEvent.click(screen.getByRole("button", { name: "Bulan sebelumnya" }));
+};
+const monthsForward = async (n: number) => {
+  for (let i = 0; i < n; i++)
+    await userEvent.click(screen.getByRole("button", { name: "Bulan berikutnya" }));
+};
+/** Buka "Dari", ke bulan lampau `back` bulan, pilih tanggal awal lalu tanggal akhir (popover menutup). */
+async function pickRange(back: number, fromDay: string, toDay: string) {
+  await userEvent.click(screen.getByLabelText("Dari"));
+  await monthsBack(back);
+  await clickDay(fromDay);
+  await clickDay(toDay);
+}
+
+// Dialog dimuat lazy oleh halaman; panaskan modulnya (transform react-day-picker) di luar waktu tunggu tes.
+beforeAll(async () => {
+  await import("@/features/time-management/components/attendance-export-dialog");
+}, 60000);
 
 beforeEach(() => {
   authState.session = { access_token: "tok", user: { id: "u1" } };
   setSelectedCompany(COMPANY);
   vi.mocked(downloadBytes).mockClear();
   vi.mocked(toast.success).mockClear();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-24T05:00:00Z"));
 });
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
   setSelectedCompany(null);
@@ -117,12 +141,19 @@ describe.skipIf(!FEATURES.timeManagement)(
       ["SUPER_ADMIN", me("SUPER_ADMIN")],
       ["HR_ADMIN", me("HR_ADMIN")],
       ["MANAGER", me("MANAGER", false, "m1")],
-    ] as const)("%s melihat kedua tombol", async (_name, account) => {
-      backend(account);
-      renderAt("/time/absen-harian");
-      expect(await screen.findByRole("button", { name: /Export Excel/ })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Flash/ })).toBeInTheDocument();
-    });
+    ] as const)(
+      "%s melihat kedua tombol",
+      async (_name, account) => {
+        backend(account);
+        renderAt("/time/absen-harian");
+        // Kasus pertama memuat rute secara lazy (dingin): beri waktu lebih lama dari bawaan 5 dtk.
+        expect(
+          await screen.findByRole("button", { name: /Export Excel/ }, { timeout: 20000 }),
+        ).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /Flash/ })).toBeInTheDocument();
+      },
+      30000,
+    );
 
     it("EMPLOYEE tidak melihat tombol", async () => {
       backend(me("EMPLOYEE", false, "e1"));
@@ -132,15 +163,19 @@ describe.skipIf(!FEATURES.timeManagement)(
       expect(screen.queryByRole("button", { name: /Export Excel/ })).toBeNull();
     });
 
-    it("rentang > 92 hari ditolak di form; tombol unduh nonaktif", async () => {
+    it("rentang > 92 hari tidak bisa dipilih: tanggal di luar batas nonaktif, tak ada permintaan", async () => {
       const { posts } = backend(me("SUPER_ADMIN"));
       renderAt("/time/absen-harian");
       await userEvent.click(await screen.findByRole("button", { name: /Export Excel/ }));
       const dialog = await screen.findByRole("dialog");
-      setDate("Dari", "2026-01-01");
-      setDate("Sampai", "2026-06-30");
-      expect(await within(dialog).findByText("Rentang maksimal 92 hari.")).toBeInTheDocument();
-      expect(within(dialog).getByRole("button", { name: "Unduh Excel" })).toBeDisabled();
+      await userEvent.click(screen.getByLabelText("Dari"));
+      await monthsBack(3);
+      await clickDay("1 Agustus 2026");
+      await monthsForward(2);
+      // 1 Agu + 91 hari = 31 Okt (92 hari, boleh); 1 Nov = 93 hari (nonaktif).
+      expect(screen.getByRole("button", { name: /^Sabtu, 31 Oktober 2026/ })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /^Minggu, 1 November 2026/ })).toBeDisabled();
+      expect(within(dialog).getByText(/dipilih 1 hari/)).toBeInTheDocument();
       expect(posts).toHaveLength(0);
     });
 
@@ -149,8 +184,7 @@ describe.skipIf(!FEATURES.timeManagement)(
       renderAt("/time/absen-harian");
       await userEvent.click(await screen.findByRole("button", { name: /Export Excel/ }));
       const dialog = await screen.findByRole("dialog");
-      setDate("Dari", "2026-03-01");
-      setDate("Sampai", "2026-03-31");
+      await pickRange(8, "1 Maret 2026", "31 Maret 2026");
       await userEvent.click(within(dialog).getByRole("radio", { name: "Pilih crew tertentu" }));
       expect(
         within(dialog).getByRole("checkbox", { name: "Sertakan karyawan tanpa crew" }),
@@ -198,8 +232,7 @@ describe.skipIf(!FEATURES.timeManagement)(
       await userEvent.click(await screen.findByRole("button", { name: /Flash/ }));
       const dialog = await screen.findByRole("dialog");
       expect(within(dialog).queryByText("Crew")).toBeNull();
-      setDate("Dari", "2026-04-01");
-      setDate("Sampai", "2026-04-07");
+      await pickRange(7, "1 April 2026", "7 April 2026");
       await userEvent.click(within(dialog).getByRole("button", { name: "Unduh Flash" }));
       await waitFor(() =>
         expect(posts).toEqual([

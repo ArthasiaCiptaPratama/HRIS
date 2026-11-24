@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
@@ -157,26 +156,16 @@ export function AttendanceExportDialog({
           <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="export-from">Dari</Label>
-              <Input
-                id="export-from"
-                type="date"
-                aria-invalid={formState.errors.from ? true : undefined}
-                {...register("from")}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="export-to">Sampai</Label>
-              <Input
-                id="export-to"
-                type="date"
-                aria-invalid={formState.errors.to ? true : undefined}
-                {...register("to")}
-              />
-            </div>
-          </div>
+          <DateRangePicker
+            idPrefix="export"
+            value={{ from: vFrom, to: vTo }}
+            maxDays={ATTENDANCE_EXPORT_MAX_DAYS}
+            invalid={Boolean(formState.errors.from || formState.errors.to)}
+            onChange={(r) => {
+              setValue("from", r.from, { shouldValidate: true, shouldDirty: true });
+              setValue("to", r.to, { shouldValidate: true, shouldDirty: true });
+            }}
+          />
           <p
             className={
               formState.errors.from || formState.errors.to

@@ -11,6 +11,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-24 — TM-D31: dialog export memakai kalender untuk Dari/Sampai (Mat)
+- **Dikerjakan:** kolom tanggal native `<input type="date">` di dialog Export Excel & Flash diganti pemilih rentang berkalender (nama hari tampil, header Sen–Min, pekan mulai Senin, bahasa Indonesia). Komponen baru `ui/calendar.tsx` + `ui/date-range-picker.tsx`; dependensi baru `react-day-picker` 9.14.0 (pin tepat). Batas 92 hari: hari di luar batas nonaktif; validasi RHF + `attendanceExportInputSchema` dan body permintaan tidak berubah (tanggal tetap string `YYYY-MM-DD`).
+- **Keputusan:** tidak ada keputusan baru; aturan TM-D31 tidak berubah (hanya cara memilih tanggal).
+- **Verifikasi:** `bun run typecheck`, `bunx biome ci .`, `bun run check:boundaries`, `bun run --cwd apps/web test attendance-export date-range-picker` (16 lulus; 11 + 5). Tes web: `Date` dibekukan 24 Nov 2026.
+- **Masalah / catatan:** halaman lain masih memakai `type="date"` (di luar cakupan). `pages/attendance-days-page.tsx` memuat dialog export secara lazy (`lazy` + `Suspense`) agar react-day-picker hanya dimuat saat dialog dibuka; tanpa itu render pertama halaman melambat dan `attendance-days-search.test.tsx` gagal.
+- **catatan codemap:** (branch rekan tim, `docs/codemap/` tidak diubah) tambah `components/ui/calendar.tsx` dan `components/ui/date-range-picker.tsx` ke peta web, dan dependensi `react-day-picker` 9.14.0 di `apps/web/package.json`.
+- **Berikutnya:** pakai `DateRangePicker` di halaman lain bila diminta.
+
 ### 2026-11-24 — TM-D31: sheet Flash tambah kolom Jabatan & Divisi (Mat)
 - **Dikerjakan:** Flash kini 7 kolom: Nama, Jabatan, Divisi, Tanggal, Clock In, Clock Out, Status (urutan baris tetap Tanggal lalu Nama). Jabatan & Divisi = penempatan SAAT INI; Divisi = unit `DIVISION` terdekat di atas/sama dengan unit jabatan (D-050, penjaga siklus); tanpa divisi tampil "—". Helper baca-saja `positionPlacementByEmployee` di `attendance/directory.ts` (satu `getEmployeeBriefs` + satu `getMasterLookup`); `DirectoryEmployee` tidak diubah.
 - **Keputusan:** TM-D31 diperbarui atas permintaan pengguna (sebelumnya Flash dikunci 5 kolom).

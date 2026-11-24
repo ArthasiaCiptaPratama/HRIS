@@ -20,7 +20,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
@@ -57,10 +57,7 @@ import {
   useManualPunch,
   useTimeSettings,
 } from "../api";
-import {
-  AttendanceExportDialog,
-  type AttendanceExportKind,
-} from "../components/attendance-export-dialog";
+import type { AttendanceExportKind } from "../components/attendance-export-dialog";
 import {
   ApprovalSteps,
   addDays,
@@ -75,6 +72,13 @@ import { PunchChannelNote } from "../components/punch-channel-note";
 import { RefreshButton } from "../components/refresh-button";
 import { SelfieThumb } from "../components/selfie-thumb";
 import type { Approval, AttendanceDay } from "../schemas";
+
+// Dialog export memuat react-day-picker + locale: dimuat hanya saat dibuka (halaman tetap ringan).
+const AttendanceExportDialog = lazy(() =>
+  import("../components/attendance-export-dialog").then((m) => ({
+    default: m.AttendanceExportDialog,
+  })),
+);
 
 // D-068 / D-073: Data Absen Harian. Setiap absen (masuk & pulang) disetujui sendiri-sendiri oleh Atasan
 // (tim) DAN HR (PT ditugaskan); hari disetujui bila keduanya disetujui. SA dapat mengambil alih dengan
@@ -420,13 +424,15 @@ export function AttendanceDaysPage() {
       />
       <DayDialog id={openId} tz={tz} canManual={canManual} onClose={() => setParam("id", null)} />
       {exportKind ? (
-        <AttendanceExportDialog
-          kind={exportKind}
-          from={from}
-          to={to}
-          companyId={scope.selectedId ?? undefined}
-          onClose={() => setExportKind(null)}
-        />
+        <Suspense fallback={null}>
+          <AttendanceExportDialog
+            kind={exportKind}
+            from={from}
+            to={to}
+            companyId={scope.selectedId ?? undefined}
+            onClose={() => setExportKind(null)}
+          />
+        </Suspense>
       ) : null}
       {manualOpen ? <ManualDialog tz={tz} onClose={() => setManualOpen(false)} /> : null}
     </div>

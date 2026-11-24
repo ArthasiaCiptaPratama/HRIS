@@ -3,8 +3,8 @@
 - **Area:** Rekap bulanan, tutup periode, Alpha, surat pernyataan, export Excel absen
 - **Fitur:** Time Management — [docs/features/time-management/README.md](../../../../docs/features/time-management/README.md)
 - **Modul:** `apps/api/src/modules/attendance/` (period, alpha, attendance-export) · `apps/web/src/features/time-management/`
-- **diverifikasi:** 1990e6a 2026-11-24
-- **Jalur yang dipantau:** `apps/api/src/modules/attendance/period.service.ts` `apps/api/src/modules/attendance/period.routes.ts` `apps/api/src/modules/attendance/period.contract.ts` `apps/api/src/modules/attendance/alpha.service.ts` `apps/api/src/modules/attendance/attendance-export.service.ts` `apps/api/src/modules/attendance/attendance-export.contract.ts` `apps/api/src/modules/attendance/attendance.policy.ts` `apps/api/src/modules/attendance/attendance-day.routes.ts` `packages/shared/src/attendance-export.ts` `packages/shared/src/xlsx.ts` `packages/shared/src/time-management.ts` `apps/web/src/features/time-management/period-api.ts` `apps/web/src/features/time-management/pages/period-pages.tsx` `apps/web/src/features/time-management/components/attendance-export-dialog.tsx` `apps/web/src/features/time-management/components/alpha-verification-list.tsx` `apps/web/src/features/time-management/access.ts`
+- **diverifikasi:** f1b1af4 2026-11-24
+- **Jalur yang dipantau:** `apps/api/src/modules/attendance/period.service.ts` `apps/api/src/modules/attendance/period.routes.ts` `apps/api/src/modules/attendance/period.contract.ts` `apps/api/src/modules/attendance/alpha.service.ts` `apps/api/src/modules/attendance/attendance-export.service.ts` `apps/api/src/modules/attendance/attendance-export.contract.ts` `apps/api/src/modules/attendance/attendance.policy.ts` `apps/api/src/modules/attendance/attendance-day.routes.ts` `packages/shared/src/attendance-export.ts` `packages/shared/src/xlsx.ts` `packages/shared/src/time-management.ts` `apps/web/src/features/time-management/period-api.ts` `apps/web/src/features/time-management/pages/period-pages.tsx` `apps/web/src/features/time-management/components/attendance-export-dialog.tsx` `apps/web/src/features/time-management/pages/attendance-days-page.tsx` `apps/web/src/components/ui/calendar.tsx` `apps/web/src/components/ui/date-range-picker.tsx` `apps/web/src/features/time-management/components/alpha-verification-list.tsx` `apps/web/src/features/time-management/access.ts`
 
 ## Ringkasan
 `GET /attendance/recap` merekap bulan per karyawan aktif dalam cakupan (hari kerja, hadir, Alpha, cuti, telat, dst). Tutup periode (D-071) mengubah hari belum disetujui/tanpa absen menjadi ALPHA dan mengunci bulan. Alpha tanpa absen dibuat harian (TM-D3), koreksi maks 3 hari. Atasan memverifikasi Alpha (TM-D13 Fase B). Karyawan membuat surat pernyataan per hari Alpha. Export Excel data absen (TM-D31) dari Data Absen Harian. Koreksi absen (`/attendance/corrections*`) juga di kartu ini; punch: `tm-absen.md`; roster: `tm-jadwal.md`.
@@ -44,7 +44,8 @@
 | Jenis | File | Simbol penting |
 |---|---|---|
 | Halaman | `pages/period-pages.tsx` | `RecapPage` (/time/rekap, CSV bulanan & rincian), `CloseDialog`, `CorrectionsStatementsPage` (/time/pernyataan: koreksi + surat; HP memakai hook `period-api.ts` yang sama) |
-| Komponen | `components/attendance-export-dialog.tsx` | `AttendanceExportDialog` (dipakai `pages/attendance-days-page.tsx`) |
+| Komponen | `components/attendance-export-dialog.tsx` | `AttendanceExportDialog` (dipakai `pages/attendance-days-page.tsx`); rentang lewat `DateRangePicker` (`setValue` from/to ISO, RHF + `attendanceExportInputSchema` tetap) |
+| UI bersama | `apps/web/src/components/ui/calendar.tsx`, `date-range-picker.tsx` | `Calendar` (react-day-picker 9.14.0, locale id, Sen–Min, pekan mulai Senin), `DateRangePicker` (tombol "Dari"/"Sampai", `maxDays`), `toIso`, `fromIso`, `dayLabel`, `dayLabelShort` |
 | Komponen | `components/alpha-verification-list.tsx` | `AlphaVerificationList`, `useAlphaInbox` |
 | Komponen | `components/attendance-record.tsx` | `MyAttendanceRecord`, `EmployeeAttendanceRecord` |
 | Hook/API | `period-api.ts` | `useRecap`, `usePeriodClose`, `useCorrections`, `useCorrectionActions`, `useStatements`, `useCreateStatement`, `useAlphaVerifications`, `useVerifyAlpha`, `recapRowSchema` |
@@ -58,7 +59,7 @@
 | API integration | `apps/api/tests/integration/time-management/period.test.ts`, `alpha.test.ts`, `alpha-verification.test.ts`, `attendance-export.test.ts` (koreksi juga di `foundation.test.ts`, `timezone.test.ts`) |
 | API unit | `apps/api/src/modules/attendance/__tests__/attendance-export.service.test.ts`, `attendance-export.policy.test.ts` |
 | Shared | `packages/shared/tests/attendance-export.test.ts`, `xlsx.test.ts` |
-| Web | `apps/web/tests/attendance-export.test.tsx`, `alpha-verification.test.tsx`, `period-close-warning.test.tsx`, `csv.test.ts` |
+| Web | `apps/web/tests/attendance-export.test.tsx` (11; `Date` dibekukan 24 Nov 2026, tanggal lewat kalender, `beforeAll` memanaskan modul dialog lazy), `date-range-picker.test.tsx` (5), `alpha-verification.test.tsx`, `period-close-warning.test.tsx`, `csv.test.ts` |
 
 ## Endpoint → policy → siapa
 | Method & path | Fungsi policy | Siapa boleh |
@@ -108,7 +109,7 @@
 - API: `<prefix lokal> bun run db:which && <prefix lokal> bun run --cwd apps/api test tests/integration/time-management/period.test.ts` (ganti file sesuai tabel Test)
 - Unit export: `bun run --cwd apps/api test src/modules/attendance/__tests__/attendance-export`
 - Shared: `bun run --cwd packages/shared test attendance-export xlsx`
-- Web: `bun run --cwd apps/web test attendance-export alpha-verification period-close-warning`
+- Web: `bun run --cwd apps/web test attendance-export date-range-picker alpha-verification period-close-warning`
 
 ## Dokumen yang wajib diperbarui
 - `docs/features/time-management/README.md` (checklist) dan satu entri `docs/features/time-management/log.md`
@@ -124,3 +125,5 @@
 - Surat pernyataan dan lampiran adalah dokumen sensitif; signed URL hanya bila diminta (`alphaDaysForEvidence`, dipakai modul discipline).
 - Tombol sembunyi bukan akses: API memutuskan (`canExportAttendance`, `canClosePeriod`).
 - Tutup periode terkait payroll (grant `payroll.period.prepare`): perubahan aturan tutup periode di luar gerbang perubahan kecil.
+- Tanggal export = tanggal kalender polos `YYYY-MM-DD` (string di form & body); picker `ui/date-range-picker.tsx` mengonversi lewat Date lokal (`fromIso`/`toIso`), JANGAN pakai `toISOString` (bergeser zona). Rentang > 92 hari tidak bisa dipilih (hari di luar batas nonaktif); Dari baru yang membuat Sampai tidak sah menyamakan Sampai dengan Dari.
+- Test picker: Radix Popover di jsdom butuh stub `ResizeObserver` (di test sendiri). `attendance-days-page.tsx` memuat dialog export secara lazy (`lazy` + `Suspense`) supaya react-day-picker tidak memperlambat render pertama halaman; jangan impor dialog secara statis. Label hari kalender: "Senin, 2 November 2026".
