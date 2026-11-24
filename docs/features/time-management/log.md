@@ -11,6 +11,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-24 — TM-D31: sheet Flash tambah kolom Jabatan & Divisi (Mat)
+- **Dikerjakan:** Flash kini 7 kolom: Nama, Jabatan, Divisi, Tanggal, Clock In, Clock Out, Status (urutan baris tetap Tanggal lalu Nama). Jabatan & Divisi = penempatan SAAT INI; Divisi = unit `DIVISION` terdekat di atas/sama dengan unit jabatan (D-050, penjaga siklus); tanpa divisi tampil "—". Helper baca-saja `positionPlacementByEmployee` di `attendance/directory.ts` (satu `getEmployeeBriefs` + satu `getMasterLookup`); `DirectoryEmployee` tidak diubah.
+- **Keputusan:** TM-D31 diperbarui atas permintaan pengguna (sebelumnya Flash dikunci 5 kolom).
+- **Verifikasi:** typecheck ✔, `biome ci` ✔ (1 warning lama), `check:boundaries` ✔; integrasi `attendance-export.test.ts` + unit ekspor 35 lulus / 0 gagal (DB lokal); shared 9 lulus; web `attendance-export.test.tsx` 11 lulus.
+- **Masalah / catatan:** **Catatan codemap (untuk yang menggabungkan ke develop; `docs/codemap/` tidak diubah di branch ini, PROMPT §8):** `attendance/directory.ts` bertambah `positionPlacementByEmployee`; `flashSheet` memakainya. Tidak ada perubahan `packages/shared`/web.
+
 ### 2026-11-24 — TM-D31: Export Excel data absen per crew & Flash (API + web)
 - **Dikerjakan:** checklist Tahap F "Export Excel data absen per crew, rentang tanggal & Flash (TM-D31)" → `[x]`.
   - **API:** `POST /attendance/days/export` (DETAIL per crew / FLASH 5 kolom), policy `canExportAttendance` (SA / HR PT / MANAGER bawahan langsung), audit `attendance.export`, batas 92 hari / 20.000 baris (terukur 20.000 baris: DETAIL 1,73 MB base64 dalam 6,2 dtk lokal, FLASH 0,58 MB dalam 2,6 dtk), sel tautan `link` di `xlsx.ts` (keluaran lama identik byte), definisi sheet Ringkasan vs rekap bulanan lihat baris TM-D31, crew terhapus → sheet "… (dihapus)".

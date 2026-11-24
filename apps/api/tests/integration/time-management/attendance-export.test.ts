@@ -39,7 +39,10 @@ const LNG = "116.654321";
 const ids = {
   status: "",
   department: "",
+  division: "",
   position: "",
+  departmentNoDiv: "",
+  positionNoDiv: "",
   location: "",
   shift: "",
   pattern: "",
@@ -110,9 +113,23 @@ beforeAll(async () => {
   ids.companyA = await createTestCompany(`XA${RUN.slice(0, 5)}`, `Ekspor Absen A ${RUN}`);
   ids.companyB = await createTestCompany(`XB${RUN.slice(0, 5)}`, `Ekspor Absen B ${RUN}`);
   ids.status = (await prisma.employmentStatus.create({ data: { name: `TMX ${RUN}` } })).id;
-  ids.department = (await prisma.department.create({ data: { name: `TMX ${RUN}` } })).id;
+  ids.division = (
+    await prisma.department.create({ data: { name: `Divisi TMX ${RUN}`, unitType: "DIVISION" } })
+  ).id;
+  ids.department = (
+    await prisma.department.create({ data: { name: `TMX ${RUN}`, parentId: ids.division } })
+  ).id;
   ids.position = (
-    await prisma.position.create({ data: { name: `TMX ${RUN}`, departmentId: ids.department } })
+    await prisma.position.create({
+      data: { name: `Jabatan TMX ${RUN}`, departmentId: ids.department },
+    })
+  ).id;
+  // Unit tanpa leluhur DIVISION → Divisi "—".
+  ids.departmentNoDiv = (await prisma.department.create({ data: { name: `TMXND ${RUN}` } })).id;
+  ids.positionNoDiv = (
+    await prisma.position.create({
+      data: { name: `Jabatan ND ${RUN}`, departmentId: ids.departmentNoDiv },
+    })
   ).id;
   ids.location = (
     await prisma.workLocation.create({
@@ -135,7 +152,7 @@ beforeAll(async () => {
     ).id;
   emp.mgr = await mk("MGR", ids.companyA);
   emp.e1 = await mk("Budi", ids.companyA, { managerId: emp.mgr });
-  emp.e2 = await mk("Adi", ids.companyA, { managerId: emp.mgr });
+  emp.e2 = await mk("Adi", ids.companyA, { managerId: emp.mgr, positionId: ids.positionNoDiv });
   emp.e3 = await mk("Keluar", ids.companyA, { isActive: false });
   emp.e4 = await mk("PTB", ids.companyB);
 
@@ -324,8 +341,11 @@ afterAll(async () => {
   await prisma.shift.deleteMany({ where: { id: ids.shift } });
   await auth.cleanup();
   await prisma.employee.deleteMany({ where: { id: { in: all } } });
-  await prisma.position.delete({ where: { id: ids.position } });
+  await prisma.position.deleteMany({ where: { id: { in: [ids.position, ids.positionNoDiv] } } });
   await prisma.department.delete({ where: { id: ids.department } });
+  await prisma.department.deleteMany({
+    where: { id: { in: [ids.departmentNoDiv, ids.division] } },
+  });
   await prisma.workLocation.delete({ where: { id: ids.location } });
   await prisma.employmentStatus.delete({ where: { id: ids.status } });
   await prisma.company.deleteMany({ where: { id: { in: [ids.companyA, ids.companyB] } } });
@@ -568,12 +588,26 @@ describe("DETAIL", () => {
 });
 
 describe("FLASH", () => {
-  test("5 kolom, hanya catatan hari absen, urut tanggal lalu nama, tanggal = sel tanggal Excel", async () => {
+  test("7 kolom (Jabatan & Divisi saat ini), hanya catatan hari absen, urut tanggal lalu nama, tanggal = sel tanggal Excel", async () => {
     const wb = await workbook(await call(h.sa, flash({ companyId: ids.companyA })));
     expect(wb.fileName).toBe(`absensi-flash-${FROM}_${TO}.xlsx`);
     expect(wb.sheets.map((s) => s.name)).toEqual(["Absensi"]);
     const t = table(wb.sheets[0] as Sheet, "Nama");
-    expect(t.header).toEqual(["Nama", "Tanggal", "Clock In", "Clock Out", "Status"]);
+    expect(t.header).toEqual([
+      "Nama",
+      "Jabatan",
+      "Divisi",
+      "Tanggal",
+      "Clock In",
+      "Clock Out",
+      "Status",
+    ]);
+    // Budi: jabatan di bawah unit berinduk DIVISION; Adi: unit tanpa divisi → "—".
+    const placed = new Map(
+      t.rows.map((r) => [r.Nama?.split(" ").at(-1), `${r.Jabatan}|${r.Divisi}`]),
+    );
+    expect(placed.get("Budi")).toBe(`Jabatan TMX ${RUN}|Divisi TMX ${RUN}`);
+    expect(placed.get("Adi")).toBe(`Jabatan ND ${RUN}|—`);
     expect(
       t.rows.map(
         (r) =>

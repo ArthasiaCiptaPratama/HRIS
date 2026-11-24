@@ -3,7 +3,7 @@
 - **Area:** Rekap bulanan, tutup periode, Alpha, surat pernyataan, export Excel absen
 - **Fitur:** Time Management — [docs/features/time-management/README.md](../../../../docs/features/time-management/README.md)
 - **Modul:** `apps/api/src/modules/attendance/` (period, alpha, attendance-export) · `apps/web/src/features/time-management/`
-- **diverifikasi:** 99bd49a 2026-11-24
+- **diverifikasi:** 1990e6a 2026-11-24
 - **Jalur yang dipantau:** `apps/api/src/modules/attendance/period.service.ts` `apps/api/src/modules/attendance/period.routes.ts` `apps/api/src/modules/attendance/period.contract.ts` `apps/api/src/modules/attendance/alpha.service.ts` `apps/api/src/modules/attendance/attendance-export.service.ts` `apps/api/src/modules/attendance/attendance-export.contract.ts` `apps/api/src/modules/attendance/attendance.policy.ts` `apps/api/src/modules/attendance/attendance-day.routes.ts` `packages/shared/src/attendance-export.ts` `packages/shared/src/xlsx.ts` `packages/shared/src/time-management.ts` `apps/web/src/features/time-management/period-api.ts` `apps/web/src/features/time-management/pages/period-pages.tsx` `apps/web/src/features/time-management/components/attendance-export-dialog.tsx` `apps/web/src/features/time-management/components/alpha-verification-list.tsx` `apps/web/src/features/time-management/access.ts`
 
 ## Ringkasan
@@ -15,7 +15,7 @@
 - `TM-D11` — Data Absen Harian tanpa hari Alpha-tanpa-absen; tempatnya `/time/rekap?tab=alpha`
 - `TM-D13` — verifikasi Alpha oleh atasan: Alpha/izin/sakit/tugas luar (`ALPHA_VERIFICATION_OUTCOMES`)
 - `TM-D21/D22` — "hari ini" = `settingsToday()`, bawaan WITA
-- `TM-D31` — export Excel: Detail per crew (16 kolom, sel link peta) dan Flash; audit `attendance.export`. Flash dikunci 5 kolom (Nama, Tanggal, Clock In, Clock Out, Status). Kolom Detail/Flash, pengelompokan crew, batas dan akses disetujui pengguna: mengubahnya = mengubah TM-D31, jadi rencana wajib bertanya ke pengguna
+- `TM-D31` — export Excel: Detail per crew (16 kolom, sel link peta) dan Flash; audit `attendance.export`. Flash 7 kolom (Nama, Jabatan, Divisi, Tanggal, Clock In, Clock Out, Status; diubah pengguna 2026-11-24; jabatan/divisi = SAAT INI, divisi per D-050, tanpa divisi "—"). Kolom Detail/Flash, pengelompokan crew, batas dan akses disetujui pengguna: mengubahnya = mengubah TM-D31, jadi rencana wajib bertanya ke pengguna
 - OD terbuka: tidak ada yang tercatat untuk area ini
 
 ## Peta file
@@ -28,6 +28,7 @@
 | Policy | `attendance.policy.ts` | `canViewRosterSetup`, `canManageRoster`, `canVerifyAlpha`, `canViewAlphaVerifications`, `canExportAttendance`, `canViewEmployeeRoster` |
 | Service | `period.service.ts` | `canClosePeriod`, `isDateClosed`, `scopedEmployees`, `monthlyRecap`, `previewClose`, `closePeriod`, `alphaCandidates`, `listStatements`, `createStatement`, `alphaDaysForEvidence`, `createCorrection`, `cancelCorrection`, `listCorrections`, `correctionInstant`, `registerPeriodIntegrations` (handler approval `ATTENDANCE_CORRECTION`) |
 | Service | `alpha.service.ts` | `markNoAttendanceAlpha`, `listAlphaVerifications`, `verifyAlpha`, `myAttendanceRecord`, `employeeAttendanceRecord` |
+| Export | `directory.ts` | `positionPlacementByEmployee` (jabatan & divisi saat ini untuk Flash) |
 | Export | `attendance-export.service.ts` | `exportAttendance`, `resolveScope`, `detailRows`, `detailSheets`, `flashSheet`, `crewSheetNames`, `mapCell`, `locationText`, `summarize`, `rosterOnlyStatus` |
 | Repository | `attendance.repository.ts` / `roster.repository.ts` | `exportDays` (query ramping tanpa selfie) / `crewMembershipsForExport` (termasuk crew terhapus) |
 | Contract | `period.contract.ts`, `attendance-export.contract.ts` | `recapRowSchema`, `monthlyRecapSchema`, `periodPreviewSchema`, `statementRowSchema`, `alphaVerificationSchema`, `attendanceExportFileSchema` |
@@ -83,7 +84,7 @@
 - Test: `__tests__/attendance-export.service.test.ts`, `packages/shared/tests/xlsx.test.ts`, `time-management/attendance-export.test.ts`
 
 ### R2. Menambah kolom di sheet Flash / ubah batas
-- File: `attendance-export.service.ts` (`flashSheet`; nama/NIP dari `people()` → `employeeNumber`, seperti `detailRows`), `packages/shared/src/attendance-export.ts` (batas, `attendanceExportFileName`)
+- File: `attendance-export.service.ts` (`flashSheet`; nama/NIP dari `people()` → `employeeNumber`, seperti `detailRows`; Jabatan/Divisi dari `directory.positionPlacementByEmployee(ids)` di `attendance/directory.ts`, JANGAN lebarkan `DirectoryEmployee`; kolom baru = ubah header, `formats`, dan baris sekaligus), `packages/shared/src/attendance-export.ts` (batas, `attendanceExportFileName`)
 - Test: `apps/api/tests/integration/time-management/attendance-export.test.ts` (helper `flash()`), `packages/shared/tests/attendance-export.test.ts`; `apps/web/tests/attendance-export.test.tsx` bila teks web berubah. (Unit `attendance-export.service.test.ts` tidak menyebut Flash: belum diverifikasi)
 
 ### R3. Menambah kolom di rekap bulanan

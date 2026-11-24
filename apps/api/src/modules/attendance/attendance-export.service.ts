@@ -596,14 +596,19 @@ async function flashSheet(scope: Scope, s: Settings, info: string[]) {
     scope,
     days.map((d) => d.employeeId),
   );
+  // Jabatan & divisi = penempatan SAAT INI (bukan riwayat); tanpa divisi → "—".
+  const placements = await directory.positionPlacementByEmployee(days.map((d) => d.employeeId));
   const rows = days
     .map((d) => {
       const date = toIso(d.workDate);
+      const place = placements.get(d.employeeId);
       const pin = d.punches.find((p) => p.kind === "IN");
       const pout = d.punches.find((p) => p.kind === "OUT");
       return {
         name: persons.get(d.employeeId)?.fullName ?? "—",
         id: d.employeeId,
+        position: place?.position ?? "—",
+        division: place?.division ?? "—",
         date,
         clockIn: pin ? formatClockTime(pin.at, date, s.offset) : "",
         clockOut: pout ? formatClockTime(pout.at, date, s.offset) : "",
@@ -621,10 +626,18 @@ async function flashSheet(scope: Scope, s: Settings, info: string[]) {
     title: "Data Absen (Flash)",
     info,
     rows: [
-      ["Nama", "Tanggal", "Clock In", "Clock Out", "Status"],
-      ...rows.map((r) => [r.name, toDate(r.date), r.clockIn, r.clockOut, r.status]),
+      ["Nama", "Jabatan", "Divisi", "Tanggal", "Clock In", "Clock Out", "Status"],
+      ...rows.map((r) => [
+        r.name,
+        r.position,
+        r.division,
+        toDate(r.date),
+        r.clockIn,
+        r.clockOut,
+        r.status,
+      ]),
     ],
-    formats: ["text", "date", "text", "text", "text"],
+    formats: ["text", "text", "text", "date", "text", "text", "text"],
     freezeColumns: 1,
   };
   return { sheet, rows: rows.length };

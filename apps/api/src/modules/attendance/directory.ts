@@ -124,6 +124,39 @@ export async function companyNames(): Promise<Map<string, { code: string; name: 
   return new Map([...lookup.companies.values()].map((c) => [c.id, { code: c.code, name: c.name }]));
 }
 
+/**
+ * TM-D31: jabatan & divisi SAAT INI per karyawan (bukan riwayat). Divisi = unit `DIVISION` terdekat di atas
+ * (atau sama dengan) unit jabatan, naik lewat `parentId` dengan penjaga siklus (D-050); tanpa divisi → null.
+ * Terpisah dari `DirectoryEmployee` agar bentuk DTO pemanggil tidak berubah. Hanya baca.
+ */
+export async function positionPlacementByEmployee(
+  ids: string[],
+): Promise<Map<string, { position: string | null; division: string | null }>> {
+  const result = new Map<string, { position: string | null; division: string | null }>();
+  if (ids.length === 0) return result;
+  const [briefs, { positions, departments }] = await Promise.all([
+    getEmployeeBriefs([...new Set(ids)]),
+    getMasterLookup(),
+  ]);
+  const divisionOf = (departmentId: string): string | null => {
+    const seen = new Set<string>();
+    for (let unit = departments.get(departmentId); unit && !seen.has(unit.id); ) {
+      if (unit.unitType === "DIVISION") return unit.name;
+      seen.add(unit.id);
+      unit = unit.parentId ? departments.get(unit.parentId) : undefined;
+    }
+    return null;
+  };
+  for (const [id, brief] of briefs) {
+    const position = positions.get(brief.positionId);
+    result.set(id, {
+      position: position?.name ?? null,
+      division: position ? divisionOf(position.departmentId) : null,
+    });
+  }
+  return result;
+}
+
 export function locationsByIds(ids: string[]): Promise<Map<string, DirectoryLocation>> {
   return getWorkLocationBriefs(ids);
 }
