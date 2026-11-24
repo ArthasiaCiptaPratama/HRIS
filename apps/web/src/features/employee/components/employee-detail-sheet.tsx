@@ -649,6 +649,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 function WorkTab({ employee }: { employee: EmployeeDetail }) {
+  const me = useMe().data;
   const master = useMasterData();
   const placement = profilePlacement(employee, master.data);
   return (
@@ -673,7 +674,26 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           <Field label="Lokasi kerja">{employee.workLocation?.name}</Field>
           {/* EMP-D6: hanya homebase yang berlaku sekarang; diubah lewat Ubah data, riwayatnya di tab Riwayat. */}
           <Field label="Homebase (POH)">{employee.homebase?.name}</Field>
-          <Field label="Atasan langsung">{employee.manager?.name}</Field>
+          <Field label="Atasan langsung">
+            {employee.manager?.name}
+            {employee.managerHasActiveAccount === false ? (
+              <div
+                role="alert"
+                className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+              >
+                Atasan ini belum punya akun aktif. Pengajuan bawahannya langsung diputus HR PT
+                (tanpa langkah atasan) sampai atasan diundang.
+                {me && appAccess.inviteRoles(me).includes("EMPLOYEE") && employee.manager ? (
+                  <Link
+                    className="ml-1 underline"
+                    to={`/akun?invite=${encodeURIComponent(employee.manager.id)}`}
+                  >
+                    Undang akun
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+          </Field>
           <Field label="Status kepegawaian">{employee.employmentStatus.name}</Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
           <Field label="Masa kerja">{tenure(employee.joinDate, employee.endDate)}</Field>

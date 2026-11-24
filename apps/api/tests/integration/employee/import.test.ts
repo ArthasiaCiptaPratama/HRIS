@@ -1617,6 +1617,24 @@ describe("IMP-D3 status keluar di file untuk karyawan yang sudah ada", () => {
     expect(createOnly.rows[0]).toMatchObject({ action: "SKIP", deactivate: null });
     expect((await prisma.employee.findUniqueOrThrow({ where: { id: e.id } })).isActive).toBe(true);
   });
+
+  test("tanggal keluar di masa depan → error EXIT_FUTURE_DATE, karyawan tetap aktif (audit PM T5)", async () => {
+    const e = await makeEmployee("XF9");
+    const future = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const preview = await data(
+      await call(
+        "POST",
+        "/employee-imports/preview",
+        sa.headers,
+        body([exitRow(6, "XF9", { exitDate: future })]),
+      ),
+    );
+    expect(preview.rows[0].action).toBe("ERROR");
+    expect(preview.rows[0].issues.map((i: { code: string }) => i.code)).toContain(
+      "EXIT_FUTURE_DATE",
+    );
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: e.id } })).isActive).toBe(true);
+  });
 });
 
 // ORG-D8 (Grade = Level, langkah cepat): kolom Level/Grade = kode level HR — penanda per karyawan,

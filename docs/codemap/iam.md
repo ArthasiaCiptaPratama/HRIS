@@ -22,6 +22,8 @@
 ## Tabel & rincian
 
 ### `iam`
+**2026-11-23 — EMP-D8 (audit PM T6/T8):** `setAccountActive` menolak Aktifkan (422) bila karyawan tertaut nonaktif (`employeeScope.linkCandidates`); `setAccountActive(false)` & `deactivateAccountOfEmployee` memanggil `notification.forgetPushDevices` di transaksi yang sama.
+
 | Tabel | Isi penting |
 |---|---|
 | `accounts` | ERD `user_account`: `auth_user_id` (UUID Supabase, unik), `employee_id` (nullable, unik), `email`, `role` (enum `Role`, **satu per akun**, D-028), `is_active`, `last_login_at`, `is_primary_super_admin`. **Tanpa** `password_hash` (password di Supabase Auth, D-005) |

@@ -3,6 +3,21 @@
 Entri terbaru di **atas**. Format satu entri (salin):
 
 ```
+### 2026-11-24 — Paket 1 antrean persetujuan bisa habis (EMP-D9) (Oatse)
+- **Dikerjakan:** sesi hris-11, arahan supervisor-3e. KUTIPAN PENGGUNA 11:15 "Paket 1 dlu", 11:2x Q-A "Cukup 1 langkah HR", 11:30 "setuju semua rekomendasi". Codex `sol-medium` (T3 atasan tanpa akun: `employee.{schema,service,repository}.ts`, web detail/form/daftar/Akun) dan `sol-high` (P1/Q-A/P2/script: `approval.{policy,service,repository}.ts` + `index.ts`, `attendance.service.ts` `recordPunch`/`manualPunch`, `attendance.repository.ts` `normalPendingPunches`, `attendance/normal-pending.service.ts`, `scripts/approve-normal-pending-punches.ts`, web keterangan Data Absen Harian); keduanya diverifikasi ulang `cw` + review diff penuh. Sendiri: P3 b dialog tutup periode (`period-pages.tsx` + `tests/period-close-warning.test.tsx`), teks peringatan mengikuti Q-A, "Terpilih: …" di dialog Undang akun.
+- **Keputusan:** EMP-D9 (README). D-073 berubah: absen normal tidak lagi lewat approval.
+- **Verifikasi:** typecheck ✔ · biome ci ✔ · boundaries ✔ · shared 408 · api 1462 · web 464 ✔. Screenshot lokal `QA/2026-11-24-paket1-emp-d8/01–04` (angka hari menunggu di 04 disuntik di browser, `/close` diblokir; tidak ada periode yang ditutup) disetujui supervisor atas nama pengguna.
+- **Masalah / catatan:** kontrak app bertambah aditif (`EmployeeDetail.managerHasActiveAccount`, `ManagerOption.hasActiveAccount`, query `managerWithoutAccount`; approval bisa satu langkah HR — `Approval.steps` sudah berbasis `kind`). Request PENDING lama tidak dikonversi; antrean lama lewat script (dry-run dulu; staging = kata pengguna). Kabar Mat ditawarkan setelah push.
+- **Commit:** `50b6048` (kode + test), disetujui supervisor-3e atas nama pengguna.
+- **Berikutnya:** rilis staging bersama #109–#111 + script antrean lama (kata pengguna), lalu R0 Rekrutmen (REC-D15).
+
+### 2026-11-23 — Audit celah Personal Management + Paket 2 siklus hidup (EMP-D8) (Oatse)
+- **Audit (analisis):** handoff supervisor-a5 (kutipan pengguna ±10:45 WIB). Laporan `QA/2026-11-23-audit-personal-management/LAPORAN.md`: T1 Kritis (absen tiap punch Atasan + HR, 253 PENDING di staging, 1 HR_ADMIN; tutup periode → Alpha), T2/T3 Tinggi (tanpa atasan / atasan tanpa akun → SA, 38/68), T4–T11 Sedang/Rendah; akses API, storage, privasi audit aman. SELECT staging agregat dijalankan supervisor-a5 (MCP sesi ini belum login). Test policy 283 ✔.
+- **Keputusan pengguna 2026-11-23:** P1 = a (absen normal otomatis disetujui), P2 = a (HR regular bila tanpa atasan) — untuk Paket 1, belum dikerjakan; "kerjakan Paket 2 dulu"; tindakan operasional staging diakhirkan.
+- **Paket 2 (EMP-D8):** `employee.service.ts` `assertExitNotInFuture` (deactivate), `scopeRequestActor` (pemuat aktor `app.ts`; `withEmployeeCompanyScope` tetap `Actor` untuk test/skrip), `releasePendingManagerSteps` di deactivate; `employee-import.service.ts` isu `EXIT_FUTURE_DATE` + release; `org-post-assignment.ts` & `updateEmployee` → `reassignPendingManagerSteps`; `approval.{service,repository}.ts` `reassignPendingManagerSteps`/`releasePendingManagerSteps`; `iam.service.ts` tolak Aktifkan bila karyawan nonaktif + `forgetPushDevices` di kedua jalur nonaktif akun; `notification` `forgetPushDevices`/`deletePushDevicesOfAccount`; shared `IMPORT_ISSUE_MESSAGES.EXIT_FUTURE_DATE`; web `change-status-page.tsx` `max` hari ini + petunjuk, `import/labels.ts` hint.
+- **Verifikasi:** typecheck ✔ · biome ci ✔ (1 peringatan lama) · boundaries ✔ · shared 408 · api 1441 · web 450 ✔. Kontrak API tidak berubah (kode isu import = string bebas; pesan error baru). Kabar Mat (nanti): perilaku antrean approval berubah (T4) dan rencana P1/P2 menyentuh D-073.
+- **Commit (2026-11-24):** `68bef80` (kode + test), di-push ke `HRIS/Oatse/Linux-Windows`; cek ulang sebelum commit: typecheck ✔ · biome ci ✔ · boundaries ✔ · shared 408 · api 1441 · web 450 ✔.
+
 ### 2026-11-18 — EMP-D7 dirilis ke staging gel. 33 (supervisor/Oatse)
 - PR #103/#104, Deploy #44243406376 ✔ (isi `488267e`; tanpa migrasi/env; OpenAPI staging 369 operasi, `POST /employees/export` baru — tidak dipakai app mobile).
 - Data staging: karyawan uji baru Oatse Rizqy Hendarto `TEST-2026-0008` (`oatse@arthasia.test`, Magang · TI · ACP · Kantor Head Office, akun Karyawan; sandi tidak dicatat di docs), lihat log TM 2026-11-18.

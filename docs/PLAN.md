@@ -49,7 +49,8 @@ Membangun HRIS internal untuk **satu grup perusahaan tambang batu bara** (multi-
 - Pencocokan wajah otomatis (face recognition) pada selfie absensi.
 - Approval berjenjang lebih dari satu atasan.
 - Role builder dinamis (role/izin dibuat dari UI). **Ditolak** untuk v1; role dan izin didefinisikan di kode.
-- Rekrutmen, penilaian kinerja, training, integrasi bank, pelaporan pajak otomatis ke DJP.
+- Penilaian kinerja, training, integrasi bank, pelaporan pajak otomatis ke DJP.
+- ~~Rekrutmen~~ → dibuka atas permintaan pengguna 2026-11-24 sebagai modul `recruitment` (Talent Acquisition), dikerjakan setelah Paket 1 EMP-D8 di balik saklar ([REC-D5](features/recruitment/README.md#rec-d5)).
 
 ---
 
@@ -414,6 +415,7 @@ Setiap fase harus memenuhi **kriteria selesai** sebelum fase berikutnya dimulai.
 | 5 | Attendance | Tahap A–D & F [time-management.md](features/time-management/design.md): approval, roster tambang (D-069), absen PWA (D-067, D-070), approval hari absen (D-068), koreksi, lembur, rekap, tutup periode + surat pernyataan (D-071), retensi selfie | Rekap bulanan akurat untuk skenario roster (termasuk shift malam), libur & cuti (teruji) |
 | 6 | Leave | Tahap E: cuti tahunan (jatah Januari + prorata, sisa s.d. 31 Maret, hutang, hold — D-072), izin & sakit, approval paralel, integrasi roster | Skenario saldo (prorata, hangus, hutang, cuti bersama) & approve/tolak/batal benar (teruji) |
 | — | **Rilis 1** | Fase 1–6 ke produksi | Setelah OD-4 & OD-5 terjawab |
+| R | Rekrutmen (Talent Acquisition) | R0–R5 [recruitment/design §13](features/recruitment/design.md): lowongan, kandidat, alur tahap modular maju/mundur, form kustom + tautan kandidat bertoken, wawancara + Meet, diterima → Penerimaan, retensi PDP | Per fase: test policy + integration + matriks akses lulus; di balik `FEATURES.recruitment` (REC-D4/D5) |
 | 7 | Contract | Jenis kontrak, kontrak, perpanjangan, terminasi, pengingat habis | Aturan 1 kontrak aktif per karyawan, overlap, perpanjangan teruji |
 | — | **Rilis 2** | Kontrak ke produksi | – |
 | 8 | Payroll | Konfigurasi tarif, komponen, struktur gaji, periode, BPJS, PPh 21 TER, lock, slip | Semua **golden cases** terverifikasi lulus; periode lock tidak bisa diubah |
@@ -579,9 +581,24 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [EMP-D4](features/karyawan/README.md#keputusan) | HR ber-grant ubah data pribadi/keluarga/rekening karyawan lain langsung dari detail; data diri sendiri tetap lewat pengajuan; rekening berubah → karyawan diberi tahu | [EMP](features/karyawan/README.md) |
 | [EMP-D5](features/karyawan/README.md#keputusan) | Riwayat perubahan data per field (lama → baru, siapa, kapan, sumber) di semua jalur ubah data, dalam transaksi yang sama; nilai sensitif tampil sesuai grant baca; audit log tetap tanpa nilai | [EMP](features/karyawan/README.md) |
 | [EMP-D6](features/karyawan/README.md#keputusan) | Homebase = Point of Hire: master SA, riwayat berlaku per tanggal + no. SK, data kerja, diubah SA/HR; import, laporan, adapter payroll `getHomebasesOn` | [EMP](features/karyawan/README.md) |
+| [EMP-D8](features/karyawan/README.md#keputusan) | Siklus hidup rapat: keluar tidak bertanggal masa depan, akun karyawan nonaktif tidak bisa aktif/akses, push device dilepas, langkah atasan PENDING ikut atasan karyawan | [EMP](features/karyawan/README.md) |
 | [HRD-D1](features/hardening/README.md#keputusan) | Lupa password akun SUPER_ADMIN/HR_ADMIN/HR_PERSONNEL hanya ke email akun, bukan email pribadi | [HRD](features/hardening/README.md) |
 | [HRD-D2](features/hardening/README.md#keputusan) | Larangan ubah data diri sendiri lewat jalur HR berlaku untuk HR_ADMIN; SUPER_ADMIN dikecualikan | [HRD](features/hardening/README.md) |
 | [HRD-D3](features/hardening/README.md#keputusan) | CSP web mulai Report-Only, enforce setelah dicek di staging | [HRD](features/hardening/README.md) |
+| [REC-D1](features/recruitment/README.md#rec-d1) | Rekrutmen: tautan rapat Google Meet otomatis (service account + DWD) + `MeetingProvider` (Zoom nanti, manual selalu ada) | [REC](features/recruitment/README.md) |
+| [REC-D2](features/recruitment/README.md#rec-d2) | Rekrutmen: HR_ADMIN + SA kelola; pewawancara hanya lamaran yang diwawancarai; tanpa role baru | [REC](features/recruitment/README.md) |
+| [REC-D3](features/recruitment/README.md#rec-d3) | Rekrutmen: kandidat mengisi lewat tautan form bertoken tanpa login; lowongan publik = fase lanjut | [REC](features/recruitment/README.md) |
+| [REC-D4](features/recruitment/README.md#rec-d4) | Grup headbar "Rekrutmen" di antara Waktu dan Administrasi, saklar `FEATURES.recruitment` | [REC](features/recruitment/README.md) |
+| [REC-D5](features/recruitment/README.md#rec-d5) | Rekrutmen dibuka dari backlog v1; implementasi setelah Paket 1 EMP-D8 + rilis staging berikutnya | [REC](features/recruitment/README.md) |
+| [REC-D6](features/recruitment/README.md#rec-d6) | Rekrutmen teknis: aturan transisi di kode + riwayat append-only + OCC; form JSON berversi + zod bersama; tanpa pustaka baru R0–R5 | [REC](features/recruitment/README.md) |
+| [REC-D7](features/recruitment/README.md#rec-d7) | Rekrutmen tanpa scraping LinkedIn (URL sebagai tautan, CV, impor CSV, isi sendiri) | [REC](features/recruitment/README.md) |
+| [REC-D8](features/recruitment/README.md#rec-d8) | Rekrutmen fase awal tanpa AI isi otomatis CV (UU PDP Pasal 56) | [REC](features/recruitment/README.md) |
+| [REC-D9](features/recruitment/README.md#rec-d9) | Data pelamar ditolak/mundur dianonimkan 12 bulan setelah lowongan ditutup kecuali talent pool; persetujuan PDP di setiap form | [REC](features/recruitment/README.md) |
+| [REC-D10](features/recruitment/README.md#rec-d10) | Rekrutmen → "Terima & kirim ke Penerimaan" (tanpa ketik ulang) + status/pintasan di papan; menu Penerimaan pindah ke Personalia › Pengelolaan Karyawan (alamat tetap) | [REC](features/recruitment/README.md) |
+| [REC-D11](features/recruitment/README.md#rec-d11) | Rekrutmen: template alur (disalin per lowongan) + template form berversi; 3 + 6 template bawaan | [REC](features/recruitment/README.md) |
+| [REC-D12](features/recruitment/README.md#rec-d12) | Rekrutmen: mundur ke tahap sebelumnya + "minta data tambahan" tanpa pindah tahap | [REC](features/recruitment/README.md) |
+| [REC-D13](features/recruitment/README.md#rec-d13) | Rekrutmen: template global, dikelola SA + HR_ADMIN; bawaan sistem hanya disalin | [REC](features/recruitment/README.md) |
+| [REC-D14](features/recruitment/README.md#rec-d14) | Rekrutmen: penawaran tanpa nominal gaji; penilaian lain terlihat setelah mengirim penilaian sendiri | [REC](features/recruitment/README.md) |
 
 ## 9. Keputusan Terbuka
 

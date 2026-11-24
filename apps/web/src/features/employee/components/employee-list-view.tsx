@@ -3,7 +3,7 @@ import { ORG_UNIT_TYPE_LABELS } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Search, SearchX, Users, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import {
   type DataColumn,
   DataTable,
@@ -14,7 +14,9 @@ import { FormSelect } from "@/components/form-select";
 import { TablePagination } from "@/components/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useMe } from "@/features/auth/api";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { access } from "@/lib/access";
 import { formatDate } from "@/lib/format";
 import { type EmployeeListParams, useCompanyScope, useEmployees, useMasterData } from "../api";
 import { tenure } from "../labels";
@@ -208,6 +210,7 @@ export function useListParams(defaults: { sort: string }) {
     workLocationId: get("loc"),
     homebaseId: get("hb"),
     missingNumber: get("nip") === "kosong",
+    managerWithoutAccount: get("managerWithoutAccount") === "true",
     sort: get("sort") || defaults.sort,
     update,
   };
@@ -254,6 +257,7 @@ export function EmployeeListView({
   toolbarExtra?: ReactNode;
 }) {
   const list = useListParams({ sort: variant === "active" ? "fullName:asc" : "endDate:desc" });
+  const me = useMe().data;
   const master = useMasterData();
   const { selectedId: companyId } = useCompanyScope();
   const [search, setSearch] = useState(list.q);
@@ -287,6 +291,7 @@ export function EmployeeListView({
     () => ({
       page: list.page,
       pageSize: list.pageSize,
+      managerWithoutAccount: variant === "active" && list.managerWithoutAccount ? true : undefined,
       ...employeeListFilter(
         {
           q: list.q,
@@ -307,6 +312,7 @@ export function EmployeeListView({
       list.workLocationId,
       list.homebaseId,
       list.missingNumber,
+      list.managerWithoutAccount,
       list.sort,
       category,
       group,
@@ -318,7 +324,12 @@ export function EmployeeListView({
   const rows = query.data?.data ?? [];
   const total = query.data?.meta.total ?? 0;
   const filtered = Boolean(
-    list.q || list.departmentId || list.workLocationId || list.homebaseId || list.missingNumber,
+    list.q ||
+      list.departmentId ||
+      list.workLocationId ||
+      list.homebaseId ||
+      list.missingNumber ||
+      list.managerWithoutAccount,
   );
 
   // Halaman di luar jangkauan (mis. setelah filter) → kembali ke halaman terakhir yang ada.
@@ -409,6 +420,19 @@ export function EmployeeListView({
           >
             NIP belum ada
           </Button>
+          {variant === "active" ? (
+            <Button
+              variant={list.managerWithoutAccount ? "secondary" : "outline"}
+              size="sm"
+              className="h-9"
+              aria-pressed={list.managerWithoutAccount}
+              onClick={() =>
+                list.update({ managerWithoutAccount: list.managerWithoutAccount ? null : "true" })
+              }
+            >
+              Atasan tanpa akun
+            </Button>
+          ) : null}
           {filtered ? (
             <Button
               variant="ghost"
@@ -416,7 +440,14 @@ export function EmployeeListView({
               className="h-9"
               onClick={() => {
                 setSearch("");
-                list.update({ q: null, dept: null, loc: null, hb: null, nip: null });
+                list.update({
+                  q: null,
+                  dept: null,
+                  loc: null,
+                  hb: null,
+                  nip: null,
+                  managerWithoutAccount: null,
+                });
               }}
             >
               <X /> Reset
@@ -428,7 +459,29 @@ export function EmployeeListView({
 
       <DataTable
         label="Daftar karyawan"
-        columns={columns}
+        columns={
+          variant === "active" &&
+          list.managerWithoutAccount &&
+          me &&
+          access.inviteRoles(me).includes("EMPLOYEE")
+            ? [
+                ...columns,
+                helper.display({
+                  id: "invite",
+                  header: "Akun",
+                  cell: ({ row }) => (
+                    <Link
+                      className="text-brand underline"
+                      onClick={(event) => event.stopPropagation()}
+                      to={`/akun?invite=${encodeURIComponent(row.original.id)}`}
+                    >
+                      Undang akun
+                    </Link>
+                  ),
+                }) as DataColumn<EmployeeListItem>,
+              ]
+            : columns
+        }
         data={rows}
         loading={query.isPending}
         fetching={query.isFetching}

@@ -8,8 +8,9 @@ import {
 } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Link2, SearchX, UserPlus, Users } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
 import { FormSelect } from "@/components/form-select";
@@ -75,7 +76,23 @@ export function AccountsPage() {
     unlinked: status === "unlinked" ? true : undefined,
     q: q || undefined,
   });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const inviteEmployeeId = searchParams.get("invite");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const inviteFromLink = Boolean(inviteEmployeeId && access.inviteRoles(me).includes("EMPLOYEE"));
+  const changeInviteOpen = (open: boolean) => {
+    setInviteOpen(open);
+    if (!open && inviteEmployeeId) {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          next.delete("invite");
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  };
   const [roleTarget, setRoleTarget] = useState<Account | null>(null);
   const [companyTarget, setCompanyTarget] = useState<Account | null>(null);
   const scope = useCompanyScope();
@@ -311,7 +328,13 @@ export function AccountsPage() {
         />
       </ListPanel>
 
-      <InviteDialog me={me} open={inviteOpen} onOpenChange={setInviteOpen} />
+      <InviteDialog
+        key={inviteEmployeeId ?? "manual"}
+        me={me}
+        open={inviteOpen || inviteFromLink}
+        onOpenChange={changeInviteOpen}
+        initialEmployeeId={inviteFromLink ? inviteEmployeeId : null}
+      />
       <ChangeRoleDialog me={me} account={roleTarget} onClose={() => setRoleTarget(null)} />
       <AssignCompaniesDialog
         account={companyTarget}
@@ -329,10 +352,12 @@ export function AccountsPage() {
 }
 
 function InviteDialog({
+  initialEmployeeId,
   me,
   open,
   onOpenChange,
 }: {
+  initialEmployeeId: string | null;
   me: Me;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -342,7 +367,7 @@ function InviteDialog({
   const defaults = {
     email: "",
     role: roles.includes("EMPLOYEE") ? "EMPLOYEE" : (roles[0] ?? "EMPLOYEE"),
-    employeeId: undefined,
+    employeeId: initialEmployeeId ?? undefined,
   } satisfies InviteForm;
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteFormSchema),
@@ -352,6 +377,13 @@ function InviteDialog({
   const employeeId = form.watch("employeeId") ?? null;
   const [employeeName, setEmployeeName] = useState("");
   const selected = useEmployee(employeeId, "work", open && employeeId !== null);
+  useEffect(() => {
+    if (!initialEmployeeId || !selected.data || employeeId !== initialEmployeeId) return;
+    setEmployeeName(selected.data.fullName);
+    if (!form.getValues("email") && selected.data.workEmail) {
+      form.setValue("email", selected.data.workEmail, { shouldValidate: true });
+    }
+  }, [initialEmployeeId, selected.data, employeeId, form]);
   // Karyawan yang sudah punya akun tidak bisa diundang lagi (API juga menolak, 409).
   const hasAccount = Boolean(selected.data?.account);
   const linkRequired = requiresEmployeeLink(role);
@@ -420,6 +452,15 @@ function InviteDialog({
                 <span className="text-muted-foreground font-normal">(opsional)</span>
               )}
             </Label>
+            {employeeId && selected.data ? (
+              // EMP-D8 T3: dibuka dari tautan "Undang akun" → karyawan terpilih bisa di luar layar daftar.
+              <p className="text-sm">
+                Terpilih: <b>{selected.data.fullName}</b>
+                {selected.data.employeeNumber ? (
+                  <span className="text-muted-foreground"> · {selected.data.employeeNumber}</span>
+                ) : null}
+              </p>
+            ) : null}
             <EmployeePicker
               active
               selectedId={employeeId}

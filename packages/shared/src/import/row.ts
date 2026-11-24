@@ -597,6 +597,7 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
     "NIP ini milik calon yang sedang onboarding (dikelola di menu Penerimaan Karyawan Baru)",
   SENSITIVE_OWN_ROW: "Data sensitif milik akun Anda sendiri tidak diubah lewat import",
   EXIT_BEFORE_JOIN: "Tanggal keluar sebelum tanggal masuk",
+  EXIT_FUTURE_DATE: "Tanggal keluar tidak boleh di masa depan",
   // D-064: kolom Departemen/Divisi → unit organisasi (dipilih di langkah Lengkapi data, IMP-D5).
   UNIT_UNMATCHED:
     "Departemen/divisi ini mirip yang sudah ada (salah ketik/singkatan?) — pilih di langkah Lengkapi data",

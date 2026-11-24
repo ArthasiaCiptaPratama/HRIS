@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { FormSelect } from "@/components/form-select";
@@ -672,7 +672,7 @@ function AlphaList({ companyId, month }: { companyId: string; month: string }) {
   );
 }
 
-function CloseDialog({
+export function CloseDialog({
   companyId,
   month,
   onClose,
@@ -708,6 +708,20 @@ function CloseDialog({
               <b>{p.alpha}</b> hari akan menjadi <b>Alpha</b>: {p.noAttendance} tanpa absen,{" "}
               {p.pending} belum disetujui, {p.rejected} ditolak.
             </p>
+            {p.pending ? (
+              // EMP-D8 P3 = b: diperingatkan tegas, tidak diblokir (penggajian tidak tertahan satu pengajuan).
+              <div
+                role="alert"
+                className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <b>{p.pending} hari masih menunggu persetujuan</b> dan akan menjadi Alpha bila
+                periode ditutup sekarang, walaupun karyawannya sudah absen. Selesaikan dulu di{" "}
+                <Link to="/time/absen-harian" className="font-medium underline">
+                  antrean persetujuan Data Absen Harian
+                </Link>
+                .
+              </div>
+            ) : null}
             {p.unverifiedAlpha ? (
               <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
                 {p.unverifiedAlpha} hari Alpha belum diverifikasi atasan — periode belum bisa
