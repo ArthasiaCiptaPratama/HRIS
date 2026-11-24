@@ -87,3 +87,13 @@ describe("navigasi: HR Kepegawaian", () => {
     }
   });
 });
+
+// Pengguna 2026-11-24: Dashboard & Absen (grup 1 halaman) tanpa sidebar desktop; grup lain tetap.
+describe("navigasi: sidebar desktop per grup", () => {
+  it("hanya Dashboard dan Absen yang tanpa sidebar", () => {
+    expect(NAV_GROUPS.filter((g) => g.sidebar === false).map((g) => g.id)).toEqual([
+      "dashboard",
+      "absen",
+    ]);
+  });
+});
