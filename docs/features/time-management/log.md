@@ -11,6 +11,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-24 — TM-D31: jadwal & crew export dibatasi PT cakupan (temuan review Oatse) (Mat)
+- **Dikerjakan:** `attendance-export.service.ts` `detailRows`: keanggotaan crew di luar `scope.companyIds` dibuang sebelum `crewOf`/sheet/nama; baris roster dibuang bila `shift.companyId` di luar cakupan, atau (tanpa shift) crew `crewId`-nya di luar cakupan, atau (tanpa shift & crew) keanggotaan crew pada tanggal itu (dari data tanpa filter) milik PT di luar cakupan; selain itu tetap (termasuk karyawan tanpa keanggotaan). `scope.companyIds === null` (SA semua PT) tidak difilter. `roster.repository.ts` `rosterDaysForExport` kini juga memilih `crewId` dan `shift.companyId`. Kebocoran: karyawan pindah PT di tengah rentang -> admin PT baru melihat kode shift dan nama crew PT lama.
+- **Keputusan:** tidak ada keputusan baru; `canExportAttendance` dan akses tidak berubah.
+- **Verifikasi:** test integrasi baru "karyawan pindah PT di tengah rentang" (DETAIL HR PT B, FLASH HR PT B, SA semua PT) gagal dengan kode shift PT A bocor sebelum perbaikan, lulus sesudahnya; `attendance-export.test.ts` 13 lulus; `tests/integration/time-management/` + `attendance/__tests__/` 328 lulus / 0 gagal; typecheck, `biome ci`, `check:boundaries` lulus.
+- **Masalah / catatan:** pengamatan (tanpa perubahan perilaku): HR PT LAMA untuk karyawan yang sudah pindah melihat hari absen PT lama (difilter snapshot `days.companyId`, nama via `employeesByIds`), tetapi tidak melihat baris roster-saja karyawan itu (daftar karyawan roster = PT saat ini), jadi bukan kebocoran sejenis.
+- **catatan codemap:** (branch rekan tim, `docs/codemap/` tidak diubah) `roster.repository.ts` `rosterDaysForExport` kini mengembalikan `crewId` dan `shift.companyId`; `attendance-export.service.ts` `detailRows` menyaring roster & keanggotaan per `scope.companyIds`.
+- **Berikutnya:** tidak ada.
+
 ### 2026-11-24 — TM-D31: dialog export memakai kalender untuk Dari/Sampai (Mat)
 - **Dikerjakan:** kolom tanggal native `<input type="date">` di dialog Export Excel & Flash diganti pemilih rentang berkalender (nama hari tampil, header Sen–Min, pekan mulai Senin, bahasa Indonesia). Komponen baru `ui/calendar.tsx` + `ui/date-range-picker.tsx`; dependensi baru `react-day-picker` 9.14.0 (pin tepat). Batas 92 hari: hari di luar batas nonaktif; validasi RHF + `attendanceExportInputSchema` dan body permintaan tidak berubah (tanggal tetap string `YYYY-MM-DD`).
 - **Keputusan:** tidak ada keputusan baru; aturan TM-D31 tidak berubah (hanya cara memilih tanggal).

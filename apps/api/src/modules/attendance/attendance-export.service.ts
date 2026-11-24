@@ -311,10 +311,17 @@ async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
   const days = await readDays(scope);
   const rosterIds = scope.employees.map((e) => e.id);
   const allIds = [...new Set([...rosterIds, ...days.map((d) => d.employeeId)])];
-  const memberships = allIds.length ? await roster.crewMembershipsForExport(allIds, from, to) : [];
-  const crewOf = (employeeId: string, date: string) => {
-    let best: (typeof memberships)[number] | undefined;
-    for (const m of memberships) {
+  const allMemberships = allIds.length
+    ? await roster.crewMembershipsForExport(allIds, from, to)
+    : [];
+  type Membership = (typeof allMemberships)[number];
+  const inScope = (companyId: string) =>
+    scope.companyIds === null || scope.companyIds.includes(companyId);
+  // Keanggotaan crew di luar PT cakupan dibuang (karyawan pindah PT: nama crew PT lama tidak bocor).
+  const memberships = allMemberships.filter((m) => inScope(m.crew.companyId));
+  const pickCrew = (list: Membership[], employeeId: string, date: string) => {
+    let best: Membership | undefined;
+    for (const m of list) {
       if (m.employeeId !== employeeId) continue;
       if (toIso(m.startDate) > date || (m.endDate && toIso(m.endDate) < date)) continue;
       // Keanggotaan tumpang-tindih (data rusak): yang mulai paling akhir menang.
@@ -322,6 +329,7 @@ async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
     }
     return best?.crew ?? null;
   };
+  const crewOf = (employeeId: string, date: string) => pickCrew(memberships, employeeId, date);
   const chosen = input.crewIds ? new Set(input.crewIds) : null;
   const keep = (crewId: string | null) =>
     crewId === null ? input.includeNoCrew === true : chosen === null || chosen.has(crewId);
@@ -332,10 +340,29 @@ async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
           memberships.some((m) => m.employeeId === id && chosen.has(m.crew.id)),
         )
       : rosterIds;
-  const rosterDays = rosterCandidates.length
+  const rosterRaw = rosterCandidates.length
     ? await roster.rosterDaysForExport(rosterCandidates, from, to, ROSTER_READ_CAP + 1)
     : [];
-  if (rosterDays.length > ROSTER_READ_CAP) throw new BusinessRuleError(TOO_MANY);
+  if (rosterRaw.length > ROSTER_READ_CAP) throw new BusinessRuleError(TOO_MANY);
+  // Baris roster di luar PT cakupan dibuang (shift/crew PT lama milik karyawan yang pindah PT).
+  const crewCompany = new Map<string, string>();
+  if (scope.companyIds !== null) {
+    const crewIds = [...new Set(rosterRaw.flatMap((r) => (r.crewId ? [r.crewId] : [])))];
+    if (crewIds.length) {
+      for (const c of await roster.crewsForExport(crewIds)) crewCompany.set(c.id, c.companyId);
+    }
+  }
+  const rosterDays = rosterRaw.filter((r) => {
+    if (scope.companyIds === null) return true;
+    if (r.shift) return inScope(r.shift.companyId);
+    if (r.crewId) {
+      const company = crewCompany.get(r.crewId);
+      return company !== undefined && inScope(company);
+    }
+    // Tanpa shift & crew (OFF/Time off manual): dibuang hanya bila keanggotaan crew pada tanggal itu di luar PT.
+    const covering = pickCrew(allMemberships, r.employeeId, toIso(r.workDate));
+    return covering === null || inScope(covering.companyId);
+  });
 
   type Cell = {
     employeeId: string;

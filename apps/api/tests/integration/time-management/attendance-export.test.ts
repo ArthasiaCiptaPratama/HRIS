@@ -52,9 +52,13 @@ const ids = {
   crewX: "",
   crewY: "",
   crewZ: "",
+  shiftB: "",
 };
-const emp = { mgr: "", e1: "", e2: "", e3: "", e4: "" };
-let h: Record<"sa" | "hrA" | "mgr" | "mgrNoEmp" | "employee" | "personnel", Record<string, string>>;
+const emp = { mgr: "", e1: "", e2: "", e3: "", e4: "", mv: "", nc: "" };
+let h: Record<
+  "sa" | "hrA" | "hrB" | "mgr" | "mgrNoEmp" | "employee" | "personnel",
+  Record<string, string>
+>;
 
 const call = (headers: Record<string, string>, body: unknown) =>
   app.request("/api/v1/attendance/days/export", {
@@ -155,6 +159,8 @@ beforeAll(async () => {
   emp.e2 = await mk("Adi", ids.companyA, { managerId: emp.mgr, positionId: ids.positionNoDiv });
   emp.e3 = await mk("Keluar", ids.companyA, { isActive: false });
   emp.e4 = await mk("PTB", ids.companyB);
+  emp.mv = await mk("Pindah", ids.companyB); // pindah A → B di tengah rentang April
+  emp.nc = await mk("TanpaCrew", ids.companyB);
 
   ids.shift = (
     await prisma.shift.create({
@@ -164,6 +170,17 @@ beforeAll(async () => {
         name: `TMX ${RUN}`,
         startMinute: 420,
         endMinute: 1140,
+      },
+    })
+  ).id;
+  ids.shiftB = (
+    await prisma.shift.create({
+      data: {
+        companyId: ids.companyB,
+        code: `Y${RUN.slice(0, 5)}`,
+        name: `TMX B ${RUN}`,
+        startMinute: 480,
+        endMinute: 1020,
       },
     })
   ).id;
@@ -204,6 +221,33 @@ beforeAll(async () => {
       { crewId: ids.crewY, employeeId: emp.e1, startDate: D("1998-03-06") },
       { crewId: ids.crewX, employeeId: emp.e2, startDate: D("1998-02-01") },
       { crewId: ids.crewZ, employeeId: emp.e4, startDate: D("1998-02-01") },
+      // Karyawan pindah PT: crew PT A s.d. 4 April, crew PT B mulai 5 April.
+      {
+        crewId: ids.crewX,
+        employeeId: emp.mv,
+        startDate: D("1998-03-01"),
+        endDate: D("1998-04-04"),
+      },
+      { crewId: ids.crewZ, employeeId: emp.mv, startDate: D("1998-04-05") },
+    ],
+  });
+  // Rentang April: 1–2 shift PT A, 3 OFF tanpa shift/crew (tanggal crew PT A), 5–6 shift PT B,
+  // 7 OFF tanpa shift/crew (tanggal crew PT B). Karyawan PT B tanpa crew: OFF tanpa shift/crew tanggal 3.
+  const mvRoster = (date: string, shiftId: string | null) => ({
+    employeeId: emp.mv,
+    workDate: D(date),
+    shiftId,
+    source: "MANUAL" as const,
+  });
+  await prisma.rosterDay.createMany({
+    data: [
+      mvRoster("1998-04-01", ids.shift),
+      mvRoster("1998-04-02", ids.shift),
+      mvRoster("1998-04-03", null),
+      mvRoster("1998-04-05", ids.shiftB),
+      mvRoster("1998-04-06", ids.shiftB),
+      mvRoster("1998-04-07", null),
+      { employeeId: emp.nc, workDate: D("1998-04-03"), source: "MANUAL" as const, shiftId: null },
     ],
   });
   // Roster 1–8 Maret: e1 & e2 kerja kecuali 7 (OFF) & 8 (time off); e3 (sudah keluar) kerja tanggal 1.
@@ -318,10 +362,17 @@ beforeAll(async () => {
   await day(emp.e2, "1998-03-05", "LEAVE");
   await day(emp.e3, "1998-03-01", "APPROVED");
   await day(emp.e4, "1998-03-01", "APPROVED", ids.companyB);
+  await day(emp.mv, "1998-04-01", "APPROVED", ids.companyA); // hari absen saat masih di PT A
+  const dB = await day(emp.mv, "1998-04-06", "APPROVED", ids.companyB);
+  await prisma.attendanceDay.update({
+    where: { id: dB.id },
+    data: { shiftId: ids.shiftB, shiftCode: `Y${RUN.slice(0, 5)}` },
+  });
 
   h = {
     sa: (await auth.loginAs("SUPER_ADMIN")).headers,
     hrA: (await auth.loginAs("HR_ADMIN", { companies: [ids.companyA] })).headers,
+    hrB: (await auth.loginAs("HR_ADMIN", { companies: [ids.companyB] })).headers,
     mgr: (await auth.loginAs("MANAGER", { employeeId: emp.mgr, companies: [ids.companyA] }))
       .headers,
     mgrNoEmp: (await auth.loginAs("MANAGER", { companies: [ids.companyA] })).headers,
@@ -338,7 +389,7 @@ afterAll(async () => {
   await prisma.crewMember.deleteMany({ where: { employeeId: { in: all } } });
   await prisma.crew.deleteMany({ where: { id: { in: [ids.crewX, ids.crewY, ids.crewZ] } } });
   await prisma.rosterPattern.deleteMany({ where: { id: { in: [ids.pattern, ids.patternB] } } });
-  await prisma.shift.deleteMany({ where: { id: ids.shift } });
+  await prisma.shift.deleteMany({ where: { id: { in: [ids.shift, ids.shiftB] } } });
   await auth.cleanup();
   await prisma.employee.deleteMany({ where: { id: { in: all } } });
   await prisma.position.deleteMany({ where: { id: { in: [ids.position, ids.positionNoDiv] } } });
@@ -584,6 +635,51 @@ describe("DETAIL", () => {
     // Sheet "Tanpa crew" diminta → tetap ada, tetapi kosong (karyawan di luar tim tidak ikut).
     const none = wb.sheets.find((s) => s.name === "Tanpa crew") as Sheet;
     expect(table(none, "NIP").rows).toHaveLength(0);
+  });
+});
+
+describe("DETAIL: karyawan pindah PT di tengah rentang (temuan review TM-D31)", () => {
+  const P_FROM = "1998-04-01";
+  const P_TO = "1998-04-08";
+  const pindah = { from: P_FROM, to: P_TO, includeNoCrew: true };
+  const shiftA = `X${RUN.slice(0, 5)}`;
+  const shiftBCode = `Y${RUN.slice(0, 5)}`;
+
+  test("HR PT B: tidak ada shift, crew, atau baris roster PT A; baris PT B & karyawan tanpa crew tetap", async () => {
+    const wb = await workbook(await call(h.hrB, detail(pindah)));
+    expect(wb.all).not.toContain(shiftA);
+    expect(wb.all).not.toContain(`TMX ${RUN} X`);
+    expect(wb.sheets.map((s) => s.name)).toEqual(["Ringkasan", `TMX ${RUN} Z`, "Tanpa crew"]);
+    const z = table(wb.sheets[1] as Sheet, "NIP");
+    expect(z.rows.map((r) => `${r.Tanggal}|${r.Shift}`)).toEqual([
+      `${serial("1998-04-05")}|${shiftBCode}`,
+      `${serial("1998-04-06")}|${shiftBCode}`,
+      `${serial("1998-04-07")}|OFF`,
+    ]);
+    // OFF tanpa shift/crew pada tanggal crew PT A (3 April) milik karyawan pindah ikut dibuang;
+    // karyawan PT B tanpa crew tetap tampil.
+    const none = table(wb.sheets[2] as Sheet, "NIP");
+    expect(none.rows.map((r) => `${r.Nama?.split(" ").at(-1)}|${r.Tanggal}|${r.Shift}`)).toEqual([
+      `TanpaCrew|${serial("1998-04-03")}|OFF`,
+    ]);
+    expect(wb.rows).toBe(4);
+  });
+
+  test("HR PT B, FLASH: hanya hari absen PT B", async () => {
+    const wb = await workbook(await call(h.hrB, flash({ from: P_FROM, to: P_TO })));
+    const t = table(wb.sheets[0] as Sheet, "Nama");
+    expect(t.rows.map((r) => `${r.Nama?.split(" ").at(-1)}|${r.Tanggal}`)).toEqual([
+      `Pindah|${serial("1998-04-06")}`,
+    ]);
+  });
+
+  test("SA tanpa companyId: jadwal & crew kedua PT tetap tampil", async () => {
+    const wb = await workbook(await call(h.sa, detail(pindah)));
+    expect(wb.all).toContain(shiftA);
+    expect(wb.all).toContain(shiftBCode);
+    expect(wb.sheets.map((s) => s.name)).toEqual(
+      expect.arrayContaining([`TMX ${RUN} X`, `TMX ${RUN} Z`]),
+    );
   });
 });
 
