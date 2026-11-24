@@ -20,6 +20,40 @@ export async function countPendingByRequester(tx: ApprovalTx, employeeIds: strin
   }));
 }
 
+// Audit PM T4: langkah MANAGER yang masih menunggu (permintaan PENDING) — dipindah saat atasan berubah.
+const pendingManagerStep = {
+  status: "PENDING",
+  steps: { some: { kind: "MANAGER", decision: "PENDING" } },
+} satisfies Prisma.ApprovalRequestWhereInput;
+
+/** Snapshot atasan permintaan PENDING milik pengaju diganti `managerEmployeeId` (yang berbeda saja). */
+export async function reassignPendingManager(
+  tx: ApprovalTx,
+  requesterEmployeeId: string,
+  managerEmployeeId: string | null,
+) {
+  const { count } = await tx.approvalRequest.updateMany({
+    where: {
+      ...pendingManagerStep,
+      requesterEmployeeId,
+      ...(managerEmployeeId === null
+        ? { managerEmployeeId: { not: null } }
+        : { OR: [{ managerEmployeeId: null }, { managerEmployeeId: { not: managerEmployeeId } }] }),
+    },
+    data: { managerEmployeeId },
+  });
+  return count;
+}
+
+/** Atasan snapshot berhenti (nonaktif) → permintaan PENDING-nya menjadi "tanpa atasan" (SA/HR, ORG-D9). */
+export async function clearPendingManager(tx: ApprovalTx, managerEmployeeId: string) {
+  const { count } = await tx.approvalRequest.updateMany({
+    where: { ...pendingManagerStep, managerEmployeeId },
+    data: { managerEmployeeId: null },
+  });
+  return count;
+}
+
 const withSteps = { steps: { orderBy: { kind: "asc" } } } satisfies Prisma.ApprovalRequestInclude;
 export type ApprovalRow = Prisma.ApprovalRequestGetPayload<{ include: typeof withSteps }>;
 

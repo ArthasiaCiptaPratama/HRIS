@@ -15,6 +15,8 @@ export {
   type FinalStatus,
   getApprovalViews,
   listActionable,
+  reassignPendingManagerSteps,
   registerApprovalGuard,
   registerApprovalHandler,
+  releasePendingManagerSteps,
 } from "./approval.service.ts";

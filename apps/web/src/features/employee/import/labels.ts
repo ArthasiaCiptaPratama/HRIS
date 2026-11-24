@@ -58,6 +58,8 @@ const ISSUE_HINTS: Record<string, string> = {
   STATUS_INVALID: "Pilih status lain di kolom Status baris ini.",
   CHART_HOLDER_CHOICE_REQUIRED:
     "Pilih di bawah nama karyawan: orang yang sama, atau karyawan baru.",
+  EXIT_FUTURE_DATE:
+    "Isi tanggal keluar paling lambat hari ini, atau hapus status keluar dan import lagi pada harinya.",
   HOMEBASE_FUTURE_DATE:
     "Isi tanggal berlaku homebase paling lambat hari ini di file Excel (boleh dikosongkan).",
 };

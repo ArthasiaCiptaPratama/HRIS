@@ -790,7 +790,24 @@ describe("Ubah status, nonaktifkan, aktifkan kembali", () => {
     expect(res.status).toBe(403);
   });
 
+  test("nonaktifkan bertanggal masa depan ditolak; karyawan & akun tetap aktif (audit PM T5)", async () => {
+    const future = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const res = await call("POST", `/employees/${ids.teamEmp}/deactivate`, hr.headers, {
+      effectiveDate: future,
+      exitReason: "RESIGNATION",
+    });
+    expect(res.status).toBe(422);
+    expect(await code(res)).toBe("BUSINESS_RULE_VIOLATION");
+    const row = await prisma.employee.findUnique({ where: { id: ids.teamEmp } });
+    expect(row?.isActive).toBe(true);
+    const account = await prisma.account.findUnique({ where: { id: teamAccount.account.id } });
+    expect(account?.isActive).toBe(true);
+  });
+
   test("nonaktifkan → akun tertaut ikut nonaktif + di-ban; masuk daftar tidak aktif", async () => {
+    await prisma.pushDevice.create({
+      data: { token: `push-${RUN}-emp-t8`, accountId: teamAccount.account.id, platform: "ANDROID" },
+    });
     const res = await call("POST", `/employees/${ids.teamEmp}/deactivate`, hr.headers, {
       effectiveDate: "2026-09-30",
       exitReason: "RESIGNATION",
@@ -806,6 +823,8 @@ describe("Ubah status, nonaktifkan, aktifkan kembali", () => {
     const account = await prisma.account.findUnique({ where: { id: teamAccount.account.id } });
     expect(account?.isActive).toBe(false);
     expect(fake.banned.get(teamAccount.account.authUserId)).toBe(true);
+    // Audit PM T8: perangkat push akun dilepas.
+    expect(await prisma.pushDevice.count({ where: { accountId: teamAccount.account.id } })).toBe(0);
     // Akun nonaktif tidak bisa memakai API lagi (PLAN §4.5).
     expect((await call("GET", `/employees/${ids.teamEmp}`, teamAccount.headers)).status).toBe(401);
 

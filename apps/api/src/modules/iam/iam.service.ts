@@ -22,7 +22,7 @@ import {
 } from "../../core/errors.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import type { Permission as DbPermission } from "../../generated/prisma/client.ts";
-import { notify } from "../notification/index.ts";
+import { forgetPushDevices, notify } from "../notification/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./iam.policy.ts";
 import * as repository from "./iam.repository.ts";
@@ -635,7 +635,19 @@ export async function setAccountActive(
     }
     if (!isActive && target.role === ROLE.SUPER_ADMIN)
       await assertAnotherActiveSuperAdmin(tx, target.id);
+    // Audit PM T6 (Backlog ONB-D2): akun milik karyawan nonaktif/resign tidak dibuka lagi dari menu Akun.
+    if (isActive && target.employeeId) {
+      const employee = (await scopeSource().linkCandidates([target.employeeId])).get(
+        target.employeeId,
+      );
+      if (employee && !employee.isActive) {
+        throw new BusinessRuleError(
+          "Data karyawan pemilik akun ini nonaktif. Aktifkan kembali data karyawannya dulu.",
+        );
+      }
+    }
     const updated = await repository.setAccountActive(tx, target.id, isActive);
+    if (!isActive) await forgetPushDevices(target.id, tx);
     await writeAudit(
       {
         ...auditBase(ctx),
@@ -1133,6 +1145,7 @@ export async function deactivateAccountOfEmployee(
   }
   if (account.role === ROLE.SUPER_ADMIN) await assertAnotherActiveSuperAdmin(tx, account.id);
   await repository.setAccountActive(tx, account.id, false);
+  await forgetPushDevices(account.id, tx);
   await writeAudit(
     {
       ...auditBase(ctx),
