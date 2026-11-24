@@ -1,7 +1,7 @@
 # Rekrutmen (Talent Acquisition)
 
 > **Kode prefix:** `REC` · **Fase:** usulan setelah Rilis 1 (lihat REC-D5) · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` (develop) · **Saklar `FEATURES`:** `recruitment` (usulan)
-> **Status:** Rencana. Riset + rancangan ditulis 2026-11-24, grill berjalan; **belum ada kode** (implementasi menunggu persetujuan pengguna)
+> **Status:** Rencana **disetujui pengguna** 2026-11-24 11:07 WIB (docs `217c359`); **belum ada kode**. R0 dimulai setelah Paket 1 EMP-D8 + rilis staging berikutnya (REC-D5, ditegaskan REC-D15); rencana rinci R0 sudah disetujui dan disimpan di bawah checklist
 
 Modul baru `recruitment`: lowongan → kandidat → alur tahap modular (maju/mundur) → form kandidat yang bisa dikustom
 (tautan tanpa login) → wawancara dengan tautan Meet otomatis → diterima → diserahkan ke Penerimaan (D-045).
@@ -13,15 +13,24 @@ Dokumen fitur ini: **README** (status, checklist, keputusan) · [design.md](desi
 
 Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditunda. Langkah baru: sub-item `(tambahan YYYY-MM-DD) alasan`.
 
-- [~] **Rencana** (2026-11-24)
+- [x] **Rencana** (2026-11-24)
   - [x] Muat konteks: PLAN §1–4/§7, CODEMAP, pola modul api (employee/approval/notification), nav web, Penerimaan (D-045)
   - [x] Riset web 9 topik + verifikasi versi/lisensi pustaka di registry npm → [research.md](research.md)
   - [x] Rancangan: istilah, alur, mesin status, form builder, portal, wawancara, akses, model data, API, folder, fase → [design.md](design.md)
   - [x] Grill batch 1 (Q1–Q5) dijawab pengguna → REC-D1–D5
   - [x] Grill batch 2 (Q6–Q10): Q6/Q7/Q10 = a → REC-D7–D9; Q8 → REC-OD2/OD3 tetap terbuka; Q9 → analisis di batch 3 (REC-OD5)
   - [x] Grill batch 3 (Q9 ulang, Q11–Q14) → REC-D10–D14
-  - [ ] Persetujuan rencana oleh pengguna → commit docs ke develop
+  - [x] Docs rencana di develop `217c359` (CI 45323244640 ✔); rencana implementasi R0–R5 disetujui pengguna 2026-11-24 11:07 WIB ("Rencana disetujui")
 - [ ] **R0 Fondasi**: skema `recruitment` + migrasi, lowongan, kandidat (manual/CV/URL), grup nav "Rekrutmen" + saklar, policy + matriks akses, audit
+  - [ ] Menunggu Paket 1 EMP-D8 + rilis staging (REC-D15). Rencana rinci R0 (disetujui supervisor atas nama pengguna 2026-11-24, bersyarat REC-D15; disimpan untuk nanti):
+    1. Skema `recruitment.prisma` + migrasi `recruitment_foundation`: `job_openings`, `candidates`, `applications` (kandidat × lowongan unik; `current_stage_id` nullable sampai R1), `candidate_files`
+    2. Zod bersama `packages/shared/src/recruitment/` (`enums`, `inputs`)
+    3. `recruitment.policy.ts` murni, test dulu: SA semua; HR_ADMIN PT yang ditugaskan; HR_PERSONNEL/MANAGER/EMP ditolak (pewawancara di R3, grant `recruitment.sensitive` di R2)
+    4. API `openings`/`candidates`/`applications` (routes → service → repository) + `recruitment.contract.ts` + `index.ts` + `app.ts`; CV ke bucket private `recruitment-files` (≤ 10 MB, PDF/DOCX, cek `getObjectInfo`; magic bytes di R2); URL LinkedIn hanya tautan (REC-D7); audit `recruitment.<entity>.<action>` + log terstruktur
+    5. Test integration sukses/400/401/403/404/409 + matriks SA, HR_ADMIN PT sendiri/lain, HR_PERSONNEL, MANAGER, EMP (`--maxWorkers=4`)
+    6. Web: grup nav "Rekrutmen" (Lowongan, Kandidat), daftar/form/tutup lowongan, detail lowongan + tabel kandidat, daftar/detail kandidat + dialog tambah; `FEATURES.recruitment` true di develop, false di rilis; screenshot nav & layar baru ke supervisor/pengguna sebelum commit
+    7. Verifikasi penuh + docs (README/log, `codemap/recruitment.md`, CODEMAP, `codemap/database.md`, erd, PROGRESS, RELEASE)
+    - Syarat supervisor: (a) `FEATURES` hanya menyembunyikan web; migrasi + API tetap ikut → catat di RELEASE.md bahwa commit R0 tidak boleh ikut ke rilis sampai ada keputusan (PROMPT.md:189: skema/API tidak bisa disembunyikan saklar); (b) Codex: poin 1–3 + kontrak sendiri, 4–5 Codex `sol-high` (akses) dengan verifikasi ulang `cw` + review, 6 Codex `sol-medium`; (c) screenshot sebelum commit
 - [ ] **R1 Alur**: template alur + blok tahap, salin ke lowongan, papan kanban, maju/lompat/mundur + riwayat, tolak/mundur/buka lagi
 - [ ] **R2 Form + portal**: definisi form berversi, builder, renderer, tautan bertoken, unggah file, minta data tambahan, persetujuan PDP
 - [ ] **R3 Wawancara**: jadwal, provider manual → Google Meet, undangan & pengingat, penilaian, tampilan pewawancara
@@ -47,6 +56,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 | <a id="rec-d12"></a>REC-D12 | **Iterasi mundur dua cara:** (1) "Kembalikan ke tahap…" ke tahap mana pun yang sudah dilewati (wajib alasan; aksi tahap diulang, jawaban lama jadi nilai awal); (2) "Minta data tambahan" tanpa pindah tahap (HR memilih field; kandidat menerima form kecil). | Pengguna Q12 = a |
 | <a id="rec-d13"></a>REC-D13 | **Template global** (dipakai semua PT), dikelola SA + HR_ADMIN; template bawaan sistem tidak bisa diubah, hanya disalin. | Pengguna Q13 = a |
 | <a id="rec-d14"></a>REC-D14 | **Penawaran** hanya status (dikirim/diterima/ditolak kandidat) + lampiran surat bila ada, **tanpa nominal gaji** (nominal gaji hanya SUPER_ADMIN, PLAN §4.1); surat PDF otomatis + approval = fase lanjut. **Penilaian:** pewawancara baru melihat penilaian orang lain setelah mengirim penilaiannya sendiri. | Pengguna Q14 = a (tafsiran supervisor: (i) a dan (ii) a; dikoreksi bila salah) |
+| <a id="rec-d15"></a>REC-D15 | **Urutan ditegaskan:** R0 tetap menunggu **Paket 1 EMP-D8 + rilis staging berikutnya** (REC-D5 tidak dilangkahi). Rencana rinci R0 sudah disetujui dan disimpan di checklist. | KUTIPAN PENGGUNA 2026-11-24 11:15 WIB lewat supervisor-3e: "Paket 1 dlu" |
+| <a id="rec-d16"></a>REC-D16 | **Cakupan kandidat:** kandidat dibuat **di dalam satu lowongan** (sekaligus menjadi lamaran); HR_ADMIN hanya melihat kandidat yang punya lamaran di PT yang ditugaskan; cek email dobel hanya di antara kandidat yang bisa dilihat aktor (data PT lain tidak bocor). Akibat: satu orang bisa tercatat dua kali bila melamar di dua PT; penggabungan oleh SA ditunda. | Persetujuan supervisor-3e atas nama pengguna 2026-11-24 ±11:15 WIB (usulan pekerja hris-11) |
 
 ## Keputusan terbuka
 
