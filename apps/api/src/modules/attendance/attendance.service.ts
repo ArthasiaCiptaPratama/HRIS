@@ -35,6 +35,7 @@ import {
   getApprovalViews,
   listActionable,
   registerApprovalHandler,
+  setApprovalSubmitter,
 } from "../approval/index.ts";
 import { markNoAttendanceAlpha } from "./alpha.service.ts";
 import * as policy from "./attendance.policy.ts";
@@ -1038,6 +1039,8 @@ async function recordPunch(
     );
   }
   const isBreak = e.kind === "BREAK_START" || e.kind === "BREAK_END";
+  // EMP-D8 P1: hanya absen perangkat masuk/pulang tanpa label yang langsung disetujui.
+  const autoApproved = !isBreak && e.labels.length === 0;
   const punchData = {
     kind: e.kind,
     at: now,
@@ -1061,6 +1064,7 @@ async function recordPunch(
     idempotencyKey: ctx.idempotencyKey ?? null,
     // TM-D7: absen istirahat hanya bukti (tanpa approval sendiri); dinilai lewat label & lembur.
     ...(isBreak ? { status: "APPROVED" as const } : {}),
+    ...(autoApproved ? { status: "APPROVED" as const, decidedAt: now } : {}),
   };
 
   if (isBreak) {
@@ -1142,7 +1146,11 @@ async function recordPunch(
       companyId = open.companyId;
       managerEmployeeId = open.managerEmployeeId;
     }
-    // D-073: setiap absen (masuk & pulang) disetujui sendiri-sendiri oleh Atasan + HR.
+    if (autoApproved) {
+      await recomputeDay(tx, dayId);
+      return (await repository.findDayById(dayId, tx)) as repository.DayRow;
+    }
+    // EMP-D8 P1: absen berlabel tetap memerlukan keputusan tersendiri.
     await createApprovalRequest(tx, {
       subjectType: "ATTENDANCE_PUNCH",
       subjectId: punchId,
@@ -1182,6 +1190,7 @@ async function recordPunch(
       labels: e.labels,
       distanceM: e.geofence.distanceM,
       ...(e.outsideCheckOut ? { outsideCheckOut: e.outsideCheckOut } : {}),
+      ...(autoApproved ? { autoApproved: true } : {}),
     },
     requestId: ctx.requestId ?? null,
     ip: ctx.ip ?? null,
@@ -1554,7 +1563,8 @@ export async function cancelOwnPunch(ctx: RequestContext, punchId: string) {
 /**
  * Autentikasi manual (HR PT / SA): masukkan atau ganti jam absen masuk/pulang seorang karyawan bila
  * data salah (salah pencet, HP rusak, GPS error). Berlabel MANUAL, tercatat di audit log, dan tetap
- * melalui approval; bila dimasukkan HR, langkah HR langsung disetujui atas nama HR tersebut.
+ * melalui approval; bila ada langkah atasan, input HR langsung menyetujui langkah HR.
+ * EMP-D8 P1: tanpa atasan, penginput menunggu persetujuan HR lain / SA.
  */
 export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) {
   const employee = await directory.employeeById(input.employeeId);
@@ -1663,7 +1673,10 @@ export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) 
       managerEmployeeId: day.managerEmployeeId,
     });
     await recomputeDay(tx, day.id);
-    return { dayId: day.id, punchId: created.id, requestId: request.id, replaced };
+    const hasManagerStep = request.steps.some((step) => step.kind === "MANAGER");
+    // EMP-D8 P1: satu langkah HR harus diputus orang berbeda dari penginput manual.
+    if (!hasManagerStep) await setApprovalSubmitter(tx, request.id, ctx.actor.accountId);
+    return { dayId: day.id, punchId: created.id, requestId: request.id, hasManagerStep, replaced };
   });
   if (result.replaced?.selfiePath) {
     await storage()
@@ -1671,7 +1684,7 @@ export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) 
       .catch(() => undefined);
   }
   // HR yang memasukkan sudah memverifikasi data → langkah HR disetujui atas namanya.
-  if (ctx.actor.role === "HR_ADMIN") {
+  if (ctx.actor.role === "HR_ADMIN" && result.hasManagerStep) {
     await decideApproval(ctx, result.requestId, {
       decision: "APPROVED",
       note: `Input manual: ${input.reason}`,

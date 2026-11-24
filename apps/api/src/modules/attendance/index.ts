@@ -9,7 +9,12 @@ export {
 } from "./analytics-facts.ts";
 export { canSeeLaborCost } from "./attendance.policy.ts";
 export { type AttendanceRouteDeps, registerAttendanceRoutes } from "./attendance.routes.ts";
-export { closeOverdueDays, purgeSelfies } from "./attendance.service.ts";
+export {
+  closeOverdueDays,
+  punch,
+  purgeSelfies,
+  registerAttendanceIntegrations,
+} from "./attendance.service.ts";
 export {
   type HolidayDto,
   holidaysBetween,
@@ -25,6 +30,10 @@ export {
   rosteredWithoutAttendance,
   rosterMarks,
 } from "./leave-bridge.ts";
+export {
+  approveNormalPendingPunches,
+  type NormalPendingOptions,
+} from "./normal-pending.service.ts";
 export { exitWageBasis, syncOvertimeForDay } from "./overtime.service.ts";
 export { alphaDaysForEvidence, isDateClosed, type StatementRow } from "./period.service.ts";
 export { extendAllRosters } from "./roster.service.ts";

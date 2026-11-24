@@ -244,7 +244,7 @@ describe("wajib absen datang & pulang (TM-D26)", () => {
     expect(todayView).toMatchObject({ requireCheckOut: true, checkOutDeadline: expected });
   });
 
-  test("lewat 24:00 tanpa absen pulang → Alpha (tidak absen pulang); approval absen masuk dibatalkan", async () => {
+  test("lewat 24:00 tanpa absen pulang → Alpha meski absen masuk otomatis disetujui", async () => {
     const row = await prisma.attendanceDay.findUniqueOrThrow({
       where: { id: dayId },
       include: { punches: true },
@@ -263,7 +263,9 @@ describe("wajib absen datang & pulang (TM-D26)", () => {
     const request = await prisma.approvalRequest.findFirst({
       where: { subjectType: "ATTENDANCE_PUNCH", subjectId: inPunch?.id },
     });
-    expect(request?.status).toBe("CANCELLED");
+    // EMP-D8 P1: absen masuk normal sudah disetujui tanpa request.
+    expect(inPunch?.status).toBe("APPROVED");
+    expect(request).toBeNull();
     const notices = await prisma.notification.findMany({
       where: {
         dedupeKey: { in: [`tm-alpha:${emp.a}:${today}`, `tm-alpha-team:${emp.a}:${today}`] },

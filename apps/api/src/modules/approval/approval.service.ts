@@ -70,14 +70,14 @@ export interface CreateApprovalInput {
   submittedByAccountId?: string | null;
   companyId: string;
   managerEmployeeId: string | null;
-  /** PARALLEL = atasan + HR (bawaan); SINGLE = atasan saja (lembur, PLAN §5.2). */
+  /** PARALLEL = atasan + HR (tanpa atasan → HR saja, EMP-D8 Q-A); SINGLE eksplisit = atasan (lembur). */
   mode?: "PARALLEL" | "SINGLE";
 }
 
 /**
  * ORG-D9: snapshot atasan saat pengajuan. Atasan tanpa akun aktif tertaut (role apa pun) belum bisa
- * memutuskan → disimpan null = "tanpa atasan" (SA memutuskan langkah atasan, HR PT-nya mengambil alih
- * dengan alasan). Akun yang dibuat kemudian tidak memindahkan pengajuan yang sudah berjalan.
+ * memutuskan → disimpan null = "tanpa atasan" (EMP-D8 Q-A: satu langkah HR untuk mode paralel).
+ * Akun yang dibuat kemudian tidak memindahkan pengajuan yang sudah berjalan.
  */
 async function decidingManager(managerEmployeeId: string | null): Promise<string | null> {
   if (managerEmployeeId === null) return null;
@@ -108,8 +108,10 @@ export async function releasePendingManagerSteps(
 }
 
 export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprovalInput) {
-  const mode = input.mode ?? "PARALLEL";
   const managerEmployeeId = await decidingManager(input.managerEmployeeId);
+  // EMP-D8 Q-A: tanpa pemutus atasan, pengajuan paralel cukup satu langkah HR.
+  const hrOnly = (input.mode ?? "PARALLEL") === "PARALLEL" && managerEmployeeId === null;
+  const mode = hrOnly ? "SINGLE" : (input.mode ?? "PARALLEL");
   return repository.createRequest(
     tx,
     {
@@ -121,7 +123,7 @@ export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprova
       managerEmployeeId,
       mode,
     },
-    mode === "PARALLEL" ? ["MANAGER", "HR"] : ["MANAGER"],
+    hrOnly ? ["HR"] : mode === "PARALLEL" ? ["MANAGER", "HR"] : ["MANAGER"],
   );
 }
 
@@ -387,4 +389,70 @@ export async function getApproval(ctx: RequestContext, requestId: string): Promi
   const row = await repository.findRequest(undefined, requestId);
   if (!row || !policy.canViewApproval(ctx.actor, row)) throw new NotFoundError();
   return toView(ctx.actor, row);
+}
+
+/** EMP-D8 P1: catat penginput bila satu-satunya langkah masih harus diverifikasi orang lain. */
+export async function setApprovalSubmitter(tx: ApprovalTx, requestId: string, accountId: string) {
+  await repository.setSubmitter(tx, requestId, accountId);
+}
+
+/** EMP-D8 P1: referensi pengajuan menunggu; modul pemilik tetap memeriksa kelayakan subjeknya. */
+export const pendingRequestsForSubjects = repository.pendingRequestsForSubjects;
+
+/** EMP-D8 P1: keputusan sistem tanpa akun, atomik bersama handler subjek dan audit. */
+export async function autoApproveRequest(
+  tx: ApprovalTx,
+  requestId: string,
+  now: Date,
+  note: string,
+): Promise<boolean> {
+  const row = await repository.findRequest(tx, requestId);
+  if (row?.status !== "PENDING") return false;
+  if (
+    row.steps.length === 0 ||
+    row.steps.some((s) => s.decision === "REJECTED" || s.decision === "CANCELLED")
+  ) {
+    throw new ConflictError("Pengajuan tidak dapat disetujui otomatis.");
+  }
+  const handler = handlers.get(row.subjectType);
+  if (!handler) throw new BusinessRuleError("Handler persetujuan belum dikonfigurasi.");
+  const claimed = await repository.setStatus(tx, row.id, "APPROVED", now);
+  if (claimed.count !== 1) return false;
+  for (const step of row.steps.filter((s) => s.decision === "PENDING")) {
+    const updated = await repository.decideStep(tx, step.id, {
+      decision: "APPROVED",
+      decidedByAccountId: null,
+      decidedAt: now,
+      note,
+      isOverride: false,
+    });
+    if (updated.count !== 1)
+      throw new ConflictError("Langkah ini baru saja diputuskan pihak lain.");
+  }
+  // Persetujuan otomatis hanya untuk subjek tanpa efek luar setelah commit.
+  await handler(tx, {
+    requestId: row.id,
+    subjectId: row.subjectId,
+    status: "APPROVED",
+    decidedAt: now,
+    afterCommit: () => {
+      throw new BusinessRuleError("Persetujuan otomatis tidak mendukung efek setelah commit.");
+    },
+  });
+  await writeAudit(
+    {
+      actorAccountId: null,
+      action: "approval.auto_approve",
+      entityType: `approval.${row.subjectType.toLowerCase()}`,
+      entityId: row.id,
+      before: { status: row.status },
+      after: {
+        status: "APPROVED",
+        steps: row.steps.filter((s) => s.decision === "PENDING").map((s) => s.kind),
+      },
+      reason: note,
+    },
+    tx,
+  );
+  return true;
 }

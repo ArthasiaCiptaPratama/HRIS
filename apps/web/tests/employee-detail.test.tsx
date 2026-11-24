@@ -46,6 +46,7 @@ const detail = (access: Record<string, boolean>, full = false) => ({
   workLocation: null,
   grade: null,
   manager: null,
+  managerHasActiveAccount: null,
   photoUrl,
   ...homebaseData,
   emergencyPhone: null,
@@ -174,6 +175,7 @@ function mockBackend(
   role: Parameters<typeof me>[0],
   access: Record<string, boolean>,
   grants: string[] = [],
+  rows: unknown[] = [],
 ) {
   const calls: string[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -238,8 +240,20 @@ function mockBackend(
       const response = homebasePost ?? { status: 201, body: { data: null } };
       return json(response.status, response.body);
     }
+    if (key === "/employees/manager-options")
+      return json(200, {
+        data: [
+          {
+            id: "m1",
+            fullName: "Atasan Uji",
+            employeeNumber: null,
+            position: "Supervisor",
+            hasActiveAccount: false,
+          },
+        ],
+      });
     if (key === "/employees")
-      return json(200, { data: [], meta: { page: 1, pageSize: 20, total: 0 } });
+      return json(200, { data: rows, meta: { page: 1, pageSize: 20, total: rows.length } });
     if (key === "/employees/e1/field-changes") {
       const all = [...fieldChanges, ...extraChanges];
       if (pagedChanges) {
@@ -861,5 +875,62 @@ describe("Homebase / POH di detail (EMP-D6)", () => {
     expect(
       within(sheet).queryByRole("button", { name: /Aksi untuk homebase/ }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("EMP-D8 manager account warning", () => {
+  it.each(["HR_ADMIN", "MANAGER"] as const)(
+    "%s sees the warning with invitation access respected",
+    async (role) => {
+      homebaseData = { manager: { id: "m1", name: "Atasan Uji" }, managerHasActiveAccount: false };
+      mockBackend(role, {});
+      renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+      const dialog = await screen.findByRole("dialog");
+      expect(await within(dialog).findByText(/Atasan ini belum punya akun aktif/)).toBeVisible();
+      const link = within(dialog).queryByRole("link", { name: "Undang akun" });
+      if (role === "HR_ADMIN") expect(link).toHaveAttribute("href", "/akun?invite=m1");
+      else expect(link).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([true, null])("no warning when manager account state is %s", async (state) => {
+    homebaseData = { managerHasActiveAccount: state };
+    mockBackend("HR_ADMIN", {});
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByRole("heading", { name: "Agus Pratama" });
+    expect(within(dialog).queryByText(/Atasan ini belum punya akun aktif/)).not.toBeInTheDocument();
+  });
+
+  it("selected manager without account warns without blocking save", async () => {
+    homebaseData = { manager: { id: "m1", name: "Atasan Uji" }, managerHasActiveAccount: false };
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(await within(dialog).findByRole("button", { name: /Ubah data/ }));
+    const form = await screen.findByRole("dialog", { name: "Ubah data karyawan" });
+    expect(await within(form).findByText(/Atasan ini belum punya akun aktif/)).toBeVisible();
+    expect(within(form).getByRole("button", { name: "Simpan perubahan" })).toBeEnabled();
+    await userEvent.click(within(form).getByRole("combobox", { name: /Atasan langsung/ }));
+    await userEvent.click(await screen.findByRole("option", { name: "Tanpa atasan" }));
+    expect(within(form).queryByText(/Atasan ini belum punya akun aktif/)).not.toBeInTheDocument();
+  });
+
+  it("filter sends managerWithoutAccount=true and reset clears it", async () => {
+    const calls = mockBackend("HR_ADMIN", {}, [], [detail({})]);
+    renderAt("/personal/pegawai-aktif/semua");
+    await userEvent.click(await screen.findByRole("button", { name: "Atasan tanpa akun" }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.includes("managerWithoutAccount=true"))).toBe(true),
+    );
+    expect(await screen.findByRole("link", { name: "Undang akun" })).toHaveAttribute(
+      "href",
+      "/akun?invite=e1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+    expect(screen.getByRole("button", { name: "Atasan tanpa akun" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

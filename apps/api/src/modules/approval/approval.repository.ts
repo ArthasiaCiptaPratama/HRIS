@@ -111,7 +111,7 @@ export async function decideStep(
   stepId: string,
   data: {
     decision: "APPROVED" | "REJECTED";
-    decidedByAccountId: string;
+    decidedByAccountId: string | null;
     decidedAt: Date;
     note: string | null;
     isOverride: boolean;
@@ -138,5 +138,21 @@ export async function setStatus(
   return tx.approvalRequest.updateMany({
     where: { id, status: "PENDING" },
     data: { status, decidedAt },
+  });
+}
+
+export async function setSubmitter(tx: ApprovalTx, id: string, submittedByAccountId: string) {
+  return tx.approvalRequest.update({ where: { id }, data: { submittedByAccountId } });
+}
+
+export async function pendingRequestsForSubjects(
+  subjectType: ApprovalSubjectType,
+  subjectIds: string[],
+) {
+  if (subjectIds.length === 0) return [];
+  return getPrisma().approvalRequest.findMany({
+    where: { subjectType, subjectId: { in: subjectIds }, status: "PENDING" },
+    select: { id: true, subjectId: true },
+    orderBy: { id: "asc" },
   });
 }

@@ -117,6 +117,7 @@ export const employeeHomebaseEntrySchema = z.object({
 export type EmployeeHomebaseEntry = z.infer<typeof employeeHomebaseEntrySchema>;
 
 export const employeeDetailSchema = employeeListItemSchema.extend({
+  managerHasActiveAccount: z.boolean().nullable().default(null),
   /** ORG-D8: kode level asli dari file HR; opsional agar respons lama tetap terbaca. */
   hrLevelCode: z.string().nullable().optional(),
   emergencyPhone: z.string().nullable(),
@@ -326,6 +327,7 @@ export const orgStructureSchema = z.object({
 export type OrgStructure = z.infer<typeof orgStructureSchema>;
 
 export const managerOptionSchema = z.object({
+  hasActiveAccount: z.boolean(),
   id: z.string(),
   fullName: z.string(),
   employeeNumber: z.string().nullable(),

@@ -11,6 +11,23 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-24 — Urutan R0 ditegaskan, rencana R0 disimpan (Oatse)
+- **Dikerjakan:** sesi hris-11 (handoff `.supervisor/PROMPT-REKRUTMEN.md`): orientasi, cek REC-D5 (Paket 1 EMP-D8 belum
+  selesai, RELEASE #109–#111 belum staging), rencana rinci R0 ditulis dan disimpan di checklist README. Tanpa kode.
+- **Keputusan:** REC-D15 (KUTIPAN PENGGUNA 11:15 WIB "Paket 1 dlu": R0 menunggu Paket 1 + rilis staging);
+  REC-D16 (cakupan kandidat lewat lamaran per PT, disetujui supervisor-3e atas nama pengguna). Rencana R0 disetujui
+  supervisor bersyarat REC-D15, plus syarat (a)–(c) di checklist.
+- **Verifikasi:** dokumen saja.
+- **Berikutnya:** Paket 1 EMP-D8 (fitur karyawan); R0 setelah Paket 1 + rilis staging.
+
+### 2026-11-24 — Rencana implementasi disetujui (Oatse)
+- **Dikerjakan:** docs rencana di develop `217c359` (CI 45323244640 ✔). KUTIPAN PENGGUNA 11:07 WIB lewat supervisor-79:
+  "Rencana disetujui" (rencana implementasi R0–R5).
+- **Keputusan:** rencana R0–R5 disetujui; urutan tetap REC-D5 (kode dimulai setelah Paket 1 EMP-D8 + rilis staging
+  berikutnya). REC-D14 tetap memakai tafsiran supervisor (i) a + (ii) a sampai ada koreksi.
+- **Verifikasi:** dokumen saja.
+- **Berikutnya:** menunggu arahan tugas berikutnya lewat supervisor; R0 saat gilirannya tiba.
+
 ### 2026-11-24 — Riset, rancangan, grill rencana modul Rekrutmen (Oatse)
 - **Dikerjakan:** handoff supervisor-79 (KUTIPAN PENGGUNA 10:22 WIB). Muat konteks (PLAN §1–4/§7, CODEMAP, pola modul
   api via subagen Explore, nav web, Penerimaan D-045). Riset web 10 pertanyaan lewat `agy-research` (Meet, Zoom,

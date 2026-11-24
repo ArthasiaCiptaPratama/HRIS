@@ -8,7 +8,7 @@ export interface ApprovalTarget {
   companyId: string;
   /**
    * Snapshot atasan saat pengajuan; null = tanpa atasan (atau atasan tanpa akun aktif, ORG-D9) → langkah
-   * atasan diambil SUPER_ADMIN (HR PT-nya mengambil alih dengan alasan). Role akun atasan tidak disyaratkan.
+   * atasan diputus HR PT-nya / SUPER_ADMIN secara regular (EMP-D8 P2). Role akun atasan tidak disyaratkan.
    */
   managerEmployeeId: string | null;
   /** TM-D24: akun yang mengajukan atas nama karyawan (HR) — diperlakukan sebagai pengaju. */
@@ -33,8 +33,8 @@ export function stepRight(actor: Actor, target: ApprovalTarget, kind: StepKind):
     if (target.managerEmployeeId !== null && actor.employeeId === target.managerEmployeeId) {
       return "regular";
     }
-    // Pengaju tanpa atasan → SA memutuskan langkah atasan (bukan override).
-    if (target.managerEmployeeId === null && isSa) return "regular";
+    // EMP-D8 P2: tanpa atasan → HR PT-nya / SA menjadi pemutus regular.
+    if (target.managerEmployeeId === null && (isSa || isHrInScope(actor, target))) return "regular";
     // Atasan berhalangan → HR (PT-nya) atau SA mengambil alih dengan alasan.
     if (isSa || isHrInScope(actor, target)) return "override";
     return null;

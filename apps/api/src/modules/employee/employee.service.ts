@@ -31,6 +31,7 @@ import { reassignPendingManagerSteps, releasePendingManagerSteps } from "../appr
 import {
   applyNikLogin,
   deactivateAccountOfEmployee,
+  employeesWithActiveAccount,
   getAccountLinksForEmployees,
   getAccountSummaries,
   getEmployeeAccountStates,
@@ -458,7 +459,17 @@ function buildOrderBy(sort: string): repository.EmployeeOrderBy[] {
 
 export async function listEmployees(ctx: RequestContext, query: ListEmployeesQuery) {
   const lookup = await getMasterLookup();
-  const where = buildWhere(ctx.actor, query, lookup);
+  let where = buildWhere(ctx.actor, query, lookup);
+  if (query.managerWithoutAccount) {
+    const managerIds = await repository.findActiveManagerIds(scopeWhere(ctx.actor));
+    const activeAccounts = await employeesWithActiveAccount(managerIds);
+    where = {
+      AND: [
+        where,
+        { isActive: true, id: { in: managerIds.filter((id) => !activeAccounts.has(id)) } },
+      ],
+    };
+  }
   const { rows, total } = await repository.listEmployees(
     where,
     buildOrderBy(query.sort),
@@ -764,11 +775,12 @@ export async function getEmployee(
     personal: view !== "work" && access.personal,
     bank: view === "full" && access.bank,
   };
-  const [lookup, parts, links, photoUrls] = await Promise.all([
+  const [lookup, parts, links, photoUrls, activeManagers] = await Promise.all([
     getMasterLookup(),
     repository.findEmployeeParts(id, include),
     getAccountLinksForEmployees([id]),
     signPhotoUrls(ctx, [row.photoPath]),
+    employeesWithActiveAccount(row.managerId ? [row.managerId] : []),
   ]);
   const changers = await resolveChangers(
     [...parts.histories.map((h) => h.changedBy), ...parts.homebases.map((h) => h.changedBy)],
@@ -800,6 +812,7 @@ export async function getEmployee(
   const workOnly = policy.isEmploymentOnly(ctx.actor) && ctx.actor.employeeId !== id;
   const detail: EmployeeDetail = {
     ...toListItem(row, lookup, photoUrls),
+    managerHasActiveAccount: row.managerId ? activeManagers.has(row.managerId) : null,
     hrLevelCode: row.hrLevelCode,
     emergencyPhone: workOnly ? null : row.emergencyPhone,
     emergencyContactName: workOnly ? null : row.emergencyContactName,
@@ -1595,10 +1608,12 @@ export async function listManagerOptions(ctx: RequestContext): Promise<ManagerOp
       ctx.actor.companyIds === null ? null : [...ctx.actor.companyIds],
     ),
   ]);
+  const activeAccounts = await employeesWithActiveAccount(rows.map((row) => row.id));
   return rows.map((row) => ({
     id: row.id,
     fullName: row.fullName,
     employeeNumber: row.employeeNumber,
+    hasActiveAccount: activeAccounts.has(row.id),
     position: lookup.positions.get(row.positionId)?.name ?? "—",
   }));
 }

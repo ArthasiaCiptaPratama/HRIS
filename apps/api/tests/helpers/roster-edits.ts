@@ -27,8 +27,15 @@ export async function approvePendingRosterEdits(
   });
   for (const approval of approvals) {
     for (const headers of approvers) {
+      // EMP-D8 P1: tanpa atasan cukup satu keputusan HR; SA tetap override dengan alasan.
+      const current = await call("GET", `/approvals/${approval.id}`, headers);
+      if (current.status !== 200)
+        throw new Error(`Cannot read approval fixture: ${current.status}`);
+      const { data } = (await current.json()) as { data: { status: string } };
+      if (data.status === "APPROVED") break;
       const res = await call("POST", `/approvals/${approval.id}/decision`, headers, {
         decision: "APPROVED",
+        note: "Test fixture: approve roster edit",
       });
       if (res.status !== 200) {
         throw new Error(
