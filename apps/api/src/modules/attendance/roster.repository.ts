@@ -297,3 +297,52 @@ export const changesByIds = (ids: string[]) =>
   getPrisma().rosterChangeRequest.findMany({ where: { id: { in: ids } } });
 export const shiftsByIds = (ids: string[], tx?: AttendanceTx) =>
   db(tx).shift.findMany({ where: { id: { in: ids } } });
+
+// ── TM-D31: ekspor Excel data absen ──
+
+/** Hari roster karyawan pada rentang beserta jam shift (untuk jadwal hari tanpa absen). */
+export const rosterDaysForExport = (employeeIds: string[], from: Date, to: Date, take: number) =>
+  getPrisma().rosterDay.findMany({
+    where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
+    select: {
+      employeeId: true,
+      workDate: true,
+      timeOff: true,
+      shift: {
+        select: {
+          code: true,
+          startMinute: true,
+          endMinute: true,
+          startsNextDay: true,
+          checkInOpenMin: true,
+          lateToleranceMin: true,
+          earlyLeaveToleranceMin: true,
+          checkOutCloseMin: true,
+        },
+      },
+    },
+    take,
+  });
+
+/** Keanggotaan crew yang bersinggungan dengan rentang — TERMASUK crew yang sudah dihapus (sheet "(dihapus)"). */
+export const crewMembershipsForExport = (employeeIds: string[], from: Date, to: Date) =>
+  getPrisma().crewMember.findMany({
+    where: {
+      employeeId: { in: employeeIds },
+      startDate: { lte: to },
+      OR: [{ endDate: null }, { endDate: { gte: from } }],
+    },
+    select: {
+      employeeId: true,
+      startDate: true,
+      endDate: true,
+      crew: { select: { id: true, name: true, companyId: true, deletedAt: true } },
+    },
+  });
+
+/** Crew menurut id, termasuk yang dihapus (validasi pilihan ekspor). */
+export const crewsForExport = (ids: string[]) =>
+  getPrisma().crew.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, companyId: true, deletedAt: true },
+  });

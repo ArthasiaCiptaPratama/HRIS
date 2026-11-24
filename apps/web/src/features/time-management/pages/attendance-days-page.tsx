@@ -12,11 +12,13 @@ import {
   Clock,
   ExternalLink,
   Eye,
+  FileSpreadsheet,
   ImageOff,
   MapPin,
   PenLine,
   SearchX,
   X,
+  Zap,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
@@ -55,6 +57,10 @@ import {
   useManualPunch,
   useTimeSettings,
 } from "../api";
+import {
+  AttendanceExportDialog,
+  type AttendanceExportKind,
+} from "../components/attendance-export-dialog";
 import {
   ApprovalSteps,
   addDays,
@@ -109,7 +115,9 @@ export function AttendanceDaysPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<"APPROVED" | "REJECTED" | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const [exportKind, setExportKind] = useState<AttendanceExportKind | null>(null);
   const canManual = tmAccess.manageRoster(me);
+  const canExport = tmAccess.exportDays(me);
 
   const list = useAttendanceDays({
     scope: tab,
@@ -273,6 +281,16 @@ export function AttendanceDaysPage() {
         actions={
           <div className="flex items-center gap-2">
             <RefreshButton />
+            {canExport ? (
+              <>
+                <Button variant="outline" onClick={() => setExportKind("DETAIL")}>
+                  <FileSpreadsheet /> Export Excel
+                </Button>
+                <Button variant="outline" onClick={() => setExportKind("FLASH")}>
+                  <Zap /> Flash
+                </Button>
+              </>
+            ) : null}
             {canManual ? (
               <Button variant="outline" onClick={() => setManualOpen(true)}>
                 <PenLine /> Input manual
@@ -401,6 +419,15 @@ export function AttendanceDaysPage() {
         }}
       />
       <DayDialog id={openId} tz={tz} canManual={canManual} onClose={() => setParam("id", null)} />
+      {exportKind ? (
+        <AttendanceExportDialog
+          kind={exportKind}
+          from={from}
+          to={to}
+          companyId={scope.selectedId ?? undefined}
+          onClose={() => setExportKind(null)}
+        />
+      ) : null}
       {manualOpen ? <ManualDialog tz={tz} onClose={() => setManualOpen(false)} /> : null}
     </div>
   );

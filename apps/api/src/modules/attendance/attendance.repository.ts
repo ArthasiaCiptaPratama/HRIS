@@ -146,3 +146,40 @@ export const markSelfiesPurged = (ids: string[], at: Date) =>
 export async function withTransactionDay<T>(run: (tx: AttendanceTx) => Promise<T>): Promise<T> {
   return getPrisma().$transaction(run);
 }
+
+/**
+ * TM-D31: hari absen untuk ekspor Excel — kolom seperlunya, absen masuk/pulang saja, TANPA selfie
+ * (selfiePath tidak dipilih). `take` = batas baris + 1 supaya pemanggil bisa menolak bila melebihi.
+ */
+export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) =>
+  getPrisma().attendanceDay.findMany({
+    where,
+    select: {
+      employeeId: true,
+      companyId: true,
+      workDate: true,
+      shiftCode: true,
+      scheduledStart: true,
+      scheduledEnd: true,
+      status: true,
+      labels: true,
+      punches: {
+        where: { kind: { in: ["IN", "OUT"] } },
+        select: {
+          kind: true,
+          at: true,
+          latitude: true,
+          longitude: true,
+          distanceM: true,
+          workLocationId: true,
+          insideGeofence: true,
+          labels: true,
+          status: true,
+          source: true,
+        },
+      },
+    },
+    orderBy: [{ workDate: "asc" }, { employeeId: "asc" }],
+    take,
+  });
+export type ExportDayRow = Awaited<ReturnType<typeof exportDays>>[number];

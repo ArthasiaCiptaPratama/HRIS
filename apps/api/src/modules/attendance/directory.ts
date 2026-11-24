@@ -103,6 +103,27 @@ export async function teamIds(managerEmployeeId: string): Promise<string[]> {
   return rows.map((row) => row.id);
 }
 
+/** Batas baris `listEmployeeBriefs` (tanpa halaman) — dicapai berarti hasil mungkin terpotong. */
+export const EMPLOYEE_LIST_CAP = 5000;
+
+/**
+ * TM-D31: karyawan resmi (aktif & tidak aktif) di PT cakupan; `companyIds` null = semua PT. Tidak memotong
+ * diam-diam: bila jumlahnya mencapai batas `listEmployeeBriefs`, mengembalikan null (pemanggil menolak).
+ */
+export async function employeesInCompanies(
+  companyIds: string[] | null,
+): Promise<DirectoryEmployee[] | null> {
+  if (companyIds?.length === 0) return [];
+  const rows = await listEmployeeBriefs({ companyIds, limit: EMPLOYEE_LIST_CAP });
+  return rows.length >= EMPLOYEE_LIST_CAP ? null : rows.map(toDirectory);
+}
+
+/** TM-D31: kode & nama PT (judul file ekspor, pembeda nama crew kembar antar-PT). */
+export async function companyNames(): Promise<Map<string, { code: string; name: string }>> {
+  const lookup = await getMasterLookup();
+  return new Map([...lookup.companies.values()].map((c) => [c.id, { code: c.code, name: c.name }]));
+}
+
 export function locationsByIds(ids: string[]): Promise<Map<string, DirectoryLocation>> {
   return getWorkLocationBriefs(ids);
 }
