@@ -71,6 +71,32 @@ function setup() {
       { data: { ...unlinked, employeeId: "emp-1", needsEmployeeLink: false } },
     ],
     "/employees": [200, { data: [employeeRow], meta: meta(1) }],
+    "/employees/emp-1": [
+      200,
+      {
+        data: {
+          ...employeeRow,
+          managerHasActiveAccount: null,
+          emergencyPhone: null,
+          emergencyContactName: null,
+          emergencyContactRelationship: null,
+          account: null,
+          access: {
+            manage: true,
+            deactivate: true,
+            personal: false,
+            bank: false,
+            print: false,
+            photo: false,
+          },
+          educations: [],
+          trainings: [],
+          workExperiences: [],
+          histories: [],
+          homebases: [],
+        },
+      },
+    ],
     "/accounts/invite": [202, { data: { employeeId: "emp-1", queued: true } }],
   });
 }
@@ -137,4 +163,25 @@ describe("ONB-D2: akun wajib tertaut karyawan", () => {
       expect(screen.queryByRole("dialog", { name: "Undang akun" })).not.toBeInTheDocument(),
     );
   });
+});
+
+it("EMP-D8 invitation link opens the dialog with employee selected and clears URL on close", async () => {
+  const user = userEvent.setup();
+  const fetch = setup();
+  renderAt("/akun?invite=emp-1");
+  const dialog = await screen.findByRole("dialog", { name: "Undang akun" });
+  await waitFor(() =>
+    expect(within(dialog).getByLabelText(/Email/)).toHaveValue("seifal.kantor@example.test"),
+  );
+  expect(await within(dialog).findByRole("button", { name: /Seifal Uji/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await user.click(within(dialog).getByRole("button", { name: "Kirim undangan" }));
+  await waitFor(() => expect(callsTo(fetch, "/accounts/invite", "POST")).toHaveLength(1));
+  const [, init] = callsTo(fetch, "/accounts/invite", "POST")[0] ?? [];
+  expect(JSON.parse(String(init?.body))).toMatchObject({ employeeId: "emp-1", role: "EMPLOYEE" });
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog", { name: "Undang akun" })).not.toBeInTheDocument(),
+  );
 });

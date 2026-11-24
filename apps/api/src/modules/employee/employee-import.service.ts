@@ -19,6 +19,7 @@ import {
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
+import { releasePendingManagerSteps } from "../approval/index.ts";
 import { deactivateAccountOfEmployee, getAccountLinksForEmployees } from "../iam/index.ts";
 import {
   archivedMasterIndex,
@@ -591,6 +592,9 @@ export async function analyze(
       if (row.exit?.date && row.joinDate && row.exit.date < row.joinDate)
         plan.issues.push(issue("exitDate", "EXIT_BEFORE_JOIN"));
     }
+    // Audit PM T5: status keluar bertanggal masa depan ditolak (nonaktif berlaku seketika, tanpa jadwal).
+    if (row.exit?.date && row.exit.date > today && (plan.deactivate || plan.action === "CREATE"))
+      plan.issues.push(issue("exitDate", "EXIT_FUTURE_DATE"));
     // EMP-D6: homebase tidak boleh berlaku di masa depan (tanpa cron; kolom turunan = riwayat terbaru).
     if (row.homebaseEffectiveFrom && row.homebaseEffectiveFrom > today && plan.action !== "SKIP")
       plan.issues.push(issue("homebaseEffectiveFrom", "HOMEBASE_FUTURE_DATE"));
@@ -1245,6 +1249,8 @@ export async function commit(
             orgPostId: null,
           });
           if (e.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
+          // Audit PM T4: pengajuan yang menunggu karyawan ini sebagai atasan → tanpa atasan.
+          await releasePendingManagerSteps(tx, e.id);
           await repository.createHistory(tx, {
             employeeId: e.id,
             changeType: "DEACTIVATED",

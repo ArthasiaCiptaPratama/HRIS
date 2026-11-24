@@ -285,6 +285,17 @@ export async function forgetRecipient(accountId: string, emails: string[]): Prom
   await repository.deleteForRecipient(accountId, emails);
 }
 
+/**
+ * Audit PM T8: akun dinonaktifkan → perangkat push dilepas supaya HP pemilik lama tidak menerima notifikasi
+ * lagi. Dijalankan di transaksi pemanggil (iam) supaya ikut batal bila penonaktifan gagal.
+ */
+export async function forgetPushDevices(
+  accountId: string,
+  tx?: Parameters<typeof repository.deletePushDevicesOfAccount>[1],
+): Promise<number> {
+  return repository.deletePushDevicesOfAccount(accountId, tx);
+}
+
 // MOB-D6: perangkat push milik akun yang login (daftar saat login app, hapus saat logout).
 export async function registerMyDevice(
   actor: Actor,

@@ -43,6 +43,18 @@ describe("route guard & menu per role", () => {
     expect(top).not.toHaveTextContent("Administrasi");
   });
 
+  it("Dashboard (/) tanpa sidebar desktop (grup 1 halaman)", async () => {
+    authState.session = { access_token: "t", user: { id: "u" } };
+    mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+    });
+    renderAt("/");
+    await screen.findByRole("navigation", { name: "Navigasi utama" });
+    expect(screen.queryByRole("navigation", { name: "Menu samping" })).not.toBeInTheDocument();
+  });
+
   it("SUPER_ADMIN: top nav lengkap; sidebar Administrasi berisi Akun, Grant izin, Audit log", async () => {
     authState.session = { access_token: "t", user: { id: "u" } };
     mockApi({

@@ -1,5 +1,6 @@
 import { resolvePostManagers } from "@hris/shared";
 import { BusinessRuleError } from "../../core/errors.ts";
+import { reassignPendingManagerSteps } from "../approval/index.ts";
 import { getMasterLookup, listOrgPosts } from "../organization/index.ts";
 import type { EmployeeTx } from "./employee.repository.ts";
 import { recordFieldChanges } from "./field-change.ts";
@@ -48,6 +49,7 @@ export async function syncPostManagers(
     const next = desired.get(holder.id) ?? null;
     if (next !== holder.managerId) {
       await repository.setManager(tx, holder.id, next);
+      await reassignPendingManagerSteps(tx, holder.id, next);
       await recordFieldChanges(tx, {
         employeeId: holder.id,
         actorAccountId: actorAccountId ?? null,

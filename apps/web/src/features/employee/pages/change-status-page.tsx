@@ -345,9 +345,13 @@ function DeactivateForm({ employee, onDone }: { employee: EmployeeDetail; onDone
             type="date"
             required
             min={employee.joinDate}
+            max={todayIso()}
             value={effectiveDate}
             onChange={(event) => setEffectiveDate(event.target.value)}
           />
+          <p className="text-muted-foreground text-xs">
+            Paling lambat hari ini — akun login langsung nonaktif.
+          </p>
         </div>
         <div className="grid gap-2 sm:row-span-2">
           <Label htmlFor="exit-note">
