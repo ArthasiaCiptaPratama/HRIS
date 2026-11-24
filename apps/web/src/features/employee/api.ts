@@ -77,6 +77,7 @@ export interface EmployeeListParams {
   homebaseId?: string | undefined;
   /** D-063: hanya karyawan tanpa NIP. */
   missingNumber?: boolean | undefined;
+  managerWithoutAccount?: boolean | undefined;
   sort: string;
 }
 

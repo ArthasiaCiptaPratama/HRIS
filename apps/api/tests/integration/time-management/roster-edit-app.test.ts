@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
 import { createLogger } from "../../../src/core/logger.ts";
+import type { ApprovalView } from "../../../src/modules/approval/index.ts";
 import { settingsToday } from "../../../src/modules/attendance/calendar.service.ts";
 import { patternCodeOn } from "../../../src/modules/attendance/roster-engine.ts";
 import { createAuthFixture, testVerifier } from "../../helpers/auth.ts";
@@ -36,7 +37,7 @@ type Edit = {
   status: string;
   employee: { id: string };
   preview: { date: string; from: string | null; to: string | null }[];
-  approval: { id: string; canDecide: boolean } | null;
+  approval: Pick<ApprovalView, "id" | "canDecide" | "canOverride" | "steps"> | null;
   crew: { action: string; fromCrewName: string | null; toCrewName: string | null } | null;
   shifts: { code: string; name: string; startMinute: number; endMinute: number }[];
   submittedBy: { name: string };
@@ -333,7 +334,10 @@ describe("perubahan roster oleh HR dari app mobile (TM-D24)", () => {
     ).length;
     expect(detail.backdated).toEqual({ alphaDays: expected, keptDays: 0 });
 
-    expect(detail.approval?.canDecide).toBe(true);
+    // EMP-D8 P1: SA mengambil alih satu langkah HR; HR lain dalam PT menjadi pemutus regular.
+    expect(detail.approval?.canDecide).toBe(false);
+    expect(detail.approval?.canOverride).toBe(true);
+    expect(detail.approval?.steps.map((s) => s.kind)).toEqual(["HR"]);
     // Daftar tidak menghitung hari mundur (HR lain: pemutus langkah HR).
     const inbox = await data<Edit[]>(await call("GET", "/roster-edits?scope=inbox", h.hr2));
     const listed = inbox.find((e) => e.id === eko);

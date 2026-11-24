@@ -529,3 +529,13 @@ export function findEmployeesByMasterRef(
 ) {
   return tx.employee.findMany({ where: { [MASTER_REF_COLUMN[kind]]: id }, select: { id: true } });
 }
+
+/** EMP-D8: distinct managers of active employees within the actor's scope. */
+export async function findActiveManagerIds(scope: EmployeeWhere): Promise<string[]> {
+  const rows = await getPrisma().employee.findMany({
+    where: { AND: [scope, { isActive: true, managerId: { not: null } }] },
+    distinct: ["managerId"],
+    select: { managerId: true },
+  });
+  return rows.flatMap((row) => (row.managerId ? [row.managerId] : []));
+}

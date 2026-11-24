@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApprovalSubject } from "@hris/shared";
 import { createApp } from "../../../src/app.ts";
 import { disconnectPrisma, getPrisma } from "../../../src/core/db.ts";
+import { BusinessRuleError } from "../../../src/core/errors.ts";
 import { createLogger } from "../../../src/core/logger.ts";
 import {
+  autoApproveRequest,
   createApprovalRequest,
   type FinalStatus,
   registerApprovalHandler,
@@ -173,22 +175,88 @@ describe("approval paralel (PLAN §5.2, D-068)", () => {
     expect(view.steps.find((s) => s.kind === "MANAGER")?.isOverride).toBe(true);
   });
 
-  test("tanpa atasan → SA memutuskan langkah atasan tanpa alasan", async () => {
+  test("tanpa atasan → satu langkah HR regular; SA mengambil alih dengan alasan", async () => {
     const r = await newRequest(null);
-    expect((await decide(h.sa, r.id, { decision: "APPROVED" })).status).toBe(200);
+    const view = await data<{ steps: { kind: string }[]; canDecide: boolean }>(
+      await call("GET", `/approvals/${r.id}`, h.hr),
+    );
+    expect(view.steps.map((s) => s.kind)).toEqual(["HR"]);
+    expect(view.canDecide).toBe(true);
+    expect((await decide(h.sa, r.id, { decision: "APPROVED" })).status).toBe(422);
     const res = await decide(h.hr, r.id, { decision: "APPROVED" });
     expect((await data<{ status: string }>(res)).status).toBe("APPROVED");
   });
 
-  test("tanpa atasan → masuk antrean SA lintas subjek (regresi filter SA `OR: [{}]` → 0 baris)", async () => {
-    await newRequest(null, "ATTENDANCE_CORRECTION");
-    await newRequest(null, "LEAVE");
+  test("request lama tanpa atasan → masuk antrean SA lintas subjek (regresi OR kosong)", async () => {
+    for (const subject of ["ATTENDANCE_CORRECTION", "LEAVE"] as const) {
+      const request = await newRequest(null, subject);
+      // EMP-D8 P1: request lama tetap dua langkah; request baru tanpa atasan hanya langkah HR.
+      await prisma.approvalRequest.update({
+        where: { id: request.id },
+        data: { mode: "PARALLEL", steps: { create: { kind: "MANAGER" } } },
+      });
+    }
     const queue = await data<{ corrections: number; leave: number; total: number }>(
       await call("GET", "/time/queue", h.sa),
     );
     expect(queue.corrections).toBeGreaterThanOrEqual(1);
     expect(queue.leave).toBeGreaterThanOrEqual(1);
     expect(queue.total).toBeGreaterThanOrEqual(2);
+  });
+
+  test("EMP-D8 P1: system approval preserves human decisions and rolls back a failing handler", async () => {
+    const request = await newRequest();
+    expect((await decide(h.hr, request.id, { decision: "APPROVED" })).status).toBe(200);
+    const human = await prisma.approvalStep.findFirstOrThrow({
+      where: { requestId: request.id, kind: "HR" },
+    });
+    registerApprovalHandler("ATTENDANCE_DAY", async () => {
+      throw new BusinessRuleError("Test handler failure");
+    });
+    try {
+      await expect(
+        prisma.$transaction((tx) =>
+          autoApproveRequest(
+            tx,
+            request.id,
+            new Date("2026-11-24T03:30:00Z"),
+            "Otomatis: absen normal (EMP-D8 P1)",
+          ),
+        ),
+      ).rejects.toThrow("Test handler failure");
+      expect(await prisma.approvalRequest.findUnique({ where: { id: request.id } })).toMatchObject({
+        status: "PENDING",
+        decidedAt: null,
+      });
+      expect(
+        await prisma.approvalStep.findFirst({ where: { requestId: request.id, kind: "MANAGER" } }),
+      ).toMatchObject({ decision: "PENDING", decidedByAccountId: null });
+      expect(
+        await prisma.auditLog.count({
+          where: { entityId: request.id, action: "approval.auto_approve" },
+        }),
+      ).toBe(0);
+    } finally {
+      registerApprovalHandler("ATTENDANCE_DAY", async (_tx, event) => {
+        finals.push({ subjectId: event.subjectId, status: event.status });
+      });
+    }
+    expect(
+      await prisma.$transaction((tx) =>
+        autoApproveRequest(
+          tx,
+          request.id,
+          new Date("2026-11-24T03:30:00Z"),
+          "Otomatis: absen normal (EMP-D8 P1)",
+        ),
+      ),
+    ).toBe(true);
+    expect(await prisma.approvalStep.findUnique({ where: { id: human.id } })).toEqual(human);
+    expect(
+      await prisma.$transaction((tx) =>
+        autoApproveRequest(tx, request.id, new Date(), "Already approved"),
+      ),
+    ).toBe(false);
   });
 
   test("persetujuan massal: hasil per pengajuan, yang tak berhak tidak menggagalkan lainnya", async () => {

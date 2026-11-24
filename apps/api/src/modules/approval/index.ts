@@ -7,6 +7,7 @@ export {
   type ApprovalHandler,
   type ApprovalTx,
   type ApprovalView,
+  autoApproveRequest,
   type CreateApprovalInput,
   cancelApprovalRequest,
   countPendingRequestsForEmployees,
@@ -15,8 +16,10 @@ export {
   type FinalStatus,
   getApprovalViews,
   listActionable,
+  pendingRequestsForSubjects,
   reassignPendingManagerSteps,
   registerApprovalGuard,
   registerApprovalHandler,
   releasePendingManagerSteps,
+  setApprovalSubmitter,
 } from "./approval.service.ts";
