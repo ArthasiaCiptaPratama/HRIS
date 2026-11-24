@@ -20,6 +20,8 @@
 │   │   │                             [done] 2026-10-21: `directory.{service,repository}.ts` untuk modul lain — `listEmployeeBriefs` + filter `employeeNumbers` (import roster/saldo cuti), `listActiveEmployeeJoinDates` (jatah cuti leave); dipakai fasad `attendance/directory.ts`
 ```
 
+**2026-11-24 — EMP-D9 T3 (atasan tanpa akun):** `employee.schema.ts` `EmployeeDetail.managerHasActiveAccount` (null = tanpa atasan), `ManagerOption.hasActiveAccount`, query `managerWithoutAccount` (enum `EmployeeManagerWithoutAccountFilter`: karyawan aktif yang menjadi atasan ≥1 karyawan aktif dan tanpa akun aktif, dalam cakupan PT); `employee.service.ts` lewat `iam/index.ts` `employeesWithActiveAccount`; `employee.repository.ts` `findActiveManagerIds`. Web: `employee-detail-sheet.tsx` + `employee-work-fields.tsx` peringatan amber, `employee-list-view.tsx` tombol "Atasan tanpa akun" + kolom "Undang akun" (`/akun?invite=<id>`), `iam/pages/accounts-page.tsx` dialog Undang terbuka dengan karyawan terpilih ("Terpilih: …"). Test: `tests/integration/employee/manager-account.test.ts`, web `tests/employee-detail.test.tsx`, `tests/accounts-link.test.tsx`.
+
 ## Web (`apps/web/src/features/`)
 
 ```
