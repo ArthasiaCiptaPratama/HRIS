@@ -27,6 +27,7 @@ import {
   UNCONFIGURED_STORAGE,
 } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
+import { reassignPendingManagerSteps, releasePendingManagerSteps } from "../approval/index.ts";
 import {
   applyNikLogin,
   deactivateAccountOfEmployee,
@@ -212,9 +213,28 @@ export const employeeLoginDirectory = {
   personalEmailOf: (employeeId: string) => repository.findPersonalEmail(employeeId),
 };
 
-export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
+/**
+ * Pemuat aktor request (app.ts): seperti `withEmployeeCompanyScope`, tetapi `null` bila karyawan tertaut sudah
+ * nonaktif → akses ditolak walau akunnya (keliru) masih aktif (audit PM T6, lapis kedua setelah penolakan
+ * Aktifkan akun di iam).
+ */
+export async function scopeRequestActor(actor: Actor): Promise<Actor | null> {
   if (!actor.employeeId) return actor;
   const employee = await repository.findActorEmployee(actor.employeeId);
+  if (employee && !employee.isActive) return null;
+  return scopeWithEmployee(actor, employee);
+}
+
+export async function withEmployeeCompanyScope(actor: Actor): Promise<Actor> {
+  if (!actor.employeeId) return actor;
+  return scopeWithEmployee(actor, await repository.findActorEmployee(actor.employeeId));
+}
+
+async function scopeWithEmployee(
+  actor: Actor,
+  employee: Awaited<ReturnType<typeof repository.findActorEmployee>>,
+): Promise<Actor> {
+  if (!actor.employeeId) return actor;
   // D-045: request pertama setelah calon mengatur password → status "Mengisi data".
   let status = employee?.onboardingStatus ?? "APPROVED";
   if (status === "INVITED" && (await markActivatedOnLogin(actor.employeeId))) status = "FILLING";
@@ -934,6 +954,18 @@ function assertNotBeforeJoin(effectiveDate: string, joinDate: Date) {
   }
 }
 
+/**
+ * Audit PM T5 (2026-11-23): nonaktif mengunci akun saat itu juga (tanpa penjadwalan), jadi tanggal efektif
+ * keluar tidak boleh di masa depan — dicatat pada hari efektifnya.
+ */
+function assertExitNotInFuture(effectiveDate: string, now: Date) {
+  if (effectiveDate > todayInJakarta(now)) {
+    throw new BusinessRuleError(
+      "Tanggal efektif keluar tidak boleh di masa depan. Nonaktifkan pada hari efektifnya.",
+    );
+  }
+}
+
 // ── Tulis ───────────────────────────────────────────────────────────────────
 
 const nullable = <T>(value: T | null | undefined) => (value === undefined ? undefined : value);
@@ -1306,6 +1338,9 @@ export async function updateEmployee(
         managerOverride,
       });
       const after = await repository.findEmployee(id, tx);
+      // Audit PM T4: langkah atasan yang masih menunggu ikut pindah ke atasan baru.
+      if (after && after.managerId !== before.managerId)
+        await reassignPendingManagerSteps(tx, id, after.managerId);
       if (after)
         await recordFieldChanges(tx, {
           employeeId: id,
@@ -1414,12 +1449,14 @@ export async function deactivateEmployee(
   id: string,
   input: DeactivateInput,
   deps: { authAdmin: AuthAdmin },
+  now = new Date(),
 ): Promise<EmployeeListItem> {
   await repository.withTransaction(async (tx) => {
     const before = await loadInScope(ctx, id, tx);
     if (!policy.canDeactivateEmployee(ctx.actor, targetOf(before))) throw new ForbiddenError();
     if (!before.isActive) throw new ConflictError("Karyawan sudah nonaktif.");
     assertNotBeforeJoin(input.effectiveDate, before.joinDate);
+    assertExitNotInFuture(input.effectiveDate, now);
     await repository.updateEmployee(tx, id, {
       isActive: false,
       endDate: toDate(input.effectiveDate),
@@ -1428,6 +1465,8 @@ export async function deactivateEmployee(
       orgPostId: null,
     });
     if (before.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
+    // Audit PM T4: pengajuan bawahan yang menunggu karyawan ini → tanpa atasan (SA/HR).
+    await releasePendingManagerSteps(tx, id);
     await repository.createHistory(tx, {
       employeeId: id,
       changeType: "DEACTIVATED",

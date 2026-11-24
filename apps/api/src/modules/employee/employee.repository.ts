@@ -292,6 +292,7 @@ export async function findActorEmployee(id: string) {
     where: { id },
     select: {
       companyId: true,
+      isActive: true,
       onboardingStatus: true,
       completionRequired: true,
       completionSubmittedAt: true,

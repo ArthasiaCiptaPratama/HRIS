@@ -272,6 +272,7 @@ Request ─▶ core: request-id → logger → auth (verifikasi JWT) → muat ko
 | `leave`        | `leave`        | ✔ `/leave-types`, `/leave-years`, `/leave`, `/leave-requests`, `/leave-balances`, `/leave-jobs` | employee                | approval, attendance                 | 6    | `[wip]` 2026-10-13 |
 | `contract`     | `contract`     | `/contract-types`, `/contracts`                                                  | employee                | employee, notification               | 7    | `[planned]` |
 | `payroll`      | `payroll`      | `/payroll/*`, `/payslips`                                                        | employee                | employee, attendance, leave, contract | 8   | `[planned]` |
+| `recruitment` | `recruitment` | `/recruitment/*` (lowongan, kandidat, lamaran + move, template alur & form, wawancara, penilaian); publik `/public/recruitment/forms/{token}` | organization, employee | employee (Penerimaan D-045), notification | R (REC-D5) | `[planned]` rancangan [features/recruitment/design.md](features/recruitment/design.md) §9–§12 |
 | `notification` | `notification` | `/notifications`, `/notifications/:id/read`, `/notifications/read-all`          | –                       | –                                    | 2    | `[done]`    |
 
 Endpoint non-modul: `GET /api/v1/health`, `GET /api/v1/openapi.json`, `GET /api/v1/docs`, `/api/cron/*` (khusus Vercel Cron).

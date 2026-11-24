@@ -85,6 +85,28 @@ async function decidingManager(managerEmployeeId: string | null): Promise<string
   return withAccount.has(managerEmployeeId) ? managerEmployeeId : null;
 }
 
+/**
+ * Audit PM T4: atasan karyawan berubah → langkah atasan yang masih menunggu ikut pindah ke atasan baru
+ * (atasan tanpa akun aktif = null, sama seperti saat pengajuan). Langkah yang sudah diputus tidak disentuh.
+ * Dipanggil modul employee di transaksi perubahan atasan. Mengembalikan jumlah permintaan yang dipindah.
+ */
+export async function reassignPendingManagerSteps(
+  tx: ApprovalTx,
+  requesterEmployeeId: string,
+  managerEmployeeId: string | null,
+): Promise<number> {
+  const next = await decidingManager(managerEmployeeId);
+  return repository.reassignPendingManager(tx, requesterEmployeeId, next);
+}
+
+/** Audit PM T4: atasan dinonaktifkan → permintaan yang menunggunya diputus SA / diambil alih HR. */
+export async function releasePendingManagerSteps(
+  tx: ApprovalTx,
+  managerEmployeeId: string,
+): Promise<number> {
+  return repository.clearPendingManager(tx, managerEmployeeId);
+}
+
 export async function createApprovalRequest(tx: ApprovalTx, input: CreateApprovalInput) {
   const mode = input.mode ?? "PARALLEL";
   const managerEmployeeId = await decidingManager(input.managerEmployeeId);

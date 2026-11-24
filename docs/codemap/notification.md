@@ -17,6 +17,8 @@
 ## Tabel & rincian
 
 ### `notification`
+**2026-11-23 — EMP-D8 (audit PM T8):** `forgetPushDevices(accountId, tx?)` (service, diekspor) → repository `deletePushDevicesOfAccount` — dipanggil iam saat akun dinonaktifkan.
+
 | Tabel | Isi penting |
 |---|---|
 | `notifications` | `recipient_account_id` (tanpa FK), `type`, `title`, `body?`, `link?`, `dedupe_key?` (unik per penerima), `target_type?` + `target_id?` (MOB-D6: layar tujuan app mobile; nilai TM di `TM_NOTIFICATION_TARGETS`, + `ROSTER_EDIT` 2026-10-28 untuk pengajuan perubahan jadwal oleh HR), `read_at?` |

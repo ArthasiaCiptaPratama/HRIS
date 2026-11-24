@@ -102,6 +102,8 @@ export interface NavGroup {
   visible: (me: Me) => boolean;
   /** false = tidak tampil di top nav (mis. Akun Saya, dibuka dari menu profil). */
   inTopNav: boolean;
+  /** false = tanpa sidebar desktop (kelompok 1 halaman: Dashboard, Absen); drawer HP tetap. */
+  sidebar?: false;
   sections: NavSection[];
 }
 
@@ -201,6 +203,7 @@ export const NAV_GROUPS: NavGroup[] = [
     match: (p) => p === "/",
     visible: (me) => !tmAccess.absenHome(me),
     inTopNav: true,
+    sidebar: false,
     sections: [
       {
         id: "overview",
@@ -219,6 +222,7 @@ export const NAV_GROUPS: NavGroup[] = [
     match: (p) => p.startsWith("/absen"),
     visible: tmAccess.absenHome,
     inTopNav: true,
+    sidebar: false,
     sections: [
       {
         id: "absen",

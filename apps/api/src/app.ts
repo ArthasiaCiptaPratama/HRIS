@@ -60,7 +60,7 @@ import {
   purgeCancelledCandidates,
   registerEmployeeRoutes,
   remindStaleInvitations,
-  withEmployeeCompanyScope,
+  scopeRequestActor,
 } from "./modules/employee/index.ts";
 import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
 import { registerLeaveRoutes, runLeaveDaily } from "./modules/leave/index.ts";
@@ -199,7 +199,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       overrides.actorLoader ??
       (async (authUserId) => {
         const actor = await loadIamActor(authUserId);
-        return actor ? withEmployeeCompanyScope(actor) : null;
+        return actor ? scopeRequestActor(actor) : null;
       }),
     authAdmin: overrides.authAdmin ?? live(defaultAuthAdmin),
     storage: overrides.storage ?? live(defaultStorage),

@@ -6,6 +6,8 @@
 
 ### `approval`
 
+**2026-11-23 — EMP-D8 (audit PM T4):** `approval.service.ts` `reassignPendingManagerSteps(tx, requesterId, managerId)` (snapshot atasan permintaan PENDING yang langkah MANAGER-nya masih PENDING diganti; atasan tanpa akun aktif = null via `decidingManager`) & `releasePendingManagerSteps(tx, managerId)` (atasan nonaktif → null); repository `reassignPendingManager`/`clearPendingManager`. Dipanggil modul employee; diekspor lewat `index.ts`.
+
 **[wip] 2026-10-13 (gabung `HRIS/Mat/windows`, desain [time-management.md](../features/time-management/design.md), D-067–D-073):** file `approval.{policy,repository,routes,schema,service}.ts`; subjek baru `ATTENDANCE_PUNCH` (D-073: Clock In & Clock Out masing-masing MANAGER + HR paralel); persetujuan massal; tabel di bawah = rancangan awal.
 
 | Tabel | Isi penting |
