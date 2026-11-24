@@ -142,3 +142,14 @@ export function canListEmployeeAttendanceDays(actor: Actor, target: RosterTarget
     target.managerId === actor.employeeId
   );
 }
+
+/**
+ * TM-D31 (Q1-B): ekspor Excel data absen. SA semua PT; HR hanya PT yang ditugaskan; MANAGER tertaut karyawan
+ * (baris dibatasi bawahan langsung oleh service); lainnya ditolak. `companyId` diisi → wajib dalam cakupan.
+ */
+export function canExportAttendance(actor: Actor, companyId?: string): boolean {
+  if (isSa(actor)) return true;
+  const inScope = companyId === undefined || (actor.companyIds?.has(companyId) ?? false);
+  if (isHr(actor)) return inScope;
+  return actor.role === ROLE.MANAGER && actor.employeeId !== null && inScope;
+}

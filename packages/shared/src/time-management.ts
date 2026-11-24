@@ -350,8 +350,8 @@ export const ATTENDANCE_LABELS = [
   "SHORT_REST",
   // TM-D26: hanya absen datang sampai 24:00 tanggal jam pulang → Alpha (bisa dikoreksi s.d. H+3).
   "NO_CHECKOUT_ALPHA",
-  // TM-D29 (STAGING, mudah dihapus — docs/features/time-management/tm-d29-absen-mandiri.md): absen mandiri
-  // karyawan crew berizin (jam diisi sendiri) & foto dari galeri, bukan selfie langsung.
+  // TM-D29 (dicabut 2026-11-24): label punch absen mandiri lama — dipertahankan agar data yang sudah
+  // tercatat tetap tampil. Tidak ada lagi yang menulis label ini.
   "SELF_REPORT",
   "GALLERY_PHOTO",
 ] as const;
@@ -398,7 +398,7 @@ export const isCorrectableAlpha = (day: { status: string; labels: readonly strin
 export const LABELS_WITHOUT_REASON: readonly AttendanceLabel[] = [
   "MOCK_LOCATION",
   "LOW_ACCURACY",
-  // TM-D29: penanda asal absen mandiri, bukan pelanggaran → tanpa wajib alasan.
+  // TM-D29 (dicabut): penanda data absen mandiri lama, bukan pelanggaran → tanpa wajib alasan.
   "SELF_REPORT",
   "GALLERY_PHOTO",
 ];

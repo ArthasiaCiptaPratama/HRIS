@@ -73,10 +73,6 @@ export const routes: RouteObject[] = [
                   },
                   { path: "notifikasi", lazy: pages.mobileNotifications },
                   { path: "profil", lazy: pages.mobileProfile },
-                  // TM-D29 (STAGING): absen mandiri crew berizin.
-                  ...(tmOn("tmSelfReport")
-                    ? [{ path: "mandiri", lazy: pages.selfReportAbsen }]
-                    : []),
                   { path: "*", element: <Navigate to="/absen" replace /> },
                 ],
               },
@@ -284,11 +280,6 @@ export const routes: RouteObject[] = [
                     // TM-D28: Pola Kerja (siklus kerja–libur), lokasi kantor/Homebase lokal, kelompok karyawan.
                     path: "pola-kerja",
                     lazy: tmOn("tmWorkRoster") ? pages.workRoster : pages.maintenance,
-                  },
-                  {
-                    // TM-D29 (STAGING): Absen Mandiri — izin crew mengisi jam sendiri dari HP.
-                    path: "absen-mandiri",
-                    lazy: tmOn("tmSelfReport") ? pages.selfReport : pages.maintenance,
                   },
                 ],
               },
