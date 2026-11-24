@@ -17,15 +17,7 @@ import {
   suggestMapping,
 } from "@hris/shared";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  CheckCircle2,
-  ChevronDown,
-  Download,
-  FileSpreadsheet,
-  Loader2,
-  RotateCcw,
-  Users,
-} from "lucide-react";
+import { CheckCircle2, Download, FileSpreadsheet, Loader2, RotateCcw, Users } from "lucide-react";
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -207,7 +199,6 @@ export function ImportEmployeesPage() {
   const [confirmReset, setConfirmReset] = useState(false);
   // IMP-D5 (pengguna 19 Nov, a + b): konfirmasi hanya saat berisiko.
   const [confirmChangeFile, setConfirmChangeFile] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
   // IMP-D5 (pengguna 11:40 WIB): semua kolom dikenali + ada NIP/NIK → langkah Pemetaan dilewati otomatis.
   const [autoPreview, setAutoPreview] = useState(false);
   const [mappingSkipped, setMappingSkipped] = useState(false);
@@ -705,38 +696,27 @@ export function ImportEmployeesPage() {
 
       {step === "upload" ? (
         <div className="space-y-4">
-          {/* IMP-D5: mode di atas kotak unggah (begitu file dipilih halaman pindah), dilipat jadi satu
-              baris karena jarang diubah ("sekali lihat", pengguna 11:36/11:40 WIB). */}
+          {/* IMP-D5: mode di atas kotak unggah (begitu file dipilih halaman pindah). Pengguna 2026-11-24:
+              tiga pilihan selalu tampil (tidak lagi dilipat di balik "Ubah") agar terlihat sejak awal. */}
           <div className="space-y-2">
-            <p className="text-sm">
-              <span className="text-muted-foreground">Mode: </span>
-              <span className="font-medium">{MODE_LABELS[mode]}</span>{" "}
-              <button
-                type="button"
-                aria-expanded={modeOpen}
-                onClick={() => setModeOpen((v) => !v)}
-                className="text-muted-foreground hover:text-foreground inline-flex items-center gap-0.5 underline-offset-4 hover:underline"
-              >
-                · Ubah{" "}
-                <ChevronDown className={cn("size-3.5", modeOpen && "rotate-180")} aria-hidden />
-              </button>
+            <p id="import-mode-label" className="text-muted-foreground text-sm font-medium">
+              Mode import
             </p>
-            {modeOpen ? (
-              <div role="radiogroup" aria-label="Mode import" className="grid gap-2 md:grid-cols-3">
-                {(["UPSERT", "FILL_EMPTY", "CREATE_ONLY"] as const).map((m) => (
-                  <ChoiceCard
-                    key={m}
-                    selected={mode === m}
-                    onSelect={() => {
-                      setMode(m);
-                      setModeOpen(false);
-                    }}
-                    title={MODE_LABELS[m]}
-                    description={MODE_HINTS[m]}
-                  />
-                ))}
-              </div>
-            ) : null}
+            <div
+              role="radiogroup"
+              aria-labelledby="import-mode-label"
+              className="grid gap-2 md:grid-cols-3"
+            >
+              {(["UPSERT", "FILL_EMPTY", "CREATE_ONLY"] as const).map((m) => (
+                <ChoiceCard
+                  key={m}
+                  selected={mode === m}
+                  onSelect={() => setMode(m)}
+                  title={MODE_LABELS[m]}
+                  description={MODE_HINTS[m]}
+                />
+              ))}
+            </div>
           </div>
 
           <label
