@@ -29,7 +29,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `codex-worker` + review) → screenshot → commit/push develop; rilis staging = kata pengguna.
 
 - [x] Langkah 0 — WIP Rekrutmen R0 di-commit lokal `249e1df` (`HRIS/Oatse/rekrutmen-r0`, tanpa push); develop di-pull FF ke `e2a9431` (2026-11-25)
-- [x] Keputusan G1–G13 dicatat (KTR-D1–D10, TM-D33–D35, catatan D-038) (2026-11-25)
+- [x] Keputusan G1–G13 dicatat (KTR-D1–D10, TM-D34–D36, catatan D-038) (2026-11-25)
 - [~] **K1** — status 2 tingkat + migrasi data lama + tab Kepegawaian + aksi (KTR-D2–D4, D6, D7) — kode, test & screenshot ✔ lokal 2026-11-25; sisa: commit/push (izin)
   - [x] Poin 0 DB lokal: skema `recruitment` R0 kosong dihapus, migrasi develop diterapkan
   - [x] Skema + migrasi `20261125065315_ktr_k1_employment_contracts` (tabel `contract.contracts`, `pkwtt_start_date` + backfill, rename 4 status) + seed dummy `KTR-DMY-*`
@@ -44,7 +44,7 @@ Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `co
 - [ ] **K2** — pengingat H-30/H-7 kontrak & H-14 percobaan, daftar "Kontrak akan habis" 60 hari, tanda lewat + pengingat harian (KTR-D5, D6)
 - [ ] **K3** — laporan audit kualitas data staging (read-only, Excel) + kolom import mode "perbarui" (KTR-D9)
 - [ ] **K4** — THL: upah harian, rekap hari hadir × upah, cek akhir bulan "Mendekati batas" / "Wajib diangkat PKWTT" (KTR-D8)
-- [ ] **K5** — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D33–D35; Mat dikabari dulu, wilayah TM)
+- [ ] **K5** — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D34–D36; Mat dikabari dulu, wilayah TM)
 
 Item lama Fase 7 (jenis kontrak, CRUD, perpanjangan, terminasi, 1 kontrak aktif + cek overlap, cron `contract-expiry`, policy + test, tab & daftar akan habis) tercakup oleh K1–K2.
 
@@ -65,7 +65,7 @@ Sumber semua keputusan di bawah: grill supervisor-82 dengan pengguna 2026-11-25 
 | KTR-D9 | **Perbaikan data karyawan (poin 11 pengguna):** pekerja membuat **laporan audit kualitas data** staging (read-only, Excel per karyawan: status/tahap/periode kontrak kosong, level kosong, tanggal masuk janggal, atasan kosong, dll.). HR memperbaiki lewat **import mode "perbarui"** + kolom baru (tahap PKWT, mulai/akhir kontrak, mulai percobaan, upah harian THL) atau UI. Daftar salah dari pengguna/HR digabung. Tulis staging tetap butuh kata pengguna. | G12 — kutipan pengguna 25 Nov |
 | KTR-D10 | **Urutan kerja:** Langkah 0 (simpan WIP R0 Rekrutmen di branch lokal, pull develop) → **K1** status 2 tingkat + migrasi + tab Kepegawaian + aksi → **K2** pengingat + daftar akan habis → **K3** audit data + kolom import → **K4** THL → **K5** pola kerja site + HO fleksibel (Mat dikabari dulu). Tiap paket: rencana → screenshot → commit/push develop; rilis staging = kata pengguna. Implementasi lewat Codex (`codex-worker`). R0 dilanjutkan setelah paket ini. | G13 — kutipan pengguna 25 Nov |
 
-Keputusan terkait di fitur lain: [TM-D33–D35](../time-management/README.md#keputusan) (pola kerja site & HO fleksibel, G9–G11) · [D-038](../../decisions.md#d-038) diubah oleh KTR-D2.
+Keputusan terkait di fitur lain: [TM-D34–D36](../time-management/README.md#keputusan) (pola kerja site & HO fleksibel, G9–G11) · [D-038](../../decisions.md#d-038) diubah oleh KTR-D2.
 
 ## Keputusan terbuka
 

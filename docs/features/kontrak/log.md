@@ -23,6 +23,7 @@ Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09
 - **Celah Pengaktifan ditutup (persetujuan supervisor atas nama pengguna):** `reactivate` dengan `employmentStatusId` ke/dari PKWT/Percobaan → 422 (arahkan ke tab Kepegawaian), status semula tetap boleh; pindah ke Karyawan Tetap dari kategori lain mengisi `pkwtt_start_date` = tanggal efektif. Web: dialog Pengaktifan hanya menawarkan status semula untuk PKWT/Percobaan (+ petunjuk) dan menyembunyikan PKWT/Percobaan untuk kategori lain. Test API (422, status sama, ke Tetap) + web (petunjuk).
 - **Commit & push (persetujuan supervisor atas nama pengguna):** `f6c5cd8` docs keputusan + `a7bed32` feat K1 → develop, CI #45573892763 ✔.
 - **Istilah "Jadikan Karyawan Tetap" (kutipan pengguna 15:2x WIB):** tombol pengangkatan PKWT 1–3 & THL, judul dialog, pesan batas PKWT 3 (API + kartu), label status kontrak CONVERTED "Dijadikan Karyawan Tetap"; fungsi tidak berubah (KTR-D7). Test kontrak web/API diperbarui; shared 433 · api kontrak 18 · web 531 ✔. Screenshot `QA/2026-11-25-ktr-k1/11-pkwt3-jadikan-karyawan-tetap.png`.
+- **Nomor keputusan TM:** TM-D33–D35 (commit `f6c5cd8`) dinomori ulang **TM-D34–D36** karena TM-D33 sudah dipakai Mat (`HRIS/Mat/Mac` `8a12a9d`, Data Absen Harian per karyawan, belum di develop) — entri log di atas tetap menyebut nomor lama.
 - **Berikutnya:** cek dampak ke Mat + draf kabar (tanpa kirim); rencana K2.
 
 ### 2026-11-25 — Keputusan status kepegawaian PKWT/PKWTT/THL & pola kerja site (Oatse)
