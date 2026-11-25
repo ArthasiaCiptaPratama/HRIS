@@ -12,12 +12,13 @@ import {
   type TimeSettings,
   timeSettingsSchema,
 } from "@hris/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { downloadBytes } from "@/lib/xlsx-write";
 import {
+  type AttendanceDay,
   bulkResultSchema,
   crewSchema,
   customTemplateSchema,
@@ -47,6 +48,8 @@ export const tmKeys = {
   history: (from: string, to: string) => ["time-management", "history", from, to] as const,
   days: (params: object) => ["time-management", "days", params] as const,
   day: (id: string) => ["time-management", "day", id] as const,
+  people: (params: object) => ["time-management", "people", params] as const,
+  personDays: (employeeId: string) => ["time-management", "person-days", employeeId] as const,
   shifts: (companyId: string) => ["time-management", "shifts", companyId] as const,
   patterns: (companyId: string) => ["time-management", "patterns", companyId] as const,
   crews: (companyId: string) => ["time-management", "crews", companyId] as const,
@@ -218,6 +221,98 @@ export function useAttendanceDays(params: DayListParams, enabled = true) {
       api(`/attendance/days?${search}`, { schema: many(daySchema), signal }).then((r) => r.data),
     placeholderData: (previous) => previous,
     enabled,
+  });
+}
+
+// TM-D33: tampilan "Per karyawan" — kartu karyawan yang pernah absen + riwayat hari per jendela 14 hari.
+
+const idName = z.object({ id: z.string(), name: z.string() });
+export const attendancePersonSchema = z.object({
+  id: z.string(),
+  fullName: z.string(),
+  employeeNumber: z.string().nullable(),
+  position: z.string().nullable(),
+  division: z.string().nullable(),
+  company: idName.nullable(),
+  crew: idName.nullable(),
+  isActive: z.boolean(),
+  firstWorkDate: z.string(),
+  lastWorkDate: z.string(),
+  lastPunchAt: z.string().nullable(),
+  todayStatus: z.enum(["OPEN", "PENDING", "APPROVED", "REJECTED", "ALPHA", "LEAVE"]).nullable(),
+  photoUrl: z.string().nullable(),
+});
+export type AttendancePerson = z.infer<typeof attendancePersonSchema>;
+const attendancePeoplePageSchema = z.object({
+  data: z.array(attendancePersonSchema),
+  meta: z.object({ page: z.number(), pageSize: z.number(), total: z.number() }),
+});
+
+export const PEOPLE_PAGE_SIZE = 24;
+
+export function useAttendancePeople(params: { companyId?: string | undefined; q?: string }) {
+  return useInfiniteQuery({
+    queryKey: tmKeys.people(params),
+    initialPageParam: 1,
+    queryFn: ({ signal, pageParam }) => {
+      const search = new URLSearchParams({
+        page: String(pageParam),
+        pageSize: String(PEOPLE_PAGE_SIZE),
+      });
+      if (params.companyId) search.set("companyId", params.companyId);
+      if (params.q) search.set("q", params.q);
+      return api(`/attendance/people?${search}`, { schema: attendancePeoplePageSchema, signal });
+    },
+    getNextPageParam: (last) =>
+      last.meta.page * last.meta.pageSize < last.meta.total ? last.meta.page + 1 : undefined,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export const HISTORY_WINDOW_DAYS = 14;
+
+/** Hari yang punya absen Clock In/Out (hari Alpha tanpa absen disembunyikan, selaras TM-D11). */
+export const hasInOutPunch = (day: AttendanceDay) =>
+  day.punches.some((p) => p.kind === "IN" || p.kind === "OUT");
+
+function shiftDate(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Riwayat hari absen satu karyawan: jendela 14 hari mundur dari tanggal kerja terakhir, memakai
+ * `GET /attendance/days?scope=all&employeeId=`. Berhenti setelah jendela melewati absen pertamanya.
+ */
+export function useAttendanceHistory(
+  person: Pick<AttendancePerson, "id" | "firstWorkDate" | "lastWorkDate"> | null,
+) {
+  return useInfiniteQuery({
+    queryKey: tmKeys.personDays(person?.id ?? ""),
+    enabled: person !== null,
+    initialPageParam: person?.lastWorkDate ?? "",
+    queryFn: async ({ signal, pageParam }) => {
+      const to = pageParam;
+      const from = shiftDate(to, 1 - HISTORY_WINDOW_DAYS);
+      const search = new URLSearchParams({
+        scope: "all",
+        employeeId: person?.id ?? "",
+        from,
+        to,
+      });
+      const { data } = await api(`/attendance/days?${search}`, { schema: many(daySchema), signal });
+      return {
+        from,
+        days: data.filter(hasInOutPunch).sort((a, b) => b.workDate.localeCompare(a.workDate)),
+      };
+    },
+    getNextPageParam: (last) => {
+      const next = shiftDate(last.from, -1);
+      return person && next >= person.firstWorkDate ? next : undefined;
+    },
+    // URL selfie bertanda tangan berlaku 10 menit.
+    staleTime: 5 * 60_000,
   });
 }
 

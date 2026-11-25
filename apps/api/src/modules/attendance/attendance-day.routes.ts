@@ -23,6 +23,11 @@ import {
 import * as service from "./attendance.service.ts";
 import { attendanceExportFileSchema } from "./attendance-export.contract.ts";
 import { exportAttendance } from "./attendance-export.service.ts";
+import {
+  attendancePeoplePageSchema,
+  attendancePeopleQuerySchema,
+} from "./attendance-people.contract.ts";
+import { listAttendancePeople } from "./attendance-people.service.ts";
 import { ctxOf } from "./calendar.routes.ts";
 import { strict } from "./roster.routes.ts";
 
@@ -214,7 +219,30 @@ const ROUTES: [ReturnType<typeof route>, Handler][] = [
   ],
 ];
 
+// TM-D33 (web saja, bukan APP_OPERATION_IDS): kartu per karyawan Data Absen Harian, berhalaman ({ data, meta }).
+const attendancePeopleRoute = createRoute({
+  method: "get",
+  path: `${P}/attendance/people`,
+  tags: TAGS,
+  summary:
+    "Data Absen Harian per karyawan (karyawan dalam cakupan yang pernah absen, terbaru dulu)",
+  security,
+  request: { query: attendancePeopleQuerySchema },
+  responses: {
+    200: {
+      description: "Daftar kartu karyawan berhalaman",
+      content: { "application/json": { schema: attendancePeoplePageSchema } },
+    },
+    ...errors(400, 401, 403, 500),
+  },
+});
+
 export function registerAttendanceDayRoutes(app: OpenAPIHono, protect: MiddlewareHandler[]): void {
+  app.openapi({ ...attendancePeopleRoute, middleware: protect }, (async (c: Context) =>
+    c.json(
+      await listAttendancePeople(ctxOf(c), strict(attendancePeopleQuerySchema, c.req.query())),
+      200,
+    )) as never);
   for (const [definition, handler] of ROUTES) {
     app.openapi({ ...definition, middleware: protect }, (async (c: Context) =>
       c.json(ok(await handler(c)), 200)) as never);

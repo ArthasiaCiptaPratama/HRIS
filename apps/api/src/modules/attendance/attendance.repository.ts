@@ -207,3 +207,34 @@ export function normalPendingPunches(
     take: 500,
   });
 }
+
+/**
+ * TM-D33: karyawan yang punya ≥1 absen (hari dengan minimal satu punch, status apa pun) dalam `where` (cakupan
+ * aktor), dengan tanggal kerja pertama & terakhir. Urut tanggal kerja terakhir terbaru, lalu id (stabil).
+ * Halaman dipotong pemanggil (jumlah grup = total).
+ */
+export const peopleWithPunches = (where: Prisma.AttendanceDayWhereInput) =>
+  getPrisma().attendanceDay.groupBy({
+    by: ["employeeId"],
+    where: { AND: [where, { punches: { some: {} } }] },
+    _min: { workDate: true },
+    _max: { workDate: true },
+    orderBy: [{ _max: { workDate: "desc" } }, { employeeId: "asc" }],
+  });
+
+/** TM-D33: hari (status & jam punch saja — tanpa selfie/koordinat) per pasangan karyawan+tanggal kerja. */
+export const daysForPeople = (
+  where: Prisma.AttendanceDayWhereInput,
+  keys: { employeeId: string; workDate: Date }[],
+) =>
+  keys.length === 0
+    ? Promise.resolve([])
+    : getPrisma().attendanceDay.findMany({
+        where: { AND: [where, { OR: keys }] },
+        select: {
+          employeeId: true,
+          workDate: true,
+          status: true,
+          punches: { select: { at: true } },
+        },
+      });
