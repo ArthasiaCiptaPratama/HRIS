@@ -141,15 +141,23 @@ function PersonCard({
       <div className="flex items-start gap-3">
         <PersonAvatar person={person} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{person.fullName}</p>
+          <p className="line-clamp-2 font-semibold break-words" title={person.fullName}>
+            {person.fullName}
+          </p>
           <p className="text-muted-foreground font-mono text-xs">{person.employeeNumber ?? "—"}</p>
-          {meta ? <p className="text-muted-foreground truncate text-xs">{meta}</p> : null}
+          {meta ? (
+            <p className="text-muted-foreground line-clamp-2 text-xs break-words" title={meta}>
+              {meta}
+            </p>
+          ) : null}
         </div>
         {!person.isActive ? <Badge variant="muted">Nonaktif</Badge> : null}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">PT</dt>
-        <dd className="truncate">{person.company?.name ?? "—"}</dd>
+        <dd className="line-clamp-2 break-words" title={person.company?.name ?? undefined}>
+          {person.company?.name ?? "—"}
+        </dd>
         <dt className="text-muted-foreground">Crew</dt>
         <dd className="truncate">{person.crew?.name ?? "Tanpa crew"}</dd>
         <dt className="text-muted-foreground">Absen terakhir</dt>

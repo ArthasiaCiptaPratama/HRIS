@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-25 — TM-D33: nama karyawan di kartu "Per karyawan" tidak terpotong (Mat)
+- **Dikerjakan:** laporan pengguna (nama panjang terpotong "…"). `components/attendance-people-view.tsx`: nama, baris jabatan · divisi, dan nama PT dari `truncate` → `line-clamp-2 break-words` + `title` (teks lengkap saat hover). Kartu bernama panjang sedikit lebih tinggi.
+- **Keputusan:** —
+- **Verifikasi:** `bun run typecheck` ✔ · `bunx biome ci .` ✔ (1 peringatan lama) · `apps/web/tests/attendance-people.test.tsx` 9 lulus (1 test baru: nama panjang `line-clamp-2` + `title`) · suite web penuh 71 file / 503 test lulus.
+- **Masalah / catatan:** catatan codemap: tidak ada simbol baru.
+- **Berikutnya:** —
+
 ### 2026-11-25 — TM-D33: Data Absen Harian tampilan "Per karyawan" (API + web) (Mat)
 - **Dikerjakan:** item README Tahap D "(tambahan 2026-11-25) Data Absen Harian tampilan per karyawan + switch lama/baru (TM-D33)". API: `GET /attendance/people` (kartu karyawan yang pernah absen, cari `q`, berhalaman). Web: switch "Per hari (lama) | Per karyawan (baru)" (localStorage `tm.absenHarian.view.<userId>`, bawaan lama), kartu per karyawan (hover/fokus naik, `motion-reduce`), dialog riwayat bergaya detail hari (terbaru dulu, jendela 14 hari saat digulir, berhenti setelah `firstWorkDate`, hanya hari ber-punch), detail hari dipindah ke komponen bersama.
 - **Keputusan:** TM-D33 (tabel Keputusan README; Q4-A dikoreksi: switch tampilan di halaman, bukan endpoint web saja).

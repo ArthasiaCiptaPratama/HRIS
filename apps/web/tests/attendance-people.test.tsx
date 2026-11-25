@@ -187,6 +187,20 @@ describe.skipIf(!FEATURES.timeManagement)("Data Absen Harian › Per karyawan", 
     expect(within(second).getByText("Belum ada absen")).toBeInTheDocument();
   });
 
+  it("nama panjang tidak dipotong satu baris: tampil hingga 2 baris + nama lengkap di title", async () => {
+    const user = userEvent.setup();
+    const longName = "Muhamad Contoh Nama Karyawan Yang Sangat Panjang Sekali";
+    mockFetch({ people: [person(1, { fullName: longName })] });
+    renderAt("/time/absen-harian");
+    await openPeopleView(user);
+    const card = await screen.findByRole("button", { name: `Buka riwayat absen ${longName}` });
+    const name = within(card).getByText(longName);
+    expect(name.className).toContain("line-clamp-2");
+    expect(name.className).not.toContain("truncate");
+    expect(name).toHaveAttribute("title", longName);
+    expect(within(card).getByText("PT Contoh")).toHaveAttribute("title", "PT Contoh");
+  });
+
   it("foto profil dari API dipakai (bukan selfie absen)", async () => {
     const user = userEvent.setup();
     mockFetch({ people: [person(1, { photoUrl: "https://foto.example.test/p1.jpg" })] });
