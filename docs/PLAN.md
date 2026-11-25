@@ -467,7 +467,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [D-035](decisions.md#d-035) | Personal Management web lebih awal | [EMP](features/karyawan/README.md) |
 | [D-036](decisions.md#d-036) | Staging di Vercel | [FND](features/fondasi/README.md) |
 | [D-037](decisions.md#d-037) | Foto profil pegawai | [EMP](features/karyawan/README.md) |
-| [D-038](decisions.md#d-038) | Kategori & pengelompokan Data Karyawan Aktif | [EMP](features/karyawan/README.md) |
+| [D-038](decisions.md#d-038) | Kategori & pengelompokan Data Karyawan Aktif (poin 1–2 diubah KTR-D2) | [EMP](features/karyawan/README.md) |
 | [D-039](decisions.md#d-039) | Satu sistem, banyak entitas (multi-PT) | [ORG](features/organisasi/README.md) |
 | [D-040](decisions.md#d-040) | Akses per perusahaan (account_companies) | [IAM](features/iam/README.md) |
 | [D-041](decisions.md#d-041) | Kolom data karyawan tambahan | [EMP](features/karyawan/README.md) |
@@ -599,6 +599,19 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [REC-D12](features/recruitment/README.md#rec-d12) | Rekrutmen: mundur ke tahap sebelumnya + "minta data tambahan" tanpa pindah tahap | [REC](features/recruitment/README.md) |
 | [REC-D13](features/recruitment/README.md#rec-d13) | Rekrutmen: template global, dikelola SA + HR_ADMIN; bawaan sistem hanya disalin | [REC](features/recruitment/README.md) |
 | [REC-D14](features/recruitment/README.md#rec-d14) | Rekrutmen: penawaran tanpa nominal gaji; penilaian lain terlihat setelah mengirim penilaian sendiri | [REC](features/recruitment/README.md) |
+| [KTR-D1](features/kontrak/README.md#keputusan) | Tahap PKWT: PKWT 1 maks 2 thn, perpanjangan maks 2× @1 thn, total maks 4 thn; lalu PKWTT atau berakhir | [KTR](features/kontrak/README.md) |
+| [KTR-D2](features/kontrak/README.md#keputusan) | Status kepegawaian 2 tingkat PKWT (1/2/3) · PKWTT (Percobaan/Permanen) · THL; mengubah D-038 poin 1–2 | [KTR](features/kontrak/README.md) |
+| [KTR-D3](features/kontrak/README.md#keputusan) | Satu baris kontrak per tahap PKWT; tab Kepegawaian (tahap, sisa, masa kerja, total vs 4 thn, riwayat) + tab Riwayat | [KTR](features/kontrak/README.md) |
+| [KTR-D4](features/kontrak/README.md#keputusan) | Durasi/tahap melebihi batas diblokir; jeda antar-tahap hanya peringatan | [KTR](features/kontrak/README.md) |
+| [KTR-D5](features/kontrak/README.md#keputusan) | Pengingat kontrak habis H-30/H-7 + daftar 60 hari; lewat = tanda merah + pengingat harian, tanpa nonaktif otomatis | [KTR](features/kontrak/README.md) |
+| [KTR-D6](features/kontrak/README.md#keputusan) | Masa percobaan PKWTT maks 3 bln; Lulus → Permanen (masa kerja sejak awal PKWTT) / Tidak lulus → Akhiri | [KTR](features/kontrak/README.md) |
+| [KTR-D7](features/kontrak/README.md#keputusan) | PKWT → PKWTT langsung Permanen; masa kerja di perusahaan vs masa kerja PKWTT | [KTR](features/kontrak/README.md) |
+| [KTR-D8](features/kontrak/README.md#keputusan) | THL: upah harian, rekap hadir × upah (bukan payroll), ≥21 hari 3 bln berturut → "Wajib diangkat PKWTT" | [KTR](features/kontrak/README.md) |
+| [KTR-D9](features/kontrak/README.md#keputusan) | Audit kualitas data staging (Excel read-only) + kolom import mode "perbarui" | [KTR](features/kontrak/README.md) |
+| [KTR-D10](features/kontrak/README.md#keputusan) | Urutan paket K1–K5 setelah simpan WIP R0; implementasi lewat Codex | [KTR](features/kontrak/README.md) |
+| [TM-D33](features/time-management/README.md#keputusan) | Shift site: 2 Shift 12 jam (07–19, 19–07) & 3 Shift 8 jam (07–15, 15–23, 23–07) per PT | [TM](features/time-management/README.md) |
+| [TM-D34](features/time-management/README.md#keputusan) | Saran pola 2/3 shift per level & lokasi saat menyusun jadwal; menyimpang = peringatan | [TM](features/time-management/README.md) |
+| [TM-D35](features/time-management/README.md#keputusan) | Jam kerja fleksibel HO: Telat/Pulang cepat tidak dihitung; saklar per PT (bawaan menyala) | [TM](features/time-management/README.md) |
 
 ## 9. Keputusan Terbuka
 
