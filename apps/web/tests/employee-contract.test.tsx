@@ -182,7 +182,7 @@ describe("Kepegawaian kontrak K1", () => {
     expect(screen.getByText(/Masa kerja tahap ini:/)).toBeVisible();
     expect(screen.getByRole("progressbar", { name: "Total masa PKWT" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Perpanjang ke PKWT 2" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Angkat ke PKWTT" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Akhiri kontrak" })).toBeVisible();
   });
   it.each([
@@ -191,7 +191,10 @@ describe("Kepegawaian kontrak K1", () => {
   ])("PKWT 3 warna %s tanpa perpanjangan", async (endDate, color) => {
     await card("PKWT", { contracts: [{ ...contract, sequence: 3, endDate }] });
     expect(screen.getByText(/Sisa kontrak:/)).toHaveClass(color);
-    expect(screen.getByText("Batas PKWT tercapai")).toBeVisible();
+    expect(
+      screen.getByText("Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak."),
+    ).toBeVisible();
+    expect(screen.queryByRole("button", { name: /PKWTT/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Perpanjang/ })).not.toBeInTheDocument();
   });
   it("kontrak lewat tetap menampilkan aksi", async () => {
@@ -226,7 +229,7 @@ describe("Kepegawaian kontrak K1", () => {
     expect(screen.getByText("Masa kerja PKWTT")).toBeVisible();
     expect(screen.getByText(/6 th 10 bln/)).toBeVisible();
     expect(screen.getByText(/0 th 10 bln/)).toBeVisible();
-    expect(screen.getByText("Diangkat PKWTT")).toBeVisible();
+    expect(screen.getByText("Dijadikan Karyawan Tetap")).toBeVisible();
   });
   it.each(["PKWT", "PROBATION"] as const)("data lama %s: tahap belum diisi", async (category) => {
     await card(category, { contracts: [] });
@@ -243,7 +246,7 @@ describe("Kepegawaian kontrak K1", () => {
   it("THL: pengangkatan tanpa tahap", async () => {
     await card("DAILY_WORKER", { contracts: [] });
     expect(screen.getByText("Harian Lepas (THL)")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Angkat ke PKWTT" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
     expect(screen.queryByText("Tahap belum diisi")).not.toBeInTheDocument();
   });
   it.each(["INTERNSHIP", "OUTSOURCING", "VENDOR"] as const)(

@@ -220,7 +220,9 @@ test("PKWT 1 -> 2 -> 3 -> rejected 4 -> permanent, dates/history/audit complete"
   });
   expect(rejected.status).toBe(422);
   await assertContractCopy(id);
-  expect(await rejected.text()).toContain("Batas PKWT tercapai");
+  expect(await rejected.text()).toContain(
+    "Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak",
+  );
   await action(id, "/promote", { effectiveDate: "2024-01-01" });
   const employee = await prisma.employee.findUniqueOrThrow({ where: { id } });
   expect(employee.employmentStatusId).toBe(statuses.get("PERMANENT") ?? "");

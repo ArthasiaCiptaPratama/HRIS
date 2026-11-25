@@ -24,7 +24,7 @@ export type ContractDialogAction = "create" | "extend" | "promote" | "fail" | "e
 export const CONTRACT_ACTION_LABELS = {
   create: "Isi tahap kontrak",
   extend: "Perpanjang kontrak",
-  promote: "Angkat ke PKWTT",
+  promote: "Jadikan Karyawan Tetap",
   fail: "Tidak lulus",
   end: "Akhiri kontrak",
 };

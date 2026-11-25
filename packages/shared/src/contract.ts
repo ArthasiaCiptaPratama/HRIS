@@ -12,7 +12,7 @@ export const CONTRACT_KIND_LABELS: Record<ContractKind, string> = {
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   ACTIVE: "Aktif",
   EXTENDED: "Diperpanjang",
-  CONVERTED: "Diangkat PKWTT",
+  CONVERTED: "Dijadikan Karyawan Tetap",
   PASSED: "Lulus masa percobaan",
   ENDED: "Diakhiri",
 };
@@ -89,7 +89,9 @@ export function validateContractStage(input: ContractStage): {
   if (endDate < startDate) errors.push("Tanggal akhir kontrak tidak boleh sebelum tanggal mulai.");
   if (kind === "PKWT") {
     if (sequence === null || !Number.isInteger(sequence) || sequence < 1 || sequence > 3)
-      errors.push("Tahap PKWT harus 1–3. Batas PKWT tercapai: angkat ke PKWTT atau akhiri kontrak");
+      errors.push(
+        "Tahap PKWT harus 1–3. Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak",
+      );
     if (endDate > addContractDays(addMonths(startDate, sequence === 1 ? 24 : 12), -1))
       errors.push(sequence === 1 ? "PKWT 1 maksimal 2 tahun." : "PKWT 2/3 maksimal 1 tahun.");
     const first = previous?.firstPkwtStart ?? startDate;

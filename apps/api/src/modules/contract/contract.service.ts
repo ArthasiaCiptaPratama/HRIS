@@ -154,7 +154,7 @@ export async function extendContract(
   if (previous.kind !== "PKWT")
     throw new BusinessRuleError("Hanya kontrak PKWT yang dapat diperpanjang.");
   if (previous.sequence === null || previous.sequence >= 3)
-    throw new BusinessRuleError("Batas PKWT tercapai: angkat ke PKWTT atau akhiri kontrak");
+    throw new BusinessRuleError("Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak");
   const startDate = input.startDate ?? addContractDays(iso(previous.endDate), 1);
   const contracts = (await repository.listContracts(employeeId, tx)).map(contractDto);
   const firstStart =

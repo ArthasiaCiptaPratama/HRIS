@@ -196,7 +196,9 @@ export function EmploymentContractSection({ employee }: { employee: EmployeeDeta
         </p>
       ) : null}
       {category === "PKWT" && active?.sequence === 3 ? (
-        <p className="text-muted-foreground text-sm">Batas PKWT tercapai</p>
+        <p className="text-muted-foreground text-sm">
+          Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak.
+        </p>
       ) : null}
       {manage ? (
         <div className="flex flex-wrap gap-2">
@@ -208,7 +210,7 @@ export function EmploymentContractSection({ employee }: { employee: EmployeeDeta
           {category === "DAILY_WORKER" ||
           ((category === "PKWT" || category === "PROBATION") && active) ? (
             <Button variant="outline" onClick={() => setAction("promote")}>
-              {category === "PROBATION" ? "Lulus → Permanen" : "Angkat ke PKWTT"}
+              {category === "PROBATION" ? "Lulus → Permanen" : "Jadikan Karyawan Tetap"}
             </Button>
           ) : null}
           {category === "PKWT" && active ? (
