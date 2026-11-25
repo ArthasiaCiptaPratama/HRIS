@@ -51,8 +51,20 @@ type Key =
 const ids = {} as Record<Key, string>;
 const started = new Date();
 
+const createdStatuses: string[] = [];
+const statusIds = new Map<string, string>();
+// DB CI kosong (tanpa seed): buat status berkategori bila belum ada; kategori unik, jadi pakai yang ada bila ada.
 async function status(category: "PKWT" | "PROBATION" | "PERMANENT") {
-  return (await prisma.employmentStatus.findFirstOrThrow({ where: { category } })).id;
+  const cached = statusIds.get(category);
+  if (cached) return cached;
+  const existing = await prisma.employmentStatus.findFirst({ where: { category } });
+  const id =
+    existing?.id ??
+    (await prisma.employmentStatus.create({ data: { name: `KTRK2 ${category} ${RUN}`, category } }))
+      .id;
+  if (!existing) createdStatuses.push(id);
+  statusIds.set(category, id);
+  return id;
 }
 async function makeEmployee(
   key: Key,
@@ -132,6 +144,7 @@ afterAll(async () => {
   await prisma.position.delete({ where: { id: position } });
   await prisma.department.delete({ where: { id: department } });
   await prisma.company.deleteMany({ where: { id: { in: [company, otherCompany] } } });
+  await prisma.employmentStatus.deleteMany({ where: { id: { in: createdStatuses } } });
   await disconnectPrisma();
 });
 
