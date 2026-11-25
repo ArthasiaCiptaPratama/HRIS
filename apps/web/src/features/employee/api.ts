@@ -1,4 +1,5 @@
 import type {
+  CreateContractInput,
   EmployeeHomebaseInput,
   EmployeeHomebaseUpdate,
   EmployeeProfileInput,
@@ -6,6 +7,8 @@ import type {
   EmploymentCategory,
   EmploymentCategoryGroup,
   ExitReason,
+  ExtendContractInput,
+  PromoteEmployeeInput,
 } from "@hris/shared";
 import {
   type OrgChartChangeBatch,
@@ -26,6 +29,7 @@ import { prepareProfilePhoto } from "@/lib/image";
 import { supabase } from "@/lib/supabase";
 import { downloadBytes } from "@/lib/xlsx-write";
 import { useStoredCompanyId } from "./company-scope";
+import { contractActionResultSchema, employeeContractsSchema } from "./contract-schemas";
 import {
   dashboardSchema,
   employeeDetailSchema,
@@ -68,6 +72,7 @@ export interface EmployeeListParams {
   active: boolean;
   q?: string | undefined;
   category?: EmploymentCategory | undefined;
+  pkwtStage?: "1" | "2" | "3" | "NONE" | undefined;
   group?: EmploymentCategoryGroup | undefined;
   /** D-040: perusahaan terpilih di top bar (tanpa = semua dalam cakupan). */
   companyId?: string | undefined;
@@ -300,7 +305,7 @@ export function useManagerOptions(enabled = true) {
 
 // ── Mutasi ──────────────────────────────────────────────────────────────────
 
-function useEmployeeMutation<TInput>(request: (input: TInput) => Promise<unknown>) {
+function useEmployeeMutation<TInput, TResult>(request: (input: TInput) => Promise<TResult>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: request,
@@ -426,8 +431,57 @@ export const useChangeStatus = () =>
       employmentStatusId: string;
       effectiveDate: string;
       note?: string;
-    }) => api(`/employees/${id}/status-change`, { method: "POST", body, schema: item }),
+      contract?: Omit<CreateContractInput, "kind" | "note">;
+    }) =>
+      api(`/employees/${id}/status-change`, {
+        method: "POST",
+        body,
+        schema: one(employeeListItemSchema.extend({ warnings: z.array(z.string()).default([]) })),
+      }),
   );
+
+export function useEmployeeContracts(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["employees", "contracts", id],
+    queryFn: ({ signal }) =>
+      api(`/employees/${id}/contracts`, {
+        schema: one(employeeContractsSchema),
+        signal,
+      }).then((r) => r.data),
+    enabled,
+    staleTime: 15_000,
+    gcTime: 60_000,
+  });
+}
+
+export type ContractAction =
+  | { action: "create"; body: CreateContractInput }
+  | { action: "extend"; contractId: string; body: ExtendContractInput }
+  | { action: "promote"; body: PromoteEmployeeInput }
+  | { action: "fail"; body: PromoteEmployeeInput }
+  | { action: "end"; contractId: string; body: PromoteEmployeeInput };
+
+export function useContractAction(employeeId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ContractAction) => {
+      const path =
+        input.action === "create"
+          ? "contracts"
+          : input.action === "promote"
+            ? "promote"
+            : input.action === "fail"
+              ? "probation/fail"
+              : `contracts/${input.contractId}/${input.action}`;
+      return api(`/employees/${employeeId}/${path}`, {
+        method: "POST",
+        body: input.body,
+        schema: one(contractActionResultSchema),
+      }).then((r) => r.data);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: employeeKeys.all }),
+  });
+}
 
 export const useDeactivateEmployee = () =>
   useEmployeeMutation(

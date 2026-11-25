@@ -1,3 +1,9 @@
+import type {
+  CreateContractInput,
+  EndContractInput,
+  ExtendContractInput,
+  PromoteEmployeeInput,
+} from "@hris/shared";
 import {
   CATEGORIES_BY_GROUP,
   EMPLOYMENT_CATEGORIES,
@@ -28,6 +34,16 @@ import {
 } from "../../core/storage.ts";
 import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import { reassignPendingManagerSteps, releasePendingManagerSteps } from "../approval/index.ts";
+import {
+  type ContractActionResult,
+  canManageContracts,
+  canManageContractsInCompany,
+  extendContract,
+  fillContract,
+  finishContract,
+  getActiveContract,
+  readEmployeeContracts,
+} from "../contract/index.ts";
 import {
   applyNikLogin,
   deactivateAccountOfEmployee,
@@ -286,6 +302,8 @@ function toListItem(
     gender: row.gender,
     joinDate: toIso(row.joinDate),
     endDate: row.endDate ? toIso(row.endDate) : null,
+    contractStage: row.contractStage,
+    contractEndDate: row.contractEndDate ? toIso(row.contractEndDate) : null,
     isActive: row.isActive,
     exitReason: row.exitReason,
     employmentStatus: {
@@ -397,6 +415,12 @@ export function buildWhere(
     and.push({ employmentStatusId: { in: ids.length > 0 ? ids : [NO_MATCH] } });
   }
   if (query.companyId) and.push({ companyId: query.companyId });
+  if (query.pkwtStage) {
+    if (query.pkwtStage === "NONE") {
+      const ids = statusIdsForCategories(lookup, ["PKWT"]);
+      and.push({ employmentStatusId: { in: ids }, contractStage: null });
+    } else and.push({ contractStage: Number(query.pkwtStage) });
+  }
   if (query.statusId) and.push({ employmentStatusId: query.statusId });
   if (query.departmentId) {
     const ids = positionIdsInDepartment(lookup, query.departmentId);
@@ -449,10 +473,13 @@ export const employeeTargetOf = (row: {
 
 function buildOrderBy(sort: string): repository.EmployeeOrderBy[] {
   const [field, direction] = sort.split(":") as [string, "asc" | "desc"];
-  const primary: repository.EmployeeOrderBy =
-    field === "endDate"
-      ? { endDate: { sort: direction, nulls: "last" } }
-      : ({ [field]: direction } as repository.EmployeeOrderBy);
+  const primary: repository.EmployeeOrderBy = [
+    "endDate",
+    "contractStage",
+    "contractEndDate",
+  ].includes(field)
+    ? { [field]: { sort: direction, nulls: "last" } }
+    : ({ [field]: direction } as repository.EmployeeOrderBy);
   // Urutan stabil antar-halaman.
   return [primary, { id: "asc" }];
 }
@@ -501,6 +528,7 @@ export async function getSummary(
   let total = 0;
   let uncategorized = 0;
   let inactive = 0;
+  const pkwtStages = { stage1: 0, stage2: 0, stage3: 0, none: 0 };
   for (const group of groups) {
     const count = group._count._all;
     if (!group.isActive) {
@@ -509,10 +537,21 @@ export async function getSummary(
     }
     total += count;
     const category = lookup.statuses.get(group.employmentStatusId)?.category;
+    if (category === "PKWT") {
+      const key =
+        group.contractStage === 1
+          ? "stage1"
+          : group.contractStage === 2
+            ? "stage2"
+            : group.contractStage === 3
+              ? "stage3"
+              : "none";
+      pkwtStages[key] += count;
+    }
     if (category) byCategory[category] += count;
     else uncategorized += count;
   }
-  return { active: { total, byCategory, uncategorized }, inactive };
+  return { active: { total, byCategory, uncategorized, pkwtStages }, inactive };
 }
 
 // ── Dashboard ───────────────────────────────────────────────────────────────
@@ -1084,7 +1123,9 @@ export async function createEmployee(
   const profile = input.profile === undefined ? null : parseProfile(input.profile);
   const sections = profile ? profileSections(profile) : null;
   if (sections) assertProfileAccess(ctx.actor, sections);
-  assertRefs(await getMasterLookup(), input);
+  const lookup = await getMasterLookup();
+  assertRefs(lookup, input);
+  const category = lookup.statuses.get(input.employmentStatusId)?.category;
   const id = await repository
     .withTransaction(async (tx) => {
       if (input.managerId) await assertManager(input.managerId, null, tx);
@@ -1110,6 +1151,8 @@ export async function createEmployee(
         emergencyContactRelationship: input.emergencyContactRelationship ?? null,
         gender: input.gender ?? null,
         joinDate: toDate(input.joinDate),
+        pkwttStartDate:
+          category === "PERMANENT" || category === "PROBATION" ? toDate(input.joinDate) : null,
         employmentStatusId: input.employmentStatusId,
         positionId: input.positionId,
         workLocationId: input.workLocationId ?? null,
@@ -1416,23 +1459,55 @@ export async function updateEmployee(
   return loadListItem(id, ctx);
 }
 
-export async function changeStatus(
-  ctx: RequestContext,
-  id: string,
-  input: ChangeStatusInput,
-): Promise<EmployeeListItem> {
+export async function changeStatus(ctx: RequestContext, id: string, input: ChangeStatusInput) {
   assertCanManage(ctx.actor);
-  assertRefs(await getMasterLookup(), input);
-  await repository.withTransaction(async (tx) => {
+  const lookup = await getMasterLookup();
+  assertRefs(lookup, input);
+  const warnings = await repository.withTransaction(async (tx) => {
+    await repository.lockEmployee(tx, id);
     const before = await loadInScope(ctx, id, tx);
-    if (!before.isActive) {
+    if (!before.isActive)
       throw new BusinessRuleError("Karyawan nonaktif. Gunakan menu Pengaktifan Karyawan.");
+    const from = lookup.statuses.get(before.employmentStatusId)?.category ?? null;
+    const to = lookup.statuses.get(input.employmentStatusId)?.category ?? null;
+    if (
+      from === "PKWT" ||
+      from === "PROBATION" ||
+      ((to === "PKWT" || to === "PROBATION") && !input.contract)
+    ) {
+      throw new BusinessRuleError("Perubahan PKWT/masa percobaan harus melalui tab Kepegawaian.");
     }
-    if (before.employmentStatusId === input.employmentStatusId) {
+    if (input.contract && to !== "PKWT" && to !== "PROBATION")
+      throw new BusinessRuleError("Field kontrak hanya untuk tujuan PKWT atau masa percobaan.");
+    if (input.contract && !canManageContractsInCompany(ctx.actor, before.companyId))
+      throw new ForbiddenError();
+    if (before.employmentStatusId === input.employmentStatusId)
       throw new ConflictError("Status kepegawaian baru sama dengan status saat ini.");
-    }
     assertNotBeforeJoin(input.effectiveDate, before.joinDate);
-    await repository.updateEmployee(tx, id, { employmentStatusId: input.employmentStatusId });
+    const pkwttStartDate =
+      to === "PROBATION" && input.contract
+        ? toDate(input.contract.startDate)
+        : to === "PERMANENT" && from !== "PERMANENT"
+          ? toDate(input.effectiveDate)
+          : to !== "PROBATION" && to !== "PERMANENT"
+            ? null
+            : before.pkwttStartDate;
+    await repository.updateEmployee(tx, id, {
+      employmentStatusId: input.employmentStatusId,
+      pkwttStartDate,
+    });
+    let warnings: string[] = [];
+    if (input.contract && (to === "PKWT" || to === "PROBATION")) {
+      const result = await fillContract(
+        { ...before, category: to },
+        { ...input.contract, kind: to, ...(input.note !== undefined ? { note: input.note } : {}) },
+        ctx.actor.accountId,
+        tx,
+      );
+      warnings = result.warnings;
+      await copyActiveContract(tx, id, result.contract);
+      await auditContract(ctx, id, "create", result.contract.id, tx);
+    }
     await repository.createHistory(tx, {
       employeeId: id,
       changeType: "STATUS_CHANGED",
@@ -1453,8 +1528,9 @@ export async function changeStatus(
       },
       tx,
     );
+    return warnings;
   });
-  return loadListItem(id, ctx);
+  return { ...(await loadListItem(id, ctx)), warnings };
 }
 
 export async function deactivateEmployee(
@@ -1465,50 +1541,64 @@ export async function deactivateEmployee(
   now = new Date(),
 ): Promise<EmployeeListItem> {
   await repository.withTransaction(async (tx) => {
+    await repository.lockEmployee(tx, id);
     const before = await loadInScope(ctx, id, tx);
     if (!policy.canDeactivateEmployee(ctx.actor, targetOf(before))) throw new ForbiddenError();
-    if (!before.isActive) throw new ConflictError("Karyawan sudah nonaktif.");
-    assertNotBeforeJoin(input.effectiveDate, before.joinDate);
-    assertExitNotInFuture(input.effectiveDate, now);
-    await repository.updateEmployee(tx, id, {
-      isActive: false,
-      endDate: toDate(input.effectiveDate),
-      exitReason: input.exitReason,
-      // D-051: slot pos dilepas (pos menjadi Kosong); bawahan dihitung ulang atasannya (D-053).
-      orgPostId: null,
-    });
-    if (before.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
-    // Audit PM T4: pengajuan bawahan yang menunggu karyawan ini → tanpa atasan (SA/HR).
-    await releasePendingManagerSteps(tx, id);
-    await repository.createHistory(tx, {
-      employeeId: id,
-      changeType: "DEACTIVATED",
-      effectiveDate: toDate(input.effectiveDate),
-      fromStatusId: before.employmentStatusId,
-      exitReason: input.exitReason,
-      note: input.note ?? null,
-      changedBy: ctx.actor.accountId,
-    });
-    // PLAN §4.5: karyawan nonaktif tidak bisa login (akun + ban Supabase, satu transaksi).
-    const account = await deactivateAccountOfEmployee(ctx, id, deps, tx);
-    await writeAudit(
-      {
-        ...auditBase(ctx),
-        action: "employee.employee.deactivate",
-        entityId: id,
-        before: { isActive: true },
-        after: {
-          isActive: false,
-          effectiveDate: input.effectiveDate,
-          exitReason: input.exitReason,
-          account,
-        },
-        reason: input.note ?? null,
-      },
-      tx,
-    );
+    await deactivateInTransaction(ctx, before, input, deps, tx, now);
   });
   return loadListItem(id, ctx);
+}
+
+// KTR-K1: one path for account ban, post release, history and audit; caller owns the transaction.
+async function deactivateInTransaction(
+  ctx: RequestContext,
+  before: Awaited<ReturnType<typeof loadInScope>>,
+  input: DeactivateInput,
+  deps: { authAdmin: AuthAdmin },
+  tx: repository.EmployeeTx,
+  now = new Date(),
+): Promise<void> {
+  const id = before.id;
+  if (!before.isActive) throw new ConflictError("Karyawan sudah nonaktif.");
+  assertNotBeforeJoin(input.effectiveDate, before.joinDate);
+  assertExitNotInFuture(input.effectiveDate, now);
+  await repository.updateEmployee(tx, id, {
+    isActive: false,
+    endDate: toDate(input.effectiveDate),
+    exitReason: input.exitReason,
+    // D-051: slot pos dilepas (pos menjadi Kosong); bawahan dihitung ulang atasannya (D-053).
+    orgPostId: null,
+  });
+  if (before.orgPostId) await syncPostManagers(tx, undefined, ctx.actor.accountId);
+  // Audit PM T4: pengajuan bawahan yang menunggu karyawan ini → tanpa atasan (SA/HR).
+  await releasePendingManagerSteps(tx, id);
+  await repository.createHistory(tx, {
+    employeeId: id,
+    changeType: "DEACTIVATED",
+    effectiveDate: toDate(input.effectiveDate),
+    fromStatusId: before.employmentStatusId,
+    exitReason: input.exitReason,
+    note: input.note ?? null,
+    changedBy: ctx.actor.accountId,
+  });
+  // PLAN §4.5: karyawan nonaktif tidak bisa login (akun + ban Supabase, satu transaksi).
+  const account = await deactivateAccountOfEmployee(ctx, id, deps, tx);
+  await writeAudit(
+    {
+      ...auditBase(ctx),
+      action: "employee.employee.deactivate",
+      entityId: id,
+      before: { isActive: true },
+      after: {
+        isActive: false,
+        effectiveDate: input.effectiveDate,
+        exitReason: input.exitReason,
+        account,
+      },
+      reason: input.note ?? null,
+    },
+    tx,
+  );
 }
 
 export async function reactivateEmployee(
@@ -1517,17 +1607,38 @@ export async function reactivateEmployee(
   input: ReactivateInput,
 ): Promise<EmployeeListItem> {
   assertCanManage(ctx.actor);
-  assertRefs(await getMasterLookup(), input);
+  const lookup = await getMasterLookup();
+  assertRefs(lookup, input);
   await repository.withTransaction(async (tx) => {
+    await repository.lockEmployee(tx, id);
     const before = await loadInScope(ctx, id, tx);
     if (before.isActive) throw new ConflictError("Karyawan sudah aktif.");
     assertNotBeforeJoin(input.effectiveDate, before.joinDate);
     const statusId = input.employmentStatusId ?? before.employmentStatusId;
+    const from = lookup.statuses.get(before.employmentStatusId)?.category ?? null;
+    const to = lookup.statuses.get(statusId)?.category ?? null;
+    // KTR-D4 "tanpa jalan pintas": pindah ke/dari PKWT/Percobaan hanya lewat aksi kontrak (sama dengan changeStatus).
+    if (statusId !== before.employmentStatusId && [from, to].some(isContractCategory)) {
+      throw new BusinessRuleError(
+        "Perubahan PKWT/masa percobaan harus melalui tab Kepegawaian. Aktifkan kembali dengan status semula.",
+      );
+    }
     await repository.updateEmployee(tx, id, {
       isActive: true,
       endDate: null,
       exitReason: null,
       employmentStatusId: statusId,
+      // KTR-D7: masuk PKWTT dari kategori lain → masa kerja PKWTT mulai tanggal efektif; keluar PKWTT → kosong.
+      ...(statusId === before.employmentStatusId
+        ? {}
+        : {
+            pkwttStartDate:
+              to === "PERMANENT" && from !== "PERMANENT"
+                ? toDate(input.effectiveDate)
+                : to === "PERMANENT"
+                  ? before.pkwttStartDate
+                  : null,
+          }),
     });
     await repository.createHistory(tx, {
       employeeId: id,
@@ -1841,4 +1952,196 @@ async function reassignHomebaseWithChanges(
     });
   }
   return repository.reassignMasterRef(tx, "homebase", fromId, toId);
+}
+
+/** KTR-D4: kategori yang perpindahannya wajib lewat aksi kontrak (PKWT & masa percobaan). */
+function isContractCategory(category: EmploymentCategory | null): boolean {
+  return category === "PKWT" || category === "PROBATION";
+}
+async function contractEmployee(ctx: RequestContext, id: string, tx?: repository.EmployeeTx) {
+  const row = await loadInScope(ctx, id, tx);
+  const category = (await getMasterLookup()).statuses.get(row.employmentStatusId)?.category ?? null;
+  return { ...row, category };
+}
+async function managedContractEmployee(ctx: RequestContext, id: string, tx: repository.EmployeeTx) {
+  if (!canManageContracts(ctx.actor)) throw new ForbiddenError();
+  await repository.lockEmployee(tx, id);
+  const row = await contractEmployee(ctx, id, tx);
+  if (!canManageContractsInCompany(ctx.actor, row.companyId))
+    throw new NotFoundError("Karyawan tidak ditemukan.");
+  if (!row.isActive)
+    throw new BusinessRuleError("Karyawan nonaktif tidak dapat dikelola kontraknya.");
+  return row;
+}
+async function auditContract(
+  ctx: RequestContext,
+  employeeId: string,
+  action: string,
+  contractId: string | null,
+  tx: repository.EmployeeTx,
+) {
+  await writeAudit(
+    {
+      ...auditBase(ctx),
+      action: `contract.contract.${action}`,
+      entityType: "contract",
+      entityId: employeeId,
+      after: { contractId },
+    },
+    tx,
+  );
+}
+// D-004: daftar employee membaca salinan ini, tanpa query ke skema contract.
+async function copyActiveContract(
+  tx: repository.EmployeeTx,
+  id: string,
+  contract: NonNullable<ContractActionResult["contract"]> | null,
+) {
+  await repository.updateEmployee(tx, id, {
+    contractStage: contract?.kind === "PKWT" ? contract.sequence : null,
+    contractEndDate: contract ? toDate(contract.endDate) : null,
+  });
+}
+export async function getEmployeeContracts(ctx: RequestContext, id: string) {
+  const employee = await contractEmployee(ctx, id);
+  const { actor } = ctx;
+  const access = {
+    manage: employee.isActive && canManageContractsInCompany(actor, employee.companyId),
+    missingGrant: actor.role === "HR_ADMIN" && !canManageContracts(actor),
+  };
+  return readEmployeeContracts(employee, JAKARTA_DATE.format(new Date()), access);
+}
+export async function createEmployeeContract(
+  ctx: RequestContext,
+  id: string,
+  input: CreateContractInput,
+): Promise<ContractActionResult> {
+  return repository.withTransaction(async (tx) => {
+    const employee = await managedContractEmployee(ctx, id, tx);
+    const result = await fillContract(employee, input, ctx.actor.accountId, tx);
+    await copyActiveContract(tx, id, result.contract);
+    await repository.createHistory(tx, {
+      employeeId: id,
+      changeType: "CONTRACT_STAGE_CHANGED",
+      effectiveDate: toDate(input.startDate),
+      fromStatusId: employee.employmentStatusId,
+      toStatusId: employee.employmentStatusId,
+      note: input.note ?? null,
+      changedBy: ctx.actor.accountId,
+    });
+    await auditContract(ctx, id, "create", result.contract.id, tx);
+    return result;
+  });
+}
+export async function extendEmployeeContract(
+  ctx: RequestContext,
+  id: string,
+  contractId: string,
+  input: ExtendContractInput,
+): Promise<ContractActionResult> {
+  return repository.withTransaction(async (tx) => {
+    const employee = await managedContractEmployee(ctx, id, tx);
+    if (employee.category !== "PKWT")
+      throw new BusinessRuleError("Hanya karyawan PKWT yang dapat diperpanjang.");
+    const result = await extendContract(employee, contractId, input, ctx.actor.accountId, tx);
+    await copyActiveContract(tx, id, result.contract);
+    await repository.createHistory(tx, {
+      employeeId: id,
+      changeType: "CONTRACT_STAGE_CHANGED",
+      effectiveDate: toDate(result.contract.startDate),
+      fromStatusId: employee.employmentStatusId,
+      toStatusId: employee.employmentStatusId,
+      note: input.note ?? null,
+      changedBy: ctx.actor.accountId,
+    });
+    await auditContract(ctx, id, "extend", result.contract.id, tx);
+    return result;
+  });
+}
+export async function promoteEmployee(
+  ctx: RequestContext,
+  id: string,
+  input: PromoteEmployeeInput,
+): Promise<ContractActionResult> {
+  return repository.withTransaction(async (tx) => {
+    const before = await managedContractEmployee(ctx, id, tx);
+    if (
+      before.category !== "PKWT" &&
+      before.category !== "DAILY_WORKER" &&
+      before.category !== "PROBATION"
+    )
+      throw new BusinessRuleError("Pengangkatan hanya untuk PKWT, THL, atau masa percobaan.");
+    assertNotBeforeJoin(input.effectiveDate, before.joinDate);
+    const status = [...(await getMasterLookup()).statuses.values()].find(
+      (s) => s.category === "PERMANENT" && !s.deleted,
+    );
+    if (!status) throw new BusinessRuleError("Status PKWTT Permanen belum tersedia.");
+    let contract: ContractActionResult["contract"] = null;
+    if (before.category !== "DAILY_WORKER") {
+      const active = await getActiveContract(id, tx);
+      if (
+        (before.category === "PKWT" && active.kind !== "PKWT") ||
+        (before.category === "PROBATION" && active.kind !== "PROBATION")
+      )
+        throw new BusinessRuleError("Jenis kontrak tidak sesuai status kepegawaian.");
+      if (input.effectiveDate < toIso(active.startDate))
+        throw new BusinessRuleError("Tanggal pengangkatan tidak boleh sebelum awal kontrak.");
+      contract = await finishContract(
+        active,
+        before.category === "PROBATION" ? "PASSED" : "CONVERTED",
+        ctx.actor.accountId,
+        input.note,
+        tx,
+      );
+    }
+    await repository.updateEmployee(tx, id, {
+      employmentStatusId: status.id,
+      contractStage: null,
+      contractEndDate: null,
+      pkwttStartDate:
+        before.category === "PROBATION" ? before.pkwttStartDate : toDate(input.effectiveDate),
+    });
+    await repository.createHistory(tx, {
+      employeeId: id,
+      changeType: "STATUS_CHANGED",
+      effectiveDate: toDate(input.effectiveDate),
+      fromStatusId: before.employmentStatusId,
+      toStatusId: status.id,
+      note: input.note ?? null,
+      changedBy: ctx.actor.accountId,
+    });
+    await auditContract(ctx, id, "promote", contract?.id ?? null, tx);
+    return { contract, warnings: [] };
+  });
+}
+export async function endEmployeeContract(
+  ctx: RequestContext,
+  id: string,
+  contractId: string | undefined,
+  input: EndContractInput,
+  deps: { authAdmin: AuthAdmin },
+  probation = false,
+): Promise<ContractActionResult> {
+  return repository.withTransaction(async (tx) => {
+    const before = await managedContractEmployee(ctx, id, tx);
+    if (before.category !== (probation ? "PROBATION" : "PKWT"))
+      throw new BusinessRuleError("Status karyawan tidak sesuai aksi kontrak.");
+    const active = await getActiveContract(id, tx, contractId);
+    if (active.kind !== (probation ? "PROBATION" : "PKWT"))
+      throw new BusinessRuleError("Jenis kontrak tidak sesuai aksi.");
+    if (input.effectiveDate < toIso(active.startDate))
+      throw new BusinessRuleError("Tanggal akhir tidak boleh sebelum awal kontrak.");
+    if (!policy.canDeactivateEmployee(ctx.actor, targetOf(before))) throw new ForbiddenError();
+    const contract = await finishContract(active, "ENDED", ctx.actor.accountId, input.note, tx);
+    await copyActiveContract(tx, id, null);
+    await deactivateInTransaction(
+      ctx,
+      before,
+      { ...input, exitReason: probation ? "PROBATION_FAILED" : "CONTRACT_ENDED" },
+      deps,
+      tx,
+    );
+    await auditContract(ctx, id, probation ? "probation_fail" : "end", contract.id, tx);
+    return { contract, warnings: [] };
+  });
 }

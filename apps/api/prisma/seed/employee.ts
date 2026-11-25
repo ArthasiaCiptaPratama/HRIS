@@ -376,13 +376,13 @@ export const EMPLOYEES: SeedEmployee[] = [
       graduationYear: 2020,
     },
   },
-  // D-035: contoh kategori Pekerja Harian & Outsourcing serta karyawan nonaktif.
+  // D-035: contoh kategori Harian Lepas (THL) & Outsourcing serta karyawan nonaktif.
   {
     number: "ACP-2026-0016",
     name: "Joko Susilo",
     gender: "MALE",
     position: "Operations Staff",
-    status: "Pekerja Harian",
+    status: "Harian Lepas (THL)",
     grade: "Staf",
     location: BDG,
     managerNumber: "ACP-2018-0004",
@@ -399,7 +399,7 @@ export const EMPLOYEES: SeedEmployee[] = [
     name: "Wulan Sari",
     gender: "FEMALE",
     position: "GA Staff",
-    status: "Pekerja Harian",
+    status: "Harian Lepas (THL)",
     grade: "Staf",
     location: HQ,
     managerNumber: "ACP-2019-0001",
@@ -658,6 +658,10 @@ export async function seedEmployees(
       emergencyPhone: `081300000${pad(index + 1, 3)}`,
       gender: employee.gender,
       joinDate: date(employee.joinDate),
+      pkwttStartDate:
+        employee.status === "Karyawan Tetap" || employee.status === "Karyawan Percobaan"
+          ? date(employee.joinDate)
+          : null,
       employmentStatusId: pick(org.statuses, employee.status),
       companyId: pick(org.companies, employee.company ?? "ACP"),
       positionId: pick(org.positions, employee.position),

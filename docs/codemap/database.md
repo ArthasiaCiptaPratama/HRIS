@@ -13,7 +13,7 @@ apps/api/
 │   │   ├── attendance.prisma        [wip] Fase 5 (2026-10-13, dari branch Mat): holidays, time_settings, shifts, roster_patterns, crews, crew_members, roster_days, roster_change_requests, attendance_days, attendance_punches, attendance_periods, attendance_statements, attendance_corrections
 │   │   ├── leave.prisma             [wip] Fase 6 (2026-10-13): leave_types, leave_years, leave_ledger (buku besar saldo), leave_requests
 │   │   ├── approval.prisma          [wip] Fase 5 (2026-10-13): approval_requests, approval_steps (paralel/tunggal, override)
-│   │   ├── contract.prisma          [planned] Fase 7
+│   │   ├── contract.prisma          [done] KTR-K1: contracts per tahap PKWT/percobaan, enum kind/status
 │   │   ├── payroll.prisma           [planned] Fase 8
 │   │   ├── notification.prisma      [done] notifications (dedupe_key), email_outbox + enum status
 │   │   └── audit.prisma             [done] audit_logs
@@ -45,8 +45,11 @@ apps/api/
 │   │   ├── 20261021045348_push_devices_and_notification_target/  [done] MOB-D6: enum `notification.PushPlatform`, tabel `notification.push_devices` (token unik, index akun), kolom `notifications.target_type`/`target_id`
 │   │   ├── 20261021092441_punch_channel_version_idempotency/  [done] MOB-D3/D7: enum `attendance.PunchChannel` (APP/PWA), kolom `attendance_punches.channel` (bawaan PWA), `app_version`, `idempotency_key` (unik)
 │   │   └── 20261111022710_org_unit_zone/  [done] ORG-D5: enum `organization.OrgZone` + `departments.zone?` + backfill SITE untuk unit bernama "Site…" (migrasi 2026-10-21…11-10 lihat `prisma/migrations/`)
+│   │   ├── 20261125065315_ktr_k1_employment_contracts/  [done] kontrak, constraint ACTIVE/tanggal/tahap, rename status + backfill pkwtt_start_date; tanpa kontrak data lama
 │   └── seed/                         [done] Idempoten (upsert), menolak NODE_ENV=production · `org-chart.ts` (D-051; sejak 2026-11-10 bentuk PDF "Orgchart Site 06.11.2026": 89 pos ACP + 3 pos CD2, level ORG-D1, pemegang `DMY-` nama fiktif; nama asli hanya lewat `org:import-local` dari file di luar repo)
-│       ├── index.ts                  Runner: organization → employee
-│       ├── organization.ts           5 departemen, 12 jabatan, 7 status berkategori (D-038: Karyawan Tetap, Karyawan Percobaan, PKWT, Pekerja Harian, Magang, Outsourcing, Vendor; nama lama "Pegawai Tetap/Tetap/Kontrak (PKWT)/Internship/Daily Worker" diganti, "Masa Percobaan" dihidupkan lagi sebagai Karyawan Percobaan), 5 grade, 2 lokasi
+│       ├── index.ts                  Runner: organization → employee → contract → org-chart
+│       ├── organization.ts           5 departemen, 12 jabatan, 7 status berkategori (KTR-D2: PKWTT – Permanen, PKWTT – Masa Percobaan, PKWT, THL, Magang, Outsourcing, Vendor; alias lama tetap dikenali), 5 grade, 2 lokasi
 │       └── employee.ts               23 karyawan dummy (5 manajer, 2 nonaktif; + Nadia Putri Percobaan & Yusuf Hidayat Vendor, D-038) + data pribadi/rekening/keluarga/pendidikan/pelatihan fiktif + riwayat HIRED/DEACTIVATED; `work_email` dari SEED_EMAIL_BASE
 ```
+
+KTR-K1: `seed/contract.ts` menambah empat karyawan dummy khusus kontrak (idempoten); label status PERMANENT/PROBATION/DAILY_WORKER menjadi PKWTT – Permanen/PKWTT – Masa Percobaan/THL. `employee.prisma` menambah `pkwtt_start_date`, `PROBATION_FAILED`, `CONTRACT_STAGE_CHANGED`.

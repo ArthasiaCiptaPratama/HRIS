@@ -16,9 +16,14 @@ export { remindExpiringDocuments } from "./document.service.ts";
 export { type EmployeeRouteDeps, registerEmployeeRoutes } from "./employee.routes.ts";
 export type { EmployeeDetail, EmployeeListItem } from "./employee.schema.ts";
 export {
+  createEmployeeContract,
   employeeLoginDirectory,
   employeeMasterDataSupport,
   employeeScopeForIam,
+  endEmployeeContract,
+  extendEmployeeContract,
+  getEmployeeContracts,
+  promoteEmployee,
   scopeRequestActor,
   withEmployeeCompanyScope,
 } from "./employee.service.ts";

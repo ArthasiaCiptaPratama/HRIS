@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  contractPeriodInputSchema,
   EMPLOYEE_SORT_FIELDS,
   educationLevelSchema,
   employmentCategoryGroupSchema,
@@ -59,6 +60,7 @@ export const listEmployeesQuerySchema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   category: employmentCategoryRefSchema.optional(),
+  pkwtStage: z.enum(["1", "2", "3", "NONE"]).openapi("EmployeePkwtStageFilter").optional(),
   // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
   group: z
     .enum(employmentCategoryGroupSchema.options)
@@ -109,6 +111,8 @@ export const employeeListItemSchema = z
     gender: genderSchema.nullable(),
     joinDate: isoDate,
     endDate: isoDate.nullable(),
+    contractStage: z.number().int().nullable(),
+    contractEndDate: isoDate.nullable(),
     isActive: z.boolean(),
     exitReason: exitReasonSchema.nullable(),
     employmentStatus: listStatusSchema,
@@ -139,6 +143,14 @@ export const employeeSummarySchema = z
       total: z.number().int(),
       byCategory: z.record(employmentCategorySchema, z.number().int()),
       uncategorized: z.number().int(),
+      pkwtStages: z
+        .object({
+          stage1: z.number().int(),
+          stage2: z.number().int(),
+          stage3: z.number().int(),
+          none: z.number().int(),
+        })
+        .openapi("EmployeePkwtStages"),
     }),
     inactive: z.number().int(),
   })
@@ -433,7 +445,12 @@ export const updateEmployeeBodySchema = createEmployeeBodySchema
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeBodySchema>;
 
 export const changeStatusBodySchema = z
-  .object({ employmentStatusId: z.uuid(), effectiveDate: isoDate, note: optionalText(500) })
+  .object({
+    employmentStatusId: z.uuid(),
+    effectiveDate: isoDate,
+    note: optionalText(500),
+    contract: contractPeriodInputSchema.optional(),
+  })
   .openapi("ChangeEmploymentStatus");
 export type ChangeStatusInput = z.infer<typeof changeStatusBodySchema>;
 
@@ -561,3 +578,7 @@ export const fieldChangeSchema = z.object({
   refId: z.uuid().nullable(),
   changedBy: historySchema.shape.changedBy,
 });
+
+export const employeeStatusChangeResultSchema = employeeListItemSchema
+  .extend({ warnings: z.array(z.string()) })
+  .openapi("EmployeeStatusChangeResult");

@@ -57,7 +57,11 @@ export const EMPLOYMENT_STATUSES: Array<{
   { name: "Karyawan Tetap", category: "PERMANENT", legacyNames: ["Pegawai Tetap", "Tetap"] },
   { name: "Karyawan Percobaan", category: "PROBATION", legacyNames: ["Masa Percobaan"] },
   { name: "PKWT", category: "PKWT", legacyNames: ["Kontrak (PKWT)"] },
-  { name: "Pekerja Harian", category: "DAILY_WORKER", legacyNames: ["Daily Worker"] },
+  {
+    name: "Harian Lepas (THL)",
+    category: "DAILY_WORKER",
+    legacyNames: ["Pekerja Harian", "Daily Worker"],
+  },
   { name: "Magang", category: "INTERNSHIP", legacyNames: ["Internship"] },
   { name: "Outsourcing", category: "OUTSOURCING", legacyNames: [] },
   { name: "Vendor", category: "VENDOR", legacyNames: [] },

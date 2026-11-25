@@ -136,7 +136,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
           "Karyawan Tetap",
           "Karyawan Percobaan",
           "PKWT",
-          "Pekerja Harian",
+          "Harian Lepas (THL)",
           "Semua Karyawan Internal",
         ],
       ],
@@ -219,9 +219,91 @@ describe("halaman Personal Management", () => {
       "Karyawan Tetap1",
       "Karyawan Percobaan1",
       "PKWT2",
-      "Pekerja Harian0",
+      "Harian Lepas (THL)0",
       "Semua Karyawan Internal4",
     ]);
+  });
+
+  it("KTR-D2 revisi: halaman PKWT punya filter Tahap ber-jumlah + kolom Tahap & Akhir kontrak", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-25T05:00:00Z"));
+    const withStages = {
+      data: {
+        ...summary.data,
+        active: {
+          ...summary.data.active,
+          pkwtStages: { stage1: 1, stage2: 0, stage3: 1, none: 0 },
+        },
+      },
+    };
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/employees/summary": [200, withStages],
+      "/master-data": [200, masterData],
+      "/employees": [
+        200,
+        {
+          data: [
+            { ...employee("1", "Nur Aisyah"), contractStage: 1, contractEndDate: "2027-05-31" },
+            { ...employee("2", "Wahyu Saputra"), contractStage: 3, contractEndDate: "2026-12-10" },
+          ],
+          meta: { page: 1, pageSize: 20, total: 2 },
+        },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/pkwt?tahap=3");
+    const table = await screen.findByRole("table", { name: "Daftar karyawan" });
+    expect(await within(table).findByText("Nur Aisyah")).toBeInTheDocument();
+    const calls = () =>
+      fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.pathname.endsWith("/employees"));
+    expect(calls().at(-1)?.searchParams.get("pkwtStage")).toBe("3");
+    const filter = screen.getByRole("group", { name: "Filter Tahap" });
+    await waitFor(() =>
+      expect(within(filter).getByRole("button", { name: /PKWT 3/ })).toHaveTextContent("1"),
+    );
+    expect(within(filter).getByRole("button", { name: /PKWT 3/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(filter).getByRole("button", { name: /Semua/ })).toHaveTextContent("2");
+    expect(within(table).getByRole("columnheader", { name: /Tahap/ })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: /Akhir kontrak/ })).toBeInTheDocument();
+    expect(within(table).getByText("PKWT 3")).toBeInTheDocument();
+    // 15 hari lagi → merah; > 60 hari → hijau.
+    expect(within(table).getByText("10 Des 2026")).toHaveClass("text-red-700");
+    expect(within(table).getByText("31 Mei 2027")).toHaveClass("text-green-700");
+    await userEvent.click(within(filter).getByRole("button", { name: /Tahap belum diisi/ }));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.get("pkwtStage")).toBe("NONE"));
+    vi.useRealTimers();
+  });
+
+  it("KTR-D2 revisi: filter Tahap & kolom kontrak hanya di halaman PKWT", async () => {
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/employees/summary": [200, summary],
+      "/master-data": [200, masterData],
+      "/employees": [
+        200,
+        { data: [employee("1", "Nur Aisyah")], meta: { page: 1, pageSize: 20, total: 1 } },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/tetap?tahap=2");
+    const table = await screen.findByRole("table", { name: "Daftar karyawan" });
+    expect(await within(table).findByText("Nur Aisyah")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Filter Tahap" })).not.toBeInTheDocument();
+    expect(
+      within(table).queryByRole("columnheader", { name: /Akhir kontrak/ }),
+    ).not.toBeInTheDocument();
+    const listCall = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .find((url) => url.pathname.endsWith("/employees"));
+    expect(listCall?.searchParams.has("pkwtStage")).toBe(false);
   });
 
   it("D-038: Semua Tenaga Kerja Eksternal → API ?group=EXTERNAL tanpa category", async () => {
@@ -456,7 +538,7 @@ describe("halaman Personal Management", () => {
 
   it.each([
     ["internship", "Magang"],
-    ["daily-worker", "Pekerja Harian"],
+    ["daily-worker", "Harian Lepas (THL)"],
     ["entah", "Semua Karyawan Aktif"],
   ])("slug lama/tidak dikenal %s → diarahkan ke %s", async (slug, heading) => {
     mockApi({

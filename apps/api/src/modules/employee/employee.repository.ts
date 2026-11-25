@@ -23,6 +23,8 @@ export const LIST_SELECT = {
   gender: true,
   joinDate: true,
   endDate: true,
+  contractStage: true,
+  contractEndDate: true,
   isActive: true,
   exitReason: true,
   employmentStatusId: true,
@@ -62,7 +64,7 @@ export async function listEmployees(
 
 export async function countByStatus(where: EmployeeWhere) {
   return getPrisma().employee.groupBy({
-    by: ["employmentStatusId", "isActive"],
+    by: ["employmentStatusId", "isActive", "contractStage"],
     where,
     _count: { _all: true },
     orderBy: { employmentStatusId: "asc" },
@@ -74,6 +76,7 @@ export async function findEmployee(id: string, tx: EmployeeTx = getPrisma()) {
     where: { id },
     select: {
       ...LIST_SELECT,
+      pkwttStartDate: true,
       // ORG-D8: kode level HR asli (penanda di detail).
       hrLevelCode: true,
       emergencyPhone: true,
@@ -538,4 +541,9 @@ export async function findActiveManagerIds(scope: EmployeeWhere): Promise<string
     select: { managerId: true },
   });
   return rows.flatMap((row) => (row.managerId ? [row.managerId] : []));
+}
+
+/** KTR-K1: serialize lifecycle actions for the same employee, including concurrent extensions. */
+export async function lockEmployee(tx: EmployeeTx, id: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM employee.employees WHERE id = ${id}::uuid FOR UPDATE`;
 }

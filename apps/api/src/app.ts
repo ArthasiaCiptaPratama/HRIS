@@ -51,12 +51,18 @@ import {
   runApprovalDigest,
   runAttendanceReminders,
 } from "./modules/attendance/index.ts";
+import { registerContractRoutes } from "./modules/contract/index.ts";
 import { registerDisciplineRoutes, runDisciplineDaily } from "./modules/discipline/index.ts";
 import {
+  createEmployeeContract,
   employeeLoginDirectory,
   employeeMasterDataSupport,
   employeeScopeForIam,
+  endEmployeeContract,
+  extendEmployeeContract,
+  getEmployeeContracts,
   processOnboardingInvitations,
+  promoteEmployee,
   purgeCancelledCandidates,
   registerEmployeeRoutes,
   remindStaleInvitations,
@@ -311,6 +317,19 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     protect,
     storage: deps.storage,
     storagePathPrefix: deps.storagePathPrefix,
+  });
+  registerContractRoutes(app, {
+    protect,
+    handlers: {
+      read: getEmployeeContracts,
+      create: createEmployeeContract,
+      extend: extendEmployeeContract,
+      promote: promoteEmployee,
+      fail: (ctx, id, input) =>
+        endEmployeeContract(ctx, id, undefined, input, { authAdmin: deps.authAdmin }, true),
+      end: (ctx, id, contractId, input) =>
+        endEmployeeContract(ctx, id, contractId, input, { authAdmin: deps.authAdmin }),
+    },
   });
   registerEmployeeRoutes(app, {
     protect,

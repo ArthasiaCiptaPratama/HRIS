@@ -1,6 +1,7 @@
 import {
   DRIVING_LICENSE_LABELS,
   type DrivingLicenseType,
+  EMPLOYMENT_CATEGORY_LABELS,
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
@@ -77,6 +78,7 @@ import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeeFormDialog } from "./employee-form-dialog";
 import { useHomebaseEditor } from "./employee-homebase-editor";
 import { EmployeePhotoControl } from "./employee-photo-control";
+import { EmployeeContractHistory, EmploymentContractSection } from "./employment-contract-section";
 import { HrLevelChip } from "./hr-level-chip";
 import { PrintEmployeeButton } from "./print-employee-button";
 import { profilePlacement } from "./profile-placement";
@@ -247,7 +249,9 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
               <ProfileRow label="Status Karyawan" narrow>
                 {/* Teks rapi "kategori | masih bekerja/sudah keluar" (masukan pemilik projek 2026-10-15). */}
                 <span>
-                  {employee.employmentStatus.name}
+                  {employee.employmentStatus.category
+                    ? EMPLOYMENT_CATEGORY_LABELS[employee.employmentStatus.category]
+                    : employee.employmentStatus.name}
                   <span aria-hidden className="text-muted-foreground mx-2 font-normal">
                     |
                   </span>
@@ -654,6 +658,7 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
   const placement = profilePlacement(employee, master.data);
   return (
     <div className="space-y-8">
+      <EmploymentContractSection employee={employee} />
       <section>
         <SectionTitle>Penempatan</SectionTitle>
         <FieldGrid>
@@ -694,7 +699,11 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
               </div>
             ) : null}
           </Field>
-          <Field label="Status kepegawaian">{employee.employmentStatus.name}</Field>
+          <Field label="Status kepegawaian">
+            {employee.employmentStatus.category
+              ? EMPLOYMENT_CATEGORY_LABELS[employee.employmentStatus.category]
+              : employee.employmentStatus.name}
+          </Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
           <Field label="Masa kerja">{tenure(employee.joinDate, employee.endDate)}</Field>
           {!employee.isActive ? (
@@ -969,6 +978,7 @@ function BankCard({ bank }: { bank: NonNullable<EmployeeDetail["bankAccount"]> }
 const HISTORY_ICON: Record<EmploymentChangeType, typeof History> = {
   HIRED: UserRoundCheck,
   STATUS_CHANGED: ArrowLeftRight,
+  CONTRACT_STAGE_CHANGED: ArrowLeftRight,
   POSITION_CHANGED: BriefcaseBusiness,
   DEACTIVATED: Power,
   REACTIVATED: RotateCcw,
@@ -1199,6 +1209,18 @@ type HistoryRow = EmployeeDetail["histories"][number];
 /** Isi peristiwa kepegawaian sebagai baris diff. */
 function historyRows(h: HistoryRow): ReactNode {
   switch (h.changeType) {
+    case "CONTRACT_STAGE_CHANGED":
+      return (
+        <>
+          {h.contractStage ? <DiffRow label="Tahap" to={h.contractStage} /> : null}
+          {h.contractStartDate && h.contractEndDate ? (
+            <DiffRow
+              label="Periode"
+              to={`${formatDate(h.contractStartDate)} – ${formatDate(h.contractEndDate)}`}
+            />
+          ) : null}
+        </>
+      );
     case "STATUS_CHANGED":
       return <DiffRow label="Status" from={h.fromStatus?.name ?? null} to={h.toStatus?.name} />;
     case "POSITION_CHANGED":
@@ -1395,6 +1417,9 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
         <p className="text-muted-foreground rounded-lg border border-dashed py-10 text-center text-sm">
           {EMPTY_TEXT[label] ?? `Belum ada perubahan ${label.toLowerCase()}.`}
         </p>
+      ) : null}
+      {!selected || selected === "events" ? (
+        <EmployeeContractHistory employeeId={employee.id} />
       ) : null}
       <div className="space-y-8">
         {months.map((month) => (
