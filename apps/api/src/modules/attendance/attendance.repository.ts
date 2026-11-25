@@ -148,8 +148,9 @@ export async function withTransactionDay<T>(run: (tx: AttendanceTx) => Promise<T
 }
 
 /**
- * TM-D31: hari absen untuk ekspor Excel — kolom seperlunya, absen masuk/pulang saja, TANPA selfie
- * (selfiePath tidak dipilih). `take` = batas baris + 1 supaya pemanggil bisa menolak bila melebihi.
+ * TM-D31: hari absen untuk ekspor Excel — kolom seperlunya, TANPA selfie (selfiePath tidak dipilih).
+ * TM-D34: semua jenis absen (masuk/pulang + istirahat) dan alasan karyawan. `take` = batas baris + 1 supaya
+ * pemanggil bisa menolak bila melebihi.
  */
 export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) =>
   getPrisma().attendanceDay.findMany({
@@ -164,7 +165,6 @@ export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) 
       status: true,
       labels: true,
       punches: {
-        where: { kind: { in: ["IN", "OUT"] } },
         select: {
           kind: true,
           at: true,
@@ -174,6 +174,7 @@ export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) 
           workLocationId: true,
           insideGeofence: true,
           labels: true,
+          reason: true,
           status: true,
           source: true,
         },
@@ -183,6 +184,21 @@ export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) 
     take,
   });
 export type ExportDayRow = Awaited<ReturnType<typeof exportDays>>[number];
+
+/** TM-D34: karyawan (dari `employeeIds`) yang punya ≥1 hari absen dalam `where` (cakupan ekspor). */
+export const exportDayOwners = async (
+  where: Prisma.AttendanceDayWhereInput,
+  employeeIds: string[],
+) =>
+  employeeIds.length === 0
+    ? []
+    : (
+        await getPrisma().attendanceDay.findMany({
+          where: { AND: [where, { employeeId: { in: employeeIds } }] },
+          select: { employeeId: true },
+          distinct: ["employeeId"],
+        })
+      ).map((d) => d.employeeId);
 
 /** EMP-D8 P1: hanya absen perangkat normal; istirahat, manual, Alpha, dan cuti dikecualikan. */
 export function normalPendingPunches(

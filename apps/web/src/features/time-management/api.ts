@@ -250,9 +250,13 @@ const attendancePeoplePageSchema = z.object({
 
 export const PEOPLE_PAGE_SIZE = 24;
 
-export function useAttendancePeople(params: { companyId?: string | undefined; q?: string }) {
+export function useAttendancePeople(
+  params: { companyId?: string | undefined; q?: string },
+  options: { enabled?: boolean } = {},
+) {
   return useInfiniteQuery({
     queryKey: tmKeys.people(params),
+    enabled: options.enabled ?? true,
     initialPageParam: 1,
     queryFn: ({ signal, pageParam }) => {
       const search = new URLSearchParams({

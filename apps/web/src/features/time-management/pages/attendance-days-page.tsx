@@ -448,6 +448,12 @@ export function AttendanceDaysPage() {
             from={from}
             to={to}
             companyId={scope.selectedId ?? undefined}
+            pageFilters={{
+              tab,
+              q,
+              status: tab === "all" ? status || undefined : undefined,
+              labeledOnly,
+            }}
             onClose={() => setExportKind(null)}
           />
         </Suspense>
