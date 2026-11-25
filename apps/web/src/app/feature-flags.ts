@@ -7,6 +7,8 @@ export const FEATURES = {
   activation: true, // c. Pengaktifan Karyawan
   inactiveEmployees: true, // d. Data Karyawan Tidak Aktif
   orgStructure: true, // e. Struktur Organisasi
+  // Personal Management › Kontrak akan habis: PKWT/masa percobaan berakhir ≤ 60 hari & yang lewat (KTR-D5, K2)
+  contractExpiring: true,
   // Rilis bertahap (D-043, 2026-10-08): fitur develop yang belum dirilis disembunyikan di jalur rilis
   // (develop selalu `true`). Skema & API ikut terpasang; aktifkan cukup dengan `true` lalu rilis ulang.
   onboarding: true, // Administrasi › Penerimaan Karyawan Baru (D-045–D-048)

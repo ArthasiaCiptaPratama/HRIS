@@ -5,6 +5,7 @@ import type {
   PromoteEmployeeInput,
 } from "@hris/shared";
 import {
+  addContractDays,
   CATEGORIES_BY_GROUP,
   EMPLOYMENT_CATEGORIES,
   EMPLOYMENT_CATEGORY_LABELS,
@@ -146,6 +147,9 @@ const toIso = (date: Date) => date.toISOString().slice(0, 10);
 const JAKARTA_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" });
 /** PROMPT §4: logika harian memakai zona Asia/Jakarta. */
 export const todayInJakarta = (now = new Date()) => JAKARTA_DATE.format(now);
+/** KTR-D5 (K2): kategori ber-kontrak & jendela daftar "Kontrak akan habis" (60 hari). */
+const CONTRACT_ENDING_CATEGORIES: EmploymentCategory[] = ["PKWT", "PROBATION"];
+const CONTRACT_ENDING_WINDOW_DAYS = 60;
 
 export function auditBase(ctx: RequestContext) {
   return {
@@ -421,6 +425,14 @@ export function buildWhere(
       and.push({ employmentStatusId: { in: ids }, contractStage: null });
     } else and.push({ contractStage: Number(query.pkwtStage) });
   }
+  if (query.contractEndsWithin) {
+    const ids = statusIdsForCategories(lookup, CONTRACT_ENDING_CATEGORIES);
+    const until = toDate(addContractDays(todayInJakarta(), query.contractEndsWithin));
+    and.push({
+      employmentStatusId: { in: ids.length > 0 ? ids : [NO_MATCH] },
+      contractEndDate: { not: null, lte: until },
+    });
+  }
   if (query.statusId) and.push({ employmentStatusId: query.statusId });
   if (query.departmentId) {
     const ids = positionIdsInDepartment(lookup, query.departmentId);
@@ -520,7 +532,17 @@ export async function getSummary(
   const where: repository.EmployeeWhere = query.companyId
     ? { AND: [scopeWhere(ctx.actor), { companyId: query.companyId }] }
     : scopeWhere(ctx.actor);
-  const [lookup, groups] = await Promise.all([getMasterLookup(), repository.countByStatus(where)]);
+  const lookup = await getMasterLookup();
+  const today = todayInJakarta();
+  const [groups, contractsEnding] = await Promise.all([
+    repository.countByStatus(where),
+    repository.countContractsEnding(
+      where,
+      statusIdsForCategories(lookup, CONTRACT_ENDING_CATEGORIES),
+      toDate(today),
+      toDate(addContractDays(today, CONTRACT_ENDING_WINDOW_DAYS)),
+    ),
+  ]);
   const byCategory = Object.fromEntries(EMPLOYMENT_CATEGORIES.map((c) => [c, 0])) as Record<
     EmploymentCategory,
     number
@@ -551,7 +573,7 @@ export async function getSummary(
     if (category) byCategory[category] += count;
     else uncategorized += count;
   }
-  return { active: { total, byCategory, uncategorized, pkwtStages }, inactive };
+  return { active: { total, byCategory, uncategorized, pkwtStages, contractsEnding }, inactive };
 }
 
 // ── Dashboard ───────────────────────────────────────────────────────────────

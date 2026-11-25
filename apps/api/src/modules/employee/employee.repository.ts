@@ -547,3 +547,45 @@ export async function findActiveManagerIds(scope: EmployeeWhere): Promise<string
 export async function lockEmployee(tx: EmployeeTx, id: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM employee.employees WHERE id = ${id}::uuid FOR UPDATE`;
 }
+
+/**
+ * KTR-D5/D6 (K2): karyawan aktif PKWT/masa percobaan yang kontrak aktifnya berakhir paling lambat `until`
+ * (termasuk yang sudah lewat), dibaca dari salinan `contract_end_date` (sumber kebenaran contract.contracts).
+ */
+export async function findContractsEndingBy(statusIds: string[], until: Date) {
+  return getPrisma().employee.findMany({
+    where: {
+      isActive: true,
+      onboardingStatus: "APPROVED",
+      employmentStatusId: { in: statusIds },
+      contractEndDate: { not: null, lte: until },
+    },
+    select: {
+      id: true,
+      fullName: true,
+      companyId: true,
+      managerId: true,
+      employmentStatusId: true,
+      contractStage: true,
+      contractEndDate: true,
+    },
+    orderBy: [{ contractEndDate: "asc" }, { id: "asc" }],
+  });
+}
+
+/** KTR-D5 (K2): jumlah kontrak aktif yang segera berakhir & yang sudah lewat, dalam cakupan `where`. */
+export async function countContractsEnding(
+  where: EmployeeWhere,
+  statusIds: string[],
+  today: Date,
+  until: Date,
+) {
+  const base = { AND: [where, { isActive: true, employmentStatusId: { in: statusIds } }] };
+  const [soon, overdue] = await Promise.all([
+    getPrisma().employee.count({
+      where: { AND: [base, { contractEndDate: { gte: today, lte: until } }] },
+    }),
+    getPrisma().employee.count({ where: { AND: [base, { contractEndDate: { lt: today } }] } }),
+  ]);
+  return { soon, overdue };
+}

@@ -83,6 +83,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
         "Ubah Status Karyawan",
         "Import Data Karyawan",
         "Pengaktifan Karyawan",
+        "Kontrak Akan Habis",
         "Data Karyawan Tidak Aktif",
         "Struktur Organisasi",
         "Data Kontak",
@@ -108,6 +109,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
       "Ubah Status Karyawan",
       "Import Data Karyawan",
       "Pengaktifan Karyawan",
+      "Kontrak Akan Habis",
       "Data Keluarga",
       "Laporan",
     ])
@@ -147,6 +149,7 @@ describe("navigation.ts (satu sumber menu per role)", () => {
       "Ubah Status Karyawan",
       "Import Data Karyawan",
       "Pengaktifan Karyawan",
+      "Kontrak Akan Habis",
       "Data Karyawan Tidak Aktif",
       "Struktur Organisasi",
     ]);
@@ -304,6 +307,51 @@ describe("halaman Personal Management", () => {
       .map(([input]) => new URL(String(input)))
       .find((url) => url.pathname.endsWith("/employees"));
     expect(listCall?.searchParams.has("pkwtStage")).toBe(false);
+  });
+
+  it("KTR-D5/D11: halaman Kontrak Akan Habis — filter 60 hari, urut akhir, jenis, badge menu & peringatan lewat", async () => {
+    const ending = {
+      data: {
+        ...summary.data,
+        active: { ...summary.data.active, contractsEnding: { soon: 3, overdue: 2 } },
+      },
+    };
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("HR_ADMIN") }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/employees/summary": [200, ending],
+      "/master-data": [200, masterData],
+      "/employees": [
+        200,
+        {
+          data: [
+            { ...employee("1", "Nur Aisyah"), contractStage: 3, contractEndDate: "2026-01-02" },
+          ],
+          meta: { page: 1, pageSize: 20, total: 1 },
+        },
+      ],
+    });
+    renderAt("/personal/kontrak-akan-habis");
+    const table = await screen.findByRole("table", { name: "Daftar karyawan" });
+    expect(await within(table).findByText("Nur Aisyah")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Kontrak Akan Habis");
+    const calls = () =>
+      fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.pathname.endsWith("/employees"));
+    expect(calls().at(-1)?.searchParams.get("contractEndsWithin")).toBe("60");
+    expect(calls().at(-1)?.searchParams.get("sort")).toBe("contractEndDate:asc");
+    expect(calls().at(-1)?.searchParams.has("category")).toBe(false);
+    expect(within(table).getByText(/Kontrak lewat \d+ hari/)).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("2 kontrak sudah lewat");
+    const side = screen.getByRole("navigation", { name: "Menu samping" });
+    await waitFor(() =>
+      expect(within(side).getByText("Kontrak Akan Habis").closest("a")).toHaveTextContent("5"),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Masa Percobaan" }));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.get("category")).toBe("PROBATION"));
+    expect(calls().at(-1)?.searchParams.get("contractEndsWithin")).toBe("60");
   });
 
   it("D-038: Semua Tenaga Kerja Eksternal → API ?group=EXTERNAL tanpa category", async () => {

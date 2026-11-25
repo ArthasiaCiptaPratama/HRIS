@@ -38,7 +38,7 @@ export type ListVariant = "active" | "inactive";
 export function employeeColumns(
   variant: ListVariant,
   action?: (row: EmployeeListItem) => ReactNode,
-  options: { showCompany?: boolean; showPkwt?: boolean } = {},
+  options: { showCompany?: boolean; showPkwt?: boolean; showRemaining?: boolean } = {},
 ): DataColumn<EmployeeListItem>[] {
   const columns: DataColumn<EmployeeListItem>[] = [
     helper.display({
@@ -99,9 +99,11 @@ export function employeeColumns(
         header: "Tahap",
         meta: { sortKey: "contractStage", className: "whitespace-nowrap" },
         cell: ({ row }) =>
-          row.original.contractStage === null
-            ? "Belum diisi"
-            : `PKWT ${row.original.contractStage}`,
+          row.original.employmentStatus.category === "PROBATION"
+            ? "Masa Percobaan"
+            : row.original.contractStage === null
+              ? "Belum diisi"
+              : `PKWT ${row.original.contractStage}`,
       }) as DataColumn<EmployeeListItem>,
       helper.display({
         id: "contractEndDate",
@@ -125,6 +127,18 @@ export function employeeColumns(
               }
             >
               {formatDate(endDate)}
+              {/* KTR-D5 (K2): sisa hari & tanda lewat di daftar "Kontrak akan habis". */}
+              {options.showRemaining && days !== null ? (
+                <span className="block text-xs">
+                  {days < 0
+                    ? row.original.employmentStatus.category === "PROBATION"
+                      ? `Masa percobaan lewat ${-days} hari`
+                      : `Kontrak lewat ${-days} hari`
+                    : days === 0
+                      ? "Berakhir hari ini"
+                      : `${days} hari lagi`}
+                </span>
+              ) : null}
             </span>
           );
         },
@@ -275,7 +289,8 @@ export function employeeListFilter(
     "q" | "departmentId" | "workLocationId" | "homebaseId" | "missingNumber" | "sort"
   > &
     Partial<Pick<ReturnType<typeof useListParams>, "pkwtStage">>,
-  view: Pick<EmployeeListParams, "active" | "category" | "group" | "companyId">,
+  view: Pick<EmployeeListParams, "active" | "category" | "group" | "companyId"> &
+    Partial<Pick<EmployeeListParams, "contractEndsWithin">>,
 ): Omit<EmployeeListParams, "page" | "pageSize"> {
   return {
     ...view,
@@ -299,6 +314,8 @@ export function EmployeeListView({
   emptyDescription,
   emptyAction,
   toolbarExtra,
+  contractEndsWithin,
+  defaultSort,
 }: {
   variant: ListVariant;
   category?: EmploymentCategory | undefined;
@@ -309,8 +326,13 @@ export function EmployeeListView({
   emptyDescription?: ReactNode;
   emptyAction?: ReactNode;
   toolbarExtra?: ReactNode;
+  /** KTR-D5 (K2): hanya kontrak aktif yang berakhir ≤ N hari lagi (termasuk yang lewat). */
+  contractEndsWithin?: number | undefined;
+  defaultSort?: string | undefined;
 }) {
-  const list = useListParams({ sort: variant === "active" ? "fullName:asc" : "endDate:desc" });
+  const list = useListParams({
+    sort: defaultSort ?? (variant === "active" ? "fullName:asc" : "endDate:desc"),
+  });
   const me = useMe().data;
   const master = useMasterData();
   const isPkwt = variant === "active" && category === "PKWT";
@@ -358,7 +380,7 @@ export function EmployeeListView({
           pkwtStage: list.pkwtStage,
           sort: list.sort,
         },
-        { active: variant === "active", category, group, companyId },
+        { active: variant === "active", category, group, companyId, contractEndsWithin },
       ),
     }),
     [
@@ -375,6 +397,7 @@ export function EmployeeListView({
       category,
       group,
       companyId,
+      contractEndsWithin,
       variant,
     ],
   );

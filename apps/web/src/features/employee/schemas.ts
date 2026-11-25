@@ -74,6 +74,10 @@ export const summarySchema = z.object({
         none: z.number(),
       })
       .default({ stage1: 0, stage2: 0, stage3: 0, none: 0 }),
+    // KTR-D5 (K2): badge menu "Kontrak akan habis".
+    contractsEnding: z
+      .object({ soon: z.number(), overdue: z.number() })
+      .default({ soon: 0, overdue: 0 }),
   }),
   inactive: z.number(),
 });

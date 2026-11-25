@@ -26,6 +26,8 @@ function queueCount(queue: TimeQueue | undefined, key: TimeQueueKey | TimeQueueK
 function summaryCount(summary: EmployeeSummary | undefined, key: SummaryKey | undefined) {
   if (!summary || !key) return undefined;
   if (key === "INACTIVE") return summary.inactive;
+  if (key === "CONTRACTS_ENDING")
+    return summary.active.contractsEnding.soon + summary.active.contractsEnding.overdue;
   return activeCount(summary, key);
 }
 
@@ -65,7 +67,7 @@ export function SidebarContent({
   const warm = (item: NavItem) => {
     preloadRoute(item.to);
     const filter = item.summaryKey;
-    if (item.to.startsWith(`${ACTIVE_BASE}/`) && filter && filter !== "INACTIVE") {
+    if (item.to.startsWith(`${ACTIVE_BASE}/`) && filter && typeof filter !== "string") {
       void prefetchEmployees(queryClient, {
         page: 1,
         pageSize: 20,

@@ -182,7 +182,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `employee.bank.write`            | Ubah nomor rekening                                                              | HR_ADMIN, MANAGER     |
 | `employee.documents.read`        | Lihat dokumen karyawan                                                           | HR_ADMIN, MANAGER     |
 | `employee.documents.write`       | Unggah/hapus dokumen karyawan                                                    | HR_ADMIN, MANAGER     |
-| `contract.manage`                | Buat, perpanjang, terminasi kontrak; lihat daftar kontrak                         | HR_ADMIN              |
+| `contract.manage`                | Buat, perpanjang, terminasi kontrak (daftar akan habis tanpa grant, KTR-D11)       | HR_ADMIN              |
 | `payroll.period.prepare`         | Menutup periode absensi & menandai input payroll siap (**tanpa** melihat nominal) | HR_ADMIN              |
 | `employee.onboarding.review`     | Lihat data sensitif & dokumen calon/karyawan yang sedang onboarding, lalu setujui / minta revisi / batalkan (D-047) | HR_ADMIN              |
 | `employee.changes.review`        | Setujui/tolak pengajuan perubahan data karyawan di PT yang ditugaskan; bagian sensitif tetap butuh grant lihat & ubah bagian itu (D-054, Arsip 1c) | HR_ADMIN              |
@@ -250,7 +250,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
 | Laporan (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; ekspor Excel) (ARS-D16) | ✅ | ✅ PT ditugaskan (daftar per orang jenis sensitif butuh grant terkait) | ❌ | ❌ |
 | **Kontrak** | | | | |
-| Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
+| Kelola kontrak (isi tahap, perpanjang, jadikan Karyawan Tetap, akhiri) | ✅ | 🔑 | ❌ | ❌ |
+| Lihat daftar "Kontrak akan habis" & terima pengingat kontrak (KTR-D11) | ✅ | ✅ PT ditugaskan | ❌ (atasan langsung hanya menerima pengingat bawahannya) | ❌ |
 | Lihat kontrak sendiri | ✅ | ✅ | ✅ | ✅ |
 | **Absensi** | | | | |
 | Absen (clock-in/out) | ✅* | ✅ | ✅ | ✅ |
@@ -609,6 +610,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [KTR-D8](features/kontrak/README.md#keputusan) | THL: upah harian, rekap hadir × upah (bukan payroll), ≥21 hari 3 bln berturut → "Wajib diangkat PKWTT" | [KTR](features/kontrak/README.md) |
 | [KTR-D9](features/kontrak/README.md#keputusan) | Audit kualitas data staging (Excel read-only) + kolom import mode "perbarui" | [KTR](features/kontrak/README.md) |
 | [KTR-D10](features/kontrak/README.md#keputusan) | Urutan paket K1–K5 setelah simpan WIP R0; implementasi lewat Codex | [KTR](features/kontrak/README.md) |
+| [KTR-D11](features/kontrak/README.md#keputusan) | Daftar "Kontrak akan habis" & pengingat terlihat SA + HR_ADMIN PT tanpa grant; `contract.manage` hanya untuk aksi (mengubah PLAN §4.3) | [KTR](features/kontrak/README.md) |
 | [TM-D34](features/time-management/README.md#keputusan) | Shift site: 2 Shift 12 jam (07–19, 19–07) & 3 Shift 8 jam (07–15, 15–23, 23–07) per PT | [TM](features/time-management/README.md) |
 | [TM-D35](features/time-management/README.md#keputusan) | Saran pola 2/3 shift per level & lokasi saat menyusun jadwal; menyimpang = peringatan | [TM](features/time-management/README.md) |
 | [TM-D36](features/time-management/README.md#keputusan) | Jam kerja fleksibel HO: Telat/Pulang cepat tidak dihitung; saklar per PT (bawaan menyala) | [TM](features/time-management/README.md) |

@@ -4,6 +4,8 @@
 
 **2026-11-25 — K1 [done lokal]** (KTR-D1–D4/D6/D7). GET `/employees/{id}/contracts` juga mengembalikan `access {manage, missingGrant}` (tombol aksi web; `missingGrant` = HR_ADMIN tanpa `contract.manage`). **Revisi KTR-D2:** kolom salinan `employee.employees.contract_stage` & `contract_end_date` = kontrak ACTIVE (PKWT: tahap + akhir; percobaan: tahap null + akhir; tanpa ACTIVE: keduanya null). **Sumber kebenaran tetap `contract.contracts`**; salinan ditulis `copyActiveContract` (employee.service) di transaksi setiap aksi (isi tahap, perpanjang, `status-change` + kontrak, angkat/lulus, akhiri/tidak lulus) — jalur baru K2/K3 wajib ikut. Dipakai `GET /employees?pkwtStage=1|2|3|NONE`, sort `contractStage`/`contractEndDate` (null di akhir), `summary.active.pkwtStages`. Test konsistensi: `assertContractCopy` di `tests/integration/contract/contracts.test.ts`.
 
+**2026-11-25 — K2 [done lokal]** (KTR-D5, D6, D11): cron `contract-daily` → `employee/contract-reminder.service.ts` `remindContracts` / `contractReminderThreshold` (PKWT 30/7, percobaan 14, lewat harian; HR_ADMIN PT + atasan; dedupe per penerima; tanpa email & tanpa nonaktif); repository `findContractsEndingBy`, `countContractsEnding`; `GET /employees?contractEndsWithin=N`, `summary.active.contractsEnding`. Web `pages/contract-expiring-page.tsx` (rute `/personal/kontrak-akan-habis`, saklar `FEATURES.contractExpiring`, menu Pengelolaan Karyawan + badge `CONTRACTS_ENDING`). Test `tests/integration/contract/contract-reminders.test.ts`.
+
 | File | Tanggung jawab |
 |---|---|
 | `apps/api/prisma/schema/contract.prisma` | `ContractKind`, `ContractStatus`, `EmploymentContract` → `contract.contracts`; satu baris per tahap. |

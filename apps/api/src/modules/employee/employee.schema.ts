@@ -61,6 +61,8 @@ export const listEmployeesQuerySchema = z.object({
     .transform((value) => value === "true"),
   category: employmentCategoryRefSchema.optional(),
   pkwtStage: z.enum(["1", "2", "3", "NONE"]).openapi("EmployeePkwtStageFilter").optional(),
+  // KTR-D5 (K2): PKWT/masa percobaan yang kontrak aktifnya berakhir ≤ N hari lagi, termasuk yang sudah lewat.
+  contractEndsWithin: z.coerce.number().int().min(1).max(366).optional(),
   // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
   group: z
     .enum(employmentCategoryGroupSchema.options)
@@ -151,6 +153,10 @@ export const employeeSummarySchema = z
           none: z.number().int(),
         })
         .openapi("EmployeePkwtStages"),
+      // KTR-D5 (K2): badge menu "Kontrak akan habis" — akhir ≤ 60 hari lagi (soon) & sudah lewat (overdue).
+      contractsEnding: z
+        .object({ soon: z.number().int(), overdue: z.number().int() })
+        .openapi("EmployeeContractsEnding"),
     }),
     inactive: z.number().int(),
   })

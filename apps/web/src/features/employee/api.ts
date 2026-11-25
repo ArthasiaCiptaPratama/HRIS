@@ -73,6 +73,8 @@ export interface EmployeeListParams {
   q?: string | undefined;
   category?: EmploymentCategory | undefined;
   pkwtStage?: "1" | "2" | "3" | "NONE" | undefined;
+  /** KTR-D5 (K2): kontrak aktif berakhir ≤ N hari lagi, termasuk yang sudah lewat. */
+  contractEndsWithin?: number | undefined;
   group?: EmploymentCategoryGroup | undefined;
   /** D-040: perusahaan terpilih di top bar (tanpa = semua dalam cakupan). */
   companyId?: string | undefined;
