@@ -685,11 +685,11 @@ describe("K4 daftar THL", () => {
     expect(full).toHaveClass("text-red-700");
     expect(full).toHaveAttribute(
       "title",
-      "Agu 2026: 21 hari · Sep 2026: 22 hari · Okt 2026: 22 hari (+2 menunggu persetujuan) · Nov 2026 (berjalan): 18 hari",
+      "Agu 2026: 21 hari · Sep 2026: 22 hari · Okt 2026: 22 hari (+2 menunggu persetujuan) · Nov 2026 (berjalan): 18 hari · 3 lagi ke 21",
     );
     expect(within(table).getAllByText("1/3")[0]).toHaveAttribute(
       "title",
-      "Agu 2026: – · Sep 2026: – · Okt 2026: 21 hari · Nov 2026 (berjalan): 5 hari",
+      "Agu 2026: – · Sep 2026: – · Okt 2026: 21 hari · Nov 2026 (berjalan): 5 hari · 16 lagi ke 21",
     );
     const filter = screen.getByRole("group", { name: "Filter status THL" });
     expect(

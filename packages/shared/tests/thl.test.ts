@@ -3,6 +3,7 @@ import { IMPORT_FIELDS, normalizeImportRow, parseDailyWage } from "../src/import
 import {
   evaluateThlAttendance,
   thlCurrentMonth,
+  thlCurrentProgress,
   thlStreak,
   thlWageChangeLabel,
 } from "../src/thl.ts";
@@ -94,4 +95,11 @@ describe("thlStreak (opsi C daftar THL)", () => {
     expect(thlStreak(m(22, 22, 20))).toBe(0);
     expect(thlStreak([])).toBe(0);
   });
+});
+
+test("progres bulan berjalan ke 21 hari", () => {
+  expect(thlCurrentProgress(12)).toBe("9 lagi ke 21");
+  expect(thlCurrentProgress(20)).toBe("1 lagi ke 21");
+  expect(thlCurrentProgress(21)).toBe("sudah 21");
+  expect(thlCurrentProgress(25)).toBe("sudah 21");
 });

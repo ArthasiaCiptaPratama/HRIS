@@ -42,6 +42,14 @@ export function evaluateThlAttendance(counts: readonly ThlAttendanceMonth[], now
   return { status, label: THL_STATUS_LABELS[status], months, currentMonth: count(current) };
 }
 
+/** Progres bulan berjalan (kutipan pengguna 16:2x WIB): "9 lagi ke 21" / "sudah 21". */
+export function thlCurrentProgress(presentDays: number): string {
+  const left = THL_PRESENT_DAYS_THRESHOLD - presentDays;
+  return left > 0
+    ? `${left} lagi ke ${THL_PRESENT_DAYS_THRESHOLD}`
+    : `sudah ${THL_PRESENT_DAYS_THRESHOLD}`;
+}
+
 /**
  * Opsi C daftar THL (2026-11-26): jumlah bulan penuh berturut-turut ≥ 21 hari hadir, dihitung mundur
  * dari bulan penuh terakhir (0–3). `months` urut lama → baru seperti `evaluateThlAttendance().months`.

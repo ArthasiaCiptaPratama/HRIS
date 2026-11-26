@@ -1,5 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type DailyWageInput, dailyWageInputSchema, type ThlStatus, thlStreak } from "@hris/shared";
+import {
+  type DailyWageInput,
+  dailyWageInputSchema,
+  type ThlStatus,
+  thlCurrentProgress,
+  thlStreak,
+} from "@hris/shared";
 import { Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -91,7 +97,17 @@ function MonthBox({
       }`}
       className={cn(
         "relative flex min-w-0 flex-col items-center rounded-lg border px-1 py-2 text-center sm:py-3",
-        current ? "border-dashed" : qualifies ? BOX_TONE[status] : "bg-card",
+        current
+          ? cn(
+              "border-dashed",
+              // Bulan berjalan sudah ≥ 21: hijau tipis, tetap putus-putus (belum dinilai).
+              !beforeJoin &&
+                presentDays >= 21 &&
+                "border-green-300 bg-green-50/50 dark:bg-green-950/30",
+            )
+          : qualifies
+            ? BOX_TONE[status]
+            : "bg-card",
       )}
     >
       {qualifies ? (
@@ -118,6 +134,17 @@ function MonthBox({
         ) : null}
         {current ? "berjalan" : beforeJoin ? "belum masuk" : "hari"}
       </span>
+      {current && !beforeJoin ? (
+        <span
+          className={cn(
+            "mt-0.5 text-[10px] font-medium whitespace-nowrap sm:text-[11px]",
+            presentDays >= 21 ? "text-green-700 dark:text-green-400" : "text-muted-foreground",
+          )}
+        >
+          {presentDays >= 21 ? "✓ " : ""}
+          {thlCurrentProgress(presentDays)}
+        </span>
+      ) : null}
       {!beforeJoin && pendingDays > 0 ? (
         <span className="mt-0.5 text-[10px] font-medium whitespace-nowrap text-amber-700 sm:text-[11px] dark:text-amber-400">
           +{pendingDays} tunggu

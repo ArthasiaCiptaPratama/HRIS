@@ -582,6 +582,8 @@ describe("K4 THL", () => {
       ]);
       expect(within(boxes[2] as HTMLElement).getByText("+2 tunggu")).toBeVisible();
       expect(within(boxes[3] as HTMLElement).getByText("berjalan")).toBeVisible();
+      // Progres bulan berjalan (kutipan pengguna 16:2x WIB).
+      expect(within(boxes[3] as HTMLElement).getByText("21 lagi ke 21")).toBeVisible();
       expect(boxes[3]).toHaveClass("border-dashed");
       expect(screen.getByText("Rp 150.000")).toBeVisible();
       expect(screen.getByText("Masa kerja")).toBeVisible();

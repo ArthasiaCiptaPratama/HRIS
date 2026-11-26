@@ -1,4 +1,4 @@
-import type { ThlStatus } from "@hris/shared";
+import { type ThlStatus, thlCurrentProgress } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { DataColumn, tableFeaturesNone } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +49,9 @@ const STREAK_TONE: Record<ThlStatus, string> = {
 const monthText = (m: ThlAttendance["currentMonth"], current = false) =>
   `${formatThlMonth(m.month)}${current ? " (berjalan)" : ""}: ${
     m.beforeJoin ? "–" : `${m.presentDays} hari`
-  }${!m.beforeJoin && m.pendingDays > 0 ? ` (+${m.pendingDays} menunggu persetujuan)` : ""}`;
+  }${!m.beforeJoin && m.pendingDays > 0 ? ` (+${m.pendingDays} menunggu persetujuan)` : ""}${
+    current && !m.beforeJoin ? ` · ${thlCurrentProgress(m.presentDays)}` : ""
+  }`;
 
 /** Rincian per bulan untuk tooltip: 3 bulan penuh + bulan berjalan. */
 export function thlAttendanceTitle(attendance: ThlAttendance) {

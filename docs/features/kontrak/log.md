@@ -11,6 +11,11 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — Progres bulan berjalan THL "n lagi ke 21" (Oatse/Claude)
+- **Dikerjakan:** shared `thlCurrentProgress` + test; kotak bulan berjalan kartu THL (`thl-section.tsx`) + tooltip daftar THL (`thl-list-columns.tsx`); test web diperbarui.
+- **Keputusan:** kutipan pengguna 16:2x WIB "tambah progres bulan berjalan juga" (desain dijelaskan supervisor-15, disetujui pengguna).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ · shared 490 · api 1624 · web 569 ✔ (`--maxWorkers=4`). Screenshot `kartu-thl-6-progres-berjalan-simulasi`, `kartu-thl-7-sudah-21-simulasi` (angka bulan berjalan diubah di respons browser; data lokal bulan berjalan masih 0).
+
 ### 2026-11-26 — Kartu THL tab Kepegawaian: kotak kehadiran per bulan + chip n/3 (Oatse/Claude)
 - **Dikerjakan:** `thl-section.tsx` — `ThlStreakChip`, `ThlAttendanceBoxes` (kotak bulan, `beforeJoin` dihitung dari `joinDate` respons kontrak; ✓ di pojok pada layar lebar, di baris "hari" pada HP supaya tidak menimpa label), `ThlWageInfo` (popover riwayat upah); `ThlAttendanceStat`/`ThlWageStat`/`ThlStatusBadge` dihapus. `employment-contract-section.tsx` — kartu THL memakai chip + kalimat dasar + kotak, info ringkas 2 kolom juga di HP, label "Masa kerja"; `duration` tanpa bagian nol untuk semua kartu.
 - **Keputusan:** desain kartu THL disetujui pengguna (kutipan 16:0x WIB via supervisor-15); kecil (persetujuan supervisor atas nama pengguna): tanpa menu Lainnya untuk THL (belum ada aksi lain; nonaktifkan tetap di header profil), helper durasi sama untuk semua kartu.
