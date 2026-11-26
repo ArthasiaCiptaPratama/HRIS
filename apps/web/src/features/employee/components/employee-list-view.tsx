@@ -30,7 +30,7 @@ import { tenure, todayIso } from "../labels";
 import type { EmployeeListItem } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { ExitReasonBadge, StatusBadge } from "./status-badge";
-import { ThlStatusBadge } from "./thl-section";
+import { thlColumns } from "./thl-list-columns";
 
 const helper = createColumnHelper<typeof tableFeaturesNone, EmployeeListItem>();
 
@@ -82,13 +82,19 @@ export function employeeColumns(
         </div>
       ),
     }) as DataColumn<EmployeeListItem>,
+    // Masukan pengguna 2026-11-26: Status + Tahap jadi satu badge ("PKWT 1"); daftar nonaktif tanpa tahap.
     helper.display({
       id: "status",
       header: "Status",
+      meta:
+        variant === "active" && options.showPkwt
+          ? { sortKey: "contractStage", className: "whitespace-nowrap" }
+          : { className: "whitespace-nowrap" },
       cell: ({ row }) => (
         <StatusBadge
           name={row.original.employmentStatus.name}
           category={row.original.employmentStatus.category}
+          stage={variant === "active" ? row.original.contractStage : undefined}
         />
       ),
     }) as DataColumn<EmployeeListItem>,
@@ -96,17 +102,6 @@ export function employeeColumns(
 
   if (variant === "active" && options.showPkwt) {
     columns.push(
-      helper.display({
-        id: "contractStage",
-        header: "Tahap",
-        meta: { sortKey: "contractStage", className: "whitespace-nowrap" },
-        cell: ({ row }) =>
-          row.original.employmentStatus.category === "PROBATION"
-            ? "Masa Percobaan"
-            : row.original.contractStage === null
-              ? "Belum diisi"
-              : `PKWT ${row.original.contractStage}`,
-      }) as DataColumn<EmployeeListItem>,
       helper.display({
         id: "contractEndDate",
         header: "Akhir kontrak",
@@ -414,22 +409,8 @@ export function EmployeeListView({
     ],
   );
   const query = useEmployees(params);
-  const displayColumns = isThl
-    ? [
-        ...columns,
-        helper.display({
-          id: "thlPresentDays",
-          header: "Hadir bln lalu",
-          cell: ({ row }) => row.original.thlPresentDaysLastMonth ?? "—",
-        }),
-        helper.display({
-          id: "thlStatus",
-          header: "Status THL",
-          cell: ({ row }) =>
-            row.original.thlStatus ? <ThlStatusBadge status={row.original.thlStatus} /> : "—",
-        }),
-      ]
-    : columns;
+  // Opsi C (pilihan pengguna 2026-11-26): badge Status gabungan + satu kolom hari hadir per bulan.
+  const displayColumns = isThl ? thlColumns(columns) : columns;
   const rows = query.data?.data ?? [];
   const total = query.data?.meta.total ?? 0;
   const filtered = Boolean(

@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { IMPORT_FIELDS, normalizeImportRow, parseDailyWage } from "../src/import/index.ts";
-import { evaluateThlAttendance, thlCurrentMonth, thlWageChangeLabel } from "../src/thl.ts";
+import {
+  evaluateThlAttendance,
+  thlCurrentMonth,
+  thlStreak,
+  thlWageChangeLabel,
+} from "../src/thl.ts";
 
 describe("THL calendar evaluation (KTR-D8/D13)", () => {
   const now = new Date("2027-01-20T00:00:00Z");
@@ -77,5 +82,16 @@ describe("thlWageChangeLabel", () => {
         { effectiveFrom: "2026-10-15", amount: 160000 },
       ])?.replaceAll("\u00a0", " "),
     ).toBe("Rp 140.000 → Rp 160.000 (15 Okt)");
+  });
+});
+
+describe("thlStreak (opsi C daftar THL)", () => {
+  const m = (...days: number[]) => days.map((presentDays) => ({ presentDays }));
+  test("berturut dari bulan penuh terakhir, batas 20/21", () => {
+    expect(thlStreak(m(21, 21, 21))).toBe(3);
+    expect(thlStreak(m(20, 21, 22))).toBe(2);
+    expect(thlStreak(m(21, 20, 22))).toBe(1);
+    expect(thlStreak(m(22, 22, 20))).toBe(0);
+    expect(thlStreak([])).toBe(0);
   });
 });

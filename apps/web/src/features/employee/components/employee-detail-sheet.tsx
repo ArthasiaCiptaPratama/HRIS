@@ -1,10 +1,11 @@
 import {
   DRIVING_LICENSE_LABELS,
   type DrivingLicenseType,
-  EMPLOYMENT_CATEGORY_LABELS,
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
+  employmentStatusShort,
+  employmentTier,
   FIELD_CHANGE_FIELD_LABELS,
   FIELD_CHANGE_SECTION_LABELS,
   FIELD_CHANGE_SOURCE_LABELS,
@@ -71,7 +72,7 @@ import { access as appAccess } from "@/lib/access";
 import { errorMessage } from "@/lib/errors";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useEmployee, useEmployeeFieldChanges, useMasterData } from "../api";
+import { useEmployee, useEmployeeContracts, useEmployeeFieldChanges, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail, EmployeeFieldChange, EmployeeHomebaseEntry } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
@@ -247,10 +248,13 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
               </ProfileRow>
               {/* Dipisah (2026-10-15): masih bekerja di perusahaan ≠ bisa login ke aplikasi. */}
               <ProfileRow label="Status Karyawan" narrow>
-                {/* Teks rapi "kategori | masih bekerja/sudah keluar" (masukan pemilik projek 2026-10-15). */}
+                {/* "PKWT 1 | Masih bekerja" (masukan pemilik projek 2026-10-15; tahap PKWT 2026-11-26). */}
                 <span>
                   {employee.employmentStatus.category
-                    ? EMPLOYMENT_CATEGORY_LABELS[employee.employmentStatus.category]
+                    ? employmentStatusShort(
+                        employee.employmentStatus.category,
+                        employee.isActive ? employee.contractStage : undefined,
+                      )
                     : employee.employmentStatus.name}
                   <span aria-hidden className="text-muted-foreground mx-2 font-normal">
                     |
@@ -452,6 +456,8 @@ function DetailBody({
   // D-054: menu Arsip membuka detail langsung di tab terkait (?tab=education|history).
   const [params] = useSearchParams();
   const [tab, setTab] = useState(() => params.get("tab") ?? "work");
+  // Tautan "Riwayat kontrak (n)" di kartu Kepegawaian membuka tab Riwayat dengan filter Kontrak.
+  const [historyFilter, setHistoryFilter] = useState<string | undefined>();
   // Data sensitif diambil hanya saat tabnya dibuka (dan hanya bila berhak).
   const wantsSensitive =
     (["personal", "family"].includes(tab) && access.personal) || (tab === "bank" && access.bank);
@@ -514,7 +520,14 @@ function DetailBody({
         />
       </header>
 
-      <Tabs value={tab} onValueChange={setTab} className="gap-0">
+      <Tabs
+        value={tab}
+        onValueChange={(value) => {
+          setHistoryFilter(undefined);
+          setTab(value);
+        }}
+        className="gap-0"
+      >
         {/* Bar tab menempel & opak: isi yang tergulir tidak tembus. */}
         <div className="bg-background sticky top-0 z-10 border-b">
           <TabsList
@@ -567,7 +580,13 @@ function DetailBody({
         </div>
         <div className={cn(CONTAINER, "py-8 pb-16")}>
           <TabsContent value="work">
-            <WorkTab employee={employee} />
+            <WorkTab
+              employee={employee}
+              onOpenHistory={() => {
+                setHistoryFilter("Kontrak");
+                setTab("history");
+              }}
+            />
           </TabsContent>
           {workOnly ? null : (
             <>
@@ -615,7 +634,7 @@ function DetailBody({
             </>
           )}
           <TabsContent value="history">
-            <HistoryTab employee={employee} />
+            <HistoryTab employee={employee} initialFilter={historyFilter} />
           </TabsContent>
         </div>
       </Tabs>
@@ -652,13 +671,19 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-function WorkTab({ employee }: { employee: EmployeeDetail }) {
+function WorkTab({
+  employee,
+  onOpenHistory,
+}: {
+  employee: EmployeeDetail;
+  onOpenHistory: () => void;
+}) {
   const me = useMe().data;
   const master = useMasterData();
   const placement = profilePlacement(employee, master.data);
   return (
     <div className="space-y-8">
-      <EmploymentContractSection employee={employee} />
+      <EmploymentContractSection employee={employee} onOpenHistory={onOpenHistory} />
       <section>
         <SectionTitle>Penempatan</SectionTitle>
         <FieldGrid>
@@ -698,11 +723,6 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
                 ) : null}
               </div>
             ) : null}
-          </Field>
-          <Field label="Status kepegawaian">
-            {employee.employmentStatus.category
-              ? EMPLOYMENT_CATEGORY_LABELS[employee.employmentStatus.category]
-              : employee.employmentStatus.name}
           </Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>
           <Field label="Masa kerja">{tenure(employee.joinDate, employee.endDate)}</Field>
@@ -993,10 +1013,20 @@ const POSITION_HISTORY_TYPES: EmploymentChangeType[] = [
 ];
 
 /** Jenis entri timeline untuk filter; "homebase" = riwayat homebase (EMP-D6), terpisah dari data kerja. */
-type HistoryKind = "events" | "work" | "homebase" | "personal" | "family" | "bank" | "archive";
+type HistoryKind =
+  | "events"
+  | "contract"
+  | "work"
+  | "homebase"
+  | "personal"
+  | "family"
+  | "bank"
+  | "archive";
 const HISTORY_FILTERS: { label: string; kind?: HistoryKind }[] = [
   { label: "Semua" },
   { label: "Kepegawaian", kind: "events" },
+  // Opsi A (2026-11-26): riwayat kontrak hanya di sini, sebagai linimasa per tahap.
+  { label: "Kontrak", kind: "contract" },
   { label: "Data kerja", kind: "work" },
   { label: "Homebase", kind: "homebase" },
   { label: "Data pribadi", kind: "personal" },
@@ -1257,10 +1287,25 @@ const EMPTY_TEXT: Record<string, string> = {
   Kepegawaian: "Belum ada peristiwa kepegawaian.",
 };
 
-function HistoryTab({ employee }: { employee: EmployeeDetail }) {
+function HistoryTab({
+  employee,
+  initialFilter,
+}: {
+  employee: EmployeeDetail;
+  initialFilter?: string;
+}) {
   const changes = useEmployeeFieldChanges(employee.id);
-  const [filter, setFilter] = useState(0);
-  const selected = HISTORY_FILTERS[filter]?.kind;
+  const hasContracts = employmentTier(employee.employmentStatus.category) !== null;
+  const contracts = useEmployeeContracts(employee.id, hasContracts);
+  const contractCount = contracts.data?.contracts.length ?? 0;
+  const filters = HISTORY_FILTERS.filter((item) => item.kind !== "contract" || hasContracts);
+  const [filter, setFilter] = useState(() =>
+    Math.max(
+      0,
+      filters.findIndex((item) => item.label === initialFilter),
+    ),
+  );
+  const selected = filters[filter]?.kind;
   const loaded = (changes.data?.pages ?? []).flatMap((page) => page.data);
   // EMP-D6: entri homebase dari riwayat homebase (lengkap: termasuk tanggal mundur / koreksi). Baris EMP-D5
   // homebase disembunyikan supaya tidak dobel, kecuali jejak hapus (refId = baris yang sudah tidak ada).
@@ -1347,13 +1392,14 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
   // Jumlah per filter dari data yang sudah dimuat; "+" bila masih ada halaman berikutnya.
   const more = changes.hasNextPage ? "+" : "";
   const countOf = (kind?: HistoryKind) => {
+    if (kind === "contract") return contractCount ? String(contractCount) : "";
     const total = kind ? items.filter((item) => item.kinds.includes(kind)).length : items.length;
     return total ? `${total}${more}` : "";
   };
   const canManage = employee.access.manage && FEATURES.archive;
   const editor = usePositionHistoryEditor(employee);
   const homebase = useHomebaseEditor(employee);
-  const label = HISTORY_FILTERS[filter]?.label ?? "Semua";
+  const label = filters[filter]?.label ?? "Semua";
   return (
     <>
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -1374,7 +1420,7 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
       <div className="relative mb-6">
         <fieldset className="bg-muted/70 m-0 flex min-w-0 border-0 w-full gap-0.5 overflow-x-auto rounded-lg p-0.5 [scrollbar-width:none] sm:inline-flex sm:w-auto sm:max-w-full [&::-webkit-scrollbar]:hidden">
           <legend className="sr-only">Filter riwayat</legend>
-          {HISTORY_FILTERS.map((item, index) => {
+          {filters.map((item, index) => {
             const count = countOf(item.kind);
             return (
               <button
@@ -1413,13 +1459,18 @@ function HistoryTab({ employee }: { employee: EmployeeDetail }) {
           </Button>
         </div>
       ) : null}
-      {!timeline.length && !changes.isPending ? (
+      {!timeline.length &&
+      !changes.isPending &&
+      selected !== "contract" &&
+      !(selected === undefined && contractCount) ? (
         <p className="text-muted-foreground rounded-lg border border-dashed py-10 text-center text-sm">
           {EMPTY_TEXT[label] ?? `Belum ada perubahan ${label.toLowerCase()}.`}
         </p>
       ) : null}
-      {!selected || selected === "events" ? (
-        <EmployeeContractHistory employeeId={employee.id} />
+      {hasContracts && (!selected || selected === "contract") ? (
+        <div className={cn(selected !== "contract" && "mb-8 border-b pb-6")}>
+          <EmployeeContractHistory employeeId={employee.id} />
+        </div>
       ) : null}
       <div className="space-y-8">
         {months.map((month) => (

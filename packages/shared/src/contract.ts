@@ -36,6 +36,21 @@ export function employmentStatusDisplay(
     return activeSequence === null ? "PKWT · Tahap belum diisi" : `PKWT ${activeSequence}`;
   return category ? EMPLOYMENT_CATEGORY_LABELS[category] : "—";
 }
+/**
+ * Label status pendek untuk badge daftar & header profil (masukan pengguna 2026-11-26):
+ * PKWT dengan tahapnya ("PKWT 1"), tanpa istilah resmi PKWTT. `stage` undefined = tahap
+ * tidak relevan (mis. karyawan nonaktif) → "PKWT" polos; null = tahap belum diisi.
+ */
+export function employmentStatusShort(
+  category: EmploymentCategory | null,
+  stage?: number | null,
+): string {
+  if (category === "PKWT") {
+    if (stage === undefined) return "PKWT";
+    return stage === null ? "PKWT · belum diisi" : `PKWT ${stage}`;
+  }
+  return category ? EMPLOYMENT_CATEGORY_LABELS[category] : "—";
+}
 const date = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const iso = (value: Date) => value.toISOString().slice(0, 10);
 const daysBetween = (from: string, to: string) =>

@@ -42,6 +42,19 @@ export function evaluateThlAttendance(counts: readonly ThlAttendanceMonth[], now
   return { status, label: THL_STATUS_LABELS[status], months, currentMonth: count(current) };
 }
 
+/**
+ * Opsi C daftar THL (2026-11-26): jumlah bulan penuh berturut-turut ≥ 21 hari hadir, dihitung mundur
+ * dari bulan penuh terakhir (0–3). `months` urut lama → baru seperti `evaluateThlAttendance().months`.
+ */
+export function thlStreak(months: readonly { presentDays: number }[]): number {
+  let streak = 0;
+  for (let i = months.length - 1; i >= 0; i--) {
+    if ((months[i]?.presentDays ?? 0) < THL_PRESENT_DAYS_THRESHOLD) break;
+    streak++;
+  }
+  return streak;
+}
+
 export const dailyWageInputSchema = z.object({
   amount: z.number().positive().max(100_000_000).multipleOf(0.01),
   effectiveFrom: z.iso.date(),

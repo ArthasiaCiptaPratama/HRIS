@@ -97,6 +97,8 @@ export const EMPLOYEE_SORT_FIELDS = [
   "endDate",
   "contractStage",
   "contractEndDate",
+  // Opsi C daftar THL (2026-11-26): bulan berturut ≥ 21 hari hadir; dihitung, diurutkan di memori API.
+  "thlStreak",
 ] as const;
 export type EmployeeSortField = (typeof EMPLOYEE_SORT_FIELDS)[number];
 

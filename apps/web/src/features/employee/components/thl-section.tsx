@@ -5,7 +5,6 @@ import {
   THL_STATUS_LABELS,
   type ThlStatus,
 } from "@hris/shared";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,46 +41,29 @@ export function ThlStatusBadge({ status }: { status: ThlStatus }) {
   );
 }
 
-export function ThlSection({ employeeId, thl }: { employeeId: string; thl: ThlDetails }) {
-  const [editing, setEditing] = useState(false);
+/** Isi sel "Hari hadir 3 bulan terakhir" di kartu Status kepegawaian (Opsi A, 2026-11-26). */
+export function ThlAttendanceStat({ thl }: { thl: ThlDetails }) {
   const { evaluation } = thl;
   return (
-    <section aria-label="Harian Lepas (THL)" className="space-y-3 rounded-lg border p-4 text-sm">
-      <h4 className="font-semibold">Harian Lepas (THL)</h4>
-      <ThlStatusBadge status={evaluation.status} />
-      {evaluation.status === "REQUIRED" ? (
-        <p className="text-destructive">
-          PP 35/2021 Ps. 10: ≥ 21 hari hadir 3 bulan berturut-turut
-        </p>
-      ) : null}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr>
-              {["Bulan", "Hari hadir", "Menunggu persetujuan"].map((label) => (
-                <th key={label} className="p-2">
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {evaluation.months.map((month) => (
-              <tr key={month.month} className="border-t">
-                <td className="p-2">{formatThlMonth(month.month)}</td>
-                <td className="p-2">
-                  {month.presentDays}{" "}
-                  {month.qualifies ? <Badge variant="warning">≥ 21</Badge> : null}
-                </td>
-                <td className="p-2">
-                  {month.pendingDays > 0 ? `${month.pendingDays} menunggu persetujuan` : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-muted-foreground">
+    <>
+      <ul className="mt-1 space-y-0.5 text-sm">
+        {evaluation.months.map((month) => (
+          <li key={month.month} className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-muted-foreground w-16 shrink-0 text-xs">
+              {formatThlMonth(month.month)}
+            </span>
+            <span className="font-semibold tabular-nums">{month.presentDays}</span>
+            <span className="text-muted-foreground text-xs">hari</span>
+            {month.qualifies ? <Badge variant="warning">≥ 21</Badge> : null}
+            {month.pendingDays > 0 ? (
+              <span className="text-xs text-amber-700 dark:text-amber-400">
+                {month.pendingDays} menunggu persetujuan
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground mt-1 text-xs">
         Bulan berjalan ({formatThlMonth(evaluation.currentMonth.month)}):{" "}
         {evaluation.currentMonth.presentDays} hari hadir
         {evaluation.currentMonth.pendingDays > 0
@@ -89,43 +71,35 @@ export function ThlSection({ employeeId, thl }: { employeeId: string; thl: ThlDe
           : ""}
         . Belum masuk evaluasi.
       </p>
-      {thl.access.wage ? (
-        <div className="space-y-3 border-t pt-3">
-          <p>
-            Upah harian: <strong>{formatThlWage(thl.dailyWage?.amount)}</strong>
-            {thl.dailyWage
-              ? ` · Berlaku sejak ${formatDate(thl.dailyWage.effectiveFrom)}`
-              : " · Belum diisi"}
-          </p>
-          <Button variant="outline" onClick={() => setEditing(true)}>
-            Ubah upah harian
-          </Button>
-          {thl.wageHistory?.length ? (
-            <details>
-              <summary className="cursor-pointer">Riwayat upah harian</summary>
-              <ul className="space-y-2 pt-2">
-                {thl.wageHistory.map((wage) => (
-                  <li key={wage.id}>
-                    {formatDate(wage.effectiveFrom)} · {formatThlWage(wage.amount)} · {wage.note}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-          {editing ? (
-            <DailyWageDialog
-              employeeId={employeeId}
-              amount={thl.dailyWage?.amount}
-              onClose={() => setEditing(false)}
-            />
-          ) : null}
-        </div>
-      ) : null}
-    </section>
+    </>
   );
 }
 
-function DailyWageDialog({
+/** Isi sel "Upah harian" (hanya bila `thl.access.wage`, KTR-D13). */
+export function ThlWageStat({ thl }: { thl: ThlDetails }) {
+  return (
+    <>
+      <p className="mt-1 text-base font-semibold">{formatThlWage(thl.dailyWage?.amount)}</p>
+      <p className="text-muted-foreground text-xs">
+        {thl.dailyWage ? `berlaku sejak ${formatDate(thl.dailyWage.effectiveFrom)}` : "Belum diisi"}
+      </p>
+      {thl.wageHistory?.length ? (
+        <details className="mt-1 text-xs">
+          <summary className="text-muted-foreground cursor-pointer">Riwayat upah harian</summary>
+          <ul className="space-y-1 pt-1">
+            {thl.wageHistory.map((wage) => (
+              <li key={wage.id}>
+                {formatDate(wage.effectiveFrom)} · {formatThlWage(wage.amount)} · {wage.note}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </>
+  );
+}
+
+export function DailyWageDialog({
   employeeId,
   amount,
   onClose,
