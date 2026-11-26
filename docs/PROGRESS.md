@@ -106,6 +106,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-11-26, KTR-D14)** Nomor SK / dokumen pada perubahan status (perlu kolom baru + migrasi); usulan, belum dijadwalkan.
 - **(2026-11-26, merge `HRIS/Mat/Mac` 52d5012 — temuan review supervisor, milik Mat)** (1) `GET /attendance/days` memotong hasil di 500 baris tanpa paginasi/tanda terpotong; (2) rute `/time/queue` tanpa policy khusus (cek akses role); (3) cron `attendance-reminders`: README TM menulis 30 menit, `apps/api/vercel.json` `*/5 * * * *`; (4) `docs/codemap/attendance.md` masih menyebut TM-D29 (sudah dicabut 2026-11-24) di bagian aktif; (5) RELEASE.md belum mencatat gel. 37. Dikabari ke Mat bersama kabar merge.
 - **(2026-11-25, KTR K1)** Isian tanggal web memakai `<input type="date">` bawaan (28 file) → format mengikuti bahasa browser (en-US tampil mm/dd/yyyy). Pemilih kalender locale id (`components/ui/calendar.tsx`, seperti dialog Export absen TM-D31) lintas web = paket terpisah. Persetujuan supervisor atas nama pengguna: K1 tetap input bawaan.
 - **(2026-11-23, audit PM)** Paket 1 (P1 a + P2 a disetujui pengguna; ubah D-073 → bersama Mat) & Paket 3 (verifikasi identitas undangan, kartu data belum lengkap, pesan rekrut ulang); sisa EMP-D8: snapshot `attendance_days.manager_employee_id` dan nonaktif akun atasan lewat menu Akun belum memindahkan langkah atasan. Rincian: `QA/2026-11-23-audit-personal-management/LAPORAN.md`.
@@ -170,7 +171,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
-- **2026-11-26** — UX status kontrak: badge "PKWT n" (Status + Tahap dilebur) di daftar & header profil; tab Kepegawaian kartu ringkas Opsi A (pilihan pengguna) + linimasa Kontrak di tab Riwayat; daftar THL opsi C (badge gabungan + kolom n/3, sort `thlStreak`); kartu THL dengan kotak kehadiran per bulan. (Oatse) → [kontrak/log](features/kontrak/log.md)
+- **2026-11-26** — UX status kontrak: badge "PKWT n" (Status + Tahap dilebur) di daftar & header profil; tab Kepegawaian kartu ringkas Opsi A (pilihan pengguna) + linimasa Kontrak di tab Riwayat; daftar THL opsi C (badge gabungan + kolom n/3, sort `thlStreak`); kartu THL dengan kotak kehadiran per bulan + progres bulan berjalan; Ubah Status terpadu (KTR-D14). (Oatse) → [kontrak/log](features/kontrak/log.md)
 - **2026-11-26** — Kontrak K4 THL ke develop (upah harian SA + HR ber-grant `labor.cost.read` KTR-D13, evaluasi Wajib diangkat PKWTT/Mendekati batas, notifikasi, laporan rekap, kolom import). (Oatse) → [kontrak/log](features/kontrak/log.md)
 - **2026-11-26** — Kontrak K3 (i) ke develop `6124889` (koreksi data kontrak, kolom import kontrak, skrip audit READ ONLY; CI #45749534378 ✔); pola kerja site dinomori ulang TM-D35–D37; merge `HRIS/Mat/Mac` `52d5012` (TM-D33 Data Absen Harian per karyawan, TM-D34 export detail absen). (Oatse) → [kontrak/log](features/kontrak/log.md)
 - **2026-11-24** — Rilis staging gel. 36 (EMP-D8 Paket 2, EMP-D9 Paket 1, sidebar, mode import; Deploy #45340144173); `--apply` antrean absen lama dibatalkan pengguna; R0 Rekrutmen dimulai (lokal). (Oatse) → [karyawan/log](features/karyawan/log.md)

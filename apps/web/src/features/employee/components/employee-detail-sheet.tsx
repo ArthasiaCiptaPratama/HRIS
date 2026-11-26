@@ -39,7 +39,7 @@ import {
   UserRoundCheck,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import { FEATURES, tmOn } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ import { cn } from "@/lib/utils";
 import { useEmployee, useEmployeeContracts, useEmployeeFieldChanges, useMasterData } from "../api";
 import { MARITAL_LABELS, RELATIONSHIP_LABELS, RELIGION_LABELS, tenure } from "../labels";
 import type { EmployeeDetail, EmployeeFieldChange, EmployeeHomebaseEntry } from "../schemas";
+import { changeStatusLink } from "../status-links";
 import { EmployeeAvatar } from "./employee-avatar";
 import { EmployeeFormDialog } from "./employee-form-dialog";
 import { useHomebaseEditor } from "./employee-homebase-editor";
@@ -455,6 +456,7 @@ function DetailBody({
   const workOnly = me ? appAccess.employmentOnly(me) && me.employeeId !== employee.id : false;
   // D-054: menu Arsip membuka detail langsung di tab terkait (?tab=education|history).
   const [params] = useSearchParams();
+  const location = useLocation();
   const [tab, setTab] = useState(() => params.get("tab") ?? "work");
   // Tautan "Riwayat kontrak (n)" di kartu Kepegawaian membuka tab Riwayat dengan filter Kontrak.
   const [historyFilter, setHistoryFilter] = useState<string | undefined>();
@@ -483,7 +485,9 @@ function DetailBody({
                     ) : null}
                     {FEATURES.changeStatus ? (
                       <Button size="sm" variant="outline" asChild>
-                        <Link to={`/personal/ubah-status?pegawai=${employee.id}`}>
+                        <Link
+                          to={`/personal/ubah-status?pegawai=${employee.id}&kembali=${encodeURIComponent(`${location.pathname}${location.search}`)}`}
+                        >
                           <ArrowLeftRight /> Ubah status
                         </Link>
                       </Button>
@@ -502,7 +506,13 @@ function DetailBody({
                 FEATURES.changeStatus &&
                 access.deactivate ? (
                   <Button size="sm" variant="ghost" className="text-destructive" asChild>
-                    <Link to={`/personal/ubah-status?pegawai=${employee.id}&aksi=nonaktif`}>
+                    <Link
+                      to={changeStatusLink(
+                        employee.id,
+                        "nonaktif",
+                        `${location.pathname}${location.search}`,
+                      )}
+                    >
                       <Power /> Nonaktifkan
                     </Link>
                   </Button>

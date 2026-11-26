@@ -615,6 +615,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [KTR-D11](features/kontrak/README.md#keputusan) | Daftar "Kontrak akan habis" & pengingat terlihat SA + HR_ADMIN PT tanpa grant; `contract.manage` hanya untuk aksi (mengubah PLAN §4.3) | [KTR](features/kontrak/README.md) |
 | [KTR-D12](features/kontrak/README.md#keputusan) | Koreksi data kontrak aktif tanpa pindah tahap (aksi tab Kepegawaian + import "Perbarui"); tahap beda lewat import = error | [KTR](features/kontrak/README.md) |
 | [KTR-D13](features/kontrak/README.md#keputusan) | Upah harian THL & rupiah rekapnya: SA + HR_ADMIN ber-grant `labor.cost.read` (pengecualian "gaji tidak bisa di-grant", mengubah PLAN §4.2/§4.3) | [KTR](features/kontrak/README.md) |
+| [KTR-D14](features/kontrak/README.md#keputusan) | Semua perubahan status (aksi kontrak, ubah kategori, nonaktifkan) di halaman Ubah Status; tombol profil = tautan ber-aksi + kembali; koreksi kecil tetap dialog; aturan KTR-D4 sama (mengubah jalur KTR-D4) | [KTR](features/kontrak/README.md) |
 | [TM-D31](features/time-management/README.md#keputusan) | Export Excel data absen (Detail per crew & Flash), akses per PT | [TM](features/time-management/README.md) |
 | [TM-D32](features/time-management/README.md#keputusan) | Absen sebagai aplikasi layar utama mandiri (mode standalone) | [TM](features/time-management/README.md) |
 | [TM-D33](features/time-management/README.md#keputusan) | Data Absen Harian tampilan "Per karyawan" (switch lama/baru) | [TM](features/time-management/README.md) |

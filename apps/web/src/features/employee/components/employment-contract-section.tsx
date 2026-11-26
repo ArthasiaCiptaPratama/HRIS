@@ -8,7 +8,8 @@ import {
   tenure,
 } from "@hris/shared";
 import { ArrowRight, Ellipsis } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
+import { Link, useLocation } from "react-router";
 import { FEATURES } from "@/app/feature-flags";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,7 @@ import { useEmployeeContracts } from "../api";
 import type { EmploymentContract } from "../contract-schemas";
 import { todayIso } from "../labels";
 import type { EmployeeDetail } from "../schemas";
+import { changeStatusLink, statusPageActionOf } from "../status-links";
 import { type ContractDialogAction, EmploymentContractDialog } from "./employment-contract-dialog";
 import { StatusBadge } from "./status-badge";
 import { DailyWageDialog, ThlAttendanceBoxes, ThlStreakChip, ThlWageInfo } from "./thl-section";
@@ -158,6 +160,34 @@ export function EmploymentContractSection({
   const query = useEmployeeContracts(employee.id, tier !== null);
   const [action, setAction] = useState<ContractDialogAction | null>(null);
   const [editingWage, setEditingWage] = useState(false);
+  const location = useLocation();
+  // KTR-D14: aksi status membuka halaman Ubah Status (karyawan + aksi terisi, kembali ke sini);
+  // koreksi tetap dialog. Saklar Ubah Status mati → dialog seperti sebelumnya.
+  const linkOf = (contractAction: ContractDialogAction) => {
+    const slug = statusPageActionOf(contractAction, category);
+    return FEATURES.changeStatus && slug
+      ? changeStatusLink(employee.id, slug, `${location.pathname}${location.search}`)
+      : null;
+  };
+  function ActionButton({
+    action: contractAction,
+    children,
+    ...props
+  }: { action: ContractDialogAction; children: ReactNode } & Pick<
+    ComponentProps<typeof Button>,
+    "variant" | "size"
+  >) {
+    const to = linkOf(contractAction);
+    return to ? (
+      <Button {...props} asChild>
+        <Link to={to}>{children}</Link>
+      </Button>
+    ) : (
+      <Button {...props} onClick={() => setAction(contractAction)}>
+        {children}
+      </Button>
+    );
+  }
   if (!tier)
     return (
       <p className="text-sm">
@@ -339,9 +369,9 @@ export function EmploymentContractSection({
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
           <p>Tahap belum diisi</p>
           {manage ? (
-            <Button variant="outline" size="sm" onClick={() => setAction("create")}>
+            <ActionButton action="create" variant="outline" size="sm">
               Isi tahap kontrak
-            </Button>
+            </ActionButton>
           ) : null}
         </div>
       ) : null}
@@ -374,14 +404,14 @@ export function EmploymentContractSection({
       {showActions ? (
         <div className="flex flex-wrap items-center gap-2 border-t pt-4">
           {manage && primary ? (
-            <Button variant="brand" onClick={() => setAction(primary.action)}>
+            <ActionButton action={primary.action} variant="brand">
               {primary.label}
-            </Button>
+            </ActionButton>
           ) : null}
           {manage && secondaryPromote ? (
-            <Button variant="outline" onClick={() => setAction("promote")}>
+            <ActionButton action="promote" variant="outline">
               Jadikan Karyawan Tetap
-            </Button>
+            </ActionButton>
           ) : null}
           {wageAccess ? (
             <Button variant="outline" onClick={() => setEditingWage(true)}>
@@ -401,15 +431,19 @@ export function EmploymentContractSection({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {menu.map((item) => (
-                  <DropdownMenuItem
-                    key={item.action}
-                    variant={item.destructive ? "destructive" : "default"}
-                    onSelect={() => setAction(item.action)}
-                  >
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
+                {menu.map((item) => {
+                  const to = linkOf(item.action);
+                  return (
+                    <DropdownMenuItem
+                      key={item.action}
+                      variant={item.destructive ? "destructive" : "default"}
+                      asChild={Boolean(to)}
+                      onSelect={to ? undefined : () => setAction(item.action)}
+                    >
+                      {to ? <Link to={to}>{item.label}</Link> : item.label}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
