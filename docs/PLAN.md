@@ -611,9 +611,9 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [KTR-D9](features/kontrak/README.md#keputusan) | Audit kualitas data staging (Excel read-only) + kolom import mode "perbarui" | [KTR](features/kontrak/README.md) |
 | [KTR-D10](features/kontrak/README.md#keputusan) | Urutan paket K1–K5 setelah simpan WIP R0; implementasi lewat Codex | [KTR](features/kontrak/README.md) |
 | [KTR-D11](features/kontrak/README.md#keputusan) | Daftar "Kontrak akan habis" & pengingat terlihat SA + HR_ADMIN PT tanpa grant; `contract.manage` hanya untuk aksi (mengubah PLAN §4.3) | [KTR](features/kontrak/README.md) |
-| [TM-D34](features/time-management/README.md#keputusan) | Shift site: 2 Shift 12 jam (07–19, 19–07) & 3 Shift 8 jam (07–15, 15–23, 23–07) per PT | [TM](features/time-management/README.md) |
-| [TM-D35](features/time-management/README.md#keputusan) | Saran pola 2/3 shift per level & lokasi saat menyusun jadwal; menyimpang = peringatan | [TM](features/time-management/README.md) |
-| [TM-D36](features/time-management/README.md#keputusan) | Jam kerja fleksibel HO: Telat/Pulang cepat tidak dihitung; saklar per PT (bawaan menyala) | [TM](features/time-management/README.md) |
+| [TM-D35](features/time-management/README.md#keputusan) | Shift site: 2 Shift 12 jam (07–19, 19–07) & 3 Shift 8 jam (07–15, 15–23, 23–07) per PT | [TM](features/time-management/README.md) |
+| [TM-D36](features/time-management/README.md#keputusan) | Saran pola 2/3 shift per level & lokasi saat menyusun jadwal; menyimpang = peringatan | [TM](features/time-management/README.md) |
+| [TM-D37](features/time-management/README.md#keputusan) | Jam kerja fleksibel HO: Telat/Pulang cepat tidak dihitung; saklar per PT (bawaan menyala) | [TM](features/time-management/README.md) |
 
 ## 9. Keputusan Terbuka
 

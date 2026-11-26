@@ -29,7 +29,7 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
 Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `codex-worker` + review) → screenshot → commit/push develop; rilis staging = kata pengguna.
 
 - [x] Langkah 0 — WIP Rekrutmen R0 di-commit lokal `249e1df` (`HRIS/Oatse/rekrutmen-r0`, tanpa push); develop di-pull FF ke `e2a9431` (2026-11-25)
-- [x] Keputusan G1–G13 dicatat (KTR-D1–D10, TM-D34–D36, catatan D-038) (2026-11-25)
+- [x] Keputusan G1–G13 dicatat (KTR-D1–D10, TM-D35–D37, catatan D-038) (2026-11-25)
 - [~] **K1** — status 2 tingkat + migrasi data lama + tab Kepegawaian + aksi (KTR-D2–D4, D6, D7) — kode, test & screenshot ✔ lokal 2026-11-25; sisa: commit/push (izin)
   - [x] Poin 0 DB lokal: skema `recruitment` R0 kosong dihapus, migrasi develop diterapkan
   - [x] Skema + migrasi `20261125065315_ktr_k1_employment_contracts` (tabel `contract.contracts`, `pkwtt_start_date` + backfill, rename 4 status) + seed dummy `KTR-DMY-*`
@@ -56,7 +56,7 @@ Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `co
   - [x] Screenshot `QA/2026-11-25-ktr-k1/15` (pratinjau import kolom kontrak) & `16` (dialog Koreksi data kontrak)
   - [ ] Daftar tulis staging S1–S15 (PDF PKWT baru) + S16…Sn dari audit — butuh: rilis K1–K3, audit staging (kata pengguna), jawaban Q-A/S6/S9/data S3·S5·S8/jabatan S4·S14
 - [ ] **K4** — THL: upah harian (+ kolom import upah harian, KTR-D12), rekap hari hadir × upah, cek akhir bulan "Mendekati batas" / "Wajib diangkat PKWTT" (KTR-D8)
-- [ ] **K5** — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D34–D36; Mat dikabari dulu, wilayah TM)
+- [ ] **K5** — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D35–D37; Mat dikabari dulu, wilayah TM)
 
 Item lama Fase 7 (jenis kontrak, CRUD, perpanjangan, terminasi, 1 kontrak aktif + cek overlap, cron `contract-expiry`, policy + test, tab & daftar akan habis) tercakup oleh K1–K2.
 
@@ -79,7 +79,7 @@ Sumber semua keputusan di bawah: grill supervisor-82 dengan pengguna 2026-11-25 
 | KTR-D11 | **Akses daftar & pengingat kontrak (mengubah PLAN §4.3 baris Kontrak).** Daftar **"Kontrak akan habis"** (Personal Management › Pengelolaan Karyawan; PKWT & masa percobaan berakhir ≤ 60 hari atau sudah lewat) dan pengingat kontrak terlihat oleh **SUPER_ADMIN + semua HR_ADMIN dalam cakupan PT-nya**, tanpa grant; grant `contract.manage` hanya untuk **aksi** kontrak. Atasan langsung menerima pengingat bawahannya (tanpa tautan, karena bisa berakun Karyawan). Dasar: G5 (pengingat ke HR_ADMIN PT + daftar akan habis) dan HR sudah melihat tanggal akhir di daftar PKWT & tab Kepegawaian. | Persetujuan supervisor atas nama pengguna 2026-11-25 (opsi a, rujuk G5) |
 | KTR-D12 | **Koreksi data kontrak (bukan perpanjangan).** Tanggal kontrak **aktif** (mulai, akhir, dan Mulai PKWT 1 untuk tahap lama tanpa riwayat) boleh dikoreksi **tanpa pindah tahap**: lewat aksi "Koreksi data kontrak" di tab Kepegawaian (SA / HR ber-grant `contract.manage`, alasan wajib) dan lewat **import mode "Perbarui"** (tahap sama + tanggal beda). Aturan batas KTR-D4/D6 tetap dicek terhadap tahap sebelumnya. Tercatat di riwayat per field (tab Riwayat › Data kerja) + audit `contract.contract.correct`. Import dengan **tahap berbeda** dari kontrak aktif → error baris (pindah tahap hanya lewat aksi). Mode "Isi yang kosong saja" tidak mengoreksi kontrak yang sudah ada. Kolom import upah harian THL dipindah ke K4 (bersama skemanya). | Persetujuan supervisor atas nama pengguna 2026-11-25 (keputusan kecil rencana K3 no. 1–2) |
 
-Keputusan terkait di fitur lain: [TM-D34–D36](../time-management/README.md#keputusan) (pola kerja site & HO fleksibel, G9–G11) · [D-038](../../decisions.md#d-038) diubah oleh KTR-D2.
+Keputusan terkait di fitur lain: [TM-D35–D37](../time-management/README.md#keputusan) (pola kerja site & HO fleksibel, G9–G11) · [D-038](../../decisions.md#d-038) diubah oleh KTR-D2.
 
 ## Keputusan terbuka
 

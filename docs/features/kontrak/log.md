@@ -11,6 +11,10 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — Nomor keputusan pola kerja jadi TM-D35–D37 (Oatse/Claude)
+- **Dikerjakan:** TM-D34–D36 (pola kerja site & HO fleksibel, G9–G11) dinomori ulang **TM-D35–D37** karena Mat memakai TM-D34 untuk export detail absen (`HRIS/Mat/Mac` `52d5012`). Diubah: README time-management, indeks PLAN §8, README kontrak, PROGRESS. Nomor TM berikutnya untuk Mat mulai **TM-D38**.
+- **Verifikasi:** dokumen saja — grep `TM-D3[4-7]` di docs: hanya entri log lama yang masih menyebut nomor lama.
+
 ### 2026-11-26 — K3 (i): koreksi data kontrak, kolom import kontrak, skrip audit (Oatse/Claude)
 - **Dikerjakan:** sisa K3 (i) dari sesi hris-b2 dicek dan dilengkapi: aksi "Koreksi data kontrak" (API + dialog), kolom import kontrak (Tahap PKWT, Mulai/Akhir kontrak, Durasi, Mulai PKWT 1, Mulai/Akhir percobaan) dengan pratinjau + tulis di transaksi import, import menolak ubah status ke/dari PKWT/Percobaan, `pkwtt_start_date` karyawan baru Tetap/Percobaan lewat import = tanggal masuk, skrip audit READ ONLY. Review kode subagen: tidak ada temuan berat. 3 catatan ringan diperbaiki: guard `--allow-remote` skrip audit kini gagal-tertutup untuk URL tak terurai; koreksi awal PKWT 1 ikut memperbarui `pkwt_first_start_date` bila tersimpan; import tahap 1 dengan Mulai PKWT 1 ≠ awal tahap kini error walau tanggal tak berubah (+2 test).
 - **Keputusan:** KTR-OD1 "Koreksi status (salah input)" dicatat (diputus setelah S7/S9).
