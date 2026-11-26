@@ -9,6 +9,7 @@ export {
   getEmployeeBriefs,
   getEmployeeDocumentRef,
   getEmployeeExitStatuses,
+  getEmployeePhotoUrls,
   listActiveEmployeeJoinDates,
   listAnalyticsEmployees,
   listEmployeeBriefs,

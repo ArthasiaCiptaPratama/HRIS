@@ -11,6 +11,11 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — Merge `HRIS/Mat/Mac` 52d5012 ke develop (Oatse/Claude)
+- **Dikerjakan:** merge 3 commit Mat (TM-D33 Data Absen Harian per karyawan + fix nama kartu, TM-D34 export detail absen). Konflik hanya tabel keputusan README TM → urutan TM-D33, D34 (Mat), D35–D37 (pola kerja). Induk: indeks PLAN §8 + TM-D31–D34 & KTR-D12, baris TM PROGRESS, 5 temuan review Mat di Backlog, RELEASE #116.
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ (632 modul) · db:check ✔ · shared 462 · api 1601 · web 549 ✔ · `verify-contract-migration.ts` PASS (69 migrasi, DB kosong).
+- **Berikutnya:** kabar Mat (draf di supervisor; kirim = kata pengguna), rilis gel. 38 lewat sesi HRIS-rilis.
+
 ### 2026-11-26 — Nomor keputusan pola kerja jadi TM-D35–D37 (Oatse/Claude)
 - **Dikerjakan:** TM-D34–D36 (pola kerja site & HO fleksibel, G9–G11) dinomori ulang **TM-D35–D37** karena Mat memakai TM-D34 untuk export detail absen (`HRIS/Mat/Mac` `52d5012`). Diubah: README time-management, indeks PLAN §8, README kontrak, PROGRESS. Nomor TM berikutnya untuk Mat mulai **TM-D38**.
 - **Verifikasi:** dokumen saja — grep `TM-D3[4-7]` di docs: hanya entri log lama yang masih menyebut nomor lama.

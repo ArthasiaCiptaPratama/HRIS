@@ -30,6 +30,21 @@ const crew = (id: string, name: string) => ({
   members: [],
 });
 
+const PEOPLE = [
+  {
+    id: "44444444-4444-4444-8444-444444444444",
+    fullName: "Andi Uji",
+    employeeNumber: "N-1",
+    position: "Operator",
+  },
+  {
+    id: "55555555-5555-4555-8555-555555555555",
+    fullName: "Budi Uji",
+    employeeNumber: "N-2",
+    position: null,
+  },
+];
+
 function backend(
   role: Me,
   options: { status?: number; message?: string } = {},
@@ -64,6 +79,22 @@ function backend(
       if (path === "/crews")
         return json({ data: [crew(CREW_A, "Crew A"), crew(CREW_B, "Crew B")] });
       if (path === "/attendance/days") return json({ data: [] });
+      if (path === "/attendance/people")
+        return json({
+          data: PEOPLE.map((p) => ({
+            ...p,
+            company: null,
+            crew: null,
+            division: null,
+            isActive: true,
+            firstWorkDate: "2026-01-01",
+            lastWorkDate: "2026-11-24",
+            lastPunchAt: null,
+            todayStatus: null,
+            photoUrl: null,
+          })),
+          meta: { page: 1, pageSize: 24, total: PEOPLE.length },
+        });
       if (path === "/attendance/days/export") {
         posts.push(JSON.parse(String(init?.body)));
         if (options.status)
@@ -265,6 +296,122 @@ describe.skipIf(!FEATURES.timeManagement)(
       const dialog = await screen.findByRole("dialog");
       await userEvent.click(within(dialog).getByRole("button", { name: "Unduh Flash" }));
       expect(await within(dialog).findByText(/tidak berhak/)).toBeInTheDocument();
+    });
+
+    // TM-D34: dialog Detail — karyawan, kelompok kolom, filter baris.
+    describe("Export Detail (TM-D34)", () => {
+      const openDetail = async () => {
+        const out = backend(me("SUPER_ADMIN"));
+        renderAt("/time/absen-harian");
+        await userEvent.click(await screen.findByRole("button", { name: /Export Excel/ }));
+        const dialog = await screen.findByRole("dialog");
+        return { ...out, dialog };
+      };
+
+      it("bawaan: Identitas terkunci, kolom bawaan tercentang, body tanpa columnGroups/statuses/labeledOnly", async () => {
+        const { posts, dialog } = await openDetail();
+        const identity = within(dialog).getByRole("checkbox", { name: "Identitas" });
+        expect(identity).toBeChecked();
+        expect(identity).toBeDisabled();
+        for (const name of [
+          "Jadwal",
+          "Clock In & Clock Out",
+          "Lokasi & peta",
+          "Label",
+          "Lembar Ringkasan",
+        ])
+          expect(within(dialog).getByRole("checkbox", { name })).toBeChecked();
+        for (const name of ["Alasan", "Istirahat", "Persetujuan", "Telat & pulang cepat"])
+          expect(within(dialog).getByRole("checkbox", { name })).not.toBeChecked();
+        for (const name of [
+          "Menunggu",
+          "Disetujui",
+          "Ditolak",
+          "Alpha",
+          "Cuti/izin/sakit",
+          "OFF/Time off",
+          "Tanpa absen",
+        ])
+          expect(within(dialog).getByRole("checkbox", { name })).toBeChecked();
+        expect(within(dialog).getByRole("radio", { name: "Sesuai crew" })).toBeChecked();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Unduh Excel" }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        expect(posts[0]).toEqual({
+          kind: "DETAIL",
+          from: "2026-11-10",
+          to: "2026-11-24",
+          companyId: COMPANY,
+          includeNoCrew: true,
+        });
+      });
+
+      it("kelompok kolom & filter baris dikirim; berlabel true", async () => {
+        const { posts, dialog } = await openDetail();
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Alasan" }));
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Label" }));
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Alpha" }));
+        await userEvent.click(
+          within(dialog).getByRole("checkbox", { name: "Hanya yang berlabel" }),
+        );
+        await userEvent.click(within(dialog).getByRole("button", { name: "Unduh Excel" }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        expect(posts[0]).toMatchObject({
+          columnGroups: ["SCHEDULE", "CLOCK", "LOCATION", "SUMMARY", "REASON"],
+          statuses: ["PENDING", "APPROVED", "REJECTED", "LEAVE", "OFF", "NO_RECORD"],
+          labeledOnly: true,
+        });
+      });
+
+      it("tanpa status terpilih: tombol Unduh nonaktif", async () => {
+        const { dialog } = await openDetail();
+        for (const name of [
+          "Menunggu",
+          "Disetujui",
+          "Ditolak",
+          "Alpha",
+          "Cuti/izin/sakit",
+          "OFF/Time off",
+          "Tanpa absen",
+        ])
+          await userEvent.click(within(dialog).getByRole("checkbox", { name }));
+        expect(within(dialog).getByText("Pilih minimal satu status.")).toBeInTheDocument();
+        expect(within(dialog).getByRole("button", { name: "Unduh Excel" })).toBeDisabled();
+      });
+
+      it("Pilih karyawan tertentu: kosong → nonaktif; terpilih → employeeIds tanpa crewIds", async () => {
+        const { posts, dialog } = await openDetail();
+        await userEvent.click(
+          within(dialog).getByRole("radio", { name: "Pilih karyawan tertentu" }),
+        );
+        expect(within(dialog).getByRole("button", { name: "Unduh Excel" })).toBeDisabled();
+        await userEvent.click(await within(dialog).findByRole("checkbox", { name: /Budi Uji/ }));
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: /Andi Uji/ }));
+        expect(within(dialog).getByText(/2 karyawan dipilih \(maksimal 500\)/)).toBeInTheDocument();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Hapus Budi Uji" }));
+        expect(within(dialog).getByText(/1 karyawan dipilih/)).toBeInTheDocument();
+        await userEvent.click(within(dialog).getByRole("button", { name: "Unduh Excel" }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        expect(posts[0]).toMatchObject({ employeeIds: [PEOPLE[0]?.id] });
+        expect(posts[0]).not.toHaveProperty("crewIds");
+        expect(posts[0]).not.toHaveProperty("includeNoCrew");
+        expect(posts[0]).not.toHaveProperty("q");
+      });
+
+      it("Sesuai filter halaman ini: q kosong dikirim, status terisi dari tab (Menunggu), tetap bisa diubah", async () => {
+        const { posts, dialog } = await openDetail();
+        await userEvent.click(
+          within(dialog).getByRole("radio", { name: "Sesuai filter halaman ini" }),
+        );
+        expect(within(dialog).getAllByText(/Butuh keputusan/).length).toBeGreaterThan(0);
+        expect(within(dialog).getByRole("checkbox", { name: "Menunggu" })).toBeChecked();
+        expect(within(dialog).getByRole("checkbox", { name: "Disetujui" })).not.toBeChecked();
+        await userEvent.click(within(dialog).getByRole("checkbox", { name: "Disetujui" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Unduh Excel" }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        expect(posts[0]).toMatchObject({ q: "", statuses: ["PENDING", "APPROVED"] });
+        expect(posts[0]).not.toHaveProperty("includeNoCrew");
+        expect(posts[0]).not.toHaveProperty("employeeIds");
+      });
     });
   },
 );

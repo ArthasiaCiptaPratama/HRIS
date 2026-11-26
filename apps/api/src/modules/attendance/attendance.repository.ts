@@ -148,8 +148,9 @@ export async function withTransactionDay<T>(run: (tx: AttendanceTx) => Promise<T
 }
 
 /**
- * TM-D31: hari absen untuk ekspor Excel — kolom seperlunya, absen masuk/pulang saja, TANPA selfie
- * (selfiePath tidak dipilih). `take` = batas baris + 1 supaya pemanggil bisa menolak bila melebihi.
+ * TM-D31: hari absen untuk ekspor Excel — kolom seperlunya, TANPA selfie (selfiePath tidak dipilih).
+ * TM-D34: semua jenis absen (masuk/pulang + istirahat) dan alasan karyawan. `take` = batas baris + 1 supaya
+ * pemanggil bisa menolak bila melebihi.
  */
 export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) =>
   getPrisma().attendanceDay.findMany({
@@ -164,7 +165,6 @@ export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) 
       status: true,
       labels: true,
       punches: {
-        where: { kind: { in: ["IN", "OUT"] } },
         select: {
           kind: true,
           at: true,
@@ -174,6 +174,7 @@ export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) 
           workLocationId: true,
           insideGeofence: true,
           labels: true,
+          reason: true,
           status: true,
           source: true,
         },
@@ -183,6 +184,21 @@ export const exportDays = (where: Prisma.AttendanceDayWhereInput, take: number) 
     take,
   });
 export type ExportDayRow = Awaited<ReturnType<typeof exportDays>>[number];
+
+/** TM-D34: karyawan (dari `employeeIds`) yang punya ≥1 hari absen dalam `where` (cakupan ekspor). */
+export const exportDayOwners = async (
+  where: Prisma.AttendanceDayWhereInput,
+  employeeIds: string[],
+) =>
+  employeeIds.length === 0
+    ? []
+    : (
+        await getPrisma().attendanceDay.findMany({
+          where: { AND: [where, { employeeId: { in: employeeIds } }] },
+          select: { employeeId: true },
+          distinct: ["employeeId"],
+        })
+      ).map((d) => d.employeeId);
 
 /** EMP-D8 P1: hanya absen perangkat normal; istirahat, manual, Alpha, dan cuti dikecualikan. */
 export function normalPendingPunches(
@@ -207,3 +223,34 @@ export function normalPendingPunches(
     take: 500,
   });
 }
+
+/**
+ * TM-D33: karyawan yang punya ≥1 absen (hari dengan minimal satu punch, status apa pun) dalam `where` (cakupan
+ * aktor), dengan tanggal kerja pertama & terakhir. Urut tanggal kerja terakhir terbaru, lalu id (stabil).
+ * Halaman dipotong pemanggil (jumlah grup = total).
+ */
+export const peopleWithPunches = (where: Prisma.AttendanceDayWhereInput) =>
+  getPrisma().attendanceDay.groupBy({
+    by: ["employeeId"],
+    where: { AND: [where, { punches: { some: {} } }] },
+    _min: { workDate: true },
+    _max: { workDate: true },
+    orderBy: [{ _max: { workDate: "desc" } }, { employeeId: "asc" }],
+  });
+
+/** TM-D33: hari (status & jam punch saja — tanpa selfie/koordinat) per pasangan karyawan+tanggal kerja. */
+export const daysForPeople = (
+  where: Prisma.AttendanceDayWhereInput,
+  keys: { employeeId: string; workDate: Date }[],
+) =>
+  keys.length === 0
+    ? Promise.resolve([])
+    : getPrisma().attendanceDay.findMany({
+        where: { AND: [where, { OR: keys }] },
+        select: {
+          employeeId: true,
+          workDate: true,
+          status: true,
+          punches: { select: { at: true } },
+        },
+      });

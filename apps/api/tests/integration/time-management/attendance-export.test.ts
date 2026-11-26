@@ -10,7 +10,8 @@ import { createFakeAuthAdmin } from "../../helpers/auth-admin.ts";
 import { createTestCompany } from "../../helpers/company.ts";
 
 // TM-D31 — POST /attendance/days/export: Detail per crew (Ringkasan + sheet crew menurut keanggotaan pada
-// tanggal itu) & Flash 5 kolom. Data uji di Maret 1998 supaya tidak bercampur data lain.
+// tanggal itu) & Flash 7 kolom. Data uji di Maret 1998 supaya tidak bercampur data lain.
+// TM-D34 — Detail: mode karyawan, kelompok kolom, filter baris (data tambahan Mei 1998).
 const RUN = crypto.randomUUID().slice(0, 6).toUpperCase();
 const auth = createAuthFixture(`tmx-${RUN.toLowerCase()}`);
 const prisma = getPrisma();
@@ -28,7 +29,8 @@ const OFFSET_H: Record<string, number> = {
   "Asia/Makassar": 8,
   "Asia/Jayapura": 9,
 };
-const offsetH = OFFSET_H[(await readTimeSettings()).timezone] ?? 7;
+const TZ = (await readTimeSettings()).timezone;
+const offsetH = OFFSET_H[TZ] ?? 7;
 /** "HH:mm" lokal pada tanggal → instan UTC. */
 const local = (date: string, hhmm: string) =>
   new Date(Date.parse(`${date}T${hhmm}:00.000Z`) - offsetH * 3600_000);
@@ -481,6 +483,8 @@ describe("DETAIL", () => {
     expect(crewX.header).toEqual([
       "NIP",
       "Nama",
+      "Jabatan",
+      "Divisi",
       "Crew",
       "Tanggal",
       "Hari",
@@ -611,6 +615,11 @@ describe("DETAIL", () => {
       companyId: ids.companyA,
       crewCount: 2,
       rows: 17,
+      mode: "CREW",
+      columnGroups: ["SCHEDULE", "CLOCK", "LOCATION", "LABEL", "SUMMARY"],
+      statuses: ["PENDING", "APPROVED", "REJECTED", "ALPHA", "LEAVE", "OFF", "NO_RECORD"],
+      labeledOnly: false,
+      employeeCount: 3,
     });
   });
 
@@ -746,4 +755,403 @@ test("OpenAPI: rute ekspor terdokumentasi dengan skema AttendanceExportFile", as
     expect.arrayContaining(["200", "400", "401", "403", "422"]),
   );
   expect(doc.components.schemas.AttendanceExportFile).toBeDefined();
+});
+
+// ── TM-D34 ─────────────────────────────────────────────────────────────────────
+
+const norm = (text: string) =>
+  text.split(RUN).join("{RUN}").split(RUN.slice(0, 5)).join("{R5}").split(TZ).join("{TZ}");
+/**
+ * Isi workbook yang dinormalkan (tanpa baris "Dibuat:"). `legacy` = buang kolom Jabatan & Divisi dari sheet
+ * crew (kolom sesudahnya digeser) supaya bisa dibandingkan dengan file Detail sebelum TM-D34.
+ */
+async function grid(res: Response, legacy = false) {
+  const wb = await workbook(res);
+  return {
+    rows: wb.rows,
+    sheets: wb.sheets.map((sheet) => {
+      const sorted = [...sheet.rows.entries()].sort((a, b) => a[0] - b[0]);
+      const at = sorted.findIndex(([, r]) => r.get("A") === "NIP" && r.get("C") === "Jabatan");
+      return {
+        name: norm(sheet.name),
+        rows: sorted
+          .filter(([, r]) => !(r.get("A") ?? "").startsWith("Dibuat:"))
+          .map(([n, r]) => {
+            let cells = [...r.entries()];
+            if (legacy && at >= 0 && n >= (sorted[at]?.[0] ?? 0)) {
+              cells = cells
+                .filter(([col]) => col !== "C" && col !== "D")
+                .map(([col, v]) => [
+                  col > "D" ? String.fromCharCode(col.charCodeAt(0) - 2) : col,
+                  v,
+                ]);
+            }
+            return [
+              n,
+              ...cells
+                .sort((a, b) => a[0].length - b[0].length || a[0].localeCompare(b[0]))
+                .map(([col, v]) => `${col}=${norm(v)}`),
+            ];
+          }),
+        formulas: [...sheet.xml.matchAll(/<f>(.*?)<\/f>/g)].map((m) => norm(m[1] as string)),
+      };
+    }),
+  };
+}
+const sha256 = (value: unknown) =>
+  new Bun.CryptoHasher("sha256").update(JSON.stringify(value)).digest("hex");
+
+const M_FROM = "1998-05-01";
+const M_TO = "1998-05-03";
+const may = (extra: Record<string, unknown> = {}) => detail({ from: M_FROM, to: M_TO, ...extra });
+const ALL_GROUPS = [
+  "SCHEDULE",
+  "CLOCK",
+  "LOCATION",
+  "LABEL",
+  "SUMMARY",
+  "REASON",
+  "BREAK",
+  "APPROVAL",
+  "LATE_EARLY",
+];
+const IDENTITY = ["NIP", "Nama", "Jabatan", "Divisi", "Crew", "Tanggal", "Hari"];
+
+describe("TM-D34: Detail — pilih karyawan, kelompok kolom & filter baris", () => {
+  beforeAll(async () => {
+    // Mei 1998 (tanpa roster kecuali e2): e1 1 Mei telat 20 mnt + istirahat + pulang cepat 60 mnt (alasan),
+    // e2 1 Mei OPEN, 2 Mei OFF roster, 3 Mei hari kerja tanpa absen; e3 (keluar, tanpa crew) 2 Mei disetujui.
+    const mk = (employeeId: string, date: string, status: string, labels: string[] = []) =>
+      prisma.attendanceDay.create({
+        data: {
+          employeeId,
+          companyId: ids.companyA,
+          managerEmployeeId: emp.mgr,
+          workDate: D(date),
+          shiftId: ids.shift,
+          shiftCode: `X${RUN.slice(0, 5)}`,
+          scheduledStart: local(date, "07:00"),
+          scheduledEnd: local(date, "19:00"),
+          status: status as never,
+          labels,
+        },
+      });
+    const p = { accuracyM: 10, workLocationId: ids.location, distanceM: 5, insideGeofence: true };
+    const d1 = await mk(emp.e1, "1998-05-01", "PENDING", ["LATE", "EARLY_LEAVE"]);
+    await prisma.attendancePunch.createMany({
+      data: [
+        {
+          ...p,
+          dayId: d1.id,
+          kind: "IN",
+          at: local("1998-05-01", "07:20"),
+          labels: ["LATE"],
+          reason: "Ban  bocor",
+          status: "APPROVED",
+        },
+        {
+          ...p,
+          dayId: d1.id,
+          kind: "BREAK_START",
+          at: local("1998-05-01", "12:00"),
+          labels: [],
+          status: "APPROVED",
+        },
+        {
+          ...p,
+          dayId: d1.id,
+          kind: "BREAK_END",
+          at: local("1998-05-01", "12:45"),
+          labels: [],
+          status: "APPROVED",
+        },
+        {
+          ...p,
+          dayId: d1.id,
+          kind: "OUT",
+          at: local("1998-05-01", "18:00"),
+          labels: ["EARLY_LEAVE"],
+          reason: "Anak sakit",
+          status: "PENDING",
+        },
+      ],
+    });
+    const d2 = await mk(emp.e2, "1998-05-01", "OPEN");
+    await prisma.attendancePunch.create({
+      data: {
+        ...p,
+        dayId: d2.id,
+        kind: "IN",
+        at: local("1998-05-01", "06:58"),
+        labels: [],
+        status: "PENDING",
+      },
+    });
+    await mk(emp.e3, "1998-05-02", "APPROVED");
+    await prisma.rosterDay.createMany({
+      data: [
+        { employeeId: emp.e2, workDate: D("1998-05-02"), shiftId: null, source: "MANUAL" },
+        { employeeId: emp.e2, workDate: D("1998-05-03"), shiftId: ids.shift, source: "MANUAL" },
+      ],
+    });
+  });
+
+  test("bawaan = file Detail sebelum TM-D34 + Jabatan & Divisi (sel lain identik)", async () => {
+    const pindah = { from: "1998-04-01", to: "1998-04-08", includeNoCrew: true };
+    const cases = {
+      A: () => call(h.sa, detail({ companyId: ids.companyA, includeNoCrew: true })),
+      B: () => call(h.sa, detail({ companyId: ids.companyA })),
+      C: () => call(h.hrA, detail({ crewIds: [ids.crewX] })),
+      D: () => call(h.hrA, detail({ crewIds: [ids.crewX], includeNoCrew: true })),
+      E: () => call(h.mgr, detail({ includeNoCrew: true })),
+      F: () => call(h.hrB, detail(pindah)),
+    };
+    const legacy: Record<string, unknown> = {};
+    for (const [key, run] of Object.entries(cases)) legacy[key] = await grid(await run(), true);
+    // Sidik jari isi file kasus A–F yang dihasilkan kode sebelum TM-D34 (commit ed53df4) dengan normalisasi
+    // yang sama (RUN/kode shift/zona diganti placeholder, baris "Dibuat:" dibuang).
+    expect(sha256(legacy)).toBe("59917b0536b0b995d10682f790224825c9e655ef682aef4f505b3f4e761810d9");
+
+    // Bawaan eksplisit = tanpa field baru.
+    const explicit = await grid(
+      await call(
+        h.sa,
+        detail({
+          companyId: ids.companyA,
+          includeNoCrew: true,
+          columnGroups: ["LABEL", "SUMMARY", "SCHEDULE", "CLOCK", "LOCATION"],
+          statuses: ["PENDING", "APPROVED", "REJECTED", "ALPHA", "LEAVE", "OFF", "NO_RECORD"],
+          labeledOnly: false,
+        }),
+      ),
+    );
+    expect(explicit).toEqual(
+      await grid(await call(h.sa, detail({ companyId: ids.companyA, includeNoCrew: true }))),
+    );
+
+    // Satu-satunya tambahan: Jabatan & Divisi saat ini (tanpa divisi → "—").
+    const wb = await workbook(await call(h.sa, detail({ companyId: ids.companyA })));
+    const x = table(wb.sheets[1] as Sheet, "NIP");
+    const placed = new Map(
+      x.rows.map((r) => [r.Nama?.split(" ").at(-1), `${r.Jabatan}|${r.Divisi}`]),
+    );
+    expect(placed.get("Budi")).toBe(`Jabatan TMX ${RUN}|Divisi TMX ${RUN}`);
+    expect(placed.get("Adi")).toBe(`Jabatan ND ${RUN}|—`);
+  });
+
+  test("semua kelompok: Persetujuan, Istirahat, Telat & pulang cepat, Alasan", async () => {
+    const wb = await workbook(
+      await call(
+        h.sa,
+        may({ companyId: ids.companyA, includeNoCrew: true, columnGroups: ALL_GROUPS }),
+      ),
+    );
+    const y = table(wb.sheets.find((s) => s.name === `TMX ${RUN} Y (dihapus)`) as Sheet, "NIP");
+    expect(y.header).toEqual([
+      ...IDENTITY,
+      "Shift",
+      "Jadwal Masuk",
+      "Jadwal Pulang",
+      "Clock In",
+      "Lokasi Clock In",
+      "Peta In",
+      "Persetujuan Clock In",
+      "Mulai istirahat",
+      "Selesai istirahat",
+      "Clock Out",
+      "Lokasi Clock Out",
+      "Peta Out",
+      "Persetujuan Clock Out",
+      "Telat (menit)",
+      "Pulang cepat (menit)",
+      "Status",
+      "Label",
+      "Alasan",
+    ]);
+    expect(y.rows).toHaveLength(1);
+    expect(y.rows[0]).toMatchObject({
+      Nama: `Ekspor ${RUN} Budi`,
+      "Clock In": "07:20",
+      "Persetujuan Clock In": "Disetujui",
+      "Mulai istirahat": "12:00",
+      "Selesai istirahat": "12:45",
+      "Clock Out": "18:00",
+      "Persetujuan Clock Out": "Menunggu",
+      "Telat (menit)": "20",
+      "Pulang cepat (menit)": "60",
+      Status: "Menunggu persetujuan",
+      Label: "Telat, Pulang cepat",
+      Alasan: "Clock In: Ban bocor; Clock Out: Anak sakit",
+    });
+    const x = table(wb.sheets.find((s) => s.name === `TMX ${RUN} X`) as Sheet, "NIP");
+    const adi = (d: string) =>
+      x.rows.find((r) => r.Tanggal === serial(d)) as Record<string, string>;
+    // Tanpa label → menit kosong; belum ada Clock Out → persetujuan pulang kosong.
+    expect(adi("1998-05-01")).toMatchObject({
+      "Persetujuan Clock In": "Menunggu",
+      "Persetujuan Clock Out": "",
+      "Telat (menit)": "",
+      "Pulang cepat (menit)": "",
+      Alasan: "",
+      "Mulai istirahat": "",
+    });
+    expect(wb.all).not.toContain(SELFIE);
+  });
+
+  test("tiap kelompok sendiri: Identitas selalu; Lembar Ringkasan hanya bila dicentang", async () => {
+    const columns: Record<string, string[]> = {
+      SCHEDULE: ["Shift", "Jadwal Masuk", "Jadwal Pulang"],
+      CLOCK: ["Clock In", "Clock Out", "Status"],
+      LOCATION: ["Lokasi Clock In", "Peta In", "Lokasi Clock Out", "Peta Out"],
+      LABEL: ["Label"],
+      SUMMARY: [],
+      REASON: ["Alasan"],
+      BREAK: ["Mulai istirahat", "Selesai istirahat"],
+      APPROVAL: ["Persetujuan Clock In", "Persetujuan Clock Out"],
+      LATE_EARLY: ["Telat (menit)", "Pulang cepat (menit)"],
+    };
+    for (const group of [...ALL_GROUPS, null]) {
+      const wb = await workbook(
+        await call(h.hrA, may({ crewIds: [ids.crewX], columnGroups: group ? [group] : [] })),
+      );
+      expect(wb.sheets.map((s) => s.name)).toEqual(
+        group === "SUMMARY" ? ["Ringkasan", `TMX ${RUN} X`] : [`TMX ${RUN} X`],
+      );
+      const crew = table(wb.sheets.at(-1) as Sheet, "NIP");
+      expect(crew.header).toEqual([...IDENTITY, ...(group ? (columns[group] ?? []) : [])]);
+      expect(crew.rows.length).toBe(3);
+    }
+  });
+
+  test("mode karyawan tertentu: hanya karyawan terpilih, semua crew, Tanpa crew hanya bila ada baris", async () => {
+    const adi = await workbook(await call(h.hrA, may({ employeeIds: [emp.e2] })));
+    expect(adi.sheets.map((s) => s.name)).toEqual(["Ringkasan", `TMX ${RUN} X`]);
+    expect(adi.rows).toBe(3);
+    const both = await workbook(await call(h.hrA, may({ employeeIds: [emp.e1, emp.e3] })));
+    expect(both.sheets.map((s) => s.name)).toEqual([
+      "Ringkasan",
+      `TMX ${RUN} Y (dihapus)`,
+      "Tanpa crew",
+    ]);
+    expect(both.rows).toBe(2);
+    expect(both.all).not.toContain(`Ekspor ${RUN} Adi`);
+    // Karyawan pindah PT: kini PT B, tetapi punya hari absen PT A di rentang → boleh dipilih HR PT A.
+    const moved = await workbook(
+      await call(h.hrA, detail({ from: "1998-04-01", to: "1998-04-08", employeeIds: [emp.mv] })),
+    );
+    expect(moved.rows).toBeGreaterThan(0);
+    expect(moved.all).not.toContain(`Y${RUN.slice(0, 5)}`);
+    const audit = await prisma.auditLog.findFirst({
+      where: { action: "attendance.export", after: { path: ["from"], equals: M_FROM } },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(audit?.after).toMatchObject({ mode: "EMPLOYEES", employeeCount: 2, rows: 2 });
+    const text = JSON.stringify(audit?.after);
+    expect(text).not.toContain(emp.e1);
+    expect(text).not.toContain(RUN);
+  });
+
+  test("karyawan di luar cakupan / tidak dikenal → 422 tanpa nama", async () => {
+    for (const [headers, body] of [
+      [h.hrA, may({ employeeIds: [emp.e4] })],
+      [h.hrA, may({ employeeIds: [emp.e1, crypto.randomUUID()] })],
+      [h.mgr, may({ employeeIds: [emp.e3] })],
+      [h.hrA, detail({ employeeIds: [emp.mv] })],
+      [h.hrB, detail({ from: "1998-04-01", to: "1998-04-08", employeeIds: [emp.e1] })],
+    ] as const) {
+      const res = await call(headers, body);
+      expect(res.status).toBe(422);
+      const text = JSON.stringify(await res.json());
+      expect(text).toContain("di luar cakupan");
+      expect(text).not.toContain(`Ekspor ${RUN}`);
+    }
+  });
+
+  test("mode filter halaman: pencarian nama seperti Data Absen Harian; kosong = semua (termasuk tanpa crew)", async () => {
+    const adi = await workbook(await call(h.hrA, may({ q: `  ${RUN} adi ` })));
+    expect(adi.rows).toBe(3);
+    expect(adi.all).not.toContain(`Ekspor ${RUN} Budi`);
+    const everyone = await workbook(await call(h.hrA, may({ q: "" })));
+    expect(everyone.rows).toBe(5);
+    expect(everyone.sheets.map((s) => s.name)).toContain("Tanpa crew");
+    const none = await workbook(await call(h.hrA, may({ q: `tidak-ada-${RUN}` })));
+    expect(none.rows).toBe(0);
+    expect(none.sheets.map((s) => s.name)).toEqual(["Ringkasan"]);
+    // MANAGER: pencarian tetap dibatasi tim (karyawan keluar bukan bawahan).
+    const mgr = await workbook(await call(h.mgr, may({ q: `${RUN} keluar` })));
+    expect(mgr.rows).toBe(0);
+    const audit = await prisma.auditLog.findFirst({
+      where: { action: "attendance.export", after: { path: ["mode"], equals: "PAGE_FILTER" } },
+      orderBy: { occurredAt: "desc" },
+    });
+    expect(JSON.stringify(audit?.after)).not.toContain("keluar");
+  });
+
+  test("filter baris: status & hanya berlabel; Ringkasan hanya menghitung baris yang diekspor", async () => {
+    const rowsOf = async (extra: Record<string, unknown>) => {
+      const wb = await workbook(
+        await call(h.sa, may({ companyId: ids.companyA, q: "", ...extra })),
+      );
+      return wb.sheets
+        .filter((s) => s.name !== "Ringkasan")
+        .flatMap((s) => table(s, "NIP").rows)
+        .map((r) => `${r.Nama?.split(" ").at(-1)}|${r.Tanggal}|${r.Status}`)
+        .sort();
+    };
+    const d = (iso: string) => serial(iso);
+    expect(await rowsOf({ statuses: ["PENDING"] })).toEqual([
+      `Adi|${d("1998-05-01")}|Belum absen pulang`,
+      `Budi|${d("1998-05-01")}|Menunggu persetujuan`,
+    ]);
+    expect(await rowsOf({ statuses: ["OFF"] })).toEqual([`Adi|${d("1998-05-02")}|OFF`]);
+    expect(await rowsOf({ statuses: ["NO_RECORD"] })).toEqual([
+      `Adi|${d("1998-05-03")}|Tanpa absen`,
+    ]);
+    expect(await rowsOf({ statuses: ["APPROVED", "OFF"] })).toEqual([
+      `Adi|${d("1998-05-02")}|OFF`,
+      `Keluar|${d("1998-05-02")}|Disetujui`,
+    ]);
+    expect(await rowsOf({ labeledOnly: true })).toEqual([
+      `Budi|${d("1998-05-01")}|Menunggu persetujuan`,
+    ]);
+    // Maret: Label tidak kosong = label hari/absen atau absen ditolak.
+    const march = await workbook(
+      await call(h.sa, detail({ companyId: ids.companyA, includeNoCrew: true, labeledOnly: true })),
+    );
+    expect(march.rows).toBe(3);
+    const summary = table(march.sheets[0] as Sheet, "NIP");
+    const budi = summary.rows.find((r) => r.Nama?.endsWith("Budi")) as Record<string, string>;
+    expect(budi).toMatchObject({
+      "Hari kerja": "2",
+      "Hadir (disetujui)": "1",
+      Ditolak: "1",
+      "Tanpa absen": "0",
+    });
+    const alpha = await workbook(
+      await call(h.sa, detail({ companyId: ids.companyA, statuses: ["ALPHA", "LEAVE"] })),
+    );
+    expect(alpha.rows).toBe(2);
+  });
+
+  test("400 / 401 / 403 dengan field baru", async () => {
+    for (const body of [
+      may({ employeeIds: [emp.e1], q: "x" }),
+      may({ employeeIds: [emp.e1], crewIds: [ids.crewX] }),
+      may({ q: "x", includeNoCrew: true }),
+      may({ employeeIds: [] }),
+      may({ statuses: [] }),
+      may({ statuses: ["OPEN"] }),
+      may({ columnGroups: ["SALARY"] }),
+      flash({ columnGroups: ["CLOCK"] }),
+      flash({ employeeIds: [emp.e1] }),
+    ]) {
+      expect((await call(h.sa, body)).status).toBe(400);
+    }
+    expect((await call({}, may({ employeeIds: [emp.e1] }))).status).toBe(401);
+    expect((await call(h.employee, may({ employeeIds: [emp.e1] }))).status).toBe(403);
+    expect((await call(h.personnel, may({ q: "" }))).status).toBe(403);
+    expect(
+      (await call(h.hrA, may({ companyId: ids.companyB, employeeIds: [emp.e4] }))).status,
+    ).toBe(403);
+  });
 });
