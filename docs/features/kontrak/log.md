@@ -11,6 +11,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — UX status kontrak: badge "PKWT n" di daftar & profil; mockup tab Kepegawaian (Oatse/Claude)
+- **Dikerjakan:** checklist "UX status kontrak" poin 1–2 (README). Helper shared `employmentStatusShort(category, stage?)`; `StatusBadge` prop `stage` (kuning bila tahap belum diisi); kolom Tahap dihapus, kolom Status ber-`sortKey` `contractStage` di daftar PKWT; picker & header profil/Penempatan memakai helper yang sama. Poin 3: mockup HTML statis dua opsi (gaya & token app) di `QA/2026-11-26-ux-kontrak/mockup/` + screenshot `opsi-A.png`, `opsi-B.png`.
+- **Keputusan:** kecil — daftar nonaktif tidak menampilkan tahap (persetujuan supervisor atas nama pengguna).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ · shared 488 · api 1622 · web 567 ✔ (2 test web lama disesuaikan: kolom Tahap & teks header). Screenshot `QA/2026-11-26-ux-kontrak/sesudah-1-daftar-pkwt.png`, `sesudah-2-header-profil.png`.
+- **Berikutnya:** pilihan pengguna Opsi A/B → implementasi tab Kepegawaian + Riwayat.
+
 ### 2026-11-26 — K4 susulan: rentang upah di rekap; K5 ditunda (Oatse/Claude)
 - **Dikerjakan:** CI K4 `48e1741` ✔ (#45759343033). Rekap Kehadiran & Upah THL: baris laporan + `wageSegments` (upah awal bulan + perubahan dalam bulan, hanya untuk yang berhak); layar menampilkan "Rp 140.000 → Rp 160.000 (15 Okt)", ekspor menambah kolom "Perubahan upah"; helper `thlWageChangeLabel` di shared. Test shared + integration diperluas.
 - **Keputusan:** K5 ditunda (kutipan pengguna 26 Nov 12:1x WIB via supervisor).

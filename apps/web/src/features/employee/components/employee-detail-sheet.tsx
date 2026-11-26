@@ -1,10 +1,10 @@
 import {
   DRIVING_LICENSE_LABELS,
   type DrivingLicenseType,
-  EMPLOYMENT_CATEGORY_LABELS,
   EMPLOYMENT_CHANGE_LABELS,
   type EmploymentChangeType,
   EXIT_REASON_LABELS,
+  employmentStatusShort,
   FIELD_CHANGE_FIELD_LABELS,
   FIELD_CHANGE_SECTION_LABELS,
   FIELD_CHANGE_SOURCE_LABELS,
@@ -247,10 +247,13 @@ function ProfileHeader({ employee, actions }: { employee: EmployeeDetail; action
               </ProfileRow>
               {/* Dipisah (2026-10-15): masih bekerja di perusahaan ≠ bisa login ke aplikasi. */}
               <ProfileRow label="Status Karyawan" narrow>
-                {/* Teks rapi "kategori | masih bekerja/sudah keluar" (masukan pemilik projek 2026-10-15). */}
+                {/* "PKWT 1 | Masih bekerja" (masukan pemilik projek 2026-10-15; tahap PKWT 2026-11-26). */}
                 <span>
                   {employee.employmentStatus.category
-                    ? EMPLOYMENT_CATEGORY_LABELS[employee.employmentStatus.category]
+                    ? employmentStatusShort(
+                        employee.employmentStatus.category,
+                        employee.isActive ? employee.contractStage : undefined,
+                      )
                     : employee.employmentStatus.name}
                   <span aria-hidden className="text-muted-foreground mx-2 font-normal">
                     |
@@ -701,7 +704,10 @@ function WorkTab({ employee }: { employee: EmployeeDetail }) {
           </Field>
           <Field label="Status kepegawaian">
             {employee.employmentStatus.category
-              ? EMPLOYMENT_CATEGORY_LABELS[employee.employmentStatus.category]
+              ? employmentStatusShort(
+                  employee.employmentStatus.category,
+                  employee.isActive ? employee.contractStage : undefined,
+                )
               : employee.employmentStatus.name}
           </Field>
           <Field label="Tanggal masuk">{formatDate(employee.joinDate)}</Field>

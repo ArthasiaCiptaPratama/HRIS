@@ -227,7 +227,7 @@ describe("halaman Personal Management", () => {
     ]);
   });
 
-  it("KTR-D2 revisi: halaman PKWT punya filter Tahap ber-jumlah + kolom Tahap & Akhir kontrak", async () => {
+  it("KTR-D2 revisi: halaman PKWT punya filter Tahap ber-jumlah; tahap menyatu di badge Status (2026-11-26) + Akhir kontrak", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-25T05:00:00Z"));
     const withStages = {
@@ -273,7 +273,11 @@ describe("halaman Personal Management", () => {
       "true",
     );
     expect(within(filter).getByRole("button", { name: /Semua/ })).toHaveTextContent("2");
-    expect(within(table).getByRole("columnheader", { name: /Tahap/ })).toBeInTheDocument();
+    // Masukan pengguna 2026-11-26: kolom Tahap dilebur ke badge Status ("PKWT 3"), Status bisa diurutkan.
+    expect(within(table).queryByRole("columnheader", { name: /Tahap/ })).toBeNull();
+    expect(
+      within(within(table).getByRole("columnheader", { name: /Status/ })).getByRole("button"),
+    ).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: /Akhir kontrak/ })).toBeInTheDocument();
     expect(within(table).getByText("PKWT 3")).toBeInTheDocument();
     // 15 hari lagi → merah; > 60 hari → hijau.

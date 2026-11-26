@@ -3,6 +3,7 @@ import {
   contractSummary,
   EMPLOYMENT_CATEGORY_LABELS,
   employmentStatusDisplay,
+  employmentStatusShort,
   employmentTier,
   parseEmploymentStatus,
   tenure,
@@ -143,4 +144,14 @@ test("KTR-D2 revisi: nama biasa di menu, istilah resmi di detail", () => {
   expect(employmentStatusDisplay("DAILY_WORKER", null)).toBe("Harian Lepas (THL)");
   expect(employmentStatusDisplay("INTERNSHIP", null)).toBe("Magang");
   expect(employmentStatusDisplay(null, null)).toBe("—");
+});
+
+test("label status pendek: PKWT dengan tahap, kategori lain nama biasa", () => {
+  expect(employmentStatusShort("PKWT", 1)).toBe("PKWT 1");
+  expect(employmentStatusShort("PKWT", null)).toBe("PKWT · belum diisi");
+  expect(employmentStatusShort("PKWT")).toBe("PKWT");
+  expect(employmentStatusShort("PERMANENT", null)).toBe("Karyawan Tetap");
+  expect(employmentStatusShort("PROBATION", null)).toBe("Karyawan Percobaan");
+  expect(employmentStatusShort("DAILY_WORKER", 2)).toBe("Harian Lepas (THL)");
+  expect(employmentStatusShort(null, null)).toBe("—");
 });

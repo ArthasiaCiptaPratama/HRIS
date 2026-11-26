@@ -615,7 +615,8 @@ describe("foto profil di panel detail (D-037)", () => {
       "header",
     ) as HTMLElement;
     const row = (label: string) => within(header).getByText(label).parentElement as HTMLElement;
-    expect(row("Status Karyawan")).toHaveTextContent(/PKWT\s*\|\s*Masih bekerja/);
+    // Tahap PKWT ikut tampil (2026-11-26); data uji tanpa tahap → "belum diisi".
+    expect(row("Status Karyawan")).toHaveTextContent(/PKWT · belum diisi\s*\|\s*Masih bekerja/);
     // Dua keadaan saja: belum punya akun = tidak bisa login (sebab di tooltip).
     expect(within(row("Akses Aplikasi")).getByText("Tidak bisa login")).toBeInTheDocument();
     expect(within(row("Akses Aplikasi")).getByTitle("Belum punya akun login")).toBeInTheDocument();

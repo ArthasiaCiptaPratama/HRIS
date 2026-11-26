@@ -82,13 +82,19 @@ export function employeeColumns(
         </div>
       ),
     }) as DataColumn<EmployeeListItem>,
+    // Masukan pengguna 2026-11-26: Status + Tahap jadi satu badge ("PKWT 1"); daftar nonaktif tanpa tahap.
     helper.display({
       id: "status",
       header: "Status",
+      meta:
+        variant === "active" && options.showPkwt
+          ? { sortKey: "contractStage", className: "whitespace-nowrap" }
+          : { className: "whitespace-nowrap" },
       cell: ({ row }) => (
         <StatusBadge
           name={row.original.employmentStatus.name}
           category={row.original.employmentStatus.category}
+          stage={variant === "active" ? row.original.contractStage : undefined}
         />
       ),
     }) as DataColumn<EmployeeListItem>,
@@ -96,17 +102,6 @@ export function employeeColumns(
 
   if (variant === "active" && options.showPkwt) {
     columns.push(
-      helper.display({
-        id: "contractStage",
-        header: "Tahap",
-        meta: { sortKey: "contractStage", className: "whitespace-nowrap" },
-        cell: ({ row }) =>
-          row.original.employmentStatus.category === "PROBATION"
-            ? "Masa Percobaan"
-            : row.original.contractStage === null
-              ? "Belum diisi"
-              : `PKWT ${row.original.contractStage}`,
-      }) as DataColumn<EmployeeListItem>,
       helper.display({
         id: "contractEndDate",
         header: "Akhir kontrak",

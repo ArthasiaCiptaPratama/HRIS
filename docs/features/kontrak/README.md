@@ -64,6 +64,10 @@ Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `co
   - [x] Web: kartu THL di tab Kepegawaian + dialog ubah upah, chip & kolom di daftar Harian Lepas (THL), tab laporan "Rekap Kehadiran & Upah THL", pratinjau & template import; saklar `FEATURES.thlEvaluation`; seed dummy `KTR-DMY-THL-REQ/APP`
   - [x] Rekap: bila upah berubah dalam bulan itu, kolom Upah harian menampilkan rentang "Rp 140.000 → Rp 160.000 (15 Okt)" (layar) + kolom "Perubahan upah" (ekspor) (tambahan 2026-11-26: masukan supervisor atas screenshot 03)
   - [x] Screenshot `QA/2026-11-26-ktr-k4/01–03`
+- [~] **UX status kontrak** (tambahan 2026-11-26: permintaan pengguna via supervisor-15, gambar `QA/2026-11-26-ux-kontrak/1–3`)
+  - [x] Daftar karyawan: kolom Status + Tahap dilebur jadi satu badge ("PKWT 1", "PKWT · belum diisi" kuning, "Karyawan Tetap", "Karyawan Percobaan", "Harian Lepas (THL)"); Status bisa diurutkan di daftar PKWT; daftar nonaktif tetap "PKWT" polos — helper shared `employmentStatusShort`
+  - [x] Header profil "Status Karyawan" + field "Status kepegawaian" di Penempatan → "PKWT 1 | Masih bekerja"
+  - [ ] Tab Kepegawaian + tab Riwayat dirapikan — mockup Opsi A/B `QA/2026-11-26-ux-kontrak/opsi-A.png`, `opsi-B.png`; **menunggu pilihan pengguna**
 - [ ] **K5** — DITUNDA (kutipan pengguna 26 Nov 12:1x WIB via supervisor: "jika sudah selesai stop dlu di K4") — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D35–D37; Mat dikabari dulu, wilayah TM)
 
 Item lama Fase 7 (jenis kontrak, CRUD, perpanjangan, terminasi, 1 kontrak aktif + cek overlap, cron `contract-expiry`, policy + test, tab & daftar akan habis) tercakup oleh K1–K2.

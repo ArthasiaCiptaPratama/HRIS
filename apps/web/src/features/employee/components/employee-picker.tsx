@@ -149,6 +149,7 @@ export function EmployeePicker({
                     <StatusBadge
                       name={row.employmentStatus.name}
                       category={row.employmentStatus.category}
+                      stage={row.isActive ? row.contractStage : undefined}
                       className="hidden sm:inline-flex"
                     />
                   </button>

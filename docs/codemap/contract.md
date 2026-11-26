@@ -16,7 +16,7 @@
 | `contract.routes.ts`, `index.ts` | GET/POST `/employees/{id}/contracts`, POST `/{contractId}/extend`, `/{contractId}/end`, `/employees/{id}/promote`, `/employees/{id}/probation/fail`; interface publik. |
 | `apps/api/src/modules/employee/employee.service.ts` | Pemilik transaksi lintas modul: kunci baris employee, riwayat, status/tanggal PKWTT, audit; pengakhiran memakai jalur nonaktif yang sama (pos, approval, akun/ban). |
 | `apps/api/src/app.ts` | Memasang handler employee ke rute contract melalui dependency injection; tidak ada impor contract → employee. |
-| `packages/shared/src/contract.ts` | Tier/label, validasi kalender 2+1+1/4 tahun dan 3 bulan, tenure, ringkasan/peringatan, input Zod aksi. |
+| `packages/shared/src/contract.ts` | Tier/label (`employmentStatusDisplay` panjang, `employmentStatusShort` badge/header), validasi kalender 2+1+1/4 tahun dan 3 bulan, tenure, ringkasan/peringatan, input Zod aksi. |
 | `apps/api/prisma/seed/contract.ts` | Empat karyawan fiktif: PKWT 1 aktif, PKWT 3 + riwayat 1–2, percobaan aktif, PKWT lama kosong. Idempoten. |
 | `apps/api/tests/integration/contract/contracts.test.ts` | Matriks akses, flow, rollback ban, concurrency, constraint DB, OpenAPI. |
 | `apps/api/scripts/verify-contract-migration.ts` | Database lokal sementara: seluruh migrasi polos, bentrok nama arsip, backfill, seed dan idempotensi; database dihapus setelah uji. |
@@ -46,6 +46,6 @@
 | `components/employment-contract-dialog.tsx` | Isi tahap, perpanjangan, pengangkatan/lulus, tidak lulus/pengakhiran dengan konfirmasi nonaktif dan toast warning/error. |
 | `components/contract-period-fields.tsx` | Isian periode RHF, bawaan akhir kalender, validasi shared termasuk awal PKWT 1 untuk tahap lama; digunakan ulang oleh Ubah Status. |
 | `components/employee-detail-sheet.tsx`, `schemas.ts` | Integrasi kartu/tabel, ikon CONTRACT_STAGE_CHANGED, tahap/periode opsional pada entri riwayat jika tersedia. Backend saat ini hanya menyediakan peristiwa/tanggal efektif; periode lengkap tetap terlihat melalui tabel kontrak. |
-| `pages/change-status-page.tsx`, `components/status-badge.tsx` | Label shared, kontrak saat tujuan PKWT/percobaan; asal dua kategori diarahkan ke tab Kepegawaian dan tidak bisa menyimpan. |
+| `pages/change-status-page.tsx`, `components/status-badge.tsx` | Label shared, kontrak saat tujuan PKWT/percobaan; asal dua kategori diarahkan ke tab Kepegawaian dan tidak bisa menyimpan. `StatusBadge` prop `stage` → `employmentStatusShort` ("PKWT 1", "PKWT · belum diisi" kuning); dipakai daftar (kolom Status = status + tahap, 2026-11-26), picker, header profil & Penempatan. |
 | `apps/web/tests/employee-contract.test.tsx` | 31 kasus render/akses/aksi/validasi/masa kerja/riwayat/Ubah Status; API palsu memeriksa payload, invalidasi cache, toast warning dan error 403. |
 | `apps/web/tests/employee-detail.test.tsx`, `employee-status-actions.test.tsx` | Integrasi filter Kepegawaian untuk peristiwa tahap/periode dan aturan status baru; flow status biasa tetap diuji. |

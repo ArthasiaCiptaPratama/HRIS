@@ -1,8 +1,8 @@
 import {
-  EMPLOYMENT_CATEGORY_LABELS,
   type EmploymentCategory,
   EXIT_REASON_LABELS,
   type ExitReason,
+  employmentStatusShort,
 } from "@hris/shared";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -18,21 +18,35 @@ const CATEGORY_TONE: Record<EmploymentCategory, string> = {
   VENDOR: "bg-violet-50 text-violet-800 dark:bg-violet-950 dark:text-violet-200",
 };
 
+/** Tahap PKWT belum diisi: nada kuning supaya terlihat perlu dilengkapi. */
+const MISSING_STAGE_TONE = "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200";
+
+/**
+ * `stage` = tahap PKWT aktif (masukan pengguna 2026-11-26: "Status: PKWT 1" dalam satu badge).
+ * Tanpa `stage` (undefined) badge PKWT tampil polos, mis. di daftar nonaktif.
+ */
 export function StatusBadge({
   name,
   category,
+  stage,
   className,
 }: {
   name: string;
   category: EmploymentCategory | null;
+  stage?: number | null;
   className?: string;
 }) {
+  const missingStage = category === "PKWT" && stage === null;
   return (
     <Badge
       variant="muted"
-      className={cn("rounded-md font-medium", category && CATEGORY_TONE[category], className)}
+      className={cn(
+        "rounded-md font-medium whitespace-nowrap",
+        category && (missingStage ? MISSING_STAGE_TONE : CATEGORY_TONE[category]),
+        className,
+      )}
     >
-      {category ? EMPLOYMENT_CATEGORY_LABELS[category] : name}
+      {category ? employmentStatusShort(category, stage) : name}
     </Badge>
   );
 }
