@@ -60,6 +60,7 @@ export const listEmployeesQuerySchema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   category: employmentCategoryRefSchema.optional(),
+  thlStatus: z.enum(["APPROACHING", "REQUIRED"]).openapi("EmployeeThlStatusFilter").optional(),
   pkwtStage: z.enum(["1", "2", "3", "NONE"]).openapi("EmployeePkwtStageFilter").optional(),
   // KTR-D5 (K2): PKWT/masa percobaan yang kontrak aktifnya berakhir ≤ N hari lagi, termasuk yang sudah lewat.
   contractEndsWithin: z.coerce.number().int().min(1).max(366).optional(),
@@ -113,6 +114,8 @@ export const employeeListItemSchema = z
     gender: genderSchema.nullable(),
     joinDate: isoDate,
     endDate: isoDate.nullable(),
+    thlPresentDaysLastMonth: z.number().int().nullable(),
+    thlStatus: z.enum(["NONE", "APPROACHING", "REQUIRED"]).openapi("EmployeeThlStatus").nullable(),
     contractStage: z.number().int().nullable(),
     contractEndDate: isoDate.nullable(),
     isActive: z.boolean(),
@@ -145,6 +148,9 @@ export const employeeSummarySchema = z
       total: z.number().int(),
       byCategory: z.record(employmentCategorySchema, z.number().int()),
       uncategorized: z.number().int(),
+      thlStatuses: z
+        .object({ APPROACHING: z.number().int(), REQUIRED: z.number().int() })
+        .openapi("EmployeeThlStatuses"),
       pkwtStages: z
         .object({
           stage1: z.number().int(),

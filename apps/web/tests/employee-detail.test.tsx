@@ -980,3 +980,15 @@ describe("EMP-D8 manager account warning", () => {
     );
   });
 });
+
+it("K4 tautan notifikasi tab=work membuka detail di Kepegawaian", async () => {
+  const calls = mockBackend("HR_ADMIN", {});
+  renderAt("/personal/pegawai-aktif/semua?pegawai=e1&tab=work");
+  const sheet = await screen.findByRole("dialog");
+  expect(await within(sheet).findByRole("tab", { name: /Kepegawaian/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(await within(sheet).findByRole("region", { name: "Status kepegawaian" })).toBeVisible();
+  expect(calls.some((call) => call.includes("/employees/e1/contracts"))).toBe(true);
+});

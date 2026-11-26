@@ -197,7 +197,7 @@ Sifat grant:
 - **Alasan** disimpan (opsional diisi di UI).
 - **Bisa dicabut kapan saja** dan langsung berlaku di request berikutnya.
 - Pemberian, pencabutan, dan **setiap akses data sensitif** tercatat di audit log.
-- **Data gaji tidak pernah bisa di-grant.** Gaji mutlak hanya untuk SUPER_ADMIN.
+- **Data gaji tidak pernah bisa di-grant.** Gaji mutlak hanya untuk SUPER_ADMIN. **Pengecualian KTR-D13:** upah harian THL (Harian Lepas) boleh dilihat & diisi HR_ADMIN ber-grant `labor.cost.read` di PT yang ditugaskan.
 
 ### 4.3 Matriks Akses
 
@@ -252,6 +252,8 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | **Kontrak** | | | | |
 | Kelola kontrak (isi tahap, perpanjang, jadikan Karyawan Tetap, akhiri) | ✅ | 🔑 | ❌ | ❌ |
 | Lihat daftar "Kontrak akan habis" & terima pengingat kontrak (KTR-D11) | ✅ | ✅ PT ditugaskan | ❌ (atasan langsung hanya menerima pengingat bawahannya) | ❌ |
+| Lihat & isi upah harian THL, kolom rupiah rekap kehadiran & upah THL (KTR-D13) | ✅ | 🔑 `labor.cost.read` | ❌ | ❌ |
+| Lihat hari hadir THL, tanda "Mendekati batas"/"Wajib diangkat PKWTT" & terima notifikasinya (KTR-D8) | ✅ | ✅ PT ditugaskan | ❌ (atasan langsung hanya menerima notifikasi bawahannya) | ❌ |
 | Lihat kontrak sendiri | ✅ | ✅ | ✅ | ✅ |
 | **Absensi** | | | | |
 | Absen (clock-in/out) | ✅* | ✅ | ✅ | ✅ |
@@ -272,7 +274,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Keputusan cuti tahunan & izin | override | ✅ validasi administrasi | ✅ approval utama (tim) | ❌ |
 | Penyesuaian saldo individual | ✅ | ✅ | ❌ | ❌ |
 | **Payroll** | | | | |
-| Nominal & struktur gaji per karyawan | ✅ | ❌ | ❌ | ❌ |
+| Nominal & struktur gaji per karyawan (kecuali upah harian THL, KTR-D13) | ✅ | ❌ | ❌ | ❌ |
 | Hitung, review, lock payroll, terbitkan slip | ✅ | ❌ | ❌ | ❌ |
 | Lihat slip gaji semua karyawan | ✅ | ❌ | ❌ | ❌ |
 | Lihat & unduh slip gaji sendiri | ✅* | ✅ | ✅ | ✅ |
@@ -612,6 +614,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [KTR-D10](features/kontrak/README.md#keputusan) | Urutan paket K1–K5 setelah simpan WIP R0; implementasi lewat Codex | [KTR](features/kontrak/README.md) |
 | [KTR-D11](features/kontrak/README.md#keputusan) | Daftar "Kontrak akan habis" & pengingat terlihat SA + HR_ADMIN PT tanpa grant; `contract.manage` hanya untuk aksi (mengubah PLAN §4.3) | [KTR](features/kontrak/README.md) |
 | [KTR-D12](features/kontrak/README.md#keputusan) | Koreksi data kontrak aktif tanpa pindah tahap (aksi tab Kepegawaian + import "Perbarui"); tahap beda lewat import = error | [KTR](features/kontrak/README.md) |
+| [KTR-D13](features/kontrak/README.md#keputusan) | Upah harian THL & rupiah rekapnya: SA + HR_ADMIN ber-grant `labor.cost.read` (pengecualian "gaji tidak bisa di-grant", mengubah PLAN §4.2/§4.3) | [KTR](features/kontrak/README.md) |
 | [TM-D31](features/time-management/README.md#keputusan) | Export Excel data absen (Detail per crew & Flash), akses per PT | [TM](features/time-management/README.md) |
 | [TM-D32](features/time-management/README.md#keputusan) | Absen sebagai aplikasi layar utama mandiri (mode standalone) | [TM](features/time-management/README.md) |
 | [TM-D33](features/time-management/README.md#keputusan) | Data Absen Harian tampilan "Per karyawan" (switch lama/baru) | [TM](features/time-management/README.md) |

@@ -29,6 +29,7 @@ export {
   getEmployeeContracts,
   promoteEmployee,
   scopeRequestActor,
+  setEmployeeDailyWage,
   withEmployeeCompanyScope,
 } from "./employee.service.ts";
 // EMP-D6: homebase per tanggal untuk payroll (tanpa FK lintas modul).

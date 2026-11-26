@@ -31,6 +31,8 @@ export const employeeListItemSchema = z.object({
   gender: genderSchema.nullable(),
   joinDate: z.string(),
   endDate: z.string().nullable(),
+  thlStatus: z.enum(["NONE", "APPROACHING", "REQUIRED"]).nullable().optional(),
+  thlPresentDaysLastMonth: z.number().nullable().optional(),
   contractStage: z.number().int().nullable().default(null),
   contractEndDate: z.iso.date().nullable().default(null),
   isActive: z.boolean(),
@@ -66,6 +68,9 @@ export const summarySchema = z.object({
     total: z.number(),
     byCategory: z.record(employmentCategorySchema, z.number()),
     uncategorized: z.number(),
+    thlStatuses: z
+      .object({ APPROACHING: z.number(), REQUIRED: z.number() })
+      .default({ APPROACHING: 0, REQUIRED: 0 }),
     pkwtStages: z
       .object({
         stage1: z.number(),

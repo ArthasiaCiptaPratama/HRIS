@@ -601,3 +601,72 @@ describe("halaman Personal Management", () => {
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(heading);
   });
 });
+
+describe("K4 daftar THL", () => {
+  it("chip dengan jumlah, kolom hadir/status, dan query thlStatus", async () => {
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/master-data": [200, masterData],
+      "/employees/summary": [
+        200,
+        {
+          data: {
+            ...summary.data,
+            active: { ...summary.data.active, thlStatuses: { APPROACHING: 1, REQUIRED: 2 } },
+          },
+        },
+      ],
+      "/employees": [
+        200,
+        {
+          data: [
+            { ...employee("1", "Contoh THL"), thlStatus: "REQUIRED", thlPresentDaysLastMonth: 22 },
+          ],
+          meta: { page: 1, pageSize: 20, total: 1 },
+        },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/harian?thlStatus=REQUIRED");
+    const table = await screen.findByRole("table", { name: "Daftar karyawan" });
+    expect(await within(table).findByText("Contoh THL")).toBeVisible();
+    expect(within(table).getByRole("columnheader", { name: "Hadir bln lalu" })).toBeVisible();
+    expect(within(table).getByText("22")).toBeVisible();
+    expect(within(table).getByText("Wajib diangkat PKWTT")).toBeVisible();
+    const filter = screen.getByRole("group", { name: "Filter status THL" });
+    expect(
+      within(filter).getByRole("button", { name: "Wajib diangkat PKWTT (2)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const calls = () =>
+      fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.pathname.endsWith("/employees"));
+    expect(calls().at(-1)?.searchParams.get("thlStatus")).toBe("REQUIRED");
+    await userEvent.click(within(filter).getByRole("button", { name: "Mendekati batas (1)" }));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.get("thlStatus")).toBe("APPROACHING"));
+    await userEvent.click(within(filter).getByRole("button", { name: /Semua/ }));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.has("thlStatus")).toBe(false));
+  });
+  it("filter dan kolom THL tidak muncul pada halaman lain", async () => {
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/master-data": [200, masterData],
+      "/employees/summary": [200, summary],
+      "/employees": [
+        200,
+        { data: [employee("1", "Bukan THL")], meta: { page: 1, pageSize: 20, total: 1 } },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/tetap?thlStatus=REQUIRED");
+    expect(await screen.findByText("Bukan THL")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Filter status THL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Hadir bln lalu" })).not.toBeInTheDocument();
+    const call = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .find((url) => url.pathname.endsWith("/employees"));
+    expect(call?.searchParams.has("thlStatus")).toBe(false);
+  });
+});

@@ -8,6 +8,7 @@ import {
   tenure,
 } from "@hris/shared";
 import { useState } from "react";
+import { FEATURES } from "@/app/feature-flags";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
@@ -17,6 +18,7 @@ import type { EmploymentContract } from "../contract-schemas";
 import { todayIso } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 import { type ContractDialogAction, EmploymentContractDialog } from "./employment-contract-dialog";
+import { ThlSection } from "./thl-section";
 
 function duration(value: ReturnType<typeof tenure>) {
   // Di bawah satu bulan tampilkan hari supaya tidak terbaca "0 th 0 bln".
@@ -164,6 +166,9 @@ export function EmploymentContractSection({ employee }: { employee: EmployeeDeta
           ) : null}
         </div>
       ) : null}
+      {FEATURES.thlEvaluation && data.thl ? (
+        <ThlSection employeeId={employee.id} thl={data.thl} />
+      ) : null}
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-muted-foreground">Masa kerja di perusahaan</dt>
@@ -209,7 +214,14 @@ export function EmploymentContractSection({ employee }: { employee: EmployeeDeta
           ) : null}
           {category === "DAILY_WORKER" ||
           ((category === "PKWT" || category === "PROBATION") && active) ? (
-            <Button variant="outline" onClick={() => setAction("promote")}>
+            <Button
+              variant={
+                FEATURES.thlEvaluation && data.thl?.evaluation.status === "REQUIRED"
+                  ? "destructive"
+                  : "outline"
+              }
+              onClick={() => setAction("promote")}
+            >
               {category === "PROBATION" ? "Lulus → Permanen" : "Jadikan Karyawan Tetap"}
             </Button>
           ) : null}

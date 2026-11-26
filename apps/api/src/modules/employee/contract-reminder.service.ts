@@ -4,6 +4,7 @@ import { notify } from "../notification/index.ts";
 import { getMasterLookup, statusIdsForCategories } from "../organization/index.ts";
 import * as repository from "./employee.repository.ts";
 import { todayInJakarta } from "./employee.service.ts";
+import { remindThl } from "./thl-reminder.service.ts";
 
 // ── Cron `contract-daily` (KTR-D5, KTR-D6) ─────────────────────────────────────
 
@@ -34,12 +35,13 @@ export function contractReminderThreshold(
  * Dedupe per penerima: ambang sebelum akhir sekali per tanggal akhir; "lewat" sekali per hari.
  */
 export async function remindContracts(now: Date = new Date()) {
+  const thl = await remindThl(now);
   const today = todayInJakarta(now);
   const lookup = await getMasterLookup();
   const categoryOf = new Map<string, ContractCategory>();
   for (const category of ["PKWT", "PROBATION"] as const)
     for (const id of statusIdsForCategories(lookup, [category])) categoryOf.set(id, category);
-  if (categoryOf.size === 0) return { checked: 0, due: 0, notified: 0 };
+  if (categoryOf.size === 0) return { checked: 0, due: 0, notified: 0, thl };
 
   const rows = await repository.findContractsEndingBy(
     [...categoryOf.keys()],
@@ -126,5 +128,5 @@ export async function remindContracts(now: Date = new Date()) {
         )
       ).created;
   }
-  return { checked: rows.length, due: due.length, notified };
+  return { checked: rows.length, due: due.length, notified, thl };
 }

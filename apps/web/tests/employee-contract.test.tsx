@@ -1,3 +1,4 @@
+import { evaluateThlAttendance, THL_STATUS_LABELS, type ThlStatus } from "@hris/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -104,7 +105,21 @@ beforeEach(() => {
       const path = new URL(String(input)).pathname.replace("/api/v1", "");
       let body: unknown;
       let status = 200;
-      if (init?.method === "POST") {
+      if (init?.method === "PUT") {
+        posts.push({ path, body: JSON.parse(String(init.body)) });
+        if (postError) {
+          status = 403;
+          body = { error: { code: "FORBIDDEN", message: "Izin upah dicabut.", requestId: "r" } };
+        } else {
+          response = {
+            ...response,
+            thl: response.thl
+              ? { ...response.thl, dailyWage: { amount: 170000, effectiveFrom: "2026-11-25" } }
+              : null,
+          };
+          body = { data: { thl: response.thl } };
+        }
+      } else if (init?.method === "POST") {
         posts.push({ path, body: JSON.parse(String(init.body)) });
         if (postError) {
           status = 403;
@@ -471,4 +486,81 @@ describe("Ubah Status dengan kontrak", () => {
       expect(posts[0]?.path).toBe("/employees/e1/status-change");
     },
   );
+});
+
+function thl(status: ThlStatus = "REQUIRED", wage = true) {
+  const counts =
+    status === "REQUIRED" ? [22, 22, 22] : status === "APPROACHING" ? [14, 21, 22] : [10, 10, 10];
+  return {
+    evaluation: evaluateThlAttendance(
+      ["2026-08", "2026-09", "2026-10"].map((month, i) => ({
+        month,
+        presentDays: counts[i] ?? 0,
+        pendingDays: i === 2 ? 2 : 0,
+      })),
+      new Date("2026-11-25T05:00:00Z"),
+    ),
+    dailyWage: { amount: 150000, effectiveFrom: "2026-08-01" },
+    wageHistory: [{ id: "w1", amount: 150000, effectiveFrom: "2026-08-01", note: "Penetapan" }],
+    access: { wage },
+  };
+}
+describe("K4 THL", () => {
+  it.each(["NONE", "APPROACHING", "REQUIRED"] as const)(
+    "kartu %s: tiga bulan penuh dan bulan berjalan",
+    async (status) => {
+      await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl(status) });
+      expect(screen.getByText(THL_STATUS_LABELS[status])).toBeVisible();
+      for (const month of ["Agu 2026", "Sep 2026", "Okt 2026"])
+        expect(screen.getByText(month)).toBeVisible();
+      expect(screen.getByText("2 menunggu persetujuan")).toBeVisible();
+      expect(screen.getByText(/Bulan berjalan.*Nov 2026/)).toBeVisible();
+      expect(screen.getByText("Rp 150.000")).toBeVisible();
+      if (status === "REQUIRED") {
+        expect(screen.getByText(/PP 35\/2021 Ps. 10/)).toBeVisible();
+        expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toHaveAttribute(
+          "data-variant",
+          "destructive",
+        );
+      }
+    },
+  );
+  it("tanpa akses wage tidak menampilkan baris, tombol, atau riwayat upah", async () => {
+    await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl("APPROACHING", false) });
+    expect(screen.queryByText(/Upah harian/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rp /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tersembunyi/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Mendekati batas")).toBeVisible();
+  });
+  it("dialog memvalidasi, PUT upah, lalu menyegarkan kartu", async () => {
+    await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl() });
+    await userEvent.click(screen.getByRole("button", { name: "Ubah upah harian" }));
+    const dialog = screen.getByRole("dialog");
+    const save = within(dialog).getByRole("button", { name: "Simpan upah harian" });
+    expect(save).toBeDisabled();
+    expect(screen.getByLabelText("Tanggal berlaku")).toHaveValue("2026-11-25");
+    fireEvent.change(screen.getByLabelText("Upah harian (Rp)"), { target: { value: "-1" } });
+    await userEvent.type(screen.getByLabelText("Alasan perubahan (wajib)"), "Penyesuaian");
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Upah harian (Rp)"), { target: { value: "170000" } });
+    await userEvent.click(save);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(posts).toEqual([
+      {
+        path: "/employees/e1/daily-wage",
+        body: { amount: 170000, effectiveFrom: "2026-11-25", note: "Penyesuaian" },
+      },
+    ]);
+    expect(await screen.findByText("Rp 170.000")).toBeVisible();
+    expect(reads.filter((path) => path.endsWith("/contracts")).length).toBeGreaterThan(1);
+  });
+  it("error API tetap terlihat di dialog", async () => {
+    await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl() });
+    postError = true;
+    await userEvent.click(screen.getByRole("button", { name: "Ubah upah harian" }));
+    await userEvent.type(screen.getByLabelText("Alasan perubahan (wajib)"), "Uji izin");
+    await userEvent.click(screen.getByRole("button", { name: "Simpan upah harian" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Izin upah dicabut.");
+    expect(screen.getByRole("dialog")).toBeVisible();
+  });
 });

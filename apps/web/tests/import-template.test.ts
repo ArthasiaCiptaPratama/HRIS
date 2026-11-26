@@ -56,6 +56,7 @@ const expected: ImportFieldKey[] = [
   "pkwtFirstStartDate",
   "probationStartDate",
   "probationEndDate",
+  "dailyWage",
 ];
 const xmlOf = (bytes: Uint8Array) => {
   const files = unzipSync(bytes);
@@ -76,7 +77,7 @@ describe("template import HRIS", () => {
       vi.useRealTimers();
     }
   });
-  it("dibaca seperti unggahan, memilih data, mengenali 32 kolom, dan contoh tanpa ERROR", async () => {
+  it("dibaca seperti unggahan, memilih data, mengenali 33 kolom, dan contoh tanpa ERROR", async () => {
     const bytes = buildImportTemplate(input);
     const sheets = await readXlsxFile(Buffer.from(bytes));
     const selected = pickSheet(
@@ -100,7 +101,8 @@ describe("template import HRIS", () => {
       expect(raw.employeeNumber).toBe(`CONTOH-00${index + 1}`);
       expect(raw.fullName).toContain("Contoh");
       expect(raw.companyCode).toBe("AA");
-      expect(raw.employmentStatusText).toBe("Tetap");
+      expect(raw.employmentStatusText).toBe(index === 1 ? "Harian Lepas (THL)" : "Tetap");
+      if (index === 1) expect(normalizeImportRow(raw).row.contract.dailyWage).toBe(150000);
       expect(raw.phoneNumber).toBe(`08123456789${index + 1}`);
       expect(String(raw.ktpNumber)).toHaveLength(16);
       expect(String(raw.npwpNumber)).toHaveLength(15);

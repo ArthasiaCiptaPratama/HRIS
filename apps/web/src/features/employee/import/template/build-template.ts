@@ -42,6 +42,7 @@ const COLUMNS: readonly [ImportFieldKey, string][] = [
   ["pkwtFirstStartDate", "Mulai PKWT 1"],
   ["probationStartDate", "Mulai percobaan"],
   ["probationEndDate", "Akhir percobaan"],
+  ["dailyWage", "Upah harian"],
 ];
 const DATE_COLUMNS = new Set<ImportFieldKey>([
   "joinDate",
@@ -86,7 +87,7 @@ export function buildImportTemplate(input: ImportTemplateInput): Uint8Array {
     "Staf Administrasi",
     "Administrasi",
     "",
-    input.statuses[0] ?? "",
+    number === 2 ? "Harian Lepas (THL)" : (input.statuses[0] ?? ""),
     "",
     `08123456789${number}`,
     `contoh${number}@example.com`,
@@ -105,6 +106,7 @@ export function buildImportTemplate(input: ImportTemplateInput): Uint8Array {
     "Jalan Contoh No. 2",
     "",
     ...Array.from({ length: 7 }, () => ""),
+    number === 2 ? "150000" : "",
   ]);
   const data: XlsxSheet = {
     name: "Data karyawan",
@@ -127,6 +129,7 @@ export function buildImportTemplate(input: ImportTemplateInput): Uint8Array {
     "Contoh No. HP: 0812 3456 7890. Biarkan angka 0 di depan tetap ada.",
     "Contoh tanggal: 31/01/2025. NPWP: 15/16 angka. No. KTP: 16 angka.",
     "Kontrak PKWT: isi Tahap PKWT (1, 2, atau 3), Mulai kontrak, dan Akhir kontrak atau Durasi kontrak (bulan). PKWT 2/3 tanpa riwayat: isi juga Mulai PKWT 1.",
+    "Harian Lepas (THL): isi Upah harian, contoh 150000. Berlaku sejak tanggal masuk; memerlukan izin biaya tenaga kerja.",
     "Karyawan Percobaan: isi Mulai percobaan dan Akhir percobaan (maksimal 3 bulan).",
     ...(input.canWriteSensitive
       ? []

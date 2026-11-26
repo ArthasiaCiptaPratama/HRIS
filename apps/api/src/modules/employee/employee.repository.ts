@@ -589,3 +589,10 @@ export async function countContractsEnding(
   ]);
   return { soon, overdue };
 }
+
+export function findActiveThl(where: EmployeeWhere, statusIds: string[]) {
+  return getPrisma().employee.findMany({
+    where: { AND: [where, { isActive: true, employmentStatusId: { in: statusIds } }] },
+    select: { id: true, fullName: true, companyId: true, managerId: true },
+  });
+}

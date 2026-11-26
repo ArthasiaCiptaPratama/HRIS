@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — K4 THL: upah harian, evaluasi pengangkatan, rekap (Oatse/Claude)
+- **Dikerjakan:** seluruh checklist K4 (lihat README). Backend Codex `sol-high` 1 ronde (diff penuh dibaca); web Codex `sol-medium` 1 ronde (diff file inti dibaca). Gerbang verifikasi `cw` backend gagal karena lingkungan worktree (`@hris/shared` terbaca dari tree asli, `bun` di luar PATH) → `cw apply --force` + verifikasi ulang penuh di tree asli. Perbaikan sendiri: nominal rupiah memakai spasi tak terputus (kolom laporan terpotong "Rp / 150.000").
+- **Keputusan:** KTR-D13 (akses upah harian THL: SA + HR ber-grant `labor.cost.read`; PLAN §4.2/§4.3 diubah; label grant diperbarui).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ (644 modul) · db:check ✔ · shared 485 · api 1622 · web 567 ✔ · `verify-contract-migration.ts` PASS (70 migrasi; skrip kini juga menerapkan migrasi sesudah K1 dan memeriksa seed THL). Screenshot `QA/2026-11-26-ktr-k4/01` (daftar THL + chip status), `02` (kartu THL Wajib diangkat, SA), `03` (laporan; perkiraan 14 × 140.000 + 8 × 160.000 = 3.240.000 cocok).
+- **Masalah / catatan:** laporan memakai THL yang aktif sekarang; perkiraan kosong bila ada hari hadir tanpa upah berlaku (tidak dianggap nol). Daftar karyawan kini menghitung evaluasi THL dalam cakupan di setiap pemanggilan (jumlah THL kecil). Screenshot HR tanpa grant tidak diambil (dicakup test).
+- **Berikutnya:** K5 pola kerja site + HO fleksibel (TM-D35–D37; Mat dikabari dulu); rilis K4 ke staging = kata pengguna (pasca-rilis: SA memberi grant `labor.cost.read` ke HR yang mengisi upah).
+
 ### 2026-11-26 — Merge `HRIS/Mat/Mac` 52d5012 ke develop (Oatse/Claude)
 - **Dikerjakan:** merge 3 commit Mat (TM-D33 Data Absen Harian per karyawan + fix nama kartu, TM-D34 export detail absen). Konflik hanya tabel keputusan README TM → urutan TM-D33, D34 (Mat), D35–D37 (pola kerja). Induk: indeks PLAN §8 + TM-D31–D34 & KTR-D12, baris TM PROGRESS, 5 temuan review Mat di Backlog, RELEASE #116.
 - **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ (632 modul) · db:check ✔ · shared 462 · api 1601 · web 549 ✔ · `verify-contract-migration.ts` PASS (69 migrasi, DB kosong).

@@ -13,3 +13,17 @@ export function canManageContractsInCompany(actor: Actor, companyId: string): bo
     (canManageContracts(actor) && isInCompanyScope(actor, { companyId }))
   );
 }
+
+// KTR-D13: pengecualian khusus THL; grant tidak memberikan akses kepada manager/karyawan.
+export function canAccessDailyWage(actor: Actor): boolean {
+  return (
+    actor.role === "SUPER_ADMIN" ||
+    (actor.role === "HR_ADMIN" && hasPermission(actor, "labor.cost.read"))
+  );
+}
+export function canAccessDailyWageInCompany(actor: Actor, companyId: string): boolean {
+  return (
+    canAccessDailyWage(actor) &&
+    (actor.role === "SUPER_ADMIN" || isInCompanyScope(actor, { companyId }))
+  );
+}

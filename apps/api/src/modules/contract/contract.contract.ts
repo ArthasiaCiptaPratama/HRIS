@@ -4,10 +4,12 @@ import {
   CONTRACT_STATUSES,
   correctContractInputSchema,
   createContractInputSchema,
+  dailyWageInputSchema,
   employmentCategorySchema,
   endContractInputSchema,
   extendContractInputSchema,
   promoteEmployeeInputSchema,
+  THL_STATUSES,
 } from "@hris/shared";
 import { assertExact, nullableRef } from "../../core/contract.ts";
 import type * as service from "./contract.service.ts";
@@ -73,9 +75,51 @@ export const contractSummarySchema = z
       .nullable(),
   })
   .openapi("EmploymentContractSummary");
+export const dailyWageBodySchema = dailyWageInputSchema.extend({}).openapi("SetDailyWage");
+const thlMonthSchema = z
+  .object({ month: z.string(), presentDays: z.number().int(), pendingDays: z.number().int() })
+  .openapi("ThlAttendanceMonth");
+export const thlSchema = z
+  .object({
+    evaluation: z
+      .object({
+        status: z.enum(THL_STATUSES),
+        label: z.string(),
+        months: z.array(thlMonthSchema.extend({ qualifies: z.boolean() })),
+        currentMonth: thlMonthSchema,
+      })
+      .openapi("ThlEvaluation"),
+    dailyWage: z.object({ amount: z.number(), effectiveFrom: z.iso.date() }).nullable(),
+    wageHistory: z
+      .array(
+        z.object({
+          id: z.uuid(),
+          amount: z.number(),
+          effectiveFrom: z.iso.date(),
+          note: z.string(),
+          createdAt: z.iso.datetime(),
+          updatedAt: z.iso.datetime(),
+        }),
+      )
+      .optional(),
+    access: z.object({ wage: z.boolean() }).openapi("ThlAccess"),
+  })
+  .openapi("ThlDetails");
+assertExact<
+  z.infer<typeof thlSchema>,
+  NonNullable<Awaited<ReturnType<typeof import("./thl.service.ts").readThl>>>
+>(true);
+export const dailyWageResultSchema = z
+  .object({ thl: nullableRef(thlSchema) })
+  .openapi("DailyWageResult");
+assertExact<
+  z.infer<typeof dailyWageResultSchema>,
+  { thl: Awaited<ReturnType<typeof import("./thl.service.ts").readThl>> }
+>(true);
 export const employeeContractsSchema = z
   .object({
     contracts: z.array(employmentContractSchema),
+    thl: nullableRef(thlSchema),
     summary: nullableRef(contractSummarySchema),
     tier: z.enum(["PKWT", "PKWTT", "THL"]).nullable(),
     category: employmentCategorySchema.nullable(),
