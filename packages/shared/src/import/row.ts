@@ -9,6 +9,12 @@ import {
   ATTACHMENT_SPECS,
   driveFileIds,
 } from "./attachments.ts";
+import {
+  type ImportContractColumns,
+  parseContractDuration,
+  parseContractStage,
+  parseDailyWage,
+} from "./contract-columns.ts";
 import type { ImportFieldKey } from "./fields.ts";
 import { CERTIFICATIONS, EDUCATION_SLOTS, FAMILY_SLOTS } from "./groups.ts";
 import {
@@ -126,8 +132,11 @@ export interface NormalizedImportRow {
   attachments?: ImportAttachment[];
   bank: { bankName?: string; accountNumber?: string; accountHolder?: string };
   education?: { level: EducationLevel; schoolName: string | null };
-  /** Fase 7 (tidak disimpan sekarang): akhir kontrak & nomor offering. */
-  contract: { endDate?: string; permanentHint?: boolean; offeringNumber?: string };
+  /**
+   * KTR-D12: kolom kontrak (tahap, mulai/akhir, durasi, mulai PKWT 1, mulai/akhir percobaan) → tabel
+   * kontrak di server. `permanentHint`/nomor offering: petunjuk saja, tidak disimpan.
+   */
+  contract: ImportContractColumns & { permanentHint?: boolean; offeringNumber?: string };
 }
 
 export interface ImportFamilyMember {
@@ -273,6 +282,23 @@ export function normalizeImportRow(raw: RawImportRow): {
   } else if (row.contract.permanentHint) {
     row.category = "PERMANENT";
   }
+  const dailyWage = take("dailyWage", parseDailyWage(raw.dailyWage));
+  if (dailyWage !== undefined) row.contract.dailyWage = dailyWage;
+  const stage = take("contractStage", parseContractStage(raw.contractStage));
+  if (stage !== undefined) row.contract.stage = stage;
+  const contractStart = take("contractStartDate", parseDate(raw.contractStartDate));
+  if (contractStart) row.contract.startDate = contractStart;
+  const duration = take(
+    "contractDurationMonths",
+    parseContractDuration(raw.contractDurationMonths),
+  );
+  if (duration !== undefined) row.contract.durationMonths = duration;
+  const firstPkwt = take("pkwtFirstStartDate", parseDate(raw.pkwtFirstStartDate));
+  if (firstPkwt) row.contract.firstPkwtStartDate = firstPkwt;
+  const probationStart = take("probationStartDate", parseDate(raw.probationStartDate));
+  if (probationStart) row.contract.probationStartDate = probationStart;
+  const probationEnd = take("probationEndDate", parseDate(raw.probationEndDate));
+  if (probationEnd) row.contract.probationEndDate = probationEnd;
   const offering = take("offeringNumber", parseText(raw.offeringNumber, 100));
   if (offering) row.contract.offeringNumber = offering;
 
@@ -628,6 +654,43 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   HR_LEVEL_FILL: "Jabatan belum ber-level — level jabatan diisi dari file",
   HR_LEVEL_CONFLICT:
     "Baris lain memberi level berbeda untuk jabatan yang sama — level jabatan tidak diisi",
+  // KTR-D12 (K3): kolom kontrak (aturan sama dengan aksi kontrak di tab Kepegawaian).
+  UNKNOWN_CONTRACT_STAGE: "Tahap PKWT tidak dikenali. Tulis 1, 2, atau 3 (boleh I, II, III)",
+  INVALID_CONTRACT_DURATION: "Durasi kontrak tidak terbaca. Tulis jumlah bulan, mis. 6 atau 12",
+  INVALID_DAILY_WAGE:
+    "Upah harian harus angka positif maksimal Rp 100.000.000 dengan paling banyak 2 desimal",
+  DAILY_WAGE_IGNORED: "Upah harian diabaikan: hanya untuk THL aktif",
+  DAILY_WAGE_NO_PERMISSION: "Upah harian diabaikan: memerlukan izin biaya tenaga kerja",
+  DAILY_WAGE_BEFORE_JOIN: "Tanggal berlaku upah harian tidak boleh sebelum tanggal masuk",
+  CONTRACT_FIELDS_IGNORED:
+    "Status karyawan ini bukan PKWT atau masa percobaan — kolom kontrak diabaikan",
+  CONTRACT_INCOMPLETE:
+    "Data kontrak belum lengkap (perlu tanggal mulai dan tanggal akhir atau durasi) — kontrak tidak diisi",
+  CONTRACT_NO_PERMISSION:
+    "Akun Anda belum punya izin kelola kontrak di PT ini — kolom kontrak diabaikan",
+  CONTRACT_INACTIVE_IGNORED: "Karyawan nonaktif/keluar — kolom kontrak diabaikan",
+  // KTR-D4 (K3): import bukan jalan pintas pindah status ke/dari PKWT / Karyawan Percobaan.
+  STATUS_CONTRACT_CATEGORY:
+    "Perubahan status ke/dari PKWT atau Karyawan Percobaan tidak bisa lewat import. Pakai Ubah Status (isi kontrak) atau aksi di tab Kepegawaian",
+  CONTRACT_STAGE_MISMATCH:
+    "Tahap kontrak di file berbeda dengan kontrak aktif. Ubah tahap lewat tab Kepegawaian",
+  CONTRACT_INVALID_DATE: "Tanggal kontrak tidak valid",
+  CONTRACT_END_BEFORE_START: "Tanggal akhir kontrak tidak boleh sebelum tanggal mulai",
+  CONTRACT_STAGE_INVALID:
+    "Tahap PKWT harus 1–3. Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak",
+  CONTRACT_PKWT1_TOO_LONG: "PKWT 1 maksimal 2 tahun",
+  CONTRACT_PKWT_EXTENSION_TOO_LONG: "PKWT 2/3 maksimal 1 tahun",
+  CONTRACT_FIRST_PKWT_AFTER_START: "Tanggal mulai PKWT 1 tidak boleh setelah tahap ini",
+  CONTRACT_PKWT_TOTAL_TOO_LONG: "Total masa PKWT maksimal 4 tahun sejak mulai PKWT 1",
+  CONTRACT_STAGE_ORDER: "Tahap PKWT harus berurutan",
+  CONTRACT_PROBATION_TOO_LONG: "Masa percobaan maksimal 3 bulan",
+  CONTRACT_OVERLAP: "Tanggal kontrak tumpang tindih dengan tahap sebelumnya",
+  CONTRACT_GAP: "Ada jeda antar-tahap: tanggal mulai bukan H+1 dari akhir tahap sebelumnya",
+  CONTRACT_BEFORE_JOIN: "Tanggal mulai kontrak tidak boleh sebelum tanggal masuk",
+  CONTRACT_FIRST_PKWT_REQUIRED:
+    "PKWT 2/3 tanpa kontrak sebelumnya wajib mengisi kolom Mulai PKWT 1",
+  CONTRACT_FIRST_PKWT_MISMATCH: "Mulai PKWT 1 harus sama dengan tanggal mulai tahap 1",
+  CONTRACT_RULE: "Data kontrak tidak memenuhi aturan tahap kontrak",
   CHART_POSITION_KEPT:
     "Jabatan di file berbeda dari jabatan pos bagan — jabatan pos dipertahankan (ubah lewat bagan)",
 };

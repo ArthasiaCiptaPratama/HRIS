@@ -70,7 +70,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   "employee.discipline.read": "Lihat surat peringatan karyawan",
   "employee.discipline.write": "Buat, terbitkan & cabut surat peringatan; kelola jenis pelanggaran",
   "labor.cost.read":
-    "Lihat biaya tenaga kerja (tabel upah grade, rupiah lembur per orang, estimasi pesangon & labor cost)",
+    "Lihat biaya tenaga kerja (tabel upah grade, rupiah lembur per orang, estimasi pesangon & labor cost) serta lihat & isi upah harian THL",
   "org.structure.manage":
     "Ubah bagan organisasi (tambah/pindah/arsip pos, slot, buat jabatan baru, tempatkan karyawan ke pos)",
 };

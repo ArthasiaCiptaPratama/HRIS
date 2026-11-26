@@ -182,7 +182,7 @@ SUPER_ADMIN bisa memberi izin tambahan ke akun **HR_ADMIN** atau **MANAGER** dar
 | `employee.bank.write`            | Ubah nomor rekening                                                              | HR_ADMIN, MANAGER     |
 | `employee.documents.read`        | Lihat dokumen karyawan                                                           | HR_ADMIN, MANAGER     |
 | `employee.documents.write`       | Unggah/hapus dokumen karyawan                                                    | HR_ADMIN, MANAGER     |
-| `contract.manage`                | Buat, perpanjang, terminasi kontrak; lihat daftar kontrak                         | HR_ADMIN              |
+| `contract.manage`                | Buat, perpanjang, terminasi kontrak (daftar akan habis tanpa grant, KTR-D11)       | HR_ADMIN              |
 | `payroll.period.prepare`         | Menutup periode absensi & menandai input payroll siap (**tanpa** melihat nominal) | HR_ADMIN              |
 | `employee.onboarding.review`     | Lihat data sensitif & dokumen calon/karyawan yang sedang onboarding, lalu setujui / minta revisi / batalkan (D-047) | HR_ADMIN              |
 | `employee.changes.review`        | Setujui/tolak pengajuan perubahan data karyawan di PT yang ditugaskan; bagian sensitif tetap butuh grant lihat & ubah bagian itu (D-054, Arsip 1c) | HR_ADMIN              |
@@ -197,7 +197,7 @@ Sifat grant:
 - **Alasan** disimpan (opsional diisi di UI).
 - **Bisa dicabut kapan saja** dan langsung berlaku di request berikutnya.
 - Pemberian, pencabutan, dan **setiap akses data sensitif** tercatat di audit log.
-- **Data gaji tidak pernah bisa di-grant.** Gaji mutlak hanya untuk SUPER_ADMIN.
+- **Data gaji tidak pernah bisa di-grant.** Gaji mutlak hanya untuk SUPER_ADMIN. **Pengecualian KTR-D13:** upah harian THL (Harian Lepas) boleh dilihat & diisi HR_ADMIN ber-grant `labor.cost.read` di PT yang ditugaskan.
 
 ### 4.3 Matriks Akses
 
@@ -250,7 +250,10 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Isi data pribadi, keluarga, rekening, pendidikan & dokumen **milik sendiri** saat onboarding (D-046) | – | – | – | ✅ hanya saat status mengisi / perlu revisi |
 | Laporan (headcount & turnover, dokumen kedaluwarsa, kelengkapan data, SP aktif; ekspor Excel) (ARS-D16) | ✅ | ✅ PT ditugaskan (daftar per orang jenis sensitif butuh grant terkait) | ❌ | ❌ |
 | **Kontrak** | | | | |
-| Kelola kontrak & lihat kontrak akan habis | ✅ | 🔑 | ❌ | ❌ |
+| Kelola kontrak (isi tahap, perpanjang, jadikan Karyawan Tetap, akhiri) | ✅ | 🔑 | ❌ | ❌ |
+| Lihat daftar "Kontrak akan habis" & terima pengingat kontrak (KTR-D11) | ✅ | ✅ PT ditugaskan | ❌ (atasan langsung hanya menerima pengingat bawahannya) | ❌ |
+| Lihat & isi upah harian THL, kolom rupiah rekap kehadiran & upah THL (KTR-D13) | ✅ | 🔑 `labor.cost.read` | ❌ | ❌ |
+| Lihat hari hadir THL, tanda "Mendekati batas"/"Wajib diangkat PKWTT" & terima notifikasinya (KTR-D8) | ✅ | ✅ PT ditugaskan | ❌ (atasan langsung hanya menerima notifikasi bawahannya) | ❌ |
 | Lihat kontrak sendiri | ✅ | ✅ | ✅ | ✅ |
 | **Absensi** | | | | |
 | Absen (clock-in/out) | ✅* | ✅ | ✅ | ✅ |
@@ -271,7 +274,7 @@ Keterangan: ✅ boleh · 👁 lihat saja · 🔑 butuh grant · ❌ tidak · "ti
 | Keputusan cuti tahunan & izin | override | ✅ validasi administrasi | ✅ approval utama (tim) | ❌ |
 | Penyesuaian saldo individual | ✅ | ✅ | ❌ | ❌ |
 | **Payroll** | | | | |
-| Nominal & struktur gaji per karyawan | ✅ | ❌ | ❌ | ❌ |
+| Nominal & struktur gaji per karyawan (kecuali upah harian THL, KTR-D13) | ✅ | ❌ | ❌ | ❌ |
 | Hitung, review, lock payroll, terbitkan slip | ✅ | ❌ | ❌ | ❌ |
 | Lihat slip gaji semua karyawan | ✅ | ❌ | ❌ | ❌ |
 | Lihat & unduh slip gaji sendiri | ✅* | ✅ | ✅ | ✅ |
@@ -467,7 +470,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [D-035](decisions.md#d-035) | Personal Management web lebih awal | [EMP](features/karyawan/README.md) |
 | [D-036](decisions.md#d-036) | Staging di Vercel | [FND](features/fondasi/README.md) |
 | [D-037](decisions.md#d-037) | Foto profil pegawai | [EMP](features/karyawan/README.md) |
-| [D-038](decisions.md#d-038) | Kategori & pengelompokan Data Karyawan Aktif | [EMP](features/karyawan/README.md) |
+| [D-038](decisions.md#d-038) | Kategori & pengelompokan Data Karyawan Aktif (poin 1–2 diubah KTR-D2) | [EMP](features/karyawan/README.md) |
 | [D-039](decisions.md#d-039) | Satu sistem, banyak entitas (multi-PT) | [ORG](features/organisasi/README.md) |
 | [D-040](decisions.md#d-040) | Akses per perusahaan (account_companies) | [IAM](features/iam/README.md) |
 | [D-041](decisions.md#d-041) | Kolom data karyawan tambahan | [EMP](features/karyawan/README.md) |
@@ -599,6 +602,26 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [REC-D12](features/recruitment/README.md#rec-d12) | Rekrutmen: mundur ke tahap sebelumnya + "minta data tambahan" tanpa pindah tahap | [REC](features/recruitment/README.md) |
 | [REC-D13](features/recruitment/README.md#rec-d13) | Rekrutmen: template global, dikelola SA + HR_ADMIN; bawaan sistem hanya disalin | [REC](features/recruitment/README.md) |
 | [REC-D14](features/recruitment/README.md#rec-d14) | Rekrutmen: penawaran tanpa nominal gaji; penilaian lain terlihat setelah mengirim penilaian sendiri | [REC](features/recruitment/README.md) |
+| [KTR-D1](features/kontrak/README.md#keputusan) | Tahap PKWT: PKWT 1 maks 2 thn, perpanjangan maks 2× @1 thn, total maks 4 thn; lalu PKWTT atau berakhir | [KTR](features/kontrak/README.md) |
+| [KTR-D2](features/kontrak/README.md#keputusan) | Status kepegawaian 2 tingkat PKWT (1/2/3) · PKWTT (Percobaan/Permanen) · THL; mengubah D-038 poin 1–2 | [KTR](features/kontrak/README.md) |
+| [KTR-D3](features/kontrak/README.md#keputusan) | Satu baris kontrak per tahap PKWT; tab Kepegawaian (tahap, sisa, masa kerja, total vs 4 thn, riwayat) + tab Riwayat | [KTR](features/kontrak/README.md) |
+| [KTR-D4](features/kontrak/README.md#keputusan) | Durasi/tahap melebihi batas diblokir; jeda antar-tahap hanya peringatan | [KTR](features/kontrak/README.md) |
+| [KTR-D5](features/kontrak/README.md#keputusan) | Pengingat kontrak habis H-30/H-7 + daftar 60 hari; lewat = tanda merah + pengingat harian, tanpa nonaktif otomatis | [KTR](features/kontrak/README.md) |
+| [KTR-D6](features/kontrak/README.md#keputusan) | Masa percobaan PKWTT maks 3 bln; Lulus → Permanen (masa kerja sejak awal PKWTT) / Tidak lulus → Akhiri | [KTR](features/kontrak/README.md) |
+| [KTR-D7](features/kontrak/README.md#keputusan) | PKWT → PKWTT langsung Permanen; masa kerja di perusahaan vs masa kerja PKWTT | [KTR](features/kontrak/README.md) |
+| [KTR-D8](features/kontrak/README.md#keputusan) | THL: upah harian, rekap hadir × upah (bukan payroll), ≥21 hari 3 bln berturut → "Wajib diangkat PKWTT" | [KTR](features/kontrak/README.md) |
+| [KTR-D9](features/kontrak/README.md#keputusan) | Audit kualitas data staging (Excel read-only) + kolom import mode "perbarui" | [KTR](features/kontrak/README.md) |
+| [KTR-D10](features/kontrak/README.md#keputusan) | Urutan paket K1–K5 setelah simpan WIP R0; implementasi lewat Codex | [KTR](features/kontrak/README.md) |
+| [KTR-D11](features/kontrak/README.md#keputusan) | Daftar "Kontrak akan habis" & pengingat terlihat SA + HR_ADMIN PT tanpa grant; `contract.manage` hanya untuk aksi (mengubah PLAN §4.3) | [KTR](features/kontrak/README.md) |
+| [KTR-D12](features/kontrak/README.md#keputusan) | Koreksi data kontrak aktif tanpa pindah tahap (aksi tab Kepegawaian + import "Perbarui"); tahap beda lewat import = error | [KTR](features/kontrak/README.md) |
+| [KTR-D13](features/kontrak/README.md#keputusan) | Upah harian THL & rupiah rekapnya: SA + HR_ADMIN ber-grant `labor.cost.read` (pengecualian "gaji tidak bisa di-grant", mengubah PLAN §4.2/§4.3) | [KTR](features/kontrak/README.md) |
+| [TM-D31](features/time-management/README.md#keputusan) | Export Excel data absen (Detail per crew & Flash), akses per PT | [TM](features/time-management/README.md) |
+| [TM-D32](features/time-management/README.md#keputusan) | Absen sebagai aplikasi layar utama mandiri (mode standalone) | [TM](features/time-management/README.md) |
+| [TM-D33](features/time-management/README.md#keputusan) | Data Absen Harian tampilan "Per karyawan" (switch lama/baru) | [TM](features/time-management/README.md) |
+| [TM-D34](features/time-management/README.md#keputusan) | Export Detail absen: pilih karyawan, kelompok kolom & filter baris (mengubah sebagian TM-D31) | [TM](features/time-management/README.md) |
+| [TM-D35](features/time-management/README.md#keputusan) | Shift site: 2 Shift 12 jam (07–19, 19–07) & 3 Shift 8 jam (07–15, 15–23, 23–07) per PT | [TM](features/time-management/README.md) |
+| [TM-D36](features/time-management/README.md#keputusan) | Saran pola 2/3 shift per level & lokasi saat menyusun jadwal; menyimpang = peringatan | [TM](features/time-management/README.md) |
+| [TM-D37](features/time-management/README.md#keputusan) | Jam kerja fleksibel HO: Telat/Pulang cepat tidak dihitung; saklar per PT (bawaan menyala) | [TM](features/time-management/README.md) |
 
 ## 9. Keputusan Terbuka
 

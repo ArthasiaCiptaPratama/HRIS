@@ -391,8 +391,8 @@ export function parseEmploymentStatus(value: unknown): Normalized<StatusInfo> {
   const withDuration = (info: StatusInfo): Normalized<StatusInfo> => ({
     value: months ? { ...info, durationMonths: months } : info,
   });
-  if (/pkwtt|permanen|permanent|tetap/.test(text)) return { value: { category: "PERMANENT" } };
   if (/probation|percobaan/.test(text)) return withDuration({ category: "PROBATION" });
+  if (/pkwtt|permanen|permanent|tetap/.test(text)) return { value: { category: "PERMANENT" } };
   if (/pkwt|kontrak|contract/.test(text)) {
     const seq =
       text.match(/pkwt\s+(i{1,3}|iv|v)\b/)?.[1] ??
@@ -403,7 +403,8 @@ export function parseEmploymentStatus(value: unknown): Normalized<StatusInfo> {
       contractSequence ? { category: "PKWT", contractSequence } : { category: "PKWT" },
     );
   }
-  if (/harian|daily|freelance|lepas/.test(text)) return { value: { category: "DAILY_WORKER" } };
+  if (/\bthl\b|harian|daily|freelance|lepas/.test(text))
+    return { value: { category: "DAILY_WORKER" } };
   if (/magang|intern|pkl|trainee/.test(text)) return withDuration({ category: "INTERNSHIP" });
   if (/outsourc|alih daya/.test(text)) return { value: { category: "OUTSOURCING" } };
   if (/vendor|mitra/.test(text)) return { value: { category: "VENDOR" } };

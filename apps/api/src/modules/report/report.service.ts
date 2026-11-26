@@ -31,6 +31,10 @@ import {
   type ReportEmployee,
 } from "../employee/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
+import { thlReportSheets } from "./thl-report.service.ts";
+
+export { thlAttendanceWageReport } from "./thl-report.service.ts";
+
 import * as policy from "./report.policy.ts";
 import { isBatch2Kind, sheetsForBatch2 } from "./report-batch2.service.ts";
 import {
@@ -338,6 +342,7 @@ async function sheetsFor(
   frame: ExportFrame,
 ): Promise<XlsxSheet[]> {
   const sheet = (s: XlsxSheet): XlsxSheet => ({ ...s, info: frame.info });
+  if (kind === "thl-attendance-wage") return (await thlReportSheets(ctx, raw)).map(sheet);
   if (isBatch2Kind(kind)) return sheetsForBatch2(ctx, kind, raw, sheet);
   if (kind === "headcount") {
     const r = await headcountReport(ctx, raw);

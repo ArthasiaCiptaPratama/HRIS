@@ -1,5 +1,7 @@
 // Interface publik modul employee (PLAN §3.2.5): hanya file ini yang boleh di-import dari luar modul.
 
+// KTR-D5/D6 (K2): pengingat kontrak/masa percobaan untuk cron `contract-daily`.
+export { remindContracts } from "./contract-reminder.service.ts";
 export {
   type AnalyticsEmployeeBrief,
   type EmployeeBrief,
@@ -17,10 +19,17 @@ export { remindExpiringDocuments } from "./document.service.ts";
 export { type EmployeeRouteDeps, registerEmployeeRoutes } from "./employee.routes.ts";
 export type { EmployeeDetail, EmployeeListItem } from "./employee.schema.ts";
 export {
+  correctEmployeeContract,
+  createEmployeeContract,
   employeeLoginDirectory,
   employeeMasterDataSupport,
   employeeScopeForIam,
+  endEmployeeContract,
+  extendEmployeeContract,
+  getEmployeeContracts,
+  promoteEmployee,
   scopeRequestActor,
+  setEmployeeDailyWage,
   withEmployeeCompanyScope,
 } from "./employee.service.ts";
 // EMP-D6: homebase per tanggal untuk payroll (tanpa FK lintas modul).

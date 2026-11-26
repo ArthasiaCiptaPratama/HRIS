@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  contractPeriodInputSchema,
   EMPLOYEE_SORT_FIELDS,
   educationLevelSchema,
   employmentCategoryGroupSchema,
@@ -59,6 +60,10 @@ export const listEmployeesQuerySchema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   category: employmentCategoryRefSchema.optional(),
+  thlStatus: z.enum(["APPROACHING", "REQUIRED"]).openapi("EmployeeThlStatusFilter").optional(),
+  pkwtStage: z.enum(["1", "2", "3", "NONE"]).openapi("EmployeePkwtStageFilter").optional(),
+  // KTR-D5 (K2): PKWT/masa percobaan yang kontrak aktifnya berakhir ≤ N hari lagi, termasuk yang sudah lewat.
+  contractEndsWithin: z.coerce.number().int().min(1).max(366).optional(),
   // D-038: grup kategori (Internal / Magang / Eksternal); digabung AND dengan `category` bila keduanya ada.
   group: z
     .enum(employmentCategoryGroupSchema.options)
@@ -109,6 +114,10 @@ export const employeeListItemSchema = z
     gender: genderSchema.nullable(),
     joinDate: isoDate,
     endDate: isoDate.nullable(),
+    thlPresentDaysLastMonth: z.number().int().nullable(),
+    thlStatus: z.enum(["NONE", "APPROACHING", "REQUIRED"]).openapi("EmployeeThlStatus").nullable(),
+    contractStage: z.number().int().nullable(),
+    contractEndDate: isoDate.nullable(),
     isActive: z.boolean(),
     exitReason: exitReasonSchema.nullable(),
     employmentStatus: listStatusSchema,
@@ -139,6 +148,21 @@ export const employeeSummarySchema = z
       total: z.number().int(),
       byCategory: z.record(employmentCategorySchema, z.number().int()),
       uncategorized: z.number().int(),
+      thlStatuses: z
+        .object({ APPROACHING: z.number().int(), REQUIRED: z.number().int() })
+        .openapi("EmployeeThlStatuses"),
+      pkwtStages: z
+        .object({
+          stage1: z.number().int(),
+          stage2: z.number().int(),
+          stage3: z.number().int(),
+          none: z.number().int(),
+        })
+        .openapi("EmployeePkwtStages"),
+      // KTR-D5 (K2): badge menu "Kontrak akan habis" — akhir ≤ 60 hari lagi (soon) & sudah lewat (overdue).
+      contractsEnding: z
+        .object({ soon: z.number().int(), overdue: z.number().int() })
+        .openapi("EmployeeContractsEnding"),
     }),
     inactive: z.number().int(),
   })
@@ -433,7 +457,12 @@ export const updateEmployeeBodySchema = createEmployeeBodySchema
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeBodySchema>;
 
 export const changeStatusBodySchema = z
-  .object({ employmentStatusId: z.uuid(), effectiveDate: isoDate, note: optionalText(500) })
+  .object({
+    employmentStatusId: z.uuid(),
+    effectiveDate: isoDate,
+    note: optionalText(500),
+    contract: contractPeriodInputSchema.optional(),
+  })
   .openapi("ChangeEmploymentStatus");
 export type ChangeStatusInput = z.infer<typeof changeStatusBodySchema>;
 
@@ -561,3 +590,7 @@ export const fieldChangeSchema = z.object({
   refId: z.uuid().nullable(),
   changedBy: historySchema.shape.changedBy,
 });
+
+export const employeeStatusChangeResultSchema = employeeListItemSchema
+  .extend({ warnings: z.array(z.string()) })
+  .openapi("EmployeeStatusChangeResult");

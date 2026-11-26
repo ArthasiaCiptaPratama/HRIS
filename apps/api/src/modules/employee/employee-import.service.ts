@@ -20,6 +20,7 @@ import {
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import { releasePendingManagerSteps } from "../approval/index.ts";
+import { canAccessDailyWage } from "../contract/index.ts";
 import { deactivateAccountOfEmployee, getAccountLinksForEmployees } from "../iam/index.ts";
 import {
   archivedMasterIndex,
@@ -46,6 +47,17 @@ import {
   type UnitChoice,
   unitChoicesSchema,
 } from "./employee-import.schema.ts";
+import {
+  type ContractPlan,
+  contractPreview,
+  planImportContracts,
+  writeImportContract,
+} from "./employee-import-contracts.ts";
+import {
+  type DailyWagePlan,
+  planImportDailyWages,
+  writeImportDailyWage,
+} from "./employee-import-daily-wage.ts";
 import { newUnitSpecs, resolveUnits } from "./employee-import-units.ts";
 import {
   diffSnapshots,
@@ -90,6 +102,9 @@ interface RowPlan {
   mergeChartHolder?: boolean;
   /** IMP-D3: karyawan yang cocok & masih aktif dinonaktifkan dari kolom Keterangan/Tgl keluar. */
   deactivate?: { reason: "RESIGNATION" | "TERMINATION" | "OTHER"; date: string };
+  /** KTR-D12: kontrak yang dibuat/dikoreksi/dibiarkan dari kolom kontrak. */
+  contract?: ContractPlan;
+  dailyWage?: DailyWagePlan;
 }
 
 interface RepeatedRows {
@@ -332,7 +347,15 @@ export async function analyze(
       blank++;
       return [];
     }
-    return [{ sourceRow, ...normalizeImportRow(raw) }];
+    const wageIgnored = !canAccessDailyWage(ctx.actor) && raw.dailyWage !== undefined;
+    const result = normalizeImportRow(wageIgnored ? { ...raw, dailyWage: undefined } : raw);
+    if (wageIgnored)
+      result.issues.push({
+        field: "dailyWage",
+        code: "DAILY_WAGE_NO_PERMISSION",
+        severity: "WARNING",
+      });
+    return [{ sourceRow, ...result }];
   });
   const numbers = [
     ...new Set(normalized.flatMap((n) => (n.row.employeeNumber ? [n.row.employeeNumber] : []))),
@@ -615,6 +638,9 @@ export async function analyze(
       p.changes = diff(p.row, p.existing, lookup, p, map);
     if (p.action === "UPDATE" && p.changes.length === 0 && !p.deactivate) p.action = "SKIP";
   }
+  // 3b) KTR-D12: kolom kontrak → rencana kontrak per baris (aturan aksi kontrak, semua mode).
+  const contractStamp = await planImportContracts(ctx, plans, lookup, body.mode, today);
+  const dailyWageStamp = await planImportDailyWages(ctx, plans, lookup, body.mode, today);
 
   // 4) Master data yang belum ada (hanya dari baris yang akan ditulis), setelah pemetaan pengguna.
   //    Baris UPDATE hanya menyumbang nama untuk field yang BERUBAH (nilai lama tidak ditulis ulang).
@@ -751,6 +777,14 @@ export async function analyze(
     attachments: queuedAttachments(p).length,
     chartHolder: p.chartHolder ?? null,
     deactivate: p.deactivate ?? null,
+    contract: contractPreview(p.contract),
+    dailyWage: p.dailyWage
+      ? {
+          action: p.dailyWage.action,
+          amount: p.dailyWage.amount,
+          effectiveFrom: p.dailyWage.effectiveFrom,
+        }
+      : null,
   }));
   // IMP-D1: daftar pemegang bagan yang masih ber-NIP sementara (pilihan manual & "belum dilengkapi").
   const posts = chartHolderList.length > 0 ? await listOrgPosts() : [];
@@ -774,6 +808,7 @@ export async function analyze(
         skippedFields,
         stamp: [...existingList, ...chosenTargets.values()]
           .map((e) => `${e.id}:${e.updatedAt.toISOString()}`)
+          .concat(contractStamp, dailyWageStamp)
           .sort(),
       }),
     )
@@ -1032,6 +1067,12 @@ export async function commit(
           emergencyContactRelationship: row.emergencyContactRelationship ?? null,
           gender: row.gender ?? null,
           joinDate: toDate(row.joinDate as string),
+          // KTR-D7: karyawan PKWTT (Tetap/Percobaan) baru → masa kerja PKWTT sejak tanggal masuk (sama createEmployee).
+          pkwttStartDate: ["PERMANENT", "PROBATION"].includes(
+            lookup.statuses.get(plan.statusId as string)?.category ?? "",
+          )
+            ? toDate(row.joinDate as string)
+            : null,
           employmentStatusId: plan.statusId as string,
           positionId: posId,
           workLocationId: row.workLocationName ? (locationId(row.workLocationName) ?? null) : null,
@@ -1077,6 +1118,26 @@ export async function commit(
           note: "Import data karyawan",
           changedBy: ctx.actor.accountId,
         });
+        if (plan.dailyWage)
+          await writeImportDailyWage(
+            tx,
+            ctx,
+            { id: created.id, companyId: plan.companyId as string },
+            plan.dailyWage,
+            changeLookup,
+          );
+        if (plan.contract)
+          await writeImportContract(
+            tx,
+            ctx,
+            {
+              id: created.id,
+              companyId: plan.companyId as string,
+              employmentStatusId: plan.statusId as string,
+            },
+            plan.contract,
+            audit,
+          );
         if (row.exit) {
           await repository.createHistory(tx, {
             employeeId: created.id,
@@ -1141,7 +1202,19 @@ export async function commit(
           ...(has("gender") ? { gender: row.gender } : {}),
           ...(has("joinDate") ? { joinDate: toDate(row.joinDate as string) } : {}),
           ...(has("companyCode") ? { companyId: plan.companyId } : {}),
-          ...(has("employmentStatusText") ? { employmentStatusId: plan.statusId } : {}),
+          ...(has("employmentStatusText")
+            ? {
+                employmentStatusId: plan.statusId,
+                // KTR-D7: pindah ke Karyawan Tetap dari kategori non-PKWTT → masa kerja PKWTT mulai hari ini;
+                // keluar dari PKWTT → dikosongkan. (Ke/dari PKWT & Percobaan sudah ditolak di pratinjau.)
+                pkwttStartDate:
+                  lookup.statuses.get(plan.statusId as string)?.category === "PERMANENT"
+                    ? lookup.statuses.get(e.employmentStatusId)?.category === "PERMANENT"
+                      ? e.pkwttStartDate
+                      : toDate(today)
+                    : null,
+              }
+            : {}),
           ...(newPositionId ? { positionId: newPositionId } : {}),
           ...(has("gradeName") && row.gradeName
             ? { hrLevelCode: parseHrLevelCode(row.gradeName)?.code ?? null }
@@ -1192,6 +1265,28 @@ export async function commit(
             note: "Import data karyawan",
             changedBy: ctx.actor.accountId,
           });
+        if (plan.dailyWage)
+          await writeImportDailyWage(
+            tx,
+            ctx,
+            { id: e.id, companyId: has("companyCode") ? (plan.companyId as string) : e.companyId },
+            plan.dailyWage,
+            changeLookup,
+          );
+        if (plan.contract)
+          await writeImportContract(
+            tx,
+            ctx,
+            {
+              id: e.id,
+              companyId: has("companyCode") ? (plan.companyId as string) : e.companyId,
+              employmentStatusId: has("employmentStatusText")
+                ? (plan.statusId as string)
+                : e.employmentStatusId,
+            },
+            plan.contract,
+            audit,
+          );
         // IMP-D2: satu field bisa dari dua kunci (No. SIM) → pada FILL_EMPTY hanya kunci yang masih kosong.
         const personalChanges = PERSONAL_KEYS.filter(
           (k) =>

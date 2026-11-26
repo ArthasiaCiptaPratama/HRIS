@@ -93,6 +93,7 @@ enum EmployeeExitReason {
   RESIGNATION
   TERMINATION
   CONTRACT_ENDED
+  PROBATION_FAILED
   RETIREMENT
   DECEASED
   OTHER
@@ -128,6 +129,7 @@ enum MovementType {
 enum EmploymentChangeType {
   HIRED
   STATUS_CHANGED
+  CONTRACT_STAGE_CHANGED
   POSITION_CHANGED
   DEACTIVATED
   REACTIVATED
@@ -152,6 +154,13 @@ model Employee {
   emergencyContactRelationship String?                @map("emergency_contact_relationship") @db.VarChar(50)
   gender                       Gender?
   joinDate                     DateTime               @map("join_date") @db.Date
+  pkwttStartDate               DateTime?              @map("pkwtt_start_date") @db.Date
+  /// KTR-D2 (revisi): SALINAN tahap PKWT & akhir kontrak ACTIVE untuk filter/urut daftar berhalaman.
+  /// Sumber kebenaran = contract.contracts; setiap jalur yang menulis kontrak memperbaruinya di transaksi yang sama.
+  contractStage                Int?                   @map("contract_stage")
+  contractEndDate              DateTime?              @map("contract_end_date") @db.Date
+  contracts                    EmploymentContract[]
+  dailyWages                   DailyWage[]
   endDate                      DateTime?              @map("end_date") @db.Date
   employmentStatusId           String                 @map("employment_status_id") @db.Uuid
   // D-039: perusahaan dalam grup tempat karyawan terdaftar (wajib; data lama = ACP).

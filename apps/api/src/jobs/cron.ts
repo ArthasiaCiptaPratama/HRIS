@@ -3,7 +3,7 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { MiddlewareHandler } from "hono";
 import { UnauthenticatedError } from "../core/errors.ts";
 import type { Logger } from "../core/logger.ts";
-import { remindExpiringDocuments } from "../modules/employee/index.ts";
+import { remindContracts, remindExpiringDocuments } from "../modules/employee/index.ts";
 import { notifyExpiringGrants } from "../modules/iam/index.ts";
 import { retryEmailOutbox } from "../modules/notification/index.ts";
 
@@ -30,6 +30,8 @@ export const CRON_JOBS = {
   "email-retry": () => retryEmailOutbox(),
   // D-055: pengingat dokumen kedaluwarsa (60/30/7 hari & sudah lewat).
   "document-expiry": () => remindExpiringDocuments(),
+  // KTR-D5/D6: pengingat kontrak PKWT (H-30/H-7) & masa percobaan (H-14); lewat = pengingat harian.
+  "contract-daily": () => remindContracts(),
 } as const;
 
 export function registerCronRoutes(

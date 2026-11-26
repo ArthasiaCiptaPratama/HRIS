@@ -1,0 +1,142 @@
+import { z } from "@hono/zod-openapi";
+import {
+  CONTRACT_KINDS,
+  CONTRACT_STATUSES,
+  correctContractInputSchema,
+  createContractInputSchema,
+  dailyWageInputSchema,
+  employmentCategorySchema,
+  endContractInputSchema,
+  extendContractInputSchema,
+  promoteEmployeeInputSchema,
+  THL_STATUSES,
+} from "@hris/shared";
+import { assertExact, nullableRef } from "../../core/contract.ts";
+import type * as service from "./contract.service.ts";
+
+// Shared schemas may be initialized before zod-openapi patches Zod (full test suite import order).
+// Rebuild the object after extension, as in the existing attendance contracts.
+export const createContractBodySchema = createContractInputSchema
+  .extend({})
+  .openapi("CreateEmploymentContract");
+export const correctContractBodySchema = correctContractInputSchema
+  .extend({})
+  .openapi("CorrectEmploymentContract");
+export const extendContractBodySchema = extendContractInputSchema
+  .extend({})
+  .openapi("ExtendEmploymentContract");
+export const promoteEmployeeBodySchema = promoteEmployeeInputSchema
+  .extend({})
+  .openapi("PromoteEmployee");
+export const endContractBodySchema = endContractInputSchema
+  .extend({})
+  .openapi("EndEmploymentContract");
+export const employmentContractSchema = z
+  .object({
+    id: z.uuid(),
+    employeeId: z.uuid(),
+    companyId: z.uuid(),
+    kind: z.enum(CONTRACT_KINDS),
+    sequence: z.number().int().nullable(),
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
+    previousContractId: z.uuid().nullable(),
+    pkwtFirstStartDate: z.iso.date().nullable(),
+    status: z.enum(CONTRACT_STATUSES),
+    closedAt: z.iso.datetime().nullable(),
+    closeReason: z.string().nullable(),
+    note: z.string().nullable(),
+    createdBy: z.uuid().nullable(),
+    updatedBy: z.uuid().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .openapi("EmploymentContract");
+assertExact<z.infer<typeof employmentContractSchema>, ReturnType<typeof service.contractDto>>(true);
+const tenureSchema = z
+  .object({ years: z.number().int(), months: z.number().int(), days: z.number().int() })
+  .openapi("EmploymentTenure");
+export const contractSummarySchema = z
+  .object({
+    contractId: z.uuid(),
+    stage: z.string(),
+    startDate: z.iso.date(),
+    endDate: z.iso.date(),
+    remainingDays: z.number().int(),
+    color: z.enum(["ok", "warn", "danger", "expired"]),
+    stageTenure: tenureSchema,
+    totalPkwt: z
+      .object({
+        firstStartDate: z.iso.date(),
+        days: z.number().int(),
+        maxDays: z.number().int(),
+        percent: z.number(),
+      })
+      .nullable(),
+  })
+  .openapi("EmploymentContractSummary");
+export const dailyWageBodySchema = dailyWageInputSchema.extend({}).openapi("SetDailyWage");
+const thlMonthSchema = z
+  .object({ month: z.string(), presentDays: z.number().int(), pendingDays: z.number().int() })
+  .openapi("ThlAttendanceMonth");
+export const thlSchema = z
+  .object({
+    evaluation: z
+      .object({
+        status: z.enum(THL_STATUSES),
+        label: z.string(),
+        months: z.array(thlMonthSchema.extend({ qualifies: z.boolean() })),
+        currentMonth: thlMonthSchema,
+      })
+      .openapi("ThlEvaluation"),
+    dailyWage: z.object({ amount: z.number(), effectiveFrom: z.iso.date() }).nullable(),
+    wageHistory: z
+      .array(
+        z.object({
+          id: z.uuid(),
+          amount: z.number(),
+          effectiveFrom: z.iso.date(),
+          note: z.string(),
+          createdAt: z.iso.datetime(),
+          updatedAt: z.iso.datetime(),
+        }),
+      )
+      .optional(),
+    access: z.object({ wage: z.boolean() }).openapi("ThlAccess"),
+  })
+  .openapi("ThlDetails");
+assertExact<
+  z.infer<typeof thlSchema>,
+  NonNullable<Awaited<ReturnType<typeof import("./thl.service.ts").readThl>>>
+>(true);
+export const dailyWageResultSchema = z
+  .object({ thl: nullableRef(thlSchema) })
+  .openapi("DailyWageResult");
+assertExact<
+  z.infer<typeof dailyWageResultSchema>,
+  { thl: Awaited<ReturnType<typeof import("./thl.service.ts").readThl>> }
+>(true);
+export const employeeContractsSchema = z
+  .object({
+    contracts: z.array(employmentContractSchema),
+    thl: nullableRef(thlSchema),
+    summary: nullableRef(contractSummarySchema),
+    tier: z.enum(["PKWT", "PKWTT", "THL"]).nullable(),
+    category: employmentCategorySchema.nullable(),
+    joinDate: z.iso.date(),
+    pkwttStartDate: z.iso.date().nullable(),
+    companyTenure: tenureSchema,
+    pkwttTenure: nullableRef(tenureSchema),
+    access: z
+      .object({ manage: z.boolean(), missingGrant: z.boolean() })
+      .openapi("EmploymentContractAccess"),
+  })
+  .openapi("EmployeeContracts");
+assertExact<
+  z.infer<typeof employeeContractsSchema>,
+  Awaited<ReturnType<typeof service.readEmployeeContracts>>
+>(true);
+export const contractActionResultSchema = z
+  .object({ contract: nullableRef(employmentContractSchema), warnings: z.array(z.string()) })
+  .openapi("EmploymentContractActionResult");
+assertExact<z.infer<typeof contractActionResultSchema>, service.ContractActionResult>(true);

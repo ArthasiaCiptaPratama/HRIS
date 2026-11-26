@@ -97,6 +97,23 @@ export const previewSchema = z.object({
         .object({ reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]), date: z.string() })
         .nullable()
         .default(null),
+      dailyWage: z
+        .object({ action: z.enum(["SET", "KEEP"]), amount: z.number(), effectiveFrom: z.string() })
+        .nullable()
+        .optional(),
+      /** KTR-D12: kontrak dari kolom kontrak (baru / koreksi / dibiarkan); server lama → null. */
+      contract: z
+        .object({
+          action: z.enum(["CREATE", "CORRECT", "KEEP"]),
+          kind: z.enum(["PKWT", "PROBATION"]),
+          sequence: z.number().nullable(),
+          startDate: z.string(),
+          endDate: z.string(),
+          firstPkwtStartDate: z.string().nullable(),
+          previous: z.object({ startDate: z.string(), endDate: z.string() }).nullable(),
+        })
+        .nullable()
+        .default(null),
     }),
   ),
   units: z.array(unitPreviewSchema).default([]),
