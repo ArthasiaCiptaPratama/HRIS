@@ -360,6 +360,11 @@ const BASE_IMPORT_FIELDS = {
     ],
   },
   // KTR-D12 (K3): kolom kontrak → tabel kontrak (aturan sama dengan aksi tab Kepegawaian).
+  dailyWage: {
+    label: "Upah harian",
+    section: "contract",
+    synonyms: ["upah harian", "upah per hari", "daily wage", "upah/hari"],
+  },
   contractStage: {
     label: "Tahap PKWT",
     section: "contract",

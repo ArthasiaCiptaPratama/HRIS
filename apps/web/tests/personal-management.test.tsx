@@ -227,7 +227,7 @@ describe("halaman Personal Management", () => {
     ]);
   });
 
-  it("KTR-D2 revisi: halaman PKWT punya filter Tahap ber-jumlah + kolom Tahap & Akhir kontrak", async () => {
+  it("KTR-D2 revisi: halaman PKWT punya filter Tahap ber-jumlah; tahap menyatu di badge Status (2026-11-26) + Akhir kontrak", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-25T05:00:00Z"));
     const withStages = {
@@ -273,7 +273,11 @@ describe("halaman Personal Management", () => {
       "true",
     );
     expect(within(filter).getByRole("button", { name: /Semua/ })).toHaveTextContent("2");
-    expect(within(table).getByRole("columnheader", { name: /Tahap/ })).toBeInTheDocument();
+    // Masukan pengguna 2026-11-26: kolom Tahap dilebur ke badge Status ("PKWT 3"), Status bisa diurutkan.
+    expect(within(table).queryByRole("columnheader", { name: /Tahap/ })).toBeNull();
+    expect(
+      within(within(table).getByRole("columnheader", { name: /Status/ })).getByRole("button"),
+    ).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: /Akhir kontrak/ })).toBeInTheDocument();
     expect(within(table).getByText("PKWT 3")).toBeInTheDocument();
     // 15 hari lagi → merah; > 60 hari → hijau.
@@ -599,5 +603,132 @@ describe("halaman Personal Management", () => {
     });
     renderAt(`/personal/pegawai-aktif/${slug}`);
     expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(heading);
+  });
+});
+
+describe("K4 daftar THL", () => {
+  it("opsi C: badge Status gabungan, kolom n/3 + tooltip, sort thlStreak, chip & query thlStatus", async () => {
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/master-data": [200, masterData],
+      "/employees/summary": [
+        200,
+        {
+          data: {
+            ...summary.data,
+            active: { ...summary.data.active, thlStatuses: { APPROACHING: 1, REQUIRED: 2 } },
+          },
+        },
+      ],
+      "/employees": [
+        200,
+        {
+          data: [
+            {
+              ...employee("1", "Contoh THL"),
+              thlStatus: "REQUIRED",
+              thlPresentDaysLastMonth: 22,
+              thlAttendance: {
+                months: [
+                  { month: "2026-08", presentDays: 21, pendingDays: 0, beforeJoin: false },
+                  { month: "2026-09", presentDays: 22, pendingDays: 0, beforeJoin: false },
+                  { month: "2026-10", presentDays: 22, pendingDays: 2, beforeJoin: false },
+                ],
+                currentMonth: {
+                  month: "2026-11",
+                  presentDays: 18,
+                  pendingDays: 0,
+                  beforeJoin: false,
+                },
+                streak: 3,
+              },
+            },
+            {
+              ...employee("2", "THL Baru"),
+              thlStatus: "NONE",
+              thlPresentDaysLastMonth: 21,
+              thlAttendance: {
+                months: [
+                  { month: "2026-08", presentDays: 0, pendingDays: 0, beforeJoin: true },
+                  { month: "2026-09", presentDays: 0, pendingDays: 0, beforeJoin: true },
+                  { month: "2026-10", presentDays: 21, pendingDays: 0, beforeJoin: false },
+                ],
+                currentMonth: {
+                  month: "2026-11",
+                  presentDays: 5,
+                  pendingDays: 0,
+                  beforeJoin: false,
+                },
+                streak: 1,
+              },
+            },
+          ],
+          meta: { page: 1, pageSize: 20, total: 2 },
+        },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/harian?thlStatus=REQUIRED");
+    const table = await screen.findByRole("table", { name: "Daftar karyawan" });
+    expect(await within(table).findByText("Contoh THL")).toBeVisible();
+    // Kolom lama dihapus; satu kolom "Hari hadir / bulan" berisi n/3 (kutipan pengguna 15:5x WIB).
+    expect(within(table).queryByRole("columnheader", { name: /Hadir bln lalu/ })).toBeNull();
+    expect(within(table).queryByRole("columnheader", { name: "Status THL" })).toBeNull();
+    const header = within(table).getByRole("columnheader", { name: "Hari hadir / bulan" });
+    expect(within(table).getByText("THL · Wajib diangkat")).toBeVisible();
+    expect(within(table).getByText("THL")).toBeVisible();
+    // Satu di kolom (desktop) + satu di bawah badge (HP, `sm:hidden`); jsdom tidak menerapkan CSS.
+    const cells = within(table).getAllByText("3/3");
+    expect(cells).toHaveLength(2);
+    const full = cells[0] as HTMLElement;
+    expect(full).toHaveClass("text-red-700");
+    expect(full).toHaveAttribute(
+      "title",
+      "Agu 2026: 21 hari · Sep 2026: 22 hari · Okt 2026: 22 hari (+2 menunggu persetujuan) · Nov 2026 (berjalan): 18 hari · 3 lagi ke 21",
+    );
+    expect(within(table).getAllByText("1/3")[0]).toHaveAttribute(
+      "title",
+      "Agu 2026: – · Sep 2026: – · Okt 2026: 21 hari · Nov 2026 (berjalan): 5 hari · 16 lagi ke 21",
+    );
+    const filter = screen.getByRole("group", { name: "Filter status THL" });
+    expect(
+      within(filter).getByRole("button", { name: "Wajib diangkat PKWTT (2)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const calls = () =>
+      fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.pathname.endsWith("/employees"));
+    expect(calls().at(-1)?.searchParams.get("thlStatus")).toBe("REQUIRED");
+    await userEvent.click(within(filter).getByRole("button", { name: "Mendekati batas (1)" }));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.get("thlStatus")).toBe("APPROACHING"));
+    await userEvent.click(within(filter).getByRole("button", { name: /Semua/ }));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.has("thlStatus")).toBe(false));
+    await userEvent.click(within(header).getByRole("button"));
+    await waitFor(() => expect(calls().at(-1)?.searchParams.get("sort")).toBe("thlStreak:asc"));
+  });
+  it("filter dan kolom THL tidak muncul pada halaman lain", async () => {
+    const fetchMock = mockApi({
+      "/me": [200, { data: me("SUPER_ADMIN", true) }],
+      "/health": [200, health],
+      "/notifications": [200, emptyNotifications],
+      "/master-data": [200, masterData],
+      "/employees/summary": [200, summary],
+      "/employees": [
+        200,
+        { data: [employee("1", "Bukan THL")], meta: { page: 1, pageSize: 20, total: 1 } },
+      ],
+    });
+    renderAt("/personal/pegawai-aktif/tetap?thlStatus=REQUIRED");
+    expect(await screen.findByText("Bukan THL")).toBeVisible();
+    expect(screen.queryByRole("group", { name: "Filter status THL" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Hari hadir / bulan" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^THL ·/)).not.toBeInTheDocument();
+    const call = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .find((url) => url.pathname.endsWith("/employees"));
+    expect(call?.searchParams.has("thlStatus")).toBe(false);
   });
 });

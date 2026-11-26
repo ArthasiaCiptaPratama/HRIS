@@ -175,6 +175,13 @@ export const previewSchema = z
          * KTR-D12: kontrak dari kolom kontrak — CREATE (baru), CORRECT (koreksi tanggal kontrak aktif,
          * mode Perbarui), KEEP (beda tetapi dibiarkan, mode Isi yang kosong saja). `previous` = periode lama.
          */
+        dailyWage: z
+          .object({
+            action: z.enum(["SET", "KEEP"]),
+            amount: z.number(),
+            effectiveFrom: z.iso.date(),
+          })
+          .nullable(),
         contract: z
           .object({
             action: z.enum(["CREATE", "CORRECT", "KEEP"]),

@@ -37,6 +37,7 @@ export {
 export { exitWageBasis, syncOvertimeForDay } from "./overtime.service.ts";
 export { alphaDaysForEvidence, isDateClosed, type StatementRow } from "./period.service.ts";
 export { extendAllRosters } from "./roster.service.ts";
+export { approvedAttendanceDates, countAttendanceByMonth } from "./thl-attendance.service.ts";
 export {
   dateLabel,
   notifyEmployees,

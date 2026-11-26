@@ -2,6 +2,7 @@ import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type {
   CorrectContractInput,
   CreateContractInput,
+  DailyWageInput,
   EndContractInput,
   ExtendContractInput,
   PromoteEmployeeInput,
@@ -14,6 +15,8 @@ import {
   contractActionResultSchema,
   correctContractBodySchema,
   createContractBodySchema,
+  dailyWageBodySchema,
+  dailyWageResultSchema,
   employeeContractsSchema,
   endContractBodySchema,
   extendContractBodySchema,
@@ -27,6 +30,11 @@ export interface ContractContext {
   ip?: string | undefined;
 }
 export interface ContractHandlers {
+  setWage(
+    ctx: ContractContext,
+    id: string,
+    input: DailyWageInput,
+  ): Promise<{ thl: Awaited<ReturnType<typeof import("./thl.service.ts").readThl>> }>;
   read(ctx: ContractContext, id: string): ReturnType<typeof readEmployeeContracts>;
   create(
     ctx: ContractContext,
@@ -87,6 +95,23 @@ export function registerContractRoutes(
       responses: { 200: json(employeeContractsSchema), ...ERROR_RESPONSES },
     }),
     async (c) => c.json(ok(await deps.handlers.read(ctx(c), c.req.valid("param").id)), 200),
+  );
+  app.openapi(
+    createRoute({
+      ...base,
+      method: "put",
+      path: `${API_BASE_PATH}/employees/{id}/daily-wage`,
+      request: {
+        params: employeeParam,
+        body: { required: true, content: { "application/json": { schema: dailyWageBodySchema } } },
+      },
+      responses: { 200: json(dailyWageResultSchema), ...ERROR_RESPONSES },
+    }),
+    async (c) =>
+      c.json(
+        ok(await deps.handlers.setWage(ctx(c), c.req.valid("param").id, c.req.valid("json"))),
+        200,
+      ),
   );
   const action = <T extends z.ZodType>(path: string, schema: T, params = employeeParam) =>
     createRoute({

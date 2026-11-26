@@ -2,6 +2,7 @@
 // kode halaman aslinya TETAP disimpan dan dipakai lagi cukup dengan mengubah nilai menjadi `true`.
 // API tidak terpengaruh (akses tetap dijaga policy di server).
 export const FEATURES = {
+  thlEvaluation: true,
   // Personal Management menu b–e: aktif sejak 2026-09-30 (Tahap 1, permintaan pemilik projek).
   changeStatus: true, // b. Ubah Status Karyawan
   activation: true, // c. Pengaktifan Karyawan

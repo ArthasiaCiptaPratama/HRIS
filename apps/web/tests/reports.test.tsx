@@ -1,7 +1,9 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { shiftThlMonth, thlCurrentMonth } from "@hris/shared";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FEATURES } from "@/app/feature-flags";
+import { setSelectedCompany } from "@/features/employee/company-scope";
 import { authState, me, renderAt } from "./helpers";
 
 vi.mock("@/lib/supabase", async () => ({
@@ -250,7 +252,7 @@ type Call = { path: string; search: string };
 
 function mockFetch(
   role: ReturnType<typeof me> | Record<string, unknown>,
-  opts: { hidden?: number; canList?: boolean } = {},
+  opts: { hidden?: number; canList?: boolean; wage?: boolean } = {},
 ) {
   const calls: Call[] = [];
   vi.stubGlobal(
@@ -293,6 +295,24 @@ function mockFetch(
             homebases: [{ id: "hb-1", name: "Palangka Raya", city: null, province: null }],
           },
         });
+      if (path === "/reports/thl-attendance-wage")
+        return json(200, {
+          data: {
+            month: url.searchParams.get("month"),
+            note: "Perkiraan, bukan payroll",
+            access: { wage: opts.wage ?? true },
+            rows: [
+              {
+                ...person,
+                fullName: "Contoh THL Laporan",
+                presentDays: 22,
+                pendingDays: 2,
+                dailyWage: 150000,
+                estimatedWage: 3300000,
+              },
+            ],
+          },
+        });
       if (path === "/reports/headcount") return json(200, { data: headcount });
       if (path === "/reports/document-expiry")
         return json(200, { data: documentExpiry(opts.hidden ?? 0) });
@@ -319,7 +339,10 @@ beforeEach(() => {
   URL.createObjectURL = vi.fn(() => "blob:x");
   URL.revokeObjectURL = vi.fn();
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setSelectedCompany(null);
+});
 
 describe.skipIf(!FEATURES.reports)("Personal Management › Laporan (ARS-D16/D17)", () => {
   it("HR: headcount & turnover — kartu ringkasan, tabel per bulan, karyawan keluar; filter tahun dikirim", async () => {
@@ -568,3 +591,52 @@ function renderWith(role: Record<string, unknown>, canList: boolean) {
   mockFetch(role, { canList });
   return renderAt("/personal/laporan?laporan=sp");
 }
+
+describe("K4 laporan THL", () => {
+  it.each([true, false])("kolom rupiah mengikuti akses wage=%s", async (wage) => {
+    const calls = mockFetch(me("HR_ADMIN"), { wage });
+    renderAt("/personal/laporan?laporan=thl&periode=2026-08");
+    expect(await screen.findByText("Contoh THL Laporan")).toBeVisible();
+    expect(screen.getByText(/Perkiraan, bukan payroll/)).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Hari hadir" })).toBeVisible();
+    expect(screen.queryByRole("columnheader", { name: "Upah harian" }) !== null).toBe(wage);
+    expect(screen.queryByText("Rp 150.000") !== null).toBe(wage);
+    expect(screen.queryByText("Rp 3.300.000") !== null).toBe(wage);
+    fireEvent.change(screen.getByLabelText("Bulan THL"), { target: { value: "2026-09" } });
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) => c.path === "/reports/thl-attendance-wage" && c.search.includes("month=2026-09"),
+        ),
+      ).toBe(true),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Ekspor Excel/ }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (c) =>
+            c.path === "/reports/thl-attendance-wage/export" && c.search.includes("month=2026-09"),
+        ),
+      ).toBe(true),
+    );
+  });
+});
+
+it("K4 laporan THL: bawaan bulan lalu WIB dan cakupan PT ikut dibaca/diekspor", async () => {
+  const calls = mockFetch(me("HR_ADMIN"));
+  setSelectedCompany("co-acp");
+  renderAt("/personal/laporan?laporan=thl");
+  expect(await screen.findByText("Contoh THL Laporan")).toBeVisible();
+  const month = shiftThlMonth(thlCurrentMonth(), -1);
+  expect(screen.getByLabelText("Bulan THL")).toHaveValue(month);
+  const matches = (path: string) =>
+    calls.some((call) => {
+      const search = new URLSearchParams(call.search);
+      return (
+        call.path === path && search.get("month") === month && search.get("companyId") === "co-acp"
+      );
+    });
+  expect(matches("/reports/thl-attendance-wage")).toBe(true);
+  await userEvent.click(screen.getByRole("button", { name: /Ekspor Excel/ }));
+  await waitFor(() => expect(matches("/reports/thl-attendance-wage/export")).toBe(true));
+});
