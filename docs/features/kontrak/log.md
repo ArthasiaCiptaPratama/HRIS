@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — UX status kontrak Opsi A: kartu ringkas Kepegawaian + linimasa Kontrak di Riwayat (Oatse/Claude)
+- **Dikerjakan:** checklist "UX status kontrak" poin 3 (README). `employment-contract-section.tsx` ditulis ulang (kartu ringkas, `ContractTimeline` menggantikan `ContractHistoryTable`, menu `DropdownMenu` "Lainnya", bar total PKWT div `role=progressbar` — `<progress>` di Firefox mengabaikan `accent-*`, kuning ≥ 90%); `thl-section.tsx` dipecah jadi `ThlAttendanceStat`/`ThlWageStat` + `DailyWageDialog` diekspor; `StatusBadge` prop `label`; `employee-detail-sheet.tsx`: `WorkTab` → `onOpenHistory` (tab Riwayat + filter Kontrak), filter riwayat "Kontrak" (jumlah dari `useEmployeeContracts`, hanya untuk karyawan bertier), field Penempatan "Status kepegawaian" dihapus.
+- **Keputusan:** pilihan pengguna Opsi A (kutipan via supervisor-15). Kecil: menu Lainnya Masa Percobaan = Koreksi + Tidak lulus; tombol upah harian THL di baris aksi (tetap hanya untuk yang berhak upah, KTR-D13).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ (644 modul) · shared 488 · api 1622 · web 568 ✔ (`--maxWorkers=4`; test kontrak/detail disesuaikan: sisa via `data-tone`, menu Lainnya, linimasa, tautan riwayat, filter Kontrak; setelah perbaikan reset filter saat ganti tab: test detail+kontrak 69 ✔). Screenshot asli Zen headless (DB lokal, akun SA dummy) `QA/2026-11-26-ux-kontrak/implementasi-1-pkwt1-menu-lainnya`, `-2-pkwt3-batas`, `-3-riwayat-kontrak`, `-4-thl-wajib-diangkat`, `-5-percobaan`, `-6-hp-390` (iframe 390 px, tanpa scroll horizontal). Dialog "Akhiri kontrak" dibuka dari menu lalu Batal (tidak disimpan).
+- **Masalah / catatan:** animasi Radix (fade/zoom) tertahan di Zen headless → screenshot memaksa `getAnimations().finish()`; bukan masalah aplikasi.
+- **Berikutnya:** menunggu pengguna — rilis K1–K4 + UX ke staging.
+
 ### 2026-11-26 — UX status kontrak: badge "PKWT n" di daftar & profil; mockup tab Kepegawaian (Oatse/Claude)
 - **Dikerjakan:** checklist "UX status kontrak" poin 1–2 (README). Helper shared `employmentStatusShort(category, stage?)`; `StatusBadge` prop `stage` (kuning bila tahap belum diisi); kolom Tahap dihapus, kolom Status ber-`sortKey` `contractStage` di daftar PKWT; picker & header profil/Penempatan memakai helper yang sama. Poin 3: mockup HTML statis dua opsi (gaya & token app) di `QA/2026-11-26-ux-kontrak/mockup/` + screenshot `opsi-A.png`, `opsi-B.png`.
 - **Keputusan:** kecil — daftar nonaktif tidak menampilkan tahap (persetujuan supervisor atas nama pengguna).

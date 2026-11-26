@@ -358,7 +358,10 @@ describe("panel detail pegawai", () => {
     expect(await within(sheet).findByText("Pindah tahap kontrak")).toBeVisible();
     expect(within(sheet).getByText("PKWT 2")).toBeVisible();
     expect(within(sheet).getByText("01 Okt 2026 – 30 Sep 2027")).toBeVisible();
-    expect(within(sheet).getByRole("region", { name: "Riwayat kontrak" })).toBeVisible();
+    // Opsi A (2026-11-26): linimasa kontrak di filter "Kontrak", bukan di filter Kepegawaian.
+    expect(within(sheet).queryByRole("region", { name: "Riwayat kontrak" })).toBeNull();
+    await userEvent.click(within(filters).getByRole("button", { name: /^Kontrak/ }));
+    expect(await within(sheet).findByRole("region", { name: "Riwayat kontrak" })).toBeVisible();
   });
 
   it("layar penuh; header template profil (pas foto + Label : nilai, tombol sejajar info); riwayat menampilkan pengubah", async () => {

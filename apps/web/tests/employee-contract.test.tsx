@@ -189,32 +189,64 @@ async function card(
   await screen.findByRole("region", { name: "Status kepegawaian" });
 }
 
+/** Opsi A (2026-11-26): koreksi & pengakhiran ada di menu "Lainnya". */
+async function menuItems() {
+  await userEvent.click(screen.getByRole("button", { name: "Lainnya" }));
+  return (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+}
+const remaining = () => document.querySelector("[data-tone]") as HTMLElement;
+
 describe("Kepegawaian kontrak K1", () => {
-  it("PKWT 1 aktif: periode, sisa hijau, masa tahap, total dan aksi", async () => {
+  it("PKWT 1 aktif: kartu ringkas (badge · periode · sisa), angka ringkas, aksi utama + menu", async () => {
     await card();
-    expect(screen.getAllByText("PKWT 1")).toHaveLength(2);
-    expect(screen.getByText(/Sisa kontrak:/)).toHaveClass("text-green-700");
-    expect(screen.getByText(/Masa kerja tahap ini:/)).toBeVisible();
+    expect(screen.getByText("PKWT 1")).toBeVisible();
+    expect(remaining()).toHaveTextContent("Sisa kontrak: 401 hari lagi");
+    expect(remaining()).toHaveAttribute("data-tone", "ok");
+    expect(screen.getByText("Masa kerja tahap ini")).toBeVisible();
     expect(screen.getByRole("progressbar", { name: "Total masa PKWT" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Perpanjang ke PKWT 2" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Perpanjang ke PKWT 2" })).toHaveAttribute(
+      "data-variant",
+      "brand",
+    );
     expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Akhiri kontrak" })).toBeVisible();
+    // Riwayat kontrak tidak diduplikasi di kartu (hanya di tab Riwayat).
+    expect(screen.queryByRole("region", { name: "Riwayat kontrak" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Akhiri kontrak" })).not.toBeInTheDocument();
+    expect(await menuItems()).toEqual(["Koreksi data kontrak", "Akhiri kontrak"]);
+    expect(screen.getByRole("menuitem", { name: "Akhiri kontrak" })).toHaveAttribute(
+      "data-variant",
+      "destructive",
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: "Akhiri kontrak" }));
+    expect(await screen.findByText(/akun login ikut nonaktif/)).toBeVisible();
+  });
+  it("tautan Riwayat kontrak (n) memanggil onOpenHistory", async () => {
+    response = data({});
+    const open = vi.fn();
+    mount(<EmploymentContractSection employee={employee} onOpenHistory={open} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Riwayat kontrak \(1\)/ }));
+    expect(open).toHaveBeenCalledOnce();
   });
   it.each([
-    ["2027-01-10", "text-amber-700"],
-    ["2026-12-10", "text-red-700"],
+    ["2027-01-10", "warn"],
+    ["2026-12-10", "danger"],
   ])("PKWT 3 warna %s tanpa perpanjangan", async (endDate, color) => {
     await card("PKWT", { contracts: [{ ...contract, sequence: 3, endDate }] });
-    expect(screen.getByText(/Sisa kontrak:/)).toHaveClass(color);
+    expect(remaining()).toHaveAttribute("data-tone", color);
     expect(
       screen.getByText("Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak."),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: /PKWTT/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Perpanjang/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toHaveAttribute(
+      "data-variant",
+      "brand",
+    );
   });
   it("kontrak lewat tetap menampilkan aksi", async () => {
     await card("PKWT", { contracts: [{ ...contract, endDate: "2026-11-20" }] });
-    expect(screen.getByText("Sisa kontrak: Kontrak lewat 5 hari")).toHaveClass("text-red-700");
+    expect(remaining()).toHaveTextContent("Sisa kontrak: Kontrak lewat 5 hari");
+    expect(remaining()).toHaveAttribute("data-tone", "expired");
     expect(screen.getByRole("button", { name: /Perpanjang/ })).toBeEnabled();
   });
   it.each(["2026-12-20", "2026-11-20"])(
@@ -226,11 +258,11 @@ describe("Kepegawaian kontrak K1", () => {
         ],
       });
       expect(screen.getByRole("button", { name: "Lulus → Permanen" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Tidak lulus" })).toBeVisible();
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-      if (endDate < "2026-11-25") expect(screen.getByText(/Masa percobaan lewat/)).toBeVisible();
-      else expect(screen.getByText(/Sisa masa percobaan: 25 hari lagi/)).toBeVisible();
+      if (endDate < "2026-11-25") expect(remaining()).toHaveTextContent(/Masa percobaan lewat/);
+      else expect(remaining()).toHaveTextContent("Sisa masa percobaan: 25 hari lagi");
       expect(screen.queryByText(/Sisa kontrak/)).not.toBeInTheDocument();
+      expect(await menuItems()).toEqual(["Koreksi data kontrak", "Tidak lulus"]);
     },
   );
   it("PKWTT dari PKWT: dua masa kerja dan kontrak lama", async () => {
@@ -244,7 +276,9 @@ describe("Kepegawaian kontrak K1", () => {
     expect(screen.getByText("Masa kerja PKWTT")).toBeVisible();
     expect(screen.getByText(/6 th 10 bln/)).toBeVisible();
     expect(screen.getByText(/0 th 10 bln/)).toBeVisible();
-    expect(screen.getByText("Dijadikan Karyawan Tetap")).toBeVisible();
+    // Kontrak lama hanya di tab Riwayat; tanpa aksi kontrak untuk Karyawan Tetap.
+    expect(screen.queryByText("Dijadikan Karyawan Tetap")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
   it.each(["PKWT", "PROBATION"] as const)("data lama %s: tahap belum diisi", async (category) => {
     await card(category, { contracts: [] });
@@ -286,17 +320,30 @@ describe("Kepegawaian kontrak K1", () => {
     await card("PKWT", {}, false);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
-  it("Riwayat menampilkan tabel lengkap termasuk tahap ditutup", async () => {
+  it("Riwayat: linimasa Kontrak terbaru di atas, catatan hanya bila ada", async () => {
     response = data({
       contracts: [
-        { ...contract, status: "EXTENDED" },
-        { ...contract, id: "c2", sequence: 2 },
+        { ...contract, status: "EXTENDED", note: null },
+        {
+          ...contract,
+          id: "c2",
+          sequence: 2,
+          startDate: "2028-01-01",
+          endDate: "2028-12-31",
+          note: "Sesuai evaluasi",
+        },
       ],
     });
     mount(<EmployeeContractHistory employeeId="e1" />);
-    const table = await screen.findByRole("region", { name: "Riwayat kontrak" });
-    expect(within(table).getByText("Diperpanjang")).toBeVisible();
-    expect(within(table).getByText("PKWT 2")).toBeVisible();
+    const timeline = await screen.findByRole("region", { name: "Riwayat kontrak" });
+    const items = within(timeline).getAllByRole("listitem");
+    expect(items.map((item) => item.querySelector("span.font-semibold")?.textContent)).toEqual([
+      "PKWT 2",
+      "PKWT 1",
+    ]);
+    expect(within(items[1] as HTMLElement).getByText("Diperpanjang")).toBeVisible();
+    expect(within(timeline).getAllByText(/^Catatan:/)).toHaveLength(1);
+    expect(within(timeline).getByText("Catatan: Sesuai evaluasi")).toBeVisible();
   });
 });
 
@@ -364,7 +411,7 @@ describe("Dialog kontrak", () => {
   });
   it("KTR-D12: tombol Koreksi data kontrak hanya untuk yang berhak & ada kontrak aktif", async () => {
     await card("PKWT", { contracts: [contract] });
-    expect(screen.getByRole("button", { name: "Koreksi data kontrak" })).toBeVisible();
+    expect(await menuItems()).toContain("Koreksi data kontrak");
   });
   it("tanggal mulai dikosongkan: tidak crash dan simpan mati", () => {
     dialog();
@@ -518,9 +565,10 @@ describe("K4 THL", () => {
       expect(screen.getByText("Rp 150.000")).toBeVisible();
       if (status === "REQUIRED") {
         expect(screen.getByText(/PP 35\/2021 Ps. 10/)).toBeVisible();
+        // Opsi A: aksi utama tetap warna brand; urgensi lewat badge merah "Wajib diangkat PKWTT".
         expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toHaveAttribute(
           "data-variant",
-          "destructive",
+          "brand",
         );
       }
     },

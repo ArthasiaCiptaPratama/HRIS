@@ -29,11 +29,14 @@ export function StatusBadge({
   name,
   category,
   stage,
+  label,
   className,
 }: {
   name: string;
   category: EmploymentCategory | null;
   stage?: number | null;
+  /** Teks pengganti (mis. istilah resmi di kartu detail); warna tetap mengikuti kategori. */
+  label?: string;
   className?: string;
 }) {
   const missingStage = category === "PKWT" && stage === null;
@@ -46,7 +49,7 @@ export function StatusBadge({
         className,
       )}
     >
-      {category ? employmentStatusShort(category, stage) : name}
+      {label ?? (category ? employmentStatusShort(category, stage) : name)}
     </Badge>
   );
 }
