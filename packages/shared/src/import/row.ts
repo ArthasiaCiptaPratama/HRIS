@@ -13,6 +13,7 @@ import {
   type ImportContractColumns,
   parseContractDuration,
   parseContractStage,
+  parseDailyWage,
 } from "./contract-columns.ts";
 import type { ImportFieldKey } from "./fields.ts";
 import { CERTIFICATIONS, EDUCATION_SLOTS, FAMILY_SLOTS } from "./groups.ts";
@@ -281,6 +282,8 @@ export function normalizeImportRow(raw: RawImportRow): {
   } else if (row.contract.permanentHint) {
     row.category = "PERMANENT";
   }
+  const dailyWage = take("dailyWage", parseDailyWage(raw.dailyWage));
+  if (dailyWage !== undefined) row.contract.dailyWage = dailyWage;
   const stage = take("contractStage", parseContractStage(raw.contractStage));
   if (stage !== undefined) row.contract.stage = stage;
   const contractStart = take("contractStartDate", parseDate(raw.contractStartDate));
@@ -654,6 +657,11 @@ export const IMPORT_ISSUE_MESSAGES: Record<string, string> = {
   // KTR-D12 (K3): kolom kontrak (aturan sama dengan aksi kontrak di tab Kepegawaian).
   UNKNOWN_CONTRACT_STAGE: "Tahap PKWT tidak dikenali. Tulis 1, 2, atau 3 (boleh I, II, III)",
   INVALID_CONTRACT_DURATION: "Durasi kontrak tidak terbaca. Tulis jumlah bulan, mis. 6 atau 12",
+  INVALID_DAILY_WAGE:
+    "Upah harian harus angka positif maksimal Rp 100.000.000 dengan paling banyak 2 desimal",
+  DAILY_WAGE_IGNORED: "Upah harian diabaikan: hanya untuk THL aktif",
+  DAILY_WAGE_NO_PERMISSION: "Upah harian diabaikan: memerlukan izin biaya tenaga kerja",
+  DAILY_WAGE_BEFORE_JOIN: "Tanggal berlaku upah harian tidak boleh sebelum tanggal masuk",
   CONTRACT_FIELDS_IGNORED:
     "Status karyawan ini bukan PKWT atau masa percobaan — kolom kontrak diabaikan",
   CONTRACT_INCOMPLETE:

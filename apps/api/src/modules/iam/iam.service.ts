@@ -1432,3 +1432,9 @@ export async function getEmployeeAccountStates(
     isActive: row.isActive,
   }));
 }
+
+/** Active HR administrators assigned to a company, without a permission requirement (KTR-D13). */
+export async function listCompanyHrRecipients(companyId: string, now = new Date()) {
+  const rows = await repository.findCompanyHrs(companyId, null, now);
+  return rows.map((a) => ({ accountId: a.id, email: a.email }));
+}

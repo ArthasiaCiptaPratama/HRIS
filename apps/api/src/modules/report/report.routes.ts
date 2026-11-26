@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import * as service from "./report.service.ts";
+import { thlReportSchema } from "./thl-report.contract.ts";
 
 // ARS-D16/D17 (batch 1, 4 laporan) + ARS-D21 (batch 2, 6 laporan) + ekspor Excel. Query divalidasi skema
 // @hris/shared di service; respons ditulis longgar di OpenAPI (bentuk lengkap: report.service.ts).
@@ -41,6 +42,17 @@ const ctxOf = (c: Context): service.RequestContext => ({
 });
 
 const REPORTS = [
+  {
+    kind: "thl-attendance-wage",
+    query: filterQuery.extend({
+      month: z
+        .string()
+        .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+        .optional(),
+    }),
+    run: service.thlAttendanceWageReport,
+    summary: "Rekap Kehadiran & Upah THL",
+  },
   {
     kind: "headcount",
     query: yearQuery,
@@ -116,7 +128,15 @@ export function registerReportRoutes(app: OpenAPIHono, deps: ReportRouteDeps): v
         path: `${P}/reports/${r.kind}`,
         summary: `${r.summary} (SA / HR PT ditugaskan; ARS-D16)`,
         request: { query: r.query },
-        responses: { 200: json("Laporan", dataEnvelope(loose(`Report_${r.kind}`))), ...read },
+        responses: {
+          200: json(
+            "Laporan",
+            dataEnvelope(
+              r.kind === "thl-attendance-wage" ? thlReportSchema : loose(`Report_${r.kind}`),
+            ),
+          ),
+          ...read,
+        },
       }),
       async (c) => c.json(ok(await r.run(ctxOf(c), c.req.query())), 200),
     );

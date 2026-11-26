@@ -9,9 +9,11 @@ import {
   tenure,
   validateContractStage,
 } from "@hris/shared";
+import type { Actor } from "../../core/access/index.ts";
 import { BusinessRuleError, ConflictError, NotFoundError } from "../../core/errors.ts";
 import type { EmploymentContract } from "../../generated/prisma/client.ts";
 import * as repository from "./contract.repository.ts";
+import { readThl } from "./thl.service.ts";
 
 const iso = (value: Date) => value.toISOString().slice(0, 10);
 const date = (value: string) => new Date(`${value}T00:00:00.000Z`);
@@ -37,6 +39,7 @@ export interface ContractEmployee {
   category: EmploymentCategory | null;
   joinDate: Date;
   pkwttStartDate: Date | null;
+  isActive?: boolean;
 }
 /** KTR-K1: tombol aksi web; `missingGrant` = HR_ADMIN dalam cakupan tanpa grant `contract.manage`. */
 export interface ContractAccess {
@@ -48,10 +51,12 @@ export async function readEmployeeContracts(
   today: string,
   access: ContractAccess,
   tx?: repository.ContractTx,
+  actor: Actor | null = null,
 ) {
   const contracts = (await repository.listContracts(employee.id, tx)).map(contractDto);
   return {
     contracts,
+    thl: await readThl(employee, actor, new Date(`${today}T00:00:00Z`), tx),
     summary: contractSummary(contracts, today),
     tier: employmentTier(employee.category),
     category: employee.category,

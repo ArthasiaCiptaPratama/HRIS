@@ -24,6 +24,7 @@ export const reportFilterSchema = z.object({
 export type ReportFilter = z.infer<typeof reportFilterSchema>;
 
 export const REPORT_KINDS = [
+  "thl-attendance-wage",
   "headcount",
   "document-expiry",
   "completeness",
@@ -37,6 +38,7 @@ export const REPORT_KINDS = [
 ] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export const REPORT_LABELS: Record<ReportKind, string> = {
+  "thl-attendance-wage": "Rekap Kehadiran & Upah THL",
   headcount: "Headcount & turnover",
   "document-expiry": "Dokumen kedaluwarsa",
   completeness: "Kelengkapan data",

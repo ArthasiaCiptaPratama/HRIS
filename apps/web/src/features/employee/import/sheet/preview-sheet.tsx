@@ -13,6 +13,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDate } from "@/lib/format";
+import { formatThlWage } from "../../components/thl-section";
 import type { ImportPreview } from "../api";
 import { fieldLabel, issueText, maskValue } from "../labels";
 import { FIXED_CHOICES } from "../template/build-template";
@@ -45,6 +46,7 @@ const IMPORTANT: ImportFieldKey[] = [
   "positionName",
   "departmentName",
   "phoneNumber",
+  "dailyWage",
 ];
 /** Isian yang punya kolom khusus (PT/Status per baris), bukan kolom isian biasa. */
 const SPECIAL: ImportFieldKey[] = ["companyCode", "employmentStatusText"];
@@ -235,10 +237,18 @@ export function PreviewSheet({
           return row ? latest.current.holderOptions(row) : [];
         },
       });
+    if (preview.rows.some((row) => row.dailyWage))
+      out.push({
+        key: "dailyWagePlan",
+        label: "Upah harian · rencana",
+        width: 230,
+        kind: "readonly",
+      });
     for (const field of shownFields.slice(1)) out.push(fieldColumn(field, locked.has(field)));
     return out;
   }, [
     shownFields.join(","),
+    preview.rows,
     locked,
     choosePt,
     hasNewRows,
@@ -275,6 +285,11 @@ export function PreviewSheet({
             error: locked.has(field) ? undefined : errorText(issuesFor(r, field)),
           };
         }
+        cells.dailyWagePlan = {
+          text: r.dailyWage
+            ? `${r.dailyWage.action === "SET" ? "SET · Diisi" : "KEEP · Dibiarkan"}: ${formatThlWage(r.dailyWage.amount)} · ${formatDate(r.dailyWage.effectiveFrom)}`
+            : "—",
+        };
         const rowLevel = r.issues.filter((i) => i.severity === "ERROR" && !i.field);
         cells.result = {
           text: RESULT[r.action].label,
@@ -486,6 +501,9 @@ function rowInfo(
       ? `Akan dinonaktifkan: ${EXIT_REASON_LABELS[row.deactivate.reason]} per ${formatDate(row.deactivate.date)}`
       : null,
     row.contract ? contractInfo(row.contract) : null,
+    row.dailyWage
+      ? `Upah harian: ${row.dailyWage.action === "SET" ? "Diisi" : "Dibiarkan"} ${formatThlWage(row.dailyWage.amount)}`
+      : null,
     row.action === "UPDATE" && row.changes.length > 0
       ? `${fillEmpty ? "Diisi" : "Berubah"}: ${row.changes.map(fieldLabel).join(", ")}`
       : null,

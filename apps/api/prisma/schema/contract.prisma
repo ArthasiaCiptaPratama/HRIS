@@ -44,3 +44,22 @@ model EmploymentContract {
   @@map("contracts")
   @@schema("contract")
 }
+
+// KTR-D13: upah THL terpisah dari data kerja; companyId adalah snapshot.
+model DailyWage {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @map("employee_id") @db.Uuid
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companyId     String   @map("company_id") @db.Uuid
+  amount        Decimal  @db.Decimal(14, 2)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  note          String   @db.VarChar(300)
+  createdBy     String   @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([employeeId, effectiveFrom])
+  @@index([employeeId, effectiveFrom(sort: Desc)])
+  @@map("daily_wages")
+  @@schema("contract")
+}

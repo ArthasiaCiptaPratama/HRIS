@@ -22,6 +22,19 @@ import { z } from "zod";
 
 const ref = z.object({ id: z.string(), name: z.string() });
 
+const thlAttendanceMonthSchema = z.object({
+  month: z.string(),
+  presentDays: z.number(),
+  pendingDays: z.number(),
+  beforeJoin: z.boolean(),
+});
+const thlAttendanceSchema = z.object({
+  months: z.array(thlAttendanceMonthSchema),
+  currentMonth: thlAttendanceMonthSchema,
+  streak: z.number(),
+});
+export type ThlAttendance = z.infer<typeof thlAttendanceSchema>;
+
 export const employeeListItemSchema = z.object({
   id: z.string(),
   employeeNumber: z.string().nullable(),
@@ -31,6 +44,10 @@ export const employeeListItemSchema = z.object({
   gender: genderSchema.nullable(),
   joinDate: z.string(),
   endDate: z.string().nullable(),
+  thlStatus: z.enum(["NONE", "APPROACHING", "REQUIRED"]).nullable().optional(),
+  thlPresentDaysLastMonth: z.number().nullable().optional(),
+  /** Opsi C daftar THL (2026-11-26): 3 bulan penuh + bulan berjalan, streak bulan ≥ 21. */
+  thlAttendance: thlAttendanceSchema.nullable().optional(),
   contractStage: z.number().int().nullable().default(null),
   contractEndDate: z.iso.date().nullable().default(null),
   isActive: z.boolean(),
@@ -66,6 +83,9 @@ export const summarySchema = z.object({
     total: z.number(),
     byCategory: z.record(employmentCategorySchema, z.number()),
     uncategorized: z.number(),
+    thlStatuses: z
+      .object({ APPROACHING: z.number(), REQUIRED: z.number() })
+      .default({ APPROACHING: 0, REQUIRED: 0 }),
     pkwtStages: z
       .object({
         stage1: z.number(),

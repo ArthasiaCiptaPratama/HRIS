@@ -160,6 +160,7 @@ model Employee {
   contractStage                Int?                   @map("contract_stage")
   contractEndDate              DateTime?              @map("contract_end_date") @db.Date
   contracts                    EmploymentContract[]
+  dailyWages                   DailyWage[]
   endDate                      DateTime?              @map("end_date") @db.Date
   employmentStatusId           String                 @map("employment_status_id") @db.Uuid
   // D-039: perusahaan dalam grup tempat karyawan terdaftar (wajib; data lama = ACP).

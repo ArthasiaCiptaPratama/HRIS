@@ -97,6 +97,10 @@ export const previewSchema = z.object({
         .object({ reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]), date: z.string() })
         .nullable()
         .default(null),
+      dailyWage: z
+        .object({ action: z.enum(["SET", "KEEP"]), amount: z.number(), effectiveFrom: z.string() })
+        .nullable()
+        .optional(),
       /** KTR-D12: kontrak dari kolom kontrak (baru / koreksi / dibiarkan); server lama → null. */
       contract: z
         .object({

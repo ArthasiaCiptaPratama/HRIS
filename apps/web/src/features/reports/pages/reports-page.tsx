@@ -6,6 +6,8 @@ import {
   EXPIRY_BUCKETS,
   type ExpiryBucket,
   type ReportKind,
+  shiftThlMonth,
+  thlCurrentMonth,
   WARNING_LEVEL_LABELS,
   WARNING_LEVELS,
   type WarningLevel,
@@ -42,10 +44,12 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { FEATURES } from "@/app/feature-flags";
 import { FormSelect } from "@/components/form-select";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCompanyScope, useMasterData } from "@/features/employee/api";
@@ -77,6 +81,7 @@ import { DataChangesTab } from "../components/tabs/data-changes-tab";
 import { DemographicsTab } from "../components/tabs/demographics-tab";
 import { MovementsTab } from "../components/tabs/movements-tab";
 import { TenureTab } from "../components/tabs/tenure-tab";
+import { ThlAttendanceWageTab } from "../components/tabs/thl-attendance-wage-tab";
 import { fmt, pct } from "../format";
 import {
   type DetailTab,
@@ -109,6 +114,16 @@ const TABS: { kind: ReportKind; slug: string; label: string; icon: typeof Users 
   { kind: "document-expiry", slug: "dokumen", label: "Dokumen kedaluwarsa", icon: FileClock },
   { kind: "completeness", slug: "kelengkapan", label: "Kelengkapan data", icon: ListChecks },
   { kind: "warning-letters", slug: "sp", label: "SP aktif", icon: ShieldAlert },
+  ...(FEATURES.thlEvaluation
+    ? [
+        {
+          kind: "thl-attendance-wage" as const,
+          slug: "thl",
+          label: "Rekap Kehadiran & Upah THL",
+          icon: Users,
+        },
+      ]
+    : []),
   // Batch 2 (ARS-D21)
   { kind: "tenure", slug: "masa-kerja", label: "Masa kerja", icon: Award },
   { kind: "demographics", slug: "demografi", label: "Demografi", icon: ChartPie },
@@ -154,6 +169,11 @@ export function ReportsPage() {
   }, [tab.slug]);
   const monthParam = Number(params.get("bulan"));
   const month = monthParam >= 1 && monthParam <= 12 ? monthParam : thisMonth;
+  const isThl = tab.kind === "thl-attendance-wage";
+  const lastMonth = shiftThlMonth(thlCurrentMonth(), -1);
+  const thlMonth = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get("periode") ?? "")
+    ? (params.get("periode") ?? lastMonth)
+    : lastMonth;
   const usesMonth = tab.kind === "tenure" || tab.kind === "birthdays";
   // Ulang tahun hanya butuh bulan; tahun tetap dikirim (skema API) tanpa pilihan di layar.
   const usesYear = YEAR_KINDS.has(tab.kind);
@@ -166,12 +186,14 @@ export function ReportsPage() {
     homebaseId: homebaseId || undefined,
     ...(usesYear || usesMonth ? { year: usesYear ? year : thisYear } : {}),
     ...(usesMonth ? { month } : {}),
+    ...(isThl ? { month: thlMonth } : {}),
   };
   const units = (master.data?.departments ?? []).filter(
     (d) => !scope.selectedId || !d.companyId || d.companyId === scope.selectedId,
   );
   const company = scope.companies.find((c) => c.id === scope.selectedId);
   const dirty =
+    (isThl && thlMonth !== lastMonth) ||
     Boolean(unitId) ||
     Boolean(homebaseId) ||
     (usesYear && year !== thisYear) ||
@@ -241,6 +263,15 @@ export function ReportsPage() {
                 }))}
               />
             ) : null}
+            {isThl ? (
+              <Input
+                aria-label="Bulan THL"
+                type="month"
+                className="h-9 sm:w-48"
+                value={thlMonth}
+                onChange={(event) => setParam("periode", event.target.value)}
+              />
+            ) : null}
             {usesYear ? (
               <FormSelect
                 aria-label="Tahun"
@@ -277,6 +308,7 @@ export function ReportsPage() {
                       next.delete("homebase");
                       next.delete("tahun");
                       next.delete("bulan");
+                      next.delete("periode");
                       return next;
                     },
                     { replace: true },
@@ -304,6 +336,11 @@ export function ReportsPage() {
             </Tooltip>
           </div>
         </div>
+        {FEATURES.thlEvaluation ? (
+          <TabsContent value="thl">
+            <ThlAttendanceWageTab params={filter} enabled={isThl} />
+          </TabsContent>
+        ) : null}
         <TabsContent value="headcount">
           <HeadcountTab params={filter} enabled={tab.kind === "headcount"} />
         </TabsContent>
