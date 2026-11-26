@@ -130,3 +130,12 @@ export async function findForAnalytics(input: {
     },
   });
 }
+
+/** TM-D33: path foto profil + data cakupan (untuk `canViewEmployee`) per karyawan resmi. */
+export async function findPhotoTargets(ids: string[]) {
+  if (ids.length === 0) return [];
+  return getPrisma().employee.findMany({
+    where: { id: { in: ids }, onboardingStatus: "APPROVED" },
+    select: { id: true, companyId: true, managerId: true, photoPath: true },
+  });
+}

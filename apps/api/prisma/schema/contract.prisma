@@ -1,0 +1,46 @@
+// KTR-D1/D3/D6: satu baris per tahap, termasuk masa percobaan PKWTT.
+enum ContractKind {
+  PKWT
+  PROBATION
+
+  @@schema("contract")
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXTENDED
+  CONVERTED
+  PASSED
+  ENDED
+
+  @@schema("contract")
+}
+
+model EmploymentContract {
+  id                 String               @id @default(uuid()) @db.Uuid
+  employeeId         String               @map("employee_id") @db.Uuid
+  employee           Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  companyId          String               @map("company_id") @db.Uuid
+  kind               ContractKind
+  sequence           Int?
+  startDate          DateTime             @map("start_date") @db.Date
+  endDate            DateTime             @map("end_date") @db.Date
+  previousContractId String?              @map("previous_contract_id") @db.Uuid
+  previousContract   EmploymentContract?  @relation("ContractStages", fields: [previousContractId], references: [id], onDelete: Restrict)
+  nextContracts      EmploymentContract[] @relation("ContractStages")
+  pkwtFirstStartDate DateTime?            @map("pkwt_first_start_date") @db.Date
+  status             ContractStatus       @default(ACTIVE)
+  closedAt           DateTime?            @map("closed_at") @db.Timestamptz(6)
+  closeReason        String?              @map("close_reason") @db.VarChar(500)
+  note               String?              @db.VarChar(500)
+  createdBy          String?              @map("created_by") @db.Uuid
+  updatedBy          String?              @map("updated_by") @db.Uuid
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([employeeId, startDate(sort: Desc)])
+  @@index([status, endDate])
+  @@index([previousContractId])
+  @@map("contracts")
+  @@schema("contract")
+}

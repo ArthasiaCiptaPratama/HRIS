@@ -1,4 +1,8 @@
+import type { Actor } from "../../core/access/index.ts";
+import type { StorageAdmin } from "../../core/storage.ts";
 import * as repository from "./directory.repository.ts";
+import { canViewEmployee } from "./employee.policy.ts";
+import { signPhotoUrls } from "./employee.service.ts";
 
 // Interface baca-saja karyawan untuk modul lain (asset, dan pengganti adapter sementara attendance).
 // Data sensitif (PLAN §4.2) tidak pernah ikut; hanya identitas kerja minimum untuk keputusan akses.
@@ -140,4 +144,36 @@ export async function listAnalyticsEmployees(input: {
       birthDate: personal?.birthDate ?? null,
     };
   });
+}
+
+/**
+ * TM-D33: URL foto profil bertanda tangan (berlaku singkat, sama dengan daftar/detail karyawan) per karyawan,
+ * HANYA untuk karyawan yang fotonya juga ditampilkan Personnel Management ke aktor yang sama
+ * (`canViewEmployee`: SA; HR PT-nya; MANAGER bawahan langsung; diri sendiri). Tanpa foto / tak berhak → tidak ada
+ * di map. Bukan selfie absen.
+ */
+export async function getEmployeePhotoUrls(
+  ctx: { actor: Actor; storage?: StorageAdmin | undefined },
+  employeeIds: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (employeeIds.length === 0) return result;
+  const rows = (await repository.findPhotoTargets([...new Set(employeeIds)])).filter(
+    (row) =>
+      row.photoPath !== null &&
+      canViewEmployee(ctx.actor, {
+        employeeId: row.id,
+        companyId: row.companyId,
+        managerId: row.managerId,
+      }),
+  );
+  const signed = await signPhotoUrls(
+    ctx,
+    rows.map((row) => row.photoPath),
+  );
+  for (const row of rows) {
+    const url = row.photoPath ? signed.get(row.photoPath) : undefined;
+    if (url) result.set(row.id, url);
+  }
+  return result;
 }

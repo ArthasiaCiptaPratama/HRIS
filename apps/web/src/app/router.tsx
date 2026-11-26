@@ -147,6 +147,11 @@ export const routes: RouteObject[] = [
                     path: "pengaktifan",
                     lazy: FEATURES.activation ? pages.activation : pages.maintenance,
                   },
+                  // KTR-D5/KTR-D11 (K2): daftar kontrak akan habis — SA & HR_ADMIN (cakupan PT dari API).
+                  {
+                    path: "kontrak-akan-habis",
+                    lazy: FEATURES.contractExpiring ? pages.contractExpiring : pages.maintenance,
+                  },
                   // ARS-D16: Laporan batch 1 (SA & HR; cakupan PT & grant dicek API).
                   {
                     path: "laporan",

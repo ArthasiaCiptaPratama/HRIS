@@ -28,6 +28,7 @@ let homebaseData: Record<string, unknown> = {};
 let homebasePost: { status: number; body: unknown } | null = null;
 // PATCH /employees/e1 menyimpan No. HP → GET berikutnya mengembalikan objek baru (seperti server).
 let savedPhone: string | null = null;
+let contractHistoryEntry: Record<string, unknown> | null = null;
 const detail = (access: Record<string, boolean>, full = false) => ({
   id: "e1",
   employeeNumber: "ACP-2023-0007",
@@ -98,6 +99,7 @@ const detail = (access: Record<string, boolean>, full = false) => ({
   educations: [],
   trainings: [],
   histories: [
+    ...(contractHistoryEntry ? [contractHistoryEntry] : []),
     {
       id: "h2",
       changeType: "STATUS_CHANGED",
@@ -236,6 +238,19 @@ function mockBackend(
           ],
         },
       });
+    if (key === "/employees/e1/contracts")
+      return json(200, {
+        data: {
+          contracts: [],
+          tier: "PKWT",
+          category: "PKWT",
+          joinDate: "2023-08-01",
+          pkwttStartDate: null,
+          companyTenure: { years: 3, months: 3, days: 24 },
+          pkwttTenure: null,
+          access: { manage: false, missingGrant: false },
+        },
+      });
     if (key === "/employees/e1/homebases" && init?.method === "POST") {
       const response = homebasePost ?? { status: 201, body: { data: null } };
       return json(response.status, response.body);
@@ -305,6 +320,7 @@ beforeEach(() => {
   homebaseData = {};
   homebasePost = null;
   savedPhone = null;
+  contractHistoryEntry = null;
   extraChanges = [];
   pagedChanges = false;
   delete sentBodies["POST /employees/e1/homebases"];
@@ -315,6 +331,36 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("panel detail pegawai", () => {
+  it("CONTRACT_STAGE_CHANGED tampil di filter Kepegawaian dengan tahap dan periode", async () => {
+    contractHistoryEntry = {
+      id: "h-contract",
+      changeType: "CONTRACT_STAGE_CHANGED",
+      effectiveDate: "2026-10-01",
+      fromStatus: { id: "s1", name: "PKWT" },
+      toStatus: { id: "s1", name: "PKWT" },
+      fromPosition: null,
+      toPosition: null,
+      fromCompany: null,
+      toCompany: null,
+      exitReason: null,
+      note: "Perpanjangan tahap",
+      changedBy: null,
+      createdAt: "2026-10-01T03:00:00.000Z",
+      contractStage: "PKWT 2",
+      contractStartDate: "2026-10-01",
+      contractEndDate: "2027-09-30",
+    };
+    mockBackend("HR_ADMIN", { manage: true });
+    renderAt("/personal/pegawai-aktif/semua?pegawai=e1&tab=history");
+    const sheet = await screen.findByRole("dialog");
+    const filters = await within(sheet).findByRole("group", { name: "Filter riwayat" });
+    await userEvent.click(within(filters).getByRole("button", { name: /^Kepegawaian/ }));
+    expect(await within(sheet).findByText("Pindah tahap kontrak")).toBeVisible();
+    expect(within(sheet).getByText("PKWT 2")).toBeVisible();
+    expect(within(sheet).getByText("01 Okt 2026 – 30 Sep 2027")).toBeVisible();
+    expect(within(sheet).getByRole("region", { name: "Riwayat kontrak" })).toBeVisible();
+  });
+
   it("layar penuh; header template profil (pas foto + Label : nilai, tombol sejajar info); riwayat menampilkan pengubah", async () => {
     mockBackend("HR_ADMIN", { manage: true, deactivate: true, print: true });
     renderAt("/personal/pegawai-aktif/semua?pegawai=e1");

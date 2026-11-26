@@ -49,6 +49,13 @@ const expected: ImportFieldKey[] = [
   "ktpAddress",
   "domicileAddress",
   "homebaseName",
+  "contractStage",
+  "contractStartDate",
+  "contractEndDate",
+  "contractDurationMonths",
+  "pkwtFirstStartDate",
+  "probationStartDate",
+  "probationEndDate",
 ];
 const xmlOf = (bytes: Uint8Array) => {
   const files = unzipSync(bytes);
@@ -69,7 +76,7 @@ describe("template import HRIS", () => {
       vi.useRealTimers();
     }
   });
-  it("dibaca seperti unggahan, memilih data, mengenali 25 kolom, dan contoh tanpa ERROR", async () => {
+  it("dibaca seperti unggahan, memilih data, mengenali 32 kolom, dan contoh tanpa ERROR", async () => {
     const bytes = buildImportTemplate(input);
     const sheets = await readXlsxFile(Buffer.from(bytes));
     const selected = pickSheet(

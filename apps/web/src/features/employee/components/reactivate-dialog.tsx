@@ -1,4 +1,4 @@
-import { EXIT_REASON_LABELS } from "@hris/shared";
+import { type EmploymentCategory, EXIT_REASON_LABELS } from "@hris/shared";
 import { Info, RotateCcw } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -23,6 +23,9 @@ import { todayIso } from "../labels";
 import type { EmployeeListItem } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 
+const isContractCategory = (category: EmploymentCategory | null | undefined) =>
+  category === "PKWT" || category === "PROBATION";
+
 export function ReactivateDialog({
   employee,
   onOpenChange,
@@ -31,6 +34,7 @@ export function ReactivateDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const master = useMasterData();
+  const lockedToContract = isContractCategory(employee?.employmentStatus.category);
   const mutation = useReactivateEmployee();
   const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const [statusId, setStatusId] = useState("");
@@ -103,11 +107,20 @@ export function ReactivateDialog({
                   value={statusId}
                   onChange={setStatusId}
                   placeholder="Pilih status"
-                  options={(master.data?.employmentStatuses ?? []).map((s) => ({
-                    value: s.id,
-                    label: s.name,
-                  }))}
+                  options={(master.data?.employmentStatuses ?? [])
+                    // KTR-D4: pindah ke/dari PKWT/Percobaan hanya lewat aksi kontrak di tab Kepegawaian.
+                    .filter((s) =>
+                      lockedToContract
+                        ? s.id === employee.employmentStatus.id
+                        : !isContractCategory(s.category) || s.id === employee.employmentStatus.id,
+                    )
+                    .map((s) => ({ value: s.id, label: s.name }))}
                 />
+                {lockedToContract ? (
+                  <p className="text-muted-foreground text-xs">
+                    Status PKWT/masa percobaan diubah lewat tab Kepegawaian setelah karyawan aktif.
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-2">

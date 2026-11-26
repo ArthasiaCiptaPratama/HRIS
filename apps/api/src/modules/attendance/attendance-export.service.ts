@@ -1,14 +1,24 @@
 import {
   ATTENDANCE_DAY_STATUS_LABELS,
+  ATTENDANCE_EXPORT_COLUMN_GROUPS,
+  ATTENDANCE_EXPORT_DEFAULT_COLUMN_GROUPS,
+  ATTENDANCE_EXPORT_MAX_BASE64_BYTES,
   ATTENDANCE_EXPORT_MAX_ROWS,
+  ATTENDANCE_EXPORT_STATUSES,
+  ATTENDANCE_EXPORT_TOO_LARGE,
   ATTENDANCE_LABEL_TEXT,
+  type AttendanceExportColumnGroup,
   type AttendanceExportInput,
+  type AttendanceExportStatus,
+  attendanceExportEmployeeMode,
   attendanceExportFileName,
   buildWorkbook,
   formatClockTime,
   googleMapsUrl,
+  PUNCH_KIND_LABELS,
   sheetName,
   type XlsxCell,
+  type XlsxFormat,
   type XlsxSheet,
 } from "@hris/shared";
 import { writeAudit } from "../../core/audit.ts";
@@ -22,7 +32,8 @@ import * as directory from "./directory.ts";
 import * as roster from "./roster.repository.ts";
 
 // TM-D31: ekspor Excel data absen — DETAIL (Ringkasan + satu sheet per crew, crew menurut keanggotaan pada
-// tanggal itu) dan FLASH (5 kolom, urut tanggal). Baca-saja (tidak menandai Alpha), tanpa selfie/koordinat.
+// tanggal itu) dan FLASH (7 kolom, urut tanggal). Baca-saja (tidak menandai Alpha), tanpa selfie/koordinat.
+// TM-D34: DETAIL — mode karyawan (crew / karyawan tertentu / filter halaman), kelompok kolom, filter baris.
 
 const LIMIT = `Data terlalu banyak untuk satu file (maks. ${ATTENDANCE_EXPORT_MAX_ROWS.toLocaleString("id-ID")} baris)`;
 const TOO_MANY = `${LIMIT} — persempit rentang atau pilih lebih sedikit crew.`;
@@ -48,6 +59,8 @@ export interface ExportPunch {
   labels: string[];
   status: string;
   source: string;
+  /** TM-D34: alasan karyawan/HR pada absen ini (kolom Alasan). */
+  reason?: string | null;
 }
 
 /** Teks lokasi dari data sistem (tanpa layanan luar, tanpa angka koordinat). */
@@ -121,6 +134,9 @@ export interface DetailRow {
   employeeId: string;
   nip: string;
   name: string;
+  /** Jabatan & divisi SAAT INI (Identitas, TM-D34); tanpa data → "—". */
+  position: string;
+  division: string;
   date: string;
   crewId: string | null;
   crewLabel: string;
@@ -135,6 +151,19 @@ export interface DetailRow {
   mapOut: XlsxCell;
   status: string;
   label: string;
+  /** TM-D34: Persetujuan Clock In/Out (kosong bila tidak ada absen). */
+  approvalIn: string;
+  approvalOut: string;
+  /** TM-D34: Mulai/Selesai istirahat (TM-D7). */
+  breakStart: string;
+  breakEnd: string;
+  /** TM-D34: menit telat (berlabel LATE) / pulang cepat (berlabel EARLY_LEAVE); null = kosong. */
+  lateMin: number | null;
+  earlyMin: number | null;
+  /** TM-D34: alasan per absen, "Clock In: …; Clock Out: …". */
+  reason: string;
+  /** TM-D34: kelompok status (filter baris). */
+  bucket: AttendanceExportStatus;
   /** Untuk Ringkasan. */
   work: boolean;
   dayStatus: string | null;
@@ -182,6 +211,70 @@ export function rosterOnlyStatus(
   if (day.date < today) return "Tanpa absen";
   return day.date === today ? "Belum absen" : "Terjadwal";
 }
+
+/**
+ * TM-D34: kelompok status baris (filter baris). Hari absen: OPEN/PENDING → PENDING, selebihnya sama;
+ * tanpa hari absen: hari roster ber-shift → NO_RECORD (tanpa absen / belum absen / terjadwal), lainnya → OFF.
+ */
+export function statusBucket(dayStatus: string | null, work: boolean): AttendanceExportStatus {
+  if (dayStatus === null) return work ? "NO_RECORD" : "OFF";
+  if (dayStatus === "OPEN" || dayStatus === "PENDING") return "PENDING";
+  return dayStatus as AttendanceExportStatus;
+}
+
+/** TM-D34: selisih menit bulat ke bawah, minimal 0. */
+export const minutesBetween = (from: Date, to: Date) =>
+  Math.max(0, Math.floor((to.getTime() - from.getTime()) / 60_000));
+
+/**
+ * TM-D34 "Telat & pulang cepat": Telat = Clock In − jadwal masuk bila baris berlabel LATE (label diberi mesin
+ * absen setelah toleransi shift; menit dihitung dari jam masuk jadwal, bukan dari batas toleransi); Pulang
+ * cepat = jadwal pulang − Clock Out bila berlabel EARLY_LEAVE. Jadwal = jadwal terkunci hari absen (atau
+ * roster). Tanpa label / tanpa absen / tanpa jadwal → null.
+ */
+export function lateEarly(input: {
+  codes: string[];
+  clockIn: Date | null | undefined;
+  clockOut: Date | null | undefined;
+  scheduledStart: Date | null | undefined;
+  scheduledEnd: Date | null | undefined;
+}): { lateMin: number | null; earlyMin: number | null } {
+  const { codes, clockIn, clockOut, scheduledStart, scheduledEnd } = input;
+  return {
+    lateMin:
+      codes.includes("LATE") && clockIn && scheduledStart
+        ? minutesBetween(scheduledStart, clockIn)
+        : null,
+    earlyMin:
+      codes.includes("EARLY_LEAVE") && clockOut && scheduledEnd
+        ? minutesBetween(clockOut, scheduledEnd)
+        : null,
+  };
+}
+
+/** TM-D34: penjaga ukuran file (DETAIL & FLASH) — base64 melebihi batas → 422, tanpa mengubah data. */
+export function assertExportSize(base64Length: number, max = ATTENDANCE_EXPORT_MAX_BASE64_BYTES) {
+  if (base64Length > max) throw new BusinessRuleError(ATTENDANCE_EXPORT_TOO_LARGE);
+}
+
+const PUNCH_ORDER = ["IN", "BREAK_START", "BREAK_END", "OUT"] as const;
+/** TM-D34: sel Alasan — alasan tiap absen yang terisi, urut Clock In → istirahat → Clock Out. */
+export function reasonText(punches: { kind: string; reason?: string | null }[]): string {
+  return PUNCH_ORDER.flatMap((kind) => {
+    const reason = punches
+      .find((p) => p.kind === kind)
+      ?.reason?.replace(/\s+/g, " ")
+      .trim();
+    return reason ? [`${PUNCH_KIND_LABELS[kind]}: ${reason}`] : [];
+  }).join("; ");
+}
+
+const PUNCH_STATUS_TEXT: Record<string, string> = {
+  PENDING: "Menunggu",
+  APPROVED: "Disetujui",
+  REJECTED: "Ditolak",
+};
+const punchStatusText = (status: string) => PUNCH_STATUS_TEXT[status] ?? status;
 
 const labelText = (code: string) => (ATTENDANCE_LABEL_TEXT as Record<string, string>)[code] ?? code;
 const statusText = (status: string) =>
@@ -240,8 +333,8 @@ async function resolveScope(ctx: RequestContext, input: AttendanceExportInput): 
   };
 }
 
-async function readDays(scope: Scope, tooMany = TOO_MANY) {
-  const days = await repository.exportDays(scope.dayWhere, ATTENDANCE_EXPORT_MAX_ROWS + 1);
+async function readDays(where: Prisma.AttendanceDayWhereInput, tooMany = TOO_MANY) {
+  const days = await repository.exportDays(where, ATTENDANCE_EXPORT_MAX_ROWS + 1);
   if (days.length > ATTENDANCE_EXPORT_MAX_ROWS) throw new BusinessRuleError(tooMany);
   return days;
 }
@@ -304,12 +397,40 @@ async function assertCrews(input: DetailInput, scope: Scope) {
   }
 }
 
+const OUT_OF_SCOPE_EMPLOYEES = "Karyawan yang dipilih tidak ditemukan atau di luar cakupan Anda.";
+
+/**
+ * TM-D34: karyawan terpilih (null = tidak dibatasi). EMPLOYEES: setiap id harus karyawan cakupan atau punya
+ * ≥1 hari absen dalam cakupan & rentang (karyawan pindah PT), selain itu satu 422 tanpa nama. PAGE_FILTER:
+ * pencocokan nama/NIK sama dengan `listDays` `q`; cakupan tetap dari `scope`.
+ */
+async function pickedEmployees(input: DetailInput, scope: Scope): Promise<Set<string> | null> {
+  const mode = attendanceExportEmployeeMode(input);
+  if (mode === "EMPLOYEES") {
+    const ids = [...new Set(input.employeeIds)];
+    const known = new Set(scope.employees.map((e) => e.id));
+    const rest = ids.filter((id) => !known.has(id));
+    const owners = await repository.exportDayOwners(scope.dayWhere, rest);
+    if (owners.length !== rest.length) throw new BusinessRuleError(OUT_OF_SCOPE_EMPLOYEES);
+    return new Set(ids);
+  }
+  if (mode === "PAGE_FILTER") {
+    const q = input.q?.trim();
+    return q ? new Set(await directory.employeeIdsMatching(q)) : null;
+  }
+  return null;
+}
+
 async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
   await assertCrews(input, scope);
+  const byCrew = attendanceExportEmployeeMode(input) === "CREW";
+  const pick = await pickedEmployees(input, scope);
   const from = toDate(input.from);
   const to = toDate(input.to);
-  const days = await readDays(scope);
-  const rosterIds = scope.employees.map((e) => e.id);
+  const days = await readDays(
+    pick ? { AND: [scope.dayWhere, { employeeId: { in: [...pick] } }] } : scope.dayWhere,
+  );
+  const rosterIds = scope.employees.map((e) => e.id).filter((id) => !pick || pick.has(id));
   const allIds = [...new Set([...rosterIds, ...days.map((d) => d.employeeId)])];
   const allMemberships = allIds.length
     ? await roster.crewMembershipsForExport(allIds, from, to)
@@ -331,8 +452,10 @@ async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
   };
   const crewOf = (employeeId: string, date: string) => pickCrew(memberships, employeeId, date);
   const chosen = input.crewIds ? new Set(input.crewIds) : null;
+  // Mode karyawan tertentu / filter halaman: semua crew & tanpa crew.
   const keep = (crewId: string | null) =>
-    crewId === null ? input.includeNoCrew === true : chosen === null || chosen.has(crewId);
+    !byCrew ||
+    (crewId === null ? input.includeNoCrew === true : chosen === null || chosen.has(crewId));
   // Baris roster hanya untuk karyawan yang punya keanggotaan pada crew terpilih (atau semua bila Tanpa crew).
   const rosterCandidates =
     chosen && !input.includeNoCrew
@@ -383,22 +506,42 @@ async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
   for (const r of rosterDays) cellOf(r.employeeId, toIso(r.workDate)).roster = r;
   for (const d of days) cellOf(d.employeeId, toIso(d.workDate)).day = d;
 
+  const facts = (cell: Cell) => {
+    const pin = cell.day?.punches.find((p) => p.kind === "IN");
+    const pout = cell.day?.punches.find((p) => p.kind === "OUT");
+    const codes = cell.day
+      ? [...new Set([...cell.day.labels, ...(pin?.labels ?? []), ...(pout?.labels ?? [])])]
+      : [];
+    const extra = [
+      ...(pin?.status === "REJECTED" ? ["Clock In ditolak"] : []),
+      ...(pout?.status === "REJECTED" ? ["Clock Out ditolak"] : []),
+    ];
+    const work = (cell.roster?.shift ?? null) !== null;
+    return { pin, pout, codes, extra, work, bucket: statusBucket(cell.day?.status ?? null, work) };
+  };
+  // TM-D34 filter baris: status (bawaan semua) & hanya berlabel (= sel Label tidak kosong).
+  const wanted = new Set<AttendanceExportStatus>(input.statuses ?? ATTENDANCE_EXPORT_STATUSES);
   const selected = [...cells.values()]
-    .map((cell) => ({ cell, crew: crewOf(cell.employeeId, cell.date) }))
-    .filter(({ crew }) => keep(crew?.id ?? null));
+    .map((cell) => ({ cell, crew: crewOf(cell.employeeId, cell.date), ...facts(cell) }))
+    .filter(
+      (x) =>
+        keep(x.crew?.id ?? null) &&
+        wanted.has(x.bucket) &&
+        (!input.labeledOnly || x.codes.length + x.extra.length > 0),
+    );
   if (selected.length > ATTENDANCE_EXPORT_MAX_ROWS) throw new BusinessRuleError(TOO_MANY);
 
-  const [persons, companies, locations] = await Promise.all([
-    people(
-      scope,
-      selected.map((x) => x.cell.employeeId),
-    ),
+  const employeeIds = [...new Set(selected.map((x) => x.cell.employeeId))];
+  const [persons, companies, locations, placements] = await Promise.all([
+    people(scope, employeeIds),
     directory.companyNames(),
     directory.locationsByIds(
-      selected.flatMap(({ cell }) =>
-        (cell.day?.punches ?? []).flatMap((p) => (p.workLocationId ? [p.workLocationId] : [])),
+      selected.flatMap(({ pin, pout }) =>
+        [pin, pout].flatMap((p) => (p?.workLocationId ? [p.workLocationId] : [])),
       ),
     ),
+    // Jabatan & divisi = penempatan SAAT INI (sama dengan Flash).
+    directory.positionPlacementByEmployee(employeeIds),
   ]);
   const crewRefs = new Map<string, CrewRef>();
   for (const { crew } of selected) {
@@ -429,67 +572,110 @@ async function detailRows(input: DetailInput, scope: Scope, s: Settings) {
   const clock = (at: Date | null | undefined, date: string) =>
     at ? formatClockTime(at, date, s.offset) : "";
 
-  const rows: DetailRow[] = selected.map(({ cell, crew }) => {
-    const person = persons.get(cell.employeeId);
-    const { day, roster: r } = cell;
-    const shift = r?.shift ?? null;
-    const window = shift ? shiftWindow(cell.date, shift as ShiftTimes, s.timezone) : null;
-    const pin = day?.punches.find((p) => p.kind === "IN");
-    const pout = day?.punches.find((p) => p.kind === "OUT");
-    const codes = day
-      ? [...new Set([...day.labels, ...(pin?.labels ?? []), ...(pout?.labels ?? [])])]
-      : [];
-    const extra = [
-      ...(pin?.status === "REJECTED" ? ["Clock In ditolak"] : []),
-      ...(pout?.status === "REJECTED" ? ["Clock Out ditolak"] : []),
-    ];
-    const work = shift !== null;
-    return {
-      employeeId: cell.employeeId,
-      nip: person?.employeeNumber ?? "",
-      name: person?.fullName ?? "—",
-      date: cell.date,
-      crewId: crew?.id ?? null,
-      crewLabel: crew ? (names.get(crew.id)?.label ?? crew.name) : NO_CREW,
-      shift: day?.shiftCode ?? shift?.code ?? (r ? (r.timeOff ? "TO" : "OFF") : ""),
-      scheduledIn: clock(day?.scheduledStart ?? window?.start, cell.date),
-      scheduledOut: clock(day?.scheduledEnd ?? window?.end, cell.date),
-      clockIn: clock(pin?.at, cell.date),
-      locationIn: pin ? locationText(pin, siteName) : "",
-      mapIn: mapCell(pin),
-      clockOut: clock(pout?.at, cell.date),
-      locationOut: pout ? locationText(pout, siteName) : "",
-      mapOut: mapCell(pout),
-      status: day
-        ? statusText(day.status)
-        : rosterOnlyStatus({ work, timeOff: r?.timeOff ?? false, date: cell.date }, s.today),
-      label: [...codes.map(labelText), ...extra].join(", "),
-      work,
-      dayStatus: day?.status ?? null,
-      labelCodes: codes,
-    };
-  });
+  const rows: DetailRow[] = selected.map(
+    ({ cell, crew, pin, pout, codes, extra, work, bucket }) => {
+      const person = persons.get(cell.employeeId);
+      const place = placements.get(cell.employeeId);
+      const { day, roster: r } = cell;
+      const shift = r?.shift ?? null;
+      const window = shift ? shiftWindow(cell.date, shift as ShiftTimes, s.timezone) : null;
+      const scheduledStart = day?.scheduledStart ?? window?.start;
+      const scheduledEnd = day?.scheduledEnd ?? window?.end;
+      const punches = day?.punches ?? [];
+      const breakStart = punches.find((p) => p.kind === "BREAK_START");
+      const breakEnd = punches.find((p) => p.kind === "BREAK_END");
+      return {
+        employeeId: cell.employeeId,
+        nip: person?.employeeNumber ?? "",
+        name: person?.fullName ?? "—",
+        position: place?.position ?? "—",
+        division: place?.division ?? "—",
+        date: cell.date,
+        crewId: crew?.id ?? null,
+        crewLabel: crew ? (names.get(crew.id)?.label ?? crew.name) : NO_CREW,
+        shift: day?.shiftCode ?? shift?.code ?? (r ? (r.timeOff ? "TO" : "OFF") : ""),
+        scheduledIn: clock(scheduledStart, cell.date),
+        scheduledOut: clock(scheduledEnd, cell.date),
+        clockIn: clock(pin?.at, cell.date),
+        locationIn: pin ? locationText(pin, siteName) : "",
+        mapIn: mapCell(pin),
+        clockOut: clock(pout?.at, cell.date),
+        locationOut: pout ? locationText(pout, siteName) : "",
+        mapOut: mapCell(pout),
+        status: day
+          ? statusText(day.status)
+          : rosterOnlyStatus({ work, timeOff: r?.timeOff ?? false, date: cell.date }, s.today),
+        label: [...codes.map(labelText), ...extra].join(", "),
+        approvalIn: pin ? punchStatusText(pin.status) : "",
+        approvalOut: pout ? punchStatusText(pout.status) : "",
+        breakStart: clock(breakStart?.at, cell.date),
+        breakEnd: clock(breakEnd?.at, cell.date),
+        ...lateEarly({
+          codes,
+          clockIn: pin?.at,
+          clockOut: pout?.at,
+          scheduledStart,
+          scheduledEnd,
+        }),
+        reason: reasonText(punches),
+        bucket,
+        work,
+        dayStatus: day?.status ?? null,
+        labelCodes: codes,
+      };
+    },
+  );
   return { rows, names, crewRefs };
 }
 
-const DETAIL_HEADER = [
-  "NIP",
-  "Nama",
-  "Crew",
-  "Tanggal",
-  "Hari",
-  "Shift",
-  "Jadwal Masuk",
-  "Jadwal Pulang",
-  "Clock In",
-  "Lokasi Clock In",
-  "Peta In",
-  "Clock Out",
-  "Lokasi Clock Out",
-  "Peta Out",
-  "Status",
-  "Label",
+type ColumnGroup = AttendanceExportColumnGroup | "IDENTITY";
+interface DetailColumn {
+  header: string;
+  group: ColumnGroup;
+  format?: XlsxFormat;
+  cell: (r: DetailRow) => XlsxCell;
+}
+/**
+ * Kolom sheet crew (TM-D34): Identitas selalu, kelompok lain sesuai pilihan. Kelompok bawaan menghasilkan
+ * kolom Detail TM-D31 (+ Jabatan & Divisi) dengan urutan yang sama.
+ */
+const DETAIL_COLUMNS: DetailColumn[] = [
+  { header: "NIP", group: "IDENTITY", format: "text", cell: (r) => r.nip },
+  { header: "Nama", group: "IDENTITY", format: "text", cell: (r) => r.name },
+  { header: "Jabatan", group: "IDENTITY", format: "text", cell: (r) => r.position },
+  { header: "Divisi", group: "IDENTITY", format: "text", cell: (r) => r.division },
+  { header: "Crew", group: "IDENTITY", format: "text", cell: (r) => r.crewLabel },
+  { header: "Tanggal", group: "IDENTITY", format: "date", cell: (r) => toDate(r.date) },
+  { header: "Hari", group: "IDENTITY", cell: (r) => DAY_NAMES[toDate(r.date).getUTCDay()] },
+  { header: "Shift", group: "SCHEDULE", cell: (r) => r.shift },
+  { header: "Jadwal Masuk", group: "SCHEDULE", cell: (r) => r.scheduledIn },
+  { header: "Jadwal Pulang", group: "SCHEDULE", cell: (r) => r.scheduledOut },
+  { header: "Clock In", group: "CLOCK", cell: (r) => r.clockIn },
+  { header: "Lokasi Clock In", group: "LOCATION", cell: (r) => r.locationIn },
+  { header: "Peta In", group: "LOCATION", cell: (r) => r.mapIn },
+  { header: "Persetujuan Clock In", group: "APPROVAL", cell: (r) => r.approvalIn },
+  { header: "Mulai istirahat", group: "BREAK", cell: (r) => r.breakStart },
+  { header: "Selesai istirahat", group: "BREAK", cell: (r) => r.breakEnd },
+  { header: "Clock Out", group: "CLOCK", cell: (r) => r.clockOut },
+  { header: "Lokasi Clock Out", group: "LOCATION", cell: (r) => r.locationOut },
+  { header: "Peta Out", group: "LOCATION", cell: (r) => r.mapOut },
+  { header: "Persetujuan Clock Out", group: "APPROVAL", cell: (r) => r.approvalOut },
+  { header: "Telat (menit)", group: "LATE_EARLY", format: "int", cell: (r) => r.lateMin },
+  { header: "Pulang cepat (menit)", group: "LATE_EARLY", format: "int", cell: (r) => r.earlyMin },
+  { header: "Status", group: "CLOCK", cell: (r) => r.status },
+  { header: "Label", group: "LABEL", cell: (r) => r.label },
+  { header: "Alasan", group: "REASON", cell: (r) => r.reason },
 ];
+
+/** Kolom sheet crew untuk kelompok terpilih (Identitas selalu). */
+export function detailColumns(groups: ReadonlySet<AttendanceExportColumnGroup>): DetailColumn[] {
+  return DETAIL_COLUMNS.filter((c) => c.group === "IDENTITY" || groups.has(c.group));
+}
+
+const DEFAULT_GROUPS: ReadonlySet<AttendanceExportColumnGroup> = new Set(
+  ATTENDANCE_EXPORT_DEFAULT_COLUMN_GROUPS,
+);
+const EMPTY_SHEET = "Data Absen";
 const SUMMARY_HEADER = [
   "NIP",
   "Nama",
@@ -522,15 +708,17 @@ export function detailSheets(
   includeNoCrew: boolean,
   info: string[],
   today: string,
+  groups: ReadonlySet<AttendanceExportColumnGroup> = DEFAULT_GROUPS,
 ): XlsxSheet[] {
-  const groups = new Map<string, DetailRow[]>();
+  const columns = detailColumns(groups);
+  const perEmployeeCrew = new Map<string, DetailRow[]>();
   for (const r of rows) {
     const key = `${r.employeeId}|${r.crewId ?? ""}`;
-    const list = groups.get(key) ?? [];
+    const list = perEmployeeCrew.get(key) ?? [];
     list.push(r);
-    groups.set(key, list);
+    perEmployeeCrew.set(key, list);
   }
-  const summaryRows = [...groups.values()]
+  const summaryRows = [...perEmployeeCrew.values()]
     .map((list) => ({ first: list[0] as DetailRow, counts: summarize(list, today) }))
     .sort(
       (a, b) =>
@@ -566,32 +754,15 @@ export function detailSheets(
     title,
     info,
     rows: [
-      DETAIL_HEADER,
+      columns.map((c) => c.header),
       ...[...list]
         .sort((a, b) => byName(a, b) || a.date.localeCompare(b.date))
-        .map((r) => [
-          r.nip,
-          r.name,
-          r.crewLabel,
-          toDate(r.date),
-          DAY_NAMES[toDate(r.date).getUTCDay()],
-          r.shift,
-          r.scheduledIn,
-          r.scheduledOut,
-          r.clockIn,
-          r.locationIn,
-          r.mapIn,
-          r.clockOut,
-          r.locationOut,
-          r.mapOut,
-          r.status,
-          r.label,
-        ]),
+        .map((r) => columns.map((c) => c.cell(r))),
     ],
-    formats: ["text", "text", "text", "date"],
+    formats: columns.map((c) => c.format),
     freezeColumns: 2,
   });
-  const sheets = [summary];
+  const sheets = groups.has("SUMMARY") ? [summary] : [];
   for (const crewId of crewOrder) {
     const n = names.get(crewId);
     if (!n) continue;
@@ -612,13 +783,15 @@ export function detailSheets(
       ),
     );
   }
+  // Tanpa Ringkasan dan tanpa baris sama sekali: tetap satu sheet berisi header.
+  if (sheets.length === 0) sheets.push(sheetOf("Data Absen", EMPTY_SHEET, []));
   return sheets;
 }
 
 // ── FLASH ──────────────────────────────────────────────────────────────────────
 
 async function flashSheet(scope: Scope, s: Settings, info: string[]) {
-  const days = await readDays(scope, TOO_MANY_FLASH);
+  const days = await readDays(scope.dayWhere, TOO_MANY_FLASH);
   const persons = await people(
     scope,
     days.map((d) => d.employeeId),
@@ -689,27 +862,44 @@ export async function exportAttendance(
   let sheets: XlsxSheet[];
   let rows: number;
   let crewCount = 0;
+  let detailAudit: Record<string, unknown> = {};
   if (input.kind === "DETAIL") {
     const detail = await detailRows(input, scope, s);
     const order = [...detail.names.entries()]
       .sort((a, b) => a[1].sheet.localeCompare(b[1].sheet, "id"))
       .map(([id]) => id);
+    const mode = attendanceExportEmployeeMode(input);
+    const groups = new Set(input.columnGroups ?? ATTENDANCE_EXPORT_DEFAULT_COLUMN_GROUPS);
     sheets = detailSheets(
       detail.rows,
       detail.names,
       order,
-      input.includeNoCrew === true,
+      // Mode crew: sheet "Tanpa crew" sesuai pilihan; mode lain: hanya bila ada barisnya.
+      mode === "CREW" ? input.includeNoCrew === true : detail.rows.some((r) => r.crewId === null),
       info,
       s.today,
+      groups,
     );
     rows = detail.rows.length;
     crewCount = order.length;
+    const statuses = new Set(input.statuses ?? ATTENDANCE_EXPORT_STATUSES);
+    // Tanpa data pribadi: tanpa q (bisa memuat NIK) dan tanpa id karyawan.
+    detailAudit = {
+      mode,
+      columnGroups: ATTENDANCE_EXPORT_COLUMN_GROUPS.filter((g) => groups.has(g)),
+      statuses: ATTENDANCE_EXPORT_STATUSES.filter((x) => statuses.has(x)),
+      labeledOnly: input.labeledOnly === true,
+      employeeCount: new Set(detail.rows.map((r) => r.employeeId)).size,
+    };
   } else {
     const flash = await flashSheet(scope, s, info);
     sheets = [flash.sheet];
     rows = flash.rows;
   }
   const bytes = buildWorkbook(sheets, { title: "Data Absen", creator: "HRIS Arthasia" }, now);
+  const contentBase64 = Buffer.from(bytes).toString("base64");
+  // Sebelum audit: file yang ditolak tidak tercatat sebagai ekspor.
+  assertExportSize(contentBase64.length);
   // Audit tanpa data pribadi: hanya parameter & jumlah.
   await writeAudit({
     actorAccountId: ctx.actor.accountId,
@@ -725,11 +915,12 @@ export async function exportAttendance(
       companyId: input.companyId ?? null,
       crewCount,
       rows,
+      ...detailAudit,
     },
   });
   return {
     fileName: attendanceExportFileName(input),
     rows,
-    contentBase64: Buffer.from(bytes).toString("base64"),
+    contentBase64,
   };
 }

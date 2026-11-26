@@ -31,6 +31,8 @@ export const employeeListItemSchema = z.object({
   gender: genderSchema.nullable(),
   joinDate: z.string(),
   endDate: z.string().nullable(),
+  contractStage: z.number().int().nullable().default(null),
+  contractEndDate: z.iso.date().nullable().default(null),
   isActive: z.boolean(),
   exitReason: exitReasonSchema.nullable(),
   employmentStatus: ref.extend({ category: employmentCategorySchema.nullable() }),
@@ -64,6 +66,18 @@ export const summarySchema = z.object({
     total: z.number(),
     byCategory: z.record(employmentCategorySchema, z.number()),
     uncategorized: z.number(),
+    pkwtStages: z
+      .object({
+        stage1: z.number(),
+        stage2: z.number(),
+        stage3: z.number(),
+        none: z.number(),
+      })
+      .default({ stage1: 0, stage2: 0, stage3: 0, none: 0 }),
+    // KTR-D5 (K2): badge menu "Kontrak akan habis".
+    contractsEnding: z
+      .object({ soon: z.number(), overdue: z.number() })
+      .default({ soon: 0, overdue: 0 }),
   }),
   inactive: z.number(),
 });
@@ -247,6 +261,9 @@ export const employeeDetailSchema = employeeListItemSchema.extend({
     z.object({
       id: z.string(),
       changeType: employmentChangeTypeSchema,
+      contractStage: z.string().nullable().optional(),
+      contractStartDate: z.iso.date().nullable().optional(),
+      contractEndDate: z.iso.date().nullable().optional(),
       effectiveDate: z.string(),
       fromStatus: ref.nullable(),
       toStatus: ref.nullable(),

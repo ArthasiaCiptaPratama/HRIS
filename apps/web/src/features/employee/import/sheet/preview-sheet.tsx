@@ -1,5 +1,6 @@
 import {
   applyCellEdits,
+  contractStageLabel,
   EXIT_REASON_LABELS,
   type ImportCellEdits,
   type ImportFieldKey,
@@ -460,6 +461,20 @@ function fieldColumn(field: ImportFieldKey, isLocked: boolean): SheetColumn {
   };
 }
 
+/** KTR-D12: "Kontrak: PKWT 1 · 21 Nov 2026–20 Feb 2027 (baru)". */
+function contractInfo(contract: NonNullable<Row["contract"]>): string {
+  const period = (p: { startDate: string; endDate: string }) =>
+    `${formatDate(p.startDate)}–${formatDate(p.endDate)}`;
+  const stage = contractStageLabel(contract.kind, contract.sequence);
+  const note =
+    contract.action === "CREATE"
+      ? "baru"
+      : contract.action === "CORRECT"
+        ? `koreksi dari ${contract.previous ? period(contract.previous) : "—"}`
+        : `dibiarkan, tetap ${contract.previous ? period(contract.previous) : "—"}`;
+  return `Kontrak: ${stage} · ${period(contract)} (${note})`;
+}
+
 /** Rincian baris yang bukan error: yang akan berubah/dibiarkan/dinonaktifkan, catatan, lampiran. */
 function rowInfo(
   row: Row,
@@ -470,6 +485,7 @@ function rowInfo(
     row.deactivate
       ? `Akan dinonaktifkan: ${EXIT_REASON_LABELS[row.deactivate.reason]} per ${formatDate(row.deactivate.date)}`
       : null,
+    row.contract ? contractInfo(row.contract) : null,
     row.action === "UPDATE" && row.changes.length > 0
       ? `${fillEmpty ? "Diisi" : "Berubah"}: ${row.changes.map(fieldLabel).join(", ")}`
       : null,

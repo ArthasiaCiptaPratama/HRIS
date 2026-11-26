@@ -30,6 +30,10 @@ export const pages = {
     import("@/features/employee/pages/activation-page").then((m) => ({
       Component: m.ActivationPage,
     })),
+  contractExpiring: () =>
+    import("@/features/employee/pages/contract-expiring-page").then((m) => ({
+      Component: m.ContractExpiringPage,
+    })),
   inactiveEmployees: () =>
     import("@/features/employee/pages/inactive-employees-page").then((m) => ({
       Component: m.InactiveEmployeesPage,
@@ -196,6 +200,10 @@ const PRELOAD: [prefix: string, load: () => Promise<unknown>][] = [
   ["/personal/import", pages.importEmployees],
   ["/personal/tambah-karyawan", pages.createEmployee],
   ["/personal/pengaktifan", FEATURES.activation ? pages.activation : pages.maintenance],
+  [
+    "/personal/kontrak-akan-habis",
+    FEATURES.contractExpiring ? pages.contractExpiring : pages.maintenance,
+  ],
   [
     "/personal/pegawai-tidak-aktif",
     FEATURES.inactiveEmployees ? pages.inactiveEmployees : pages.maintenance,
