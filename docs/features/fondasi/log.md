@@ -13,6 +13,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
+### 2026-11-26 — Guard env test API: NODE_ENV=test + kredensial nyata dikosongkan (Oatse/Claude)
+- **Dikerjakan:** checklist "Guard env test API". Preload `db-guard-preload.ts` (+ `TEST_SECRET_KEYS`), `bunfig.toml` root, `app.ts` `defaultAuthAdmin` (diekspor, cek `NODE_ENV`), test `test-env-guard.test.ts`: (1) proses test ber-`NODE_ENV=test`, kredensial kosong, email = log, Auth Admin = UNCONFIGURED; (2) Auth Admin tetap UNCONFIGURED walau target Supabase ber-service-role; (3) subprocess `bun --env-file=<env palsu di tmp> test` tanpa `NODE_ENV=test` (env proses tidak diwarisi; SMTP `smtp.invalid`, service role palsu) tetap lulus. Uji negatif manual: file yang sama dijalankan dari folder tanpa bunfig → gagal (SMTP terbaca), membuktikan guard dari preload.
+- **Keputusan:** kutipan pengguna 17:2x WIB "Kita pasang di develop (Recommended)" via supervisor-15 (usul Mat).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ (649 modul) · shared 490 · api 1627 (+3) · web 574 ✔; `bun test packages/shared` dari root (root bunfig) 490 ✔ — perilaku shared tidak berubah; web memakai vitest (tidak membaca bunfig).
+- **Masalah / catatan:** 5 file integration memakai `defaultAuthAdmin` (tanpa authAdmin palsu): `employee/homebase`, `employee/field-changes`, `health`, `employee/manager-account`, `iam/me` — kini selalu UNCONFIGURED di test. Sebelumnya `defaultAuthAdmin` tidak memeriksa `NODE_ENV`, jadi bila `.env` berisi `SUPABASE_SERVICE_ROLE_KEY`, kelima file ini memegang client Auth Admin asli (dipakai hanya bila alurnya memanggil aksi akun).
+
 ### 2026-11-24 — Dashboard & Absen tanpa sidebar desktop (Oatse)
 - **Dikerjakan:** kutipan pengguna 2026-11-24 lewat supervisor-36 ("Hilangkan sidebar yg muncul dihalaman dasboard…"; Absen ikut). Properti `sidebar?: false` di `NavGroup`, diset di grup `dashboard` & `absen`; `app-layout.tsx` hanya merender `<aside>` bila `current.sidebar !== false`. Checklist "Dashboard & Absen tanpa sidebar desktop".
 - **Keputusan:** –

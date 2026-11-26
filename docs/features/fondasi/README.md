@@ -65,6 +65,8 @@ Legenda: `[ ]` belum · `[~]` sedang · `[x]` selesai · `[-]` dibatalkan/ditund
   - [x] QA visual Playwright lokal (Q-01, Q-02 di `docs/qa/runs/2026-10-19-ui-ux-lokal.md`); akar masalah "hanya terjadi di lokal" belum dipastikan (tata letak baru tidak bergantung padanya)
 - [x] **Dashboard & Absen tanpa sidebar desktop** (tambahan 2026-11-24: permintaan pengguna, lewat supervisor). Grup nav 1 halaman diberi `sidebar: false` di `NAV_GROUPS` (`apps/web/src/app/navigation.ts`), dan `<aside>` di `app-layout.tsx` tidak dirender. Isi melebar (tetap `max-w-[1400px]`). Drawer HP, top nav, dan grup lain tidak berubah. `/absen` sendiri adalah shell HP (di luar kerangka web), jadi yang hilang adalah sidebar grup Absen di halaman web karyawan yang jatuh ke grup itu (mis. 404). Test +3. Screenshot `QA/2026-11-24-sidebar-dashboard-absen/` disetujui pengguna ("oke nice"). ✔ develop 2026-11-24 (`7e14277`).
 
+- [x] **Guard env test API** (tambahan 2026-11-26: laporan Mat WA 16:14; kutipan pengguna 17:2x WIB "Kita pasang di develop") — `bun test` apps/api tanpa `NODE_ENV=test` (mis. `bun --env-file=../../.env test`) tidak lagi memakai SMTP Gmail/Supabase Admin/Storage/Drive/FCM asli: preload `apps/api/tests/helpers/db-guard-preload.ts` memaksa `NODE_ENV=test` + mengosongkan kredensial (SMTP_*, EMAIL_FROM, service role, `LOCAL_SUPABASE_SERVICE_ROLE_KEY`, Google/FCM JSON); `bunfig.toml` root memakai preload yang sama (`bun test apps/api/...` dari root); `defaultAuthAdmin` gagal-tertutup di `NODE_ENV=test`; test `src/core/__tests__/test-env-guard.test.ts` (subprocess dengan env palsu sementara)
+
 ## Keputusan
 
 Isi lengkap di [decisions.md](../../decisions.md).

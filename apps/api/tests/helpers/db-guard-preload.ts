@@ -17,3 +17,22 @@ if (!allowRemote) {
     }
   }
 }
+
+// Guard env test (laporan Mat 2026-11-26; kutipan pengguna "Kita pasang di develop"): test API selalu
+// NODE_ENV=test walau dijalankan tanpa skrip `test:api` (mis. `bun --env-file=../../.env test`, yang
+// membawa NODE_ENV=development dari .env), dan kredensial layanan nyata dikosongkan sebelum app dimuat
+// (getEnv lazy) → email = log, Auth Admin/Storage/Drive/FCM = stub. Lihat src/core/__tests__/test-env-guard.test.ts.
+export const TEST_SECRET_KEYS = [
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "EMAIL_FROM",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "LOCAL_SUPABASE_SERVICE_ROLE_KEY",
+  "GOOGLE_SERVICE_ACCOUNT_JSON",
+  "FCM_SERVICE_ACCOUNT_JSON",
+] as const;
+
+process.env.NODE_ENV = "test";
+for (const key of TEST_SECRET_KEYS) delete process.env[key];

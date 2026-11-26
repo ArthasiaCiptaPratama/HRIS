@@ -383,7 +383,7 @@ Port lokal: api `3000`, web `5173`, PostgreSQL `5432`. Auth & Storage lokal mema
 | `bun run lint` / `format` | Biome `check` / `check --write`. CI memakai `biome ci .` |
 | `bun run check:boundaries` | dependency-cruiser (aturan di §4) |
 | `bun run test` | `test:shared` → `test:api` → `test:web` |
-| `bun run test:shared` / `test:api` / `test:web` | bun test / bun test (butuh `db:up`; integration memakai PostgreSQL lokal) / Vitest |
+| `bun run test:shared` / `test:api` / `test:web` | bun test / bun test (butuh `db:up`; integration memakai PostgreSQL lokal; preload `apps/api/tests/helpers/db-guard-preload.ts` via `bunfig.toml` api & root: DB lokal, `NODE_ENV=test`, kredensial layanan dikosongkan) / Vitest |
 | `bun run test:e2e` | [planned] Playwright (Fase 9) |
 | `bun run db:generate` | `prisma generate` |
 | `bun run db:migrate` | `prisma migrate dev` (lokal); nama migrasi: `bun run db:migrate -- --name <deskripsi_snake_case>` |
