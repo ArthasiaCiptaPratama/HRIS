@@ -4,6 +4,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { Search, SearchX, Users, X } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { FEATURES } from "@/app/feature-flags";
 import {
   type DataColumn,
   DataTable,
@@ -29,6 +30,7 @@ import { tenure, todayIso } from "../labels";
 import type { EmployeeListItem } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { ExitReasonBadge, StatusBadge } from "./status-badge";
+import { thlColumns } from "./thl-list-columns";
 
 const helper = createColumnHelper<typeof tableFeaturesNone, EmployeeListItem>();
 
@@ -80,13 +82,19 @@ export function employeeColumns(
         </div>
       ),
     }) as DataColumn<EmployeeListItem>,
+    // Masukan pengguna 2026-11-26: Status + Tahap jadi satu badge ("PKWT 1"); daftar nonaktif tanpa tahap.
     helper.display({
       id: "status",
       header: "Status",
+      meta:
+        variant === "active" && options.showPkwt
+          ? { sortKey: "contractStage", className: "whitespace-nowrap" }
+          : { className: "whitespace-nowrap" },
       cell: ({ row }) => (
         <StatusBadge
           name={row.original.employmentStatus.name}
           category={row.original.employmentStatus.category}
+          stage={variant === "active" ? row.original.contractStage : undefined}
         />
       ),
     }) as DataColumn<EmployeeListItem>,
@@ -94,17 +102,6 @@ export function employeeColumns(
 
   if (variant === "active" && options.showPkwt) {
     columns.push(
-      helper.display({
-        id: "contractStage",
-        header: "Tahap",
-        meta: { sortKey: "contractStage", className: "whitespace-nowrap" },
-        cell: ({ row }) =>
-          row.original.employmentStatus.category === "PROBATION"
-            ? "Masa Percobaan"
-            : row.original.contractStage === null
-              ? "Belum diisi"
-              : `PKWT ${row.original.contractStage}`,
-      }) as DataColumn<EmployeeListItem>,
       helper.display({
         id: "contractEndDate",
         header: "Akhir kontrak",
@@ -272,6 +269,9 @@ export function useListParams(defaults: { sort: string }) {
     missingNumber: get("nip") === "kosong",
     managerWithoutAccount: get("managerWithoutAccount") === "true",
     pkwtStage: parsePkwtStage(get("tahap")),
+    thlStatus: (get("thlStatus") === "APPROACHING" || get("thlStatus") === "REQUIRED"
+      ? get("thlStatus")
+      : undefined) as EmployeeListParams["thlStatus"],
     sort: get("sort") || defaults.sort,
     update,
   };
@@ -288,7 +288,7 @@ export function employeeListFilter(
     ReturnType<typeof useListParams>,
     "q" | "departmentId" | "workLocationId" | "homebaseId" | "missingNumber" | "sort"
   > &
-    Partial<Pick<ReturnType<typeof useListParams>, "pkwtStage">>,
+    Partial<Pick<ReturnType<typeof useListParams>, "pkwtStage" | "thlStatus">>,
   view: Pick<EmployeeListParams, "active" | "category" | "group" | "companyId"> &
     Partial<Pick<EmployeeListParams, "contractEndsWithin">>,
 ): Omit<EmployeeListParams, "page" | "pageSize"> {
@@ -300,6 +300,10 @@ export function employeeListFilter(
     homebaseId: list.homebaseId || undefined,
     missingNumber: list.missingNumber || undefined,
     pkwtStage: view.active && view.category === "PKWT" ? list.pkwtStage : undefined,
+    thlStatus:
+      FEATURES.thlEvaluation && view.active && view.category === "DAILY_WORKER"
+        ? list.thlStatus
+        : undefined,
     sort: list.sort,
   };
 }
@@ -336,7 +340,8 @@ export function EmployeeListView({
   const me = useMe().data;
   const master = useMasterData();
   const isPkwt = variant === "active" && category === "PKWT";
-  const summary = useEmployeeSummary(isPkwt);
+  const isThl = FEATURES.thlEvaluation && variant === "active" && category === "DAILY_WORKER";
+  const summary = useEmployeeSummary(isPkwt || isThl);
   const { selectedId: companyId } = useCompanyScope();
   const [search, setSearch] = useState(list.q);
   const debounced = useDebouncedValue(search, 300);
@@ -378,6 +383,7 @@ export function EmployeeListView({
           homebaseId: list.homebaseId,
           missingNumber: list.missingNumber,
           pkwtStage: list.pkwtStage,
+          thlStatus: list.thlStatus,
           sort: list.sort,
         },
         { active: variant === "active", category, group, companyId, contractEndsWithin },
@@ -392,6 +398,7 @@ export function EmployeeListView({
       list.homebaseId,
       list.missingNumber,
       list.pkwtStage,
+      list.thlStatus,
       list.managerWithoutAccount,
       list.sort,
       category,
@@ -402,6 +409,8 @@ export function EmployeeListView({
     ],
   );
   const query = useEmployees(params);
+  // Opsi C (pilihan pengguna 2026-11-26): badge Status gabungan + satu kolom hari hadir per bulan.
+  const displayColumns = isThl ? thlColumns(columns) : columns;
   const rows = query.data?.data ?? [];
   const total = query.data?.meta.total ?? 0;
   const filtered = Boolean(
@@ -577,6 +586,44 @@ export function EmployeeListView({
         </fieldset>
       ) : null}
 
+      {isThl ? (
+        <fieldset
+          aria-label="Filter status THL"
+          className="m-0 flex flex-wrap gap-2 border-0 border-b p-3"
+        >
+          <legend className="sr-only">Filter status THL</legend>
+          {(
+            [
+              {
+                value: undefined,
+                label: "Semua",
+                count: summary.data?.active.byCategory.DAILY_WORKER,
+              },
+              {
+                value: "APPROACHING",
+                label: "Mendekati batas",
+                count: summary.data?.active.thlStatuses.APPROACHING,
+              },
+              {
+                value: "REQUIRED",
+                label: "Wajib diangkat PKWTT",
+                count: summary.data?.active.thlStatuses.REQUIRED,
+              },
+            ] as const
+          ).map((chip) => (
+            <Button
+              key={chip.label}
+              size="sm"
+              className="rounded-full"
+              variant={list.thlStatus === chip.value ? "brand" : "outline"}
+              aria-pressed={list.thlStatus === chip.value}
+              onClick={() => list.update({ thlStatus: chip.value ?? null })}
+            >
+              {chip.label} ({chip.count ?? "·"})
+            </Button>
+          ))}
+        </fieldset>
+      ) : null}
       <DataTable
         label="Daftar karyawan"
         columns={
@@ -585,7 +632,7 @@ export function EmployeeListView({
           me &&
           access.inviteRoles(me).includes("EMPLOYEE")
             ? [
-                ...columns,
+                ...displayColumns,
                 helper.display({
                   id: "invite",
                   header: "Akun",
@@ -600,7 +647,7 @@ export function EmployeeListView({
                   ),
                 }) as DataColumn<EmployeeListItem>,
               ]
-            : columns
+            : displayColumns
         }
         data={rows}
         loading={query.isPending}

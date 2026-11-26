@@ -13,6 +13,7 @@ import {
   headcountSchema,
   movementsSchema,
   tenureSchema,
+  thlReportSchema,
   warningLettersSchema,
 } from "./schemas";
 
@@ -25,7 +26,7 @@ export interface ReportParams {
   homebaseId?: string | undefined;
   year?: number | undefined;
   /** 1–12 (masa kerja/jubilee, ulang tahun). */
-  month?: number | undefined;
+  month?: number | string | undefined;
 }
 
 const toSearch = (params: ReportParams) => {
@@ -37,6 +38,7 @@ const toSearch = (params: ReportParams) => {
 };
 const one = <T extends z.ZodType>(schema: T) => z.object({ data: schema });
 const SCHEMAS = {
+  "thl-attendance-wage": thlReportSchema,
   headcount: headcountSchema,
   "document-expiry": documentExpirySchema,
   completeness: completenessSchema,

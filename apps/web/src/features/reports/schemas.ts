@@ -241,3 +241,24 @@ export const dataChangesSchema = z.object({
   ),
 });
 export type DataChangesReport = z.infer<typeof dataChangesSchema>;
+
+export const thlReportSchema = z.object({
+  month: z.string(),
+  note: z.string(),
+  access: z.object({ wage: z.boolean() }),
+  rows: z.array(
+    z.object({
+      employeeId: z.string(),
+      employeeNumber: z.string().nullable(),
+      fullName: z.string(),
+      company: z.string(),
+      unit: z.string().nullable(),
+      position: z.string().nullable(),
+      presentDays: z.number(),
+      pendingDays: z.number(),
+      dailyWage: z.number().nullable().optional(),
+      wageSegments: z.array(z.object({ effectiveFrom: z.string(), amount: z.number() })).optional(),
+      estimatedWage: z.number().nullable().optional(),
+    }),
+  ),
+});

@@ -1,6 +1,7 @@
 import type {
   CorrectContractInput,
   CreateContractInput,
+  DailyWageInput,
   EmployeeHomebaseInput,
   EmployeeHomebaseUpdate,
   EmployeeProfileInput,
@@ -30,7 +31,7 @@ import { prepareProfilePhoto } from "@/lib/image";
 import { supabase } from "@/lib/supabase";
 import { downloadBytes } from "@/lib/xlsx-write";
 import { useStoredCompanyId } from "./company-scope";
-import { contractActionResultSchema, employeeContractsSchema } from "./contract-schemas";
+import { contractActionResultSchema, employeeContractsSchema, thlSchema } from "./contract-schemas";
 import {
   dashboardSchema,
   employeeDetailSchema,
@@ -73,6 +74,7 @@ export interface EmployeeListParams {
   active: boolean;
   q?: string | undefined;
   category?: EmploymentCategory | undefined;
+  thlStatus?: "APPROACHING" | "REQUIRED" | undefined;
   pkwtStage?: "1" | "2" | "3" | "NONE" | undefined;
   /** KTR-D5 (K2): kontrak aktif berakhir ≤ N hari lagi, termasuk yang sudah lewat. */
   contractEndsWithin?: number | undefined;
@@ -601,4 +603,21 @@ export async function exportEmployees(body: EmployeeExportBody) {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   );
   return data;
+}
+
+export function useSetDailyWage(employeeId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: DailyWageInput) =>
+      api(`/employees/${employeeId}/daily-wage`, {
+        method: "PUT",
+        body,
+        schema: one(z.object({ thl: thlSchema.nullable() })),
+      }),
+    onSuccess: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: employeeKeys.all }),
+        client.invalidateQueries({ queryKey: ["reports", "thl-attendance-wage"] }),
+      ]),
+  });
 }

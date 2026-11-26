@@ -1,3 +1,4 @@
+import { shiftThlMonth, thlCurrentMonth } from "@hris/shared";
 import type { PrismaClient } from "../../src/generated/prisma/client.ts";
 import type { OrganizationIds } from "./organization.ts";
 
@@ -86,6 +87,86 @@ export async function seedContracts(prisma: PrismaClient, org: OrganizationIds):
             contractEndDate: date(last[1]),
           },
         });
+    });
+  }
+  await seedThlContracts(prisma, org);
+}
+
+/** K4: rolling calendar months WIB; only the two explicitly fictional THL employees. */
+async function seedThlContracts(prisma: PrismaClient, org: OrganizationIds) {
+  const companyId = org.companies.get("ACP");
+  const positionId = org.positions.get("HR Staff");
+  const status = await prisma.employmentStatus.findUnique({ where: { category: "DAILY_WORKER" } });
+  if (!companyId || !positionId || !status) throw new Error("THL seed master data missing");
+  const current = thlCurrentMonth();
+  const months = [-3, -2, -1].map((offset) => shiftThlMonth(current, offset));
+  const date = (value: string) => new Date(`${value}T00:00:00Z`);
+  const joinDate = date(`${shiftThlMonth(current, -6)}-01`);
+  for (const [key, name, counts] of [
+    ["REQ", "Contoh THL Wajib Diangkat", [22, 22, 22]],
+    ["APP", "Contoh THL Mendekati Batas", [14, 21, 22]],
+  ] as const) {
+    await prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.upsert({
+        where: { employeeNumber: `KTR-DMY-THL-${key}` },
+        update: {},
+        create: {
+          employeeNumber: `KTR-DMY-THL-${key}`,
+          fullName: name,
+          companyId,
+          positionId,
+          employmentStatusId: status.id,
+          joinDate,
+        },
+      });
+      // Preserve lifecycle actions if a reviewer has already promoted this fictional employee.
+      if (!employee.isActive || employee.employmentStatusId !== status.id) return;
+      for (const [index, month] of months.entries()) {
+        const approved = counts[index] ?? 0;
+        for (let day = 1; day <= 24; day++) {
+          const workDate = date(`${month}-${String(day).padStart(2, "0")}`);
+          const data = {
+            employeeId: employee.id,
+            companyId,
+            workDate,
+            status:
+              day <= approved
+                ? ("APPROVED" as const)
+                : index === 2
+                  ? ("PENDING" as const)
+                  : ("ALPHA" as const),
+            labels: [],
+          };
+          await tx.attendanceDay.upsert({
+            where: { employeeId_workDate: { employeeId: employee.id, workDate } },
+            create: data,
+            update: { status: data.status, labels: [] },
+          });
+        }
+      }
+      const wages = [
+        { effectiveFrom: employee.joinDate, amount: key === "REQ" ? "140000" : "150000" },
+        ...(key === "REQ" ? [{ effectiveFrom: date(`${months[2]}-15`), amount: "160000" }] : []),
+      ];
+      for (const wage of wages) {
+        const data = {
+          ...wage,
+          employeeId: employee.id,
+          companyId,
+          note: "Data dummy KTR-K4.",
+          createdBy: "00000000-0000-4000-8000-000000000004",
+        };
+        await tx.dailyWage.upsert({
+          where: {
+            employeeId_effectiveFrom: {
+              employeeId: employee.id,
+              effectiveFrom: wage.effectiveFrom,
+            },
+          },
+          create: data,
+          update: { amount: wage.amount },
+        });
+      }
     });
   }
 }

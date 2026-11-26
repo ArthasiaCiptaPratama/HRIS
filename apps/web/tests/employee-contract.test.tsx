@@ -1,9 +1,11 @@
+import { evaluateThlAttendance, type ThlStatus } from "@hris/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FEATURES } from "@/app/feature-flags";
 import { EmploymentContractDialog } from "@/features/employee/components/employment-contract-dialog";
 import {
   EmployeeContractHistory,
@@ -104,7 +106,21 @@ beforeEach(() => {
       const path = new URL(String(input)).pathname.replace("/api/v1", "");
       let body: unknown;
       let status = 200;
-      if (init?.method === "POST") {
+      if (init?.method === "PUT") {
+        posts.push({ path, body: JSON.parse(String(init.body)) });
+        if (postError) {
+          status = 403;
+          body = { error: { code: "FORBIDDEN", message: "Izin upah dicabut.", requestId: "r" } };
+        } else {
+          response = {
+            ...response,
+            thl: response.thl
+              ? { ...response.thl, dailyWage: { amount: 170000, effectiveFrom: "2026-11-25" } }
+              : null,
+          };
+          body = { data: { thl: response.thl } };
+        }
+      } else if (init?.method === "POST") {
         posts.push({ path, body: JSON.parse(String(init.body)) });
         if (postError) {
           status = 403;
@@ -174,33 +190,86 @@ async function card(
   await screen.findByRole("region", { name: "Status kepegawaian" });
 }
 
+/** Opsi A (2026-11-26): koreksi & pengakhiran ada di menu "Lainnya". */
+async function menuItems() {
+  await userEvent.click(screen.getByRole("button", { name: "Lainnya" }));
+  return (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+}
+const remaining = () => document.querySelector("[data-tone]") as HTMLElement;
+
 describe("Kepegawaian kontrak K1", () => {
-  it("PKWT 1 aktif: periode, sisa hijau, masa tahap, total dan aksi", async () => {
+  it("PKWT 1 aktif: kartu ringkas (badge · periode · sisa), angka ringkas, aksi utama + menu", async () => {
     await card();
-    expect(screen.getAllByText("PKWT 1")).toHaveLength(2);
-    expect(screen.getByText(/Sisa kontrak:/)).toHaveClass("text-green-700");
-    expect(screen.getByText(/Masa kerja tahap ini:/)).toBeVisible();
+    expect(screen.getByText("PKWT 1")).toBeVisible();
+    expect(remaining()).toHaveTextContent("Sisa kontrak: 401 hari lagi");
+    expect(remaining()).toHaveAttribute("data-tone", "ok");
+    expect(screen.getByText("Masa kerja tahap ini")).toBeVisible();
     expect(screen.getByRole("progressbar", { name: "Total masa PKWT" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Perpanjang ke PKWT 2" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Akhiri kontrak" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Perpanjang ke PKWT 2" })).toHaveAttribute(
+      "data-variant",
+      "brand",
+    );
+    expect(screen.getByRole("link", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
+    // Riwayat kontrak tidak diduplikasi di kartu (hanya di tab Riwayat).
+    expect(screen.queryByRole("region", { name: "Riwayat kontrak" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Akhiri kontrak" })).not.toBeInTheDocument();
+    // Menu dropdown modal menyembunyikan sisa halaman dari pembaca layar → cek tautan dulu.
+    expect(screen.getByRole("link", { name: "Perpanjang ke PKWT 2" })).toHaveAttribute(
+      "href",
+      "/personal/ubah-status?pegawai=e1&aksi=perpanjang&kembali=%2F",
+    );
+    expect(await menuItems()).toEqual(["Koreksi data kontrak", "Akhiri kontrak"]);
+    expect(screen.getByRole("menuitem", { name: "Akhiri kontrak" })).toHaveAttribute(
+      "data-variant",
+      "destructive",
+    );
+    // KTR-D14: aksi status membuka halaman Ubah Status (aksi + kembali terisi); koreksi tetap dialog.
+    expect(screen.getByRole("menuitem", { name: "Akhiri kontrak" })).toHaveAttribute(
+      "href",
+      "/personal/ubah-status?pegawai=e1&aksi=akhiri&kembali=%2F",
+    );
+    await userEvent.click(screen.getByRole("menuitem", { name: "Koreksi data kontrak" }));
+    expect(await screen.findByRole("heading", { name: "Koreksi data kontrak" })).toBeVisible();
+  });
+  it("KTR-D14 fallback: saklar Ubah Status mati → aksi tetap membuka dialog", async () => {
+    (FEATURES as { changeStatus: boolean }).changeStatus = false;
+    try {
+      await card();
+      expect(screen.queryByRole("link", { name: "Perpanjang ke PKWT 2" })).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: "Perpanjang ke PKWT 2" }));
+      expect(await screen.findByRole("heading", { name: "Perpanjang kontrak" })).toBeVisible();
+    } finally {
+      (FEATURES as { changeStatus: boolean }).changeStatus = true;
+    }
+  });
+  it("tautan Riwayat kontrak (n) memanggil onOpenHistory", async () => {
+    response = data({});
+    const open = vi.fn();
+    mount(<EmploymentContractSection employee={employee} onOpenHistory={open} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Riwayat kontrak \(1\)/ }));
+    expect(open).toHaveBeenCalledOnce();
   });
   it.each([
-    ["2027-01-10", "text-amber-700"],
-    ["2026-12-10", "text-red-700"],
+    ["2027-01-10", "warn"],
+    ["2026-12-10", "danger"],
   ])("PKWT 3 warna %s tanpa perpanjangan", async (endDate, color) => {
     await card("PKWT", { contracts: [{ ...contract, sequence: 3, endDate }] });
-    expect(screen.getByText(/Sisa kontrak:/)).toHaveClass(color);
+    expect(remaining()).toHaveAttribute("data-tone", color);
     expect(
       screen.getByText("Batas PKWT tercapai: jadikan Karyawan Tetap atau akhiri kontrak."),
     ).toBeVisible();
-    expect(screen.queryByRole("button", { name: /PKWTT/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Perpanjang/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /PKWTT/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Perpanjang/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Jadikan Karyawan Tetap" })).toHaveAttribute(
+      "data-variant",
+      "brand",
+    );
   });
   it("kontrak lewat tetap menampilkan aksi", async () => {
     await card("PKWT", { contracts: [{ ...contract, endDate: "2026-11-20" }] });
-    expect(screen.getByText("Sisa kontrak: Kontrak lewat 5 hari")).toHaveClass("text-red-700");
-    expect(screen.getByRole("button", { name: /Perpanjang/ })).toBeEnabled();
+    expect(remaining()).toHaveTextContent("Sisa kontrak: Kontrak lewat 5 hari");
+    expect(remaining()).toHaveAttribute("data-tone", "expired");
+    expect(screen.getByRole("link", { name: /Perpanjang/ })).toBeEnabled();
   });
   it.each(["2026-12-20", "2026-11-20"])(
     "Masa Percobaan %s: lulus dan tidak lulus",
@@ -210,12 +279,12 @@ describe("Kepegawaian kontrak K1", () => {
           { ...contract, kind: "PROBATION", sequence: null, startDate: "2026-10-01", endDate },
         ],
       });
-      expect(screen.getByRole("button", { name: "Lulus → Permanen" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Tidak lulus" })).toBeVisible();
+      expect(screen.getByRole("link", { name: "Lulus → Permanen" })).toBeVisible();
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-      if (endDate < "2026-11-25") expect(screen.getByText(/Masa percobaan lewat/)).toBeVisible();
-      else expect(screen.getByText(/Sisa masa percobaan: 25 hari lagi/)).toBeVisible();
+      if (endDate < "2026-11-25") expect(remaining()).toHaveTextContent(/Masa percobaan lewat/);
+      else expect(remaining()).toHaveTextContent("Sisa masa percobaan: 25 hari lagi");
       expect(screen.queryByText(/Sisa kontrak/)).not.toBeInTheDocument();
+      expect(await menuItems()).toEqual(["Koreksi data kontrak", "Tidak lulus"]);
     },
   );
   it("PKWTT dari PKWT: dua masa kerja dan kontrak lama", async () => {
@@ -228,13 +297,17 @@ describe("Kepegawaian kontrak K1", () => {
     expect(screen.getByText("Masa kerja di perusahaan")).toBeVisible();
     expect(screen.getByText("Masa kerja PKWTT")).toBeVisible();
     expect(screen.getByText(/6 th 10 bln/)).toBeVisible();
-    expect(screen.getByText(/0 th 10 bln/)).toBeVisible();
-    expect(screen.getByText("Dijadikan Karyawan Tetap")).toBeVisible();
+    // Bagian nol tidak ditulis: "10 bln", bukan "0 th 10 bln" (2026-11-26).
+    expect(screen.getByText("10 bln")).toBeVisible();
+    expect(screen.queryByText(/0 th/)).not.toBeInTheDocument();
+    // Kontrak lama hanya di tab Riwayat; tanpa aksi kontrak untuk Karyawan Tetap.
+    expect(screen.queryByText("Dijadikan Karyawan Tetap")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
   it.each(["PKWT", "PROBATION"] as const)("data lama %s: tahap belum diisi", async (category) => {
     await card(category, { contracts: [] });
     expect(screen.getByText("Tahap belum diisi")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Isi tahap kontrak" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Isi tahap kontrak" })).toBeVisible();
     expect(
       screen.getByText(
         category === "PKWT"
@@ -246,7 +319,7 @@ describe("Kepegawaian kontrak K1", () => {
   it("THL: pengangkatan tanpa tahap", async () => {
     await card("DAILY_WORKER", { contracts: [] });
     expect(screen.getByText("Harian Lepas (THL)")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Jadikan Karyawan Tetap" })).toBeVisible();
     expect(screen.queryByText("Tahap belum diisi")).not.toBeInTheDocument();
   });
   it.each(["INTERNSHIP", "OUTSOURCING", "VENDOR"] as const)(
@@ -271,17 +344,30 @@ describe("Kepegawaian kontrak K1", () => {
     await card("PKWT", {}, false);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
-  it("Riwayat menampilkan tabel lengkap termasuk tahap ditutup", async () => {
+  it("Riwayat: linimasa Kontrak terbaru di atas, catatan hanya bila ada", async () => {
     response = data({
       contracts: [
-        { ...contract, status: "EXTENDED" },
-        { ...contract, id: "c2", sequence: 2 },
+        { ...contract, status: "EXTENDED", note: null },
+        {
+          ...contract,
+          id: "c2",
+          sequence: 2,
+          startDate: "2028-01-01",
+          endDate: "2028-12-31",
+          note: "Sesuai evaluasi",
+        },
       ],
     });
     mount(<EmployeeContractHistory employeeId="e1" />);
-    const table = await screen.findByRole("region", { name: "Riwayat kontrak" });
-    expect(within(table).getByText("Diperpanjang")).toBeVisible();
-    expect(within(table).getByText("PKWT 2")).toBeVisible();
+    const timeline = await screen.findByRole("region", { name: "Riwayat kontrak" });
+    const items = within(timeline).getAllByRole("listitem");
+    expect(items.map((item) => item.querySelector("span.font-semibold")?.textContent)).toEqual([
+      "PKWT 2",
+      "PKWT 1",
+    ]);
+    expect(within(items[1] as HTMLElement).getByText("Diperpanjang")).toBeVisible();
+    expect(within(timeline).getAllByText(/^Catatan:/)).toHaveLength(1);
+    expect(within(timeline).getByText("Catatan: Sesuai evaluasi")).toBeVisible();
   });
 });
 
@@ -349,7 +435,7 @@ describe("Dialog kontrak", () => {
   });
   it("KTR-D12: tombol Koreksi data kontrak hanya untuk yang berhak & ada kontrak aktif", async () => {
     await card("PKWT", { contracts: [contract] });
-    expect(screen.getByRole("button", { name: "Koreksi data kontrak" })).toBeVisible();
+    expect(await menuItems()).toContain("Koreksi data kontrak");
   });
   it("tanggal mulai dikosongkan: tidak crash dan simpan mati", () => {
     dialog();
@@ -471,4 +557,121 @@ describe("Ubah Status dengan kontrak", () => {
       expect(posts[0]?.path).toBe("/employees/e1/status-change");
     },
   );
+});
+
+function thl(status: ThlStatus = "REQUIRED", wage = true) {
+  const counts =
+    status === "REQUIRED" ? [22, 22, 22] : status === "APPROACHING" ? [14, 21, 22] : [10, 10, 10];
+  return {
+    evaluation: evaluateThlAttendance(
+      ["2026-08", "2026-09", "2026-10"].map((month, i) => ({
+        month,
+        presentDays: counts[i] ?? 0,
+        pendingDays: i === 2 ? 2 : 0,
+      })),
+      new Date("2026-11-25T05:00:00Z"),
+    ),
+    dailyWage: { amount: 150000, effectiveFrom: "2026-08-01" },
+    wageHistory: [{ id: "w1", amount: 150000, effectiveFrom: "2026-08-01", note: "Penetapan" }],
+    access: { wage },
+  };
+}
+describe("K4 THL", () => {
+  it.each(["NONE", "APPROACHING", "REQUIRED"] as const)(
+    "kartu %s: tiga bulan penuh dan bulan berjalan",
+    async (status) => {
+      await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl(status) });
+      // Chip: status + n/3 bulan (kartu THL disetujui pengguna 2026-11-26).
+      const chip = document.querySelector("[data-status]") as HTMLElement;
+      expect(chip).toHaveAttribute("data-status", status);
+      expect(chip).toHaveTextContent(
+        {
+          REQUIRED: "Wajib diangkat PKWTT · 3/3 bulan",
+          APPROACHING: "Mendekati batas · 2/3 bulan",
+          NONE: "0/3 bulan",
+        }[status],
+      );
+      expect(screen.getByText(/Diangkat PKWTT bila hadir ≥ 21 hari/)).toBeVisible();
+      const boxes = within(screen.getByRole("region", { name: "Kehadiran" })).getAllByRole(
+        "listitem",
+      );
+      const counts = { REQUIRED: [22, 22, 22], APPROACHING: [14, 21, 22], NONE: [10, 10, 10] };
+      expect(boxes.map((box) => box.getAttribute("aria-label"))).toEqual([
+        `Agu 2026: ${counts[status][0]} hari hadir`,
+        `Sep 2026: ${counts[status][1]} hari hadir`,
+        `Okt 2026: ${counts[status][2]} hari hadir`,
+        "Nov 2026 (berjalan): 0 hari hadir",
+      ]);
+      expect(within(boxes[2] as HTMLElement).getByText("+2 tunggu")).toBeVisible();
+      expect(within(boxes[3] as HTMLElement).getByText("berjalan")).toBeVisible();
+      // Progres bulan berjalan (kutipan pengguna 16:2x WIB).
+      expect(within(boxes[3] as HTMLElement).getByText("21 lagi ke 21")).toBeVisible();
+      expect(boxes[3]).toHaveClass("border-dashed");
+      expect(screen.getByText("Rp 150.000")).toBeVisible();
+      expect(screen.getByText("Masa kerja")).toBeVisible();
+      expect(screen.getByText("6 th 10 bln")).toBeVisible();
+      if (status === "REQUIRED") {
+        // Opsi A: aksi utama tetap warna brand; urgensi lewat badge merah "Wajib diangkat PKWTT".
+        expect(screen.getByRole("link", { name: "Jadikan Karyawan Tetap" })).toHaveAttribute(
+          "data-variant",
+          "brand",
+        );
+      }
+    },
+  );
+  it("tanpa akses wage tidak menampilkan baris, tombol, atau riwayat upah", async () => {
+    await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl("APPROACHING", false) });
+    expect(screen.queryByText(/Upah harian/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rp /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/tersembunyi/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Mendekati batas · 2/3 bulan")).toBeVisible();
+  });
+  it("bulan sebelum tanggal masuk tampil – dan tidak dinilai; riwayat upah lewat popover", async () => {
+    await card("DAILY_WORKER", {
+      contracts: [],
+      tier: "THL",
+      joinDate: "2026-09-20",
+      thl: thl("REQUIRED"),
+    });
+    const boxes = within(screen.getByRole("region", { name: "Kehadiran" })).getAllByRole(
+      "listitem",
+    );
+    expect(boxes[0]).toHaveAttribute("aria-label", "Agu 2026: sebelum tanggal masuk");
+    expect(within(boxes[0] as HTMLElement).getByText("–")).toBeVisible();
+    expect(boxes[1]).toHaveAttribute("aria-label", "Sep 2026: 22 hari hadir");
+    await userEvent.click(screen.getByRole("button", { name: "Riwayat →" }));
+    expect(await screen.findByText("Riwayat upah harian")).toBeVisible();
+    expect(screen.getByText("Penetapan")).toBeVisible();
+  });
+  it("dialog memvalidasi, PUT upah, lalu menyegarkan kartu", async () => {
+    await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl() });
+    await userEvent.click(screen.getByRole("button", { name: "Ubah upah harian" }));
+    const dialog = screen.getByRole("dialog");
+    const save = within(dialog).getByRole("button", { name: "Simpan upah harian" });
+    expect(save).toBeDisabled();
+    expect(screen.getByLabelText("Tanggal berlaku")).toHaveValue("2026-11-25");
+    fireEvent.change(screen.getByLabelText("Upah harian (Rp)"), { target: { value: "-1" } });
+    await userEvent.type(screen.getByLabelText("Alasan perubahan (wajib)"), "Penyesuaian");
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Upah harian (Rp)"), { target: { value: "170000" } });
+    await userEvent.click(save);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(posts).toEqual([
+      {
+        path: "/employees/e1/daily-wage",
+        body: { amount: 170000, effectiveFrom: "2026-11-25", note: "Penyesuaian" },
+      },
+    ]);
+    expect(await screen.findByText("Rp 170.000")).toBeVisible();
+    expect(reads.filter((path) => path.endsWith("/contracts")).length).toBeGreaterThan(1);
+  });
+  it("error API tetap terlihat di dialog", async () => {
+    await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl() });
+    postError = true;
+    await userEvent.click(screen.getByRole("button", { name: "Ubah upah harian" }));
+    await userEvent.type(screen.getByLabelText("Alasan perubahan (wajib)"), "Uji izin");
+    await userEvent.click(screen.getByRole("button", { name: "Simpan upah harian" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Izin upah dicabut.");
+    expect(screen.getByRole("dialog")).toBeVisible();
+  });
 });

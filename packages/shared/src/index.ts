@@ -26,6 +26,7 @@ export * from "./roles.ts";
 export * from "./roster-template.ts";
 export * from "./schemas/common.ts";
 export * from "./severance.ts";
+export * from "./thl.ts";
 export * from "./time-management.ts";
 export * from "./work-roster.ts";
 export * from "./xlsx.ts";

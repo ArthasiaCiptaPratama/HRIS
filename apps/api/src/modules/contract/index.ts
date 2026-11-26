@@ -1,5 +1,10 @@
 export { contractActionResultSchema, employeeContractsSchema } from "./contract.contract.ts";
-export { canManageContracts, canManageContractsInCompany } from "./contract.policy.ts";
+export {
+  canAccessDailyWage,
+  canAccessDailyWageInCompany,
+  canManageContracts,
+  canManageContractsInCompany,
+} from "./contract.policy.ts";
 export {
   type ContractContext,
   type ContractHandlers,
@@ -14,3 +19,10 @@ export {
   getActiveContract,
   readEmployeeContracts,
 } from "./contract.service.ts";
+export {
+  dailyWageHistory,
+  evaluateThlEmployees,
+  readThl,
+  registerThlAttendanceCounter,
+  setDailyWage,
+} from "./thl.service.ts";

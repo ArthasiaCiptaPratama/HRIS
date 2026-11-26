@@ -22,6 +22,7 @@ export {
   inviteEmployeeAccount,
   listApproverAccounts,
   listAssetManagers,
+  listCompanyHrRecipients,
   listDataChangeReviewers,
   listDisciplineWriters,
   listDocumentReminderRecipients,

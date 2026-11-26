@@ -44,6 +44,7 @@ import { registerApprovalRoutes } from "./modules/approval/index.ts";
 import { registerAssetRoutes, runAssetDaily } from "./modules/asset/index.ts";
 import {
   closeOverdueDays,
+  countAttendanceByMonth,
   extendAllRosters,
   markNoAttendanceAlpha,
   purgeSelfies,
@@ -51,7 +52,7 @@ import {
   runApprovalDigest,
   runAttendanceReminders,
 } from "./modules/attendance/index.ts";
-import { registerContractRoutes } from "./modules/contract/index.ts";
+import { registerContractRoutes, registerThlAttendanceCounter } from "./modules/contract/index.ts";
 import { registerDisciplineRoutes, runDisciplineDaily } from "./modules/discipline/index.ts";
 import {
   correctEmployeeContract,
@@ -68,6 +69,7 @@ import {
   registerEmployeeRoutes,
   remindStaleInvitations,
   scopeRequestActor,
+  setEmployeeDailyWage,
 } from "./modules/employee/index.ts";
 import { configureIam, loadActor as loadIamActor, registerIamRoutes } from "./modules/iam/index.ts";
 import { registerLeaveRoutes, runLeaveDaily } from "./modules/leave/index.ts";
@@ -192,6 +194,7 @@ function errorJson(
 }
 
 export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
+  registerThlAttendanceCounter(countAttendanceByMonth);
   const logger = overrides.logger ?? createLogger(getEnv().LOG_LEVEL);
   // DEV-only: client Supabase dibangun ulang saat tombol switch menukar target (core/dev.ts).
   const live = <T extends object>(build: () => T): T =>
@@ -323,6 +326,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
     protect,
     handlers: {
       read: getEmployeeContracts,
+      setWage: setEmployeeDailyWage,
       create: createEmployeeContract,
       extend: extendEmployeeContract,
       correct: correctEmployeeContract,

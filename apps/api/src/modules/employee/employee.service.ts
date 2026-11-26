@@ -14,7 +14,9 @@ import {
   type EmploymentCategory,
   employeeProfileInputSchema,
   employeeProfileUpdateSchema,
+  type evaluateThlAttendance,
   POSITION_LEVELS,
+  thlStreak,
   usesAssignedCompanies,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
@@ -38,14 +40,19 @@ import type { AuthAdmin } from "../../core/supabase-admin.ts";
 import { reassignPendingManagerSteps, releasePendingManagerSteps } from "../approval/index.ts";
 import {
   type ContractActionResult,
+  canAccessDailyWage,
+  canAccessDailyWageInCompany,
   canManageContracts,
   canManageContractsInCompany,
   correctContract,
+  evaluateThlEmployees,
   extendContract,
   fillContract,
   finishContract,
   getActiveContract,
   readEmployeeContracts,
+  readThl,
+  setDailyWage,
 } from "../contract/index.ts";
 import {
   applyNikLogin,
@@ -308,6 +315,9 @@ function toListItem(
     gender: row.gender,
     joinDate: toIso(row.joinDate),
     endDate: row.endDate ? toIso(row.endDate) : null,
+    thlPresentDaysLastMonth: null,
+    thlStatus: null,
+    thlAttendance: null,
     contractStage: row.contractStage,
     contractEndDate: row.contractEndDate ? toIso(row.contractEndDate) : null,
     isActive: row.isActive,
@@ -501,6 +511,24 @@ function buildOrderBy(sort: string): repository.EmployeeOrderBy[] {
 export async function listEmployees(ctx: RequestContext, query: ListEmployeesQuery) {
   const lookup = await getMasterLookup();
   let where = buildWhere(ctx.actor, query, lookup);
+  const { evaluations: thlEvaluations, joinDates: thlJoinDates } = await scopedThlEvaluations(
+    ctx.actor,
+    lookup,
+  );
+  if (query.thlStatus) {
+    where = {
+      AND: [
+        where,
+        {
+          id: {
+            in: [...thlEvaluations]
+              .filter(([, e]) => e.status === query.thlStatus)
+              .map(([id]) => id),
+          },
+        },
+      ],
+    };
+  }
   if (query.managerWithoutAccount) {
     const managerIds = await repository.findActiveManagerIds(scopeWhere(ctx.actor));
     const activeAccounts = await employeesWithActiveAccount(managerIds);
@@ -511,18 +539,30 @@ export async function listEmployees(ctx: RequestContext, query: ListEmployeesQue
       ],
     };
   }
-  const { rows, total } = await repository.listEmployees(
-    where,
-    buildOrderBy(query.sort),
-    (query.page - 1) * query.pageSize,
-    query.pageSize,
-  );
+  const [sortField, sortDirection] = query.sort.split(":") as [string, "asc" | "desc"];
+  const { rows, total } =
+    sortField === "thlStreak"
+      ? await listByThlStreak(where, thlEvaluations, sortDirection, query.page, query.pageSize)
+      : await repository.listEmployees(
+          where,
+          buildOrderBy(query.sort),
+          (query.page - 1) * query.pageSize,
+          query.pageSize,
+        );
   const photoUrls = await signPhotoUrls(
     ctx,
     rows.map((row) => row.photoPath),
   );
   return {
-    data: rows.map((row) => toListItem(row, lookup, photoUrls)),
+    data: rows.map((row) => {
+      const evaluation = thlEvaluations.get(row.id);
+      return {
+        ...toListItem(row, lookup, photoUrls),
+        thlStatus: evaluation?.status ?? null,
+        thlPresentDaysLastMonth: evaluation?.months[2]?.presentDays ?? null,
+        thlAttendance: evaluation ? thlAttendanceOf(evaluation, thlJoinDates.get(row.id)) : null,
+      };
+    }),
     meta: { page: query.page, pageSize: query.pageSize, total },
   };
 }
@@ -536,7 +576,7 @@ export async function getSummary(
     : scopeWhere(ctx.actor);
   const lookup = await getMasterLookup();
   const today = todayInJakarta();
-  const [groups, contractsEnding] = await Promise.all([
+  const [groups, contractsEnding, thlEvaluations] = await Promise.all([
     repository.countByStatus(where),
     repository.countContractsEnding(
       where,
@@ -544,6 +584,7 @@ export async function getSummary(
       toDate(today),
       toDate(addContractDays(today, CONTRACT_ENDING_WINDOW_DAYS)),
     ),
+    scopedThlEvaluations(ctx.actor, lookup, query.companyId),
   ]);
   const byCategory = Object.fromEntries(EMPLOYMENT_CATEGORIES.map((c) => [c, 0])) as Record<
     EmploymentCategory,
@@ -575,7 +616,13 @@ export async function getSummary(
     if (category) byCategory[category] += count;
     else uncategorized += count;
   }
-  return { active: { total, byCategory, uncategorized, pkwtStages, contractsEnding }, inactive };
+  const thlStatuses = { APPROACHING: 0, REQUIRED: 0 };
+  for (const evaluation of thlEvaluations.evaluations.values())
+    if (evaluation.status !== "NONE") thlStatuses[evaluation.status]++;
+  return {
+    active: { total, byCategory, uncategorized, pkwtStages, contractsEnding, thlStatuses },
+    inactive,
+  };
 }
 
 // ── Dashboard ───────────────────────────────────────────────────────────────
@@ -2033,7 +2080,7 @@ export async function getEmployeeContracts(ctx: RequestContext, id: string) {
     manage: employee.isActive && canManageContractsInCompany(actor, employee.companyId),
     missingGrant: actor.role === "HR_ADMIN" && !canManageContracts(actor),
   };
-  return readEmployeeContracts(employee, JAKARTA_DATE.format(new Date()), access);
+  return readEmployeeContracts(employee, JAKARTA_DATE.format(new Date()), access, undefined, actor);
 }
 export async function createEmployeeContract(
   ctx: RequestContext,
@@ -2248,4 +2295,85 @@ export async function endEmployeeContract(
     await auditContract(ctx, id, probation ? "probation_fail" : "end", contract.id, tx);
     return { contract, warnings: [] };
   });
+}
+
+export async function setEmployeeDailyWage(
+  ctx: RequestContext,
+  id: string,
+  input: import("@hris/shared").DailyWageInput,
+) {
+  if (!canAccessDailyWage(ctx.actor)) throw new ForbiddenError();
+  await repository.withTransaction(async (tx) => {
+    await repository.lockEmployee(tx, id);
+    const employee = await contractEmployee(ctx, id, tx);
+    if (!canAccessDailyWageInCompany(ctx.actor, employee.companyId))
+      throw new NotFoundError("Karyawan tidak ditemukan.");
+    await setDailyWage(employee, input, auditBase(ctx), "api", tx);
+  });
+  return { thl: await readThl(await contractEmployee(ctx, id), ctx.actor) };
+}
+
+async function scopedThlEvaluations(actor: Actor, lookup: MasterLookup, companyId?: string) {
+  const where = companyId ? { AND: [scopeWhere(actor), { companyId }] } : scopeWhere(actor);
+  const rows = await repository.findActiveThl(
+    where,
+    statusIdsForCategories(lookup, ["DAILY_WORKER"]),
+  );
+  return {
+    evaluations: await evaluateThlEmployees(rows.map((r) => r.id)),
+    joinDates: new Map(rows.map((r) => [r.id, toIso(r.joinDate)])),
+  };
+}
+
+type ThlEvaluation = ReturnType<typeof evaluateThlAttendance>;
+
+/** Opsi C daftar THL: 3 bulan penuh + bulan berjalan; bulan sebelum tanggal masuk ditandai. */
+function thlAttendanceOf(evaluation: ThlEvaluation, joinDate: string | undefined) {
+  const joinMonth = joinDate?.slice(0, 7) ?? "";
+  const month = (m: { month: string; presentDays: number; pendingDays: number }) => ({
+    month: m.month,
+    presentDays: m.presentDays,
+    pendingDays: m.pendingDays,
+    beforeJoin: m.month < joinMonth,
+  });
+  return {
+    months: evaluation.months.map(month),
+    currentMonth: month(evaluation.currentMonth),
+    streak: thlStreak(evaluation.months),
+  };
+}
+
+/**
+ * Sort `thlStreak` (nilai hasil hitung): semua id yang lolos `where` (cakupan, filter, pencarian,
+ * chip status sudah diterapkan) diurutkan di memori — streak, lalu hadir bulan penuh terakhir; seri
+ * tetap urut nama. Non-THL selalu di akhir. Lalu dipotong per halaman.
+ */
+async function listByThlStreak(
+  where: repository.EmployeeWhere,
+  evaluations: Map<string, ThlEvaluation>,
+  direction: "asc" | "desc",
+  page: number,
+  pageSize: number,
+) {
+  const ids = await repository.listEmployeeIds(where);
+  const sign = direction === "asc" ? 1 : -1;
+  const keyOf = (id: string) => {
+    const evaluation = evaluations.get(id);
+    return evaluation
+      ? [thlStreak(evaluation.months), evaluation.months.at(-1)?.presentDays ?? 0]
+      : null;
+  };
+  const sorted = ids
+    .map((id, index) => ({ id, index, key: keyOf(id) }))
+    .sort((a, b) => {
+      if (!a.key || !b.key) return a.key ? -1 : b.key ? 1 : a.index - b.index;
+      const diff = (a.key[0] ?? 0) - (b.key[0] ?? 0) || (a.key[1] ?? 0) - (b.key[1] ?? 0);
+      return diff ? sign * diff : a.index - b.index;
+    });
+  const pageIds = sorted.slice((page - 1) * pageSize, page * pageSize).map((item) => item.id);
+  const byId = new Map((await repository.listEmployeesByIds(pageIds)).map((row) => [row.id, row]));
+  return {
+    rows: pageIds.flatMap((id) => byId.get(id) ?? []),
+    total: ids.length,
+  };
 }

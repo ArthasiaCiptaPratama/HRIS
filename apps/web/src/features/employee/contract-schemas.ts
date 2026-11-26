@@ -14,8 +14,35 @@ export const employmentContractSchema = z.object({
   note: z.string().nullable(),
 });
 const tenureSchema = z.object({ years: z.number(), months: z.number(), days: z.number() });
+const thlMonthSchema = z.object({
+  month: z.string(),
+  presentDays: z.number(),
+  pendingDays: z.number(),
+});
+export const thlSchema = z.object({
+  evaluation: z.object({
+    status: z.enum(["NONE", "APPROACHING", "REQUIRED"]),
+    label: z.string(),
+    months: z.array(thlMonthSchema.extend({ qualifies: z.boolean() })),
+    currentMonth: thlMonthSchema,
+  }),
+  dailyWage: z.object({ amount: z.number(), effectiveFrom: z.iso.date() }).nullable(),
+  wageHistory: z
+    .array(
+      z.object({
+        id: z.string(),
+        amount: z.number(),
+        effectiveFrom: z.iso.date(),
+        note: z.string(),
+      }),
+    )
+    .optional(),
+  access: z.object({ wage: z.boolean() }),
+});
+export type ThlDetails = z.infer<typeof thlSchema>;
 export const employeeContractsSchema = z.object({
   contracts: z.array(employmentContractSchema),
+  thl: thlSchema.nullable().optional(),
   tier: z.enum(["PKWT", "PKWTT", "THL"]).nullable(),
   category: employmentCategorySchema.nullable(),
   joinDate: z.iso.date(),

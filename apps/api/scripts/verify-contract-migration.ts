@@ -107,6 +107,11 @@ try {
   await assert.rejects(target.query(sql), /KTR-K1: employment status target name already belongs/);
   await target.query("DELETE FROM organization.employment_statuses WHERE id = $1", [conflict]);
   await target.query(sql);
+  // Migrasi sesudah K1 (mis. K4 daily_wages) juga diterapkan agar seed kontrak terbaru bisa jalan.
+  for (const migration of migrations.filter((name) => name > latest))
+    await target.query(
+      await readFile(path.join(migrationRoot, migration, "migration.sql"), "utf8"),
+    );
   const renamed = await target.query<{ name: string }>(
     "SELECT name FROM organization.employment_statuses WHERE id = ANY($1::uuid[]) ORDER BY name",
     [[...statuses.values()]],
@@ -145,10 +150,21 @@ try {
     await seedContracts(seedClient, org);
     await seedContracts(seedClient, org);
     const examples = await seedClient.employee.findMany({
-      where: { employeeNumber: { startsWith: "KTR-DMY-" } },
+      where: {
+        employeeNumber: { startsWith: "KTR-DMY-" },
+        NOT: { employeeNumber: { startsWith: "KTR-DMY-THL-" } },
+      },
       include: { contracts: true },
     });
     assert.equal(examples.length, 4);
+    // K4: dua THL dummy dengan upah harian, idempoten (seed dijalankan dua kali di atas).
+    assert.equal(
+      await seedClient.employee.count({
+        where: { employeeNumber: { startsWith: "KTR-DMY-THL-" } },
+      }),
+      2,
+    );
+    assert.equal(await seedClient.dailyWage.count(), 3);
     assert.equal(examples.flatMap((e) => e.contracts).length, 5);
     assert.equal(examples.find((e) => e.employeeNumber === "KTR-DMY-L")?.contracts.length, 0);
     // KTR-D2 revisi: salinan tahap/akhir kontrak di employees = kontrak ACTIVE (tanpa ACTIVE → null).

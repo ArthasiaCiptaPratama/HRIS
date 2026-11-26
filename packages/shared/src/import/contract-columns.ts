@@ -4,8 +4,27 @@
 
 import { addContractDays, type ContractKind } from "../contract.ts";
 import type { EmploymentCategory } from "../employee.ts";
+import { dailyWageInputSchema } from "../thl.ts";
 import type { ImportFieldKey } from "./fields.ts";
 import { cleanText, type Normalized } from "./normalize.ts";
+
+/** Angka Indonesia; never return a raw cell in an issue. */
+export function parseDailyWage(value: unknown): Normalized<number> {
+  if (value === undefined || value === null || value === "" || value === "-") return undefined;
+  let amount: number;
+  if (typeof value === "number") amount = value;
+  else {
+    const text = String(value)
+      .trim()
+      .replace(/^Rp\s*/i, "");
+    if (!/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(text))
+      return { issue: "INVALID_DAILY_WAGE" };
+    amount = Number(text.replaceAll(".", "").replace(",", "."));
+  }
+  return dailyWageInputSchema.shape.amount.safeParse(amount).success
+    ? { value: amount }
+    : { issue: "INVALID_DAILY_WAGE" };
+}
 
 const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3 };
 
@@ -69,6 +88,7 @@ export const CONTRACT_IMPORT_FIELD_KEYS = [
 ] as const satisfies readonly ImportFieldKey[];
 
 export interface ImportContractColumns {
+  dailyWage?: number;
   stage?: number;
   startDate?: string;
   endDate?: string;

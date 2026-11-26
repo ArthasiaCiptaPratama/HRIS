@@ -30,20 +30,59 @@ export const CONTRACT_ACTION_LABELS = {
   end: "Akhiri kontrak",
 };
 
-export function EmploymentContractDialog({
-  employeeId,
-  action,
-  data,
-  active,
-  firstStart,
-  onClose,
-}: {
+type ContractActionProps = {
   employeeId: string;
   action: ContractDialogAction;
   data: EmployeeContracts;
   active: EmploymentContract | undefined;
   firstStart: string | undefined;
-  onClose: () => void;
+};
+
+export function contractActionTitle(action: ContractDialogAction, data: EmployeeContracts) {
+  return action === "promote" && data.category === "PROBATION"
+    ? "Lulus → Permanen"
+    : CONTRACT_ACTION_LABELS[action];
+}
+
+/** Koreksi kecil tetap dialog (KTR-D14); aksi status lain memakai `ContractActionForm` di halaman Ubah Status. */
+export function EmploymentContractDialog({
+  onClose,
+  ...props
+}: ContractActionProps & { onClose: () => void }) {
+  const [pending, setPending] = useState(false);
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !pending) onClose();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{contractActionTitle(props.action, props.data)}</DialogTitle>
+        </DialogHeader>
+        <ContractActionForm {...props} onDone={onClose} onCancel={onClose} onPending={setPending} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Isi form aksi kontrak (periode / tanggal efektif, catatan, validasi, konfirmasi nonaktif). */
+export function ContractActionForm({
+  employeeId,
+  action,
+  data,
+  active,
+  firstStart,
+  onDone,
+  onCancel,
+  onPending,
+  submitLabel = "Simpan",
+}: ContractActionProps & {
+  onDone: () => void;
+  onCancel: () => void;
+  onPending?: (pending: boolean) => void;
+  submitLabel?: string;
 }) {
   const mutation = useContractAction(employeeId);
   const correcting = action === "correct" && active !== undefined;
@@ -111,12 +150,9 @@ export function EmploymentContractDialog({
       !validation.errors.length &&
       (!correcting || Boolean(values.note?.trim()))
     : promoteEmployeeInputSchema.safeParse(decisionValues).success && (!destructive || confirmed);
-  const title =
-    action === "promote" && data.category === "PROBATION"
-      ? "Lulus → Permanen"
-      : CONTRACT_ACTION_LABELS[action];
   async function save() {
     if (!valid || ((action === "extend" || action === "end") && !active)) return;
+    onPending?.(true);
     try {
       const result = await mutation.mutateAsync(
         action === "create"
@@ -156,102 +192,90 @@ export function EmploymentContractDialog({
       );
       toast.success("Perubahan kontrak disimpan.");
       for (const warning of result.warnings) toast.warning(warning);
-      onClose();
+      onDone();
     } catch (error) {
       toast.error(errorMessage(error));
+    } finally {
+      onPending?.(false);
     }
   }
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !mutation.isPending) onClose();
+    <form
+      className="space-y-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void (period ? form.handleSubmit(save) : decision.handleSubmit(save))();
       }}
     >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form
-          className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void (period ? form.handleSubmit(save) : decision.handleSubmit(save))();
-          }}
+      {period ? (
+        <ContractPeriodFields
+          form={form}
+          fixedSequence={action === "extend" || correcting}
+          autoEnd={!correcting}
+          showFirstPkwt={correcting ? needsFirst : undefined}
+        />
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="contract-effective">Tanggal efektif</Label>
+          <Input
+            id="contract-effective"
+            type="date"
+            required
+            min={data.joinDate}
+            max={todayIso()}
+            {...decision.register("effectiveDate")}
+          />
+        </div>
+      )}
+      <div className="grid gap-2">
+        <Label htmlFor="contract-note">
+          {correcting ? "Alasan koreksi (wajib)" : "Catatan (opsional)"}
+        </Label>
+        <Textarea
+          id="contract-note"
+          maxLength={500}
+          {...(period ? form.register("note") : decision.register("note"))}
+        />
+      </div>
+      {period ? (
+        <>
+          {validation.errors.map((message) => (
+            <p role="alert" className="text-destructive text-sm" key={message}>
+              {message}
+            </p>
+          ))}
+          {validation.warnings.map((message) => (
+            <p className="text-amber-700 text-sm" key={message}>
+              {message}
+            </p>
+          ))}
+        </>
+      ) : null}
+      {destructive ? (
+        <div className="space-y-3 rounded-md border border-destructive p-3 text-sm">
+          <p>Karyawan dinonaktifkan dan akun login ikut nonaktif. Data karyawan tetap diarsip.</p>
+          <label className="flex gap-2">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+            />
+            Saya yakin menonaktifkan karyawan ini
+          </label>
+        </div>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onCancel}>
+          Batal
+        </Button>
+        <Button
+          type="submit"
+          variant={destructive ? "destructive" : "brand"}
+          disabled={!valid || mutation.isPending}
         >
-          {period ? (
-            <ContractPeriodFields
-              form={form}
-              fixedSequence={action === "extend" || correcting}
-              autoEnd={!correcting}
-              showFirstPkwt={correcting ? needsFirst : undefined}
-            />
-          ) : (
-            <div className="grid gap-2">
-              <Label htmlFor="contract-effective">Tanggal efektif</Label>
-              <Input
-                id="contract-effective"
-                type="date"
-                required
-                min={data.joinDate}
-                max={todayIso()}
-                {...decision.register("effectiveDate")}
-              />
-            </div>
-          )}
-          <div className="grid gap-2">
-            <Label htmlFor="contract-note">
-              {correcting ? "Alasan koreksi (wajib)" : "Catatan (opsional)"}
-            </Label>
-            <Textarea
-              id="contract-note"
-              maxLength={500}
-              {...(period ? form.register("note") : decision.register("note"))}
-            />
-          </div>
-          {period ? (
-            <>
-              {validation.errors.map((message) => (
-                <p role="alert" className="text-destructive text-sm" key={message}>
-                  {message}
-                </p>
-              ))}
-              {validation.warnings.map((message) => (
-                <p className="text-amber-700 text-sm" key={message}>
-                  {message}
-                </p>
-              ))}
-            </>
-          ) : null}
-          {destructive ? (
-            <div className="space-y-3 rounded-md border border-destructive p-3 text-sm">
-              <p>
-                Karyawan dinonaktifkan dan akun login ikut nonaktif. Data karyawan tetap diarsip.
-              </p>
-              <label className="flex gap-2">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={(e) => setConfirmed(e.target.checked)}
-                />
-                Saya yakin menonaktifkan karyawan ini
-              </label>
-            </div>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" disabled={mutation.isPending} onClick={onClose}>
-              Batal
-            </Button>
-            <Button
-              type="submit"
-              variant={destructive ? "destructive" : "brand"}
-              disabled={!valid || mutation.isPending}
-            >
-              {mutation.isPending ? "Menyimpan…" : "Simpan"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+          {mutation.isPending ? "Menyimpan…" : submitLabel}
+        </Button>
+      </div>
+    </form>
   );
 }
