@@ -1,7 +1,16 @@
-import { EXIT_REASON_LABELS, EXIT_REASONS, type ExitReason } from "@hris/shared";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  type CreateContractInput,
+  createContractInputSchema,
+  EMPLOYMENT_CATEGORY_LABELS,
+  EXIT_REASON_LABELS,
+  EXIT_REASONS,
+  type ExitReason,
+} from "@hris/shared";
 import { ArrowLeftRight, ArrowRight, Power, TriangleAlert, UserRoundSearch } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useForm } from "react-hook-form";
+import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { FEATURES } from "@/app/feature-flags";
 import { EmptyState } from "@/components/empty-state";
@@ -18,6 +27,11 @@ import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { useChangeStatus, useDeactivateEmployee, useEmployee, useMasterData } from "../api";
 import { ChoiceCard } from "../components/choice-card";
+import {
+  ContractPeriodFields,
+  defaultContractEnd,
+  validatePeriod,
+} from "../components/contract-period-fields";
 import { EmployeeAvatar } from "../components/employee-avatar";
 import { EmployeePicker } from "../components/employee-picker";
 import { StatusBadge } from "../components/status-badge";
@@ -31,6 +45,7 @@ const EXIT_HINTS: Record<ExitReason, string> = {
   RETIREMENT: "Mencapai usia pensiun.",
   DECEASED: "Karyawan meninggal dunia.",
   OTHER: "Alasan lain; jelaskan di catatan.",
+  PROBATION_FAILED: "Karyawan tidak lulus masa percobaan.",
 };
 
 export function ChangeStatusPage() {
@@ -56,7 +71,7 @@ export function ChangeStatusPage() {
     <>
       <PageHeader
         title="Ubah Status Karyawan"
-        description="Ubah kategori kepegawaian (mis. PKWT menjadi Karyawan Tetap) atau nonaktifkan karyawan yang keluar. Setiap perubahan tercatat di riwayat dan audit log."
+        description="Ubah kategori kepegawaian (PKWT, PKWTT, THL) atau nonaktifkan karyawan yang keluar. Setiap perubahan tercatat di riwayat dan audit log."
       />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(300px,380px)_1fr]">
         <EmployeePicker
@@ -190,7 +205,7 @@ function ActionPanel({
   );
 }
 
-function ChangeCategoryForm({
+export function ChangeCategoryForm({
   employee,
   onDone,
 }: {
@@ -203,18 +218,76 @@ function ChangeCategoryForm({
   const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const [note, setNote] = useState("");
   const target = master.data?.employmentStatuses.find((s) => s.id === statusId);
+  const blocked =
+    employee.employmentStatus.category === "PKWT" ||
+    employee.employmentStatus.category === "PROBATION";
+  const needsContract = target?.category === "PKWT" || target?.category === "PROBATION";
+  const contractForm = useForm<CreateContractInput>({
+    resolver: zodResolver(createContractInputSchema),
+    mode: "onChange",
+    defaultValues: {
+      kind: "PKWT",
+      sequence: 1,
+      startDate: todayIso(),
+      endDate: defaultContractEnd(todayIso(), "PKWT"),
+    },
+  });
+  const contractValues = contractForm.watch();
+  const contractValidation = validatePeriod(contractValues);
+  if (contractValues.startDate < employee.joinDate)
+    contractValidation.errors.push("Mulai kontrak tidak boleh sebelum tanggal masuk.");
+  const contractValid =
+    createContractInputSchema.safeParse(contractValues).success &&
+    !contractValidation.errors.length;
+  function selectStatus(id: string) {
+    setStatusId(id);
+    const kind =
+      master.data?.employmentStatuses.find((s) => s.id === id)?.category === "PROBATION"
+        ? "PROBATION"
+        : "PKWT";
+    contractForm.reset({
+      kind,
+      ...(kind === "PKWT" ? { sequence: 1 } : {}),
+      startDate: effectiveDate,
+      endDate: defaultContractEnd(effectiveDate, kind),
+    });
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!statusId) return;
+    if (
+      !statusId ||
+      blocked ||
+      (needsContract && (!contractValid || !(await contractForm.trigger())))
+    )
+      return;
     try {
-      await mutation.mutateAsync({
+      const result = await mutation.mutateAsync({
         id: employee.id,
         employmentStatusId: statusId,
+        ...(needsContract
+          ? {
+              contract: {
+                startDate: contractValues.startDate,
+                endDate: contractValues.endDate,
+                ...(contractValues.kind === "PKWT"
+                  ? {
+                      sequence: contractValues.sequence,
+                      ...((contractValues.sequence ?? 1) > 1
+                        ? { firstPkwtStartDate: contractValues.firstPkwtStartDate }
+                        : {}),
+                    }
+                  : {}),
+              },
+            }
+          : {}),
         effectiveDate,
         ...(note.trim() ? { note: note.trim() } : {}),
       });
-      toast.success(`Status ${employee.fullName} menjadi ${target?.name}.`);
+      toast.success(
+        `Status ${employee.fullName} menjadi ${target?.category ? EMPLOYMENT_CATEGORY_LABELS[target.category] : target?.name}.`,
+      );
+      for (const warning of result.data.warnings) toast.warning(warning);
       onDone();
     } catch (error) {
       toast.error(errorMessage(error));
@@ -223,6 +296,19 @@ function ChangeCategoryForm({
 
   return (
     <form onSubmit={submit} className="space-y-6">
+      {blocked ? (
+        <Alert>
+          <AlertTitle>Gunakan tab Kepegawaian di detail karyawan</AlertTitle>
+          <AlertDescription>
+            <Link
+              className="underline"
+              to={`/personal/pegawai-aktif/semua?pegawai=${encodeURIComponent(employee.id)}&tab=work`}
+            >
+              Buka detail karyawan
+            </Link>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div className="space-y-3">
         <Label>Status baru</Label>
         <div
@@ -237,8 +323,8 @@ function ChangeCategoryForm({
                 key={status.id}
                 selected={status.id === statusId}
                 disabled={current}
-                onSelect={() => setStatusId(status.id)}
-                title={status.name}
+                onSelect={() => selectStatus(status.id)}
+                title={status.category ? EMPLOYMENT_CATEGORY_LABELS[status.category] : status.name}
                 description={current ? "Status saat ini" : undefined}
               />
             );
@@ -271,6 +357,21 @@ function ChangeCategoryForm({
           />
         </div>
       </div>
+      {needsContract ? (
+        <section aria-label="Periode kontrak" className="space-y-3">
+          <ContractPeriodFields form={contractForm} id="status-contract" />
+          {contractValidation.errors.map((message) => (
+            <p role="alert" className="text-destructive text-sm" key={message}>
+              {message}
+            </p>
+          ))}
+          {contractValidation.warnings.map((message) => (
+            <p className="text-amber-700 text-sm" key={message}>
+              {message}
+            </p>
+          ))}
+        </section>
+      ) : null}
       <div className="bg-muted/40 flex flex-col gap-4 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <StatusBadge
@@ -284,7 +385,11 @@ function ChangeCategoryForm({
             <span className="text-muted-foreground">pilih status baru</span>
           )}
         </div>
-        <Button type="submit" variant="brand" disabled={!statusId || mutation.isPending}>
+        <Button
+          type="submit"
+          variant="brand"
+          disabled={blocked || !statusId || (needsContract && !contractValid) || mutation.isPending}
+        >
           {mutation.isPending ? "Menyimpan…" : "Simpan perubahan"}
         </Button>
       </div>

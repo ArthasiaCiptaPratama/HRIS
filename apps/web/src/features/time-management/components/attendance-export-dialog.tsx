@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ATTENDANCE_EXPORT_MAX_DAYS,
+  type AttendanceExportColumnGroup,
   type AttendanceExportInput,
+  type AttendanceExportStatus,
   attendanceExportDays,
   attendanceExportInputSchema,
 } from "@hris/shared";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -19,10 +21,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api-client";
 import { errorMessage } from "@/lib/errors";
 import { useCrews, useExportAttendanceDays } from "../api";
+import type { PickedEmployee } from "./attendance-export-people-picker";
+import {
+  ALL_STATUSES,
+  ColumnGroupsSection,
+  DEFAULT_GROUPS,
+  type EmployeeMode,
+  EmployeeSection,
+  type PageFilters,
+  pageStatuses,
+  RowFilterSection,
+} from "./attendance-export-sections";
 
 // TM-D31: dialog "Export Excel" (Detail per crew) & "Flash" (5 kolom) di Data Absen Harian.
 // Pembatasan akses & rentang tetap dijaga API; di sini hanya kemudahan pakai.
@@ -32,26 +44,55 @@ export type AttendanceExportKind = AttendanceExportInput["kind"];
 interface FormValues {
   from: string;
   to: string;
+  employeeMode: EmployeeMode;
   crewMode: "ALL" | "PICK";
   crewIds: string[];
   includeNoCrew: boolean;
 }
 
-/** Bentuk isi form menjadi badan permintaan (tanpa `companyId` bila tidak ada PT terpilih). */
+/** TM-D34: pilihan Detail di luar rentang & crew (kelompok kolom, filter baris, karyawan). */
+interface DetailExtras {
+  employees: PickedEmployee[];
+  /** Filter halaman (mode "Sesuai filter halaman ini"). */
+  q: string;
+  groups: AttendanceExportColumnGroup[];
+  statuses: AttendanceExportStatus[];
+  labeledOnly: boolean;
+}
+
+const sameSet = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((x) => b.includes(x));
+
+/**
+ * Bentuk isi form menjadi badan permintaan (tanpa `companyId` bila tidak ada PT terpilih). Nilai bawaan
+ * (kelompok kolom bawaan, semua status, tidak hanya berlabel) tidak dikirim.
+ */
 function toBody(
   kind: AttendanceExportKind,
   v: FormValues,
   companyId: string | undefined,
+  extras?: DetailExtras,
 ): AttendanceExportInput {
   const scope = companyId ? { companyId } : {};
   if (kind === "FLASH") return { kind, from: v.from, to: v.to, ...scope };
+  const who =
+    v.employeeMode === "EMPLOYEES"
+      ? { employeeIds: (extras?.employees ?? []).map((e) => e.id) }
+      : v.employeeMode === "PAGE_FILTER"
+        ? { q: extras?.q ?? "" }
+        : {
+            ...(v.crewMode === "PICK" ? { crewIds: v.crewIds } : {}),
+            includeNoCrew: v.includeNoCrew,
+          };
   return {
     kind,
     from: v.from,
     to: v.to,
     ...scope,
-    ...(v.crewMode === "PICK" ? { crewIds: v.crewIds } : {}),
-    includeNoCrew: v.includeNoCrew,
+    ...who,
+    ...(extras && !sameSet(extras.groups, DEFAULT_GROUPS) ? { columnGroups: extras.groups } : {}),
+    ...(extras && !sameSet(extras.statuses, ALL_STATUSES) ? { statuses: extras.statuses } : {}),
+    ...(extras?.labeledOnly ? { labeledOnly: true } : {}),
   };
 }
 
@@ -60,16 +101,25 @@ const formSchema = (kind: AttendanceExportKind, companyId: string | undefined) =
     .object({
       from: z.string().min(1, "Tanggal awal wajib diisi."),
       to: z.string().min(1, "Tanggal akhir wajib diisi."),
+      employeeMode: z.enum(["CREW", "EMPLOYEES", "PAGE_FILTER"]),
       crewMode: z.enum(["ALL", "PICK"]),
       crewIds: z.array(z.string()),
       includeNoCrew: z.boolean(),
     })
     .superRefine((v, ctx) => {
       if (!v.from || !v.to) return;
-      if (kind === "DETAIL" && v.crewMode === "PICK" && v.crewIds.length === 0)
+      if (
+        kind === "DETAIL" &&
+        v.employeeMode === "CREW" &&
+        v.crewMode === "PICK" &&
+        v.crewIds.length === 0
+      )
         ctx.addIssue({ code: "custom", path: ["crewIds"], message: "Pilih minimal satu crew." });
-      // Aturan rentang & bentuk body = skema bersama dengan API (TM-D31).
-      const parsed = attendanceExportInputSchema.safeParse(toBody(kind, v, companyId));
+      // Aturan rentang = skema bersama dengan API; hanya galat from/to yang ditampilkan di sini
+      // (pilihan karyawan/kolom/status divalidasi terpisah di dialog).
+      const parsed = attendanceExportInputSchema.safeParse(
+        toBody(kind, { ...v, employeeMode: "CREW" }, companyId),
+      );
       if (!parsed.success)
         for (const issue of parsed.error.issues)
           if (issue.path[0] === "from" || issue.path[0] === "to")
@@ -79,8 +129,7 @@ const formSchema = (kind: AttendanceExportKind, companyId: string | undefined) =
 const COPY = {
   DETAIL: {
     title: "Export Excel data absen",
-    description:
-      "Unduh detail absen per hari, dikelompokkan per crew (satu sheet per crew, plus ringkasan).",
+    description: "Pilih rentang tanggal, karyawan, kolom, dan baris untuk file Excel.",
     submit: "Unduh Excel",
   },
   FLASH: {
@@ -95,6 +144,7 @@ export function AttendanceExportDialog({
   from,
   to,
   companyId,
+  pageFilters,
   onClose,
 }: {
   kind: AttendanceExportKind;
@@ -103,6 +153,8 @@ export function AttendanceExportDialog({
   to: string;
   /** PT terpilih di bilah atas; kosong = semua PT yang boleh diakses. */
   companyId: string | undefined;
+  /** Filter halaman saat dialog dibuka (untuk mode "Sesuai filter halaman ini"). */
+  pageFilters: PageFilters;
   onClose: () => void;
 }) {
   const copy = COPY[kind];
@@ -111,10 +163,30 @@ export function AttendanceExportDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     mode: "onChange",
-    defaultValues: { from, to, crewMode: "ALL", crewIds: [], includeNoCrew: true },
+    defaultValues: {
+      from,
+      to,
+      employeeMode: "CREW",
+      crewMode: "ALL",
+      crewIds: [],
+      includeNoCrew: true,
+    },
   });
-  const { register, watch, setValue, handleSubmit, formState } = form;
-  const [vFrom, vTo, crewMode, crewIds] = watch(["from", "to", "crewMode", "crewIds"]);
+  // Diambil sekali saat dialog dibuka: halaman di belakang dialog tidak mengubah pilihan.
+  const [filters] = useState(pageFilters);
+  const [employees, setEmployees] = useState<PickedEmployee[]>([]);
+  const [groups, setGroups] = useState<AttendanceExportColumnGroup[]>([...DEFAULT_GROUPS]);
+  const [statuses, setStatuses] = useState<AttendanceExportStatus[]>([...ALL_STATUSES]);
+  const [labeledOnly, setLabeledOnly] = useState(false);
+  const { watch, setValue, handleSubmit, formState } = form;
+  const [vFrom, vTo, employeeMode, crewMode, crewIds, includeNoCrew] = watch([
+    "from",
+    "to",
+    "employeeMode",
+    "crewMode",
+    "crewIds",
+    "includeNoCrew",
+  ]);
   const crews = useCrews(kind === "DETAIL" ? companyId : undefined);
   const days = vFrom && vTo && vFrom <= vTo ? attendanceExportDays(vFrom, vTo) : null;
 
@@ -123,6 +195,14 @@ export function AttendanceExportDialog({
     setValue("crewMode", mode, { shouldValidate: true });
     setValue("includeNoCrew", mode === "ALL");
     if (mode === "ALL") setValue("crewIds", [], { shouldValidate: true });
+  };
+  const setEmployeeMode = (mode: EmployeeMode) => {
+    setValue("employeeMode", mode, { shouldValidate: true });
+    // Sesuai filter halaman: status & berlabel terisi dari halaman (masih bisa diubah).
+    if (mode === "PAGE_FILTER") {
+      setStatuses(pageStatuses(filters));
+      setLabeledOnly(filters.labeledOnly);
+    }
   };
   const toggleCrew = (id: string) =>
     setValue("crewIds", crewIds.includes(id) ? crewIds.filter((c) => c !== id) : [...crewIds, id], {
@@ -133,8 +213,13 @@ export function AttendanceExportDialog({
     form.trigger();
   }, [form]);
 
+  const extras: DetailExtras = { employees, q: filters.q, groups, statuses, labeledOnly };
+  const detailOk =
+    kind !== "DETAIL" ||
+    (statuses.length > 0 && (employeeMode !== "EMPLOYEES" || employees.length > 0));
+
   const onSubmit = handleSubmit((values) =>
-    exporter.mutate(toBody(kind, values, companyId), {
+    exporter.mutate(toBody(kind, values, companyId, extras), {
       onSuccess: (data) => {
         toast.success(`${data.rows} baris absen berhasil diekspor.`);
         onClose();
@@ -150,7 +235,9 @@ export function AttendanceExportDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className={kind === "DETAIL" ? "max-h-[90dvh] overflow-y-auto sm:max-w-xl" : "sm:max-w-md"}
+      >
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
@@ -180,73 +267,33 @@ export function AttendanceExportDialog({
           </p>
 
           {kind === "DETAIL" ? (
-            <fieldset className="space-y-2">
-              <legend className="mb-1 text-sm font-medium">Crew</legend>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="crew-mode"
-                  className="accent-brand size-4"
-                  checked={crewMode === "ALL"}
-                  onChange={() => setMode("ALL")}
-                />
-                Semua crew
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="crew-mode"
-                  className="accent-brand size-4"
-                  checked={crewMode === "PICK"}
-                  disabled={!companyId}
-                  onChange={() => setMode("PICK")}
-                />
-                Pilih crew tertentu
-              </label>
-              {!companyId ? (
-                <p className="text-muted-foreground text-xs">
-                  Pilih PT di bilah atas untuk memilih crew tertentu.
-                </p>
-              ) : null}
-              {crewMode === "PICK" ? (
-                crews.isPending ? (
-                  <Skeleton className="h-16 w-full" />
-                ) : crews.isError ? (
-                  <p className="text-destructive text-xs" role="alert">
-                    Daftar crew gagal dimuat.
-                  </p>
-                ) : (crews.data ?? []).length === 0 ? (
-                  <p className="text-muted-foreground text-xs">Belum ada crew di PT ini.</p>
-                ) : (
-                  <fieldset className="max-h-40 min-w-0 space-y-1 overflow-y-auto rounded-md border p-2">
-                    <legend className="sr-only">Daftar crew</legend>
-                    {(crews.data ?? []).map((crew) => (
-                      <label key={crew.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="accent-brand size-4"
-                          checked={crewIds.includes(crew.id)}
-                          onChange={() => toggleCrew(crew.id)}
-                        />
-                        {crew.name}
-                      </label>
-                    ))}
-                  </fieldset>
-                )
-              ) : null}
-              {formState.errors.crewIds ? (
-                <p className="text-destructive text-xs" role="alert">
-                  {formState.errors.crewIds.message}
-                </p>
-              ) : null}
-              <label className="flex items-center gap-2 pt-1 text-sm">
-                <input
-                  type="checkbox"
-                  className="accent-brand size-4"
-                  {...register("includeNoCrew")}
-                />
-                Sertakan karyawan tanpa crew
-              </label>
+            <fieldset disabled={exporter.isPending} className="space-y-4">
+              <legend className="sr-only">Pilihan export</legend>
+              <EmployeeSection
+                mode={employeeMode}
+                onMode={setEmployeeMode}
+                disabledCrewPick={!companyId}
+                crewMode={crewMode}
+                onCrewMode={setMode}
+                crews={{ isPending: crews.isPending, isError: crews.isError, data: crews.data }}
+                crewIds={crewIds}
+                onToggleCrew={toggleCrew}
+                includeNoCrew={includeNoCrew}
+                onIncludeNoCrew={(value) => setValue("includeNoCrew", value)}
+                crewError={formState.errors.crewIds?.message}
+                companyId={companyId}
+                employees={employees}
+                onEmployees={setEmployees}
+                pageFilters={filters}
+              />
+              <ColumnGroupsSection groups={groups} onChange={setGroups} />
+              <RowFilterSection
+                statuses={statuses}
+                onStatuses={setStatuses}
+                labeledOnly={labeledOnly}
+                onLabeledOnly={setLabeledOnly}
+                prefilled={employeeMode === "PAGE_FILTER"}
+              />
             </fieldset>
           ) : null}
 
@@ -259,7 +306,7 @@ export function AttendanceExportDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Batal
             </Button>
-            <Button type="submit" disabled={!formState.isValid || exporter.isPending}>
+            <Button type="submit" disabled={!formState.isValid || !detailOk || exporter.isPending}>
               {exporter.isPending ? "Menyiapkan…" : copy.submit}
             </Button>
           </DialogFooter>

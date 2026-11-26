@@ -15,6 +15,7 @@ import { registerArchiveRoutes } from "./archive.routes.ts";
 import * as pivot from "./dashboard-pivot.service.ts";
 import { registerDataChangeRoutes } from "./data-change.routes.ts";
 import { registerDocumentRoutes } from "./document.routes.ts";
+import { employeeStatusChangeResultSchema } from "./employee.contract.ts";
 import {
   changeStatusBodySchema,
   createEmployeeBodySchema,
@@ -96,7 +97,12 @@ function ctxOf(c: Context): service.RequestContext {
   };
 }
 
-const mutation = <T extends z.ZodType>(path: string, summary: string, schema: T) =>
+const mutation = <T extends z.ZodType>(
+  path: string,
+  summary: string,
+  schema: T,
+  result: z.ZodType = employeeListItemSchema,
+) =>
   createRoute({
     method: "post",
     path,
@@ -105,7 +111,7 @@ const mutation = <T extends z.ZodType>(path: string, summary: string, schema: T)
     security,
     request: { params: idParamSchema, ...body(schema) },
     responses: {
-      200: json("Data kerja karyawan setelah perubahan", dataEnvelope(employeeListItemSchema)),
+      200: json("Data kerja karyawan setelah perubahan", dataEnvelope(result)),
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
   });
@@ -428,8 +434,9 @@ const routes = {
   }),
   changeStatus: mutation(
     `${P}/employees/{id}/status-change`,
-    "Ubah status kepegawaian (mis. PKWT → Tetap) dengan tanggal efektif (SA/HR)",
+    "Ubah status kepegawaian; PKWT/percobaan melalui tab Kepegawaian",
     changeStatusBodySchema,
+    employeeStatusChangeResultSchema,
   ),
   deactivate: mutation(
     `${P}/employees/{id}/deactivate`,

@@ -3,6 +3,7 @@ import type { MiddlewareHandler } from "hono";
 import type { StorageAdmin } from "../../core/storage.ts";
 import { configureAttendance, registerAttendanceIntegrations } from "./attendance.service.ts";
 import { registerAttendanceDayRoutes } from "./attendance-day.routes.ts";
+import { configureAttendancePeople } from "./attendance-people.service.ts";
 import { registerCalendarRoutes } from "./calendar.routes.ts";
 import { registerLocationSettingRoutes } from "./location-setting.routes.ts";
 import { registerOvertimeRoutes } from "./overtime.routes.ts";
@@ -29,6 +30,8 @@ export function registerAttendanceRoutes(app: OpenAPIHono, deps: AttendanceRoute
   registerRosterChangeHandler();
   registerRosterEditHandler();
   configureAttendance({ storage: deps.storage, storagePathPrefix: deps.storagePathPrefix ?? "" });
+  // TM-D33: foto profil kartu "Per karyawan" (URL bertanda tangan dibuat modul employee).
+  configureAttendancePeople({ storage: deps.storage });
   registerAttendanceDayRoutes(app, deps.protect);
   // Approval hari absen (D-068) & kunci roster untuk hari yang sudah disetujui.
   registerAttendanceIntegrations();

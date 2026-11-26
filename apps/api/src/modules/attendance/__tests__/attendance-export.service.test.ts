@@ -1,12 +1,24 @@
 import { describe, expect, test } from "bun:test";
 import {
+  ATTENDANCE_EXPORT_COLUMN_GROUP_INFO,
+  ATTENDANCE_EXPORT_COLUMN_GROUPS,
+  ATTENDANCE_EXPORT_IDENTITY_COLUMNS,
+  ATTENDANCE_EXPORT_MAX_BASE64_BYTES,
+} from "@hris/shared";
+import { BusinessRuleError } from "../../../core/errors.ts";
+import {
+  assertExportSize,
   crewSheetNames,
   type DetailRow,
+  detailColumns,
   detailSheets,
   type ExportPunch,
+  lateEarly,
   locationText,
   mapCell,
+  reasonText,
   rosterOnlyStatus,
+  statusBucket,
   summarize,
 } from "../attendance-export.service.ts";
 
@@ -135,6 +147,8 @@ describe("status & ringkasan", () => {
     employeeId: "e1",
     nip: "N1",
     name: "Budi",
+    position: "Operator",
+    division: "Produksi",
     date: "2026-11-10",
     crewId: "c1",
     crewLabel: "Crew A",
@@ -149,6 +163,14 @@ describe("status & ringkasan", () => {
     mapOut: null,
     status: "",
     label: "",
+    approvalIn: "",
+    approvalOut: "",
+    breakStart: "",
+    breakEnd: "",
+    lateMin: null,
+    earlyMin: null,
+    reason: "",
+    bucket: "NO_RECORD",
     work: true,
     dayStatus: null,
     labelCodes: [],
@@ -198,13 +220,119 @@ describe("status & ringkasan", () => {
     const summary = sheets[0]?.rows.slice(1).map((r) => `${r[1]}|${r[2]}`);
     expect(summary).toEqual(["Adi|Crew A", "Budi|Crew A", "Budi|Crew B", "Budi|Tanpa crew"]);
     const crewA = sheets[1]?.rows ?? [];
-    expect(crewA[0]).toHaveLength(16);
+    // 16 kolom TM-D31 + Jabatan & Divisi (Identitas TM-D34).
+    expect(crewA[0]).toHaveLength(18);
     expect(
-      crewA.slice(1).map((r) => `${r[1]}|${(r[3] as Date).toISOString().slice(0, 10)}|${r[4]}`),
+      crewA.slice(1).map((r) => `${r[1]}|${(r[5] as Date).toISOString().slice(0, 10)}|${r[6]}`),
     ).toEqual(["Adi|2026-11-01|Minggu", "Budi|2026-11-01|Minggu", "Budi|2026-11-02|Senin"]);
     expect(detailSheets(rows, names, ["c1"], false, [], "2026-11-20").map((s) => s.name)).toEqual([
       "Ringkasan",
       "Crew A",
     ]);
+  });
+});
+
+describe("TM-D34: kelompok kolom, status baris, telat & pulang cepat, alasan", () => {
+  test("kolom: Identitas selalu; urutan bawaan = TM-D31 + Jabatan & Divisi; info shared sama dengan header", () => {
+    const headers = (groups: string[]) =>
+      detailColumns(new Set(groups as never)).map((c) => c.header);
+    expect(headers([])).toEqual([...ATTENDANCE_EXPORT_IDENTITY_COLUMNS]);
+    expect(headers(["SCHEDULE", "CLOCK", "LOCATION", "LABEL", "SUMMARY"])).toEqual([
+      "NIP",
+      "Nama",
+      "Jabatan",
+      "Divisi",
+      "Crew",
+      "Tanggal",
+      "Hari",
+      "Shift",
+      "Jadwal Masuk",
+      "Jadwal Pulang",
+      "Clock In",
+      "Lokasi Clock In",
+      "Peta In",
+      "Clock Out",
+      "Lokasi Clock Out",
+      "Peta Out",
+      "Status",
+      "Label",
+    ]);
+    for (const group of ATTENDANCE_EXPORT_COLUMN_GROUPS) {
+      const own = headers([group]).slice(ATTENDANCE_EXPORT_IDENTITY_COLUMNS.length);
+      expect([...own].sort()).toEqual(
+        [...ATTENDANCE_EXPORT_COLUMN_GROUP_INFO[group].columns].sort(),
+      );
+    }
+    expect(headers([...ATTENDANCE_EXPORT_COLUMN_GROUPS])).toHaveLength(25);
+  });
+
+  test("sheet tanpa Ringkasan; tanpa baris & tanpa Ringkasan tetap satu sheet header", () => {
+    const names = new Map([["c1", { label: "Crew A", sheet: "Crew A" }]]);
+    const r: DetailRow[] = [];
+    expect(
+      detailSheets(r, names, ["c1"], false, [], "2026-11-20", new Set(["CLOCK"])).map(
+        (x) => x.name,
+      ),
+    ).toEqual(["Crew A"]);
+    const empty = detailSheets(r, new Map(), [], false, [], "2026-11-20", new Set());
+    expect(empty.map((x) => x.name)).toEqual(["Data Absen"]);
+    expect(empty[0]?.rows).toEqual([[...ATTENDANCE_EXPORT_IDENTITY_COLUMNS]]);
+  });
+
+  test("statusBucket", () => {
+    expect(statusBucket("OPEN", true)).toBe("PENDING");
+    expect(statusBucket("PENDING", true)).toBe("PENDING");
+    expect(statusBucket("APPROVED", false)).toBe("APPROVED");
+    expect(statusBucket("REJECTED", true)).toBe("REJECTED");
+    expect(statusBucket("ALPHA", true)).toBe("ALPHA");
+    expect(statusBucket("LEAVE", true)).toBe("LEAVE");
+    expect(statusBucket(null, true)).toBe("NO_RECORD");
+    expect(statusBucket(null, false)).toBe("OFF");
+  });
+
+  test("telat & pulang cepat hanya bila berlabel; menit dari jadwal, dibulatkan ke bawah", () => {
+    const at = (hhmmss: string) => new Date(`2026-11-10T${hhmmss}Z`);
+    const base = {
+      clockIn: at("07:12:40"),
+      clockOut: at("16:30:00"),
+      scheduledStart: at("07:00:00"),
+      scheduledEnd: at("17:00:00"),
+    };
+    expect(lateEarly({ ...base, codes: [] })).toEqual({ lateMin: null, earlyMin: null });
+    expect(lateEarly({ ...base, codes: ["LATE", "EARLY_LEAVE"] })).toEqual({
+      lateMin: 12,
+      earlyMin: 30,
+    });
+    expect(lateEarly({ ...base, codes: ["LATE"], clockIn: null })).toEqual({
+      lateMin: null,
+      earlyMin: null,
+    });
+    expect(lateEarly({ ...base, codes: ["LATE"], scheduledStart: undefined }).lateMin).toBeNull();
+    // Data janggal (berlabel tapi tidak telat) tidak menjadi negatif.
+    expect(lateEarly({ ...base, codes: ["LATE"], clockIn: at("06:50:00") }).lateMin).toBe(0);
+  });
+
+  test("alasan: urut Clock In → istirahat → Clock Out, spasi dirapikan, kosong dilewati", () => {
+    expect(
+      reasonText([
+        { kind: "OUT", reason: "Pulang  cepat\nsakit" },
+        { kind: "BREAK_START", reason: null },
+        { kind: "IN", reason: " Ban bocor " },
+        { kind: "BREAK_END", reason: "   " },
+      ]),
+    ).toBe("Clock In: Ban bocor; Clock Out: Pulang cepat sakit");
+    expect(reasonText([])).toBe("");
+  });
+});
+
+describe("TM-D34: penjaga ukuran file", () => {
+  test("di batas lolos, melewati batas → BusinessRuleError (422) dengan saran", () => {
+    expect(ATTENDANCE_EXPORT_MAX_BASE64_BYTES).toBe(4 * 1024 * 1024);
+    expect(() => assertExportSize(ATTENDANCE_EXPORT_MAX_BASE64_BYTES)).not.toThrow();
+    expect(() => assertExportSize(ATTENDANCE_EXPORT_MAX_BASE64_BYTES + 1)).toThrow(
+      BusinessRuleError,
+    );
+    expect(() => assertExportSize(10, 10)).not.toThrow();
+    expect(() => assertExportSize(11, 10)).toThrow("matikan kolom Alasan");
   });
 });

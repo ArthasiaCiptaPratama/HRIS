@@ -1,4 +1,9 @@
-import { type EmploymentCategory, EXIT_REASON_LABELS, type ExitReason } from "@hris/shared";
+import {
+  EMPLOYMENT_CATEGORY_LABELS,
+  type EmploymentCategory,
+  EXIT_REASON_LABELS,
+  type ExitReason,
+} from "@hris/shared";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +32,7 @@ export function StatusBadge({
       variant="muted"
       className={cn("rounded-md font-medium", category && CATEGORY_TONE[category], className)}
     >
-      {name}
+      {category ? EMPLOYMENT_CATEGORY_LABELS[category] : name}
     </Badge>
   );
 }

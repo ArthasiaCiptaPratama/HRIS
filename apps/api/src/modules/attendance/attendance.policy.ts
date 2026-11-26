@@ -153,3 +153,14 @@ export function canExportAttendance(actor: Actor, companyId?: string): boolean {
   if (isHr(actor)) return inScope;
   return actor.role === ROLE.MANAGER && actor.employeeId !== null && inScope;
 }
+
+/**
+ * TM-D33: Data Absen Harian tampilan "Per karyawan" — cakupan sama persis dengan `listDays` scope=all. SA semua
+ * PT; HR hanya PT yang ditugaskan (`companyId` di luar cakupan → tolak); MANAGER tertaut karyawan (baris
+ * dibatasi bawahan langsung oleh service, `companyId` hanya menyaring); lainnya ditolak.
+ */
+export function canListAttendancePeople(actor: Actor, companyId?: string): boolean {
+  if (isSa(actor)) return true;
+  if (isHr(actor)) return companyId === undefined || (actor.companyIds?.has(companyId) ?? false);
+  return actor.role === ROLE.MANAGER && actor.employeeId !== null;
+}

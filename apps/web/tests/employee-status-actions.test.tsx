@@ -122,26 +122,38 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Ubah Status Karyawan (menu b)", () => {
-  it("Percobaan → Karyawan Tetap: POST /status-change dengan status & tanggal efektif", async () => {
+  it("THL → Permanen tetap mengirim status dan tanggal efektif tanpa kontrak", async () => {
+    const posts = mockBackend(
+      detail({ employmentStatus: { id: "s-thl", name: "THL", category: "DAILY_WORKER" } }),
+    );
+    renderAt("/personal/ubah-status?pegawai=e1");
+    const panel = await screen.findByRole("region", { name: "Panel perubahan status" });
+    const choices = await within(panel).findByRole("radiogroup", { name: "Status baru" });
+    await userEvent.click(within(choices).getByRole("radio", { name: /Karyawan Tetap/ }));
+    await userEvent.type(within(panel).getByLabelText(/Catatan/), "SK pengangkatan 01");
+    await userEvent.click(within(panel).getByRole("button", { name: "Simpan perubahan" }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      path: "/employees/e1/status-change",
+      body: { employmentStatusId: "s-tetap", note: "SK pengangkatan 01" },
+    });
+    expect(posts[0]?.body.effectiveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(posts[0]?.body).not.toHaveProperty("contract");
+  });
+  it("Percobaan memakai tab Kepegawaian dan tidak mengirim status-change", async () => {
     const posts = mockBackend(detail());
     renderAt("/personal/ubah-status?pegawai=e1");
     const panel = await screen.findByRole("region", { name: "Panel perubahan status" });
     const choices = await within(panel).findByRole("radiogroup", { name: "Status baru" });
-    // Status saat ini tidak bisa dipilih.
-    expect(
-      await within(choices).findByRole("radio", { name: /Karyawan Percobaan/ }),
-    ).toBeDisabled();
-    const user = userEvent.setup();
-    await user.click(within(choices).getByRole("radio", { name: /Karyawan Tetap/ }));
-    await user.type(within(panel).getByLabelText(/Catatan/), "SK pengangkatan 01");
-    await user.click(within(panel).getByRole("button", { name: "Simpan perubahan" }));
-    await waitFor(() => expect(posts).toHaveLength(1));
-    expect(posts[0]?.path).toBe("/employees/e1/status-change");
-    expect(posts[0]?.body).toMatchObject({
-      employmentStatusId: "s-tetap",
-      note: "SK pengangkatan 01",
-    });
-    expect(posts[0]?.body.effectiveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(within(choices).getByRole("radio", { name: /Karyawan Percobaan/ })).toBeDisabled();
+    await userEvent.click(within(choices).getByRole("radio", { name: /Karyawan Tetap/ }));
+    expect(within(panel).getByText("Gunakan tab Kepegawaian di detail karyawan")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Simpan perubahan" })).toBeDisabled();
+    expect(within(panel).getByRole("link", { name: "Buka detail karyawan" })).toHaveAttribute(
+      "href",
+      "/personal/pegawai-aktif/semua?pegawai=e1&tab=work",
+    );
+    expect(posts).toHaveLength(0);
   });
 
   it("Nonaktifkan: tombol aktif hanya setelah alasan + konfirmasi; POST /deactivate", async () => {
@@ -186,5 +198,25 @@ describe.skipIf(!FEATURES.activation)("Pengaktifan Karyawan (menu c)", () => {
     expect(posts[0]?.body.effectiveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     // Status tidak diubah bila tidak dipilih yang berbeda.
     expect(posts[0]?.body).not.toHaveProperty("employmentStatusId");
+  });
+  it("KTR-D4: karyawan Percobaan/PKWT nonaktif hanya bisa diaktifkan dengan status semula", async () => {
+    mockBackend(detail({ isActive: false, exitReason: "RESIGNATION" as never }));
+    renderAt("/personal/pengaktifan?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(/Status PKWT\/masa percobaan diubah lewat tab Kepegawaian/),
+    ).toBeInTheDocument();
+  });
+  it("KTR-D4: karyawan Tetap nonaktif tanpa petunjuk kontrak", async () => {
+    mockBackend(
+      detail({
+        isActive: false,
+        exitReason: "RESIGNATION" as never,
+        employmentStatus: STATUSES[0] as never,
+      }),
+    );
+    renderAt("/personal/pengaktifan?pegawai=e1");
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByText(/tab Kepegawaian/)).not.toBeInTheDocument();
   });
 });

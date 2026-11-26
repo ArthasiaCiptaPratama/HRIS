@@ -359,6 +359,24 @@ const BASE_IMPORT_FIELDS = {
       "end date resign",
     ],
   },
+  // KTR-D12 (K3): kolom kontrak → tabel kontrak (aturan sama dengan aksi tab Kepegawaian).
+  contractStage: {
+    label: "Tahap PKWT",
+    section: "contract",
+    synonyms: ["tahap pkwt", "pkwt ke", "tahap kontrak", "kontrak ke", "pkwt tahap"],
+  },
+  contractStartDate: {
+    label: "Mulai kontrak",
+    section: "contract",
+    synonyms: [
+      "mulai kontrak",
+      "tgl mulai kontrak",
+      "tanggal mulai kontrak",
+      "awal kontrak",
+      "start of contract",
+      "contract start",
+    ],
+  },
   contractEndDate: {
     label: "Akhir kontrak",
     section: "contract",
@@ -366,11 +384,47 @@ const BASE_IMPORT_FIELDS = {
       "end of date",
       "end date",
       "akhir kontrak",
+      "tgl akhir kontrak",
+      "tanggal akhir kontrak",
       "tgl berakhir",
       "tanggal berakhir",
       "end of contract",
     ],
-    notStored: true,
+  },
+  contractDurationMonths: {
+    label: "Durasi kontrak (bulan)",
+    section: "contract",
+    synonyms: ["durasi kontrak", "lama kontrak", "durasi kontrak bulan", "contract duration"],
+  },
+  pkwtFirstStartDate: {
+    label: "Mulai PKWT 1",
+    section: "contract",
+    synonyms: ["mulai pkwt 1", "mulai pkwt i", "mulai pkwt", "tanggal mulai pkwt 1", "awal pkwt 1"],
+  },
+  probationStartDate: {
+    label: "Mulai percobaan",
+    section: "contract",
+    synonyms: [
+      "mulai percobaan",
+      "mulai masa percobaan",
+      "tanggal mulai percobaan",
+      "awal percobaan",
+      "mulai probation",
+      "probation start",
+    ],
+  },
+  probationEndDate: {
+    label: "Akhir percobaan",
+    section: "contract",
+    synonyms: [
+      "akhir percobaan",
+      "akhir masa percobaan",
+      "tanggal akhir percobaan",
+      "selesai percobaan",
+      "akhir probation",
+      "probation end",
+      "end of probation",
+    ],
   },
   offeringNumber: {
     label: "Nomor offering",

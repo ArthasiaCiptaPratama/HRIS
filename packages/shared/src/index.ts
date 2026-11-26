@@ -1,6 +1,7 @@
 export * from "./archive.ts";
 export * from "./asset.ts";
 export * from "./attendance-export.ts";
+export * from "./contract.ts";
 export * from "./dashboard.ts";
 export * from "./data-changes.ts";
 export * from "./discipline.ts";

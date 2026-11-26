@@ -1,8 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import { strFromU8, unzipSync } from "fflate";
 import {
+  ATTENDANCE_EXPORT_COLUMN_GROUP_INFO,
+  ATTENDANCE_EXPORT_COLUMN_GROUPS,
+  ATTENDANCE_EXPORT_DEFAULT_COLUMN_GROUPS,
+  ATTENDANCE_EXPORT_MAX_BASE64_BYTES,
   ATTENDANCE_EXPORT_MAX_DAYS,
+  ATTENDANCE_EXPORT_MAX_EMPLOYEES,
+  ATTENDANCE_EXPORT_STATUS_LABELS,
+  ATTENDANCE_EXPORT_STATUSES,
   attendanceExportDays,
+  attendanceExportEmployeeMode,
   attendanceExportFileName,
   attendanceExportInputSchema,
   buildWorkbook,
@@ -51,6 +59,77 @@ describe("attendanceExportInputSchema", () => {
     expect(attendanceExportFileName({ kind: "FLASH", from: "2026-11-01", to: "2026-11-30" })).toBe(
       "absensi-flash-2026-11-01_2026-11-30.xlsx",
     );
+  });
+});
+
+describe("TM-D34: mode karyawan, kelompok kolom, filter baris", () => {
+  const base = { kind: "DETAIL", from: "2026-11-01", to: "2026-11-30" } as const;
+  test("body lama (crewIds/includeNoCrew) tetap sah = mode CREW", () => {
+    const parsed = attendanceExportInputSchema.parse({
+      ...base,
+      crewIds: [ID],
+      includeNoCrew: true,
+    });
+    expect(parsed.kind === "DETAIL" && attendanceExportEmployeeMode(parsed)).toBe("CREW");
+  });
+
+  test("mode EMPLOYEES & PAGE_FILTER; eksklusif satu sama lain dan dengan pilihan crew", () => {
+    expect(attendanceExportEmployeeMode({ employeeIds: [ID] })).toBe("EMPLOYEES");
+    expect(attendanceExportEmployeeMode({ q: "" })).toBe("PAGE_FILTER");
+    expect(ok({ ...base, employeeIds: [ID] })).toBe(true);
+    expect(ok({ ...base, q: "budi" })).toBe(true);
+    expect(ok({ ...base, q: "" })).toBe(true);
+    expect(ok({ ...base, q: "x".repeat(101) })).toBe(false);
+    expect(ok({ ...base, employeeIds: [] })).toBe(false);
+    expect(ok({ ...base, employeeIds: ["bukan-uuid"] })).toBe(false);
+    const many = Array.from({ length: ATTENDANCE_EXPORT_MAX_EMPLOYEES + 1 }, () => ID);
+    expect(ok({ ...base, employeeIds: many })).toBe(false);
+    expect(ok({ ...base, employeeIds: many.slice(1) })).toBe(true);
+    expect(ok({ ...base, employeeIds: [ID], q: "budi" })).toBe(false);
+    expect(ok({ ...base, employeeIds: [ID], crewIds: [ID] })).toBe(false);
+    expect(ok({ ...base, q: "budi", includeNoCrew: true })).toBe(false);
+    expect(ok({ ...base, q: "budi", includeNoCrew: false })).toBe(false);
+  });
+
+  test("kelompok kolom & status: nilai sah, bawaan, label", () => {
+    expect(ok({ ...base, columnGroups: [] })).toBe(true);
+    expect(ok({ ...base, columnGroups: [...ATTENDANCE_EXPORT_COLUMN_GROUPS] })).toBe(true);
+    expect(ok({ ...base, columnGroups: ["SALARY"] })).toBe(false);
+    expect(ok({ ...base, columnGroups: ["IDENTITY"] })).toBe(false);
+    expect(ok({ ...base, statuses: ["APPROVED", "NO_RECORD"], labeledOnly: true })).toBe(true);
+    expect(ok({ ...base, statuses: [] })).toBe(false);
+    expect(ok({ ...base, statuses: ["OPEN"] })).toBe(false);
+    expect(ATTENDANCE_EXPORT_DEFAULT_COLUMN_GROUPS).toEqual([
+      "SCHEDULE",
+      "CLOCK",
+      "LOCATION",
+      "LABEL",
+      "SUMMARY",
+    ]);
+    expect(ATTENDANCE_EXPORT_STATUSES.map((x) => ATTENDANCE_EXPORT_STATUS_LABELS[x])).toEqual([
+      "Menunggu",
+      "Disetujui",
+      "Ditolak",
+      "Alpha",
+      "Cuti/izin/sakit",
+      "OFF/Time off",
+      "Tanpa absen",
+    ]);
+    expect(ATTENDANCE_EXPORT_COLUMN_GROUP_INFO.SUMMARY.columns).toEqual([]);
+    expect(ATTENDANCE_EXPORT_MAX_BASE64_BYTES).toBe(4_194_304);
+  });
+
+  test("FLASH tetap ketat: field Detail TM-D34 ditolak", () => {
+    const flash = { kind: "FLASH", from: "2026-11-01", to: "2026-11-02" };
+    for (const extra of [
+      { employeeIds: [ID] },
+      { q: "budi" },
+      { columnGroups: ["CLOCK"] },
+      { statuses: ["APPROVED"] },
+      { labeledOnly: true },
+    ]) {
+      expect(ok({ ...flash, ...extra })).toBe(false);
+    }
   });
 });
 

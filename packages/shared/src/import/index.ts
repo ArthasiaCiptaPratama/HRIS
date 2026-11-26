@@ -1,6 +1,7 @@
 // D-042: mesin import karyawan (deteksi + normalisasi + validasi baris). Dipakai web & api.
 export * from "./attachments.ts";
 export * from "./chart-holder.ts";
+export * from "./contract-columns.ts";
 export * from "./detect.ts";
 export * from "./edits.ts";
 export * from "./fields.ts";

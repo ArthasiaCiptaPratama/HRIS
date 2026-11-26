@@ -67,7 +67,7 @@ import { FEATURES, tmOn } from "./feature-flags";
 // Satu sumber untuk top nav, sidebar, breadcrumb, pencarian cepat (Ctrl+K), dan guard route.
 
 /** Sumber angka badge: filter daftar aktif (D-038) atau jumlah nonaktif. */
-export type SummaryKey = ActiveFilter | "INACTIVE";
+export type SummaryKey = ActiveFilter | "INACTIVE" | "CONTRACTS_ENDING";
 
 export interface NavItem {
   id: string;
@@ -295,6 +295,16 @@ export const NAV_GROUPS: NavGroup[] = [
             icon: UserRoundCheck,
             visible: manage,
             keywords: "aktifkan kembali rehire",
+          },
+          {
+            id: "contract-expiring",
+            maintenance: !FEATURES.contractExpiring,
+            label: "Kontrak Akan Habis",
+            to: "/personal/kontrak-akan-habis",
+            icon: CalendarClock,
+            visible: manage,
+            summaryKey: "CONTRACTS_ENDING",
+            keywords: "pkwt masa percobaan kontrak habis berakhir perpanjang lewat",
           },
           {
             id: "inactive",
