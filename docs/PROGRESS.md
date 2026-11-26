@@ -170,7 +170,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
-- **2026-11-26** — UX status kontrak: badge "PKWT n" (Status + Tahap dilebur) di daftar & header profil; tab Kepegawaian kartu ringkas Opsi A (pilihan pengguna) + linimasa Kontrak di tab Riwayat. (Oatse) → [kontrak/log](features/kontrak/log.md)
+- **2026-11-26** — UX status kontrak: badge "PKWT n" (Status + Tahap dilebur) di daftar & header profil; tab Kepegawaian kartu ringkas Opsi A (pilihan pengguna) + linimasa Kontrak di tab Riwayat; daftar THL opsi C (badge gabungan + kolom n/3, sort `thlStreak`). (Oatse) → [kontrak/log](features/kontrak/log.md)
 - **2026-11-26** — Kontrak K4 THL ke develop (upah harian SA + HR ber-grant `labor.cost.read` KTR-D13, evaluasi Wajib diangkat PKWTT/Mendekati batas, notifikasi, laporan rekap, kolom import). (Oatse) → [kontrak/log](features/kontrak/log.md)
 - **2026-11-26** — Kontrak K3 (i) ke develop `6124889` (koreksi data kontrak, kolom import kontrak, skrip audit READ ONLY; CI #45749534378 ✔); pola kerja site dinomori ulang TM-D35–D37; merge `HRIS/Mat/Mac` `52d5012` (TM-D33 Data Absen Harian per karyawan, TM-D34 export detail absen). (Oatse) → [kontrak/log](features/kontrak/log.md)
 - **2026-11-24** — Rilis staging gel. 36 (EMP-D8 Paket 2, EMP-D9 Paket 1, sidebar, mode import; Deploy #45340144173); `--apply` antrean absen lama dibatalkan pengguna; R0 Rekrutmen dimulai (lokal). (Oatse) → [karyawan/log](features/karyawan/log.md)

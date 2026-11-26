@@ -62,6 +62,20 @@ export async function listEmployees(
   return { rows, total };
 }
 
+/** Opsi C (sort `thlStreak`): semua id yang cocok, urut nama sebagai dasar urutan stabil. */
+export async function listEmployeeIds(where: EmployeeWhere) {
+  const rows = await getPrisma().employee.findMany({
+    where,
+    orderBy: [{ fullName: "asc" }, { id: "asc" }],
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
+}
+
+export function listEmployeesByIds(ids: string[]) {
+  return getPrisma().employee.findMany({ where: { id: { in: ids } }, select: LIST_SELECT });
+}
+
 export async function countByStatus(where: EmployeeWhere) {
   return getPrisma().employee.groupBy({
     by: ["employmentStatusId", "isActive", "contractStage"],
@@ -593,6 +607,6 @@ export async function countContractsEnding(
 export function findActiveThl(where: EmployeeWhere, statusIds: string[]) {
   return getPrisma().employee.findMany({
     where: { AND: [where, { isActive: true, employmentStatusId: { in: statusIds } }] },
-    select: { id: true, fullName: true, companyId: true, managerId: true },
+    select: { id: true, fullName: true, companyId: true, managerId: true, joinDate: true },
   });
 }

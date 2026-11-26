@@ -102,6 +102,24 @@ const listStatusSchema = ref
   .extend({ category: nullableRef(employmentCategoryRefSchema) })
   .openapi("EmployeeListStatus");
 const listCompanySchema = ref.extend({ code: z.string() }).openapi("EmployeeListCompany");
+// Opsi C daftar THL (2026-11-26): hari hadir APPROVED 3 bulan penuh + bulan berjalan (WIB).
+const thlAttendanceMonthSchema = z
+  .object({
+    month: z.string().regex(/^\d{4}-\d{2}$/),
+    presentDays: z.number().int(),
+    pendingDays: z.number().int(),
+    // Bulan berakhir sebelum tanggal masuk → tampil "–" (bukan 0).
+    beforeJoin: z.boolean(),
+  })
+  .openapi("EmployeeThlAttendanceMonth");
+const thlAttendanceSchema = z
+  .object({
+    months: z.array(thlAttendanceMonthSchema),
+    currentMonth: thlAttendanceMonthSchema,
+    // Bulan penuh berturut-turut ≥ 21 hari, mundur dari bulan penuh terakhir (0–3).
+    streak: z.number().int(),
+  })
+  .openapi("EmployeeThlAttendance");
 
 export const employeeListItemSchema = z
   .object({
@@ -116,6 +134,7 @@ export const employeeListItemSchema = z
     endDate: isoDate.nullable(),
     thlPresentDaysLastMonth: z.number().int().nullable(),
     thlStatus: z.enum(["NONE", "APPROACHING", "REQUIRED"]).openapi("EmployeeThlStatus").nullable(),
+    thlAttendance: thlAttendanceSchema.nullable(),
     contractStage: z.number().int().nullable(),
     contractEndDate: isoDate.nullable(),
     isActive: z.boolean(),

@@ -30,7 +30,7 @@ import { tenure, todayIso } from "../labels";
 import type { EmployeeListItem } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { ExitReasonBadge, StatusBadge } from "./status-badge";
-import { ThlStatusBadge } from "./thl-section";
+import { thlColumns } from "./thl-list-columns";
 
 const helper = createColumnHelper<typeof tableFeaturesNone, EmployeeListItem>();
 
@@ -409,22 +409,8 @@ export function EmployeeListView({
     ],
   );
   const query = useEmployees(params);
-  const displayColumns = isThl
-    ? [
-        ...columns,
-        helper.display({
-          id: "thlPresentDays",
-          header: "Hadir bln lalu",
-          cell: ({ row }) => row.original.thlPresentDaysLastMonth ?? "—",
-        }),
-        helper.display({
-          id: "thlStatus",
-          header: "Status THL",
-          cell: ({ row }) =>
-            row.original.thlStatus ? <ThlStatusBadge status={row.original.thlStatus} /> : "—",
-        }),
-      ]
-    : columns;
+  // Opsi C (pilihan pengguna 2026-11-26): badge Status gabungan + satu kolom hari hadir per bulan.
+  const displayColumns = isThl ? thlColumns(columns) : columns;
   const rows = query.data?.data ?? [];
   const total = query.data?.meta.total ?? 0;
   const filtered = Boolean(

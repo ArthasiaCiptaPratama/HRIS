@@ -556,3 +556,97 @@ describe("import daily wage", () => {
     ).toBe(409);
   });
 });
+
+describe("opsi C daftar THL: thlAttendance + sort thlStreak", () => {
+  const attendanceMonth = z.object({
+    month: z.string(),
+    presentDays: z.number(),
+    pendingDays: z.number(),
+    beforeJoin: z.boolean(),
+  });
+  const listSchema = z.object({
+    data: z.array(
+      z.object({
+        id: z.string(),
+        thlAttendance: z
+          .object({
+            months: z.array(attendanceMonth),
+            currentMonth: attendanceMonth,
+            streak: z.number(),
+          })
+          .nullable(),
+      }),
+    ),
+    meta: z.object({ total: z.number() }),
+  });
+  const list = async (query: string, login: Login = hrNo) => {
+    const response = await request(`/employees?companyId=${company}&${query}`, login);
+    expect(response.status).toBe(200);
+    return listSchema.parse(await response.json());
+  };
+  let late = "";
+  beforeAll(async () => {
+    // Masuk pertengahan bulan penuh terakhir: dua bulan sebelumnya "–" (bukan 0).
+    late = await employee("late");
+    await prisma.employee.update({
+      where: { id: late },
+      data: { joinDate: date(`${lastMonth}-15`) },
+    });
+    await days(late, lastMonth, 21);
+  });
+
+  test("tiga bulan penuh + bulan berjalan, batas 20/21, streak putus, sebelum masuk", async () => {
+    const body = await list(`category=DAILY_WORKER&q=${encodeURIComponent(`THL ${RUN}`)}`);
+    const of = (id: string) => body.data.find((row) => row.id === id)?.thlAttendance;
+    const months = [-3, -2, -1].map((offset) => shiftThlMonth(currentMonth, offset));
+    expect(of(required)?.months.map((m) => [m.month, m.presentDays])).toEqual(
+      months.map((m) => [m, 21]),
+    );
+    expect(of(required)?.months[2]?.pendingDays).toBe(2);
+    expect(of(required)?.currentMonth).toEqual({
+      month: currentMonth,
+      presentDays: 2,
+      pendingDays: 0,
+      beforeJoin: false,
+    });
+    expect(of(required)?.streak).toBe(3);
+    // 20 di bulan tertua: dua bulan terakhir ≥ 21 → streak 2.
+    expect(of(approaching)?.months.map((m) => m.presentDays)).toEqual([20, 21, 21]);
+    expect(of(approaching)?.streak).toBe(2);
+    // 21, 20, 21: putus di bulan tengah → streak 1.
+    expect(of(noStatus)?.streak).toBe(1);
+    expect(of(late)?.months.map((m) => m.beforeJoin)).toEqual([true, true, false]);
+    expect(of(late)?.streak).toBe(1);
+    // Non-THL (dan THL nonaktif) tidak membawa data hadir.
+    const all = await list(`q=${encodeURIComponent(`THL ${RUN} permanent`)}`);
+    expect(all.data.map((row) => row.thlAttendance)).toEqual([null]);
+  });
+
+  test("sort thlStreak desc/asc setelah filter + cakupan, paginasi halaman 2", async () => {
+    const q = `category=DAILY_WORKER&q=${encodeURIComponent(`THL ${RUN}`)}`;
+    const full = await list(`${q}&sort=thlStreak:desc&pageSize=100`);
+    const ids = full.data.map((row) => row.id);
+    const position = (id: string) => ids.indexOf(id);
+    expect(position(required)).toBeLessThan(position(approaching));
+    expect(position(approaching)).toBeLessThan(position(noStatus));
+    // Seri streak 1: hadir bulan terakhir sama (21) → urut nama ("late" < "none").
+    expect(position(late)).toBeLessThan(position(noStatus));
+    const keys = full.data.map((row) => row.thlAttendance?.streak ?? -1);
+    expect(keys).toEqual([...keys].sort((a, b) => b - a));
+    // Halaman 2 (pageSize 2) = potongan yang sama dari urutan lengkap; total tetap.
+    const page2 = await list(`${q}&sort=thlStreak:desc&pageSize=2&page=2`);
+    expect(page2.data.map((row) => row.id)).toEqual(ids.slice(2, 4));
+    expect(page2.meta.total).toBe(full.meta.total);
+    const asc = await list(`${q}&sort=thlStreak:asc&pageSize=100`);
+    const ascIds = asc.data.map((row) => row.id);
+    expect(ascIds.indexOf(noStatus)).toBeLessThan(ascIds.indexOf(approaching));
+    expect(ascIds.indexOf(approaching)).toBeLessThan(ascIds.indexOf(required));
+    // Filter chip status tetap diterapkan sebelum urut.
+    const chip = await list(`${q}&thlStatus=APPROACHING&sort=thlStreak:desc`);
+    expect(chip.data.map((row) => row.id)).toEqual([approaching]);
+    expect(chip.meta.total).toBe(1);
+    // Cakupan PT: HR PT lain tidak melihat apa pun walau diurutkan.
+    const other = await list(`${q}&sort=thlStreak:desc`, hrOther);
+    expect(other.data).toHaveLength(0);
+  });
+});

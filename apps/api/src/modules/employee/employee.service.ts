@@ -14,7 +14,9 @@ import {
   type EmploymentCategory,
   employeeProfileInputSchema,
   employeeProfileUpdateSchema,
+  type evaluateThlAttendance,
   POSITION_LEVELS,
+  thlStreak,
   usesAssignedCompanies,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
@@ -315,6 +317,7 @@ function toListItem(
     endDate: row.endDate ? toIso(row.endDate) : null,
     thlPresentDaysLastMonth: null,
     thlStatus: null,
+    thlAttendance: null,
     contractStage: row.contractStage,
     contractEndDate: row.contractEndDate ? toIso(row.contractEndDate) : null,
     isActive: row.isActive,
@@ -508,7 +511,10 @@ function buildOrderBy(sort: string): repository.EmployeeOrderBy[] {
 export async function listEmployees(ctx: RequestContext, query: ListEmployeesQuery) {
   const lookup = await getMasterLookup();
   let where = buildWhere(ctx.actor, query, lookup);
-  const thlEvaluations = await scopedThlEvaluations(ctx.actor, lookup);
+  const { evaluations: thlEvaluations, joinDates: thlJoinDates } = await scopedThlEvaluations(
+    ctx.actor,
+    lookup,
+  );
   if (query.thlStatus) {
     where = {
       AND: [
@@ -533,12 +539,16 @@ export async function listEmployees(ctx: RequestContext, query: ListEmployeesQue
       ],
     };
   }
-  const { rows, total } = await repository.listEmployees(
-    where,
-    buildOrderBy(query.sort),
-    (query.page - 1) * query.pageSize,
-    query.pageSize,
-  );
+  const [sortField, sortDirection] = query.sort.split(":") as [string, "asc" | "desc"];
+  const { rows, total } =
+    sortField === "thlStreak"
+      ? await listByThlStreak(where, thlEvaluations, sortDirection, query.page, query.pageSize)
+      : await repository.listEmployees(
+          where,
+          buildOrderBy(query.sort),
+          (query.page - 1) * query.pageSize,
+          query.pageSize,
+        );
   const photoUrls = await signPhotoUrls(
     ctx,
     rows.map((row) => row.photoPath),
@@ -550,6 +560,7 @@ export async function listEmployees(ctx: RequestContext, query: ListEmployeesQue
         ...toListItem(row, lookup, photoUrls),
         thlStatus: evaluation?.status ?? null,
         thlPresentDaysLastMonth: evaluation?.months[2]?.presentDays ?? null,
+        thlAttendance: evaluation ? thlAttendanceOf(evaluation, thlJoinDates.get(row.id)) : null,
       };
     }),
     meta: { page: query.page, pageSize: query.pageSize, total },
@@ -606,7 +617,7 @@ export async function getSummary(
     else uncategorized += count;
   }
   const thlStatuses = { APPROACHING: 0, REQUIRED: 0 };
-  for (const evaluation of thlEvaluations.values())
+  for (const evaluation of thlEvaluations.evaluations.values())
     if (evaluation.status !== "NONE") thlStatuses[evaluation.status]++;
   return {
     active: { total, byCategory, uncategorized, pkwtStages, contractsEnding, thlStatuses },
@@ -2308,5 +2319,61 @@ async function scopedThlEvaluations(actor: Actor, lookup: MasterLookup, companyI
     where,
     statusIdsForCategories(lookup, ["DAILY_WORKER"]),
   );
-  return evaluateThlEmployees(rows.map((r) => r.id));
+  return {
+    evaluations: await evaluateThlEmployees(rows.map((r) => r.id)),
+    joinDates: new Map(rows.map((r) => [r.id, toIso(r.joinDate)])),
+  };
+}
+
+type ThlEvaluation = ReturnType<typeof evaluateThlAttendance>;
+
+/** Opsi C daftar THL: 3 bulan penuh + bulan berjalan; bulan sebelum tanggal masuk ditandai. */
+function thlAttendanceOf(evaluation: ThlEvaluation, joinDate: string | undefined) {
+  const joinMonth = joinDate?.slice(0, 7) ?? "";
+  const month = (m: { month: string; presentDays: number; pendingDays: number }) => ({
+    month: m.month,
+    presentDays: m.presentDays,
+    pendingDays: m.pendingDays,
+    beforeJoin: m.month < joinMonth,
+  });
+  return {
+    months: evaluation.months.map(month),
+    currentMonth: month(evaluation.currentMonth),
+    streak: thlStreak(evaluation.months),
+  };
+}
+
+/**
+ * Sort `thlStreak` (nilai hasil hitung): semua id yang lolos `where` (cakupan, filter, pencarian,
+ * chip status sudah diterapkan) diurutkan di memori — streak, lalu hadir bulan penuh terakhir; seri
+ * tetap urut nama. Non-THL selalu di akhir. Lalu dipotong per halaman.
+ */
+async function listByThlStreak(
+  where: repository.EmployeeWhere,
+  evaluations: Map<string, ThlEvaluation>,
+  direction: "asc" | "desc",
+  page: number,
+  pageSize: number,
+) {
+  const ids = await repository.listEmployeeIds(where);
+  const sign = direction === "asc" ? 1 : -1;
+  const keyOf = (id: string) => {
+    const evaluation = evaluations.get(id);
+    return evaluation
+      ? [thlStreak(evaluation.months), evaluation.months.at(-1)?.presentDays ?? 0]
+      : null;
+  };
+  const sorted = ids
+    .map((id, index) => ({ id, index, key: keyOf(id) }))
+    .sort((a, b) => {
+      if (!a.key || !b.key) return a.key ? -1 : b.key ? 1 : a.index - b.index;
+      const diff = (a.key[0] ?? 0) - (b.key[0] ?? 0) || (a.key[1] ?? 0) - (b.key[1] ?? 0);
+      return diff ? sign * diff : a.index - b.index;
+    });
+  const pageIds = sorted.slice((page - 1) * pageSize, page * pageSize).map((item) => item.id);
+  const byId = new Map((await repository.listEmployeesByIds(pageIds)).map((row) => [row.id, row]));
+  return {
+    rows: pageIds.flatMap((id) => byId.get(id) ?? []),
+    total: ids.length,
+  };
 }
