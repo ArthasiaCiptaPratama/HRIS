@@ -1,3 +1,4 @@
+import { thlWageChangeLabel } from "@hris/shared";
 import { formatThlMonth, formatThlWage } from "@/features/employee/components/thl-section";
 import { type ReportParams, useReport } from "../../api";
 import { State } from "../report-state";
@@ -33,7 +34,8 @@ export function ThlAttendanceWageTab({
                 {
                   key: "dailyWage",
                   header: "Upah harian",
-                  cell: (row: (typeof report.rows)[number]) => formatThlWage(row.dailyWage),
+                  cell: (row: (typeof report.rows)[number]) =>
+                    thlWageChangeLabel(row.wageSegments) ?? formatThlWage(row.dailyWage),
                 },
                 {
                   key: "estimatedWage",

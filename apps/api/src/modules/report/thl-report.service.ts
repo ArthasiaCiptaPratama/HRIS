@@ -1,4 +1,4 @@
-import { shiftThlMonth, thlCurrentMonth, type XlsxSheet } from "@hris/shared";
+import { shiftThlMonth, thlCurrentMonth, thlWageChangeLabel, type XlsxSheet } from "@hris/shared";
 import { z } from "zod";
 import { Prisma } from "../../generated/prisma/client.ts";
 import { approvedAttendanceDates, countAttendanceByMonth } from "../attendance/index.ts";
@@ -58,6 +58,21 @@ export async function thlAttendanceWageReport(ctx: RequestContext, raw: unknown,
       const history = wagesByEmployee.get(e.id) ?? [];
       const wage = history.find((w) => w.effectiveFrom.toISOString().slice(0, 7) < end);
       const total = totals.get(e.id);
+      // Upah yang berlaku di awal bulan + perubahan di dalam bulan (history urut turun).
+      const start = `${month}-01`;
+      const atStart = history.find((w) => w.effectiveFrom.toISOString().slice(0, 10) <= start);
+      const wageSegments = [
+        ...(atStart ? [atStart] : []),
+        ...history.filter((w) => {
+          const from = w.effectiveFrom.toISOString().slice(0, 10);
+          return from > start && from.slice(0, 7) === month;
+        }),
+      ]
+        .map((w) => ({
+          effectiveFrom: w.effectiveFrom.toISOString().slice(0, 10),
+          amount: w.amount.toNumber(),
+        }))
+        .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
       return {
         ...personDto(lookup, e),
         presentDays: count?.presentDays ?? 0,
@@ -65,6 +80,7 @@ export async function thlAttendanceWageReport(ctx: RequestContext, raw: unknown,
         ...(canAccessDailyWageInCompany(ctx.actor, e.companyId)
           ? {
               dailyWage: wage?.amount.toNumber() ?? null,
+              wageSegments,
               estimatedWage: total?.missing
                 ? null
                 : (total?.amount ?? new Prisma.Decimal(0))
@@ -85,7 +101,7 @@ export async function thlReportSheets(ctx: RequestContext, raw: unknown): Promis
       title: `Rekap Kehadiran & Upah THL — ${report.month}`,
       notes: [
         report.note,
-        "Upah harian = tarif terakhir dalam bulan; perkiraan mengikuti tarif setiap hari hadir. Hari hadir tanpa tarif menghasilkan perkiraan kosong.",
+        "Upah harian = tarif terakhir dalam bulan; kolom Perubahan upah diisi bila tarif berubah dalam bulan itu. Perkiraan mengikuti tarif yang berlaku pada setiap hari hadir. Hari hadir tanpa tarif menghasilkan perkiraan kosong.",
       ],
       rows: [
         [
@@ -95,7 +111,7 @@ export async function thlReportSheets(ctx: RequestContext, raw: unknown): Promis
           "Jabatan",
           "Hari hadir",
           "Menunggu persetujuan",
-          ...(report.access.wage ? ["Upah harian", "Perkiraan upah"] : []),
+          ...(report.access.wage ? ["Upah harian", "Perubahan upah", "Perkiraan upah"] : []),
         ],
         ...report.rows.map((r) => [
           r.employeeNumber,
@@ -104,7 +120,9 @@ export async function thlReportSheets(ctx: RequestContext, raw: unknown): Promis
           r.position,
           r.presentDays,
           r.pendingDays,
-          ...(report.access.wage ? [r.dailyWage ?? null, r.estimatedWage ?? null] : []),
+          ...(report.access.wage
+            ? [r.dailyWage ?? null, thlWageChangeLabel(r.wageSegments), r.estimatedWage ?? null]
+            : []),
         ]),
       ],
       formats: [
@@ -114,7 +132,7 @@ export async function thlReportSheets(ctx: RequestContext, raw: unknown): Promis
         "text",
         "int",
         "int",
-        ...(report.access.wage ? ["int" as const, "int" as const] : []),
+        ...(report.access.wage ? ["int" as const, "text" as const, "int" as const] : []),
       ],
       freezeColumns: 2,
     },

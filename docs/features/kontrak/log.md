@@ -11,6 +11,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — K4 susulan: rentang upah di rekap; K5 ditunda (Oatse/Claude)
+- **Dikerjakan:** CI K4 `48e1741` ✔ (#45759343033). Rekap Kehadiran & Upah THL: baris laporan + `wageSegments` (upah awal bulan + perubahan dalam bulan, hanya untuk yang berhak); layar menampilkan "Rp 140.000 → Rp 160.000 (15 Okt)", ekspor menambah kolom "Perubahan upah"; helper `thlWageChangeLabel` di shared. Test shared + integration diperluas.
+- **Keputusan:** K5 ditunda (kutipan pengguna 26 Nov 12:1x WIB via supervisor).
+- **Verifikasi:** typecheck ✔ · biome ✔ (1 warning lama) · boundaries ✔ · db:check ✔ · shared 487 · api 1622 · web 567 ✔.
+- **Berikutnya:** menunggu pengguna — rilis K1–K4 ke staging, tulis staging S1…Sn, grant `contract.manage` & `labor.cost.read`, KTR-OD1, K5.
+
 ### 2026-11-26 — K4 THL: upah harian, evaluasi pengangkatan, rekap (Oatse/Claude)
 - **Dikerjakan:** seluruh checklist K4 (lihat README). Backend Codex `sol-high` 1 ronde (diff penuh dibaca); web Codex `sol-medium` 1 ronde (diff file inti dibaca). Gerbang verifikasi `cw` backend gagal karena lingkungan worktree (`@hris/shared` terbaca dari tree asli, `bun` di luar PATH) → `cw apply --force` + verifikasi ulang penuh di tree asli. Perbaikan sendiri: nominal rupiah memakai spasi tak terputus (kolom laporan terpotong "Rp / 150.000").
 - **Keputusan:** KTR-D13 (akses upah harian THL: SA + HR ber-grant `labor.cost.read`; PLAN §4.2/§4.3 diubah; label grant diperbarui).

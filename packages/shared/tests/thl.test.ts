@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { IMPORT_FIELDS, normalizeImportRow, parseDailyWage } from "../src/import/index.ts";
-import { evaluateThlAttendance, thlCurrentMonth } from "../src/thl.ts";
+import { evaluateThlAttendance, thlCurrentMonth, thlWageChangeLabel } from "../src/thl.ts";
 
 describe("THL calendar evaluation (KTR-D8/D13)", () => {
   const now = new Date("2027-01-20T00:00:00Z");
@@ -62,5 +62,20 @@ describe("THL import amount", () => {
       label: "Upah harian",
       synonyms: ["upah harian", "upah per hari", "daily wage", "upah/hari"],
     });
+  });
+});
+
+describe("thlWageChangeLabel", () => {
+  test("satu tarif dalam bulan → null", () => {
+    expect(thlWageChangeLabel([{ effectiveFrom: "2026-05-01", amount: 140000 }])).toBeNull();
+    expect(thlWageChangeLabel(undefined)).toBeNull();
+  });
+  test("tarif berubah → rentang dengan tanggal perubahan", () => {
+    expect(
+      thlWageChangeLabel([
+        { effectiveFrom: "2026-05-01", amount: 140000 },
+        { effectiveFrom: "2026-10-15", amount: 160000 },
+      ])?.replaceAll("\u00a0", " "),
+    ).toBe("Rp 140.000 → Rp 160.000 (15 Okt)");
   });
 });

@@ -1,7 +1,7 @@
 # Kontrak
 
 > **Kode prefix:** `KTR` · **Fase:** 7 (ditarik maju 2026-11-25) · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — K1 & K2 di develop (2026-11-25); **K3 (i) & K4 THL di develop 2026-11-26**; tulis staging S1…Sn dan K5 pola kerja menunggu
+> **Status:** Berjalan — K1 & K2 di develop (2026-11-25); **K1–K4 di develop 2026-11-26** (K4 `48e1741`); **K5 ditunda pengguna 2026-11-26**; tulis staging S1…Sn menunggu kata pengguna; KTR-OD1 terbuka
 
 Status kepegawaian PKWT / PKWTT / THL, tahap kontrak PKWT 1–3 & masa percobaan PKWTT, masa kerja kontrak, perpanjangan, pengangkatan, pengakhiran, pengingat kontrak habis, upah harian & evaluasi pengangkatan THL.
 
@@ -62,8 +62,9 @@ Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `co
   - [x] API `PUT /employees/{id}/daily-wage`, `thl` di respons tab Kepegawaian, `GET /employees?thlStatus=` + summary `thlStatuses`, laporan `thl-attendance-wage` + ekspor (perkiraan memakai upah yang berlaku tiap hari hadir)
   - [x] Kolom import "Upah harian" (dipindah dari K3; tanpa hak / bukan THL → peringatan)
   - [x] Web: kartu THL di tab Kepegawaian + dialog ubah upah, chip & kolom di daftar Harian Lepas (THL), tab laporan "Rekap Kehadiran & Upah THL", pratinjau & template import; saklar `FEATURES.thlEvaluation`; seed dummy `KTR-DMY-THL-REQ/APP`
+  - [x] Rekap: bila upah berubah dalam bulan itu, kolom Upah harian menampilkan rentang "Rp 140.000 → Rp 160.000 (15 Okt)" (layar) + kolom "Perubahan upah" (ekspor) (tambahan 2026-11-26: masukan supervisor atas screenshot 03)
   - [x] Screenshot `QA/2026-11-26-ktr-k4/01–03`
-- [ ] **K5** — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D35–D37; Mat dikabari dulu, wilayah TM)
+- [ ] **K5** — DITUNDA (kutipan pengguna 26 Nov 12:1x WIB via supervisor: "jika sudah selesai stop dlu di K4") — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D35–D37; Mat dikabari dulu, wilayah TM)
 
 Item lama Fase 7 (jenis kontrak, CRUD, perpanjangan, terminasi, 1 kontrak aktif + cek overlap, cron `contract-expiry`, policy + test, tab & daftar akan habis) tercakup oleh K1–K2.
 

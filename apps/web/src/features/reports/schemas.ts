@@ -257,6 +257,7 @@ export const thlReportSchema = z.object({
       presentDays: z.number(),
       pendingDays: z.number(),
       dailyWage: z.number().nullable().optional(),
+      wageSegments: z.array(z.object({ effectiveFrom: z.string(), amount: z.number() })).optional(),
       estimatedWage: z.number().nullable().optional(),
     }),
   ),

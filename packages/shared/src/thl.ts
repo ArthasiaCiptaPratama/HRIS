@@ -48,3 +48,26 @@ export const dailyWageInputSchema = z.object({
   note: z.string().trim().min(1).max(300),
 });
 export type DailyWageInput = z.infer<typeof dailyWageInputSchema>;
+
+/** Upah harian yang berlaku dalam satu bulan laporan (urut naik; pertama = yang berlaku di awal bulan). */
+export interface ThlWageSegment {
+  effectiveFrom: string;
+  amount: number;
+}
+
+const rupiah = (value: number) =>
+  `Rp\u00a0${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(value)}`;
+const dayMonth = (value: string) =>
+  new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(`${value}T00:00:00Z`),
+  );
+
+/** "Rp 140.000 → Rp 160.000 (15 Okt)" bila upah berubah dalam bulan itu; null bila tidak. */
+export function thlWageChangeLabel(segments: readonly ThlWageSegment[] | undefined): string | null {
+  if (!segments || segments.length < 2) return null;
+  return segments
+    .map((s, i) =>
+      i === 0 ? rupiah(s.amount) : `${rupiah(s.amount)} (${dayMonth(s.effectiveFrom)})`,
+    )
+    .join(" → ");
+}

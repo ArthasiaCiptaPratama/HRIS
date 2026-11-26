@@ -4,6 +4,7 @@ import {
   type EmploymentCategory,
   shiftThlMonth,
   thlCurrentMonth,
+  thlWageChangeLabel,
 } from "@hris/shared";
 import { strFromU8, unzipSync } from "fflate";
 import { z } from "zod";
@@ -339,6 +340,9 @@ const reportSchema = z.object({
         presentDays: z.number(),
         pendingDays: z.number(),
         dailyWage: z.number().nullable().optional(),
+        wageSegments: z
+          .array(z.object({ effectiveFrom: z.string(), amount: z.number() }))
+          .optional(),
         estimatedWage: z.number().nullable().optional(),
       }),
     ),
@@ -363,6 +367,11 @@ describe("THL report and export", () => {
       dailyWage: 200_000.25,
       estimatedWage: 3_700_003,
     });
+    // Upah berubah dalam bulan → segmen (awal bulan + perubahan) supaya HR paham asal perkiraan.
+    const segments = report.rows.find((r) => r.employeeId === required)?.wageSegments ?? [];
+    expect(segments).toHaveLength(2);
+    expect(segments[1]).toEqual({ effectiveFrom: `${lastMonth}-11`, amount: 200_000.25 });
+    expect(thlWageChangeLabel(segments)).toContain("(11 ");
     expect(report.note.toLowerCase()).toContain("perkiraan, bukan payroll");
     expect(report.rows.find((r) => r.employeeId === noStatus)).toMatchObject({
       dailyWage: null,
@@ -378,6 +387,7 @@ describe("THL report and export", () => {
     for (const row of redacted.rows) {
       expect(row).not.toHaveProperty("dailyWage");
       expect(row).not.toHaveProperty("estimatedWage");
+      expect(row).not.toHaveProperty("wageSegments");
     }
     const other = reportSchema.parse(
       await (
