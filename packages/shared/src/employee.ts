@@ -17,7 +17,7 @@ export const EMPLOYMENT_CATEGORY_LABELS: Record<EmploymentCategory, string> = {
   PERMANENT: "Karyawan Tetap",
   PROBATION: "Karyawan Percobaan",
   PKWT: "PKWT",
-  DAILY_WORKER: "Pekerja Harian",
+  DAILY_WORKER: "Harian Lepas (THL)",
   INTERNSHIP: "Magang",
   OUTSOURCING: "Outsourcing",
   VENDOR: "Vendor",
@@ -45,6 +45,7 @@ export const EXIT_REASONS = [
   "RESIGNATION",
   "TERMINATION",
   "CONTRACT_ENDED",
+  "PROBATION_FAILED",
   "RETIREMENT",
   "DECEASED",
   "OTHER",
@@ -56,6 +57,7 @@ export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
   RESIGNATION: "Mengundurkan diri",
   TERMINATION: "PHK",
   CONTRACT_ENDED: "Kontrak berakhir",
+  PROBATION_FAILED: "Tidak lulus masa percobaan",
   RETIREMENT: "Pensiun",
   DECEASED: "Meninggal dunia",
   OTHER: "Lainnya",
@@ -64,6 +66,7 @@ export const EXIT_REASON_LABELS: Record<ExitReason, string> = {
 export const EMPLOYMENT_CHANGE_TYPES = [
   "HIRED",
   "STATUS_CHANGED",
+  "CONTRACT_STAGE_CHANGED",
   "POSITION_CHANGED",
   "DEACTIVATED",
   "REACTIVATED",
@@ -75,6 +78,7 @@ export type EmploymentChangeType = z.infer<typeof employmentChangeTypeSchema>;
 export const EMPLOYMENT_CHANGE_LABELS: Record<EmploymentChangeType, string> = {
   HIRED: "Mulai bekerja",
   STATUS_CHANGED: "Ubah status kepegawaian",
+  CONTRACT_STAGE_CHANGED: "Pindah tahap kontrak",
   POSITION_CHANGED: "Ubah jabatan",
   DEACTIVATED: "Dinonaktifkan",
   REACTIVATED: "Diaktifkan kembali",
@@ -86,7 +90,14 @@ export const genderSchema = z.enum(GENDERS);
 export type Gender = z.infer<typeof genderSchema>;
 export const GENDER_LABELS: Record<Gender, string> = { MALE: "Laki-laki", FEMALE: "Perempuan" };
 
-export const EMPLOYEE_SORT_FIELDS = ["fullName", "employeeNumber", "joinDate", "endDate"] as const;
+export const EMPLOYEE_SORT_FIELDS = [
+  "fullName",
+  "employeeNumber",
+  "joinDate",
+  "endDate",
+  "contractStage",
+  "contractEndDate",
+] as const;
 export type EmployeeSortField = (typeof EMPLOYEE_SORT_FIELDS)[number];
 
 // D-041: status PTKP. Nilai sama dengan enum Prisma `PtkpStatus` (TK0 = "TK/0").

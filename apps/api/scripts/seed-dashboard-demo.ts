@@ -192,7 +192,7 @@ const EDUCATION: Record<Level, Partial<Record<Edu, number>>> = {
 };
 const CATEGORY: Record<Level, Record<string, number>> = {
   L0: { Magang: 100 },
-  L1B: { "Pekerja Harian": 30, Outsourcing: 28, PKWT: 26, Vendor: 8, "Karyawan Tetap": 8 },
+  L1B: { "Harian Lepas (THL)": 30, Outsourcing: 28, PKWT: 26, Vendor: 8, "Karyawan Tetap": 8 },
   L1A: {
     "Karyawan Tetap": 34,
     PKWT: 30,

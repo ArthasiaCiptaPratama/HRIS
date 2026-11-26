@@ -36,8 +36,8 @@ export function ActiveEmployeesPage() {
 
   const { showCompany } = useCompanyScope();
   const columns = useMemo(
-    () => employeeColumns("active", undefined, { showCompany }),
-    [showCompany],
+    () => employeeColumns("active", undefined, { showCompany, showPkwt: slug === "pkwt" }),
+    [showCompany, slug],
   );
   const view = findActiveView(slug);
   if (!view) {

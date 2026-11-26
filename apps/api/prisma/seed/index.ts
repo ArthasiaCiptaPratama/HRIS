@@ -1,6 +1,7 @@
 // Seed data dummy (PROMPT §6): hanya data fiktif; email memakai plus-addressing developer (PLAN §3.3).
 // Idempoten: aman dijalankan berulang (`bun run db:seed`).
 import { disconnectPrisma, getPrisma } from "../../src/core/db.ts";
+import { seedContracts } from "./contract.ts";
 import { seedEmployees } from "./employee.ts";
 import { seedOrgChart } from "./org-chart.ts";
 import { seedOrganization } from "./organization.ts";
@@ -21,6 +22,7 @@ async function main(): Promise<void> {
     `seeded employee: ${count} employees (work_email ${emailBase ? "plus-addressed" : "empty: SEED_EMAIL_BASE not set"})\n`,
   );
   // D-051: replika bentuk bagan ACP (nama fiktif) + bagan kecil CD2 — setelah karyawan dummy ada.
+  await seedContracts(prisma, org);
   const posts = await seedOrgChart(prisma, org);
   process.stdout.write(`seeded org chart: ${posts} posts\n`);
 }

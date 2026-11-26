@@ -1,9 +1,12 @@
+import type { Actor } from "../../core/access/index.ts";
+import type { StorageAdmin } from "../../core/storage.ts";
 import {
   type AnalyticsEmployeeBrief,
   type EmployeeBrief,
   type ExitedEmployeeBrief,
   getEmployeeBriefs,
   getEmployeeExitStatuses,
+  getEmployeePhotoUrls,
   getHomebasesOn,
   listActiveEmployeeJoinDates,
   listAnalyticsEmployees,
@@ -263,4 +266,15 @@ export async function homebasesOn(
       hb ? { homebaseId: hb.homebaseId, name: hb.name } : null,
     ]),
   );
+}
+
+/**
+ * TM-D33: URL foto profil (bertanda tangan, singkat) per karyawan — hanya yang juga ditampilkan Personnel
+ * Management ke aktor yang sama (aturan di modul employee). Bukan selfie absen.
+ */
+export function photoUrlsOf(
+  ctx: { actor: Actor; storage: StorageAdmin },
+  employeeIds: string[],
+): Promise<Map<string, string>> {
+  return getEmployeePhotoUrls(ctx, employeeIds);
 }

@@ -18,8 +18,14 @@ import { useMe } from "@/features/auth/api";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { access } from "@/lib/access";
 import { formatDate } from "@/lib/format";
-import { type EmployeeListParams, useCompanyScope, useEmployees, useMasterData } from "../api";
-import { tenure } from "../labels";
+import {
+  type EmployeeListParams,
+  useCompanyScope,
+  useEmployeeSummary,
+  useEmployees,
+  useMasterData,
+} from "../api";
+import { tenure, todayIso } from "../labels";
 import type { EmployeeListItem } from "../schemas";
 import { EmployeeAvatar } from "./employee-avatar";
 import { ExitReasonBadge, StatusBadge } from "./status-badge";
@@ -32,7 +38,7 @@ export type ListVariant = "active" | "inactive";
 export function employeeColumns(
   variant: ListVariant,
   action?: (row: EmployeeListItem) => ReactNode,
-  options: { showCompany?: boolean } = {},
+  options: { showCompany?: boolean; showPkwt?: boolean; showRemaining?: boolean } = {},
 ): DataColumn<EmployeeListItem>[] {
   const columns: DataColumn<EmployeeListItem>[] = [
     helper.display({
@@ -85,6 +91,60 @@ export function employeeColumns(
       ),
     }) as DataColumn<EmployeeListItem>,
   ];
+
+  if (variant === "active" && options.showPkwt) {
+    columns.push(
+      helper.display({
+        id: "contractStage",
+        header: "Tahap",
+        meta: { sortKey: "contractStage", className: "whitespace-nowrap" },
+        cell: ({ row }) =>
+          row.original.employmentStatus.category === "PROBATION"
+            ? "Masa Percobaan"
+            : row.original.contractStage === null
+              ? "Belum diisi"
+              : `PKWT ${row.original.contractStage}`,
+      }) as DataColumn<EmployeeListItem>,
+      helper.display({
+        id: "contractEndDate",
+        header: "Akhir kontrak",
+        meta: { sortKey: "contractEndDate", className: "whitespace-nowrap" },
+        cell: ({ row }) => {
+          const endDate = row.original.contractEndDate;
+          const days = endDate
+            ? Math.round((Date.parse(endDate) - Date.parse(todayIso())) / 86_400_000)
+            : null;
+          return (
+            <span
+              className={
+                days === null
+                  ? "text-muted-foreground"
+                  : days <= 30
+                    ? "text-red-700"
+                    : days <= 60
+                      ? "text-amber-700"
+                      : "text-green-700"
+              }
+            >
+              {formatDate(endDate)}
+              {/* KTR-D5 (K2): sisa hari & tanda lewat di daftar "Kontrak akan habis". */}
+              {options.showRemaining && days !== null ? (
+                <span className="block text-xs">
+                  {days < 0
+                    ? row.original.employmentStatus.category === "PROBATION"
+                      ? `Masa percobaan lewat ${-days} hari`
+                      : `Kontrak lewat ${-days} hari`
+                    : days === 0
+                      ? "Berakhir hari ini"
+                      : `${days} hari lagi`}
+                </span>
+              ) : null}
+            </span>
+          );
+        },
+      }) as DataColumn<EmployeeListItem>,
+    );
+  }
 
   // D-040: kolom perusahaan hanya bila pengguna melihat lebih dari satu PT.
   if (options.showCompany) {
@@ -211,9 +271,15 @@ export function useListParams(defaults: { sort: string }) {
     homebaseId: get("hb"),
     missingNumber: get("nip") === "kosong",
     managerWithoutAccount: get("managerWithoutAccount") === "true",
+    pkwtStage: parsePkwtStage(get("tahap")),
     sort: get("sort") || defaults.sort,
     update,
   };
+}
+
+function parsePkwtStage(value: string): EmployeeListParams["pkwtStage"] {
+  if (value === "belum") return "NONE";
+  return value === "1" || value === "2" || value === "3" ? value : undefined;
 }
 
 /** EMP-D7: filter yang sama untuk tabel dan ekspor; paginasi bukan bagian cakupan. */
@@ -221,8 +287,10 @@ export function employeeListFilter(
   list: Pick<
     ReturnType<typeof useListParams>,
     "q" | "departmentId" | "workLocationId" | "homebaseId" | "missingNumber" | "sort"
-  >,
-  view: Pick<EmployeeListParams, "active" | "category" | "group" | "companyId">,
+  > &
+    Partial<Pick<ReturnType<typeof useListParams>, "pkwtStage">>,
+  view: Pick<EmployeeListParams, "active" | "category" | "group" | "companyId"> &
+    Partial<Pick<EmployeeListParams, "contractEndsWithin">>,
 ): Omit<EmployeeListParams, "page" | "pageSize"> {
   return {
     ...view,
@@ -231,6 +299,7 @@ export function employeeListFilter(
     workLocationId: list.workLocationId || undefined,
     homebaseId: list.homebaseId || undefined,
     missingNumber: list.missingNumber || undefined,
+    pkwtStage: view.active && view.category === "PKWT" ? list.pkwtStage : undefined,
     sort: list.sort,
   };
 }
@@ -245,6 +314,8 @@ export function EmployeeListView({
   emptyDescription,
   emptyAction,
   toolbarExtra,
+  contractEndsWithin,
+  defaultSort,
 }: {
   variant: ListVariant;
   category?: EmploymentCategory | undefined;
@@ -255,10 +326,17 @@ export function EmployeeListView({
   emptyDescription?: ReactNode;
   emptyAction?: ReactNode;
   toolbarExtra?: ReactNode;
+  /** KTR-D5 (K2): hanya kontrak aktif yang berakhir ≤ N hari lagi (termasuk yang lewat). */
+  contractEndsWithin?: number | undefined;
+  defaultSort?: string | undefined;
 }) {
-  const list = useListParams({ sort: variant === "active" ? "fullName:asc" : "endDate:desc" });
+  const list = useListParams({
+    sort: defaultSort ?? (variant === "active" ? "fullName:asc" : "endDate:desc"),
+  });
   const me = useMe().data;
   const master = useMasterData();
+  const isPkwt = variant === "active" && category === "PKWT";
+  const summary = useEmployeeSummary(isPkwt);
   const { selectedId: companyId } = useCompanyScope();
   const [search, setSearch] = useState(list.q);
   const debounced = useDebouncedValue(search, 300);
@@ -299,9 +377,10 @@ export function EmployeeListView({
           workLocationId: list.workLocationId,
           homebaseId: list.homebaseId,
           missingNumber: list.missingNumber,
+          pkwtStage: list.pkwtStage,
           sort: list.sort,
         },
-        { active: variant === "active", category, group, companyId },
+        { active: variant === "active", category, group, companyId, contractEndsWithin },
       ),
     }),
     [
@@ -312,11 +391,13 @@ export function EmployeeListView({
       list.workLocationId,
       list.homebaseId,
       list.missingNumber,
+      list.pkwtStage,
       list.managerWithoutAccount,
       list.sort,
       category,
       group,
       companyId,
+      contractEndsWithin,
       variant,
     ],
   );
@@ -447,6 +528,7 @@ export function EmployeeListView({
                   hb: null,
                   nip: null,
                   managerWithoutAccount: null,
+                  tahap: null,
                 });
               }}
             >
@@ -456,6 +538,44 @@ export function EmployeeListView({
           {toolbarExtra}
         </div>
       </div>
+
+      {isPkwt ? (
+        // KTR-D2 revisi: filter tahap PKWT dari kontrak aktif; jumlah dari summary `pkwtStages`.
+        <fieldset
+          aria-label="Filter Tahap"
+          className="m-0 flex min-w-0 flex-wrap items-center gap-2 border-0 border-b p-3 sm:px-4"
+        >
+          <legend className="sr-only">Filter Tahap</legend>
+          <span className="text-muted-foreground text-sm">Tahap</span>
+          {(
+            [
+              { value: undefined, label: "Semua", count: summary.data?.active.byCategory.PKWT },
+              { value: "1", label: "PKWT 1", count: summary.data?.active.pkwtStages.stage1 },
+              { value: "2", label: "PKWT 2", count: summary.data?.active.pkwtStages.stage2 },
+              { value: "3", label: "PKWT 3", count: summary.data?.active.pkwtStages.stage3 },
+              {
+                value: "NONE",
+                label: "Tahap belum diisi",
+                count: summary.data?.active.pkwtStages.none,
+              },
+            ] as const
+          ).map((chip) => (
+            <Button
+              key={chip.label}
+              size="sm"
+              variant={list.pkwtStage === chip.value ? "brand" : "outline"}
+              aria-pressed={list.pkwtStage === chip.value}
+              className="rounded-full"
+              onClick={() =>
+                list.update({ tahap: chip.value === "NONE" ? "belum" : (chip.value ?? null) })
+              }
+            >
+              {chip.label}{" "}
+              <span className="font-mono text-xs tabular-nums">{chip.count ?? "·"}</span>
+            </Button>
+          ))}
+        </fieldset>
+      ) : null}
 
       <DataTable
         label="Daftar karyawan"

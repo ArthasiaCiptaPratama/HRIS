@@ -3,8 +3,8 @@
 - **Area:** Absensi & punch (absen masuk/pulang/istirahat, absen manual HR, Data Absen Harian, lokasi absen per karyawan, cron `attendance-daily`)
 - **Fitur:** Time Management — [docs/features/time-management/README.md](../../../../docs/features/time-management/README.md)
 - **Modul:** `apps/api/src/modules/attendance/` · `apps/web/src/features/time-management/`
-- **diverifikasi:** 464f923 2026-11-24
-- **Jalur yang dipantau:** `apps/api/src/modules/attendance/attendance.service.ts` `apps/api/src/modules/attendance/attendance.policy.ts` `apps/api/src/modules/attendance/attendance-engine.ts` `apps/api/src/modules/attendance/attendance.repository.ts` `apps/api/src/modules/attendance/attendance.contract.ts` `apps/api/src/modules/attendance/attendance-day.routes.ts` `apps/api/src/modules/attendance/location-setting.service.ts` `apps/api/src/modules/attendance/location-setting.routes.ts` `apps/api/src/modules/attendance/alpha.service.ts` `apps/api/src/modules/attendance/normal-pending.service.ts` `apps/api/src/modules/attendance/index.ts` `packages/shared/src/time-management.ts` `apps/web/src/features/time-management/api.ts` `apps/web/src/features/time-management/capture.ts` `apps/web/src/features/time-management/pages/absen-page.tsx` `apps/web/src/features/time-management/components/install-banner.tsx` `apps/web/src/lib/standalone.ts` `apps/web/src/features/time-management/pages/attendance-days-page.tsx` `apps/web/src/features/time-management/pages/location-settings-page.tsx` `apps/api/tests/integration/time-management/`
+- **diverifikasi:** 73f52bb 2026-11-25
+- **Jalur yang dipantau:** `apps/api/src/modules/attendance/attendance.service.ts` `apps/api/src/modules/attendance/attendance.policy.ts` `apps/api/src/modules/attendance/attendance-engine.ts` `apps/api/src/modules/attendance/attendance.repository.ts` `apps/api/src/modules/attendance/attendance.contract.ts` `apps/api/src/modules/attendance/attendance-day.routes.ts` `apps/api/src/modules/attendance/location-setting.service.ts` `apps/api/src/modules/attendance/location-setting.routes.ts` `apps/api/src/modules/attendance/alpha.service.ts` `apps/api/src/modules/attendance/normal-pending.service.ts` `apps/api/src/modules/attendance/index.ts` `packages/shared/src/time-management.ts` `apps/web/src/features/time-management/api.ts` `apps/web/src/features/time-management/capture.ts` `apps/web/src/features/time-management/pages/absen-page.tsx` `apps/web/src/features/time-management/components/install-banner.tsx` `apps/web/src/lib/standalone.ts` `apps/web/src/features/time-management/pages/attendance-days-page.tsx` `apps/api/src/modules/attendance/attendance-people.service.ts` `apps/api/src/modules/attendance/attendance-people.contract.ts` `apps/web/src/features/time-management/components/attendance-day-detail.tsx` `apps/web/src/features/time-management/components/attendance-people-view.tsx` `apps/web/src/features/time-management/components/attendance-person-dialog.tsx` `apps/web/src/features/time-management/components/load-more-sentinel.tsx` `apps/web/src/features/time-management/pages/location-settings-page.tsx` `apps/api/tests/integration/time-management/`
 
 ## Ringkasan
 Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `precheck` → unggah selfie → `punch` (IN/OUT/BREAK_START/BREAK_END). Waktu selalu dari server. Engine menghitung jendela shift, label (Telat, Pulang cepat, Di luar radius, dst.) dan alasan wajib. Tanpa label → punch langsung `APPROVED` (EMP-D9); berlabel → approval ATTENDANCE_PUNCH (lihat `tm-approval.md`). HR/SA bisa input manual dan melihat Data Absen Harian; atasan melihat timnya. Koreksi/Alpha/tutup periode: `tm-rekap.md`; shift/roster: `tm-jadwal.md`; lembur: `tm-lembur.md`.
@@ -21,6 +21,7 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 - `TM-D25` — alasan opsional untuk `LOW_ACCURACY` & Clock In lembur hari libur ber-SPL (`LABELS_WITHOUT_REASON`).
 - `TM-D26` — wajib absen pulang (`requireCheckOut`, bawaan nyala): lewat batas → Alpha `NO_CHECKOUT_ALPHA`; pulang di luar kantor ke-1/2 per bulan (`freeOutsideCheckOutsPerMonth`) auto-disetujui.
 - `TM-D31` — ekspor Excel data absen (`/attendance/days/export`, tanpa selfie/koordinat); detail di `tm-rekap.md`.
+- `TM-D33` — Data Absen Harian punya switch "Per hari (lama) | Per karyawan (baru)" (diingat per pengguna di localStorage); tampilan baru = kartu per karyawan yang pernah absen (`GET /attendance/people`) + dialog riwayat; foto kartu = foto profil Personnel Management bila aturan `canViewEmployee` mengizinkan, selain itu inisial (tidak pernah selfie absen).
 - `TM-D32` — Absen bisa dipasang ke layar utama; mode "hanya Absen" HANYA saat `display-mode: standalone` (dibuka dari ikon); browser HP/desktop web tetap utuh tanpa pengalihan. Nama "Akselerasi Arthasia" / `short_name` "Akselerasi".
 - `MOB-D3/D22` — kanal APP/PWA (`X-App-Version`), label `MOCK_LOCATION`, `Idempotency-Key` pada punch.
 
@@ -29,6 +30,8 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 ### API — `apps/api/src/modules/attendance/`
 | Lapisan | File | Simbol penting |
 |---|---|---|
+| Service | `attendance-people.service.ts` | `listAttendancePeople` (TM-D33; groupBy hari ber-punch per karyawan, urut `lastWorkDate` lalu id, foto lewat `directory.photoUrlsOf`) |
+| Contract/Zod | `attendance-people.contract.ts` | `attendancePeopleQuerySchema`, `attendancePersonSchema`, `attendancePeoplePageSchema` (`assertExact`) |
 | Routes | `attendance-day.routes.ts` | `ROUTES`, `registerAttendanceDayRoutes` (me/today, precheck, selfie-upload, punch, punches/{id}/cancel, manual, me/history, days, days/export, days/{id}) |
 | Routes | `location-setting.routes.ts` | `registerLocationSettingRoutes` |
 | Policy | `attendance.policy.ts` | `canManageRoster`, `canManageAttendanceLocation`, `canSetEmployeeAttendanceLocation`, `canListAttendanceDays`, `canListAttendanceInbox`, `canListEmployeeAttendanceDays`, `canViewEmployeeRoster`, `canExportAttendance` |
@@ -51,14 +54,18 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 | Jenis | File | Simbol penting |
 |---|---|---|
 | Halaman HP | `pages/absen-page.tsx` | `AbsenHome`, `MobileShell`, `PunchFlow`, `TodayCard`, `BreakButton`, `PunchRow` |
-| Halaman | `pages/attendance-days-page.tsx` | `AttendanceDaysPage`, `PunchPanel`, `BulkDialog`, `ManualDialog`, `DayDialog` |
+| Halaman | `pages/attendance-days-page.tsx` | `AttendanceDaysPage`, `BulkDialog`, `DayDialog`, `PunchCell` (switch tampilan lewat `useAbsenView`) |
+| Komponen | `components/attendance-day-detail.tsx` | `DayDetailBody`, `PunchPanel`, `BreakLine`, `ManualDialog`, `KINDS`, `KIND_TEXT`, `isDecidable`, `punchOf` (dipindah dari halaman, dipakai `DayDialog` + dialog per karyawan) |
+| Komponen | `components/attendance-people-view.tsx` | `AttendancePeopleView`, `PersonCard`, `PersonAvatar`, `AbsenViewSwitch`, `useAbsenView` (kunci `tm.absenHarian.view.<userId>`) |
+| Komponen | `components/attendance-person-dialog.tsx` | `AttendancePersonDialog` (riwayat per jendela 14 hari, hanya hari ber-punch IN/OUT) |
+| Komponen | `components/load-more-sentinel.tsx` | `LoadMoreSentinel` (IntersectionObserver + tombol cadangan) |
 | Halaman | `pages/location-settings-page.tsx` | `LocationSettingsPage`, `LocationDialog` |
 | Komponen | `components/install-banner.tsx` | `InstallBanner` (TM-D32: `beforeinstallprompt` Android, petunjuk iPhone, ditutup via localStorage) |
 | Lib | `apps/web/src/lib/standalone.ts` | `isStandalone`, `useStandalone`, `isAbsenPath`, `openInBrowser`, `webLinkClick`, `getInstallPrompt`/`takeInstallPrompt`/`subscribeInstallPrompt` (penangkap `beforeinstallprompt` sejak bundel awal) |
 | Guard/Auth | `features/auth/components/guards.tsx`, `features/auth/pages/login-page.tsx` | `RequireAuth` (pengalihan standalone), `StandaloneNoEmployee`, `safeNext(next, standalone)` |
 | PWA statis | `apps/web/index.html`, `apps/web/public/absen.webmanifest`, `public/pwa/absen-{180,192,512,maskable-512}.png` | tag manifest/apple/theme-color; `name`/`short_name`, `id`/`start_url` `/absen` |
 | Komponen | `components/display.tsx`, `components/selfie-thumb.tsx` | `LabelChips`, `ApprovalSteps`, `DayStatusBadge`, `SelfieThumb` |
-| Hook/API | `api.ts`, `location-api.ts`, `capture.ts` | `useToday`, `usePrecheck`, `usePunch`, `useCancelPunch`, `useManualPunch`, `useAttendanceDays`, `useAttendanceDay`, `useSetLocationSettings`, `compressSelfie`, `stampSelfie` |
+| Hook/API | `api.ts`, `location-api.ts`, `capture.ts` | `useToday`, `usePrecheck`, `usePunch`, `useCancelPunch`, `useManualPunch`, `useAttendanceDays`, `useAttendanceDay`, `useAttendancePeople`, `useAttendanceHistory`, `hasInOutPunch`, `useSetLocationSettings`, `compressSelfie`, `stampSelfie` |
 | Akses UI | `access.ts` | `tmAccess.punch`, `tmAccess.reviewDays`, `tmAccess.manageAttendanceLocations`, `tmAccess.absenHome` |
 | Saklar fitur | `apps/web/src/app/feature-flags.ts` | `tmAbsen`, `tmAttendanceDays` (jalur rilis: jangan diubah di jalur ini) |
 
@@ -67,7 +74,7 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 |---|---|
 | API integration | `apps/api/tests/integration/time-management/attendance.test.ts` (alur punch, label, hari), `punch-window.test.ts` (TM-D12), `require-checkout.test.ts` (TM-D26), `mobile-punch.test.ts` (APP/idempotensi), `location-setting.test.ts` (TM-D1), `auto-approve.test.ts` (EMP-D9), `alpha.test.ts`, `midnight.test.ts`, `shift-instance.test.ts`, `timezone.test.ts` |
 | API unit | `apps/api/src/modules/attendance/__tests__/attendance-engine.test.ts`, `shift-instance.test.ts`, `midnight.test.ts`, `self-management.policy.test.ts` |
-| Web | `apps/web/tests/punch-window.test.tsx`, `punch-channel-note.test.tsx`, `attendance-days-search.test.tsx`, `attendance-locations.test.tsx`, `employee-absen-home.test.tsx`, `absen-standalone.test.tsx` (TM-D32: kedua sisi standalone/browser), `absen-install-banner.test.tsx` |
+| Web | `apps/web/tests/attendance-people.test.tsx` (TM-D33), `apps/web/tests/punch-window.test.tsx`, `punch-channel-note.test.tsx`, `attendance-days-search.test.tsx`, `attendance-locations.test.tsx`, `employee-absen-home.test.tsx`, `absen-standalone.test.tsx` (TM-D32: kedua sisi standalone/browser), `absen-install-banner.test.tsx` |
 
 ## Endpoint → policy → siapa
 | Method & path | Fungsi policy | Siapa boleh |
@@ -77,6 +84,7 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 | `POST /attendance/punches/{id}/cancel` | `canCancelPunch` (service) | pemilik punch, ≤ 15 mnt, belum diputuskan |
 | `POST /attendance/manual` | `canManageRoster` + larangan diri sendiri | SA; HR PT-nya (bukan untuk dirinya) |
 | `GET /attendance/days` | `canListAttendanceInbox` (scope inbox) / `canListAttendanceDays` (+ `canListEmployeeAttendanceDays` bila `employeeId`) | inbox: SA/HR/atasan; semua: SA, HR PT, MANAGER tertaut (tim) |
+| `GET /attendance/people` (TM-D33, web saja) | `canListAttendancePeople` (sama dengan `listDays` scope=all) | SA; HR PT; MANAGER tertaut (bawahan langsung); lainnya 403 |
 | `GET /attendance/days/{id}` | `canViewEmployeeRoster` (tak berhak → 404) | SA, HR PT, atasan langsung, pemilik |
 | `POST /attendance/days/export` | `canExportAttendance` | SA; HR PT; MANAGER tertaut (bawahan) |
 | `GET/PUT /attendance-locations` | `canManageAttendanceLocation` / `canSetEmployeeAttendanceLocation` | SA; HR PT-nya (HR tak boleh ubah lokasinya sendiri; batch berisi HR self ditolak) |
@@ -104,6 +112,10 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 - File: `attendance.service.ts` (`manualPunch`), `attendance.policy.ts` (`canManageRoster`), shared `manualPunchInputSchema`, web `ManualDialog`
 - Test yang diperluas: `attendance.test.ts`, `auto-approve.test.ts`
 
+### R6. Mengubah kartu / riwayat tampilan "Per karyawan" (TM-D33)
+- File: API `attendance-people.service.ts`, `attendance-people.contract.ts` (+ `assertExact`), `attendance.repository.ts` (`peopleWithPunches`, `daysForPeople`), `directory.ts` `photoUrlsOf`; web `api.ts` (`attendancePersonSchema` lokal, `useAttendancePeople`, `useAttendanceHistory`), `attendance-people-view.tsx`, `attendance-person-dialog.tsx`
+- Test yang diperluas: API `tests/integration/time-management/attendance-people.test.ts`, `__tests__/attendance-people.policy.test.ts`; web `attendance-people.test.tsx`
+
 ## Cek & test area ini
 - `bun run typecheck && bunx biome ci . && bun run check:boundaries`
 - API: `<prefix lokal> bun run db:which && <prefix lokal> bun run --cwd apps/api test <file>` (baca output `db:which`: harus lokal `hris`)
@@ -115,6 +127,10 @@ Karyawan (akun tertaut karyawan) absen lewat PWA `/absen` atau app Android: `pre
 - kartu ini + barisnya di `kartu/INDEX.md`
 
 ## Jebakan
+- TM-D33 foto kartu: hanya `photoUrl` dari API (foto profil Personnel Management, URL bertanda tangan ±10 mnt, hanya bila `canViewEmployee` mengizinkan); null/gagal muat → inisial. Jangan pernah memakai `selfieUrl` absen sebagai foto kartu.
+- TM-D33 pindah PT: HR PT lama bisa melihat kartu karyawan yang sudah pindah (snapshot PT hari absen), tetapi `GET /attendance/days?employeeId=` memberi 403 → dialog menampilkan "Riwayat absen karyawan ini tidak dapat dibuka dari cakupan Anda."
+- TM-D33 riwayat: per `employeeId` API TIDAK menyaring Alpha tanpa punch (TM-D11 hanya tanpa `employeeId`), jadi web menyaring hari tanpa punch IN/OUT (`hasInOutPunch`). Tiap jendela memanggil `markNoAttendanceAlpha` untuk karyawan itu (terbatas 2026-10-01 s.d. hari ini, tak bergantung jendela). Jendela berhenti saat `to` < `firstWorkDate` (dari `/attendance/people`). Pemuat bertahap memakai IntersectionObserver; di jsdom tidak ada, jadi test memakai tombol cadangan.
+- TM-D33: kelas "naik" kartu = `motion-safe:hover:-translate-y-1` + `motion-safe:focus-visible:-translate-y-1` (+ `motion-reduce:transition-none`); jangan hapus (dites).
 - TM-D32: pengalihan standalone ada di `RequireAuth` (bukan `DashboardPage`); `/onboarding` dikecualikan (terkunci ↔ `/absen` akan berputar). `isStandalone()` dibaca tiap panggilan; di test stub `matchMedia`. Tag manifest/theme-color statis di `index.html`: jangan suntik lagi dari `usePwaInstall` (hanya daftar SW). Tautan ke halaman web dari dalam `/absen` wajib lewat `webLinkClick` (tile non-`/absen` otomatis; `CompleteDataBanner` ke `/onboarding` juga). `beforeinstallprompt` harus ditangkap di `lib/standalone.ts` (diimpor `guards.tsx`), bukan di chunk `/absen`. iOS tidak bisa keluar ke Safari secara pasti.
 - `GET /attendance/days` (+ `/{id}`, me/today, me/history, precheck, punch, cancel) adalah kontrak mobile: `APP_OPERATION_IDS` di `apps/api/src/core/openapi.ts`; ubah path/bentuk respons = ubah map + kabari tim mobile; `attendance.contract.ts` memakai `assertExact` ke tipe service.
 - `/attendance/manual`, `/attendance/days/export` dan `/attendance-locations` hanya web (tidak ada di `APP_OPERATION_IDS`).
