@@ -26,11 +26,13 @@ import { todayIso } from "../labels";
 import type { EmployeeDetail } from "../schemas";
 import { type ContractDialogAction, EmploymentContractDialog } from "./employment-contract-dialog";
 import { StatusBadge } from "./status-badge";
-import { DailyWageDialog, ThlAttendanceStat, ThlStatusBadge, ThlWageStat } from "./thl-section";
+import { DailyWageDialog, ThlAttendanceBoxes, ThlStreakChip, ThlWageInfo } from "./thl-section";
 
 function duration(value: ReturnType<typeof tenure>) {
-  // Di bawah satu bulan tampilkan hari supaya tidak terbaca "0 th 0 bln".
+  // Di bawah satu bulan tampilkan hari; bagian nol tidak ditulis ("6 bln", bukan "0 th 6 bln", 2026-11-26).
   if (value.years === 0 && value.months === 0) return `${value.days} hari`;
+  if (value.years === 0) return `${value.months} bln`;
+  if (value.months === 0) return `${value.years} th`;
   return `${value.years} th ${value.months} bln`;
 }
 
@@ -228,12 +230,9 @@ export function EmploymentContractSection({
         ),
       });
   }
-  if (thl) {
-    stats.push({ label: "Hari hadir 3 bulan terakhir", content: <ThlAttendanceStat thl={thl} /> });
-    if (wageAccess) stats.push({ label: "Upah harian", content: <ThlWageStat thl={thl} /> });
-  }
+  if (thl && wageAccess) stats.push({ label: "Upah harian", content: <ThlWageInfo thl={thl} /> });
   stats.push({
-    label: "Masa kerja di perusahaan",
+    label: thl ? "Masa kerja" : "Masa kerja di perusahaan",
     content: (
       <>
         <p className="mt-1 text-base font-semibold">{duration(data.companyTenure)}</p>
@@ -314,12 +313,7 @@ export function EmploymentContractSection({
             </span>
           </>
         ) : null}
-        {thl ? <ThlStatusBadge status={thl.evaluation.status} /> : null}
-        {thl?.evaluation.status === "REQUIRED" ? (
-          <span className="text-destructive text-xs">
-            PP 35/2021 Ps. 10: ≥ 21 hari hadir 3 bulan berturut-turut
-          </span>
-        ) : null}
+        {thl ? <ThlStreakChip thl={thl} /> : null}
         {onOpenHistory && data.contracts.length ? (
           <Button
             variant="link"
@@ -331,6 +325,15 @@ export function EmploymentContractSection({
           </Button>
         ) : null}
       </div>
+
+      {thl ? (
+        <>
+          <p className="text-muted-foreground -mt-2 text-xs">
+            Diangkat PKWTT bila hadir ≥ 21 hari, 3 bulan berturut-turut (PP 35/2021 Ps. 10).
+          </p>
+          <ThlAttendanceBoxes thl={thl} joinDate={data.joinDate} />
+        </>
+      ) : null}
 
       {needsContract && !active ? (
         <div className="flex flex-wrap items-center gap-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">
@@ -345,8 +348,14 @@ export function EmploymentContractSection({
 
       <dl
         className={cn(
-          "bg-muted/60 divide-border grid grid-cols-1 divide-y rounded-lg sm:divide-x sm:divide-y-0",
-          STAT_COLUMNS[Math.min(stats.length, 3)],
+          "bg-muted/60 divide-border grid rounded-lg",
+          // Kartu THL: info ringkas 2 kolom juga di HP.
+          thl
+            ? "grid-cols-2 divide-x"
+            : cn(
+                "grid-cols-1 divide-y sm:divide-x sm:divide-y-0",
+                STAT_COLUMNS[Math.min(stats.length, 3)],
+              ),
         )}
       >
         {stats.map((stat) => (

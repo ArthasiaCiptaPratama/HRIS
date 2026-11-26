@@ -1,4 +1,4 @@
-import { evaluateThlAttendance, THL_STATUS_LABELS, type ThlStatus } from "@hris/shared";
+import { evaluateThlAttendance, type ThlStatus } from "@hris/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -275,7 +275,9 @@ describe("Kepegawaian kontrak K1", () => {
     expect(screen.getByText("Masa kerja di perusahaan")).toBeVisible();
     expect(screen.getByText("Masa kerja PKWTT")).toBeVisible();
     expect(screen.getByText(/6 th 10 bln/)).toBeVisible();
-    expect(screen.getByText(/0 th 10 bln/)).toBeVisible();
+    // Bagian nol tidak ditulis: "10 bln", bukan "0 th 10 bln" (2026-11-26).
+    expect(screen.getByText("10 bln")).toBeVisible();
+    expect(screen.queryByText(/0 th/)).not.toBeInTheDocument();
     // Kontrak lama hanya di tab Riwayat; tanpa aksi kontrak untuk Karyawan Tetap.
     expect(screen.queryByText("Dijadikan Karyawan Tetap")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -557,14 +559,34 @@ describe("K4 THL", () => {
     "kartu %s: tiga bulan penuh dan bulan berjalan",
     async (status) => {
       await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl(status) });
-      expect(screen.getByText(THL_STATUS_LABELS[status])).toBeVisible();
-      for (const month of ["Agu 2026", "Sep 2026", "Okt 2026"])
-        expect(screen.getByText(month)).toBeVisible();
-      expect(screen.getByText("2 menunggu persetujuan")).toBeVisible();
-      expect(screen.getByText(/Bulan berjalan.*Nov 2026/)).toBeVisible();
+      // Chip: status + n/3 bulan (kartu THL disetujui pengguna 2026-11-26).
+      const chip = document.querySelector("[data-status]") as HTMLElement;
+      expect(chip).toHaveAttribute("data-status", status);
+      expect(chip).toHaveTextContent(
+        {
+          REQUIRED: "Wajib diangkat PKWTT · 3/3 bulan",
+          APPROACHING: "Mendekati batas · 2/3 bulan",
+          NONE: "0/3 bulan",
+        }[status],
+      );
+      expect(screen.getByText(/Diangkat PKWTT bila hadir ≥ 21 hari/)).toBeVisible();
+      const boxes = within(screen.getByRole("region", { name: "Kehadiran" })).getAllByRole(
+        "listitem",
+      );
+      const counts = { REQUIRED: [22, 22, 22], APPROACHING: [14, 21, 22], NONE: [10, 10, 10] };
+      expect(boxes.map((box) => box.getAttribute("aria-label"))).toEqual([
+        `Agu 2026: ${counts[status][0]} hari hadir`,
+        `Sep 2026: ${counts[status][1]} hari hadir`,
+        `Okt 2026: ${counts[status][2]} hari hadir`,
+        "Nov 2026 (berjalan): 0 hari hadir",
+      ]);
+      expect(within(boxes[2] as HTMLElement).getByText("+2 tunggu")).toBeVisible();
+      expect(within(boxes[3] as HTMLElement).getByText("berjalan")).toBeVisible();
+      expect(boxes[3]).toHaveClass("border-dashed");
       expect(screen.getByText("Rp 150.000")).toBeVisible();
+      expect(screen.getByText("Masa kerja")).toBeVisible();
+      expect(screen.getByText("6 th 10 bln")).toBeVisible();
       if (status === "REQUIRED") {
-        expect(screen.getByText(/PP 35\/2021 Ps. 10/)).toBeVisible();
         // Opsi A: aksi utama tetap warna brand; urgensi lewat badge merah "Wajib diangkat PKWTT".
         expect(screen.getByRole("button", { name: "Jadikan Karyawan Tetap" })).toHaveAttribute(
           "data-variant",
@@ -578,7 +600,24 @@ describe("K4 THL", () => {
     expect(screen.queryByText(/Upah harian/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Rp /)).not.toBeInTheDocument();
     expect(screen.queryByText(/tersembunyi/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Mendekati batas")).toBeVisible();
+    expect(screen.getByText("Mendekati batas · 2/3 bulan")).toBeVisible();
+  });
+  it("bulan sebelum tanggal masuk tampil – dan tidak dinilai; riwayat upah lewat popover", async () => {
+    await card("DAILY_WORKER", {
+      contracts: [],
+      tier: "THL",
+      joinDate: "2026-09-20",
+      thl: thl("REQUIRED"),
+    });
+    const boxes = within(screen.getByRole("region", { name: "Kehadiran" })).getAllByRole(
+      "listitem",
+    );
+    expect(boxes[0]).toHaveAttribute("aria-label", "Agu 2026: sebelum tanggal masuk");
+    expect(within(boxes[0] as HTMLElement).getByText("–")).toBeVisible();
+    expect(boxes[1]).toHaveAttribute("aria-label", "Sep 2026: 22 hari hadir");
+    await userEvent.click(screen.getByRole("button", { name: "Riwayat →" }));
+    expect(await screen.findByText("Riwayat upah harian")).toBeVisible();
+    expect(screen.getByText("Penetapan")).toBeVisible();
   });
   it("dialog memvalidasi, PUT upah, lalu menyegarkan kartu", async () => {
     await card("DAILY_WORKER", { contracts: [], tier: "THL", thl: thl() });

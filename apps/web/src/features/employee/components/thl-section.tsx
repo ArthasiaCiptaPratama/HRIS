@@ -1,19 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  type DailyWageInput,
-  dailyWageInputSchema,
-  THL_STATUS_LABELS,
-  type ThlStatus,
-} from "@hris/shared";
+import { type DailyWageInput, dailyWageInputSchema, type ThlStatus, thlStreak } from "@hris/shared";
+import { Check } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useSetDailyWage } from "../api";
 import type { ThlDetails } from "../contract-schemas";
 import { todayIso } from "../labels";
@@ -29,72 +26,171 @@ export const formatThlMonth = (month: string) =>
     timeZone: "Asia/Jakarta",
   }).format(new Date(`${month}-01T00:00:00Z`));
 
-export function ThlStatusBadge({ status }: { status: ThlStatus }) {
+const STATUS_CHIP: Record<ThlStatus, { label: string; className: string }> = {
+  REQUIRED: {
+    label: "Wajib diangkat PKWTT",
+    className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-200",
+  },
+  APPROACHING: {
+    label: "Mendekati batas",
+    className: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  },
+  NONE: { label: "", className: "bg-muted text-muted-foreground" },
+};
+
+/** Chip status kartu THL (2026-11-26, "setuju kartu THL"): status + n/3 bulan, warna sama dengan tabel. */
+export function ThlStreakChip({ thl }: { thl: ThlDetails }) {
+  const { status, months } = thl.evaluation;
+  const chip = STATUS_CHIP[status];
+  const streak = `${thlStreak(months)}/3 bulan`;
   return (
-    <Badge
-      variant={
-        status === "REQUIRED" ? "destructive" : status === "APPROACHING" ? "warning" : "muted"
-      }
+    <span
+      data-status={status}
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+        chip.className,
+      )}
     >
-      {THL_STATUS_LABELS[status]}
-    </Badge>
+      {chip.label ? `${chip.label} · ${streak}` : streak}
+    </span>
   );
 }
 
-/** Isi sel "Hari hadir 3 bulan terakhir" di kartu Status kepegawaian (Opsi A, 2026-11-26). */
-export function ThlAttendanceStat({ thl }: { thl: ThlDetails }) {
-  const { evaluation } = thl;
+const BOX_TONE: Record<ThlStatus, string> = {
+  REQUIRED: "border-red-300 bg-red-50/60 dark:border-red-800 dark:bg-red-950/40",
+  APPROACHING: "border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/40",
+  NONE: "border-green-300 bg-green-50/60 dark:border-green-800 dark:bg-green-950/40",
+};
+const CHECK_TONE: Record<ThlStatus, string> = {
+  REQUIRED: "text-red-600",
+  APPROACHING: "text-amber-600",
+  NONE: "text-green-600",
+};
+
+function MonthBox({
+  month,
+  presentDays,
+  pendingDays,
+  beforeJoin,
+  current,
+  qualifies,
+  status,
+}: {
+  month: string;
+  presentDays: number;
+  pendingDays: number;
+  beforeJoin: boolean;
+  current?: boolean;
+  qualifies?: boolean;
+  status: ThlStatus;
+}) {
   return (
-    <>
-      <ul className="mt-1 space-y-0.5 text-sm">
-        {evaluation.months.map((month) => (
-          <li key={month.month} className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-muted-foreground w-16 shrink-0 text-xs">
-              {formatThlMonth(month.month)}
-            </span>
-            <span className="font-semibold tabular-nums">{month.presentDays}</span>
-            <span className="text-muted-foreground text-xs">hari</span>
-            {month.qualifies ? <Badge variant="warning">≥ 21</Badge> : null}
-            {month.pendingDays > 0 ? (
-              <span className="text-xs text-amber-700 dark:text-amber-400">
-                {month.pendingDays} menunggu persetujuan
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      <p className="text-muted-foreground mt-1 text-xs">
-        Bulan berjalan ({formatThlMonth(evaluation.currentMonth.month)}):{" "}
-        {evaluation.currentMonth.presentDays} hari hadir
-        {evaluation.currentMonth.pendingDays > 0
-          ? ` · ${evaluation.currentMonth.pendingDays} menunggu persetujuan`
-          : ""}
-        . Belum masuk evaluasi.
-      </p>
-    </>
+    <li
+      aria-label={`${formatThlMonth(month)}${current ? " (berjalan)" : ""}: ${
+        beforeJoin ? "sebelum tanggal masuk" : `${presentDays} hari hadir`
+      }`}
+      className={cn(
+        "relative flex min-w-0 flex-col items-center rounded-lg border px-1 py-2 text-center sm:py-3",
+        current ? "border-dashed" : qualifies ? BOX_TONE[status] : "bg-card",
+      )}
+    >
+      {qualifies ? (
+        <Check
+          aria-hidden
+          className={cn("absolute top-1 right-1 hidden size-4 sm:block", CHECK_TONE[status])}
+        />
+      ) : null}
+      <span className="text-muted-foreground text-[11px] whitespace-nowrap sm:text-xs">
+        {formatThlMonth(month)}
+      </span>
+      <span
+        className={cn(
+          "mt-0.5 text-xl leading-tight font-semibold tabular-nums sm:text-2xl",
+          (beforeJoin || current) && "text-muted-foreground",
+        )}
+      >
+        {beforeJoin ? "–" : presentDays}
+      </span>
+      <span className="text-muted-foreground inline-flex items-center gap-0.5 text-[10px] whitespace-nowrap sm:text-xs">
+        {/* HP: ✓ di baris ini supaya tidak menimpa label bulan. */}
+        {qualifies ? (
+          <Check aria-hidden className={cn("size-3 sm:hidden", CHECK_TONE[status])} />
+        ) : null}
+        {current ? "berjalan" : beforeJoin ? "belum masuk" : "hari"}
+      </span>
+      {!beforeJoin && pendingDays > 0 ? (
+        <span className="mt-0.5 text-[10px] font-medium whitespace-nowrap text-amber-700 sm:text-[11px] dark:text-amber-400">
+          +{pendingDays} tunggu
+        </span>
+      ) : null}
+    </li>
   );
 }
 
-/** Isi sel "Upah harian" (hanya bila `thl.access.wage`, KTR-D13). */
-export function ThlWageStat({ thl }: { thl: ThlDetails }) {
+/** Deret 4 kotak: 3 bulan penuh (dinilai) + bulan berjalan (garis putus-putus, tidak dinilai). */
+export function ThlAttendanceBoxes({ thl, joinDate }: { thl: ThlDetails; joinDate: string }) {
+  const { status, months, currentMonth } = thl.evaluation;
+  const joinMonth = joinDate.slice(0, 7);
+  return (
+    <section aria-label="Kehadiran" className="space-y-2">
+      <h4 className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
+        Kehadiran
+      </h4>
+      <ol className="grid grid-cols-4 gap-1.5 sm:gap-3">
+        {months.map((m) => (
+          <MonthBox
+            key={m.month}
+            {...m}
+            beforeJoin={m.month < joinMonth}
+            qualifies={m.qualifies && m.month >= joinMonth}
+            status={status}
+          />
+        ))}
+        <MonthBox
+          {...currentMonth}
+          beforeJoin={currentMonth.month < joinMonth}
+          current
+          status={status}
+        />
+      </ol>
+    </section>
+  );
+}
+
+/** Upah harian + tautan riwayat (popover); hanya dirender bila `thl.access.wage` (KTR-D13). */
+export function ThlWageInfo({ thl }: { thl: ThlDetails }) {
   return (
     <>
       <p className="mt-1 text-base font-semibold">{formatThlWage(thl.dailyWage?.amount)}</p>
       <p className="text-muted-foreground text-xs">
-        {thl.dailyWage ? `berlaku sejak ${formatDate(thl.dailyWage.effectiveFrom)}` : "Belum diisi"}
+        {thl.dailyWage ? `sejak ${formatDate(thl.dailyWage.effectiveFrom)}` : "Belum diisi"}
+        {thl.wageHistory?.length ? (
+          <>
+            {" · "}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="text-brand font-medium hover:underline">
+                  Riwayat →
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 text-sm">
+                <p className="mb-2 font-semibold">Riwayat upah harian</p>
+                <ul className="space-y-2">
+                  {thl.wageHistory.map((wage) => (
+                    <li key={wage.id}>
+                      <span className="font-medium tabular-nums">{formatThlWage(wage.amount)}</span>{" "}
+                      <span className="text-muted-foreground">
+                        · sejak {formatDate(wage.effectiveFrom)}
+                      </span>
+                      <p className="text-muted-foreground text-xs">{wage.note}</p>
+                    </li>
+                  ))}
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </>
+        ) : null}
       </p>
-      {thl.wageHistory?.length ? (
-        <details className="mt-1 text-xs">
-          <summary className="text-muted-foreground cursor-pointer">Riwayat upah harian</summary>
-          <ul className="space-y-1 pt-1">
-            {thl.wageHistory.map((wage) => (
-              <li key={wage.id}>
-                {formatDate(wage.effectiveFrom)} · {formatThlWage(wage.amount)} · {wage.note}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
     </>
   );
 }
