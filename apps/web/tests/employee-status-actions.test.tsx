@@ -352,6 +352,9 @@ describe("KTR-D14 kembali (open redirect)", () => {
     for (const bad of [
       "//evil.example",
       "/\\evil.example",
+      "/.//evil.example",
+      "/%2e//evil.example",
+      "/akun",
       "https://evil.example",
       "evil",
       "",

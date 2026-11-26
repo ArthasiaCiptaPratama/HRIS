@@ -73,7 +73,10 @@ export function safeBack(raw: string | null): string | null {
   try {
     const url = new URL(raw, window.location.origin);
     if (url.origin !== window.location.origin) return null;
-    return `${url.pathname}${url.search}${url.hash}`;
+    // Validasi ulang hasil normalisasi (mis. "/.//host" → "//host") + hanya halaman Personal Management.
+    const out = `${url.pathname}${url.search}${url.hash}`;
+    if (out.startsWith("//") || out.includes("\\") || !out.startsWith("/personal/")) return null;
+    return out;
   } catch {
     return null;
   }
