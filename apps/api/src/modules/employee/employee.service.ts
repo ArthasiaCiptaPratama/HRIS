@@ -1,4 +1,5 @@
 import type {
+  CorrectContractInput,
   CreateContractInput,
   EndContractInput,
   ExtendContractInput,
@@ -39,6 +40,7 @@ import {
   type ContractActionResult,
   canManageContracts,
   canManageContractsInCompany,
+  correctContract,
   extendContract,
   fillContract,
   finishContract,
@@ -2014,7 +2016,7 @@ async function auditContract(
   );
 }
 // D-004: daftar employee membaca salinan ini, tanpa query ke skema contract.
-async function copyActiveContract(
+export async function copyActiveContract(
   tx: repository.EmployeeTx,
   id: string,
   contract: NonNullable<ContractActionResult["contract"]> | null,
@@ -2053,6 +2055,86 @@ export async function createEmployeeContract(
     });
     await auditContract(ctx, id, "create", result.contract.id, tx);
     return result;
+  });
+}
+/** KTR-D12: riwayat per field (tab Riwayat › Data kerja) untuk koreksi tanggal kontrak aktif. */
+export async function recordContractCorrection(
+  tx: repository.EmployeeTx,
+  employeeId: string,
+  actorAccountId: string,
+  source: "HR_PROFILE" | "IMPORT",
+  before: { id: string; startDate: string; endDate: string; pkwtFirstStartDate: string | null },
+  after: { startDate: string; endDate: string; pkwtFirstStartDate: string | null },
+) {
+  await recordFieldChanges(tx, {
+    employeeId,
+    actorAccountId,
+    source,
+    refId: before.id,
+    changes: [
+      {
+        section: "WORK",
+        field: "contractStartDate",
+        oldValue: before.startDate,
+        newValue: after.startDate,
+      },
+      {
+        section: "WORK",
+        field: "contractEndDate",
+        oldValue: before.endDate,
+        newValue: after.endDate,
+      },
+      {
+        section: "WORK",
+        field: "pkwtFirstStartDate",
+        oldValue: before.pkwtFirstStartDate,
+        newValue: after.pkwtFirstStartDate,
+      },
+    ],
+  });
+}
+export async function correctEmployeeContract(
+  ctx: RequestContext,
+  id: string,
+  contractId: string,
+  input: CorrectContractInput,
+): Promise<ContractActionResult> {
+  return repository.withTransaction(async (tx) => {
+    const employee = await managedContractEmployee(ctx, id, tx);
+    if (employee.category !== "PKWT" && employee.category !== "PROBATION")
+      throw new BusinessRuleError("Koreksi data kontrak hanya untuk PKWT atau masa percobaan.");
+    const result = await correctContract(employee, contractId, input, ctx.actor.accountId, tx);
+    await copyActiveContract(tx, id, result.contract);
+    await recordContractCorrection(
+      tx,
+      id,
+      ctx.actor.accountId,
+      "HR_PROFILE",
+      result.before,
+      result.contract,
+    );
+    await writeAudit(
+      {
+        ...auditBase(ctx),
+        action: "contract.contract.correct",
+        entityType: "contract",
+        entityId: id,
+        before: {
+          contractId: result.before.id,
+          startDate: result.before.startDate,
+          endDate: result.before.endDate,
+          pkwtFirstStartDate: result.before.pkwtFirstStartDate,
+        },
+        after: {
+          startDate: result.contract.startDate,
+          endDate: result.contract.endDate,
+          pkwtFirstStartDate: result.contract.pkwtFirstStartDate,
+        },
+        reason: input.note,
+      },
+      tx,
+    );
+    return { contract: result.contract, warnings: result.warnings };
   });
 }
 export async function extendEmployeeContract(

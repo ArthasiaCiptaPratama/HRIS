@@ -14,6 +14,15 @@ export function createContract(
 ) {
   return tx.employmentContract.create({ data });
 }
+/** KTR-D12: koreksi tanggal kontrak aktif (tahap tidak berubah). */
+export function updateContractDates(
+  id: string,
+  data: { startDate: Date; endDate: Date; pkwtFirstStartDate?: Date | null },
+  actorId: string,
+  tx: ContractTx = getPrisma(),
+) {
+  return tx.employmentContract.update({ where: { id }, data: { ...data, updatedBy: actorId } });
+}
 export function closeContract(
   id: string,
   status: "EXTENDED" | "CONVERTED" | "PASSED" | "ENDED",

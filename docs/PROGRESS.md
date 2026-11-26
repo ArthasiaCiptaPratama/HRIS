@@ -101,6 +101,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 | EMP-OD2 | Template dinamis (HR ganti desain formulir sendiri) vs posisi isian tetap di kode untuk Print data PDF & surat lain | Ganti desain formulir tanpa developer | Menunggu instruksi (sementara posisi tetap) |
 | EMP-OD3 | Kolom Excel kantor "PENEMPATAN LOKASI KERJA" = Homebase/POH (EMP-D6)? | Pemetaan import homebase dari data kantor | Terjawab: beda (kutipan pengguna 2026-11-12 13:49 WIB: "EMP-0D3: beda") — tidak dipetakan ke Homebase |
 | MOB-OD1 | Hosting APK rilis app mobile | M6 Rilis v1 | Terjawab → Google Drive (tautan), tanpa Play Store (pengguna 2026-11-03 16:59 WIB; [mobile](features/mobile/README.md)) |
+| KTR-OD1 | Aksi "Koreksi status (salah input)" untuk status kepegawaian yang salah sejak awal ([kontrak](features/kontrak/README.md#keputusan-terbuka)) | Pembersihan data K3 (S7/S9) | Menunggu keputusan (setelah S7/S9) |
 
 ## Backlog
 

@@ -1,5 +1,6 @@
 import { createRoute, type OpenAPIHono, z } from "@hono/zod-openapi";
 import type {
+  CorrectContractInput,
   CreateContractInput,
   EndContractInput,
   ExtendContractInput,
@@ -11,6 +12,7 @@ import { API_BASE_PATH, BEARER_SCHEME } from "../../core/openapi.ts";
 import { dataEnvelope, ERROR_RESPONSES, ok } from "../../core/response.ts";
 import {
   contractActionResultSchema,
+  correctContractBodySchema,
   createContractBodySchema,
   employeeContractsSchema,
   endContractBodySchema,
@@ -36,6 +38,12 @@ export interface ContractHandlers {
     id: string,
     contractId: string,
     input: ExtendContractInput,
+  ): Promise<ContractActionResult>;
+  correct(
+    ctx: ContractContext,
+    id: string,
+    contractId: string,
+    input: CorrectContractInput,
   ): Promise<ContractActionResult>;
   promote(
     ctx: ContractContext,
@@ -100,6 +108,17 @@ export function registerContractRoutes(
       const params = contractParam.parse(c.req.valid("param"));
       return c.json(
         ok(await deps.handlers.extend(ctx(c), params.id, params.contractId, c.req.valid("json"))),
+        200,
+      );
+    },
+  );
+  // KTR-D12: koreksi tanggal kontrak aktif tanpa pindah tahap.
+  app.openapi(
+    action("/contracts/{contractId}/correct", correctContractBodySchema, contractParam),
+    async (c) => {
+      const params = contractParam.parse(c.req.valid("param"));
+      return c.json(
+        ok(await deps.handlers.correct(ctx(c), params.id, params.contractId, c.req.valid("json"))),
         200,
       );
     },

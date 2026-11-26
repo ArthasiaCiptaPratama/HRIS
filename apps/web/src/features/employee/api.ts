@@ -1,4 +1,5 @@
 import type {
+  CorrectContractInput,
   CreateContractInput,
   EmployeeHomebaseInput,
   EmployeeHomebaseUpdate,
@@ -461,7 +462,8 @@ export type ContractAction =
   | { action: "extend"; contractId: string; body: ExtendContractInput }
   | { action: "promote"; body: PromoteEmployeeInput }
   | { action: "fail"; body: PromoteEmployeeInput }
-  | { action: "end"; contractId: string; body: PromoteEmployeeInput };
+  | { action: "end"; contractId: string; body: PromoteEmployeeInput }
+  | { action: "correct"; contractId: string; body: CorrectContractInput };
 
 export function useContractAction(employeeId: string) {
   const queryClient = useQueryClient();

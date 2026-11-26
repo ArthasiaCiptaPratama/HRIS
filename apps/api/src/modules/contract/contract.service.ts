@@ -1,5 +1,6 @@
 import {
   addContractDays,
+  type CorrectContractInput,
   type CreateContractInput,
   contractSummary,
   type EmploymentCategory,
@@ -187,6 +188,94 @@ export async function extendContract(
     tx,
   );
   return { contract: contractDto(row), warnings };
+}
+/**
+ * KTR-D12: koreksi tanggal kontrak AKTIF (tahap tetap). Divalidasi aturan tahap yang sama (KTR-D4/D6) terhadap
+ * tahap sebelumnya; mengembalikan nilai lama untuk riwayat & audit.
+ */
+export async function correctContract(
+  employee: Pick<ContractEmployee, "id" | "joinDate">,
+  contractId: string,
+  input: CorrectContractInput,
+  actorId: string,
+  tx: repository.ContractTx,
+) {
+  const contracts = await repository.listContracts(employee.id, tx);
+  const active = await getActiveContract(employee.id, tx, contractId);
+  if (input.startDate < iso(employee.joinDate))
+    throw new BusinessRuleError("Tanggal mulai kontrak tidak boleh sebelum tanggal masuk.");
+  const previous = active.previousContractId
+    ? contracts.find((c) => c.id === active.previousContractId)
+    : undefined;
+  if (input.firstPkwtStartDate && (active.kind !== "PKWT" || previous))
+    throw new BusinessRuleError(
+      "Mulai PKWT 1 hanya bisa dikoreksi pada tahap pertama yang tercatat.",
+    );
+  let firstPkwtStart: string | undefined;
+  if (previous) {
+    let root = previous;
+    for (const seen = new Set<string>(); root.previousContractId && !seen.has(root.id); ) {
+      seen.add(root.id);
+      const next = contracts.find((c) => c.id === root.previousContractId);
+      if (!next) break;
+      root = next;
+    }
+    firstPkwtStart = iso(root.pkwtFirstStartDate ?? root.startDate);
+  } else if (active.kind === "PKWT" && (active.sequence ?? 1) > 1) {
+    firstPkwtStart =
+      input.firstPkwtStartDate ??
+      (active.pkwtFirstStartDate ? iso(active.pkwtFirstStartDate) : undefined);
+    if (!firstPkwtStart)
+      throw new BusinessRuleError(
+        "Tanggal mulai PKWT 1 wajib untuk tahap lama tanpa kontrak sebelumnya.",
+      );
+  } else if (
+    active.kind === "PKWT" &&
+    input.firstPkwtStartDate &&
+    input.firstPkwtStartDate !== input.startDate
+  ) {
+    throw new BusinessRuleError("Tanggal mulai PKWT 1 harus sama dengan awal tahap 1.");
+  }
+  const warnings = assertStage({
+    kind: active.kind,
+    sequence: active.sequence,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    previous: previous
+      ? {
+          endDate: iso(previous.endDate),
+          sequence: previous.sequence,
+          firstPkwtStart: firstPkwtStart ?? iso(previous.startDate),
+        }
+      : firstPkwtStart
+        ? {
+            endDate: addContractDays(input.startDate, -1),
+            sequence: (active.sequence ?? 1) - 1,
+            firstPkwtStart,
+          }
+        : null,
+  });
+  const before = contractDto(active);
+  const row = await repository.updateContractDates(
+    active.id,
+    {
+      startDate: date(input.startDate),
+      endDate: date(input.endDate),
+      ...(!previous && active.kind === "PKWT" && (active.sequence ?? 1) > 1
+        ? { pkwtFirstStartDate: date(firstPkwtStart as string) }
+        : {}),
+      // Tahap 1 tanpa kontrak sebelumnya: Mulai PKWT 1 = awal tahap → ikut dikoreksi bila tersimpan.
+      ...(!previous &&
+      active.kind === "PKWT" &&
+      (active.sequence ?? 1) === 1 &&
+      active.pkwtFirstStartDate
+        ? { pkwtFirstStartDate: date(input.startDate) }
+        : {}),
+    },
+    actorId,
+    tx,
+  );
+  return { before, contract: contractDto(row), warnings };
 }
 export async function finishContract(
   row: EmploymentContract,

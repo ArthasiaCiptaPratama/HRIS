@@ -18,6 +18,7 @@ export { remindExpiringDocuments } from "./document.service.ts";
 export { type EmployeeRouteDeps, registerEmployeeRoutes } from "./employee.routes.ts";
 export type { EmployeeDetail, EmployeeListItem } from "./employee.schema.ts";
 export {
+  correctEmployeeContract,
   createEmployeeContract,
   employeeLoginDirectory,
   employeeMasterDataSupport,

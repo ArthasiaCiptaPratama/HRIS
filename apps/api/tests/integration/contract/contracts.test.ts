@@ -699,3 +699,106 @@ test("aktif kembali tidak boleh jadi jalan pintas ke/dari PKWT/Percobaan (KTR-D4
     (await prisma.employee.findUniqueOrThrow({ where: { id: intern } })).pkwttStartDate,
   ).toEqual(date("2026-01-02"));
 });
+
+describe("KTR-D12: koreksi data kontrak aktif", () => {
+  test("SA mengoreksi tanggal PKWT 1 → salinan, riwayat field & audit; tahap tetap", async () => {
+    const id = await makeEmployee();
+    const row = await active(id, { ...initial, startDate: "2024-01-01", endDate: "2024-12-31" });
+    const result = await action(id, `/contracts/${row.id}/correct`, {
+      startDate: "2024-02-01",
+      endDate: "2025-01-31",
+      note: "Salah input tanggal",
+    });
+    expect(result.contract).toMatchObject({
+      sequence: 1,
+      startDate: "2024-02-01",
+      endDate: "2025-01-31",
+    });
+    const changes = await prisma.employeeFieldChange.findMany({
+      where: { employeeId: id, refId: row.id },
+    });
+    expect(changes.map((c) => [c.field, c.oldValue, c.newValue]).sort()).toEqual(
+      [
+        ["contractEndDate", "2024-12-31", "2025-01-31"],
+        ["contractStartDate", "2024-01-01", "2024-02-01"],
+      ].sort(),
+    );
+    expect(changes.every((c) => c.source === "HR_PROFILE" && c.section === "WORK")).toBe(true);
+    expect(
+      await prisma.auditLog.count({ where: { action: "contract.contract.correct", entityId: id } }),
+    ).toBe(1);
+    expect(await prisma.employmentContract.count({ where: { employeeId: id } })).toBe(1);
+  });
+  test("aturan tahap tetap berlaku; alasan wajib; akses seperti aksi kontrak lain", async () => {
+    const id = await makeEmployee();
+    const row = await active(id, { ...initial, startDate: "2024-01-01", endDate: "2024-12-31" });
+    const path = `/contracts/${row.id}/correct`;
+    // PKWT 1 > 2 tahun → 422.
+    const tooLong = await call("POST", id, path, sa, {
+      startDate: "2024-01-01",
+      endDate: "2026-01-01",
+      note: "x",
+    });
+    expect(tooLong.status).toBe(422);
+    expect(
+      (await call("POST", id, path, sa, { startDate: "2024-01-01", endDate: "2024-06-30" })).status,
+    ).toBe(400);
+    const body = { startDate: "2024-01-01", endDate: "2024-06-30", note: "koreksi" };
+    for (const login of [hrNoGrant, manager, self])
+      expect((await call("POST", id, path, login, body)).status).toBe(403);
+    expect((await call("POST", id, path, hrOther, body)).status).toBe(404);
+    expect((await call("POST", id, path, undefined, body)).status).toBe(401);
+    // Tahap 2: tidak boleh tumpang tindih dengan tahap 1.
+    const two = await action(id, `/contracts/${row.id}/extend`, { endDate: "2025-12-31" });
+    const overlap = await call("POST", id, `/contracts/${two.contract?.id}/correct`, sa, {
+      startDate: "2024-12-01",
+      endDate: "2025-11-30",
+      note: "x",
+    });
+    expect(overlap.status).toBe(422);
+    // Kontrak yang sudah tidak aktif tidak bisa dikoreksi.
+    expect((await call("POST", id, path, sa, body)).status).toBe(422);
+  });
+  test("tahap lama tanpa riwayat: Mulai PKWT 1 ikut dikoreksi & batas 4 tahun dicek", async () => {
+    const id = await makeEmployee();
+    const row = await active(id, {
+      kind: "PKWT",
+      sequence: 3,
+      startDate: "2025-01-01",
+      endDate: "2025-12-31",
+      firstPkwtStartDate: "2022-01-01",
+    });
+    const tooOld = await call("POST", id, `/contracts/${row.id}/correct`, sa, {
+      startDate: "2025-01-01",
+      endDate: "2025-12-31",
+      firstPkwtStartDate: "2021-06-01",
+      note: "x",
+    });
+    expect(tooOld.status).toBe(422);
+    const fixed = await action(id, `/contracts/${row.id}/correct`, {
+      startDate: "2025-01-01",
+      endDate: "2025-12-31",
+      firstPkwtStartDate: "2022-03-01",
+      note: "Mulai PKWT 1 sesuai SK",
+    });
+    expect(fixed.contract?.pkwtFirstStartDate).toBe("2022-03-01");
+  });
+  test("PKWT 1 dengan Mulai PKWT 1 tersimpan: koreksi awal tahap ikut memperbarui Mulai PKWT 1", async () => {
+    const id = await makeEmployee();
+    const row = await active(id, {
+      kind: "PKWT",
+      sequence: 1,
+      startDate: "2024-01-01",
+      endDate: "2024-12-31",
+      firstPkwtStartDate: "2024-01-01",
+    });
+    const fixed = await action(id, `/contracts/${row.id}/correct`, {
+      startDate: "2024-03-01",
+      endDate: "2025-02-28",
+      note: "Salah input awal kontrak",
+    });
+    const stored = await prisma.employmentContract.findUniqueOrThrow({ where: { id: row.id } });
+    expect(stored.pkwtFirstStartDate).toEqual(date("2024-03-01"));
+    expect(fixed.contract?.startDate).toBe("2024-03-01");
+  });
+});

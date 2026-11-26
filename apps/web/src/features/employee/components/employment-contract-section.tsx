@@ -213,6 +213,12 @@ export function EmploymentContractSection({ employee }: { employee: EmployeeDeta
               {category === "PROBATION" ? "Lulus → Permanen" : "Jadikan Karyawan Tetap"}
             </Button>
           ) : null}
+          {(category === "PKWT" || category === "PROBATION") && active ? (
+            // KTR-D12: koreksi tanggal kontrak aktif (salah input), bukan perpanjangan.
+            <Button variant="ghost" onClick={() => setAction("correct")}>
+              Koreksi data kontrak
+            </Button>
+          ) : null}
           {category === "PKWT" && active ? (
             <Button variant="destructive" onClick={() => setAction("end")}>
               Akhiri kontrak

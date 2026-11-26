@@ -287,7 +287,7 @@ describe("Kepegawaian kontrak K1", () => {
 
 describe("Dialog kontrak", () => {
   function dialog(
-    action: "extend" | "create" | "promote" | "fail" | "end" = "extend",
+    action: "extend" | "create" | "correct" | "promote" | "fail" | "end" = "extend",
     overrides: Partial<EmployeeContracts> = {},
   ) {
     return mount(
@@ -320,6 +320,36 @@ describe("Dialog kontrak", () => {
     });
     await waitFor(() => expect(toast.warning).toHaveBeenCalledWith("Peringatan dari server"));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["employees"] });
+  });
+  it("KTR-D12 koreksi: isi tanggal aktif, Akhir tidak dihitung ulang, alasan wajib, batas tetap dicek", async () => {
+    dialog("correct");
+    expect(screen.getByRole("heading", { name: "Koreksi data kontrak" })).toBeVisible();
+    expect(screen.getByLabelText("Tahap")).toBeDisabled();
+    expect(screen.getByLabelText("Mulai kontrak")).toHaveValue("2026-01-01");
+    expect(screen.getByLabelText("Akhir kontrak")).toHaveValue("2027-12-31");
+    fireEvent.change(screen.getByLabelText("Mulai kontrak"), { target: { value: "2026-02-01" } });
+    // Koreksi data: Akhir tidak ikut dihitung ulang.
+    expect(screen.getByLabelText("Akhir kontrak")).toHaveValue("2027-12-31");
+    // Alasan kosong → Simpan mati.
+    expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Alasan koreksi (wajib)"), {
+      target: { value: "Salah input" },
+    });
+    expect(screen.getByRole("button", { name: "Simpan" })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Akhir kontrak"), { target: { value: "2028-02-01" } });
+    expect(screen.getByText("PKWT 1 maksimal 2 tahun.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Akhir kontrak"), { target: { value: "2028-01-31" } });
+    await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      path: "/employees/e1/contracts/c1/correct",
+      body: { startDate: "2026-02-01", endDate: "2028-01-31", note: "Salah input" },
+    });
+  });
+  it("KTR-D12: tombol Koreksi data kontrak hanya untuk yang berhak & ada kontrak aktif", async () => {
+    await card("PKWT", { contracts: [contract] });
+    expect(screen.getByRole("button", { name: "Koreksi data kontrak" })).toBeVisible();
   });
   it("tanggal mulai dikosongkan: tidak crash dan simpan mati", () => {
     dialog();

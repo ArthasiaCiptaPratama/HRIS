@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 import {
+  CONTRACT_KINDS,
   IMPORT_FIELD_KEYS,
   IMPORT_MAX_ROWS,
   type ImportFieldKey,
@@ -168,6 +169,21 @@ export const previewSchema = z
           .object({
             reason: z.enum(["RESIGNATION", "TERMINATION", "OTHER"]),
             date: z.iso.date(),
+          })
+          .nullable(),
+        /**
+         * KTR-D12: kontrak dari kolom kontrak — CREATE (baru), CORRECT (koreksi tanggal kontrak aktif,
+         * mode Perbarui), KEEP (beda tetapi dibiarkan, mode Isi yang kosong saja). `previous` = periode lama.
+         */
+        contract: z
+          .object({
+            action: z.enum(["CREATE", "CORRECT", "KEEP"]),
+            kind: z.enum(CONTRACT_KINDS),
+            sequence: z.number().int().nullable(),
+            startDate: z.iso.date(),
+            endDate: z.iso.date(),
+            firstPkwtStartDate: z.iso.date().nullable(),
+            previous: z.object({ startDate: z.iso.date(), endDate: z.iso.date() }).nullable(),
           })
           .nullable(),
       }),

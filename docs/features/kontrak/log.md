@@ -11,6 +11,13 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-26 — K3 (i): koreksi data kontrak, kolom import kontrak, skrip audit (Oatse/Claude)
+- **Dikerjakan:** sisa K3 (i) dari sesi hris-b2 dicek dan dilengkapi: aksi "Koreksi data kontrak" (API + dialog), kolom import kontrak (Tahap PKWT, Mulai/Akhir kontrak, Durasi, Mulai PKWT 1, Mulai/Akhir percobaan) dengan pratinjau + tulis di transaksi import, import menolak ubah status ke/dari PKWT/Percobaan, `pkwtt_start_date` karyawan baru Tetap/Percobaan lewat import = tanggal masuk, skrip audit READ ONLY. Review kode subagen: tidak ada temuan berat. 3 catatan ringan diperbaiki: guard `--allow-remote` skrip audit kini gagal-tertutup untuk URL tak terurai; koreksi awal PKWT 1 ikut memperbarui `pkwt_first_start_date` bila tersimpan; import tahap 1 dengan Mulai PKWT 1 ≠ awal tahap kini error walau tanggal tak berubah (+2 test).
+- **Keputusan:** KTR-OD1 "Koreksi status (salah input)" dicatat (diputus setelah S7/S9).
+- **Verifikasi:** typecheck ✔ · biome ci ✔ (1 warning lama `roster-edit.service.ts`) · boundaries ✔ · db:check ✔ · shared 458 · api 1560 · web 535 ✔. Screenshot `QA/2026-11-25-ktr-k1/15` (pratinjau import kolom kontrak, DB lokal, tidak disimpan) & `16` (dialog Koreksi data kontrak, dibatalkan).
+- **Masalah / catatan:** file lama berstatus teks "PKWT II" + kolom Akhir kontrak untuk karyawan yang kontrak aktifnya tahap 1 kini error `CONTRACT_STAGE_MISMATCH` (sesuai KTR-D12; cek terhadap file HR asli saat S1…Sn). Import tidak memakai `lockEmployee`; bentrok bersamaan tertangkap oleh pembacaan ulang kontrak di transaksi (409/422, bukan data rusak).
+- **Berikutnya:** tulis staging S1…Sn (kata pengguna, setelah rilis K1–K3), K4 THL, K5 pola kerja (TM-D35–D37).
+
 Log sebelum 2026-10-13 ada di [archive/log-2026-09.md](../../archive/log-2026-09.md) dan [archive/log-2026-10.md](../../archive/log-2026-10.md) (cari judul atau D-xxx fitur ini).
 
 ### 2026-11-25 — Paket K2: pengingat & daftar kontrak akan habis (Oatse)

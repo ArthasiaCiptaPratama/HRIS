@@ -67,6 +67,10 @@ export const FIELD_CHANGE_FIELD_LABELS: Record<string, string> = {
   phoneNumber: "Nomor HP",
   gender: "Jenis kelamin",
   joinDate: "Tanggal masuk",
+  // KTR-D12: koreksi data kontrak aktif (UI / import mode Perbarui).
+  contractStartDate: "Mulai kontrak",
+  contractEndDate: "Akhir kontrak",
+  pkwtFirstStartDate: "Mulai PKWT 1",
   company: "Perusahaan",
   position: "Jabatan",
   orgPost: "Pos jabatan",

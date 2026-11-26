@@ -54,6 +54,7 @@ import {
 import { registerContractRoutes } from "./modules/contract/index.ts";
 import { registerDisciplineRoutes, runDisciplineDaily } from "./modules/discipline/index.ts";
 import {
+  correctEmployeeContract,
   createEmployeeContract,
   employeeLoginDirectory,
   employeeMasterDataSupport,
@@ -324,6 +325,7 @@ export function createApp(overrides: Partial<AppDeps> = {}): OpenAPIHono {
       read: getEmployeeContracts,
       create: createEmployeeContract,
       extend: extendEmployeeContract,
+      correct: correctEmployeeContract,
       promote: promoteEmployee,
       fail: (ctx, id, input) =>
         endEmployeeContract(ctx, id, undefined, input, { authAdmin: deps.authAdmin }, true),

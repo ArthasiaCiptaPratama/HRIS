@@ -178,6 +178,14 @@ export const extendContractInputSchema = z.object({
   endDate: z.iso.date(),
   note,
 });
+/** KTR-D12: koreksi tanggal kontrak AKTIF tanpa pindah tahap (koreksi data, bukan perpanjangan). */
+export const correctContractInputSchema = z.object({
+  startDate: z.iso.date(),
+  endDate: z.iso.date(),
+  firstPkwtStartDate: z.iso.date().optional(),
+  note: z.string().trim().min(1).max(500),
+});
+export type CorrectContractInput = z.infer<typeof correctContractInputSchema>;
 export const promoteEmployeeInputSchema = z.object({ effectiveDate: z.iso.date(), note });
 export const endContractInputSchema = promoteEmployeeInputSchema;
 export type CreateContractInput = z.infer<typeof createContractInputSchema>;

@@ -7,6 +7,7 @@ export {
 } from "./contract.routes.ts";
 export type { ContractActionResult } from "./contract.service.ts";
 export {
+  correctContract,
   extendContract,
   fillContract,
   finishContract,

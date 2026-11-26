@@ -1,7 +1,7 @@
 # Kontrak
 
 > **Kode prefix:** `KTR` · **Fase:** 7 (ditarik maju 2026-11-25) · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — keputusan KTR-D1–D10 tercatat 2026-11-25; **backend dan web K1 diimplementasi di worktree Codex; menunggu review supervisor**
+> **Status:** Berjalan — K1 & K2 di develop (2026-11-25); **K3 (i) kode di develop 2026-11-26** (koreksi data kontrak, kolom import kontrak, skrip audit READ ONLY); tulis staging S1…Sn, K4 THL, K5 pola kerja menunggu
 
 Status kepegawaian PKWT / PKWTT / THL, tahap kontrak PKWT 1–3 & masa percobaan PKWTT, masa kerja kontrak, perpanjangan, pengangkatan, pengakhiran, pengingat kontrak habis, upah harian & evaluasi pengangkatan THL.
 
@@ -47,8 +47,15 @@ Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `co
   - [x] Web menu "Kontrak Akan Habis" (badge soon+overdue, saklar `FEATURES.contractExpiring`), chip Semua/PKWT/Masa Percobaan, urut akhir terdekat, kolom sisa hari/lewat, peringatan jumlah yang lewat
   - [x] Review kode subagen (cron & akses): tanpa temuan berat; catatan ringan diperbaiki (summary paralel, notifikasi atasan tanpa tautan, test bersih & cakupan atasan/summary)
   - [x] Screenshot `QA/2026-11-25-ktr-k1/12–14`
-- [ ] **K3** — laporan audit kualitas data staging (read-only, Excel) + kolom import mode "perbarui" (KTR-D9)
-- [ ] **K4** — THL: upah harian, rekap hari hadir × upah, cek akhir bulan "Mendekati batas" / "Wajib diangkat PKWTT" (KTR-D8)
+- [~] **K3** — audit data + kolom import kontrak (KTR-D9, KTR-D12) — kode lokal berjalan 2026-11-25; tulis staging (S1…Sn) menunggu rilis & kata pengguna
+  - [x] API + UI "Koreksi data kontrak" (`POST …/contracts/{id}/correct`; riwayat per field + audit)
+  - [x] Skrip audit `apps/api/scripts/audit-employee-data.ts` (READ ONLY, xlsx Audit/Ringkasan/Cek daftar HR; DB non-lokal hanya dengan `--allow-remote` + kata pengguna)
+  - [x] Kolom import: Tahap PKWT, Mulai kontrak, Akhir kontrak, Durasi (bulan), Mulai PKWT 1, Mulai/Akhir percobaan — pratinjau + simpan dalam transaksi import (salinan `contract_stage/contract_end_date` ikut), test `import-contracts.test.ts`
+  - [x] Import menolak ubah status ke/dari PKWT/Percobaan (`STATUS_CONTRACT_CATEGORY`); karyawan baru Tetap/Percobaan lewat import → `pkwtt_start_date` = tanggal masuk; THL→Tetap lewat import → mulai hari ini (tambahan 2026-11-25: celah lama, konsisten KTR-D4/D7)
+  - [x] KTR-OD1 "Koreksi status (salah input)" dicatat (diputus setelah S7/S9)
+  - [x] Screenshot `QA/2026-11-25-ktr-k1/15` (pratinjau import kolom kontrak) & `16` (dialog Koreksi data kontrak)
+  - [ ] Daftar tulis staging S1–S15 (PDF PKWT baru) + S16…Sn dari audit — butuh: rilis K1–K3, audit staging (kata pengguna), jawaban Q-A/S6/S9/data S3·S5·S8/jabatan S4·S14
+- [ ] **K4** — THL: upah harian (+ kolom import upah harian, KTR-D12), rekap hari hadir × upah, cek akhir bulan "Mendekati batas" / "Wajib diangkat PKWTT" (KTR-D8)
 - [ ] **K5** — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D34–D36; Mat dikabari dulu, wilayah TM)
 
 Item lama Fase 7 (jenis kontrak, CRUD, perpanjangan, terminasi, 1 kontrak aktif + cek overlap, cron `contract-expiry`, policy + test, tab & daftar akan habis) tercakup oleh K1–K2.
@@ -70,12 +77,15 @@ Sumber semua keputusan di bawah: grill supervisor-82 dengan pengguna 2026-11-25 
 | KTR-D9 | **Perbaikan data karyawan (poin 11 pengguna):** pekerja membuat **laporan audit kualitas data** staging (read-only, Excel per karyawan: status/tahap/periode kontrak kosong, level kosong, tanggal masuk janggal, atasan kosong, dll.). HR memperbaiki lewat **import mode "perbarui"** + kolom baru (tahap PKWT, mulai/akhir kontrak, mulai percobaan, upah harian THL) atau UI. Daftar salah dari pengguna/HR digabung. Tulis staging tetap butuh kata pengguna. | G12 — kutipan pengguna 25 Nov |
 | KTR-D10 | **Urutan kerja:** Langkah 0 (simpan WIP R0 Rekrutmen di branch lokal, pull develop) → **K1** status 2 tingkat + migrasi + tab Kepegawaian + aksi → **K2** pengingat + daftar akan habis → **K3** audit data + kolom import → **K4** THL → **K5** pola kerja site + HO fleksibel (Mat dikabari dulu). Tiap paket: rencana → screenshot → commit/push develop; rilis staging = kata pengguna. Implementasi lewat Codex (`codex-worker`). R0 dilanjutkan setelah paket ini. | G13 — kutipan pengguna 25 Nov |
 | KTR-D11 | **Akses daftar & pengingat kontrak (mengubah PLAN §4.3 baris Kontrak).** Daftar **"Kontrak akan habis"** (Personal Management › Pengelolaan Karyawan; PKWT & masa percobaan berakhir ≤ 60 hari atau sudah lewat) dan pengingat kontrak terlihat oleh **SUPER_ADMIN + semua HR_ADMIN dalam cakupan PT-nya**, tanpa grant; grant `contract.manage` hanya untuk **aksi** kontrak. Atasan langsung menerima pengingat bawahannya (tanpa tautan, karena bisa berakun Karyawan). Dasar: G5 (pengingat ke HR_ADMIN PT + daftar akan habis) dan HR sudah melihat tanggal akhir di daftar PKWT & tab Kepegawaian. | Persetujuan supervisor atas nama pengguna 2026-11-25 (opsi a, rujuk G5) |
+| KTR-D12 | **Koreksi data kontrak (bukan perpanjangan).** Tanggal kontrak **aktif** (mulai, akhir, dan Mulai PKWT 1 untuk tahap lama tanpa riwayat) boleh dikoreksi **tanpa pindah tahap**: lewat aksi "Koreksi data kontrak" di tab Kepegawaian (SA / HR ber-grant `contract.manage`, alasan wajib) dan lewat **import mode "Perbarui"** (tahap sama + tanggal beda). Aturan batas KTR-D4/D6 tetap dicek terhadap tahap sebelumnya. Tercatat di riwayat per field (tab Riwayat › Data kerja) + audit `contract.contract.correct`. Import dengan **tahap berbeda** dari kontrak aktif → error baris (pindah tahap hanya lewat aksi). Mode "Isi yang kosong saja" tidak mengoreksi kontrak yang sudah ada. Kolom import upah harian THL dipindah ke K4 (bersama skemanya). | Persetujuan supervisor atas nama pengguna 2026-11-25 (keputusan kecil rencana K3 no. 1–2) |
 
 Keputusan terkait di fitur lain: [TM-D34–D36](../time-management/README.md#keputusan) (pola kerja site & HO fleksibel, G9–G11) · [D-038](../../decisions.md#d-038) diubah oleh KTR-D2.
 
 ## Keputusan terbuka
 
-Tidak ada.
+| ID | Pertanyaan | Opsi | Status |
+|---|---|---|---|
+| KTR-OD1 | **Koreksi status (salah input):** karyawan yang statusnya tercatat salah sejak awal (mis. PKWT tercatat Karyawan Tetap, atau sebaliknya) tidak bisa dibetulkan lewat import "Perbarui" (ubah status ke/dari PKWT/Percobaan ditolak, KTR-D4), sedangkan Ubah Status/aksi kontrak mencatatnya sebagai peristiwa kepegawaian baru (riwayat & masa kerja ikut bergeser). Perlu aksi khusus "Koreksi status (salah input)" yang menimpa status + kontrak tanpa dianggap pengangkatan/pengakhiran? | (a) aksi koreksi khusus SA/HR ber-grant, alasan wajib, riwayat ditandai "koreksi"; (b) cukup lewat Ubah Status/aksi biasa + catatan; (c) koreksi manual oleh developer per kasus | Menunggu — diputus setelah data S7/S9 jelas (persetujuan supervisor atas nama pengguna 2026-11-25 16:4x) |
 
 OD baru: `KTR-OD1`, … (tulis di sini + ringkasan di [PROGRESS](../../PROGRESS.md#keputusan-terbuka)).
 

@@ -54,13 +54,20 @@ export function ContractPeriodFields({
   form,
   fixedSequence = false,
   id = "contract",
+  autoEnd = true,
+  showFirstPkwt,
 }: {
   form: UseFormReturn<CreateContractInput>;
   fixedSequence?: boolean;
   id?: string;
+  /** false = mengubah Mulai tidak menghitung ulang Akhir (koreksi data, KTR-D12). */
+  autoEnd?: boolean;
+  /** Paksa tampil/sembunyi isian Mulai PKWT 1 (koreksi tahap lama tanpa riwayat). */
+  showFirstPkwt?: boolean;
 }) {
   const values = form.watch();
   function updateEnd(start: string, sequence = values.sequence ?? 1) {
+    if (!autoEnd) return;
     form.setValue("endDate", defaultContractEnd(start, values.kind, sequence), {
       shouldValidate: true,
     });
@@ -102,7 +109,8 @@ export function ContractPeriodFields({
         <Label htmlFor={`${id}-end`}>Akhir kontrak</Label>
         <Input id={`${id}-end`} type="date" required {...form.register("endDate")} />
       </div>
-      {!fixedSequence && values.kind === "PKWT" && (values.sequence ?? 1) > 1 ? (
+      {(showFirstPkwt ??
+      (!fixedSequence && values.kind === "PKWT" && (values.sequence ?? 1) > 1)) ? (
         <div className="grid gap-2">
           <Label htmlFor={`${id}-first`}>Mulai PKWT 1</Label>
           <Input id={`${id}-first`} type="date" required {...form.register("firstPkwtStartDate")} />

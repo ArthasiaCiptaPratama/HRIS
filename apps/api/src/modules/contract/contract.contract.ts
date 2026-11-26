@@ -2,6 +2,7 @@ import { z } from "@hono/zod-openapi";
 import {
   CONTRACT_KINDS,
   CONTRACT_STATUSES,
+  correctContractInputSchema,
   createContractInputSchema,
   employmentCategorySchema,
   endContractInputSchema,
@@ -16,6 +17,9 @@ import type * as service from "./contract.service.ts";
 export const createContractBodySchema = createContractInputSchema
   .extend({})
   .openapi("CreateEmploymentContract");
+export const correctContractBodySchema = correctContractInputSchema
+  .extend({})
+  .openapi("CorrectEmploymentContract");
 export const extendContractBodySchema = extendContractInputSchema
   .extend({})
   .openapi("ExtendEmploymentContract");

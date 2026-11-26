@@ -20,10 +20,11 @@ import type { EmployeeContracts, EmploymentContract } from "../contract-schemas"
 import { todayIso } from "../labels";
 import { ContractPeriodFields, defaultContractEnd, validatePeriod } from "./contract-period-fields";
 
-export type ContractDialogAction = "create" | "extend" | "promote" | "fail" | "end";
+export type ContractDialogAction = "create" | "extend" | "correct" | "promote" | "fail" | "end";
 export const CONTRACT_ACTION_LABELS = {
   create: "Isi tahap kontrak",
   extend: "Perpanjang kontrak",
+  correct: "Koreksi data kontrak",
   promote: "Jadikan Karyawan Tetap",
   fail: "Tidak lulus",
   end: "Akhiri kontrak",
@@ -45,22 +46,40 @@ export function EmploymentContractDialog({
   onClose: () => void;
 }) {
   const mutation = useContractAction(employeeId);
-  const period = action === "create" || action === "extend";
+  const correcting = action === "correct" && active !== undefined;
+  const period = action === "create" || action === "extend" || correcting;
+  // KTR-D12: koreksi = tanggal kontrak aktif diubah, tahap tetap; dibandingkan dengan tahap sebelumnya.
+  const prior = correcting
+    ? data.contracts.find((c) => c.id === active.previousContractId)
+    : undefined;
+  const needsFirst = correcting && !prior && active.kind === "PKWT" && (active.sequence ?? 1) > 1;
   const destructive = action === "fail" || action === "end";
   const [confirmed, setConfirmed] = useState(false);
   const start = action === "extend" && active ? addContractDays(active.endDate, 1) : data.joinDate;
-  const sequence = action === "extend" ? (active?.sequence ?? 0) + 1 : 1;
+  const sequence =
+    action === "extend" ? (active?.sequence ?? 0) + 1 : correcting ? (active.sequence ?? 1) : 1;
   const kind = data.category === "PROBATION" ? "PROBATION" : "PKWT";
   const form = useForm<CreateContractInput>({
     resolver: zodResolver(createContractInputSchema),
     mode: "onChange",
-    defaultValues: {
-      kind,
-      ...(kind === "PKWT" ? { sequence } : {}),
-      startDate: start,
-      endDate: defaultContractEnd(start, kind, sequence),
-      note: "",
-    },
+    defaultValues: correcting
+      ? {
+          kind,
+          ...(kind === "PKWT" ? { sequence } : {}),
+          startDate: active.startDate,
+          endDate: active.endDate,
+          ...(needsFirst && active.pkwtFirstStartDate
+            ? { firstPkwtStartDate: active.pkwtFirstStartDate }
+            : {}),
+          note: "",
+        }
+      : {
+          kind,
+          ...(kind === "PKWT" ? { sequence } : {}),
+          startDate: start,
+          endDate: defaultContractEnd(start, kind, sequence),
+          note: "",
+        },
   });
   const decision = useForm<PromoteEmployeeInput>({
     resolver: zodResolver(promoteEmployeeInputSchema),
@@ -77,12 +96,20 @@ export function EmploymentContractDialog({
           sequence: active.sequence,
           firstPkwtStart: firstStart ?? active.startDate,
         }
-      : null,
+      : prior
+        ? {
+            endDate: prior.endDate,
+            sequence: prior.sequence,
+            firstPkwtStart: firstStart ?? prior.startDate,
+          }
+        : null,
   );
   if (values.startDate < data.joinDate)
     validation.errors.push("Mulai kontrak tidak boleh sebelum tanggal masuk.");
   const valid = period
-    ? createContractInputSchema.safeParse(values).success && !validation.errors.length
+    ? createContractInputSchema.safeParse(values).success &&
+      !validation.errors.length &&
+      (!correcting || Boolean(values.note?.trim()))
     : promoteEmployeeInputSchema.safeParse(decisionValues).success && (!destructive || confirmed);
   const title =
     action === "promote" && data.category === "PROBATION"
@@ -104,15 +131,28 @@ export function EmploymentContractDialog({
                     : {}),
               },
             }
-          : action === "extend" && active
+          : correcting
             ? {
-                action,
+                action: "correct",
                 contractId: active.id,
-                body: { startDate: values.startDate, endDate: values.endDate, note: values.note },
+                body: {
+                  startDate: values.startDate,
+                  endDate: values.endDate,
+                  ...(needsFirst && values.firstPkwtStartDate
+                    ? { firstPkwtStartDate: values.firstPkwtStartDate }
+                    : {}),
+                  note: values.note?.trim() ?? "",
+                },
               }
-            : action === "end" && active
-              ? { action, contractId: active.id, body: decisionValues }
-              : { action: action === "fail" ? "fail" : "promote", body: decisionValues },
+            : action === "extend" && active
+              ? {
+                  action,
+                  contractId: active.id,
+                  body: { startDate: values.startDate, endDate: values.endDate, note: values.note },
+                }
+              : action === "end" && active
+                ? { action, contractId: active.id, body: decisionValues }
+                : { action: action === "fail" ? "fail" : "promote", body: decisionValues },
       );
       toast.success("Perubahan kontrak disimpan.");
       for (const warning of result.warnings) toast.warning(warning);
@@ -140,7 +180,12 @@ export function EmploymentContractDialog({
           }}
         >
           {period ? (
-            <ContractPeriodFields form={form} fixedSequence={action === "extend"} />
+            <ContractPeriodFields
+              form={form}
+              fixedSequence={action === "extend" || correcting}
+              autoEnd={!correcting}
+              showFirstPkwt={correcting ? needsFirst : undefined}
+            />
           ) : (
             <div className="grid gap-2">
               <Label htmlFor="contract-effective">Tanggal efektif</Label>
@@ -155,7 +200,9 @@ export function EmploymentContractDialog({
             </div>
           )}
           <div className="grid gap-2">
-            <Label htmlFor="contract-note">Catatan (opsional)</Label>
+            <Label htmlFor="contract-note">
+              {correcting ? "Alasan koreksi (wajib)" : "Catatan (opsional)"}
+            </Label>
             <Textarea
               id="contract-note"
               maxLength={500}
