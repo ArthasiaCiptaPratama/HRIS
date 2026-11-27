@@ -1,7 +1,7 @@
 # Kontrak
 
 > **Kode prefix:** `KTR` · **Fase:** 7 (ditarik maju 2026-11-25) · **PIC:** Oatse · **Branch:** `HRIS/Oatse/Linux-Windows` · **Saklar `FEATURES`:** –
-> **Status:** Berjalan — K1 & K2 di develop (2026-11-25); **K1–K4 di develop 2026-11-26** (K4 `48e1741`); **K5 ditunda pengguna 2026-11-26**; tulis staging S1…Sn menunggu kata pengguna; KTR-OD1 terbuka
+> **Status:** Berjalan — K1 & K2 di develop (2026-11-25); **K1–K4 di develop 2026-11-26** (K4 `48e1741`); **K5 → Mat setelah technical meeting Jumat (2026-11-26)**; tulis staging S1…Sn menunggu kata pengguna; KTR-OD1 terbuka
 
 Status kepegawaian PKWT / PKWTT / THL, tahap kontrak PKWT 1–3 & masa percobaan PKWTT, masa kerja kontrak, perpanjangan, pengangkatan, pengakhiran, pengingat kontrak habis, upah harian & evaluasi pengangkatan THL.
 
@@ -72,7 +72,7 @@ Urutan paket (KTR-D10). Tiap paket: rencana → persetujuan → kerja (Codex `co
   - [x] Kartu THL tab Kepegawaian dirapikan (tambahan 2026-11-26; kutipan pengguna 16:0x WIB "setuju kartu THL"): kepala badge + chip status "Mendekati batas · 2/3 bulan" (warna sama dengan tabel) + satu kalimat dasar PP 35/2021; bagian KEHADIRAN 4 kotak (3 bulan penuh: angka besar, ✓ + bingkai warna status bila ≥ 21, "+n tunggu", "–" sebelum masuk; bulan berjalan garis putus-putus "berjalan"), tetap satu baris di HP; info 2 kolom Upah harian (popover "Riwayat →", hanya yang berhak) + Masa kerja; aksi Jadikan Karyawan Tetap + Ubah upah harian (tanpa menu Lainnya untuk THL). Format masa kerja semua kartu tanpa bagian nol ("6 bln", "2 th"). Screenshot `QA/2026-11-26-ux-kontrak/kartu-thl-1…5`
   - [x] Progres bulan berjalan (tambahan 2026-11-26; kutipan pengguna 16:2x WIB "tambah progres bulan berjalan juga"): kotak bulan berjalan kartu THL menampilkan "n lagi ke 21" (≥ 21: "✓ sudah 21", hijau tipis, tetap putus-putus & label berjalan); tooltip tabel THL ikut ("Nov 2026 (berjalan): 12 hari · 9 lagi ke 21"). Helper shared `thlCurrentProgress`. Screenshot `kartu-thl-6/7` (simulasi angka bulan berjalan di respons browser)
   - [x] Ubah Status terpadu KTR-D14 (tambahan 2026-11-26): halaman Ubah Status memuat semua aksi status/kontrak; kartu & header profil = tautan ber-aksi; dialog kontrak dipecah `ContractActionForm` (dipakai halaman) + `EmploymentContractDialog` (Koreksi saja); HP: daftar karyawan disembunyikan setelah dipilih ("Ganti karyawan"). Screenshot `QA/2026-11-26-ux-kontrak/ubah-status-1…4`
-- [ ] **K5** — DITUNDA (kutipan pengguna 26 Nov 12:1x WIB via supervisor: "jika sudah selesai stop dlu di K4") — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D35–D37; Mat dikabari dulu, wilayah TM)
+- [ ] **K5** — **PIC Mat (`HRIS/Mat/Mac`)**, dikerjakan setelah technical meeting Jumat (kutipan pengguna 26 Nov 17:2x WIB via supervisor-15: "Ya, Mat setelah Jumat"; sebelumnya ditunda 12:1x "stop dlu di K4") — pola kerja site (master 2 shift / 3 shift, saran saat menyusun jadwal) + saklar HO fleksibel (TM-D35–D37). **Nilai shift L1 Jetty/PIT dan ambang lembur/telat mengikuti hasil meeting**: notulen 25/11 menulis 15–22 & 22–01, sedangkan TM-D35 sekarang 15–23 & 23–07 — disesuaikan Mat setelah meeting.
 
 Item lama Fase 7 (jenis kontrak, CRUD, perpanjangan, terminasi, 1 kontrak aktif + cek overlap, cron `contract-expiry`, policy + test, tab & daftar akan habis) tercakup oleh K1–K2.
 
