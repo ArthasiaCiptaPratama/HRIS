@@ -1,5 +1,5 @@
 import { getPrisma } from "../../core/db.ts";
-import type { Prisma } from "../../generated/prisma/client.ts";
+import type { Permission as DbPermission, Prisma } from "../../generated/prisma/client.ts";
 
 export type IamTx = Prisma.TransactionClient;
 
@@ -52,6 +52,11 @@ export async function touchLastLogin(accountId: string, at: Date) {
       employee: { select: { fullName: true, companyId: true } },
     },
   });
+}
+
+/** Klien baca tanpa transaksi (pratinjau batch grant memakai fungsi yang sama dengan penulisan). */
+export function readClient(): IamTx {
+  return getPrisma() as unknown as IamTx;
 }
 
 export async function withTransaction<T>(run: (tx: IamTx) => Promise<T>): Promise<T> {
@@ -164,6 +169,26 @@ export async function findActiveGrants(tx: IamTx, accountId: string, now: Date) 
   });
 }
 
+/** Batch grant: akun penerima (dikunci dalam transaksi yang sama). */
+export async function findAccountsForGrant(tx: IamTx, ids: string[]) {
+  return tx.account.findMany({ where: { id: { in: ids } } });
+}
+
+/** Batch grant: grant aktif milik banyak akun sekaligus. */
+export async function findActiveGrantsOf(tx: IamTx, accountIds: string[], now: Date) {
+  return tx.permissionGrant.findMany({
+    where: {
+      accountId: { in: accountIds },
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+  });
+}
+
+export async function findGrantsByIds(tx: IamTx, ids: string[]) {
+  return tx.permissionGrant.findMany({ where: { id: { in: ids } } });
+}
+
 export async function revokeGrants(tx: IamTx, ids: string[], revokedBy: string, at: Date) {
   if (ids.length === 0) return 0;
   const { count } = await tx.permissionGrant.updateMany({
@@ -175,6 +200,8 @@ export async function revokeGrants(tx: IamTx, ids: string[], revokedBy: string, 
 
 export interface GrantFilter {
   accountId?: string;
+  accountIds?: string[];
+  permissions?: DbPermission[];
   permission?: Prisma.PermissionGrantWhereInput["permission"];
   /** true = belum dicabut & belum kedaluwarsa pada `now`; false = sebaliknya. */
   active?: boolean;
@@ -187,7 +214,9 @@ function grantWhere(filter: GrantFilter, now: Date): Prisma.PermissionGrantWhere
   };
   return {
     ...(filter.accountId ? { accountId: filter.accountId } : {}),
+    ...(filter.accountIds?.length ? { accountId: { in: filter.accountIds } } : {}),
     ...(filter.permission ? { permission: filter.permission } : {}),
+    ...(filter.permissions?.length ? { permission: { in: filter.permissions } } : {}),
     ...(filter.active === undefined ? {} : filter.active ? activeWhere : { NOT: activeWhere }),
   };
 }

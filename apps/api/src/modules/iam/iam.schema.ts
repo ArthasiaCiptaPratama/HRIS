@@ -3,6 +3,7 @@ import {
   dashboardLayoutSchema,
   PAGE_SIZE_DEFAULT,
   PAGE_SIZE_MAX,
+  PERMISSIONS,
   permissionSchema,
   roleSchema,
 } from "@hris/shared";
@@ -141,10 +142,19 @@ export const grantSchema = z
   .openapi("PermissionGrant");
 export type GrantDto = z.infer<typeof grantSchema>;
 
+// Nilai ganda dipisah koma (filter daftar grant multi akun/izin, 2026-11-26).
+const csv = <T extends z.ZodType<unknown, string>>(item: T) =>
+  z
+    .string()
+    .transform((value) => value.split(",").filter(Boolean))
+    .pipe(z.array(item).max(100));
+
 export const listGrantsQuerySchema = z.object({
   ...pagination,
   accountId: z.uuid().optional(),
+  accountIds: csv(z.uuid()).optional(),
   permission: permissionSchema.optional(),
+  permissions: csv(permissionSchema).optional(),
   active: booleanQuery.optional(),
 });
 export type ListGrantsQuery = z.infer<typeof listGrantsQuerySchema>;
@@ -158,6 +168,68 @@ export const createGrantBodySchema = z
   })
   .openapi("CreateGrant");
 export type CreateGrantInput = z.infer<typeof createGrantBodySchema>;
+
+// IAM-D2 (2026-11-26, kutipan pengguna "Setuju dialog ini"): grant banyak akun × banyak izin sekaligus.
+export const GRANT_BATCH_MAX_ACCOUNTS = 50;
+export const GRANT_BATCH_MAX_REVOKE = 100;
+export const createGrantBatchBodySchema = z
+  .object({
+    accountIds: z.array(z.uuid()).min(1).max(GRANT_BATCH_MAX_ACCOUNTS),
+    permissions: z.array(permissionSchema).min(1).max(PERMISSIONS.length),
+    expiresAt: z.iso.datetime().optional(),
+    reason: z.string().trim().max(500).optional(),
+    // true = pratinjau: hasil per kombinasi dihitung tanpa menulis apa pun.
+    dryRun: z.boolean().optional(),
+  })
+  .openapi("CreateGrantBatch");
+export type CreateGrantBatchInput = z.infer<typeof createGrantBatchBodySchema>;
+
+export const grantBatchItemSchema = z
+  .object({
+    accountId: z.uuid(),
+    permission: permissionSchema,
+    status: z
+      .enum(["created", "skipped_active", "skipped_not_grantable", "skipped_inactive"])
+      .openapi("GrantBatchItemStatus"),
+    grantId: z.uuid().nullable(),
+  })
+  .openapi("GrantBatchItem");
+export const grantBatchResultSchema = z
+  .object({
+    // null untuk pratinjau (dryRun).
+    batchId: z.uuid().nullable(),
+    items: z.array(grantBatchItemSchema),
+    created: z.number().int(),
+    skipped: z.number().int(),
+  })
+  .openapi("GrantBatchResult");
+export type GrantBatchResult = z.infer<typeof grantBatchResultSchema>;
+
+export const revokeGrantBatchBodySchema = z
+  .object({
+    ids: z.array(z.uuid()).min(1).max(GRANT_BATCH_MAX_REVOKE),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .openapi("RevokeGrantBatch");
+export type RevokeGrantBatchInput = z.infer<typeof revokeGrantBatchBodySchema>;
+export const revokeGrantBatchResultSchema = z
+  .object({
+    batchId: z.uuid(),
+    items: z.array(
+      z
+        .object({
+          id: z.uuid(),
+          accountId: z.uuid(),
+          permission: permissionSchema,
+          status: z.enum(["revoked", "skipped_inactive"]).openapi("GrantRevokeBatchItemStatus"),
+        })
+        .openapi("GrantRevokeBatchItem"),
+    ),
+    revoked: z.number().int(),
+    skipped: z.number().int(),
+  })
+  .openapi("RevokeGrantBatchResult");
+export type RevokeGrantBatchResult = z.infer<typeof revokeGrantBatchResultSchema>;
 
 export const revokeGrantBodySchema = z
   .object({ reason: z.string().trim().max(500).optional() })

@@ -11,6 +11,14 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-27 — Grant & cabut banyak sekaligus (IAM-D2) (Oatse)
+- **Permintaan:** pengguna via supervisor (26 Nov 17:4x, "Setuju dialog ini"; "Cabut terpilih" ikut sekarang).
+- **API:** `POST /iam/grants/batch` (akun × izin, `dryRun`, status per kombinasi `created`/`skipped_active`/`skipped_not_grantable`/`skipped_inactive`), `POST /iam/grants/revoke-batch`; satu transaksi, audit per grant + `batchId`, notifikasi digabung per penerima; filter `GET /grants?accountIds=&permissions=` (dipisah koma).
+- **Web:** `components/grant-batch-dialog.tsx` (pilih akun + filter PT + "Semua HR Admin/Manager", izin dengan peringatan role, berlaku sampai + alasan untuk semua, pratinjau server, tabel hasil); halaman Grant izin: kolom centang, filter akun & izin, "Cabut terpilih" + dialog konfirmasi + alasan.
+- **Keputusan:** IAM-D2.
+- **Verifikasi:** `tests/integration/iam/grants-batch.test.ts` (campuran, pratinjau tak menulis, audit + notifikasi, 400/401/403/404/422, atomik, batas 50 akun/15 izin, revoke batch); web `tests/grants-batch.test.tsx` 3 test; verifikasi penuh + screenshot `QA/2026-11-26-ux-kontrak/grant-*`.
+- **Berikutnya:** rilis staging (butuh kata pengguna).
+
 ### 2026-10-28 — Reset sandi Auth akun QA `hr.arthasia` di staging (Oatse, sesi HRIS-mobile)
 - **Dikerjakan:** login `hr.arthasia@gmail.com` ditolak di web staging (temuan supervisor; akun aktif, terkonfirmasi, tidak dibanned). Atas kutipan pengguna 16:13 WIB "reset sandi hr.arthasia di staging ke …" (sandi tidak dicatat di repo), 16:14 WIB sandi Auth diganti lewat Supabase Auth Admin API `updateUserById` (service role dari `.env` lokal, tidak dicetak) di project staging `iwgzuwcxsxnbjibhbqgh`.
 - **Keputusan:** —

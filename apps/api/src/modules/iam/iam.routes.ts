@@ -14,8 +14,10 @@ import {
   assignCompaniesBodySchema,
   auditLogSchema,
   changeRoleBodySchema,
+  createGrantBatchBodySchema,
   createGrantBodySchema,
   dashboardLayoutResponseSchema,
+  grantBatchResultSchema,
   grantSchema,
   idParamSchema,
   inviteAccountBodySchema,
@@ -25,6 +27,8 @@ import {
   listAuditLogsQuerySchema,
   listGrantsQuerySchema,
   meResponseSchema,
+  revokeGrantBatchBodySchema,
+  revokeGrantBatchResultSchema,
   revokeGrantBodySchema,
   saveDashboardLayoutBodySchema,
   transferPrimaryBodySchema,
@@ -281,6 +285,30 @@ const routes = {
       ...errors(400, 401, 403, 404, 409, 422, 500),
     },
   }),
+  createGrantBatch: createRoute({
+    method: "post",
+    path: `${P}/grants/batch`,
+    tags: ["IAM"],
+    summary: "Beri grant banyak akun × banyak izin sekaligus (SUPER_ADMIN); dryRun = pratinjau",
+    security,
+    request: body(createGrantBatchBodySchema),
+    responses: {
+      200: json("Hasil per kombinasi akun × izin", dataEnvelope(grantBatchResultSchema)),
+      ...errors(400, 401, 403, 404, 422, 500),
+    },
+  }),
+  revokeGrantBatch: createRoute({
+    method: "post",
+    path: `${P}/grants/revoke-batch`,
+    tags: ["IAM"],
+    summary: "Cabut banyak grant sekaligus (SUPER_ADMIN); yang sudah tidak aktif dilewati",
+    security,
+    request: body(revokeGrantBatchBodySchema),
+    responses: {
+      200: json("Hasil per grant", dataEnvelope(revokeGrantBatchResultSchema)),
+      ...errors(400, 401, 403, 404, 500),
+    },
+  }),
   revokeGrant: createRoute({
     method: "post",
     path: `${P}/grants/{id}/revoke`,
@@ -407,6 +435,12 @@ export function registerIamRoutes(app: OpenAPIHono, deps: IamRouteDeps): void {
   );
   app.openapi(guard(routes.createGrant), async (c) =>
     c.json(ok(await service.createGrant(ctxOf(c), c.req.valid("json"))), 201),
+  );
+  app.openapi(guard(routes.createGrantBatch), async (c) =>
+    c.json(ok(await service.createGrantBatch(ctxOf(c), c.req.valid("json"))), 200),
+  );
+  app.openapi(guard(routes.revokeGrantBatch), async (c) =>
+    c.json(ok(await service.revokeGrantBatch(ctxOf(c), c.req.valid("json"))), 200),
   );
   app.openapi(guard(routes.revokeGrant), async (c) =>
     c.json(

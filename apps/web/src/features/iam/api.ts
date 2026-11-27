@@ -7,10 +7,12 @@ import {
   accountInviteQueuedSchema,
   accountSchema,
   auditLogSchema,
+  grantBatchResultSchema,
   grantSchema,
   linkSuggestionSchema,
   one,
   page,
+  revokeGrantBatchResultSchema,
 } from "./schemas";
 
 export const iamKeys = {
@@ -160,6 +162,54 @@ export interface GrantsParams {
   pageSize?: number | undefined;
   active?: boolean | undefined;
   accountId?: string | undefined;
+  /** Dipisah koma (IAM-D2: filter banyak akun/izin). */
+  accountIds?: string | undefined;
+  permissions?: string | undefined;
+}
+
+export interface GrantBatchBody {
+  accountIds: string[];
+  permissions: Permission[];
+  expiresAt?: string;
+  reason?: string;
+}
+
+/** IAM-D2: pratinjau batch (dryRun) — dihitung server dengan aturan yang sama dengan simpan. */
+export function useGrantBatchPreview(body: GrantBatchBody, enabled: boolean) {
+  return useQuery({
+    queryKey: ["iam", "grant-batch-preview", body],
+    queryFn: ({ signal }) =>
+      api("/grants/batch", {
+        method: "POST",
+        body: { ...body, dryRun: true },
+        schema: one(grantBatchResultSchema),
+        signal,
+      }),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useCreateGrantBatch() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: GrantBatchBody) =>
+      api("/grants/batch", { method: "POST", body, schema: one(grantBatchResultSchema) }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRevokeGrantBatch() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: { ids: string[]; reason?: string }) =>
+      api("/grants/revoke-batch", {
+        method: "POST",
+        body,
+        schema: one(revokeGrantBatchResultSchema),
+      }),
+    onSuccess: invalidate,
+  });
 }
 
 export function useGrants(params: GrantsParams) {
