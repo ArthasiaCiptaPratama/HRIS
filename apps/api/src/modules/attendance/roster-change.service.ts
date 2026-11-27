@@ -1,4 +1,5 @@
 import { OFF_CODE, type RosterChangeInput, type RosterChangeStatus } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -111,7 +112,7 @@ export async function createRosterChange(
   if (!ctx.actor.employeeId) throw new ForbiddenError("Akun tidak terhubung ke data karyawan.");
   const employeeId = input.employeeId ?? ctx.actor.employeeId;
   const employee = await directory.employeeById(employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   const target = { employeeId, companyId: employee.companyId, managerId: employee.managerId };
   if (!policy.canRequestRosterChange(ctx.actor, target)) throw new ForbiddenError();
   if (input.date < (await todayIso()))
@@ -127,7 +128,12 @@ export async function createRosterChange(
     if (input.peerEmployeeId === employeeId)
       throw new BusinessRuleError("Tidak bisa menukar dengan diri sendiri.");
     const peer = await directory.employeeById(input.peerEmployeeId);
-    if (!peer || peer.companyId !== employee.companyId || !peer.isActive) {
+    if (
+      !peer ||
+      isHiddenEmployee(ctx.actor, peer.id) ||
+      peer.companyId !== employee.companyId ||
+      !peer.isActive
+    ) {
       throw new BusinessRuleError("Rekan harus karyawan aktif di perusahaan yang sama.");
     }
     const peerDay = await repository.rosterDay(peer.id, toDate(input.date));
@@ -195,7 +201,7 @@ export async function respondToSwap(
   if (!row || row.peerEmployeeId !== ctx.actor.employeeId) throw new NotFoundError();
   if (row.status !== "AWAITING_PEER") throw new ConflictError("Permintaan ini sudah dijawab.");
   const employee = await directory.employeeById(row.employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   const updated = await repository.withTransaction(async (tx) => {
     const next = await repository.updateChange(tx, id, {
       status: accept ? "PENDING" : "REJECTED",

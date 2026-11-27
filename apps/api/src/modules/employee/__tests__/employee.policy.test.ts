@@ -347,7 +347,7 @@ describe("D-047 review onboarding", () => {
     ["EMP", [], ["co-A"], "co-A", false],
   ] as const)("%s grant %j PT %j → %s: %s", (who, grants, companies, company, allowed) => {
     const a = actor(who, [...grants], `emp-${who}`, companies === null ? null : [...companies]);
-    expect(canReviewOnboarding(a, company)).toBe(allowed);
+    expect(canReviewOnboarding(a, { companyId: company, employeeId: "emp-1" })).toBe(allowed);
   });
 });
 
@@ -591,4 +591,26 @@ describe("canExportEmployees", () => {
   ] as const)("%s → %s", (role, allowed) => {
     expect(canExportEmployees({ ...actor("HR", ["employee.personal.read"]), role })).toBe(allowed);
   });
+});
+
+test("IAM-D3: HR & HR Kepegawaian tidak melihat HO, termasuk data sendiri", () => {
+  const target = { employeeId: "ho", companyId: "co-A", managerId: null };
+  for (const role of ["HR_ADMIN", "HR_PERSONNEL"] as const) {
+    const a: Actor = {
+      ...actor("HR", [
+        "employee.personal.read",
+        "employee.bank.read",
+        "employee.onboarding.review",
+      ]),
+      role,
+      employeeId: "ho",
+      hiddenEmployeeIds: new Set(["ho"]),
+    };
+    expect(canViewEmployee(a, target)).toBe(false);
+    expect(canReadPersonal(a, target)).toBe(false);
+    expect(canReadBank(a, target)).toBe(false);
+    expect(canChangePhoto(a, target)).toBe(false);
+    expect(canSubmitDataChange(a, target)).toBe(false);
+    expect(canReviewOnboarding(a, target)).toBe(false);
+  }
 });

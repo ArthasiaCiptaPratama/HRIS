@@ -355,6 +355,11 @@ export async function replaceCompanyAssignments(
   }
 }
 
+/** IAM-D3: opsi "Tanpa akses karyawan Head Office". */
+export async function setRestrictHeadOffice(tx: IamTx, accountId: string, value: boolean) {
+  await tx.account.update({ where: { id: accountId }, data: { restrictHeadOffice: value } });
+}
+
 // ── D-045: undangan akun dari onboarding ────────────────────────────────────
 
 export async function findAccountEmails(emails: string[]) {
@@ -384,6 +389,8 @@ export async function findAccountsForEmployees(employeeIds: string[]) {
       employeeId: true,
       email: true,
       loginEmail: true,
+      role: true,
+      restrictHeadOffice: true,
       lastLoginAt: true,
       isActive: true,
     },
@@ -409,12 +416,17 @@ export async function authUserCreatedByInvite(tx: IamTx, accountId: string): Pro
 }
 
 /** D-047: penerima notifikasi review onboarding — HR_ADMIN aktif ber-grant aktif di PT itu. */
-export async function findOnboardingReviewerHrs(companyId: string, now: Date) {
+export async function findOnboardingReviewerHrs(
+  companyId: string,
+  now: Date,
+  headOfficeSubject = false,
+) {
   return getPrisma().account.findMany({
     where: {
       role: "HR_ADMIN",
       isActive: true,
       companies: { some: { companyId } },
+      ...(headOfficeSubject ? { restrictHeadOffice: false } : {}),
       grants: {
         some: {
           permission: "EMPLOYEE_ONBOARDING_REVIEW",
@@ -432,12 +444,14 @@ export async function findCompanyHrs(
   companyId: string,
   permission: Prisma.EnumPermissionFilter["equals"] | null,
   now: Date,
+  headOfficeSubject = false,
 ) {
   return getPrisma().account.findMany({
     where: {
       role: "HR_ADMIN",
       isActive: true,
       companies: { some: { companyId } },
+      ...(headOfficeSubject ? { restrictHeadOffice: false } : {}),
       ...(permission
         ? {
             grants: {
@@ -459,12 +473,14 @@ export async function findCompanyHrsWithAll(
   companyId: string,
   permissions: NonNullable<Prisma.EnumPermissionFilter["equals"]>[],
   now: Date,
+  headOfficeSubject = false,
 ) {
   return getPrisma().account.findMany({
     where: {
       role: "HR_ADMIN",
       isActive: true,
       companies: { some: { companyId } },
+      ...(headOfficeSubject ? { restrictHeadOffice: false } : {}),
       AND: permissions.map((permission) => ({
         grants: {
           some: {

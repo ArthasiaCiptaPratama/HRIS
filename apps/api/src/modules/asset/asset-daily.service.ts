@@ -14,9 +14,10 @@ const toIso = (date: Date) => date.toISOString().slice(0, 10);
 export async function runAssetDaily(now: Date = new Date()) {
   const today = todayInJakarta(now);
   const managers = new Map<string, Promise<Recipient[]>>();
-  const managersOf = (companyId: string) => {
-    if (!managers.has(companyId)) managers.set(companyId, listAssetManagers(companyId, now));
-    return managers.get(companyId) as Promise<Recipient[]>;
+  const managersOf = (companyId: string, headOfficeSubject: boolean) => {
+    const key = `${companyId}:${headOfficeSubject}`;
+    if (!managers.has(key)) managers.set(key, listAssetManagers(companyId, now, headOfficeSubject));
+    return managers.get(key) as Promise<Recipient[]>;
   };
   const counts = { overdue: 0, replacementDue: 0, exitPending: 0 };
 
@@ -42,7 +43,7 @@ export async function runAssetDaily(now: Date = new Date()) {
     if (!e.isActive) {
       const r = await notify(
         {
-          recipients: await managersOf(a.asset.companyId),
+          recipients: await managersOf(a.asset.companyId, e.isHeadOffice ?? false),
           type: "asset.exit_pending",
           title: "Aset belum kembali dari karyawan keluar",
           body: `${label} masih tercatat dipegang ${e.fullName}.`,
@@ -59,7 +60,7 @@ export async function runAssetDaily(now: Date = new Date()) {
     const due = toIso(a.dueBackAt as Date);
     const r = await notify(
       {
-        recipients: await managersOf(a.asset.companyId),
+        recipients: await managersOf(a.asset.companyId, e.isHeadOffice ?? false),
         type: "asset.loan_overdue",
         title: LOAN_STATE_LABELS.OVERDUE,
         body: `${label} dipinjam ${e.fullName}, seharusnya kembali ${due}.`,
@@ -101,7 +102,7 @@ export async function runAssetDaily(now: Date = new Date()) {
     if (!due || due > today) continue;
     const r = await notify(
       {
-        recipients: await managersOf(e.companyId),
+        recipients: await managersOf(e.companyId, e.isHeadOffice ?? false),
         type: "asset.ppe_replacement_due",
         title: "APD jatuh tempo ganti",
         body: `${p.ppeType.name} milik ${e.fullName} jatuh tempo ganti ${due}.`,
@@ -120,7 +121,7 @@ export async function runAssetDaily(now: Date = new Date()) {
     if (!e || e.isActive) continue;
     const r = await notify(
       {
-        recipients: await managersOf(e.companyId),
+        recipients: await managersOf(e.companyId, e.isHeadOffice ?? false),
         type: "asset.exit_pending",
         title: "APD wajib kembali belum dikembalikan",
         body: `${p.ppeType.name} × ${p.quantity} masih tercatat dipegang ${e.fullName}.`,

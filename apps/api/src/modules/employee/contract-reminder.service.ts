@@ -58,13 +58,17 @@ export async function remindContracts(now: Date = new Date()) {
   const managers = new Map(
     (await getEmployeeAccountStates([...new Set(due.flatMap((d) => d.row.managerId ?? []))]))
       .filter((a) => a.isActive)
-      .map((a) => [a.employeeId, { accountId: a.accountId, email: a.email }]),
+      .map((a) => [
+        a.employeeId,
+        { accountId: a.accountId, email: a.email, restrictHeadOffice: a.restrictHeadOffice },
+      ]),
   );
   const hrCache = new Map<string, Promise<{ accountId: string; email: string }[]>>();
-  const hrOf = (companyId: string) => {
-    if (!hrCache.has(companyId))
-      hrCache.set(companyId, listDocumentReminderRecipients(companyId, false, now));
-    return hrCache.get(companyId) as Promise<{ accountId: string; email: string }[]>;
+  const hrOf = (companyId: string, headOfficeSubject: boolean) => {
+    const key = `${companyId}:${headOfficeSubject}`;
+    if (!hrCache.has(key))
+      hrCache.set(key, listDocumentReminderRecipients(companyId, false, now, headOfficeSubject));
+    return hrCache.get(key) as Promise<{ accountId: string; email: string }[]>;
   };
   const format = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "UTC" });
 
@@ -101,7 +105,7 @@ export async function remindContracts(now: Date = new Date()) {
         : `contract-expiring:${row.id}:${endDate}:${threshold}`,
       email: false,
     };
-    const hrs = await hrOf(row.companyId);
+    const hrs = await hrOf(row.companyId, row.workLocation?.isHeadOffice ?? false);
     notified += (
       await notify(
         {
@@ -116,7 +120,11 @@ export async function remindContracts(now: Date = new Date()) {
     // Atasan langsung bisa berakun Karyawan (ORG-D9) yang tidak membuka Personal Management → tanpa tautan;
     // tindakan tetap di HR. Akun yang juga HR sudah menerima versi bertautan (dedupe per penerima).
     const manager = row.managerId ? managers.get(row.managerId) : undefined;
-    if (manager && !hrs.some((h) => h.accountId === manager.accountId))
+    if (
+      manager &&
+      !(manager.restrictHeadOffice && row.workLocation?.isHeadOffice) &&
+      !hrs.some((h) => h.accountId === manager.accountId)
+    )
       notified += (
         await notify(
           {

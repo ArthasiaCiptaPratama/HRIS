@@ -311,7 +311,11 @@ export async function assetsReport(ctx: RequestContext, raw: unknown, now = new 
     companyIds = scope && !scope.includes(filter.companyId) ? [NO_MATCH] : [filter.companyId];
   }
   if (companyIds && companyIds.length === 0) companyIds = [NO_MATCH];
-  const assets = await listAssetsForReport({ companyIds, workLocationId: filter.workLocationId });
+  const assets = await listAssetsForReport({
+    actor: ctx.actor,
+    companyIds,
+    workLocationId: filter.workLocationId,
+  });
   const byId = new Map(employees.map((e) => [e.id, e]));
   const leavers = employees.filter((e) => !e.isActive);
   const ppe = await listUnreturnedPpeForReport(leavers.map((e) => e.id));

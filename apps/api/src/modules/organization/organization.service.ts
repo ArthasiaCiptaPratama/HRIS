@@ -26,7 +26,7 @@ export interface MasterLookup {
   positions: Map<string, PositionDto & { deleted: boolean }>;
   statuses: Map<string, EmploymentStatusDto & { deleted: boolean }>;
   grades: Map<string, GradeDto & { deleted: boolean }>;
-  locations: Map<string, WorkLocationDto & { deleted: boolean }>;
+  locations: Map<string, WorkLocationDto & { deleted: boolean; isHeadOffice?: boolean }>;
   /** EMP-D6: Homebase / Point of Hire. */
   homebases: Map<string, HomebaseDto & { deleted: boolean }>;
 }
@@ -90,7 +90,10 @@ export async function listMasterData(actor: Actor) {
     positions: active(lookup.positions),
     employmentStatuses: active(lookup.statuses),
     grades: active(lookup.grades),
-    workLocations: active(lookup.locations),
+    // IAM-D3: akun HR yang dibatasi tidak bisa memilih lokasi Head Office (pindah/buat karyawan ke HO).
+    workLocations: active(lookup.locations).filter(
+      (location) => actor.hiddenEmployeeIds === undefined || !location.isHeadOffice,
+    ),
     homebases: active(lookup.homebases),
   };
 }

@@ -1,3 +1,4 @@
+import { type Actor, hasHiddenEmployees, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { OnboardingStatus, Prisma } from "../../generated/prisma/client.ts";
 import type { EmployeeTx } from "./employee.repository.ts";
@@ -81,10 +82,10 @@ export async function findBatch(id: string) {
 }
 
 /** Ringkasan antrean undangan per batch (jumlah per status). */
-export async function invitationCountsForBatch(batchId: string) {
+export async function invitationCountsForBatch(batchId: string, actor: Actor) {
   return getPrisma().onboardingInvitation.groupBy({
     by: ["status"],
-    where: { employee: { onboardingBatchId: batchId } },
+    where: { ...hiddenFilter(actor, "employeeId"), employee: { onboardingBatchId: batchId } },
     _count: { _all: true },
   });
 }
@@ -100,9 +101,10 @@ export async function latestInvitations(employeeIds: string[]) {
 }
 
 /** Antrean tertua dalam cakupan PT (null = semua). */
-export async function takeQueued(companyIds: string[] | null, limit: number) {
+export async function takeQueued(companyIds: string[] | null, limit: number, actor: Actor | null) {
   return getPrisma().onboardingInvitation.findMany({
     where: {
+      ...(actor ? hiddenFilter(actor, "employeeId") : {}),
       status: "QUEUED",
       ...(companyIds === null ? {} : { employee: { companyId: { in: companyIds } } }),
     },
@@ -112,9 +114,10 @@ export async function takeQueued(companyIds: string[] | null, limit: number) {
   });
 }
 
-export async function countQueued(companyIds: string[] | null) {
+export async function countQueued(companyIds: string[] | null, actor: Actor | null) {
   return getPrisma().onboardingInvitation.count({
     where: {
+      ...(actor ? hiddenFilter(actor, "employeeId") : {}),
       status: "QUEUED",
       ...(companyIds === null ? {} : { employee: { companyId: { in: companyIds } } }),
     },
@@ -249,9 +252,14 @@ export async function findCandidate(id: string) {
 }
 
 /** ONB-D2: karyawan aktif & disetujui yang email pribadi/kerjanya = `email` (saran tautan akun). */
-export async function findEmployeesByEmail(email: string, companyIds: string[] | null) {
+export async function findEmployeesByEmail(
+  email: string,
+  companyIds: string[] | null,
+  actor?: Actor,
+) {
   return getPrisma().employee.findMany({
     where: {
+      ...(actor ? hiddenFilter(actor, "id") : {}),
       isActive: true,
       onboardingStatus: "APPROVED",
       ...(companyIds === null ? {} : { companyId: { in: companyIds } }),
@@ -391,10 +399,27 @@ export async function findStaleInvited(cutoff: Date, take: number) {
       onboardingInvitations: { some: { status: "SENT", sentAt: { lt: cutoff } } },
     },
     take,
-    select: { id: true, fullName: true, employeeNumber: true, companyId: true },
+    select: {
+      id: true,
+      fullName: true,
+      employeeNumber: true,
+      companyId: true,
+      workLocation: { select: { isHeadOffice: true } },
+    },
   });
 }
 
 export async function deleteEmployee(tx: EmployeeTx, id: string) {
   return tx.employee.delete({ where: { id } });
+}
+
+/** IAM-D3: hitung ulang jumlah batch tanpa karyawan tersembunyi. */
+export async function visibleBatchCounts(batchId: string, actor: Actor) {
+  if (!hasHiddenEmployees(actor)) return null;
+  const where = { onboardingBatchId: batchId, ...hiddenFilter(actor, "id") };
+  const [createdCount, invitedCount] = await Promise.all([
+    getPrisma().employee.count({ where }),
+    getPrisma().employee.count({ where: { ...where, onboardingInvitations: { some: {} } } }),
+  ]);
+  return { createdCount, invitedCount };
 }

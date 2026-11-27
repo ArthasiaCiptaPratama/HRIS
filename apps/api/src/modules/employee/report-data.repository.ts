@@ -1,9 +1,11 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 
 // ARS-D16/D17 (Laporan batch 1): query baca-saja tabel employee untuk modul `report` (lewat index.ts).
 // Hanya karyawan resmi (D-045). Nilai sensitif tidak pernah dipilih — kelengkapan hanya "terisi/kosong".
 
 export interface ReportEmployeeFilter {
+  actor?: Actor;
   /** null = semua PT. */
   companyIds: string[] | null;
   /** null = semua jabatan (filter unit diterjemahkan pemanggil menjadi jabatan). */
@@ -17,6 +19,7 @@ export const findReportEmployees = (f: ReportEmployeeFilter) =>
   getPrisma().employee.findMany({
     where: {
       onboardingStatus: "APPROVED",
+      ...(f.actor ? hiddenFilter(f.actor, "id") : {}),
       ...(f.companyIds ? { companyId: { in: f.companyIds } } : {}),
       ...(f.positionIds ? { positionId: { in: f.positionIds } } : {}),
       ...(f.workLocationId ? { workLocationId: f.workLocationId } : {}),

@@ -54,6 +54,9 @@ model Account {
   // PLAN §4.4: tepat satu akun Utama (index unik parsial + CHECK di migrasi).
   isPrimarySuperAdmin Boolean   @default(false) @map("is_primary_super_admin")
   lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz(6)
+  // IAM-D3: "Tanpa akses karyawan Head Office" — hanya bermakna untuk HR_ADMIN/HR_PERSONNEL (D-040);
+  // dimatikan otomatis saat role berganti ke role lain. Diatur SUPER_ADMIN.
+  restrictHeadOffice  Boolean   @default(false) @map("restrict_head_office")
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

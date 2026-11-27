@@ -17,6 +17,7 @@ import {
 } from "@hris/shared";
 import type { z } from "zod";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -141,10 +142,16 @@ function letterDto(
   const employee = briefs.get(l.employeeId);
   const managerId = l.managerEmployeeId ?? employee?.managerId ?? null;
   const manager = managerId ? briefs.get(managerId) : undefined;
-  const internal = policy.canSeeInternalNotes(ctx.actor, l.companyId);
+  const internal = policy.canSeeInternalNotes(ctx.actor, {
+    companyId: l.companyId,
+    employeeId: l.employeeId,
+  });
   const t = employee ? target(employee) : null;
   const state = stateOf(l, today);
-  const writer = policy.canWriteLetters(ctx.actor, l.companyId);
+  const writer = policy.canWriteLetters(ctx.actor, {
+    companyId: l.companyId,
+    employeeId: l.employeeId,
+  });
   const live = l.status === "ISSUED" || l.status === "EXPIRED";
   return {
     id: l.id,
@@ -334,7 +341,9 @@ export async function listLetters(ctx: RequestContext, query: LetterListQuery, n
   let employeeIds: string[] | null = null;
   let orManager: string | null = null;
   if (scope.kind === "team") {
-    employeeIds = (await listEmployeeBriefs({ managerId: scope.managerId })).map((e) => e.id);
+    employeeIds = (await listEmployeeBriefs({ actor: ctx.actor, managerId: scope.managerId })).map(
+      (e) => e.id,
+    );
     orManager = scope.managerId;
     draftCompanyIds = [];
   }
@@ -349,7 +358,7 @@ export async function listLetters(ctx: RequestContext, query: LetterListQuery, n
   }
   const q = query.q?.trim() || null;
   const qEmployeeIds = q
-    ? (await listEmployeeBriefs({ companyIds, q, limit: 500 })).map((e) => e.id)
+    ? (await listEmployeeBriefs({ actor: ctx.actor, companyIds, q, limit: 500 })).map((e) => e.id)
     : [];
   const statuses =
     query.state === "DRAFT"
@@ -360,6 +369,7 @@ export async function listLetters(ctx: RequestContext, query: LetterListQuery, n
   const { rows, total } = await repo.listLetters(
     {
       companyIds,
+      actor: ctx.actor,
       draftCompanyIds,
       employeeIds,
       orManagerEmployeeId: orManager,
@@ -393,7 +403,13 @@ async function loadVisible(ctx: RequestContext, id: string) {
 
 async function loadWritable(ctx: RequestContext, id: string) {
   const { letter, employee } = await loadVisible(ctx, id);
-  if (!policy.canWriteLetters(ctx.actor, letter.companyId)) throw new ForbiddenError();
+  if (
+    !policy.canWriteLetters(ctx.actor, {
+      companyId: letter.companyId,
+      employeeId: letter.employeeId,
+    })
+  )
+    throw new ForbiddenError();
   return { letter, employee };
 }
 
@@ -401,7 +417,10 @@ export async function getLetter(ctx: RequestContext, id: string, now = new Date(
   const { letter } = await loadVisible(ctx, id);
   const dto = await one(ctx, letter, now);
   const evidence: StatementRow[] =
-    policy.canSeeInternalNotes(ctx.actor, letter.companyId) && letter.alphaDays.length
+    policy.canSeeInternalNotes(ctx.actor, {
+      companyId: letter.companyId,
+      employeeId: letter.employeeId,
+    }) && letter.alphaDays.length
       ? await alphaDaysForEvidence(
           letter.employeeId,
           letter.alphaDays.map((d) => d.attendanceDayId),
@@ -413,7 +432,7 @@ export async function getLetter(ctx: RequestContext, id: string, now = new Date(
 
 export async function employeeLetters(ctx: RequestContext, employeeId: string, now = new Date()) {
   const employee = (await getEmployeeBriefs([employeeId])).get(employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   // Tab SP di detail karyawan: tanpa hak melihat SP terbit karyawan ini = 403.
   const probe: policy.LetterTarget = {
     companyId: employee.companyId,
@@ -437,8 +456,12 @@ export async function selfLetters(ctx: RequestContext, now = new Date()) {
 
 async function writableEmployee(ctx: RequestContext, employeeId: string) {
   const employee = (await getEmployeeBriefs([employeeId])).get(employeeId);
-  if (!employee) throw new NotFoundError("Karyawan tidak ditemukan.");
-  if (!policy.canWriteLetters(ctx.actor, employee.companyId)) throw new ForbiddenError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id))
+    throw new NotFoundError("Karyawan tidak ditemukan.");
+  if (
+    !policy.canWriteLetters(ctx.actor, { companyId: employee.companyId, employeeId: employee.id })
+  )
+    throw new ForbiddenError();
   return employee;
 }
 

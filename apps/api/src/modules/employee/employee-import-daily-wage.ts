@@ -31,7 +31,10 @@ export async function planImportDailyWages(
       p.row.contract.dailyWage !== undefined,
   );
   const allowed = candidates.filter((p) =>
-    canAccessDailyWageInCompany(ctx.actor, p.companyId ?? p.existing?.companyId ?? ""),
+    canAccessDailyWageInCompany(ctx.actor, {
+      companyId: p.companyId ?? p.existing?.companyId ?? "",
+      employeeId: p.existing?.id ?? null,
+    }),
   );
   const history = await dailyWageHistory([
     ...new Set(allowed.flatMap((p) => p.existing?.id ?? [])),
@@ -103,7 +106,13 @@ export async function writeImportDailyWage(
   await repository.lockEmployee(tx, employee.id);
   const current = await repository.findEmployee(employee.id, tx);
   if (!current) throw new NotFoundError("Karyawan tidak ditemukan.");
-  if (!canAccessDailyWageInCompany(ctx.actor, current.companyId)) throw new ForbiddenError();
+  if (
+    !canAccessDailyWageInCompany(ctx.actor, {
+      companyId: current.companyId,
+      employeeId: current.id,
+    })
+  )
+    throw new ForbiddenError();
   await setDailyWage(
     {
       ...current,

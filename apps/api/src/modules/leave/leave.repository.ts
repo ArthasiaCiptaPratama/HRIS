@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { LeaveLedgerKind, Prisma } from "../../generated/prisma/client.ts";
 
@@ -239,9 +240,12 @@ export const cancelOpenExitSettlements = (ids: string[], note: string) =>
     where: { id: { in: ids }, status: "OPEN" },
     data: { status: "CANCELLED", note },
   });
-export const listExitSettlementRows = (companyIds?: string[]) =>
+export const listExitSettlementRows = (companyIds?: string[], actor?: Actor) =>
   getPrisma().leaveExitSettlement.findMany({
-    where: companyIds ? { companyId: { in: companyIds } } : {},
+    where: {
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+      ...(actor ? hiddenFilter(actor, "employeeId") : {}),
+    },
     orderBy: [{ exitDate: "desc" }, { createdAt: "desc" }],
     take: 500,
   });

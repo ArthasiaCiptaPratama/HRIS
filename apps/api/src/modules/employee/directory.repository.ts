@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 
 // Direktori baca-saja untuk modul lain (lewat index.ts): data minimum karyawan & rujukan dokumen.
@@ -12,6 +13,7 @@ const BRIEF_SELECT = {
   isActive: true,
   positionId: true,
   workLocationId: true,
+  workLocation: { select: { isHeadOffice: true } },
   gradeId: true,
 } as const;
 
@@ -24,6 +26,7 @@ export async function findBriefsByIds(ids: string[]) {
 }
 
 export async function findBriefs(filter: {
+  actor?: Actor;
   companyIds: string[] | null;
   managerId: string | null;
   isActive: boolean | null;
@@ -34,6 +37,7 @@ export async function findBriefs(filter: {
   return getPrisma().employee.findMany({
     where: {
       onboardingStatus: "APPROVED",
+      ...(filter.actor ? hiddenFilter(filter.actor, "id") : {}),
       ...(filter.companyIds ? { companyId: { in: filter.companyIds } } : {}),
       ...(filter.managerId ? { managerId: filter.managerId } : {}),
       ...(filter.isActive === null ? {} : { isActive: filter.isActive }),
@@ -68,10 +72,11 @@ export async function findDocumentRef(id: string) {
 }
 
 /** TM-D9: karyawan nonaktif dengan tanggal keluar (hak cuti keluar). */
-export async function findExited(companyIds: string[] | null) {
+export async function findExited(companyIds: string[] | null, actor?: Actor) {
   return getPrisma().employee.findMany({
     where: {
       onboardingStatus: "APPROVED",
+      ...(actor ? hiddenFilter(actor, "id") : {}),
       isActive: false,
       endDate: { not: null },
       ...(companyIds ? { companyId: { in: companyIds } } : {}),
@@ -99,6 +104,7 @@ export async function findExitStatus(ids: string[]) {
 
 /** DSB-D1: karyawan yang aktif pada sebagian rentang [from, to]. */
 export async function findForAnalytics(input: {
+  actor?: Actor;
   companyIds: string[] | null;
   managerId: string | null;
   from: Date;
@@ -108,6 +114,7 @@ export async function findForAnalytics(input: {
   return getPrisma().employee.findMany({
     where: {
       onboardingStatus: "APPROVED",
+      ...(input.actor ? hiddenFilter(input.actor, "id") : {}),
       joinDate: { lte: input.to },
       OR: [{ endDate: null }, { endDate: { gte: input.from } }],
       ...(input.companyIds ? { companyId: { in: input.companyIds } } : {}),

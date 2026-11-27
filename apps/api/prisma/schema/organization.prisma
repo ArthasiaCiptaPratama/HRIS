@@ -209,19 +209,22 @@ model Grade {
 }
 
 model WorkLocation {
-  id        String     @id @default(uuid()) @db.Uuid
-  name      String     @db.VarChar(100)
-  city      String?    @db.VarChar(100)
-  address   String?
+  id           String     @id @default(uuid()) @db.Uuid
+  name         String     @db.VarChar(100)
+  city         String?    @db.VarChar(100)
+  address      String?
   // PLAN §5.4 geofence: belum ada di ERD; nullable sampai Fase 5 (attendance) mewajibkannya.
-  latitude  Decimal?   @db.Decimal(9, 6)
-  longitude Decimal?   @db.Decimal(9, 6)
-  radiusM   Int?       @map("radius_m")
-  employees Employee[]
-  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt DateTime?  @map("deleted_at") @db.Timestamptz(6)
-  assets    Asset[]
+  latitude     Decimal?   @db.Decimal(9, 6)
+  longitude    Decimal?   @db.Decimal(9, 6)
+  radiusM      Int?       @map("radius_m")
+  // IAM-D3: lokasi berpenanda Head Office; karyawan di lokasi ini tersembunyi dari akun HR yang
+  // `restrictHeadOffice`. Diatur SUPER_ADMIN.
+  isHeadOffice Boolean    @default(false) @map("is_head_office")
+  employees    Employee[]
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  assets       Asset[]
 
   @@unique([name])
   @@map("work_locations")

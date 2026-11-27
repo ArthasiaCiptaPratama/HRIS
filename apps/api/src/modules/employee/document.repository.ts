@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 import { ARCHIVE_EMPLOYEE_SELECT } from "./archive.repository.ts";
@@ -7,11 +8,19 @@ import type { EmployeeTx } from "./employee.repository.ts";
 
 // ── Jenis dokumen ───────────────────────────────────────────────────────────
 
-export async function listTypes(includeArchived: boolean) {
+export async function listTypes(includeArchived: boolean, actor?: Actor) {
   return getPrisma().documentType.findMany({
     where: includeArchived ? {} : { deletedAt: null },
     orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-    include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
+    include: {
+      _count: {
+        select: {
+          documents: {
+            where: { deletedAt: null, ...(actor ? hiddenFilter(actor, "employeeId") : {}) },
+          },
+        },
+      },
+    },
   });
 }
 export type DocumentTypeRow = Awaited<ReturnType<typeof listTypes>>[number];
@@ -190,7 +199,14 @@ export async function findExpiringCurrent(from: Date, until: Date) {
       id: true,
       expiresAt: true,
       documentType: { select: { name: true, sensitive: true, reminderDays: true } },
-      employee: { select: { id: true, fullName: true, companyId: true } },
+      employee: {
+        select: {
+          id: true,
+          fullName: true,
+          companyId: true,
+          workLocation: { select: { isHeadOffice: true } },
+        },
+      },
     },
     orderBy: { expiresAt: "asc" },
   });

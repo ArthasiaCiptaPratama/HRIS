@@ -8,6 +8,7 @@ import {
   suggestEmployeeNumbers,
 } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -66,6 +67,7 @@ const ISSUE_MESSAGES: Record<string, string> = {
   COMPANY_INVALID: "Perusahaan tidak ditemukan atau diarsipkan.",
   STATUS_INVALID: "Status kepegawaian tidak ditemukan atau diarsipkan.",
   POSITION_INVALID: "Jabatan tidak ditemukan atau diarsipkan.",
+  LOCATION_OUT_OF_SCOPE: "Lokasi kerja ini di luar cakupan Anda.",
   LOCATION_INVALID: "Lokasi kerja tidak ditemukan atau diarsipkan.",
   GRADE_INVALID: "Grade tidak ditemukan atau diarsipkan.",
   MANAGER_INVALID: "Atasan harus karyawan aktif.",
@@ -143,7 +145,11 @@ async function analyze(
     ...new Set(valid.map((r) => r.candidate.managerId).filter((id): id is string => Boolean(id))),
   ]);
   const activeManagers = new Set(
-    managerRows.filter((m) => m.isActive && m.onboardingStatus === "APPROVED").map((m) => m.id),
+    managerRows
+      .filter(
+        (m) => !isHiddenEmployee(actor, m.id) && m.isActive && m.onboardingStatus === "APPROVED",
+      )
+      .map((m) => m.id),
   );
   const live = <T extends { deleted: boolean }>(
     map: Map<string, T>,
@@ -158,6 +164,12 @@ async function analyze(
       push(row, "employmentStatusId", "STATUS_INVALID");
     if (!live(lookup.positions, c.positionId)) push(row, "positionId", "POSITION_INVALID");
     if (!live(lookup.locations, c.workLocationId)) push(row, "workLocationId", "LOCATION_INVALID");
+    if (
+      actor.hiddenEmployeeIds !== undefined &&
+      c.workLocationId &&
+      lookup.locations.get(c.workLocationId)?.isHeadOffice
+    )
+      push(row, "workLocationId", "LOCATION_OUT_OF_SCOPE");
     if (!live(lookup.grades, c.gradeId)) push(row, "gradeId", "GRADE_INVALID");
     if (c.managerId && !activeManagers.has(c.managerId)) push(row, "managerId", "MANAGER_INVALID");
   }
@@ -248,7 +260,9 @@ export async function createBatch(
   const problems = analysis.filter((r) => r.issues.length > 0);
   if (problems.length > 0) {
     throw new BusinessRuleError(
-      "Sebagian calon belum valid. Muat ulang pratinjau dan perbaiki barisnya.",
+      problems.some((r) => r.issues.some((i) => i.code === "LOCATION_OUT_OF_SCOPE"))
+        ? "Lokasi kerja ini di luar cakupan Anda."
+        : "Sebagian calon belum valid. Muat ulang pratinjau dan perbaiki barisnya.",
       problems.map((r) => ({ sourceRow: r.sourceRow, issues: r.issues })),
     );
   }
@@ -325,15 +339,19 @@ export async function createBatch(
 
 // ── Batch & progres ────────────────────────────────────────────────────────────────────────────────
 
-async function toBatchDto(batch: NonNullable<Awaited<ReturnType<typeof repo.findBatch>>>) {
-  const counts = await repo.invitationCountsForBatch(batch.id);
+async function toBatchDto(
+  batch: NonNullable<Awaited<ReturnType<typeof repo.findBatch>>>,
+  actor: Actor,
+) {
+  const counts = await repo.invitationCountsForBatch(batch.id, actor);
+  const visible = await repo.visibleBatchCounts(batch.id, actor);
   const count = (status: string) => counts.find((c) => c.status === status)?._count._all ?? 0;
   return {
     id: batch.id,
     name: batch.name,
     companyId: batch.companyId,
-    createdCount: batch.createdCount,
-    invitedCount: batch.invitedCount,
+    createdCount: visible?.createdCount ?? batch.createdCount,
+    invitedCount: visible?.invitedCount ?? batch.invitedCount,
     createdAt: batch.createdAt.toISOString(),
     invitations: { queued: count("QUEUED"), sent: count("SENT"), failed: count("FAILED") },
   };
@@ -342,7 +360,7 @@ async function toBatchDto(batch: NonNullable<Awaited<ReturnType<typeof repo.find
 export async function listBatches(ctx: OnboardingContext): Promise<OnboardingBatchDto[]> {
   assertCanRun(ctx.actor);
   const batches = await repo.listBatches(companyScope(ctx.actor));
-  return Promise.all(batches.map(toBatchDto));
+  return Promise.all(batches.map((batch) => toBatchDto(batch, ctx.actor)));
 }
 
 export async function getBatch(ctx: OnboardingContext, id: string): Promise<OnboardingBatchDto> {
@@ -353,7 +371,7 @@ export async function getBatch(ctx: OnboardingContext, id: string): Promise<Onbo
   if (!batch || (scope !== null && (!batch.companyId || !scope.includes(batch.companyId)))) {
     throw new NotFoundError("Penerimaan tidak ditemukan.");
   }
-  return toBatchDto(batch);
+  return toBatchDto(batch, ctx.actor);
 }
 
 // ── Antrean undangan ──────────────────────────────────────────────────────────────────────────────
@@ -371,7 +389,7 @@ export async function processInvitations(
   const scope = actor ? companyScope(actor) : null;
   const sentLastHour = await repo.countSentSince(new Date(now.getTime() - 60 * 60 * 1000));
   const room = Math.max(0, deps.perHour - sentLastHour);
-  const queue = room > 0 ? await repo.takeQueued(scope, Math.min(PROCESS_BATCH, room)) : [];
+  const queue = room > 0 ? await repo.takeQueued(scope, Math.min(PROCESS_BATCH, room), actor) : [];
   let sent = 0;
   let failed = 0;
   for (const item of queue) {
@@ -430,7 +448,7 @@ export async function processInvitations(
       });
     }
   }
-  const remaining = await repo.countQueued(scope);
+  const remaining = await repo.countQueued(scope, actor);
   return {
     processed: queue.length,
     sent,
@@ -444,7 +462,11 @@ export async function processInvitations(
 export async function resendInvitation(ctx: OnboardingContext, employeeId: string) {
   assertCanRun(ctx.actor);
   const candidate = await repo.findCandidate(employeeId);
-  if (!candidate || !policy.canOnboardInCompany(ctx.actor, candidate.companyId)) {
+  if (
+    !candidate ||
+    isHiddenEmployee(ctx.actor, employeeId) ||
+    !policy.canOnboardInCompany(ctx.actor, candidate.companyId)
+  ) {
     throw new NotFoundError("Calon tidak ditemukan.");
   }
   const reinvitable: OnboardingStatus[] = ["NOT_INVITED", "INVITED"];
@@ -502,7 +524,11 @@ export interface InvitationAdminDeps {
 async function loadInvitationTarget(ctx: OnboardingContext, employeeId: string) {
   assertCanRun(ctx.actor);
   const candidate = await repo.findCandidate(employeeId);
-  if (!candidate || !policy.canOnboardInCompany(ctx.actor, candidate.companyId)) {
+  if (
+    !candidate ||
+    isHiddenEmployee(ctx.actor, employeeId) ||
+    !policy.canOnboardInCompany(ctx.actor, candidate.companyId)
+  ) {
     throw new NotFoundError("Calon tidak ditemukan.");
   }
   const existingInvite = candidate.onboardingStatus === "APPROVED" && candidate.completionRequired;
@@ -663,7 +689,11 @@ export async function inviteExisting(ctx: OnboardingContext, body: InviteExistin
   const seen = new Set<string>();
   for (const { employeeId, email } of body.employees) {
     const row = byId.get(employeeId);
-    if (!row || !policy.canOnboardInCompany(ctx.actor, row.companyId)) {
+    if (
+      !row ||
+      isHiddenEmployee(ctx.actor, row.id) ||
+      !policy.canOnboardInCompany(ctx.actor, row.companyId)
+    ) {
       skip(employeeId, "NOT_FOUND", "Karyawan tidak ditemukan.");
     } else if (row.onboardingStatus !== "APPROVED" || !row.isActive) {
       skip(employeeId, "NOT_ELIGIBLE", "Hanya karyawan aktif yang sudah terdaftar.");
@@ -724,6 +754,7 @@ export async function listCandidates(ctx: OnboardingContext, query: CandidateLis
     return { rows: [] as OnboardingCandidateDto[], total: 0, counts: emptyCounts() };
   }
   const base: repo.CandidateWhere = {
+    ...hiddenFilter(ctx.actor, "id"),
     // Calon (belum APPROVED) + karyawan existing yang diundang melengkapi data (D-045 poin 9).
     OR: [{ onboardingStatus: { not: "APPROVED" } }, { completionRequired: true }],
     ...(scope === null ? {} : { companyId: { in: scope } }),

@@ -42,7 +42,9 @@ export async function readThl(
   tx?: Prisma.TransactionClient,
 ) {
   if (employee.category !== "DAILY_WORKER") return null;
-  const wage = actor !== null && canAccessDailyWageInCompany(actor, employee.companyId);
+  const wage =
+    actor !== null &&
+    canAccessDailyWageInCompany(actor, { companyId: employee.companyId, employeeId: employee.id });
   const [evaluations, history] = await Promise.all([
     evaluateThlEmployees([employee.id], now),
     wage ? repository.listDailyWages([employee.id], tx) : [],

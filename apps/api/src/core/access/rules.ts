@@ -34,6 +34,12 @@ export interface Actor {
    * bawahan langsung — bukan hak tim MANAGER lain (direktori, arsip, aset, SP, analitik, rekap).
    */
   isSupervisor?: boolean;
+  /**
+   * IAM-D3: akun HR ber-"Tanpa akses karyawan Head Office" → id semua karyawan yang lokasi kerjanya SAAT
+   * INI berpenanda Head Office (dimuat iam `loadActor` per request). Tidak diisi = tidak dibatasi.
+   * Karyawan ini diperlakukan seperti di luar cakupan PT (404/403), di semua jalur baca & tulis.
+   */
+  hiddenEmployeeIds?: ReadonlySet<string>;
 }
 
 export function hasRole(actor: Actor, roles: readonly Role[]): boolean {
@@ -83,7 +89,56 @@ export function isApprover(actor: Actor): boolean {
   return actor.employeeId !== null && (actor.role === ROLE.MANAGER || actor.isSupervisor === true);
 }
 
-// D-040: karyawan target berada di perusahaan dalam cakupan aktor (SUPER_ADMIN: semua).
-export function isInCompanyScope(actor: Actor, target: Pick<EmployeeTarget, "companyId">): boolean {
+/** IAM-D3: karyawan tersembunyi dari aktor (Head Office untuk akun HR yang dibatasi). */
+export function isHiddenEmployee(actor: Actor, employeeId: string): boolean {
+  return actor.hiddenEmployeeIds?.has(employeeId) ?? false;
+}
+
+/**
+ * D-040 + IAM-D3: target berada dalam cakupan aktor — PT ditugaskan (SUPER_ADMIN: semua) DAN, bila
+ * targetnya karyawan, bukan karyawan tersembunyi. `employeeId: null` hanya untuk aksi tingkat PT
+ * (master/pengaturan per perusahaan) — wajib ditulis eksplisit agar tiap pemanggil ditinjau.
+ */
+export function isInCompanyScope(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
+  if (target.employeeId !== null && isHiddenEmployee(actor, target.employeeId)) return false;
   return actor.companyIds === null || actor.companyIds.has(target.companyId);
+}
+
+/** IAM-D3: PT dalam cakupan saja (aksi tingkat PT). Sama dengan `isInCompanyScope(..., employeeId: null)`. */
+export function isCompanyInScope(actor: Actor, companyId: string): boolean {
+  return actor.companyIds === null || actor.companyIds.has(companyId);
+}
+
+/** IAM-D3: akun berstatus "Tanpa akses karyawan Head Office" (walau saat ini tidak ada karyawan HO). */
+export function isHeadOfficeRestricted(actor: Actor): boolean {
+  return actor.hiddenEmployeeIds !== undefined;
+}
+
+/** IAM-D3: aktor punya karyawan tersembunyi (akun dibatasi). */
+export function hasHiddenEmployees(actor: Actor): boolean {
+  return (actor.hiddenEmployeeIds?.size ?? 0) > 0;
+}
+
+/**
+ * IAM-D3: penyaring Prisma untuk kolom id karyawan (`employeeId`, atau `id` pada tabel karyawan):
+ * `{ notIn: [...] }` bila aktor punya karyawan tersembunyi, selain itu `undefined` (tanpa penyaring).
+ * Pakai: `...hiddenFilter(actor, "employeeId")`.
+ */
+export function hiddenFilter<K extends string>(
+  actor: Actor,
+  field: K,
+): Partial<Record<K, { notIn: string[] }>> {
+  if (!hasHiddenEmployees(actor)) return {};
+  return { [field]: { notIn: [...(actor.hiddenEmployeeIds ?? [])] } } as Record<
+    K,
+    { notIn: string[] }
+  >;
+}
+
+/** IAM-D3: buang id karyawan tersembunyi dari daftar (penyaring di memori). */
+export function visibleEmployeeIds(actor: Actor, ids: readonly string[]): string[] {
+  return hasHiddenEmployees(actor) ? ids.filter((id) => !isHiddenEmployee(actor, id)) : [...ids];
 }

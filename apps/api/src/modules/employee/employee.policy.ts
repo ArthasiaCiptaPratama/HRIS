@@ -3,6 +3,7 @@ import {
   type Actor,
   type EmployeeTarget,
   hasPermission,
+  isHiddenEmployee,
   isInCompanyScope,
   isInTeam,
   isSelf,
@@ -31,6 +32,8 @@ export function employeeListScope(actor: Actor): EmployeeListScope | null {
 }
 
 export function canViewEmployee(actor: Actor, target: EmployeeTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
   if (actor.role === ROLE.HR_ADMIN || isEmploymentOnly(actor))
     return isInCompanyScope(actor, target);
@@ -57,6 +60,8 @@ export function canChangeLoginContact(actor: Actor, targetAccountRole: Role | nu
 // Foto profil (D-037): SA/HR untuk pegawai yang boleh mereka lihat; setiap akun untuk fotonya
 // sendiri (PLAN §4.3 "Ubah data diri sendiri: … foto"). MANAGER tidak mengubah foto timnya.
 export function canChangePhoto(actor: Actor, target: EmployeeTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (isSelf(actor, target)) return true;
   return canManageEmployees(actor) && canViewEmployee(actor, target);
 }
@@ -67,9 +72,9 @@ export function canPrintEmployee(actor: Actor, target: EmployeeTarget): boolean 
   return canManageEmployees(actor) && canViewEmployee(actor, target);
 }
 
-// D-040: membuat karyawan baru hanya di PT dalam cakupan aktor.
+// D-040: membuat karyawan baru hanya di PT dalam cakupan aktor (lokasi HO dicek terpisah, IAM-D3).
 export function canCreateInCompany(actor: Actor, companyId: string): boolean {
-  return canManageEmployees(actor) && isInCompanyScope(actor, { companyId });
+  return canManageEmployees(actor) && isInCompanyScope(actor, { companyId, employeeId: null });
 }
 
 // Menonaktifkan data karyawan milik sendiri akan ikut mengunci akun sendiri → ditolak.
@@ -83,6 +88,8 @@ function canReadSensitive(
   target: EmployeeTarget,
   permission: "employee.personal.read" | "employee.bank.read",
 ): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (actor.role === ROLE.SUPER_ADMIN || isSelf(actor, target)) return true;
   if (!hasPermission(actor, permission)) return false;
   // D-040: grant HR berlaku di PT yang ditugaskan saja.
@@ -175,12 +182,16 @@ export function canOnboardInCompany(actor: Actor, companyId: string): boolean {
 
 // D-047: review & keputusan data onboarding — SUPER_ADMIN; HR_ADMIN hanya dengan grant
 // `employee.onboarding.review` dan untuk PT yang ditugaskan (D-040). Termasuk melihat data sensitif calon.
-export function canReviewOnboarding(actor: Actor, companyId: string): boolean {
+/** IAM-D3: `employeeId` = calon yang direview (null = antrean/batch tingkat PT). */
+export function canReviewOnboarding(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
   if (actor.role === ROLE.SUPER_ADMIN) return true;
   return (
     actor.role === ROLE.HR_ADMIN &&
     hasPermission(actor, "employee.onboarding.review") &&
-    isInCompanyScope(actor, { companyId })
+    isInCompanyScope(actor, target)
   );
 }
 
@@ -263,6 +274,8 @@ export function canManageDocumentTypes(actor: Actor): boolean {
 export type DataChangeSectionKey = "PERSONAL" | "EMERGENCY" | "FAMILY" | "BANK" | "DOCUMENT";
 
 export function canSubmitDataChange(actor: Actor, target: EmployeeTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   return isSelf(actor, target);
 }
 

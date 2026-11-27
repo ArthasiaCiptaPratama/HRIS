@@ -14,6 +14,7 @@ import {
   overtimePay,
 } from "@hris/shared";
 import { z } from "zod";
+import { hiddenFilter } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
@@ -548,7 +549,10 @@ async function scopeWhere(ctx: RequestContext, companyId?: string) {
   if (actor.role === "HR_ADMIN") {
     const scope = [...(actor.companyIds ?? [])];
     if (companyId && !scope.includes(companyId)) throw new ForbiddenError();
-    return { companyId: companyId ? companyId : { in: scope } };
+    return {
+      companyId: companyId ? companyId : { in: scope },
+      ...hiddenFilter(actor, "employeeId"),
+    };
   }
   if (actor.role === "MANAGER" && actor.employeeId) {
     return {

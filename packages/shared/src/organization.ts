@@ -261,6 +261,8 @@ export const workLocationBaseSchema = z.object({
     .max(GEOFENCE_RADIUS_MAX, `Radius ${GEOFENCE_RADIUS_MIN}–${GEOFENCE_RADIUS_MAX} m.`)
     .nullable()
     .optional(),
+  // IAM-D3: penanda Head Office (karyawan di lokasi ini tersembunyi dari akun HR yang dibatasi).
+  isHeadOffice: z.boolean().optional(),
 });
 
 /** Aturan geofence lengkap-atau-kosong; dipakai form web & API (create, dan PATCH setelah digabung). */

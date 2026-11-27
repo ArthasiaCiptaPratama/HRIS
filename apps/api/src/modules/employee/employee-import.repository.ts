@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 import type { EmployeeTx } from "./employee.repository.ts";
@@ -43,9 +44,10 @@ export async function findExistingByIds(ids: string[]): Promise<ExistingEmployee
 }
 
 /** IMP-D1: pemegang bagan bernomor sementara ASLI- (aktif & disetujui) di PT tertentu (null = semua). */
-export async function listChartHolders(companyIds: readonly string[] | null) {
+export async function listChartHolders(companyIds: readonly string[] | null, actor: Actor) {
   return getPrisma().employee.findMany({
     where: {
+      ...hiddenFilter(actor, "id"),
       employeeNumber: { startsWith: "ASLI-", mode: "insensitive" },
       isActive: true,
       onboardingStatus: "APPROVED",

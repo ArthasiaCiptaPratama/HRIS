@@ -7,10 +7,13 @@ export function canManageContracts(actor: Actor): boolean {
     (actor.role === "HR_ADMIN" && hasPermission(actor, "contract.manage"))
   );
 }
-export function canManageContractsInCompany(actor: Actor, companyId: string): boolean {
+/** IAM-D3: `employeeId` = karyawan kontrak yang disentuh (null = aksi tingkat PT, mis. daftar/laporan). */
+export function canManageContractsInCompany(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
   return (
-    actor.role === "SUPER_ADMIN" ||
-    (canManageContracts(actor) && isInCompanyScope(actor, { companyId }))
+    actor.role === "SUPER_ADMIN" || (canManageContracts(actor) && isInCompanyScope(actor, target))
   );
 }
 
@@ -21,9 +24,11 @@ export function canAccessDailyWage(actor: Actor): boolean {
     (actor.role === "HR_ADMIN" && hasPermission(actor, "labor.cost.read"))
   );
 }
-export function canAccessDailyWageInCompany(actor: Actor, companyId: string): boolean {
+export function canAccessDailyWageInCompany(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
   return (
-    canAccessDailyWage(actor) &&
-    (actor.role === "SUPER_ADMIN" || isInCompanyScope(actor, { companyId }))
+    canAccessDailyWage(actor) && (actor.role === "SUPER_ADMIN" || isInCompanyScope(actor, target))
   );
 }

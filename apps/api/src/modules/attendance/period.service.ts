@@ -9,7 +9,11 @@ import {
   type StatementInput,
 } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
-import { hasPermission } from "../../core/access/index.ts";
+import {
+  hasPermission,
+  isHeadOfficeRestricted,
+  isHiddenEmployee,
+} from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { getPrisma } from "../../core/db.ts";
 import {
@@ -105,6 +109,9 @@ export function canClosePeriod(actor: Actor, companyId: string): boolean {
   if (actor.role === "SUPER_ADMIN") return true;
   return (
     actor.role === "HR_ADMIN" &&
+    // IAM-D3: akun "Tanpa akses karyawan Head Office" tidak menutup periode (aksi itu mengubah status
+    // karyawan HO yang tidak ia lihat) — berlaku walau saat ini tidak ada karyawan HO.
+    !isHeadOfficeRestricted(actor) &&
     (actor.companyIds?.has(companyId) ?? false) &&
     hasPermission(actor, "payroll.period.prepare")
   );
@@ -206,7 +213,7 @@ export interface RecapRow {
 async function scopedEmployees(actor: Actor, companyId: string) {
   if (!policy.canViewRosterSetup(actor, companyId)) throw new ForbiddenError();
   if (policy.canManageRoster(actor, companyId)) {
-    return directory.activeEmployeesInCompany(companyId, undefined, 2000);
+    return directory.activeEmployeesInCompany(actor, companyId, undefined, 2000);
   }
   if (actor.role === "MANAGER" && actor.employeeId) {
     const team = await directory.employeesByIds(await directory.teamIds(actor.employeeId));
@@ -274,8 +281,8 @@ export async function monthlyRecap(ctx: RequestContext, companyId: string, month
 // ── Tutup periode ──────────────────────────────────────────────────────────────
 
 /** Hari yang akan menjadi ALPHA: hari kerja roster belum disetujui / tanpa absen / ditolak, bukan cuti. */
-async function alphaCandidates(companyId: string, month: string) {
-  const employees = await directory.activeEmployeesInCompany(companyId, undefined, 5000);
+async function alphaCandidates(actor: Actor, companyId: string, month: string) {
+  const employees = await directory.activeEmployeesInCompany(actor, companyId, undefined, 5000);
   const people = new Map(employees.map((e) => [e.id, e]));
   const { from, to } = monthRange(month);
   const all = await cells([...people.keys()], from, to);
@@ -304,7 +311,7 @@ export async function previewClose(ctx: RequestContext, input: PeriodCloseInput)
   const period = await db().attendancePeriod.findUnique({
     where: { companyId_month: { companyId: input.companyId, month: input.month } },
   });
-  const candidates = await alphaCandidates(input.companyId, input.month);
+  const candidates = await alphaCandidates(ctx.actor, input.companyId, input.month);
   const by = (fn: (c: (typeof candidates)[number]) => boolean) => candidates.filter(fn).length;
   return {
     status: period?.status ?? "OPEN",
@@ -338,7 +345,7 @@ export async function closePeriod(ctx: RequestContext, input: PeriodCloseInput, 
       `Masih ada ${unverified} hari Alpha yang belum diverifikasi atasan. Selesaikan verifikasi dulu.`,
     );
   }
-  const candidates = await alphaCandidates(input.companyId, input.month);
+  const candidates = await alphaCandidates(ctx.actor, input.companyId, input.month);
   await db().$transaction(
     async (tx) => {
       for (const c of candidates) {
@@ -683,7 +690,7 @@ async function submitCorrection(
   idempotencyKey: string | undefined,
 ): Promise<CorrectionDto> {
   const employee = await directory.employeeById(employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   if (input.workDate >= (await settingsToday())) {
     throw new BusinessRuleError("Koreksi hanya untuk hari yang sudah lewat.");
   }

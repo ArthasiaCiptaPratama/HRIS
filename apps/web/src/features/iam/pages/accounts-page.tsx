@@ -148,6 +148,9 @@ export function AccountsPage() {
               <Badge variant="warning">Tanpa PT</Badge>
             )
           ) : null}
+          {usesAssignedCompanies(row.original.role) && row.original.restrictHeadOffice ? (
+            <Badge variant="warning">Tanpa Head Office</Badge>
+          ) : null}
         </div>
       ),
     }) as DataColumn<Account>,
@@ -623,6 +626,8 @@ function AssignCompaniesDialog({
 }) {
   const assign = useAssignCompanies();
   const [selected, setSelected] = useState<string[]>([]);
+  // IAM-D3: sembunyikan karyawan di lokasi kerja berpenanda Head Office.
+  const [restrictHeadOffice, setRestrictHeadOffice] = useState(false);
   const [prevAccount, setPrevAccount] = useState<Account | null>(null);
   // Isi ulang pilihan setiap kali dialog dibuka untuk akun lain.
   // D-049: PT yang diarsipkan tidak bisa dipilih lagi → tidak ikut dikirim (dilepas saat disimpan).
@@ -630,6 +635,7 @@ function AssignCompaniesDialog({
   if (account !== prevAccount) {
     setPrevAccount(account);
     setSelected((account?.companyIds ?? []).filter((id) => companies.some((c) => c.id === id)));
+    setRestrictHeadOffice(account?.restrictHeadOffice ?? false);
   }
   const toggle = (id: string) =>
     setSelected((current) =>
@@ -638,7 +644,7 @@ function AssignCompaniesDialog({
   const submit = async () => {
     if (!account) return;
     try {
-      await assign.mutateAsync({ id: account.id, companyIds: selected });
+      await assign.mutateAsync({ id: account.id, companyIds: selected, restrictHeadOffice });
       toast.success("Penugasan perusahaan diperbarui.");
       onClose();
     } catch (error) {
@@ -671,6 +677,22 @@ function AssignCompaniesDialog({
             </label>
           ))}
         </fieldset>
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
+          <input
+            type="checkbox"
+            className="accent-brand mt-0.5 size-4 shrink-0"
+            checked={restrictHeadOffice}
+            onChange={(event) => setRestrictHeadOffice(event.target.checked)}
+          />
+          <span>
+            <span className="block font-medium">Tanpa akses karyawan Head Office</span>
+            <span className="text-muted-foreground block text-xs">
+              Karyawan yang lokasi kerjanya bertanda Head Office tidak terlihat dan tidak bisa
+              diubah akun ini (data, absensi, cuti, laporan, notifikasi). Karyawan tanpa lokasi
+              tetap terlihat.
+            </span>
+          </span>
+        </label>
         {archived.length > 0 ? (
           <p className="text-muted-foreground text-sm">
             {archived.length} perusahaan yang ditugaskan sudah diarsipkan dan akan dilepas saat

@@ -1,5 +1,5 @@
 import { ROLE } from "@hris/shared";
-import { type Actor, isInCompanyScope } from "../../core/access/index.ts";
+import { type Actor, isHiddenEmployee, isInCompanyScope } from "../../core/access/index.ts";
 
 // PLAN §5.2 (D-010, D-068, D-069): siapa boleh memutuskan langkah approval. Keputusan murni; data dari pemanggil.
 
@@ -23,9 +23,12 @@ const isSelfRequest = (actor: Actor, target: ApprovalTarget) =>
   (actor.employeeId !== null && actor.employeeId === target.requesterEmployeeId) ||
   (target.submittedByAccountId != null && actor.accountId === target.submittedByAccountId);
 const isHrInScope = (actor: Actor, target: ApprovalTarget) =>
-  actor.role === ROLE.HR_ADMIN && isInCompanyScope(actor, target);
+  actor.role === ROLE.HR_ADMIN &&
+  isInCompanyScope(actor, { companyId: target.companyId, employeeId: target.requesterEmployeeId });
 
 export function stepRight(actor: Actor, target: ApprovalTarget, kind: StepKind): StepRight {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.requesterEmployeeId)) return null;
   // Tidak pernah memutuskan pengajuan sendiri (termasuk SA/HR yang mengajukan).
   if (isSelfRequest(actor, target)) return null;
   const isSa = actor.role === ROLE.SUPER_ADMIN;
@@ -48,6 +51,8 @@ export function stepRight(actor: Actor, target: ApprovalTarget, kind: StepKind):
 
 /** Melihat permintaan: pengaju, atasan snapshot, HR PT-nya, SA. */
 export function canViewApproval(actor: Actor, target: ApprovalTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.requesterEmployeeId)) return false;
   if (isSelfRequest(actor, target)) return true;
   if (actor.role === ROLE.SUPER_ADMIN) return true;
   if (target.managerEmployeeId !== null && actor.employeeId === target.managerEmployeeId)

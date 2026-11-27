@@ -21,6 +21,7 @@ import {
 } from "@hris/shared";
 import type { z } from "zod";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -172,7 +173,10 @@ function assetDto(
     purchaseDate: seePrice ? isoOrNull(a.purchaseDate) : null,
     purchasePrice: seePrice && a.purchasePrice !== null ? a.purchasePrice.toFixed(2) : null,
     canSeePrice: seePrice,
-    canManage: policy.canManageAssets(ctx.actor, a.companyId),
+    canManage: policy.canManageAssets(ctx.actor, {
+      companyId: a.companyId,
+      employeeId: open?.employeeId ?? null,
+    }),
     note: a.note,
     holder: open ? holderDto(briefs.get(open.employeeId), open.employeeId) : null,
     assignment: open ? assignmentDto(open, briefs, today) : null,
@@ -349,6 +353,7 @@ async function scopedEmployeeIds(
   if (!scope) throw new ForbiddenError();
   if (scope.kind === "all" && !opts.q && opts.isActive == null) return { scope, ids: null };
   const rows = await listEmployeeBriefs({
+    actor,
     companyIds: scope.kind === "companies" ? scope.companyIds : null,
     managerId: scope.kind === "team" ? scope.managerId : null,
     isActive: opts.isActive ?? null,
@@ -386,13 +391,16 @@ export async function listAssets(ctx: RequestContext, query: AssetListQuery, now
   }
   let holderIds: string[] | null = null;
   if (scope.kind === "team") {
-    holderIds = (await listEmployeeBriefs({ managerId: scope.managerId })).map((e) => e.id);
+    holderIds = (await listEmployeeBriefs({ actor: ctx.actor, managerId: scope.managerId })).map(
+      (e) => e.id,
+    );
   }
   if (query.holderId)
     holderIds = holderIds && !holderIds.includes(query.holderId) ? [] : [query.holderId];
   const { rows, total } = await repo.listAssets(
     {
       companyIds,
+      actor: ctx.actor,
       holderIds,
       q: query.q?.trim() || null,
       status: query.status ?? null,
@@ -415,7 +423,8 @@ export async function listAssets(ctx: RequestContext, query: AssetListQuery, now
 
 async function loadAsset(ctx: RequestContext, id: string) {
   const asset = await repo.findAsset(id);
-  if (!asset) throw new NotFoundError();
+  if (!asset || isHiddenEmployee(ctx.actor, asset.assignments[0]?.employeeId ?? ""))
+    throw new NotFoundError();
   const open = asset.assignments[0] ?? null;
   const briefs = await briefsFor(open ? [open.employeeId] : []);
   const holder = open ? briefs.get(open.employeeId) : undefined;
@@ -436,7 +445,10 @@ export async function getAsset(ctx: RequestContext, id: string, now = new Date()
   const seesAll = policy.canViewAsset(ctx.actor, asset, null);
   const visible = history.filter((h) => {
     const e = all.get(h.employeeId);
-    return seesAll || (e ? policy.canViewEmployeeAssets(ctx.actor, target(e)) : false);
+    return (
+      !isHiddenEmployee(ctx.actor, h.employeeId) &&
+      (seesAll || (e ? policy.canViewEmployeeAssets(ctx.actor, target(e)) : false))
+    );
   });
   return {
     ...assetDto(ctx, asset, all, lookup, today),
@@ -445,7 +457,8 @@ export async function getAsset(ctx: RequestContext, id: string, now = new Date()
 }
 
 export async function suggestCode(ctx: RequestContext, companyId: string, categoryId: string) {
-  if (!policy.canManageAssets(ctx.actor, companyId)) throw new ForbiddenError();
+  if (!policy.canManageAssets(ctx.actor, { companyId, employeeId: null }))
+    throw new ForbiddenError();
   const [lookup, category] = await Promise.all([getMasterLookup(), repo.findCategory(categoryId)]);
   const company = lookup.companies.get(companyId);
   if (!company || !category) throw new NotFoundError("Perusahaan atau kategori tidak ditemukan.");
@@ -492,7 +505,8 @@ const uniqueAssetMessage = "Kode aset atau nomor seri sudah dipakai aset lain.";
 
 export async function createAsset(ctx: RequestContext, raw: unknown, now = new Date()) {
   const input = parse(assetInputSchema, raw);
-  if (!policy.canManageAssets(ctx.actor, input.companyId)) throw new ForbiddenError();
+  if (!policy.canManageAssets(ctx.actor, { companyId: input.companyId, employeeId: null }))
+    throw new ForbiddenError();
   const { company, category } = await validateAssetInput(input);
   if (!category.isActive) throw new BusinessRuleError("Kategori aset sudah tidak aktif.");
   // ARS-D4: kode otomatis bila kosong; tabrakan nomor urut bersamaan dicoba ulang.
@@ -536,8 +550,14 @@ export async function createAsset(ctx: RequestContext, raw: unknown, now = new D
 
 export async function updateAsset(ctx: RequestContext, id: string, raw: unknown, now = new Date()) {
   const before = await repo.findAsset(id);
-  if (!before) throw new NotFoundError();
-  if (!policy.canManageAssets(ctx.actor, before.companyId)) {
+  if (!before || isHiddenEmployee(ctx.actor, before.assignments[0]?.employeeId ?? ""))
+    throw new NotFoundError();
+  if (
+    !policy.canManageAssets(ctx.actor, {
+      companyId: before.companyId,
+      employeeId: before.assignments[0]?.employeeId ?? null,
+    })
+  ) {
     if (policy.canViewAsset(ctx.actor, before, null)) throw new ForbiddenError();
     throw new NotFoundError();
   }
@@ -545,7 +565,8 @@ export async function updateAsset(ctx: RequestContext, id: string, raw: unknown,
   if (!input.code)
     throw new ValidationError([{ path: "code", message: "Kode aset wajib saat mengubah." }]);
   if (input.companyId !== before.companyId) {
-    if (!policy.canManageAssets(ctx.actor, input.companyId)) throw new ForbiddenError();
+    if (!policy.canManageAssets(ctx.actor, { companyId: input.companyId, employeeId: null }))
+      throw new ForbiddenError();
     if (before.status === "ASSIGNED") {
       throw new BusinessRuleError("Aset yang sedang dipegang tidak bisa dipindah ke PT lain.");
     }
@@ -596,8 +617,15 @@ export async function setAssetStatus(
   now = new Date(),
 ) {
   const before = await repo.findAsset(id);
-  if (!before) throw new NotFoundError();
-  if (!policy.canManageAssets(ctx.actor, before.companyId)) throw new ForbiddenError();
+  if (!before || isHiddenEmployee(ctx.actor, before.assignments[0]?.employeeId ?? ""))
+    throw new NotFoundError();
+  if (
+    !policy.canManageAssets(ctx.actor, {
+      companyId: before.companyId,
+      employeeId: before.assignments[0]?.employeeId ?? null,
+    })
+  )
+    throw new ForbiddenError();
   const input = parse(assetStatusInputSchema, raw);
   if (before.status === "ASSIGNED") {
     throw new BusinessRuleError(
@@ -654,14 +682,22 @@ export async function assignAsset(
   now = new Date(),
 ) {
   const asset = await repo.findAsset(assetId);
-  if (!asset) throw new NotFoundError();
-  if (!policy.canManageAssets(ctx.actor, asset.companyId)) throw new ForbiddenError();
+  if (!asset || isHiddenEmployee(ctx.actor, asset.assignments[0]?.employeeId ?? ""))
+    throw new NotFoundError();
+  if (
+    !policy.canManageAssets(ctx.actor, {
+      companyId: asset.companyId,
+      employeeId: asset.assignments[0]?.employeeId ?? null,
+    })
+  )
+    throw new ForbiddenError();
   const input = parse(assignAssetInputSchema, raw);
   notInFuture(input.assignedAt, "Tanggal serah", now);
   if (asset.status !== "AVAILABLE") {
     throw new BusinessRuleError("Hanya aset berstatus Tersedia yang bisa diserahkan.");
   }
   const employee = (await briefsFor([input.employeeId])).get(input.employeeId);
+  if (isHiddenEmployee(ctx.actor, input.employeeId)) throw new NotFoundError();
   if (!employee?.isActive)
     throw new BusinessRuleError("Karyawan tidak ditemukan atau tidak aktif.");
   if (employee.companyId !== asset.companyId) {
@@ -716,8 +752,11 @@ export async function assignAsset(
 
 async function loadOpenAssignment(ctx: RequestContext, id: string) {
   const a = await repo.findAssignment(id);
-  if (!a) throw new NotFoundError();
-  if (!policy.canManageAssets(ctx.actor, a.asset.companyId)) throw new ForbiddenError();
+  if (!a || isHiddenEmployee(ctx.actor, a.employeeId)) throw new NotFoundError();
+  if (
+    !policy.canManageAssets(ctx.actor, { companyId: a.asset.companyId, employeeId: a.employeeId })
+  )
+    throw new ForbiddenError();
   if (a.closedAt) throw new BusinessRuleError("Serah-terima ini sudah ditutup.");
   return a;
 }
@@ -829,8 +868,11 @@ export async function attachAssignmentBast(
   now = new Date(),
 ) {
   const a = await repo.findAssignment(assignmentId);
-  if (!a) throw new NotFoundError();
-  if (!policy.canManageAssets(ctx.actor, a.asset.companyId)) throw new ForbiddenError();
+  if (!a || isHiddenEmployee(ctx.actor, a.employeeId)) throw new NotFoundError();
+  if (
+    !policy.canManageAssets(ctx.actor, { companyId: a.asset.companyId, employeeId: a.employeeId })
+  )
+    throw new ForbiddenError();
   const input = parse(attachBastInputSchema, raw);
   if (input.kind === "RETURN" && !a.closedAt) {
     throw new BusinessRuleError("BAST pengembalian dilampirkan setelah aset dikembalikan.");
@@ -888,10 +930,10 @@ async function bastParties(
 
 export async function assignmentBast(ctx: RequestContext, assignmentId: string, kind: BastKind) {
   const a = await repo.findAssignment(assignmentId);
-  if (!a) throw new NotFoundError();
+  if (!a || isHiddenEmployee(ctx.actor, a.employeeId)) throw new NotFoundError();
   const employee = (await briefsFor([a.employeeId])).get(a.employeeId);
   const canSee =
-    policy.canManageAssets(ctx.actor, a.asset.companyId) ||
+    policy.canManageAssets(ctx.actor, { companyId: a.asset.companyId, employeeId: a.employeeId }) ||
     (employee ? policy.canViewEmployeeAssets(ctx.actor, target(employee)) : false);
   if (!canSee) throw new NotFoundError();
   if (kind === "RETURN" && !a.closedAt) throw new BusinessRuleError("Aset belum dikembalikan.");
@@ -943,7 +985,7 @@ export async function acknowledgeAssignment(
   now = new Date(),
 ) {
   const a = await repo.findAssignment(assignmentId);
-  if (!a) throw new NotFoundError();
+  if (!a || isHiddenEmployee(ctx.actor, a.employeeId)) throw new NotFoundError();
   const employee = (await briefsFor([a.employeeId])).get(a.employeeId);
   if (!employee || !policy.canAcknowledge(ctx.actor, target(employee))) throw new NotFoundError();
   if (a.closedAt) throw new BusinessRuleError("Serah-terima ini sudah ditutup.");
@@ -999,7 +1041,10 @@ export async function employeeHoldings(
     throw new NotFoundError();
   return {
     ...(await holdingsOf(employee, openOnly, todayInJakarta(now))),
-    canManage: policy.canManageAssets(ctx.actor, employee.companyId),
+    canManage: policy.canManageAssets(ctx.actor, {
+      companyId: employee.companyId,
+      employeeId: employee.id,
+    }),
   };
 }
 
@@ -1015,6 +1060,7 @@ export async function pendingReturns(ctx: RequestContext, now = new Date()) {
   const scope = policy.assetListScope(ctx.actor);
   if (!scope || scope.kind === "team") throw new ForbiddenError();
   const inactive = await listEmployeeBriefs({
+    actor: ctx.actor,
     companyIds: scope.kind === "companies" ? scope.companyIds : null,
     isActive: false,
   });
@@ -1029,7 +1075,7 @@ export async function pendingReturns(ctx: RequestContext, now = new Date()) {
   return inactive
     .map((e) => ({
       employee: holderDto(e, e.id),
-      canManage: policy.canManageAssets(ctx.actor, e.companyId),
+      canManage: policy.canManageAssets(ctx.actor, { companyId: e.companyId, employeeId: e.id }),
       assets: assignments
         .filter((a) => a.employeeId === e.id)
         .map((a) => assignmentDto(a, briefs, today)),
@@ -1071,7 +1117,10 @@ export async function listPpeIssues(ctx: RequestContext, query: PpeListQuery, no
     data: items.slice(start, start + query.pageSize).map((i) => ({
       ...i,
       canManage: i.employee.companyId
-        ? policy.canManageAssets(ctx.actor, i.employee.companyId)
+        ? policy.canManageAssets(ctx.actor, {
+            companyId: i.employee.companyId,
+            employeeId: i.employee.employeeId,
+          })
         : false,
     })),
     meta: { page: query.page, pageSize: query.pageSize, total: items.length },
@@ -1082,9 +1131,13 @@ export async function createPpeIssue(ctx: RequestContext, raw: unknown, now = ne
   const input = parse(ppeIssueInputSchema, raw);
   notInFuture(input.issuedAt, "Tanggal terima", now);
   const employee = (await briefsFor([input.employeeId])).get(input.employeeId);
+  if (isHiddenEmployee(ctx.actor, input.employeeId)) throw new NotFoundError();
   if (!employee?.isActive)
     throw new BusinessRuleError("Karyawan tidak ditemukan atau tidak aktif.");
-  if (!policy.canManageAssets(ctx.actor, employee.companyId)) throw new ForbiddenError();
+  if (
+    !policy.canManageAssets(ctx.actor, { companyId: employee.companyId, employeeId: employee.id })
+  )
+    throw new ForbiddenError();
   const type = await repo.findPpeType(input.ppeTypeId);
   if (!type?.isActive) throw new BusinessRuleError("Jenis APD tidak ditemukan atau tidak aktif.");
   const row = await repo.transaction(async (tx) => {
@@ -1121,8 +1174,11 @@ async function loadPpeForManage(ctx: RequestContext, id: string) {
   const p = await repo.findPpeIssue(id);
   if (!p) throw new NotFoundError();
   const employee = (await briefsFor([p.employeeId])).get(p.employeeId);
-  if (!employee) throw new NotFoundError();
-  if (!policy.canManageAssets(ctx.actor, employee.companyId)) throw new ForbiddenError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
+  if (
+    !policy.canManageAssets(ctx.actor, { companyId: employee.companyId, employeeId: employee.id })
+  )
+    throw new ForbiddenError();
   return { p, employee };
 }
 
@@ -1211,9 +1267,9 @@ export async function ppeBast(ctx: RequestContext, id: string) {
   const p = await repo.findPpeIssue(id);
   if (!p) throw new NotFoundError();
   const employee = (await briefsFor([p.employeeId])).get(p.employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   const canSee =
-    policy.canManageAssets(ctx.actor, employee.companyId) ||
+    policy.canManageAssets(ctx.actor, { companyId: employee.companyId, employeeId: employee.id }) ||
     policy.canViewEmployeeAssets(ctx.actor, target(employee));
   if (!canSee) throw new NotFoundError();
   const lookup = await getMasterLookup();
