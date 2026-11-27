@@ -52,6 +52,8 @@ export const workLocationAdminSchema = z.object({
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
   radiusM: z.number().nullable(),
+  // IAM-D3: penanda Head Office.
+  isHeadOffice: z.boolean().optional(),
 });
 
 // EMP-D6: Homebase / Point of Hire; employeeCount = karyawan aktif yang homebase-nya sekarang item ini.
@@ -93,6 +95,7 @@ export const masterDataItemSchema = z.object({
   latitude: z.number().nullable().optional(),
   longitude: z.number().nullable().optional(),
   radiusM: z.number().nullable().optional(),
+  isHeadOffice: z.boolean().optional(),
   // EMP-D6: homebase.
   province: z.string().nullable().optional(),
   note: z.string().nullable().optional(),

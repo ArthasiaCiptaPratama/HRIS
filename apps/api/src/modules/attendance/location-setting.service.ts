@@ -3,6 +3,7 @@ import type {
   AttendanceLocationMode,
   AttendanceLocationSource,
 } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
@@ -94,7 +95,11 @@ export async function listLocationSettings(
   if (!policy.canManageAttendanceLocation(ctx.actor, companyId)) throw new ForbiddenError();
   const settings = await readTimeSettings();
   const date = todayIn(settings.timezone);
-  const employees = await directory.activeEmployeesInCompany(companyId, q?.trim() || undefined);
+  const employees = await directory.activeEmployeesInCompany(
+    ctx.actor,
+    companyId,
+    q?.trim() || undefined,
+  );
   const ids = employees.map((e) => e.id);
   const [settingMap, crews, geofenced] = await Promise.all([
     repository.settingsFor(ids),
@@ -157,7 +162,8 @@ export async function setLocationSettings(
 ): Promise<{ updated: number }> {
   const ids = [...new Set(input.employeeIds)];
   const employees = await directory.employeesByIds(ids);
-  if (employees.size !== ids.length) throw new NotFoundError("Sebagian karyawan tidak ditemukan.");
+  if (ids.some((id) => isHiddenEmployee(ctx.actor, id)) || employees.size !== ids.length)
+    throw new NotFoundError("Sebagian karyawan tidak ditemukan.");
   for (const employee of employees.values()) {
     if (!policy.canManageAttendanceLocation(ctx.actor, employee.companyId)) {
       throw new ForbiddenError();

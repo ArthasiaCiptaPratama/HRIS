@@ -250,7 +250,7 @@ export async function planImportContracts(
     }
     const companyId = plan.companyId ?? existing?.companyId;
     if (!companyId) continue;
-    if (!canManageContractsInCompany(ctx.actor, companyId)) {
+    if (!canManageContractsInCompany(ctx.actor, { companyId, employeeId: existing?.id ?? null })) {
       plan.issues.push(issue(period.sources[0] ?? null, "CONTRACT_NO_PERMISSION", "WARNING"));
       continue;
     }

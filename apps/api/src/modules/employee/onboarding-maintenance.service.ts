@@ -88,7 +88,11 @@ export async function remindStaleInvitations(now = new Date()) {
   const rows = await repo.findStaleInvited(cutoff, 200);
   let created = 0;
   for (const row of rows) {
-    const reviewers = await listOnboardingReviewers(row.companyId, now);
+    const reviewers = await listOnboardingReviewers(
+      row.companyId,
+      now,
+      row.workLocation?.isHeadOffice ?? false,
+    );
     const result = await notify(
       {
         recipients: reviewers,

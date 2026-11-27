@@ -20,6 +20,7 @@ import {
   usesAssignedCompanies,
 } from "@hris/shared";
 import type { Actor, EmployeeTarget } from "../../core/access/index.ts";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -186,11 +187,13 @@ const targetOf = (row: {
  */
 /** D-040: penyaring cakupan akun untuk iam (disuntik lewat configureIam di app.ts). */
 export const employeeScopeForIam = {
+  headOfficeEmployeeIds: () => repository.findHeadOfficeEmployeeIds(),
   async companyOfEmployees(employeeIds: string[]): Promise<Map<string, string>> {
     const rows = await repository.findCompanyIds(employeeIds);
     return new Map(rows.map((row) => [row.id, row.companyId]));
   },
-  employeeIdsInCompanies: (companyIds: string[]) => repository.findIdsInCompanies(companyIds),
+  employeeIdsInCompanies: (companyIds: string[], actor: Actor) =>
+    repository.findIdsInCompanies(companyIds, actor),
   async employeeLabels(employeeIds: string[]): Promise<Map<string, string>> {
     const rows = await repository.findManyByIds(employeeIds);
     return new Map(
@@ -213,8 +216,8 @@ export const employeeScopeForIam = {
       ]),
     );
   },
-  async employeesByEmail(email: string, companyIds: string[] | null) {
-    const rows = await onboardingRepo.findEmployeesByEmail(email.toLowerCase(), companyIds);
+  async employeesByEmail(email: string, companyIds: string[] | null, actor: Actor) {
+    const rows = await onboardingRepo.findEmployeesByEmail(email.toLowerCase(), companyIds, actor);
     return rows.map((row) => ({
       employeeId: row.id,
       fullName: row.fullName,
@@ -407,13 +410,18 @@ export function scopeWhere(actor: Actor): repository.EmployeeWhere {
   const scope = policy.employeeListScope(actor);
   if (scope === null) throw new ForbiddenError();
   // D-035: MANAGER hanya tim (bawahan langsung, D-009).
-  if (scope === "team") return { ...APPROVED_ONLY, managerId: actor.employeeId };
+  if (scope === "team")
+    return { ...APPROVED_ONLY, ...hiddenFilter(actor, "id"), managerId: actor.employeeId };
   // D-040: HR hanya PT yang ditugaskan (tanpa penugasan → tidak ada).
   if (scope === "companies") {
     const ids = [...(actor.companyIds ?? [])];
-    return { ...APPROVED_ONLY, companyId: { in: ids.length > 0 ? ids : [NO_MATCH] } };
+    return {
+      ...APPROVED_ONLY,
+      ...hiddenFilter(actor, "id"),
+      companyId: { in: ids.length > 0 ? ids : [NO_MATCH] },
+    };
   }
-  return { ...APPROVED_ONLY };
+  return { ...APPROVED_ONLY, ...hiddenFilter(actor, "id") };
 }
 
 export function buildWhere(
@@ -1028,6 +1036,17 @@ interface RefInput {
   homebaseId?: string | null | undefined;
 }
 
+/** IAM-D3: akun dibatasi tidak boleh membuat/memindahkan karyawan ke Head Office. */
+export function assertWorkLocationScope(
+  actor: Actor,
+  lookup: MasterLookup,
+  id: string | null | undefined,
+) {
+  if (actor.hiddenEmployeeIds !== undefined && id && lookup.locations.get(id)?.isHeadOffice) {
+    throw new BusinessRuleError("Lokasi kerja ini di luar cakupan Anda.");
+  }
+}
+
 export function assertRefs(lookup: MasterLookup, input: RefInput) {
   const check = (
     map: Map<string, { deleted: boolean }>,
@@ -1050,13 +1069,20 @@ export function assertRefs(lookup: MasterLookup, input: RefInput) {
 
 // PLAN §4.1 + ORG-D9: manager_id menunjuk karyawan aktif (apa pun role akunnya); tanpa siklus.
 async function assertManager(
+  actor: Actor,
   managerId: string,
   employeeId: string | null,
   tx: repository.EmployeeTx,
 ) {
   if (managerId === employeeId) throw new BusinessRuleError("Atasan tidak boleh dirinya sendiri.");
   const manager = await repository.findEmployee(managerId, tx);
-  if (!manager?.isActive || manager.onboardingStatus !== "APPROVED") {
+  // IAM-D3: karyawan tersembunyi (Head Office) tidak bisa dipilih sebagai atasan — pesan sama dengan
+  // "tidak ada" agar keberadaannya tidak bocor.
+  if (
+    !manager?.isActive ||
+    manager.onboardingStatus !== "APPROVED" ||
+    isHiddenEmployee(actor, managerId)
+  ) {
     throw new BusinessRuleError("Atasan harus karyawan aktif.");
   }
   if (!employeeId) return;
@@ -1196,10 +1222,17 @@ export async function createEmployee(
   if (sections) assertProfileAccess(ctx.actor, sections);
   const lookup = await getMasterLookup();
   assertRefs(lookup, input);
+  assertWorkLocationScope(
+    ctx.actor,
+    lookup,
+    "workLocationId" in input && typeof input.workLocationId === "string"
+      ? input.workLocationId
+      : null,
+  );
   const category = lookup.statuses.get(input.employmentStatusId)?.category;
   const id = await repository
     .withTransaction(async (tx) => {
-      if (input.managerId) await assertManager(input.managerId, null, tx);
+      if (input.managerId) await assertManager(ctx.actor, input.managerId, null, tx);
       await assertPositionCompany(input.positionId, input.companyId);
       if (input.orgPostId) {
         await resolvePostPlacement(tx, {
@@ -1401,6 +1434,7 @@ export async function updateEmployee(
       // dikirim ulang oleh form supaya field lain masih bisa diubah.
       const changed = <T>(next: T | undefined, current: T): T | undefined =>
         next !== undefined && next !== current ? next : undefined;
+      assertWorkLocationScope(ctx.actor, lookup, input.workLocationId);
       assertRefs(lookup, {
         companyId: changed(input.companyId, before.companyId),
         positionId: changed(input.positionId, before.positionId),
@@ -1416,7 +1450,7 @@ export async function updateEmployee(
       const companyChanged = input.companyId !== undefined && input.companyId !== before.companyId;
       if (companyChanged) assertCanCreateIn(ctx.actor, input.companyId as string);
       if (input.managerId && input.managerId !== before.managerId) {
-        await assertManager(input.managerId, id, tx);
+        await assertManager(ctx.actor, input.managerId, id, tx);
       }
       // D-051/D-052: jabatan sesuai PT; pos ikut jabatan & PT (pindah jabatan/PT tanpa pos baru →
       // pos lama dilepas); atasan otomatis dihitung ulang (D-053).
@@ -1534,6 +1568,13 @@ export async function changeStatus(ctx: RequestContext, id: string, input: Chang
   assertCanManage(ctx.actor);
   const lookup = await getMasterLookup();
   assertRefs(lookup, input);
+  assertWorkLocationScope(
+    ctx.actor,
+    lookup,
+    "workLocationId" in input && typeof input.workLocationId === "string"
+      ? input.workLocationId
+      : null,
+  );
   const warnings = await repository.withTransaction(async (tx) => {
     await repository.lockEmployee(tx, id);
     const before = await loadInScope(ctx, id, tx);
@@ -1550,7 +1591,13 @@ export async function changeStatus(ctx: RequestContext, id: string, input: Chang
     }
     if (input.contract && to !== "PKWT" && to !== "PROBATION")
       throw new BusinessRuleError("Field kontrak hanya untuk tujuan PKWT atau masa percobaan.");
-    if (input.contract && !canManageContractsInCompany(ctx.actor, before.companyId))
+    if (
+      input.contract &&
+      !canManageContractsInCompany(ctx.actor, {
+        companyId: before.companyId,
+        employeeId: before.id,
+      })
+    )
       throw new ForbiddenError();
     if (before.employmentStatusId === input.employmentStatusId)
       throw new ConflictError("Status kepegawaian baru sama dengan status saat ini.");
@@ -1680,6 +1727,13 @@ export async function reactivateEmployee(
   assertCanManage(ctx.actor);
   const lookup = await getMasterLookup();
   assertRefs(lookup, input);
+  assertWorkLocationScope(
+    ctx.actor,
+    lookup,
+    "workLocationId" in input && typeof input.workLocationId === "string"
+      ? input.workLocationId
+      : null,
+  );
   await repository.withTransaction(async (tx) => {
     await repository.lockEmployee(tx, id);
     const before = await loadInScope(ctx, id, tx);
@@ -1744,7 +1798,7 @@ export async function getOrgStructure(ctx: RequestContext): Promise<OrgStructure
   const companies = policy.directoryCompanyIds(ctx.actor);
   const [lookup, employees] = await Promise.all([
     getMasterLookup(),
-    repository.listActiveForStructure(companies === null ? null : [...companies]),
+    repository.listActiveForStructure(companies === null ? null : [...companies], ctx.actor),
   ]);
   const byPosition = new Map<string, typeof employees>();
   for (const employee of employees) {
@@ -1788,6 +1842,7 @@ export async function listManagerOptions(ctx: RequestContext): Promise<ManagerOp
     // D-040: HR hanya melihat karyawan PT yang ditugaskan; SA semua PT.
     repository.findActiveApprovedBriefs(
       ctx.actor.companyIds === null ? null : [...ctx.actor.companyIds],
+      ctx.actor,
     ),
   ]);
   const activeAccounts = await employeesWithActiveAccount(rows.map((row) => row.id));
@@ -2038,7 +2093,7 @@ async function managedContractEmployee(ctx: RequestContext, id: string, tx: repo
   if (!canManageContracts(ctx.actor)) throw new ForbiddenError();
   await repository.lockEmployee(tx, id);
   const row = await contractEmployee(ctx, id, tx);
-  if (!canManageContractsInCompany(ctx.actor, row.companyId))
+  if (!canManageContractsInCompany(ctx.actor, { companyId: row.companyId, employeeId: row.id }))
     throw new NotFoundError("Karyawan tidak ditemukan.");
   if (!row.isActive)
     throw new BusinessRuleError("Karyawan nonaktif tidak dapat dikelola kontraknya.");
@@ -2077,7 +2132,12 @@ export async function getEmployeeContracts(ctx: RequestContext, id: string) {
   const employee = await contractEmployee(ctx, id);
   const { actor } = ctx;
   const access = {
-    manage: employee.isActive && canManageContractsInCompany(actor, employee.companyId),
+    manage:
+      employee.isActive &&
+      canManageContractsInCompany(actor, {
+        companyId: employee.companyId,
+        employeeId: employee.id,
+      }),
     missingGrant: actor.role === "HR_ADMIN" && !canManageContracts(actor),
   };
   return readEmployeeContracts(employee, JAKARTA_DATE.format(new Date()), access, undefined, actor);
@@ -2306,7 +2366,12 @@ export async function setEmployeeDailyWage(
   await repository.withTransaction(async (tx) => {
     await repository.lockEmployee(tx, id);
     const employee = await contractEmployee(ctx, id, tx);
-    if (!canAccessDailyWageInCompany(ctx.actor, employee.companyId))
+    if (
+      !canAccessDailyWageInCompany(ctx.actor, {
+        companyId: employee.companyId,
+        employeeId: employee.id,
+      })
+    )
       throw new NotFoundError("Karyawan tidak ditemukan.");
     await setDailyWage(employee, input, auditBase(ctx), "api", tx);
   });

@@ -1,5 +1,6 @@
 import type { OvertimeClaimDecision, OvertimeClaimInput, OvertimeClaimStatus } from "@hris/shared";
 import { ROLE } from "@hris/shared";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -187,7 +188,13 @@ async function notifyNewClaim(
   const admins: Recipient[] = [];
   for (const account of await listApproverAccounts()) {
     const actor = await loadActor(account.authUserId, now);
-    if (!actor || !policy.canOrderOvertimeRetroactive(actor, employee.companyId)) continue;
+    // IAM-D3: HR yang tidak melihat karyawan ini (Head Office) bukan pemutus → tidak diberi tahu.
+    if (
+      !actor ||
+      isHiddenEmployee(actor, employee.id) ||
+      !policy.canOrderOvertimeRetroactive(actor, employee.companyId)
+    )
+      continue;
     const recipient = { accountId: account.accountId, email: account.email };
     (actor.role === ROLE.HR_ADMIN ? hrs : admins).push(recipient);
   }
@@ -243,7 +250,8 @@ export async function decideOvertimeClaim(
   now = new Date(),
 ): Promise<OvertimeClaimView> {
   const row = await repository.findClaimById(id);
-  if (!row) throw new NotFoundError("Pengajuan lembur tidak ditemukan.");
+  if (!row || isHiddenEmployee(ctx.actor, row.employeeId))
+    throw new NotFoundError("Pengajuan lembur tidak ditemukan.");
   const employee = await directory.employeeById(row.employeeId);
   if (!employee || !policy.canViewEmployeeRoster(ctx.actor, targetOf(employee))) {
     throw new NotFoundError("Pengajuan lembur tidak ditemukan.");
@@ -348,6 +356,7 @@ export async function listOvertimeClaims(
     );
   }
   const rows = await repository.listClaimRows({
+    ...hiddenFilter(ctx.actor, "employeeId"),
     ...range,
     ...(q.companyId ? { companyId: q.companyId } : {}),
   });

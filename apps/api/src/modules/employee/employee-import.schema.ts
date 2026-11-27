@@ -109,6 +109,7 @@ const issueSchema = z.object({
   field: fieldKey.nullable(),
   code: z.string(),
   severity: z.enum(["ERROR", "WARNING"]),
+  message: z.string().optional(),
 });
 
 // Nama sendiri supaya codegen app tidak menamainya "MasterData" & menimpa skema GET /master-data.
@@ -275,6 +276,7 @@ export const importJobDetailSchema = importJobSchema
         field: z.string().nullable(),
         code: z.string(),
         severity: z.enum(["ERROR", "WARNING"]),
+        message: z.string().optional(),
       }),
     ),
   })

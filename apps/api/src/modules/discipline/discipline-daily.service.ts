@@ -47,20 +47,31 @@ export async function runDisciplineDaily(now: Date = new Date()) {
       ])
     )
       .filter((a) => a.isActive)
-      .map((a) => [a.employeeId, { accountId: a.accountId, email: a.email } satisfies Recipient]),
+      .map((a) => [
+        a.employeeId,
+        { accountId: a.accountId, email: a.email, restrictHeadOffice: a.restrictHeadOffice },
+      ]),
   );
   const writers = new Map<string, Promise<Recipient[]>>();
-  const writersOf = (companyId: string) => {
-    if (!writers.has(companyId)) writers.set(companyId, listDisciplineWriters(companyId, now));
-    return writers.get(companyId) as Promise<Recipient[]>;
+  const writersOf = (companyId: string, headOfficeSubject: boolean) => {
+    const key = `${companyId}:${headOfficeSubject}`;
+    if (!writers.has(key))
+      writers.set(key, listDisciplineWriters(companyId, now, headOfficeSubject));
+    return writers.get(key) as Promise<Recipient[]>;
   };
 
   for (const [i, p] of pending.entries()) {
     if (!p.deliveredAt) {
-      const boss = deliverers[i] ? accounts.get(deliverers[i] as string) : undefined;
+      const candidate = deliverers[i] ? accounts.get(deliverers[i] as string) : undefined;
+      const boss =
+        candidate?.restrictHeadOffice && briefs.get(p.employeeId)?.isHeadOffice
+          ? undefined
+          : candidate;
       const r = await notify(
         {
-          recipients: boss ? [boss] : await writersOf(p.companyId),
+          recipients: boss
+            ? [boss]
+            : await writersOf(p.companyId, briefs.get(p.employeeId)?.isHeadOffice ?? false),
           type: "discipline.letter.deliver_reminder",
           title: "Surat peringatan belum ditandai disampaikan",
           body: `Surat ${p.number ?? ""} menunggu konfirmasi "Sudah disampaikan".`,

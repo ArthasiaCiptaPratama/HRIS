@@ -32,7 +32,8 @@ export function canManageOrgStructure(actor: Actor, companyId: string | null): b
     actor.role === ROLE.HR_ADMIN &&
     companyId !== null &&
     hasPermission(actor, "org.structure.manage") &&
-    isInCompanyScope(actor, { companyId })
+    // IAM-D3: struktur = tingkat PT; penempatan karyawan tersembunyi ditolak di service.
+    isInCompanyScope(actor, { companyId, employeeId: null })
   );
 }
 

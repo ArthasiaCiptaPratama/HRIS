@@ -3,6 +3,7 @@ import {
   type Actor,
   type EmployeeTarget,
   hasPermission,
+  isHiddenEmployee,
   isInCompanyScope,
   isInTeam,
   isSelf,
@@ -10,19 +11,25 @@ import {
 
 // ARS-D3 (PLAN §4.3 baris "aset"): keputusan akses murni; data target diberikan pemanggil.
 
-/** Kelola aset/APD milik PT `companyId`: SA, atau HR ber-grant `asset.manage` di PT yang ditugaskan. */
-export function canManageAssets(actor: Actor, companyId: string): boolean {
+/**
+ * Kelola aset/APD milik PT `companyId`: SA, atau HR ber-grant `asset.manage` di PT yang ditugaskan.
+ * IAM-D3: `employeeId` = pemegang/penerima yang disentuh aksi (null = aksi aset tanpa karyawan).
+ */
+export function canManageAssets(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
   if (actor.role === ROLE.SUPER_ADMIN) return true;
   return (
     actor.role === ROLE.HR_ADMIN &&
     hasPermission(actor, "asset.manage") &&
-    isInCompanyScope(actor, { companyId })
+    isInCompanyScope(actor, target)
   );
 }
 
 /** ARS-D4: harga & tanggal beli hanya untuk pengelola aset PT itu. */
 export function canSeeAssetPrice(actor: Actor, companyId: string): boolean {
-  return canManageAssets(actor, companyId);
+  return canManageAssets(actor, { companyId, employeeId: null });
 }
 
 /**
@@ -36,6 +43,8 @@ export function canManageAssetMasters(actor: Actor): boolean {
 
 /** Aset & APD yang dipegang karyawan `holder`: SA; HR PT karyawan; MANAGER tim (+ diri); diri sendiri. */
 export function canViewEmployeeAssets(actor: Actor, holder: EmployeeTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, holder.employeeId)) return false;
   if (actor.role === ROLE.SUPER_ADMIN) return true;
   if (isSelf(actor, holder)) return true;
   if (actor.role === ROLE.HR_ADMIN) return isInCompanyScope(actor, holder);
@@ -43,14 +52,21 @@ export function canViewEmployeeAssets(actor: Actor, holder: EmployeeTarget): boo
   return false;
 }
 
-/** Satu aset: SA; HR PT pemilik aset; selain itu hanya bila pemegangnya terlihat (tim / diri). */
+/**
+ * Satu aset: SA; HR PT pemilik aset; selain itu hanya bila pemegangnya terlihat (tim / diri).
+ * IAM-D3: aset yang sedang dipegang karyawan tersembunyi ikut tersembunyi bagi HR yang dibatasi.
+ */
 export function canViewAsset(
   actor: Actor,
   asset: { companyId: string },
   holder: EmployeeTarget | null,
 ): boolean {
   if (actor.role === ROLE.SUPER_ADMIN) return true;
-  if (actor.role === ROLE.HR_ADMIN) return isInCompanyScope(actor, asset);
+  if (actor.role === ROLE.HR_ADMIN)
+    return isInCompanyScope(actor, {
+      companyId: asset.companyId,
+      employeeId: holder?.employeeId ?? null,
+    });
   return holder !== null && canViewEmployeeAssets(actor, holder);
 }
 
@@ -75,5 +91,7 @@ export function assetListScope(actor: Actor): AssetListScope | null {
 
 /** ARS-D2: "Sudah saya terima" hanya oleh pemegangnya sendiri. */
 export function canAcknowledge(actor: Actor, holder: EmployeeTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, holder.employeeId)) return false;
   return isSelf(actor, holder);
 }

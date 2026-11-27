@@ -113,6 +113,7 @@ export async function dashboardAnalytics(
   const prevMonth = shiftMonth(month, -1);
 
   const employees = await employeeDirectory.analyticsEmployees({
+    actor: ctx.actor,
     companyIds: scope.kind === "companies" ? scope.companyIds : undefined,
     managerId: scope.kind === "team" ? scope.managerId : undefined,
     from: new Date(`${historyFrom}T00:00:00Z`),

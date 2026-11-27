@@ -5,6 +5,7 @@ import {
   REVIEW_SECTION_LABELS,
   type ReviewSection,
 } from "@hris/shared";
+import { type Actor, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -26,7 +27,7 @@ import { notify } from "../notification/index.ts";
 import { getMasterLookup } from "../organization/index.ts";
 import * as policy from "./employee.policy.ts";
 import * as employeeRepo from "./employee.repository.ts";
-import { todayInJakarta } from "./employee.service.ts";
+import { assertWorkLocationScope, todayInJakarta } from "./employee.service.ts";
 import { diffScalars, recordFieldChanges } from "./field-change.ts";
 import { initialEffectiveFrom, writeInitialHomebase } from "./homebase-history.ts";
 import * as repo from "./onboarding.repository.ts";
@@ -73,7 +74,11 @@ async function loadForReview(ctx: OnboardingContext, employeeId: string) {
   const row = await wizardRepo.loadSelf(employeeId);
   const mode = row ? reviewModeOf(row) : null;
   // Di luar cakupan / bukan objek onboarding → 404 (tidak membocorkan keberadaan, D-040).
-  if (!row || !mode || !policy.canReviewOnboarding(ctx.actor, row.companyId)) {
+  if (
+    !row ||
+    !mode ||
+    !policy.canReviewOnboarding(ctx.actor, { companyId: row.companyId, employeeId: row.id })
+  ) {
     throw new NotFoundError("Data onboarding tidak ditemukan.");
   }
   // Tidak boleh me-review data miliknya sendiri (PLAN §4.5.1).
@@ -129,10 +134,11 @@ type WorkCorrection = NonNullable<
 >;
 
 /** Koreksi data kerja wajib merujuk master data aktif; atasan = karyawan aktif (ORG-D9). */
-async function assertWorkRefs(work: WorkCorrection, row: Row) {
+async function assertWorkRefs(actor: Actor, work: WorkCorrection, row: Row) {
   const lookup = await getMasterLookup();
   const live = <T extends { deleted: boolean }>(map: Map<string, T>, id?: string | null) =>
     !id || (map.has(id) && !map.get(id)?.deleted);
+  assertWorkLocationScope(actor, lookup, work.workLocationId);
   const issues: { path: string; message: string }[] = [];
   if (!live(lookup.statuses, work.employmentStatusId))
     issues.push({ path: "work.employmentStatusId", message: "Status kepegawaian tidak valid." });
@@ -147,7 +153,10 @@ async function assertWorkRefs(work: WorkCorrection, row: Row) {
   if (work.managerId) {
     const [manager] = await employeeRepo.findManyByIds([work.managerId]);
     const valid =
-      manager?.isActive && manager.onboardingStatus === "APPROVED" && manager.id !== row.id;
+      !isHiddenEmployee(actor, work.managerId) &&
+      manager?.isActive &&
+      manager.onboardingStatus === "APPROVED" &&
+      manager.id !== row.id;
     if (!valid)
       issues.push({
         path: "work.managerId",
@@ -197,7 +206,7 @@ export async function decide(
         "Data kerja karyawan terdaftar diubah lewat menu Karyawan (tercatat di riwayat).",
       );
     }
-    if (input.work) await assertWorkRefs(input.work, row);
+    if (input.work) await assertWorkRefs(ctx.actor, input.work, row);
   }
 
   let nikLogin = false;

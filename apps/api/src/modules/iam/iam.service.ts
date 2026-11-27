@@ -12,7 +12,7 @@ import {
   requiresEmployeeLink,
   usesAssignedCompanies,
 } from "@hris/shared";
-import { type Actor, isGrantActive } from "../../core/access/index.ts";
+import { type Actor, isGrantActive, visibleEmployeeIds } from "../../core/access/index.ts";
 import { listAuditLogs as listAuditLogRows, writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -73,14 +73,20 @@ export const PASSWORD_REAUTH_WINDOW_MS = 5 * 60 * 1000;
 // D-040: cakupan PT untuk akun yang tertaut karyawan. Data ada di modul employee, yang sudah
 // meng-import iam — jadi disuntik lewat app.ts (PLAN §3.2: iam tidak membaca tabel employee).
 export interface IamEmployeeScope {
+  /** IAM-D3: id semua karyawan (aktif/nonaktif/calon) yang lokasi kerjanya kini berpenanda Head Office. */
+  headOfficeEmployeeIds(): Promise<string[]>;
   companyOfEmployees(employeeIds: string[]): Promise<Map<string, string>>;
-  employeeIdsInCompanies(companyIds: string[]): Promise<string[]>;
+  employeeIdsInCompanies(companyIds: string[], actor: Actor): Promise<string[]>;
   /** Label karyawan untuk audit log: "Nama (nomor induk)". */
   employeeLabels(employeeIds: string[]): Promise<Map<string, string>>;
   /** ONB-D2: data karyawan calon tautan akun. */
   linkCandidates(employeeIds: string[]): Promise<Map<string, EmployeeLinkCandidate>>;
   /** ONB-D2: karyawan aktif & disetujui yang email pribadi/kerjanya sama (null = semua PT). */
-  employeesByEmail(email: string, companyIds: string[] | null): Promise<AccountLinkSuggestion[]>;
+  employeesByEmail(
+    email: string,
+    companyIds: string[] | null,
+    actor: Actor,
+  ): Promise<AccountLinkSuggestion[]>;
   /** ONB-D2 (Q1a): undangan role Karyawan = "Undang Karyawan Terdaftar" (D-045 poin 9). */
   inviteExisting(
     ctx: RequestContext,
@@ -132,6 +138,7 @@ const toTarget = (a: AccountRow, companyId: string | null = null): policy.Accoun
   isPrimarySuperAdmin: a.isPrimarySuperAdmin,
   isActive: a.isActive,
   companyId,
+  employeeId: a.employeeId,
 });
 
 /** Target lengkap dengan PT karyawan tertaut (D-040). */
@@ -161,6 +168,7 @@ export function toAccountDto(a: AccountRow, companyIds: string[] = []): AccountD
     role: a.role,
     isActive: a.isActive,
     isPrimarySuperAdmin: a.isPrimarySuperAdmin,
+    restrictHeadOffice: a.restrictHeadOffice && usesAssignedCompanies(a.role),
     employeeId: a.employeeId,
     companyIds,
     lastLoginAt: a.lastLoginAt?.toISOString() ?? null,
@@ -308,7 +316,16 @@ export async function notifyExpiringGrants(now: Date = new Date(), withinDays = 
 export async function loadActor(authUserId: string, now: Date = new Date()): Promise<Actor | null> {
   const account = await repository.findActiveAccountByAuthUserId(authUserId, now);
   if (!account) return null;
+  // IAM-D3: dihitung per request (D-008) → karyawan yang dipindah ke/dari lokasi HO langsung berlaku.
+  // Data karyawan milik akun sendiri tidak pernah disembunyikan (layanan diri: absen, cuti, profil).
+  const hidden =
+    account.restrictHeadOffice && usesAssignedCompanies(account.role)
+      ? new Set(
+          (await scopeSource().headOfficeEmployeeIds()).filter((id) => id !== account.employeeId),
+        )
+      : undefined;
   return {
+    ...(hidden ? { hiddenEmployeeIds: hidden } : {}),
     accountId: account.id,
     authUserId: account.authUserId,
     email: account.email,
@@ -398,9 +415,13 @@ export async function listAccounts(ctx: RequestContext, query: ListAccountsQuery
     ctx.actor.role === ROLE.HR_ADMIN
       ? {
           employeeScope: {
-            employeeIds: await scopeSource().employeeIdsInCompanies([
-              ...(ctx.actor.companyIds ?? []),
-            ]),
+            employeeIds: visibleEmployeeIds(
+              ctx.actor,
+              await scopeSource().employeeIdsInCompanies(
+                [...(ctx.actor.companyIds ?? [])],
+                ctx.actor,
+              ),
+            ),
           },
         }
       : {};
@@ -434,7 +455,10 @@ export async function getAccount(ctx: RequestContext, id: string): Promise<Accou
 /** ONB-D2: karyawan tujuan tautan — ada, dalam cakupan aktor, aktif, disetujui, belum berakun. */
 async function assertLinkableEmployee(ctx: RequestContext, employeeId: string) {
   const candidate = (await scopeSource().linkCandidates([employeeId])).get(employeeId);
-  if (!candidate || !policy.canPickEmployeeOfCompany(ctx.actor, candidate.companyId)) {
+  if (
+    !candidate ||
+    !policy.canPickEmployeeOfCompany(ctx.actor, { companyId: candidate.companyId, employeeId })
+  ) {
     throw new NotFoundError("Karyawan tidak ditemukan.");
   }
   if (!candidate.isActive || !candidate.approved) {
@@ -536,7 +560,12 @@ export async function linkAccountEmployee(
     throw new ConflictError("Akun ini sudah tertaut ke data karyawan.");
   }
   const candidate = await assertLinkableEmployee(ctx, employeeId);
-  if (!policy.canLinkEmployee(ctx.actor, toTarget(target), candidate.companyId)) {
+  if (
+    !policy.canLinkEmployee(ctx.actor, toTarget(target), {
+      companyId: candidate.companyId,
+      employeeId,
+    })
+  ) {
     throw new ForbiddenError();
   }
   try {
@@ -578,7 +607,9 @@ export async function listLinkSuggestions(
     ctx.actor.role === ROLE.SUPER_ADMIN || ctx.actor.companyIds === null
       ? null
       : [...ctx.actor.companyIds];
-  const found = await scopeSource().employeesByEmail(target.email, scope);
+  const found = (await scopeSource().employeesByEmail(target.email, scope, ctx.actor)).filter(
+    (row) => !ctx.actor.hiddenEmployeeIds?.has(row.employeeId),
+  );
   const linked = new Set(
     (await repository.findAccountsForEmployees(found.map((f) => f.employeeId))).map(
       (a) => a.employeeId,
@@ -620,6 +651,9 @@ export async function changeRole(ctx: RequestContext, id: string, newRole: Role,
     if (removedCompanies.length > 0) {
       await repository.replaceCompanyAssignments(tx, target.id, [], ctx.actor.accountId);
     }
+    // IAM-D3: "Tanpa akses karyawan Head Office" hanya bermakna untuk role HR berpenugasan PT.
+    const clearedRestrict = !usesAssignedCompanies(newRole) && target.restrictHeadOffice;
+    if (clearedRestrict) await repository.setRestrictHeadOffice(tx, target.id, false);
     await writeAudit(
       {
         ...auditBase(ctx),
@@ -631,6 +665,7 @@ export async function changeRole(ctx: RequestContext, id: string, newRole: Role,
           role: newRole,
           revokedGrants: stale.map((g) => PERMISSION_CODE[g.permission]),
           ...(removedCompanies.length > 0 ? { removedCompanyIds: removedCompanies } : {}),
+          ...(clearedRestrict ? { restrictHeadOffice: false } : {}),
         },
       },
       tx,
@@ -713,7 +748,7 @@ export async function assignCompanies(
       throw new BusinessRuleError("Perusahaan tidak ditemukan atau sudah tidak aktif.");
     }
   }
-  const { dto, changed } = await repository.withTransaction(async (tx) => {
+  const { dto, changed, restrictChanged } = await repository.withTransaction(async (tx) => {
     const target = await loadTarget(id, tx);
     if (!policy.canAssignCompanies(ctx.actor, toTarget(target))) throw new ForbiddenError();
     const before = (await repository.findCompanyAssignments([target.id], tx)).map(
@@ -722,6 +757,23 @@ export async function assignCompanies(
     const same =
       before.length === input.companyIds.length &&
       input.companyIds.every((companyId) => before.includes(companyId));
+    // IAM-D3: opsi "Tanpa akses karyawan Head Office" ikut diatur di dialog Atur PT.
+    const restrict = input.restrictHeadOffice ?? target.restrictHeadOffice;
+    const restrictChanged = restrict !== target.restrictHeadOffice;
+    if (restrictChanged) {
+      await repository.setRestrictHeadOffice(tx, target.id, restrict);
+      await writeAudit(
+        {
+          ...auditBase(ctx),
+          action: "iam.account.restrict_head_office",
+          entityType: "iam.account",
+          entityId: target.id,
+          before: { restrictHeadOffice: target.restrictHeadOffice },
+          after: { restrictHeadOffice: restrict },
+        },
+        tx,
+      );
+    }
     if (!same) {
       await repository.replaceCompanyAssignments(
         tx,
@@ -741,8 +793,24 @@ export async function assignCompanies(
         tx,
       );
     }
-    return { dto: toAccountDto(target, input.companyIds), changed: !same };
+    return {
+      dto: toAccountDto({ ...target, restrictHeadOffice: restrict }, input.companyIds),
+      changed: !same,
+      restrictChanged,
+    };
   });
+  if (restrictChanged) {
+    await notify({
+      recipients: [{ accountId: dto.id, email: dto.email }],
+      type: "iam.companies_assigned",
+      title: "Cakupan akses Anda diperbarui",
+      body: dto.restrictHeadOffice
+        ? "Karyawan Head Office tidak lagi terlihat di akun Anda."
+        : "Karyawan Head Office kini terlihat di akun Anda.",
+      link: "/personal/pegawai-aktif/semua",
+      email: false,
+    });
+  }
   if (changed) {
     const codes = input.companyIds.map((companyId) => lookup.companies.get(companyId)?.code ?? "?");
     await notify({
@@ -1481,6 +1549,7 @@ export interface EmployeeAccountState {
   authEmail: string;
   hasLoggedIn: boolean;
   isActive: boolean;
+  restrictHeadOffice: boolean;
 }
 
 /** Status akun per karyawan (daftar penerimaan & kirim ulang). */
@@ -1491,10 +1560,11 @@ export interface EmployeeAccountState {
 export async function listOnboardingReviewers(
   companyId: string,
   now: Date = new Date(),
+  headOfficeSubject = false,
 ): Promise<{ accountId: string; email: string }[]> {
   const [admins, hrs] = await Promise.all([
     repository.listActiveSuperAdmins(),
-    repository.findOnboardingReviewerHrs(companyId, now),
+    repository.findOnboardingReviewerHrs(companyId, now, headOfficeSubject),
   ]);
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }
@@ -1507,11 +1577,13 @@ export async function listDocumentReminderRecipients(
   companyId: string,
   sensitive: boolean,
   now: Date = new Date(),
+  headOfficeSubject = false,
 ): Promise<{ accountId: string; email: string }[]> {
   const hrs = await repository.findCompanyHrs(
     companyId,
     sensitive ? "EMPLOYEE_DOCUMENTS_READ" : null,
     now,
+    headOfficeSubject,
   );
   const rows = hrs.length > 0 ? hrs : await repository.listActiveSuperAdmins();
   return rows.map((a) => ({ accountId: a.id, email: a.email }));
@@ -1525,6 +1597,7 @@ export async function listDataChangeReviewers(
   companyId: string,
   sectionGrants: readonly Permission[],
   now: Date = new Date(),
+  headOfficeSubject = false,
 ): Promise<{ accountId: string; email: string }[]> {
   const [admins, hrs] = await Promise.all([
     repository.listActiveSuperAdmins(),
@@ -1532,6 +1605,7 @@ export async function listDataChangeReviewers(
       companyId,
       ["EMPLOYEE_CHANGES_REVIEW", ...sectionGrants.map((p) => DB_PERMISSION[p])],
       now,
+      headOfficeSubject,
     ),
   ]);
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
@@ -1560,10 +1634,11 @@ export async function listApproverAccounts(): Promise<
 export async function listAssetManagers(
   companyId: string,
   now: Date = new Date(),
+  headOfficeSubject = false,
 ): Promise<{ accountId: string; email: string }[]> {
   const [admins, hrs] = await Promise.all([
     repository.listActiveSuperAdmins(),
-    repository.findCompanyHrsWithAll(companyId, ["ASSET_MANAGE"], now),
+    repository.findCompanyHrsWithAll(companyId, ["ASSET_MANAGE"], now, headOfficeSubject),
   ]);
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }
@@ -1572,10 +1647,16 @@ export async function listAssetManagers(
 export async function listDisciplineWriters(
   companyId: string,
   now: Date = new Date(),
+  headOfficeSubject = false,
 ): Promise<{ accountId: string; email: string }[]> {
   const [admins, hrs] = await Promise.all([
     repository.listActiveSuperAdmins(),
-    repository.findCompanyHrsWithAll(companyId, ["EMPLOYEE_DISCIPLINE_WRITE"], now),
+    repository.findCompanyHrsWithAll(
+      companyId,
+      ["EMPLOYEE_DISCIPLINE_WRITE"],
+      now,
+      headOfficeSubject,
+    ),
   ]);
   return [...admins, ...hrs].map((a) => ({ accountId: a.id, email: a.email }));
 }
@@ -1590,12 +1671,18 @@ export async function getEmployeeAccountStates(
     email: row.email,
     authEmail: row.loginEmail ?? row.email,
     hasLoggedIn: row.lastLoginAt !== null,
+    restrictHeadOffice:
+      row.restrictHeadOffice && (row.role === ROLE.HR_ADMIN || row.role === ROLE.HR_PERSONNEL),
     isActive: row.isActive,
   }));
 }
 
 /** Active HR administrators assigned to a company, without a permission requirement (KTR-D13). */
-export async function listCompanyHrRecipients(companyId: string, now = new Date()) {
-  const rows = await repository.findCompanyHrs(companyId, null, now);
+export async function listCompanyHrRecipients(
+  companyId: string,
+  now = new Date(),
+  headOfficeSubject = false,
+) {
+  const rows = await repository.findCompanyHrs(companyId, null, now, headOfficeSubject);
   return rows.map((a) => ({ accountId: a.id, email: a.email }));
 }

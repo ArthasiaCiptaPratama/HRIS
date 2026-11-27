@@ -8,15 +8,16 @@ import {
   type ImportEducation,
   type ImportFamilyMember,
   type ImportFieldKey,
-  type ImportRowIssue,
   isBlankImportRow,
   maritalFromPtkp,
   type NormalizedImportRow,
   normalizeImportRow,
   type PositionLevel,
   parseHrLevelCode,
+  type ImportRowIssue as SharedImportRowIssue,
   unitKey,
 } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { ConflictError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import { releasePendingManagerSteps } from "../approval/index.ts";
@@ -75,6 +76,8 @@ import { syncPostManagers } from "./org-post-assignment.ts";
 const toDate = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 const toIso = (date: Date | null | undefined) =>
   date ? date.toISOString().slice(0, 10) : undefined;
+
+type ImportRowIssue = SharedImportRowIssue & { message?: string };
 
 type Action = "CREATE" | "UPDATE" | "SKIP" | "ERROR";
 
@@ -387,7 +390,10 @@ export async function analyze(
 
   // IMP-D1: pemegang bagan ber-NIP sementara (ASLI-) yang boleh dilihat aktor, dan target pilihan HR.
   const chartHolderList = (
-    await importRepo.listChartHolders(ctx.actor.role === "SUPER_ADMIN" ? null : scopeCompanies)
+    await importRepo.listChartHolders(
+      ctx.actor.role === "SUPER_ADMIN" ? null : scopeCompanies,
+      ctx.actor,
+    )
   ).filter((h) =>
     policy.canViewEmployee(ctx.actor, {
       employeeId: h.id,
@@ -544,7 +550,12 @@ export async function analyze(
         companyId: existing.companyId,
       };
       if (!policy.canViewEmployee(ctx.actor, target)) {
-        plan.issues.push(issue("employeeNumber", "EXISTING_OUT_OF_SCOPE"));
+        plan.issues.push({
+          ...issue("employeeNumber", "EXISTING_OUT_OF_SCOPE"),
+          ...(isHiddenEmployee(ctx.actor, existing.id)
+            ? { message: "Karyawan tidak ditemukan." }
+            : {}),
+        });
       } else if (existing.onboardingStatus !== "APPROVED") {
         // D-045: data calon diisi sendiri lewat onboarding; import tidak boleh menimpanya.
         plan.issues.push(issue("employeeNumber", "ONBOARDING_IN_PROGRESS"));
@@ -660,6 +671,20 @@ export async function analyze(
         p.issues.push(issue("positionName", "MASTER_ARCHIVED"));
     }
     const location = p.row.workLocationName;
+    if (ctx.actor.hiddenEmployeeIds !== undefined && location && wants(p, "workLocationName")) {
+      const locationId =
+        map.workLocations?.[masterKey(location)] ??
+        [...lookup.locations.values()].find((l) => masterKey(l.name) === masterKey(location))?.id;
+      if (locationId && lookup.locations.get(locationId)?.isHeadOffice) {
+        p.issues.push({
+          field: "workLocationName",
+          code: "LOCATION_OUT_OF_SCOPE",
+          severity: "ERROR",
+          message: "Lokasi kerja ini di luar cakupan Anda.",
+        });
+        p.action = "ERROR";
+      }
+    }
     if (
       wants(p, "workLocationName") &&
       location &&
@@ -765,8 +790,14 @@ export async function analyze(
   const previewRows = plans.map((p) => ({
     sourceRow: p.sourceRow,
     action: p.action,
-    employeeNumber: p.row.employeeNumber ?? p.existing?.employeeNumber ?? null,
-    fullName: p.row.fullName ?? p.existing?.fullName ?? null,
+    employeeNumber:
+      p.row.employeeNumber ??
+      (p.existing && !isHiddenEmployee(ctx.actor, p.existing.id)
+        ? p.existing.employeeNumber
+        : null),
+    fullName:
+      p.row.fullName ??
+      (p.existing && !isHiddenEmployee(ctx.actor, p.existing.id) ? p.existing.fullName : null),
     companyCode: p.companyId ? (lookup.companies.get(p.companyId)?.code ?? null) : null,
     companySource: p.companySource ?? null,
     newEmployee: !p.existing,

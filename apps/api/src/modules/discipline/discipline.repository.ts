@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma, WarningLetterStatus } from "../../generated/prisma/client.ts";
 
@@ -44,6 +45,7 @@ const LETTER_INCLUDE = {
 export type LetterRow = Prisma.WarningLetterGetPayload<{ include: typeof LETTER_INCLUDE }>;
 
 export interface LetterFilter {
+  actor?: Actor;
   /** null = semua PT. */
   companyIds: string[] | null;
   /** PT yang draft-nya terlihat; null = semua, [] = tanpa draft. */
@@ -67,7 +69,9 @@ export interface LetterFilter {
 }
 
 function letterWhere(f: LetterFilter): Prisma.WarningLetterWhereInput {
-  const and: Prisma.WarningLetterWhereInput[] = [];
+  const and: Prisma.WarningLetterWhereInput[] = f.actor
+    ? [hiddenFilter(f.actor, "employeeId")]
+    : [];
   if (f.companyIds) and.push({ companyId: { in: f.companyIds } });
   if (f.draftCompanyIds) {
     and.push({

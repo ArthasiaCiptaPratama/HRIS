@@ -5,6 +5,7 @@ import {
   type OrgChartChangePreview,
   type OrgChartChangeResult,
 } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import {
   AppError,
   BusinessRuleError,
@@ -59,7 +60,8 @@ async function placeEmployee(
   postId: string | null,
 ): Promise<OrgChartChangePreview["placements"][number]> {
   const before = await employees.findEmployee(employeeId, tx);
-  if (!before) throw new NotFoundError("Karyawan tidak ditemukan.");
+  if (!before || isHiddenEmployee(ctx.actor, before.id))
+    throw new NotFoundError("Karyawan tidak ditemukan.");
   if (!canManageOrgStructure(ctx.actor, before.companyId)) throw new ForbiddenError();
   if (!before.isActive || before.onboardingStatus !== "APPROVED") {
     throw new BusinessRuleError("Karyawan harus aktif dan sudah disetujui.");
@@ -110,7 +112,9 @@ async function execute(
   previewOnly: boolean,
 ): Promise<OrgChartChangeResult> {
   return withOrgChartEdit(ctx, input, previewOnly, async (tx, revision) => {
-    const before = await repository.listChartPeople(tx);
+    const before = (await repository.listChartPeople(tx)).filter(
+      (person) => !isHiddenEmployee(ctx.actor, person.id),
+    );
     const createdIds: Record<string, string> = {};
     const preview: OrgChartChangePreview = {
       revision,
@@ -221,7 +225,8 @@ async function execute(
     const result = { revision, createdIds, managersUpdated };
     if (previewOnly) {
       // Ringkasan hanya memuat karyawan di PT cakupan aktor (SA: semua).
-      const visible = (person: { companyId: string }) =>
+      const visible = (person: { id: string; companyId: string }) =>
+        !isHiddenEmployee(ctx.actor, person.id) &&
         canManageOrgStructure(ctx.actor, person.companyId);
       const after = (await repository.listChartPeople(tx)).filter(visible);
       const managerIds = [
@@ -233,7 +238,7 @@ async function execute(
       const byId = new Map([...managers, ...before, ...after].map((person) => [person.id, person]));
       const oldById = new Map(before.map((person) => [person.id, person]));
       const personRef = (id: string | null) => {
-        const person = id ? byId.get(id) : undefined;
+        const person = id && !isHiddenEmployee(ctx.actor, id) ? byId.get(id) : undefined;
         return person ? { id: person.id, fullName: person.fullName } : null;
       };
       for (const person of after) {

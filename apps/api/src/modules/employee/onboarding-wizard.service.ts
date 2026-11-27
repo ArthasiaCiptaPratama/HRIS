@@ -14,6 +14,7 @@ import {
 } from "@hris/shared";
 import type { z } from "zod";
 import type { Actor } from "../../core/access/index.ts";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -118,7 +119,8 @@ export function activeRevision(
 }
 
 async function loadMine(ctx: WizardContext) {
-  if (!ctx.actor.employeeId) throw new NotFoundError("Akun ini tidak tertaut data karyawan.");
+  if (!ctx.actor.employeeId || isHiddenEmployee(ctx.actor, ctx.actor.employeeId))
+    throw new NotFoundError("Akun ini tidak tertaut data karyawan.");
   const row = await repo.loadSelf(ctx.actor.employeeId);
   if (!row) throw new NotFoundError("Data karyawan tidak ditemukan.");
   return { row, ...modeOf(row), revision: activeRevision(row) };
@@ -626,7 +628,11 @@ export async function submitMyOnboarding(ctx: WizardContext, now = new Date()) {
     );
   });
   // Setelah commit; notify() tidak pernah melempar. Tanpa data sensitif (nama & nomor induk saja).
-  const reviewers = await listOnboardingReviewers(state.row.companyId);
+  const reviewers = await listOnboardingReviewers(
+    state.row.companyId,
+    new Date(),
+    state.row.workLocation?.isHeadOffice ?? false,
+  );
   await notify({
     recipients: reviewers.filter((r) => r.accountId !== ctx.actor.accountId),
     type: "employee.onboarding_submitted",

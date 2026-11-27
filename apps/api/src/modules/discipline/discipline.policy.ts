@@ -3,6 +3,7 @@ import {
   type Actor,
   type EmployeeTarget,
   hasPermission,
+  isHiddenEmployee,
   isInCompanyScope,
   isInTeam,
   isSelf,
@@ -18,28 +19,37 @@ export interface LetterTarget {
 }
 
 /** Buat, terbitkan, cabut & lampirkan scan SP di PT `companyId`: SA, atau HR ber-grant write di PT itu. */
-export function canWriteLetters(actor: Actor, companyId: string): boolean {
+export function canWriteLetters(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
   if (actor.role === ROLE.SUPER_ADMIN) return true;
   return (
     actor.role === ROLE.HR_ADMIN &&
     hasPermission(actor, "employee.discipline.write") &&
-    isInCompanyScope(actor, { companyId })
+    isInCompanyScope(actor, target)
   );
 }
 
 /** HR yang hanya melihat: grant read atau write di PT itu. */
-function canReadAsHr(actor: Actor, companyId: string): boolean {
+function canReadAsHr(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
   return (
     actor.role === ROLE.HR_ADMIN &&
     (hasPermission(actor, "employee.discipline.read") ||
       hasPermission(actor, "employee.discipline.write")) &&
-    isInCompanyScope(actor, { companyId })
+    isInCompanyScope(actor, target)
   );
 }
 
 /** Alasan eskalasi, bukti ALPHA & surat pernyataan: SA + HR ber-grant SP di PT itu (bukan MANAGER/karyawan). */
-export function canSeeInternalNotes(actor: Actor, companyId: string): boolean {
-  return canWriteLetters(actor, companyId) || canReadAsHr(actor, companyId);
+export function canSeeInternalNotes(
+  actor: Actor,
+  target: { companyId: string; employeeId: string | null },
+): boolean {
+  return canWriteLetters(actor, target) || canReadAsHr(actor, target);
 }
 
 /** Master jenis pelanggaran berlaku semua PT: SA atau HR ber-grant write (ARS-D12). */
@@ -72,9 +82,12 @@ export function canViewLetter(
   letter: LetterTarget,
   employee: EmployeeTarget,
 ): boolean {
-  if (canWriteLetters(actor, letter.companyId)) return true;
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, employee.employeeId)) return false;
+  const hrTarget = { companyId: letter.companyId, employeeId: employee.employeeId };
+  if (canWriteLetters(actor, hrTarget)) return true;
   if (letter.status === "DRAFT") return false;
-  if (canReadAsHr(actor, letter.companyId)) return true;
+  if (canReadAsHr(actor, hrTarget)) return true;
   if (isSelf(actor, employee)) return true;
   return actor.role === ROLE.MANAGER && isLetterManager(actor, letter, employee);
 }
@@ -95,13 +108,20 @@ export function canDeliver(
   employee: EmployeeTarget,
   managerReachable: boolean,
 ): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, employee.employeeId)) return false;
   if (isSelf(actor, employee)) return false;
   if (isLetterManager(actor, letter, employee)) return true;
-  return !managerReachable && canWriteLetters(actor, letter.companyId);
+  return (
+    !managerReachable &&
+    canWriteLetters(actor, { companyId: letter.companyId, employeeId: employee.employeeId })
+  );
 }
 
 /** ARS-D9: "Sudah menerima" hanya oleh karyawan penerima SP. */
 export function canAcknowledge(actor: Actor, employee: EmployeeTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, employee.employeeId)) return false;
   return isSelf(actor, employee);
 }
 
@@ -129,8 +149,5 @@ export function letterListScope(actor: Actor): LetterListScope | null {
 
 /** Audit 4: HR tidak mencabut SP miliknya sendiri; SA dikecualikan. */
 export function canRevokeLetter(actor: Actor, target: EmployeeTarget): boolean {
-  return (
-    canWriteLetters(actor, target.companyId) &&
-    !(actor.role === ROLE.HR_ADMIN && isSelf(actor, target))
-  );
+  return canWriteLetters(actor, target) && !(actor.role === ROLE.HR_ADMIN && isSelf(actor, target));
 }

@@ -9,6 +9,7 @@ import {
   canStillCorrect,
   correctionDeadline,
 } from "@hris/shared";
+import { hiddenFilter } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { getPrisma } from "../../core/db.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
@@ -206,6 +207,7 @@ export async function listAlphaVerifications(
   const rows = await db().attendanceDay.findMany({
     where: {
       ...where,
+      ...hiddenFilter(actor, "employeeId"),
       status: "ALPHA",
       alphaVerification: scope === "inbox" ? "PENDING" : { not: null },
       workDate: { gte: from },

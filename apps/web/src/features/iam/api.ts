@@ -122,10 +122,18 @@ export function useChangeRole() {
 export function useAssignCompanies() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({ id, companyIds }: { id: string; companyIds: string[] }) =>
+    mutationFn: ({
+      id,
+      companyIds,
+      restrictHeadOffice,
+    }: {
+      id: string;
+      companyIds: string[];
+      restrictHeadOffice: boolean;
+    }) =>
       api(`/accounts/${id}/companies`, {
         method: "PUT",
-        body: { companyIds },
+        body: { companyIds, restrictHeadOffice },
         schema: one(accountSchema),
       }),
     onSuccess: invalidate,

@@ -5,7 +5,7 @@ import {
   type Role,
   usesAssignedCompanies,
 } from "@hris/shared";
-import type { Actor } from "../../core/access/index.ts";
+import { type Actor, isHiddenEmployee, isInCompanyScope } from "../../core/access/index.ts";
 
 // PROMPT §3.5: keputusan akses murni; default tolak. Data target diberikan pemanggil.
 // Aturan jumlah (mis. "SUPER_ADMIN aktif tidak boleh 0") butuh data DB → di service.
@@ -17,6 +17,8 @@ export interface AccountTarget {
   isActive: boolean;
   /** D-040: PT karyawan yang tertaut ke akun; null/undefined = akun belum tertaut karyawan. */
   companyId?: string | null;
+  /** IAM-D3: karyawan tertaut (untuk menyembunyikan akun karyawan Head Office dari HR yang dibatasi). */
+  employeeId?: string | null;
 }
 
 const isSuperAdmin = (actor: Actor) => actor.role === ROLE.SUPER_ADMIN;
@@ -26,10 +28,11 @@ const isSelfAccount = (actor: Actor, target: AccountTarget) => actor.accountId =
 // D-040: HR_ADMIN hanya akun karyawan di PT yang ditugaskan; akun yang belum tertaut karyawan
 // (hasil undangan) tidak punya PT sehingga tetap dalam jangkauan HR.
 const inHrScope = (actor: Actor, target: AccountTarget) =>
-  target.companyId === null ||
-  target.companyId === undefined ||
-  actor.companyIds === null ||
-  actor.companyIds.has(target.companyId);
+  !(target.employeeId && isHiddenEmployee(actor, target.employeeId)) &&
+  (target.companyId === null ||
+    target.companyId === undefined ||
+    actor.companyIds === null ||
+    actor.companyIds.has(target.companyId));
 
 // GET /me: setiap akun aktif boleh melihat profil aksesnya sendiri (PLAN §4.3, data "sendiri").
 export function canReadOwnAccount(actor: Actor): boolean {
@@ -86,8 +89,10 @@ export function canSetActive(actor: Actor, target: AccountTarget): boolean {
 export function canLinkEmployee(
   actor: Actor,
   target: AccountTarget,
-  employeeCompanyId: string,
+  employee: { companyId: string; employeeId: string },
 ): boolean {
+  const employeeCompanyId = employee.companyId;
+  if (isHiddenEmployee(actor, employee.employeeId)) return false;
   if (isSuperAdmin(actor)) {
     return (
       target.role !== ROLE.SUPER_ADMIN || isSelfAccount(actor, target) || actor.isPrimarySuperAdmin
@@ -101,9 +106,12 @@ export function canLinkEmployee(
 }
 
 /** ONB-D2: HR hanya boleh memilih karyawan di PT yang ditugaskan. */
-export function canPickEmployeeOfCompany(actor: Actor, employeeCompanyId: string): boolean {
+export function canPickEmployeeOfCompany(
+  actor: Actor,
+  employee: { companyId: string; employeeId: string },
+): boolean {
   if (isSuperAdmin(actor)) return true;
-  return isHrAdmin(actor) && (actor.companyIds === null || actor.companyIds.has(employeeCompanyId));
+  return isHrAdmin(actor) && isInCompanyScope(actor, employee);
 }
 
 // D-040: penugasan PT = bagian kelola akses (§4.3 "Beri/cabut role & grant": SA); untuk role HR

@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
 import type { FieldChangesQuery } from "./employee.schema.ts";
@@ -213,9 +214,10 @@ export async function findEmployeeParts(id: string, include: { personal: boolean
  * ORG-D9: pilihan atasan manual = karyawan aktif yang sudah disetujui (apa pun role akunnya), dalam PT
  * `companyIds` (null = semua PT, SUPER_ADMIN; D-040).
  */
-export function findActiveApprovedBriefs(companyIds: readonly string[] | null) {
+export function findActiveApprovedBriefs(companyIds: readonly string[] | null, actor?: Actor) {
   return getPrisma().employee.findMany({
     where: {
+      ...((actor && hiddenFilter(actor, "id")) || {}),
       isActive: true,
       onboardingStatus: "APPROVED",
       ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
@@ -265,9 +267,10 @@ export async function findManagerId(id: string, tx: EmployeeTx = getPrisma()) {
 }
 
 /** Direktori: `companyIds` null = semua PT (D-040). */
-export async function listActiveForStructure(companyIds: readonly string[] | null) {
+export async function listActiveForStructure(companyIds: readonly string[] | null, actor?: Actor) {
   return getPrisma().employee.findMany({
     where: {
+      ...((actor && hiddenFilter(actor, "id")) || {}),
       isActive: true,
       // D-045: calon onboarding belum masuk struktur organisasi.
       onboardingStatus: "APPROVED",
@@ -287,11 +290,23 @@ export async function findCompanyIds(ids: string[]) {
   });
 }
 
+/**
+ * IAM-D3: id semua karyawan (aktif, nonaktif, calon, terhapus-lunak) yang lokasi kerjanya kini berpenanda
+ * Head Office — disembunyikan dari akun HR yang dibatasi.
+ */
+export async function findHeadOfficeEmployeeIds() {
+  const rows = await getPrisma().employee.findMany({
+    where: { workLocation: { isHeadOffice: true } },
+    select: { id: true },
+  });
+  return rows.map((row) => row.id);
+}
+
 /** D-040: id karyawan di perusahaan tertentu (cakupan akun HR di iam). */
-export async function findIdsInCompanies(companyIds: string[]) {
+export async function findIdsInCompanies(companyIds: string[], actor?: Actor) {
   if (companyIds.length === 0) return [];
   const rows = await getPrisma().employee.findMany({
-    where: { companyId: { in: companyIds } },
+    where: { ...((actor && hiddenFilter(actor, "id")) || {}), companyId: { in: companyIds } },
     select: { id: true },
   });
   return rows.map((row) => row.id);
@@ -582,6 +597,7 @@ export async function findContractsEndingBy(statusIds: string[], until: Date) {
       employmentStatusId: true,
       contractStage: true,
       contractEndDate: true,
+      workLocation: { select: { isHeadOffice: true } },
     },
     orderBy: [{ contractEndDate: "asc" }, { id: "asc" }],
   });
@@ -607,6 +623,13 @@ export async function countContractsEnding(
 export function findActiveThl(where: EmployeeWhere, statusIds: string[]) {
   return getPrisma().employee.findMany({
     where: { AND: [where, { isActive: true, employmentStatusId: { in: statusIds } }] },
-    select: { id: true, fullName: true, companyId: true, managerId: true, joinDate: true },
+    select: {
+      id: true,
+      fullName: true,
+      companyId: true,
+      managerId: true,
+      joinDate: true,
+      workLocation: { select: { isHeadOffice: true } },
+    },
   });
 }

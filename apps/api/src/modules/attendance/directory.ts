@@ -68,11 +68,13 @@ export async function employeeById(id: string): Promise<DirectoryEmployee | null
 }
 
 export async function activeEmployeesInCompany(
+  actor: Actor,
   companyId: string,
   q?: string,
   take = 500,
 ): Promise<DirectoryEmployee[]> {
   const rows = await listEmployeeBriefs({
+    actor,
     companyIds: [companyId],
     isActive: true,
     q,
@@ -82,11 +84,13 @@ export async function activeEmployeesInCompany(
 }
 
 export async function employeesByNumbers(
+  actor: Actor,
   companyId: string,
   numbers: string[],
 ): Promise<Map<string, DirectoryEmployee>> {
   if (numbers.length === 0) return new Map();
   const rows = await listEmployeeBriefs({
+    actor,
     companyIds: [companyId],
     employeeNumbers: numbers,
     limit: numbers.length,
@@ -114,10 +118,11 @@ export const EMPLOYEE_LIST_CAP = 5000;
  * diam-diam: bila jumlahnya mencapai batas `listEmployeeBriefs`, mengembalikan null (pemanggil menolak).
  */
 export async function employeesInCompanies(
+  actor: Actor,
   companyIds: string[] | null,
 ): Promise<DirectoryEmployee[] | null> {
   if (companyIds?.length === 0) return [];
-  const rows = await listEmployeeBriefs({ companyIds, limit: EMPLOYEE_LIST_CAP });
+  const rows = await listEmployeeBriefs({ actor, companyIds, limit: EMPLOYEE_LIST_CAP });
   return rows.length >= EMPLOYEE_LIST_CAP ? null : rows.map(toDirectory);
 }
 
@@ -199,8 +204,8 @@ export function activeLocations(): Promise<DirectoryLocation[]> {
 export type ExitedEmployee = ExitedEmployeeBrief;
 
 /** TM-D9: karyawan nonaktif dengan tanggal keluar (hak cuti keluar). Baca-saja. */
-export function exitedEmployees(companyIds?: string[]): Promise<ExitedEmployee[]> {
-  return listExitedEmployees(companyIds ?? null);
+export function exitedEmployees(companyIds?: string[], actor?: Actor): Promise<ExitedEmployee[]> {
+  return listExitedEmployees(companyIds ?? null, actor);
 }
 
 /** TM-D9: status aktif & tanggal keluar terkini per karyawan (pembatalan hak keluar bila aktif lagi). */
@@ -220,6 +225,7 @@ export interface AnalyticsEmployee extends Omit<AnalyticsEmployeeBrief, "employm
  * Baca-saja. `withBirthDate` = pemanggil berhak atas data pribadi (proyeksi pensiun).
  */
 export async function analyticsEmployees(input: {
+  actor?: Actor;
   companyIds?: string[] | undefined;
   managerId?: string | undefined;
   from: Date;

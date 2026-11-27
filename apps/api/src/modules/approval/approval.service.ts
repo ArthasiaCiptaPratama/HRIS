@@ -1,6 +1,7 @@
 import type { ApprovalDecisionBody, ApprovalSubject, BulkApprovalDecisionBody } from "@hris/shared";
 import { ROLE } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
+import { hiddenFilter } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -209,7 +210,12 @@ export async function listActionable(
   const isSa = actor.role === ROLE.SUPER_ADMIN;
   if (!isSa && or.length === 0) return [];
   const rows = await repository.listRequests(
-    { subjectType, status: "PENDING", ...(isSa ? {} : { OR: or }) },
+    {
+      ...hiddenFilter(actor, "requesterEmployeeId"),
+      subjectType,
+      status: "PENDING",
+      ...(isSa ? {} : { OR: or }),
+    },
     options.take ?? 1000,
   );
   return rows

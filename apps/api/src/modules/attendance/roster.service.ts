@@ -11,6 +11,7 @@ import {
   TIME_OFF_CODE,
 } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -288,6 +289,24 @@ export async function createPattern(
   }
 }
 
+/**
+ * IAM-D3: pola/crew yang (masih/akan) dipakai karyawan tersembunyi (Head Office) tidak diubah oleh akun
+ * dibatasi — perubahannya ikut menulis jadwal karyawan HO.
+ */
+function assertNoHiddenMembers(actor: Actor, crews: repository.CrewRow[]) {
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  const hidden = crews.some((crew) =>
+    crew.members.some(
+      (m) => isHiddenEmployee(actor, m.employeeId) && (m.endDate === null || m.endDate >= today),
+    ),
+  );
+  if (hidden) {
+    throw new BusinessRuleError(
+      "Pola/crew ini dipakai karyawan di luar cakupan Anda. Hubungi Super Admin untuk mengubahnya.",
+    );
+  }
+}
+
 export async function updatePattern(
   ctx: RequestContext,
   id: string,
@@ -296,6 +315,7 @@ export async function updatePattern(
   const before = await repository.findPattern(id);
   if (!before) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
+  assertNoHiddenMembers(ctx.actor, await repository.listCrews({ patternId: id }));
   if (input.companyId !== before.companyId)
     throw new BusinessRuleError("Perusahaan pola tidak bisa diubah.");
   await validateSteps(input.companyId, input.steps);
@@ -310,7 +330,8 @@ export async function updatePattern(
       { ...input },
     );
     // Pola berubah → crew pemakainya dibangkitkan ulang mulai hari ini.
-    for (const crew of await repository.listCrews({ patternId: id })) await regenerateCrew(crew.id);
+    for (const crew of await repository.listCrews({ patternId: id }))
+      await regenerateCrew(crew.id, undefined, true, undefined, undefined, undefined, ctx.actor);
     return patternDto(row);
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Pola "${input.name}" sudah ada.`);
@@ -354,10 +375,19 @@ export interface CrewDto {
   }[];
 }
 
-async function crewDtos(rows: repository.CrewRow[], onDate: string): Promise<CrewDto[]> {
+async function crewDtos(
+  rows: repository.CrewRow[],
+  onDate: string,
+  actor?: Actor,
+): Promise<CrewDto[]> {
   const date = toDate(onDate);
   const active = (row: repository.CrewRow) =>
-    row.members.filter((m) => m.startDate <= date && (m.endDate === null || m.endDate >= date));
+    row.members.filter(
+      (m) =>
+        (!actor || !isHiddenEmployee(actor, m.employeeId)) &&
+        m.startDate <= date &&
+        (m.endDate === null || m.endDate >= date),
+    );
   const employees = await directory.employeesByIds(
     rows.flatMap((row) => active(row).map((m) => m.employeeId)),
   );
@@ -387,7 +417,7 @@ async function crewDtos(rows: repository.CrewRow[], onDate: string): Promise<Cre
 
 export async function listCrews(ctx: RequestContext, companyId: string): Promise<CrewDto[]> {
   if (!policy.canViewRosterSetup(ctx.actor, companyId)) throw new ForbiddenError();
-  return crewDtos(await repository.listCrews({ companyId }), await settingsToday());
+  return crewDtos(await repository.listCrews({ companyId }), await settingsToday(), ctx.actor);
 }
 
 async function validateCrew(input: CrewInput) {
@@ -410,7 +440,7 @@ export async function createCrew(ctx: RequestContext, input: CrewInput): Promise
       cycleStartDate: toDate(input.cycleStartDate),
     });
     await audit(ctx, "attendance.crew.create", "attendance.crew", row.id, null, { ...input });
-    return (await crewDtos([row], await settingsToday()))[0] as CrewDto;
+    return (await crewDtos([row], await settingsToday(), ctx.actor))[0] as CrewDto;
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Crew "${input.name}" sudah ada.`);
     throw error;
@@ -425,6 +455,7 @@ export async function updateCrew(
   const before = await repository.findCrew(id);
   if (!before || before.deletedAt) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
+  assertNoHiddenMembers(ctx.actor, [before]);
   if (input.companyId !== before.companyId)
     throw new BusinessRuleError("Perusahaan crew tidak bisa diubah.");
   await validateCrew(input);
@@ -447,8 +478,8 @@ export async function updateCrew(
       },
       { ...input },
     );
-    await regenerateCrew(id);
-    return (await crewDtos([row], await settingsToday()))[0] as CrewDto;
+    await regenerateCrew(id, undefined, true, undefined, undefined, undefined, ctx.actor);
+    return (await crewDtos([row], await settingsToday(), ctx.actor))[0] as CrewDto;
   } catch (error) {
     if (isUnique(error)) throw new ConflictError(`Crew "${input.name}" sudah ada.`);
     throw error;
@@ -459,14 +490,22 @@ export async function archiveCrew(ctx: RequestContext, id: string): Promise<{ id
   const before = await repository.findCrew(id);
   if (!before || before.deletedAt) throw new NotFoundError();
   assertManage(ctx.actor, before.companyId);
+  assertNoHiddenMembers(ctx.actor, [before]);
   const today = await settingsToday();
   await repository.withTransaction(async (tx) => {
     for (const m of before.members) {
+      if (isHiddenEmployee(ctx.actor, m.employeeId)) continue;
       if (m.endDate === null || toIso(m.endDate) >= today)
         await repository.endMembership(tx, m.id, toDate(isoAddDays(today, -1)));
     }
     // Hari pola mendatang crew ini dihapus (hari manual/import/perubahan tetap).
-    await repository.deletePatternDays(tx, id, toDate(today), toDate(isoAddDays(today, 400)));
+    await repository.deletePatternDays(
+      tx,
+      id,
+      toDate(today),
+      toDate(isoAddDays(today, 400)),
+      ctx.actor,
+    );
   });
   await repository.updateCrew(id, { deletedAt: new Date() });
   await audit(ctx, "attendance.crew.archive", "attendance.crew", id, { name: before.name }, null);
@@ -474,11 +513,11 @@ export async function archiveCrew(ctx: RequestContext, id: string): Promise<{ id
 }
 
 /** Calon anggota crew wajib karyawan aktif PT crew itu. */
-export async function assertCrewEmployees(companyId: string, employeeIds: string[]) {
+export async function assertCrewEmployees(companyId: string, employeeIds: string[], actor?: Actor) {
   const employees = await directory.employeesByIds(employeeIds);
   const invalid = employeeIds.filter((id) => {
     const e = employees.get(id);
-    return !e || e.companyId !== companyId || !e.isActive;
+    return (actor && isHiddenEmployee(actor, id)) || !e || e.companyId !== companyId || !e.isActive;
   });
   if (invalid.length > 0) {
     throw new BusinessRuleError(
@@ -488,9 +527,9 @@ export async function assertCrewEmployees(companyId: string, employeeIds: string
 }
 
 /** DTO crew terbaru (anggota pada `onDate`). */
-export async function crewDtoById(crewId: string, onDate: string): Promise<CrewDto> {
+export async function crewDtoById(crewId: string, onDate: string, actor?: Actor): Promise<CrewDto> {
   return (
-    await crewDtos([(await repository.findCrew(crewId)) as repository.CrewRow], onDate)
+    await crewDtos([(await repository.findCrew(crewId)) as repository.CrewRow], onDate, actor)
   )[0] as CrewDto;
 }
 
@@ -508,7 +547,7 @@ export async function setCrewMembers(
   const crew = await repository.findCrew(crewId);
   if (!crew || crew.deletedAt) throw new NotFoundError();
   assertManage(ctx.actor, crew.companyId);
-  await assertCrewEmployees(crew.companyId, input.employeeIds);
+  await assertCrewEmployees(crew.companyId, input.employeeIds, ctx.actor);
   const effective = toDate(input.effectiveDate);
   const dayBefore = toDate(isoAddDays(input.effectiveDate, -1));
   const wanted = new Set(input.employeeIds);
@@ -517,7 +556,12 @@ export async function setCrewMembers(
   await repository.withTransaction(async (tx) => {
     const open = await repository.openMemberships(
       tx,
-      [...wanted, ...crew.members.map((m) => m.employeeId)],
+      [
+        ...wanted,
+        ...crew.members
+          .filter((m) => !isHiddenEmployee(ctx.actor, m.employeeId))
+          .map((m) => m.employeeId),
+      ],
       effective,
     );
     for (const m of open) {
@@ -545,10 +589,10 @@ export async function setCrewMembers(
   // Crew asal dulu (hari polanya dihapus mulai tanggal efektif), crew tujuan terakhir — kalau terbalik,
   // hari pola crew tujuan dilewati karena tanggal itu masih terisi crew asal, lalu kosong.
   for (const id of [...touchedCrews].filter((c) => c !== crewId)) {
-    await regenerateCrew(id, input.effectiveDate, true, undefined, past);
+    await regenerateCrew(id, input.effectiveDate, true, undefined, past, undefined, ctx.actor);
   }
-  await regenerateCrew(crewId, input.effectiveDate, true, undefined, past);
-  return crewDtoById(crewId, input.effectiveDate);
+  await regenerateCrew(crewId, input.effectiveDate, true, undefined, past, undefined, ctx.actor);
+  return crewDtoById(crewId, input.effectiveDate, ctx.actor);
 }
 
 // ── Pembangkit hari roster ─────────────────────────────────────────────────────
@@ -577,9 +621,12 @@ export async function regenerateCrew(
   past?: PastRegeneration,
   /** Bersama `outerTx`: notifikasi dikirim setelah transaksi pemanggil commit, bukan di dalamnya. */
   afterCommit?: (task: () => Promise<unknown>) => void,
+  actor?: Actor,
 ): Promise<number> {
   const crew = await repository.findCrew(crewId, outerTx);
   if (!crew) return 0;
+  // IAM-D3: pembangkitan dari aksi HR mempertahankan hari karyawan tersembunyi.
+  crew.members = crew.members.filter((m) => !actor || !isHiddenEmployee(actor, m.employeeId));
   const settings = await readTimeSettings(outerTx);
   const today = await settingsToday(undefined, outerTx);
   const start = !from || from < today ? today : from;
@@ -647,7 +694,7 @@ export async function regenerateCrew(
         })),
       );
     }
-    await repository.deletePatternDays(tx, crewId, toDate(start), toDate(end));
+    await repository.deletePatternDays(tx, crewId, toDate(start), toDate(end), actor);
     const result = await repository.insertDays(
       tx,
       generated.map((day) => ({
@@ -711,13 +758,17 @@ async function visibleEmployeeIds(
     );
     const withDays = await repository.employeesWithDays(null, from, to);
     const all = await directory.employeesByIds([...crewMembers, ...withDays]);
-    return [...all.values()].filter((e) => e.companyId === companyId).map((e) => e.id);
+    return [...all.values()]
+      .filter((e) => e.companyId === companyId && !isHiddenEmployee(actor, e.id))
+      .map((e) => e.id);
   }
   if (!actor.employeeId) return [];
   const own = await directory.employeeById(actor.employeeId);
   const team = actor.role === "MANAGER" ? await directory.teamIds(actor.employeeId) : [];
   const people = await directory.employeesByIds([...(own ? [own.id] : []), ...team]);
-  return [...people.values()].filter((e) => e.companyId === companyId).map((e) => e.id);
+  return [...people.values()]
+    .filter((e) => e.companyId === companyId && !isHiddenEmployee(actor, e.id))
+    .map((e) => e.id);
 }
 
 export async function getRosterGrid(
@@ -1028,6 +1079,7 @@ export interface ImportPreview {
 
 async function resolveImport(ctx: RequestContext, input: RosterImportInput) {
   const employees = await directory.employeesByNumbers(
+    ctx.actor,
     input.companyId,
     input.rows.map((r) => r.employeeNumber),
   );
