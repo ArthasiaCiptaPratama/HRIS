@@ -179,14 +179,22 @@ describe("Halaman Akun: penugasan perusahaan (SA)", () => {
     const user = userEvent.setup();
     await user.click(within(table).getByRole("button", { name: "Atur PT" }));
     const dialog = await screen.findByRole("dialog");
-    const boxes = within(dialog).getAllByRole("checkbox");
+    const boxes = within(
+      within(dialog).getByRole("group", { name: "Perusahaan yang dikelola" }),
+    ).getAllByRole("checkbox");
     expect(boxes.map((b) => (b as HTMLInputElement).checked)).toEqual([true, false]);
     await user.click(boxes[1] as HTMLElement);
+    // IAM-D3: opsi "Tanpa akses karyawan Head Office" ikut dikirim.
+    const restrict = within(dialog).getByRole("checkbox", {
+      name: /Tanpa akses karyawan Head Office/,
+    });
+    expect((restrict as HTMLInputElement).checked).toBe(false);
+    await user.click(restrict);
     await user.click(within(dialog).getByRole("button", { name: "Simpan" }));
     await waitFor(() => {
       const put = requests.find((r) => r.method === "PUT");
       expect(put?.url.pathname).toBe("/api/v1/accounts/acc-hr/companies");
-      expect(put?.body).toEqual({ companyIds: [ACP.id, CD2.id] });
+      expect(put?.body).toEqual({ companyIds: [ACP.id, CD2.id], restrictHeadOffice: true });
     });
   });
 });

@@ -97,3 +97,12 @@ describe("TM-D24: pengajuan atas nama karyawan oleh HR", () => {
     expect(canViewApproval(hr, submitted)).toBe(true);
   });
 });
+
+test("IAM-D3: HR yang juga atasan/pengaju tidak mendapat akses ke HO", () => {
+  for (const employeeId of ["emp", "mgr", "hr"]) {
+    const a = { ...actor("HR_ADMIN", employeeId, ["co-A"]), hiddenEmployeeIds: new Set(["emp"]) };
+    expect(canViewApproval(a, target)).toBe(false);
+    expect(stepRight(a, target, "MANAGER")).toBeNull();
+    expect(stepRight(a, target, "HR")).toBeNull();
+  }
+});

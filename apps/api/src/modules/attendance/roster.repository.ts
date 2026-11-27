@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 
@@ -241,9 +242,20 @@ export const rosterDay = (employeeId: string, workDate: Date, tx?: AttendanceTx)
   });
 
 /** Hapus hari dari pola milik crew pada rentang (dibangkitkan ulang setelahnya). */
-export const deletePatternDays = (tx: AttendanceTx, crewId: string, from: Date, to: Date) =>
+export const deletePatternDays = (
+  tx: AttendanceTx,
+  crewId: string,
+  from: Date,
+  to: Date,
+  actor?: Actor,
+) =>
   tx.rosterDay.deleteMany({
-    where: { crewId, source: "PATTERN", workDate: { gte: from, lte: to } },
+    where: {
+      crewId,
+      source: "PATTERN",
+      workDate: { gte: from, lte: to },
+      ...(actor ? hiddenFilter(actor, "employeeId") : {}),
+    },
   });
 
 /** Tambah hari dari pola; hari yang sudah ada (manual/import/perubahan/crew lain) dilewati. */

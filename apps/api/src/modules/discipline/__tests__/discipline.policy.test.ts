@@ -66,7 +66,9 @@ describe("tulis SP & master (employee.discipline.write)", () => {
     ["MGR", [], "co-A", false],
     ["EMP", [], "co-A", false],
   ] as const)("%s grant=%p PT=%s → %p", (who, grants, companyId, expected) => {
-    expect(canWriteLetters(actor(who, [...grants]), companyId)).toBe(expected);
+    expect(canWriteLetters(actor(who, [...grants]), { companyId, employeeId: "emp-1" })).toBe(
+      expected,
+    );
   });
 
   test("master jenis pelanggaran: SA / HR ber-grant write; baca: + HR read", () => {
@@ -188,11 +190,21 @@ describe("cakupan daftar", () => {
 
 describe("catatan internal (alasan eskalasi, bukti ALPHA)", () => {
   test("SA & HR ber-grant SP saja", () => {
-    expect(canSeeInternalNotes(actor("SA"), "co-B")).toBe(true);
-    expect(canSeeInternalNotes(actor("HR", READ), "co-A")).toBe(true);
-    expect(canSeeInternalNotes(actor("HR", READ), "co-B")).toBe(false);
-    expect(canSeeInternalNotes(actor("HR"), "co-A")).toBe(false);
-    expect(canSeeInternalNotes(actor("MGR"), "co-A")).toBe(false);
-    expect(canSeeInternalNotes(actor("EMP"), "co-A")).toBe(false);
+    expect(canSeeInternalNotes(actor("SA"), { companyId: "co-B", employeeId: "emp-1" })).toBe(true);
+    expect(canSeeInternalNotes(actor("HR", READ), { companyId: "co-A", employeeId: "emp-1" })).toBe(
+      true,
+    );
+    expect(canSeeInternalNotes(actor("HR", READ), { companyId: "co-B", employeeId: "emp-1" })).toBe(
+      false,
+    );
+    expect(canSeeInternalNotes(actor("HR"), { companyId: "co-A", employeeId: "emp-1" })).toBe(
+      false,
+    );
+    expect(canSeeInternalNotes(actor("MGR"), { companyId: "co-A", employeeId: "emp-1" })).toBe(
+      false,
+    );
+    expect(canSeeInternalNotes(actor("EMP"), { companyId: "co-A", employeeId: "emp-1" })).toBe(
+      false,
+    );
   });
 });

@@ -36,7 +36,13 @@ export const employmentStatusSchema = z
 export const gradeSchema = z.object({ id: z.uuid(), name: z.string() }).openapi("Grade");
 
 export const workLocationSchema = z
-  .object({ id: z.uuid(), name: z.string(), city: z.string().nullable() })
+  .object({
+    id: z.uuid(),
+    name: z.string(),
+    city: z.string().nullable(),
+    // IAM-D3: penanda Head Office.
+    isHeadOffice: z.boolean(),
+  })
   .openapi("WorkLocation");
 
 // EMP-D6: Homebase / Point of Hire (POH).

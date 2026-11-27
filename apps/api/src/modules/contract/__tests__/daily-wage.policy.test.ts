@@ -24,7 +24,11 @@ describe("KTR-D13 / labor.cost.read", () => {
       isPrimarySuperAdmin: false,
     };
     expect(canAccessDailyWage(actor)).toBe(expected);
-    expect(canAccessDailyWageInCompany(actor, "own")).toBe(expected);
-    expect(canAccessDailyWageInCompany(actor, "other")).toBe(role === "SUPER_ADMIN");
+    expect(canAccessDailyWageInCompany(actor, { companyId: "own", employeeId: "emp-1" })).toBe(
+      expected,
+    );
+    expect(canAccessDailyWageInCompany(actor, { companyId: "other", employeeId: "emp-1" })).toBe(
+      role === "SUPER_ADMIN",
+    );
   });
 });

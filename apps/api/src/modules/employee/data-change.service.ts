@@ -374,6 +374,8 @@ export async function submitDataChange(ctx: RequestContext, body: unknown) {
     await listDataChangeReviewers(
       row.companyId,
       sectionGrants(input.section, upload?.type.sensitive ?? false),
+      new Date(),
+      row.workLocation?.isHeadOffice ?? false,
     )
   ).filter((r) => r.accountId !== ctx.actor.accountId);
   if (reviewers.length > 0) {

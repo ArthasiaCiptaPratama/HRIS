@@ -51,7 +51,7 @@ function masterDataQueries(prisma: OrganizationTx) {
       orderBy: { name: "asc" },
     }),
     prisma.workLocation.findMany({
-      select: { id: true, name: true, city: true, deletedAt: true },
+      select: { id: true, name: true, city: true, isHeadOffice: true, deletedAt: true },
       orderBy: { name: "asc" },
     }),
     // D-039: perusahaan dalam grup; nonaktif diperlakukan seperti dihapus untuk pilihan baru.
@@ -149,6 +149,7 @@ function adminRowQueries(prisma: OrganizationTx) {
         latitude: true,
         longitude: true,
         radiusM: true,
+        isHeadOffice: true,
       },
       orderBy: { name: "asc" },
     }),
@@ -173,6 +174,7 @@ export interface WorkLocationData {
   latitude: Prisma.Decimal | null;
   longitude: Prisma.Decimal | null;
   radiusM: number | null;
+  isHeadOffice?: boolean;
 }
 
 export const companyRepo = {

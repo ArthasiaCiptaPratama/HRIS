@@ -4,6 +4,7 @@ import {
   leaveCompensation,
   type OvertimeFormula,
 } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import {
@@ -164,10 +165,10 @@ export async function listExitSettlements(
 ): Promise<ExitSettlementView[]> {
   const scope = scopeOf(ctx, companyId);
   await syncExitSettlements(scope);
-  const rows = await repository.listExitSettlementRows(scope);
+  const rows = await repository.listExitSettlementRows(scope, ctx.actor);
   const [people, exited] = await Promise.all([
     employeeDirectory.employeesByIds(rows.map((r) => r.employeeId)),
-    employeeDirectory.exitedEmployees(scope),
+    employeeDirectory.exitedEmployees(scope, ctx.actor),
   ]);
   const reasonOf = new Map(exited.map((e) => [e.id, e.exitReason]));
   const showPay = canSeeLaborCost(ctx.actor);
@@ -209,7 +210,12 @@ async function viewOf(ctx: RequestContext, companyId: string, id: string) {
 
 async function findForManage(ctx: RequestContext, id: string) {
   const row = await repository.findExitSettlement(id);
-  if (!row || !policy.canManageBalances(ctx.actor, row.companyId)) throw new NotFoundError();
+  if (
+    !row ||
+    isHiddenEmployee(ctx.actor, row.employeeId) ||
+    !policy.canManageBalances(ctx.actor, row.companyId)
+  )
+    throw new NotFoundError();
   return row;
 }
 

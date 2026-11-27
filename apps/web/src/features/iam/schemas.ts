@@ -16,6 +16,8 @@ export const accountSchema = z.object({
   employeeId: z.string().nullable(),
   /** D-040: perusahaan yang ditugaskan (HR_ADMIN). */
   companyIds: z.array(z.string()),
+  /** IAM-D3: "Tanpa akses karyawan Head Office" (HR_ADMIN/HR_PERSONNEL). */
+  restrictHeadOffice: z.boolean().default(false),
   lastLoginAt: z.string().nullable(),
   createdAt: z.string(),
   /** ONB-D2: akun Karyawan/Manager tanpa data karyawan tertaut. */

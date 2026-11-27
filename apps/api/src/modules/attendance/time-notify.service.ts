@@ -135,10 +135,10 @@ export async function queueFor(actor: Actor): Promise<TimeQueue> {
 /** TM-D27: pemutus pengajuan lembur = SA (semua PT) / HR PT-nya (sama dengan `canOrderOvertimeRetroactive`). */
 function pendingOvertimeClaimsFor(actor: Actor): Promise<number> {
   if (actor.role === ROLE.SUPER_ADMIN) {
-    return claimRepository.countPendingClaimsFor(null, actor.employeeId);
+    return claimRepository.countPendingClaimsFor(null, actor.employeeId, actor);
   }
   if (actor.role !== ROLE.HR_ADMIN || !actor.companyIds?.size) return Promise.resolve(0);
-  return claimRepository.countPendingClaimsFor([...actor.companyIds], actor.employeeId);
+  return claimRepository.countPendingClaimsFor([...actor.companyIds], actor.employeeId, actor);
 }
 
 export const myQueue = (ctx: RequestContext) => queueFor(ctx.actor);

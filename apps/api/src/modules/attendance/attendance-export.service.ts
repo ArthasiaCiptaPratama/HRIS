@@ -21,6 +21,7 @@ import {
   type XlsxFormat,
   type XlsxSheet,
 } from "@hris/shared";
+import { hiddenFilter } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError } from "../../core/errors.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
@@ -319,7 +320,7 @@ async function resolveScope(ctx: RequestContext, input: AttendanceExportInput): 
       : input.companyId
         ? [input.companyId]
         : [...(actor.companyIds ?? [])];
-  const employees = await directory.employeesInCompanies(companyIds);
+  const employees = await directory.employeesInCompanies(ctx.actor, companyIds);
   if (employees === null) {
     throw new BusinessRuleError(
       `Karyawan dalam cakupan lebih dari ${directory.EMPLOYEE_LIST_CAP.toLocaleString("id-ID")} orang — pilih satu PT.`,
@@ -328,7 +329,11 @@ async function resolveScope(ctx: RequestContext, input: AttendanceExportInput): 
   return {
     companyIds,
     employees,
-    dayWhere: { ...range, ...(companyIds ? { companyId: { in: companyIds } } : {}) },
+    dayWhere: {
+      ...range,
+      ...hiddenFilter(actor, "employeeId"),
+      ...(companyIds ? { companyId: { in: companyIds } } : {}),
+    },
     teamOnly: false,
   };
 }

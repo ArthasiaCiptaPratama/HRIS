@@ -57,7 +57,9 @@ describe("kelola aset & APD (asset.manage)", () => {
     ["MGR", [], "co-A", false],
     ["EMP", [], "co-A", false],
   ] as const)("%s grant=%p PT=%s → %p", (who, grants, companyId, expected) => {
-    expect(canManageAssets(actor(who, [...grants]), companyId)).toBe(expected);
+    expect(canManageAssets(actor(who, [...grants]), { companyId, employeeId: "emp-1" })).toBe(
+      expected,
+    );
     expect(canSeeAssetPrice(actor(who, [...grants]), companyId)).toBe(expected);
   });
 
@@ -122,4 +124,14 @@ describe("cakupan daftar & konfirmasi terima", () => {
     expect(canAcknowledge(actor("HR", MANAGE), holder("HR", "other"))).toBe(false);
     expect(canAcknowledge(actor("SA"), holder("SA", "other"))).toBe(false);
   });
+});
+
+test("IAM-D3: pemegang HO tetap tersembunyi dengan grant / hubungan diri", () => {
+  const a = { ...actor("HR", MANAGE), hiddenEmployeeIds: new Set(["emp-HR"]) };
+  const h = holder("HR", "self");
+  expect(canManageAssets(a, h)).toBe(false);
+  expect(canViewEmployeeAssets(a, h)).toBe(false);
+  expect(canViewAsset(a, { companyId: "co-A" }, h)).toBe(false);
+  expect(canAcknowledge(a, h)).toBe(false);
+  expect(canManageAssets(a, { companyId: "co-A", employeeId: null })).toBe(true);
 });

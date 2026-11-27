@@ -1,4 +1,5 @@
 import type { AssetCondition, AssetStatus } from "@hris/shared";
+import { type Actor, hasHiddenEmployees } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import { unreturnedMustReturnPpe } from "./asset.repository.ts";
 
@@ -21,11 +22,22 @@ export interface ReportAsset {
 }
 
 export async function listAssetsForReport(filter: {
+  actor?: Actor;
   companyIds: string[] | null;
   workLocationId: string | null;
 }): Promise<ReportAsset[]> {
   const rows = await getPrisma().asset.findMany({
     where: {
+      ...(filter.actor && hasHiddenEmployees(filter.actor)
+        ? {
+            assignments: {
+              none: {
+                closedAt: null,
+                employeeId: { in: [...(filter.actor.hiddenEmployeeIds ?? [])] },
+              },
+            },
+          }
+        : {}),
       ...(filter.companyIds ? { companyId: { in: filter.companyIds } } : {}),
       ...(filter.workLocationId ? { workLocationId: filter.workLocationId } : {}),
     },

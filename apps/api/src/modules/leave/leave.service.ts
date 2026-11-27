@@ -14,6 +14,7 @@ import {
   leaveBalanceLastDay,
   leaveResubmitDeadline,
 } from "@hris/shared";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -325,7 +326,7 @@ export async function saveYear(ctx: RequestContext, input: LeaveYearInput): Prom
 
 async function employeeFor(ctx: RequestContext, employeeId: string) {
   const employee = await employeeDirectory.employeeById(employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   const target = { employeeId, companyId: employee.companyId, managerId: employee.managerId };
   if (!policy.canViewEmployeeLeave(ctx.actor, target)) throw new NotFoundError();
   return employee;
@@ -335,6 +336,7 @@ function selfEmployee(ctx: RequestContext) {
   if (!ctx.actor.employeeId) {
     throw new ForbiddenError("Pengajuan hanya untuk akun yang terhubung ke data karyawan.");
   }
+  if (isHiddenEmployee(ctx.actor, ctx.actor.employeeId)) throw new NotFoundError();
   return ctx.actor.employeeId;
 }
 
@@ -955,7 +957,7 @@ export async function listLeaveRequests(
     if (query.companyId) rows = rows.filter((r) => r.companyId === query.companyId);
     return toDtos(ctx, rows, true);
   }
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { ...hiddenFilter(actor, "employeeId") };
   if (query.status) where.status = query.status;
   if (actor.role === "SUPER_ADMIN") {
     if (query.companyId) where.companyId = query.companyId;
@@ -997,7 +999,7 @@ export async function balanceTable(
   q?: string,
 ): Promise<BalanceRow[]> {
   if (!policy.canManageBalances(ctx.actor, companyId)) throw new ForbiddenError();
-  const employees = await employeeDirectory.activeEmployeesInCompany(companyId, q, 1000);
+  const employees = await employeeDirectory.activeEmployeesInCompany(ctx.actor, companyId, q, 1000);
   const ids = employees.map((e) => e.id);
   const [sums, carry] = await Promise.all([
     repository.sumsByKind(ids, year),
@@ -1037,7 +1039,7 @@ export async function employeeLedger(ctx: RequestContext, employeeId: string, ye
 
 export async function adjustBalance(ctx: RequestContext, input: LeaveAdjustInput) {
   const employee = await employeeDirectory.employeeById(input.employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   if (!policy.canManageBalances(ctx.actor, employee.companyId)) throw new ForbiddenError();
   if (
     !policy.canAdjustBalance(ctx.actor, { employeeId: employee.id, companyId: employee.companyId })
@@ -1068,6 +1070,7 @@ export async function importBalances(
 ) {
   if (!policy.canManageBalances(ctx.actor, input.companyId)) throw new ForbiddenError();
   const employees = await employeeDirectory.employeesByNumbers(
+    ctx.actor,
     input.companyId,
     input.rows.map((r) => r.employeeNumber),
   );

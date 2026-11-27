@@ -68,6 +68,7 @@ export const workLocationAdminSchema = z
     latitude: z.number().nullable(),
     longitude: z.number().nullable(),
     radiusM: z.number().int().nullable(),
+    isHeadOffice: z.boolean(),
   })
   .openapi("WorkLocationAdmin");
 

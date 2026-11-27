@@ -19,16 +19,21 @@ export async function remindThl(now = new Date()) {
   const managers = new Map(
     (await getEmployeeAccountStates([...new Set(due.flatMap((r) => r.managerId ?? []))]))
       .filter((r) => r.isActive)
-      .map((r) => [r.employeeId, { accountId: r.accountId, email: r.email }]),
+      .map((r) => [
+        r.employeeId,
+        { accountId: r.accountId, email: r.email, restrictHeadOffice: r.restrictHeadOffice },
+      ]),
   );
   const hrs = new Map<string, Awaited<ReturnType<typeof listCompanyHrRecipients>>>();
   let notified = 0;
   for (const row of due) {
     const evaluation = evaluations.get(row.id);
     if (!evaluation) continue;
-    if (!hrs.has(row.companyId))
-      hrs.set(row.companyId, await listCompanyHrRecipients(row.companyId, now));
-    const recipients = hrs.get(row.companyId) ?? [];
+    const headOfficeSubject = row.workLocation?.isHeadOffice ?? false;
+    const key = `${row.companyId}:${headOfficeSubject}`;
+    if (!hrs.has(key))
+      hrs.set(key, await listCompanyHrRecipients(row.companyId, now, headOfficeSubject));
+    const recipients = hrs.get(key) ?? [];
     const body = `${row.fullName}: ${evaluation.months.map((m) => `${m.month}: ${m.presentDays} hari hadir`).join(", ")}. Wajib diangkat PKWTT (PP 35/2021 Ps. 10). Jadikan Karyawan Tetap.`;
     const base = {
       type: "contract.thl.required",
@@ -44,7 +49,11 @@ export async function remindThl(now = new Date()) {
       )
     ).created;
     const manager = row.managerId ? managers.get(row.managerId) : undefined;
-    if (manager && !recipients.some((r) => r.accountId === manager.accountId))
+    if (
+      manager &&
+      !(manager.restrictHeadOffice && headOfficeSubject) &&
+      !recipients.some((r) => r.accountId === manager.accountId)
+    )
       notified += (await notify({ ...base, recipients: [manager] }, now)).created;
   }
   return { checked: rows.length, due: due.length, notified };

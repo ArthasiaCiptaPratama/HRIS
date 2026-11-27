@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { EmployeeTx } from "./employee.repository.ts";
 
@@ -68,12 +69,16 @@ export async function setManager(tx: EmployeeTx, id: string, managerId: string |
 }
 
 /** Karyawan aktif (disetujui) di PT itu yang belum menempati pos mana pun. */
-export async function countUnplaced(companyIds: readonly string[] | null): Promise<number> {
+export async function countUnplaced(
+  companyIds: readonly string[] | null,
+  actor?: Actor,
+): Promise<number> {
   return getPrisma().employee.count({
     where: {
       isActive: true,
       onboardingStatus: "APPROVED",
       orgPostId: null,
+      ...(actor ? hiddenFilter(actor, "id") : {}),
       ...(companyIds === null ? {} : { companyId: { in: [...companyIds] } }),
     },
   });

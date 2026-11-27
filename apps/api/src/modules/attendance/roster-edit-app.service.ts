@@ -1,5 +1,6 @@
 import { OFF_CODE, ROLE } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { getAccountSummaries, listApproverAccounts, loadActor } from "../iam/index.ts";
 import { notify, type Recipient } from "../notification/index.ts";
 import * as policy from "./attendance.policy.ts";
@@ -149,6 +150,7 @@ export async function backdatedOf(row: Row): Promise<RosterEditBackdated | null>
 
 /** K3: pemutus langkah (atasan snapshot, HR PT, SA), atau akun pengaju. Karyawan yang dijadwalkan tidak. */
 export function canViewRosterEdit(actor: Actor, row: Row): boolean {
+  if (isHiddenEmployee(actor, row.employeeId)) return false;
   if (actor.accountId === row.createdByAccountId) return true;
   if (actor.employeeId !== null && actor.employeeId === row.employeeId) return false;
   if (actor.role === ROLE.SUPER_ADMIN) return true;
@@ -190,7 +192,11 @@ export async function notifyNewRosterEdits(
     const manager = edit.managerEmployeeId ? managers.get(edit.managerEmployeeId) : undefined;
     if (manager) add(manager, edit.id);
     for (const { recipient, actor } of approvers) {
-      const hr = actor.role === ROLE.HR_ADMIN && policy.canManageRoster(actor, companyId);
+      // IAM-D3: HR yang tidak melihat karyawan ini (Head Office) tidak diberi tahu.
+      const hr =
+        actor.role === ROLE.HR_ADMIN &&
+        policy.canManageRoster(actor, companyId) &&
+        !isHiddenEmployee(actor, edit.employeeId);
       const saForManager = actor.role === ROLE.SUPER_ADMIN && edit.managerEmployeeId === null;
       if (hr || saForManager) add(recipient, edit.id);
     }
