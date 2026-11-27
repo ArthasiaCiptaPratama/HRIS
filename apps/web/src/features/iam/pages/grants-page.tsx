@@ -1,15 +1,7 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  isPermissionGrantableTo,
-  PERMISSION_LABELS,
-  PERMISSIONS,
-  type Permission,
-  type Role,
-} from "@hris/shared";
+import { PERMISSION_LABELS, PERMISSIONS } from "@hris/shared";
 import { createColumnHelper } from "@tanstack/react-table";
 import { KeyRound, SearchX } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { type DataColumn, DataTable, type tableFeaturesNone } from "@/components/data-table";
 import { FormSelect } from "@/components/form-select";
@@ -26,13 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCompanyScope } from "@/features/employee/api";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
-import { useAccounts, useCreateGrant, useGrants, useRevokeGrant } from "../api";
-import { type Grant, type GrantForm, grantFormSchema } from "../schemas";
+import { useAccounts, useGrants, useRevokeGrant, useRevokeGrantBatch } from "../api";
+import { GrantBatchDialog } from "../components/grant-batch-dialog";
+import type { Grant } from "../schemas";
 
 const grantColumnHelper = createColumnHelper<typeof tableFeaturesNone, Grant>();
 
@@ -40,7 +33,19 @@ export function GrantsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<"active" | "all">("active");
-  const grants = useGrants({ page, pageSize, active: status === "active" ? true : undefined });
+  const [accountFilter, setAccountFilter] = useState("");
+  const [permissionFilter, setPermissionFilter] = useState("");
+  const grants = useGrants({
+    page,
+    pageSize,
+    active: status === "active" ? true : undefined,
+    accountIds: accountFilter || undefined,
+    permissions: permissionFilter || undefined,
+  });
+  const scope = useCompanyScope();
+  // IAM-D2: centang banyak baris → "Cabut terpilih".
+  const [selected, setSelected] = useState<string[]>([]);
+  const [revoking, setRevoking] = useState(false);
   // Penerima grant hanya HR_ADMIN/MANAGER aktif (PLAN §4.2).
   const hr = useAccounts({ page: 1, pageSize: 100, role: "HR_ADMIN", isActive: true });
   const managers = useAccounts({ page: 1, pageSize: 100, role: "MANAGER", isActive: true });
@@ -63,7 +68,50 @@ export function GrantsPage() {
     }
   };
 
+  const rows = grants.data?.data ?? [];
+  const selectable = rows.filter((g) => g.isActive).map((g) => g.id);
+  const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
+  const resetPage = () => {
+    setPage(1);
+    setSelected([]);
+  };
   const columns: DataColumn<Grant>[] = [
+    grantColumnHelper.display({
+      id: "select",
+      header: () => (
+        <input
+          type="checkbox"
+          aria-label="Pilih semua grant aktif di halaman ini"
+          className="accent-brand size-4"
+          checked={allSelected}
+          disabled={selectable.length === 0}
+          onChange={() =>
+            setSelected((prev) =>
+              allSelected
+                ? prev.filter((id) => !selectable.includes(id))
+                : [...new Set([...prev, ...selectable])],
+            )
+          }
+        />
+      ),
+      meta: { className: "w-10" },
+      cell: ({ row }) =>
+        row.original.isActive ? (
+          <input
+            type="checkbox"
+            aria-label={`Pilih grant ${emailOf(row.original.accountId)} · ${PERMISSION_LABELS[row.original.permission]}`}
+            className="accent-brand size-4"
+            checked={selected.includes(row.original.id)}
+            onChange={() =>
+              setSelected((prev) =>
+                prev.includes(row.original.id)
+                  ? prev.filter((id) => id !== row.original.id)
+                  : [...prev, row.original.id],
+              )
+            }
+          />
+        ) : null,
+    }) as DataColumn<Grant>,
     grantColumnHelper.display({
       id: "account",
       header: "Akun",
@@ -124,20 +172,58 @@ export function GrantsPage() {
       />
       <ListPanel
         toolbar={
-          <FormSelect
-            aria-label="Filter status grant"
-            className="h-9 sm:w-48"
-            value={status}
-            onChange={(value) => {
-              setStatus(value === "all" ? "all" : "active");
-              setPage(1);
-            }}
-            placeholder="Hanya yang aktif"
-            options={[
-              { value: "active", label: "Hanya yang aktif" },
-              { value: "all", label: "Semua (termasuk dicabut)" },
-            ]}
-          />
+          <div className="flex w-full flex-wrap items-center gap-2">
+            <FormSelect
+              aria-label="Filter status grant"
+              className="h-9 sm:w-48"
+              value={status}
+              onChange={(value) => {
+                setStatus(value === "all" ? "all" : "active");
+                resetPage();
+              }}
+              placeholder="Hanya yang aktif"
+              options={[
+                { value: "active", label: "Hanya yang aktif" },
+                { value: "all", label: "Semua (termasuk dicabut)" },
+              ]}
+            />
+            <FormSelect
+              aria-label="Filter akun"
+              className="h-9 sm:w-60"
+              value={accountFilter}
+              onChange={(value) => {
+                setAccountFilter(value);
+                resetPage();
+              }}
+              placeholder="Semua akun"
+              noneLabel="Semua akun"
+              options={recipients.map((a) => ({ value: a.id, label: a.email }))}
+            />
+            <FormSelect
+              aria-label="Filter izin"
+              className="h-9 sm:w-60"
+              value={permissionFilter}
+              onChange={(value) => {
+                setPermissionFilter(value);
+                resetPage();
+              }}
+              placeholder="Semua izin"
+              noneLabel="Semua izin"
+              options={PERMISSIONS.map((p) => ({ value: p, label: PERMISSION_LABELS[p] }))}
+            />
+            {selected.length ? (
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <span className="text-muted-foreground text-sm">{selected.length} dipilih</span>
+                <Button
+                  variant="outline"
+                  className="text-destructive"
+                  onClick={() => setRevoking(true)}
+                >
+                  Cabut terpilih ({selected.length})
+                </Button>
+              </div>
+            ) : null}
+          </div>
         }
         footer={
           total > 0 ? (
@@ -145,7 +231,10 @@ export function GrantsPage() {
               page={page}
               pageSize={pageSize}
               total={total}
-              onPageChange={setPage}
+              onPageChange={(next) => {
+                setPage(next);
+                setSelected([]);
+              }}
               onPageSizeChange={(size) => {
                 setPageSize(size);
                 setPage(1);
@@ -157,7 +246,7 @@ export function GrantsPage() {
         <DataTable
           label="Daftar grant"
           columns={columns}
-          data={grants.data?.data ?? []}
+          data={rows}
           loading={grants.isPending}
           fetching={grants.isFetching}
           skeletonRows={Math.min(pageSize, 8)}
@@ -177,119 +266,91 @@ export function GrantsPage() {
           }
         />
       </ListPanel>
-      <CreateGrantDialog open={open} onOpenChange={setOpen} recipients={recipients} />
+      <GrantBatchDialog
+        open={open}
+        onOpenChange={setOpen}
+        recipients={recipients}
+        companies={scope.companies}
+      />
+      {revoking ? (
+        <RevokeBatchDialog
+          ids={selected}
+          describe={(id) => {
+            const grant = rows.find((g) => g.id === id);
+            return grant
+              ? `${emailOf(grant.accountId)} · ${PERMISSION_LABELS[grant.permission]}`
+              : id.slice(0, 8);
+          }}
+          onClose={(done) => {
+            setRevoking(false);
+            if (done) setSelected([]);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function CreateGrantDialog({
-  open,
-  onOpenChange,
-  recipients,
+/** IAM-D2: konfirmasi "Cabut terpilih" + alasan untuk semua; yang sudah tidak aktif dilewati. */
+function RevokeBatchDialog({
+  ids,
+  describe,
+  onClose,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  recipients: {
-    id: string;
-    email: string;
-    role: Role;
-  }[];
+  ids: string[];
+  describe: (id: string) => string;
+  onClose: (done: boolean) => void;
 }) {
-  const create = useCreateGrant();
-  const form = useForm<GrantForm>({
-    resolver: zodResolver(grantFormSchema),
-    defaultValues: { accountId: "", permission: "employee.personal.read", reason: "" },
-  });
-  const accountId = form.watch("accountId");
-  const recipientRole = recipients.find((a) => a.id === accountId)?.role;
-  const permissions = recipientRole
-    ? PERMISSIONS.filter((p) => isPermissionGrantableTo(p, recipientRole))
-    : PERMISSIONS;
-
-  const onSubmit = form.handleSubmit(async ({ accountId: id, permission, expiresOn, reason }) => {
+  const [reason, setReason] = useState("");
+  const revoke = useRevokeGrantBatch();
+  const submit = async () => {
     try {
-      await create.mutateAsync({
-        accountId: id,
-        permission,
-        // Berakhir di akhir hari yang dipilih, zona Asia/Jakarta (UTC+7).
-        ...(expiresOn ? { expiresAt: new Date(`${expiresOn}T23:59:59+07:00`).toISOString() } : {}),
-        ...(reason ? { reason } : {}),
+      const res = await revoke.mutateAsync({
+        ids,
+        ...(reason.trim() ? { reason: reason.trim() } : {}),
       });
-      toast.success("Grant diberikan.");
-      form.reset();
-      onOpenChange(false);
+      toast.success(
+        `${res.data.revoked} grant dicabut${res.data.skipped ? `; ${res.data.skipped} dilewati (sudah tidak aktif)` : ""}. Berlaku di request berikutnya.`,
+      );
+      onClose(true);
     } catch (error) {
       toast.error(errorMessage(error));
     }
-  });
-
+  };
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={(open) => !open && !revoke.isPending && onClose(false)}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Beri grant izin</DialogTitle>
+          <DialogTitle>Cabut {ids.length} grant?</DialogTitle>
           <DialogDescription>
-            HR Admin: berlaku atas karyawan di perusahaan yang ditugaskan. Manager: hanya timnya.
+            Izin hilang di request berikutnya. Pemilik grant mendapat satu notifikasi.
           </DialogDescription>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={onSubmit} noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="grant-account">Akun</Label>
-            <Controller
-              control={form.control}
-              name="accountId"
-              render={({ field }) => (
-                <FormSelect
-                  id="grant-account"
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder="Pilih HR Admin / Manager"
-                  invalid={Boolean(form.formState.errors.accountId)}
-                  options={recipients.map((a) => ({
-                    value: a.id,
-                    label: a.email,
-                    hint: a.role === "HR_ADMIN" ? "HR Admin" : "Manager",
-                  }))}
-                />
-              )}
-            />
-            {form.formState.errors.accountId ? (
-              <p className="text-destructive text-xs">{form.formState.errors.accountId.message}</p>
-            ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="grant-permission">Izin</Label>
-            <Controller
-              control={form.control}
-              name="permission"
-              render={({ field }) => (
-                <FormSelect
-                  id="grant-permission"
-                  value={field.value}
-                  onChange={(v) => field.onChange(v as Permission)}
-                  placeholder="Pilih izin"
-                  options={permissions.map((p) => ({ value: p, label: PERMISSION_LABELS[p] }))}
-                />
-              )}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="expiresOn">Berlaku sampai (opsional)</Label>
-            <Input id="expiresOn" type="date" {...form.register("expiresOn")} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reason">Alasan (opsional)</Label>
-            <Textarea id="reason" rows={2} {...form.register("reason")} />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Batal
-            </Button>
-            <Button type="submit" variant="brand" disabled={create.isPending}>
-              {create.isPending ? "Menyimpan…" : "Beri grant"}
-            </Button>
-          </DialogFooter>
-        </form>
+        <ul className="bg-muted/40 max-h-48 space-y-1 overflow-y-auto rounded-md p-3 text-sm">
+          {ids.map((id) => (
+            <li key={id} className="break-words">
+              {describe(id)}
+            </li>
+          ))}
+        </ul>
+        <div className="space-y-2">
+          <Label htmlFor="revoke-reason">Alasan (opsional, berlaku untuk semua)</Label>
+          <Textarea
+            id="revoke-reason"
+            rows={2}
+            maxLength={500}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" disabled={revoke.isPending} onClick={() => onClose(false)}>
+            Batal
+          </Button>
+          <Button variant="destructive" disabled={revoke.isPending} onClick={() => void submit()}>
+            {revoke.isPending ? "Mencabut…" : `Cabut ${ids.length} grant`}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

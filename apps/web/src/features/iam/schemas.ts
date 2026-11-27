@@ -51,6 +51,35 @@ export const grantSchema = z.object({
 });
 export type Grant = z.infer<typeof grantSchema>;
 
+// IAM-D2: hasil grant/cabut banyak sekaligus (per kombinasi akun × izin).
+export const grantBatchResultSchema = z.object({
+  batchId: z.string().nullable(),
+  items: z.array(
+    z.object({
+      accountId: z.string(),
+      permission: permissionSchema,
+      status: z.enum(["created", "skipped_active", "skipped_not_grantable", "skipped_inactive"]),
+      grantId: z.string().nullable(),
+    }),
+  ),
+  created: z.number(),
+  skipped: z.number(),
+});
+export type GrantBatchResult = z.infer<typeof grantBatchResultSchema>;
+export const revokeGrantBatchResultSchema = z.object({
+  batchId: z.string(),
+  items: z.array(
+    z.object({
+      id: z.string(),
+      accountId: z.string(),
+      permission: permissionSchema,
+      status: z.enum(["revoked", "skipped_inactive"]),
+    }),
+  ),
+  revoked: z.number(),
+  skipped: z.number(),
+});
+
 export const auditLogSchema = z.object({
   id: z.string(),
   actorAccountId: z.string().nullable(),

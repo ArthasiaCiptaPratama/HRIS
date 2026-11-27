@@ -110,9 +110,12 @@ const REJECT_ALL_VERIFIER: TokenVerifier = {
 };
 
 // Target Supabase dibaca lewat supabaseTarget(): sama dengan env, kecuali ditukar tombol switch (dev).
-function defaultAuthAdmin(): AuthAdmin {
+// Gagal-tertutup: NODE_ENV=test tidak pernah memakai Auth Admin sungguhan (pakai tests/helpers/auth-admin.ts).
+export function defaultAuthAdmin(): AuthAdmin {
   const { url, serviceRoleKey } = supabaseTarget();
-  return url && serviceRoleKey ? createSupabaseAdmin(url, serviceRoleKey) : UNCONFIGURED_AUTH_ADMIN;
+  return getEnv().NODE_ENV !== "test" && url && serviceRoleKey
+    ? createSupabaseAdmin(url, serviceRoleKey)
+    : UNCONFIGURED_AUTH_ADMIN;
 }
 
 // D-037: test tidak pernah menyentuh bucket sungguhan (pakai tests/helpers/storage.ts).

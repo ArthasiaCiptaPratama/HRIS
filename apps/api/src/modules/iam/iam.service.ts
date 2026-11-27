@@ -30,14 +30,18 @@ import type {
   AccountDto,
   AssignCompaniesInput,
   AuditLogDto,
+  CreateGrantBatchInput,
   CreateGrantInput,
   DashboardLayoutState,
+  GrantBatchResult,
   GrantDto,
   InviteAccountInput,
   ListAccountsQuery,
   ListAuditLogsQuery,
   ListGrantsQuery,
   MeResponse,
+  RevokeGrantBatchInput,
+  RevokeGrantBatchResult,
 } from "./iam.schema.ts";
 
 // Enum Prisma memakai nama TS (EMPLOYEE_PERSONAL_READ); kode publik mengikuti PLAN §4.2.
@@ -246,6 +250,30 @@ async function notifyGrantee(
     body: created
       ? `Izin "${label}" diberikan${expiresAt ? ` sampai ${DATE_ID.format(expiresAt)}` : ""}.`
       : `Izin "${label}" tidak berlaku lagi.`,
+    link: MY_ACCESS_LINK,
+    email: true,
+  });
+}
+
+/** Batch: satu notifikasi per penerima berisi semua izin yang diberikan/dicabut. */
+async function notifyGranteeBatch(
+  account: { id: string; email: string },
+  type: "iam.grant_created" | "iam.grant_revoked",
+  permissions: Permission[],
+  expiresAt: Date | null,
+) {
+  if (permissions.length === 0) return;
+  if (permissions.length === 1)
+    return notifyGrantee(account, type, permissions[0] as Permission, expiresAt);
+  const labels = permissions.map((p) => `"${PERMISSION_LABELS[p]}"`).join(", ");
+  const created = type === "iam.grant_created";
+  await notify({
+    recipients: [{ accountId: account.id, email: account.email }],
+    type,
+    title: created ? "Anda mendapat izin akses baru" : "Izin akses Anda dicabut",
+    body: created
+      ? `${permissions.length} izin diberikan${expiresAt ? ` sampai ${DATE_ID.format(expiresAt)}` : ""}: ${labels}.`
+      : `${permissions.length} izin tidak berlaku lagi: ${labels}.`,
     link: MY_ACCESS_LINK,
     email: true,
   });
@@ -786,7 +814,9 @@ export async function listGrants(ctx: RequestContext, query: ListGrantsQuery, no
   const { rows, total } = await repository.listGrants(
     {
       accountId: query.accountId,
+      accountIds: query.accountIds,
       permission: query.permission ? DB_PERMISSION[query.permission] : undefined,
+      permissions: query.permissions?.map((p) => DB_PERMISSION[p]),
       active: query.active,
     },
     now,
@@ -842,6 +872,137 @@ export async function createGrant(ctx: RequestContext, input: CreateGrantInput, 
   });
   await notifyGrantee(result.grantee, "iam.grant_created", input.permission, expiresAt);
   return result.dto;
+}
+
+/**
+ * IAM-D2 (batch): banyak akun × banyak izin. Validasi global (SA, masa berlaku, akun dikenal) → 4xx
+ * tanpa menulis apa pun; kombinasi dinilai sendiri-sendiri (nonaktif / tidak sesuai role / sudah aktif
+ * → dilewati, bukan error); yang sah dibuat dalam SATU transaksi + audit per grant (batchId);
+ * notifikasi digabung per penerima setelah commit. `dryRun` = pratinjau tanpa menulis.
+ */
+export async function createGrantBatch(
+  ctx: RequestContext,
+  input: CreateGrantBatchInput,
+  now = new Date(),
+): Promise<GrantBatchResult> {
+  if (!policy.canManageGrants(ctx.actor)) throw new ForbiddenError();
+  const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
+  if (expiresAt && expiresAt.getTime() <= now.getTime()) {
+    throw new BusinessRuleError("Masa berlaku grant harus di masa depan.");
+  }
+  const accountIds = [...new Set(input.accountIds)];
+  const permissions = [...new Set(input.permissions)];
+  const batchId = input.dryRun ? null : crypto.randomUUID();
+  const run = async (tx: repository.IamTx) => {
+    const accounts = await repository.findAccountsForGrant(tx, accountIds);
+    if (accounts.length !== accountIds.length) throw new NotFoundError("Akun tidak ditemukan.");
+    const byId = new Map(accounts.map((a) => [a.id, a]));
+    const active = await repository.findActiveGrantsOf(tx, accountIds, now);
+    const has = new Set(active.map((g) => `${g.accountId}:${PERMISSION_CODE[g.permission]}`));
+    const items: GrantBatchResult["items"] = [];
+    const created = new Map<string, { email: string; permissions: Permission[] }>();
+    for (const accountId of accountIds) {
+      const target = byId.get(accountId) as AccountRow;
+      for (const permission of permissions) {
+        const status: GrantBatchResult["items"][number]["status"] = !target.isActive
+          ? "skipped_inactive"
+          : !policy.canGrantTo(ctx.actor, toTarget(target), permission)
+            ? "skipped_not_grantable"
+            : has.has(`${accountId}:${permission}`)
+              ? "skipped_active"
+              : "created";
+        if (status !== "created" || !batchId) {
+          items.push({ accountId, permission, status, grantId: null });
+          continue;
+        }
+        const grant = await repository.createGrant(tx, {
+          accountId,
+          permission: DB_PERMISSION[permission],
+          expiresAt,
+          reason: input.reason ?? null,
+          grantedBy: ctx.actor.accountId,
+        });
+        await writeAudit(
+          {
+            ...auditBase(ctx),
+            action: "iam.grant.create",
+            entityType: "iam.permission_grant",
+            entityId: grant.id,
+            after: { accountId, permission, expiresAt: input.expiresAt ?? null, batchId },
+            reason: input.reason ?? null,
+          },
+          tx,
+        );
+        items.push({ accountId, permission, status, grantId: grant.id });
+        const entry = created.get(accountId) ?? { email: target.email, permissions: [] };
+        entry.permissions.push(permission);
+        created.set(accountId, entry);
+      }
+    }
+    return { items, created };
+  };
+  const { items, created } = batchId
+    ? await repository.withTransaction(run)
+    : await run(repository.readClient());
+  for (const [accountId, { email, permissions: granted }] of created)
+    await notifyGranteeBatch({ id: accountId, email }, "iam.grant_created", granted, expiresAt);
+  const createdCount = items.filter((i) => i.status === "created").length;
+  return { batchId, items, created: createdCount, skipped: items.length - createdCount };
+}
+
+/** IAM-D2 (batch): cabut banyak grant; id tak dikenal → 404 tanpa mencabut apa pun; yang sudah tidak aktif dilewati. */
+export async function revokeGrantBatch(
+  ctx: RequestContext,
+  input: RevokeGrantBatchInput,
+  now = new Date(),
+): Promise<RevokeGrantBatchResult> {
+  if (!policy.canManageGrants(ctx.actor)) throw new ForbiddenError();
+  const ids = [...new Set(input.ids)];
+  const batchId = crypto.randomUUID();
+  const result = await repository.withTransaction(async (tx) => {
+    const grants = await repository.findGrantsByIds(tx, ids);
+    if (grants.length !== ids.length) throw new NotFoundError("Grant tidak ditemukan.");
+    const items: RevokeGrantBatchResult["items"] = [];
+    const revokedBy = new Map<string, Permission[]>();
+    for (const grant of grants) {
+      const permission = PERMISSION_CODE[grant.permission];
+      if (!isGrantActive(grant, now)) {
+        items.push({
+          id: grant.id,
+          accountId: grant.accountId,
+          permission,
+          status: "skipped_inactive",
+        });
+        continue;
+      }
+      await repository.revokeGrant(tx, grant.id, ctx.actor.accountId, now);
+      await writeAudit(
+        {
+          ...auditBase(ctx),
+          action: "iam.grant.revoke",
+          entityType: "iam.permission_grant",
+          entityId: grant.id,
+          before: { accountId: grant.accountId, permission },
+          after: { batchId },
+          reason: input.reason ?? null,
+        },
+        tx,
+      );
+      items.push({ id: grant.id, accountId: grant.accountId, permission, status: "revoked" });
+      revokedBy.set(grant.accountId, [...(revokedBy.get(grant.accountId) ?? []), permission]);
+    }
+    const owners = await repository.findAccountsForGrant(tx, [...revokedBy.keys()]);
+    return { items, revokedBy, owners };
+  });
+  for (const owner of result.owners)
+    await notifyGranteeBatch(
+      { id: owner.id, email: owner.email },
+      "iam.grant_revoked",
+      result.revokedBy.get(owner.id) ?? [],
+      null,
+    );
+  const revoked = result.items.filter((i) => i.status === "revoked").length;
+  return { batchId, items: result.items, revoked, skipped: result.items.length - revoked };
 }
 
 export async function revokeGrant(

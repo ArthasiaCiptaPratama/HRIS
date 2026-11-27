@@ -1,0 +1,5 @@
+# Konfigurasi Bun di root repo: `bun test apps/api/...` dari root juga memakai guard test API
+# (DB harus lokal, NODE_ENV=test, kredensial layanan nyata dikosongkan). Test shared tidak terpengaruh
+# (hanya env); web memakai vitest.
+[test]
+preload = ["./apps/api/tests/helpers/db-guard-preload.ts"]
