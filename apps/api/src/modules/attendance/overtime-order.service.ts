@@ -1,4 +1,5 @@
 import type { OvertimeOrderInput } from "@hris/shared";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import * as policy from "./attendance.policy.ts";
@@ -198,7 +199,8 @@ export async function setOvertimeOrder(
   now = new Date(),
 ): Promise<OvertimeOrderView> {
   const employee = await directory.employeeById(input.employeeId);
-  if (!employee) throw new NotFoundError("Karyawan tidak ditemukan.");
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id))
+    throw new NotFoundError("Karyawan tidak ditemukan.");
   if (!policy.canOrderOvertime(ctx.actor, targetOf(employee))) throw new ForbiddenError();
   if (!employee.isActive) throw new BusinessRuleError("Karyawan tidak aktif.");
   const { timezone } = await readTimeSettings();
@@ -323,6 +325,7 @@ export async function listOvertimeOrders(
     throw new BusinessRuleError(`Rentang tanggal 0–${MAX_RANGE_DAYS} hari.`);
   }
   const rows = await repository.listOrderRows({
+    AND: [hiddenFilter(ctx.actor, "employeeId")],
     workDate: { gte: toDate(q.from), lte: toDate(q.to) },
     ...(q.companyId ? { companyId: q.companyId } : {}),
     ...(q.employeeId ? { employeeId: q.employeeId } : {}),
@@ -349,7 +352,7 @@ export async function listOvertimeSubordinates(
   const people = await directory.employeesByIds(await directory.teamIds(ctx.actor.employeeId));
   const term = q?.trim().toLowerCase() ?? "";
   return [...people.values()]
-    .filter((e) => e.isActive)
+    .filter((e) => !isHiddenEmployee(ctx.actor, e.id) && e.isActive)
     .filter(
       (e) =>
         term === "" ||

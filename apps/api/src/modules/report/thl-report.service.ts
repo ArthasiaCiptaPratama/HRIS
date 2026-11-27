@@ -24,7 +24,9 @@ export async function thlAttendanceWageReport(ctx: RequestContext, raw: unknown,
   );
   const ids = thl.map((e) => e.id);
   const wageIds = thl
-    .filter((e) => canAccessDailyWageInCompany(ctx.actor, e.companyId))
+    .filter((e) =>
+      canAccessDailyWageInCompany(ctx.actor, { companyId: e.companyId, employeeId: e.id }),
+    )
     .map((e) => e.id);
   const [counts, dates, wages] = await Promise.all([
     countAttendanceByMonth({ employeeIds: ids, fromMonth: month, toMonth: month }),
@@ -77,7 +79,7 @@ export async function thlAttendanceWageReport(ctx: RequestContext, raw: unknown,
         ...personDto(lookup, e),
         presentDays: count?.presentDays ?? 0,
         pendingDays: count?.pendingDays ?? 0,
-        ...(canAccessDailyWageInCompany(ctx.actor, e.companyId)
+        ...(canAccessDailyWageInCompany(ctx.actor, { companyId: e.companyId, employeeId: e.id })
           ? {
               dailyWage: wage?.amount.toNumber() ?? null,
               wageSegments,

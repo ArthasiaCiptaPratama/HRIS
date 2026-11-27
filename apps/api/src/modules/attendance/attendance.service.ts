@@ -17,6 +17,7 @@ import {
   SELFIE_MAX_BYTES,
   TIME_OFF_CODE,
 } from "@hris/shared";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -133,6 +134,7 @@ function selfEmployee(ctx: RequestContext) {
   if (!ctx.actor.employeeId) {
     throw new ForbiddenError("Absen hanya untuk akun yang terhubung ke data karyawan.");
   }
+  if (isHiddenEmployee(ctx.actor, ctx.actor.employeeId)) throw new NotFoundError();
   return ctx.actor.employeeId;
 }
 
@@ -710,7 +712,7 @@ export interface TodayView {
 export async function getToday(ctx: RequestContext, now = new Date()): Promise<TodayView> {
   const employeeId = selfEmployee(ctx);
   const employee = await directory.employeeById(employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   const settings = await readTimeSettings();
   const dates = candidateDates(now, settings.timezone);
   // Hari menggantung lewat batas absen pulang → NO_CHECKOUT (sama dengan cron), supaya tombol kembali
@@ -885,7 +887,7 @@ export async function precheck(
   now = new Date(),
 ): Promise<PrecheckResult> {
   const employee = await directory.employeeById(selfEmployee(ctx));
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   const e = withMockLabel(await evaluate(employee, input, now), input);
   const existing =
     e.kind === "IN" ? await repository.findDay(employee.id, toDate(e.workDate)) : null;
@@ -1263,6 +1265,7 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
     throw new ForbiddenError();
   }
   if (query.employeeId) {
+    if (isHiddenEmployee(actor, query.employeeId)) throw new NotFoundError();
     const employee = await directory.employeeById(query.employeeId);
     if (
       !employee ||
@@ -1302,7 +1305,7 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
       throw new ForbiddenError();
     }
     if (query.status) where.status = query.status;
-    const and: Record<string, unknown>[] = [];
+    const and: Record<string, unknown>[] = [hiddenFilter(actor, "employeeId")];
     if (query.employeeId) and.push({ employeeId: query.employeeId });
     // Disaring di query (sebelum batas 500 baris) agar karyawan di luar 500 hari terbaru tetap ketemu.
     if (matching) and.push({ employeeId: { in: [...matching] } });
@@ -1327,7 +1330,7 @@ export async function listDays(ctx: RequestContext, query: DayListQuery): Promis
 
 export async function getDay(ctx: RequestContext, id: string): Promise<DayView> {
   const row = await repository.findDayById(id);
-  if (!row) throw new NotFoundError();
+  if (!row || isHiddenEmployee(ctx.actor, row.employeeId)) throw new NotFoundError();
   const target = {
     employeeId: row.employeeId,
     companyId: row.companyId,
@@ -1568,7 +1571,7 @@ export async function cancelOwnPunch(ctx: RequestContext, punchId: string) {
  */
 export async function manualPunch(ctx: RequestContext, input: ManualPunchInput) {
   const employee = await directory.employeeById(input.employeeId);
-  if (!employee) throw new NotFoundError();
+  if (!employee || isHiddenEmployee(ctx.actor, employee.id)) throw new NotFoundError();
   if (!policy.canManageRoster(ctx.actor, employee.companyId)) throw new ForbiddenError();
   if (ctx.actor.employeeId === employee.id) {
     throw new ForbiddenError("Input manual untuk absen sendiri tidak diperbolehkan.");

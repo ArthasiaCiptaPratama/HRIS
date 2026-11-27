@@ -1,4 +1,5 @@
 import { OFF_CODE } from "@hris/shared";
+import { hiddenFilter, isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import { BusinessRuleError, ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import {
@@ -147,6 +148,8 @@ async function insertEdits(
   edits: NewEdit[],
   people: People,
 ): Promise<string[]> {
+  if (edits.some((e) => isHiddenEmployee(ctx.actor, e.employeeId)))
+    throw new NotFoundError("Karyawan tidak ditemukan.");
   const created: string[] = [];
   for (const e of edits) {
     const managerEmployeeId = people.get(e.employeeId)?.managerId ?? null;
@@ -498,12 +501,16 @@ export async function requestCrewMembers(
   const crew = await repository.findCrew(crewId);
   if (!crew || crew.deletedAt) throw new NotFoundError();
   if (!policy.canManageRoster(ctx.actor, crew.companyId)) throw new ForbiddenError();
-  await assertCrewEmployees(crew.companyId, input.employeeIds);
+  await assertCrewEmployees(crew.companyId, input.employeeIds, ctx.actor);
   const effective = toDate(input.effectiveDate);
   // Anggota yang keanggotaannya masih berjalan pada/setelah tanggal efektif — termasuk yang baru mulai
   // sesudahnya (sebelumnya terlewat lalu terhapus tanpa approval bila tidak ada di daftar).
   const current = new Set(
-    crew.members.filter((m) => !m.endDate || m.endDate >= effective).map((m) => m.employeeId),
+    crew.members
+      .filter(
+        (m) => !isHiddenEmployee(ctx.actor, m.employeeId) && (!m.endDate || m.endDate >= effective),
+      )
+      .map((m) => m.employeeId),
   );
   const wanted = new Set(input.employeeIds);
   const joiners = [...wanted].filter((id) => !current.has(id));
@@ -566,7 +573,7 @@ export async function requestCrewMembers(
     }
   }
   await announceEdits(ctx, crew.companyId, "CREW", edits, ids, people);
-  return { ...(await crewDtoById(crewId, input.effectiveDate)), submitted: ids.length };
+  return { ...(await crewDtoById(crewId, input.effectiveDate, ctx.actor)), submitted: ids.length };
 }
 
 /** Status final approval `ROSTER_EDIT` → terapkan / tandai ditolak / dibatalkan. */
@@ -680,18 +687,27 @@ export async function listRosterEdits(
   if (query.scope === "mine") {
     return toDtos(
       ctx,
-      await repository.listRosterEdits({ createdByAccountId: ctx.actor.accountId }),
+      await repository.listRosterEdits({
+        ...hiddenFilter(ctx.actor, "employeeId"),
+        createdByAccountId: ctx.actor.accountId,
+      }),
     );
   }
   if (!query.companyId || !policy.canManageRoster(ctx.actor, query.companyId))
     throw new ForbiddenError();
-  return toDtos(ctx, await repository.listRosterEdits({ companyId: query.companyId }));
+  return toDtos(
+    ctx,
+    await repository.listRosterEdits({
+      ...hiddenFilter(ctx.actor, "employeeId"),
+      companyId: query.companyId,
+    }),
+  );
 }
 
 /** Pengaju membatalkan pengajuannya yang masih menunggu. */
 export async function cancelRosterEdit(ctx: RequestContext, id: string): Promise<RosterEditDto> {
   const row = await repository.findRosterEdit(id);
-  if (!row) throw new NotFoundError();
+  if (!row || isHiddenEmployee(ctx.actor, row.employeeId)) throw new NotFoundError();
   if (row.createdByAccountId !== ctx.actor.accountId) throw new ForbiddenError();
   if (row.status !== "PENDING") throw new BusinessRuleError("Pengajuan ini sudah diputuskan.");
   await repository.withTransaction(async (tx) => {

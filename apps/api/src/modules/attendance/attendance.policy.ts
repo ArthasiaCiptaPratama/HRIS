@@ -1,10 +1,21 @@
 import { ROLE } from "@hris/shared";
-import { type Actor, hasPermission, isApprover } from "../../core/access/index.ts";
+import {
+  type Actor,
+  hasPermission,
+  isApprover,
+  isHiddenEmployee,
+  isInCompanyScope,
+} from "../../core/access/index.ts";
 
 // Time Management (PLAN §4.3, desain time-management.md §9). Keputusan murni; data target dari pemanggil.
 
 const isSa = (actor: Actor) => actor.role === ROLE.SUPER_ADMIN;
 const isHr = (actor: Actor) => actor.role === ROLE.HR_ADMIN;
+/** IAM-D3: HR atas karyawan tertentu = PT dalam cakupan DAN karyawan tidak tersembunyi (Head Office). */
+const hrOfEmployee = (actor: Actor, target: { companyId: string; employeeId: string }) =>
+  isHr(actor) &&
+  actor.companyIds !== null &&
+  isInCompanyScope(actor, { companyId: target.companyId, employeeId: target.employeeId });
 
 // Kalender libur: SA kelola; semua akun melihat (PLAN §4.3 "Kalender libur").
 export const canReadHolidays = (actor: Actor) => actor.accountId.length > 0;
@@ -43,9 +54,11 @@ export interface RosterTarget {
  * akunnya (ORG-D9 — konteks memutuskan pengajuan bawahan). Grid/daftar tim tetap khusus MANAGER.
  */
 export function canViewEmployeeRoster(actor: Actor, target: RosterTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (isSa(actor)) return true;
   if (actor.employeeId !== null && actor.employeeId === target.employeeId) return true;
-  if (isHr(actor) && (actor.companyIds?.has(target.companyId) ?? false)) return true;
+  if (hrOfEmployee(actor, target)) return true;
   return actor.employeeId !== null && target.managerId === actor.employeeId;
 }
 
@@ -57,9 +70,11 @@ export function canVerifyAlpha(
   actor: Actor,
   target: { employeeId: string; companyId: string; managerEmployeeId: string | null },
 ): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (actor.employeeId !== null && actor.employeeId === target.employeeId) return false;
   if (isSa(actor)) return true;
-  if (isHr(actor) && (actor.companyIds?.has(target.companyId) ?? false)) return true;
+  if (hrOfEmployee(actor, target)) return true;
   return actor.employeeId !== null && target.managerEmployeeId === actor.employeeId;
 }
 
@@ -69,6 +84,8 @@ export const canViewAlphaVerifications = (actor: Actor) =>
 
 /** Ajukan perubahan roster: karyawan untuk dirinya; MANAGER juga atas nama tim (desain §4.2). */
 export function canRequestRosterChange(actor: Actor, target: RosterTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (actor.employeeId === null) return false;
   if (actor.employeeId === target.employeeId) return true;
   return actor.role === ROLE.MANAGER && target.managerId === actor.employeeId;
@@ -79,9 +96,11 @@ export function canRequestRosterChange(actor: Actor, target: RosterTarget): bool
  * sendiri (kecuali SA).
  */
 export function canOrderOvertime(actor: Actor, target: RosterTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (isSa(actor)) return true;
   if (actor.employeeId !== null && actor.employeeId === target.employeeId) return false;
-  if (isHr(actor) && (actor.companyIds?.has(target.companyId) ?? false)) return true;
+  if (hrOfEmployee(actor, target)) return true;
   return actor.employeeId !== null && target.managerId === actor.employeeId;
 }
 
@@ -107,6 +126,7 @@ export const canSeeTeamCostTotal = (actor: Actor) =>
 export function canSetEmployeeAttendanceLocation(actor: Actor, target: RosterTarget): boolean {
   return (
     canManageAttendanceLocation(actor, target.companyId) &&
+    !isHiddenEmployee(actor, target.employeeId) &&
     !(isHr(actor) && actor.employeeId === target.employeeId)
   );
 }
@@ -120,6 +140,7 @@ export function canApplyRosterCell(
 ): boolean {
   return (
     canManageRoster(actor, companyId) &&
+    !isHiddenEmployee(actor, employeeId) &&
     (hasCrew || !(isHr(actor) && actor.employeeId === employeeId))
   );
 }
@@ -135,7 +156,7 @@ export const canListAttendanceDays = (actor: Actor) =>
 /** Cakupan rekap HR/atasan, tanpa pengecualian layanan diri dari canViewEmployeeRoster. */
 export function canListEmployeeAttendanceDays(actor: Actor, target: RosterTarget): boolean {
   if (isSa(actor)) return true;
-  if (isHr(actor)) return actor.companyIds?.has(target.companyId) ?? false;
+  if (isHr(actor)) return hrOfEmployee(actor, target);
   return (
     actor.role === ROLE.MANAGER &&
     actor.employeeId !== null &&

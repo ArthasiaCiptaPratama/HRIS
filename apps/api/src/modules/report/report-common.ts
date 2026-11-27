@@ -68,6 +68,7 @@ export async function scopedEmployees(ctx: RequestContext, raw: unknown) {
     if (positionIds.length === 0) positionIds = [NO_MATCH];
   }
   const employees = await listReportEmployees({
+    actor: ctx.actor,
     companyIds,
     positionIds,
     workLocationId: filter.workLocationId,

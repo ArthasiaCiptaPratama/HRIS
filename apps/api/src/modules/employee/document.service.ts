@@ -132,7 +132,10 @@ const typeData = (input: DocumentTypeInput) => ({
 
 /** Semua akun membaca daftar aktif (nama jenis bukan data sensitif); arsip hanya untuk SA. */
 export async function listDocumentTypes(ctx: RequestContext, includeArchived: boolean) {
-  const rows = await repo.listTypes(includeArchived && policy.canManageDocumentTypes(ctx.actor));
+  const rows = await repo.listTypes(
+    includeArchived && policy.canManageDocumentTypes(ctx.actor),
+    ctx.actor,
+  );
   return rows.map(typeDto);
 }
 
@@ -693,10 +696,13 @@ export async function remindExpiringDocuments(now: Date = new Date()) {
       .map((a) => [a.employeeId, a]),
   );
   const hrCache = new Map<string, Promise<{ accountId: string; email: string }[]>>();
-  const hrOf = (companyId: string, sensitive: boolean) => {
-    const key = `${companyId}:${sensitive}`;
+  const hrOf = (companyId: string, sensitive: boolean, headOfficeSubject: boolean) => {
+    const key = `${companyId}:${sensitive}:${headOfficeSubject}`;
     if (!hrCache.has(key))
-      hrCache.set(key, listDocumentReminderRecipients(companyId, sensitive, now));
+      hrCache.set(
+        key,
+        listDocumentReminderRecipients(companyId, sensitive, now, headOfficeSubject),
+      );
     return hrCache.get(key) as Promise<{ accountId: string; email: string }[]>;
   };
   const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "UTC" });
@@ -725,9 +731,13 @@ export async function remindExpiringDocuments(now: Date = new Date()) {
       );
       notified += result.created;
     }
-    const hrs = (await hrOf(doc.employee.companyId, doc.documentType.sensitive)).filter(
-      (r) => r.accountId !== own?.accountId,
-    );
+    const hrs = (
+      await hrOf(
+        doc.employee.companyId,
+        doc.documentType.sensitive,
+        doc.employee.workLocation?.isHeadOffice ?? false,
+      )
+    ).filter((r) => r.accountId !== own?.accountId);
     if (hrs.length > 0) {
       const result = await notify(
         {

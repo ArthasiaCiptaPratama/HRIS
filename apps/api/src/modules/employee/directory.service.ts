@@ -16,13 +16,19 @@ export interface EmployeeBrief {
   isActive: boolean;
   positionId: string;
   workLocationId: string | null;
+  isHeadOffice?: boolean;
   gradeId: string | null;
 }
 
 /** Ringkasan karyawan resmi per id (yang tidak ada / calon onboarding tidak ikut). */
 export async function getEmployeeBriefs(ids: string[]): Promise<Map<string, EmployeeBrief>> {
   const rows = await repository.findBriefsByIds([...new Set(ids)]);
-  return new Map(rows.map((row) => [row.id, row]));
+  return new Map(
+    rows.map(({ workLocation, ...row }) => [
+      row.id,
+      { ...row, isHeadOffice: workLocation?.isHeadOffice ?? false },
+    ]),
+  );
 }
 
 /**
@@ -30,6 +36,7 @@ export async function getEmployeeBriefs(ids: string[]): Promise<Map<string, Empl
  * `employeeNumbers` = cocok persis nomor induk (import).
  */
 export async function listEmployeeBriefs(filter: {
+  actor?: Actor;
   companyIds?: string[] | null;
   managerId?: string | null;
   isActive?: boolean | null;
@@ -37,7 +44,8 @@ export async function listEmployeeBriefs(filter: {
   q?: string | null;
   limit?: number;
 }): Promise<EmployeeBrief[]> {
-  return repository.findBriefs({
+  const rows = await repository.findBriefs({
+    ...(filter.actor ? { actor: filter.actor } : {}),
     companyIds: filter.companyIds ?? null,
     managerId: filter.managerId ?? null,
     isActive: filter.isActive ?? null,
@@ -45,6 +53,10 @@ export async function listEmployeeBriefs(filter: {
     q: filter.q?.trim() || null,
     limit: Math.min(filter.limit ?? 5000, 5000),
   });
+  return rows.map(({ workLocation, ...row }) => ({
+    ...row,
+    isHeadOffice: workLocation?.isHeadOffice ?? false,
+  }));
 }
 
 /** Karyawan aktif resmi beserta tanggal masuk (jatah cuti 1 Januari, modul leave). */
@@ -76,8 +88,9 @@ export interface ExitedEmployeeBrief {
 /** TM-D9: karyawan resmi nonaktif dengan tanggal keluar; `companyIds` null = semua PT. */
 export async function listExitedEmployees(
   companyIds: string[] | null = null,
+  actor?: Actor,
 ): Promise<ExitedEmployeeBrief[]> {
-  const rows = await repository.findExited(companyIds);
+  const rows = await repository.findExited(companyIds, actor);
   return rows.map((row) => ({
     ...row,
     endDate: row.endDate as Date,
@@ -113,6 +126,7 @@ export interface AnalyticsEmployeeBrief {
 
 /** DSB-D1: karyawan resmi yang aktif pada sebagian rentang [from, to]. Baca-saja. */
 export async function listAnalyticsEmployees(input: {
+  actor?: Actor;
   companyIds?: string[] | null;
   managerId?: string | null;
   from: Date;
@@ -120,6 +134,7 @@ export async function listAnalyticsEmployees(input: {
   withBirthDate: boolean;
 }): Promise<AnalyticsEmployeeBrief[]> {
   const rows = await repository.findForAnalytics({
+    ...(input.actor ? { actor: input.actor } : {}),
     companyIds: input.companyIds ?? null,
     managerId: input.managerId ?? null,
     from: input.from,

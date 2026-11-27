@@ -280,6 +280,7 @@ export async function listAdmin(
           latitude: num(l.latitude),
           longitude: num(l.longitude),
           radiusM: l.radiusM,
+          isHeadOffice: l.isHeadOffice,
           archived: l.deletedAt !== null,
           employeeCount: active(usage, l.id),
         }));
@@ -517,11 +518,13 @@ export async function createItem(
             latitude: decimal(input.latitude),
             longitude: decimal(input.longitude),
             radiusM: input.radiusM ?? null,
+            isHeadOffice: input.isHeadOffice ?? false,
           });
           after = {
             name: input.name,
             city: input.city ?? null,
             geofence: input.radiusM ? { radiusM: input.radiusM } : null,
+            isHeadOffice: input.isHeadOffice ?? false,
           };
           break;
         }
@@ -668,9 +671,20 @@ export async function updateItem(
             ...(input.latitude !== undefined ? { latitude: decimal(input.latitude) } : {}),
             ...(input.longitude !== undefined ? { longitude: decimal(input.longitude) } : {}),
             ...(input.radiusM !== undefined ? { radiusM: input.radiusM } : {}),
+            ...(input.isHeadOffice !== undefined ? { isHeadOffice: input.isHeadOffice } : {}),
           });
-          before = { name: current?.name, city: current?.city, radiusM: current?.radiusM };
-          after = { name: input.name, city: input.city, radiusM: input.radiusM };
+          before = {
+            name: current?.name,
+            city: current?.city,
+            radiusM: current?.radiusM,
+            isHeadOffice: current?.isHeadOffice,
+          };
+          after = {
+            name: input.name,
+            city: input.city,
+            radiusM: input.radiusM,
+            isHeadOffice: input.isHeadOffice,
+          };
           break;
         }
         case "homebases": {

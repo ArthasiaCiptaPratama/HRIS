@@ -23,7 +23,11 @@ describe("contract.manage / PLAN §4.3", () => {
     ["HR_PERSONNEL", [], false],
   ] satisfies [Role, Permission[], boolean][])("%s %j => %s", (role, grants, expected) => {
     expect(canManageContracts(actor(role, grants))).toBe(expected);
-    expect(canManageContractsInCompany(actor(role, grants), "own")).toBe(expected);
-    expect(canManageContractsInCompany(actor(role, grants), "other")).toBe(role === "SUPER_ADMIN");
+    expect(
+      canManageContractsInCompany(actor(role, grants), { companyId: "own", employeeId: "emp-1" }),
+    ).toBe(expected);
+    expect(
+      canManageContractsInCompany(actor(role, grants), { companyId: "other", employeeId: "emp-1" }),
+    ).toBe(role === "SUPER_ADMIN");
   });
 });

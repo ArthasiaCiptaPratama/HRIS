@@ -1,5 +1,5 @@
 import { ROLE } from "@hris/shared";
-import type { Actor } from "../../core/access/index.ts";
+import { type Actor, isHiddenEmployee } from "../../core/access/index.ts";
 
 // Modul leave (desain time-management.md §9, PLAN §4.3). Keputusan murni; data target dari pemanggil.
 
@@ -29,9 +29,12 @@ export interface LeaveTarget {
  * role akunnya (ORG-D9 — konteks memutuskan cuti bawahan). Daftar cuti tim (scope all) tetap MANAGER.
  */
 export function canViewEmployeeLeave(actor: Actor, target: LeaveTarget): boolean {
+  // IAM-D3: berlaku juga saat aktor adalah pemilik/atasan.
+  if (isHiddenEmployee(actor, target.employeeId)) return false;
   if (isSa(actor)) return true;
   if (actor.employeeId !== null && actor.employeeId === target.employeeId) return true;
-  if (hrOf(actor, target.companyId)) return true;
+  // IAM-D3: karyawan tersembunyi (Head Office) tidak terlihat HR yang dibatasi.
+  if (hrOf(actor, target.companyId) && !isHiddenEmployee(actor, target.employeeId)) return true;
   return actor.employeeId !== null && target.managerId === actor.employeeId;
 }
 
@@ -53,6 +56,7 @@ export function canAdjustBalance(
 ): boolean {
   return (
     canManageBalances(actor, target.companyId) &&
+    !isHiddenEmployee(actor, target.employeeId) &&
     !(isHr(actor) && actor.employeeId === target.employeeId)
   );
 }

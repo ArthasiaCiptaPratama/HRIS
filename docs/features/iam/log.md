@@ -11,6 +11,17 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-27 — Tanpa akses karyawan Head Office (IAM-D3) (Oatse)
+- **Permintaan:** pengguna via supervisor-af ±10:2x WIB (admin site tidak melihat/mengubah karyawan HO, termasuk absensi); keputusan kecil A–D persetujuan supervisor.
+- **Skema:** migrasi `20261127033900_iam_d3_head_office_restriction` (`work_locations.is_head_office` + backfill "Kantor Head Office", `accounts.restrict_head_office`).
+- **API:** `Actor.hiddenEmployeeIds` dimuat per request di `loadActor`; `isInCompanyScope` kini wajib `employeeId`; penyaring `hiddenFilter` dipasang di daftar karyawan, direktori, absensi/lembur/cuti/approval/roster, aset, SP, onboarding, laporan, analitik, akun, export; tulis/pindah/import ke lokasi HO → 422; tutup periode → 403; penerima notifikasi HR mengecualikan akun dibatasi untuk karyawan HO. SA mengatur lewat `PUT /accounts/:id/companies` (`restrictHeadOffice`, audit `iam.account.restrict_head_office`); ganti role ke non-HR mematikannya; master lokasi kerja punya `isHeadOffice`.
+- **Web:** dialog Atur PT (centang "Tanpa akses karyawan Head Office") + badge "Tanpa Head Office"; master Lokasi kerja (centang + kolom Head Office).
+- **Pengerjaan:** inti & API SA oleh Claude; pemasangan mekanis oleh Codex sol-high (berhenti di tengah karena kuota, diff diterapkan lalu ditinjau penuh); perbaikan review: data karyawan milik akun sendiri tidak pernah disembunyikan, pengingat untuk diri sendiri tidak dilewati, sinkron atasan bagan tidak melewati karyawan HO, tutup periode ditolak walau tanpa karyawan HO.
+- **Review independen (subagen Claude):** diperbaiki — notifikasi pengajuan lembur & perubahan roster tidak lagi ke HR dibatasi untuk karyawan HO; karyawan HO tidak bisa dipilih sebagai atasan (create/update, pesan sama dengan "tidak ada"); pola/crew yang dipakai karyawan HO tidak bisa diubah/diarsipkan akun dibatasi (422). Dicatat (Backlog): akun dibatasi yang menjadi atasan langsung karyawan HO masih menerima notifikasi atasan & langkah atasannya macet sampai HR/SA mengambil alih; sinkron atasan bagan oleh akun dibatasi ikut menghitung ulang atasan karyawan HO (sengaja, konsistensi data); nama atasan HO tetap tampil pada karyawan yang terlihat; hitungan agregat master (jumlah karyawan per lokasi/jabatan/status, anggota template, pemegang pos) masih termasuk HO; tukar shift layanan diri dengan rekan HO ditolak.
+- **Keputusan:** IAM-D3.
+- **Verifikasi:** lihat laporan akhir sesi (typecheck, biome, boundaries, test shared/api/web, `head-office-restriction.test.ts` 16 test termasuk kinerja ±100 karyawan HO).
+- **Berikutnya:** rilis staging + set opsi akun admin.site (kata pengguna, oleh supervisor).
+
 ### 2026-11-27 — Grant & cabut banyak sekaligus (IAM-D2) (Oatse)
 - **Permintaan:** pengguna via supervisor (26 Nov 17:4x, "Setuju dialog ini"; "Cabut terpilih" ikut sekarang).
 - **API:** `POST /iam/grants/batch` (akun × izin, `dryRun`, status per kombinasi `created`/`skipped_active`/`skipped_not_grantable`/`skipped_inactive`), `POST /iam/grants/revoke-batch`; satu transaksi, audit per grant + `batchId`, notifikasi digabung per penerima; filter `GET /grants?accountIds=&permissions=` (dipisah koma).

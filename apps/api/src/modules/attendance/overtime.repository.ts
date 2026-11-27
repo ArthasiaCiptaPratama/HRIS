@@ -1,3 +1,4 @@
+import { type Actor, hiddenFilter } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { OvertimeStatus, Prisma } from "../../generated/prisma/client.ts";
 
@@ -156,12 +157,14 @@ export const countPendingClaims = (employeeId: string, workDate: Date) =>
 export const countPendingClaimsFor = (
   companyIds: string[] | null,
   excludeEmployeeId: string | null,
+  actor: Actor,
 ) =>
   getPrisma().overtimeClaim.count({
     where: {
+      ...hiddenFilter(actor, "employeeId"),
       status: "PENDING",
       ...(companyIds ? { companyId: { in: companyIds } } : {}),
-      ...(excludeEmployeeId ? { employeeId: { not: excludeEmployeeId } } : {}),
+      ...(excludeEmployeeId ? { AND: [{ employeeId: { not: excludeEmployeeId } }] } : {}),
     },
   });
 export const createClaim = (

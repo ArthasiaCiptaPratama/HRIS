@@ -63,6 +63,8 @@ export const accountSchema = z
     role: roleSchema,
     isActive: z.boolean(),
     isPrimarySuperAdmin: z.boolean(),
+    /** IAM-D3: "Tanpa akses karyawan Head Office" (HR_ADMIN/HR_PERSONNEL). */
+    restrictHeadOffice: z.boolean(),
     employeeId: z.uuid().nullable(),
     // D-040: perusahaan yang ditugaskan (dipakai HR_ADMIN; role lain kosong).
     companyIds: z.array(z.uuid()),
@@ -118,6 +120,8 @@ export const assignCompaniesBodySchema = z
       .array(z.uuid())
       .max(50)
       .refine((ids) => new Set(ids).size === ids.length, "Perusahaan tidak boleh ganda."),
+    // IAM-D3: "Tanpa akses karyawan Head Office"; tidak diisi = tidak berubah.
+    restrictHeadOffice: z.boolean().optional(),
   })
   .openapi("AssignAccountCompanies");
 export type AssignCompaniesInput = z.infer<typeof assignCompaniesBodySchema>;

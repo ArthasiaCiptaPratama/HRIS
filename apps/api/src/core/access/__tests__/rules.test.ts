@@ -2,12 +2,16 @@ import { describe, expect, test } from "bun:test";
 import type { Permission, Role } from "@hris/shared";
 import {
   type Actor,
+  hasHiddenEmployees,
   hasPermission,
   hasRole,
+  hiddenFilter,
   isGrantActive,
+  isHiddenEmployee,
   isInCompanyScope,
   isInTeam,
   isSelf,
+  visibleEmployeeIds,
 } from "../rules.ts";
 
 const NOW = new Date("2026-09-28T08:00:00Z");
@@ -114,6 +118,36 @@ describe("isInCompanyScope", () => {
       ...actor("HR_ADMIN"),
       companyIds: companies === null ? null : new Set(companies),
     };
-    expect(isInCompanyScope(scoped, { companyId })).toBe(expected);
+    expect(isInCompanyScope(scoped, { companyId, employeeId: null })).toBe(expected);
+  });
+});
+
+describe("IAM-D3: cakupan karyawan Head Office", () => {
+  const hr = {
+    ...actor("HR_ADMIN"),
+    companyIds: new Set(["co-A"]),
+    hiddenEmployeeIds: new Set(["ho"]),
+  };
+  test("id tersembunyi ditolak, Site dan aksi PT tetap dalam cakupan", () => {
+    expect(isInCompanyScope(hr, { companyId: "co-A", employeeId: "ho" })).toBe(false);
+    expect(isInCompanyScope(hr, { companyId: "co-A", employeeId: "site" })).toBe(true);
+    expect(isInCompanyScope(hr, { companyId: "co-A", employeeId: null })).toBe(true);
+    expect(isInCompanyScope(hr, { companyId: "co-B", employeeId: "site" })).toBe(false);
+    expect(hasHiddenEmployees(hr)).toBe(true);
+    expect(isHiddenEmployee(hr, "ho")).toBe(true);
+  });
+  test("filter query & memori; akun tanpa batasan tidak menambah klausa", () => {
+    expect(hiddenFilter(hr, "employeeId")).toEqual({ employeeId: { notIn: ["ho"] } });
+    expect(hiddenFilter(hr, "id")).toEqual({ id: { notIn: ["ho"] } });
+    expect(visibleEmployeeIds(hr, ["site", "ho", "empty"])).toEqual(["site", "empty"]);
+    for (const a of [
+      actor("SUPER_ADMIN"),
+      actor("HR_ADMIN"),
+      { ...hr, hiddenEmployeeIds: new Set<string>() },
+    ]) {
+      expect(hiddenFilter(a, "id")).toEqual({});
+      expect(visibleEmployeeIds(a, ["site", "ho"])).toEqual(["site", "ho"]);
+      expect(hasHiddenEmployees(a)).toBe(false);
+    }
   });
 });

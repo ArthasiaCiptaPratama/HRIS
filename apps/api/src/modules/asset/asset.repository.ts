@@ -1,3 +1,4 @@
+import { type Actor, hasHiddenEmployees } from "../../core/access/index.ts";
 import { getPrisma } from "../../core/db.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
 
@@ -38,6 +39,7 @@ const ASSET_INCLUDE = {
 export type AssetWithOpen = Prisma.AssetGetPayload<{ include: typeof ASSET_INCLUDE }>;
 
 export interface AssetFilter {
+  actor?: Actor;
   companyIds: string[] | null;
   /** Hanya aset yang sedang dipegang salah satu karyawan ini (cakupan tim MANAGER / filter pemegang). */
   holderIds: string[] | null;
@@ -50,6 +52,20 @@ export interface AssetFilter {
 
 function assetWhere(f: AssetFilter): Prisma.AssetWhereInput {
   return {
+    ...(f.actor && hasHiddenEmployees(f.actor)
+      ? {
+          AND: [
+            {
+              assignments: {
+                none: {
+                  closedAt: null,
+                  employeeId: { in: [...(f.actor.hiddenEmployeeIds ?? [])] },
+                },
+              },
+            },
+          ],
+        }
+      : {}),
     ...(f.companyIds ? { companyId: { in: f.companyIds } } : {}),
     ...(f.status ? { status: f.status } : {}),
     ...(f.categoryId ? { categoryId: f.categoryId } : {}),

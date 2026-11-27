@@ -363,6 +363,13 @@ function buildColumns(
     grades: [],
     "work-locations": [
       col({ id: "city", header: "Kota", cell: ({ row }) => muted(row.original.city) }),
+      // IAM-D3: karyawan di lokasi ini tersembunyi dari akun HR "Tanpa akses karyawan Head Office".
+      col({
+        id: "headOffice",
+        header: "Head Office",
+        cell: ({ row }) =>
+          row.original.isHeadOffice ? <Badge variant="brand">Head Office</Badge> : muted("—"),
+      }),
       col({
         id: "geofence",
         header: "Geofence",
@@ -467,6 +474,7 @@ function initialValues(item: MasterDataItem | null): Values {
     latitude: s(item?.latitude),
     longitude: s(item?.longitude),
     radiusM: s(item?.radiusM),
+    isHeadOffice: item?.isHeadOffice ? "true" : "",
     province: s(item?.province),
     note: s(item?.note),
   };
@@ -517,6 +525,7 @@ function toBody(kind: MasterDataKind, v: Values): Record<string, unknown> {
         latitude: number(v.latitude),
         longitude: number(v.longitude),
         radiusM: number(v.radiusM),
+        isHeadOffice: v.isHeadOffice === "true",
       };
     // EMP-D6: Homebase / POH.
     case "homebases":
@@ -833,6 +842,21 @@ function MasterDataFormDialog({
           {config.kind === "work-locations" ? (
             <>
               {field("city", "Kota", textInput("city"), { optional: true })}
+              <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="accent-brand mt-0.5 size-4 shrink-0"
+                  checked={values.isHeadOffice === "true"}
+                  onChange={(event) => set("isHeadOffice")(event.target.checked ? "true" : "")}
+                />
+                <span>
+                  <span className="block font-medium">Lokasi Head Office</span>
+                  <span className="text-muted-foreground block text-xs">
+                    Karyawan di lokasi ini tidak terlihat oleh akun HR yang diatur "Tanpa akses
+                    karyawan Head Office".
+                  </span>
+                </span>
+              </label>
               {field(
                 "address",
                 "Alamat",

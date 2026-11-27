@@ -10,6 +10,7 @@ import {
   workRosterSteps,
   workRosterSummary,
 } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { writeAudit } from "../../core/audit.ts";
 import {
   BusinessRuleError,
@@ -378,7 +379,11 @@ export async function listEmployeeResidencies(
 ): Promise<EmployeeResidencyRow[]> {
   // Homebase karyawan lain = data pribadi → hanya pengelola jadwal (SA, HR PT).
   assertManage(ctx, companyId);
-  const employees = await directory.activeEmployeesInCompany(companyId, q?.trim() || undefined);
+  const employees = await directory.activeEmployeesInCompany(
+    ctx.actor,
+    companyId,
+    q?.trim() || undefined,
+  );
   const resolved = await residenciesOf(employees, await settingsToday());
   const locations = await directory.locationsByIds(
     employees.map((e) => e.workLocationId).filter((id): id is string => Boolean(id)),
@@ -406,7 +411,11 @@ export async function setEmployeeResidency(ctx: RequestContext, input: EmployeeR
   assertManage(ctx, input.companyId);
   const people = await directory.employeesByIds(input.employeeIds);
   const ids = [...new Set(input.employeeIds)];
-  if (ids.some((id) => people.get(id)?.companyId !== input.companyId)) {
+  if (
+    ids.some(
+      (id) => isHiddenEmployee(ctx.actor, id) || people.get(id)?.companyId !== input.companyId,
+    )
+  ) {
     throw new BusinessRuleError("Semua karyawan harus dari PT yang dipilih.");
   }
   const before = await repository.residencyOverrides(ids);
@@ -505,7 +514,11 @@ async function planWorkRoster(
   // diproses, supaya pratinjau tidak membocorkan data karyawan PT lain atau ID yang tidak dikenal).
   const people = await directory.employeesByIds(input.employeeIds);
   const ids = [...new Set(input.employeeIds)];
-  if (ids.some((id) => people.get(id)?.companyId !== input.companyId)) {
+  if (
+    ids.some(
+      (id) => isHiddenEmployee(ctx.actor, id) || people.get(id)?.companyId !== input.companyId,
+    )
+  ) {
     throw new BusinessRuleError("Semua karyawan harus dari PT yang dipilih.");
   }
   const employees = ids.map((id) => people.get(id) as directory.DirectoryEmployee);

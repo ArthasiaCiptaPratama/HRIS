@@ -1,4 +1,5 @@
 import { ROLE } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import { ForbiddenError, NotFoundError } from "../../core/errors.ts";
 import {
   canManageOrgStructure,
@@ -43,7 +44,7 @@ export async function getOrgChart(
   const [snapshot, holders, unplacedCount] = await Promise.all([
     getOrgChartPostsSnapshot(),
     repository.listPostHolders(),
-    repository.countUnplaced([company.id]),
+    repository.countUnplaced([company.id], ctx.actor),
   ]);
   const included = snapshot.posts.filter(
     (post) => !post.archived && (post.companyId === company.id || post.companyId === null),
@@ -51,6 +52,7 @@ export async function getOrgChart(
   const ids = new Set(included.map((post) => post.id));
   const visibleHolders = holders.filter(
     (holder) =>
+      !isHiddenEmployee(ctx.actor, holder.id) &&
       holder.orgPostId &&
       ids.has(holder.orgPostId) &&
       // Pos PT ini hanya menampilkan karyawan PT ini; pos korporat menampilkan pemegangnya.
@@ -132,7 +134,8 @@ export async function getPersonCard(ctx: RequestContext, id: string): Promise<Or
     listOrgPosts(),
   ]);
   const notFound = new NotFoundError("Karyawan tidak ditemukan.");
-  if (!row?.isActive || row.onboardingStatus !== "APPROVED") throw notFound;
+  if (isHiddenEmployee(ctx.actor, id) || !row?.isActive || row.onboardingStatus !== "APPROVED")
+    throw notFound;
   const allowed = policy.directoryCompanyIds(ctx.actor);
   const corporateHolder =
     row.orgPostId !== null &&

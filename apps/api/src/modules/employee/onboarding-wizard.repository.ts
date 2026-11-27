@@ -25,6 +25,7 @@ export async function loadSelf(employeeId: string) {
       employmentStatusId: true,
       positionId: true,
       workLocationId: true,
+      workLocation: { select: { isHeadOffice: true } },
       gradeId: true,
       managerId: true,
       joinDate: true,

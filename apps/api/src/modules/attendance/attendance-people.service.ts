@@ -1,5 +1,6 @@
 import type { PaginationMeta } from "@hris/shared";
 import type { Actor } from "../../core/access/index.ts";
+import { hiddenFilter } from "../../core/access/index.ts";
 import { ForbiddenError } from "../../core/errors.ts";
 import type { StorageAdmin } from "../../core/storage.ts";
 import type { Prisma } from "../../generated/prisma/client.ts";
@@ -74,7 +75,10 @@ async function scopeWhere(
   if (actor.role === "HR_ADMIN") {
     const scope = [...(actor.companyIds ?? [])];
     if (companyId && !scope.includes(companyId)) throw new ForbiddenError();
-    return { companyId: companyId ? companyId : { in: scope } };
+    return {
+      companyId: companyId ? companyId : { in: scope },
+      ...hiddenFilter(actor, "employeeId"),
+    };
   }
   if (actor.role === "MANAGER" && actor.employeeId) {
     return {

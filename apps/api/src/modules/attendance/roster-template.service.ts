@@ -9,6 +9,7 @@ import {
   type RosterTemplateInput,
   type RosterTemplateInstallInput,
 } from "@hris/shared";
+import { isHiddenEmployee } from "../../core/access/index.ts";
 import {
   BusinessRuleError,
   ConflictError,
@@ -555,7 +556,7 @@ async function planAssignment(ctx: RequestContext, id: string, input: RosterTemp
   const valid = [...new Set(input.employeeIds)].filter((employeeId) => {
     const e = people.get(employeeId);
     // PT dicek lebih dulu & nama dikosongkan: pratinjau tidak membocorkan data karyawan PT lain.
-    if (!e || e.companyId !== template.companyId)
+    if (!e || isHiddenEmployee(ctx.actor, employeeId) || e.companyId !== template.companyId)
       skipped.push({ employeeId, fullName: null, reason: "Bukan karyawan PT template ini" });
     else if (!e.isActive) skipped.push({ employeeId, fullName: e.fullName, reason: "Tidak aktif" });
     else return true;
@@ -735,7 +736,12 @@ export async function applyTemplateAssignment(
       .map((a) => a.employeeId);
     if (added.length === 0) continue;
     const members = crew.members
-      .filter((m) => m.startDate <= effective && (!m.endDate || m.endDate >= effective))
+      .filter(
+        (m) =>
+          !isHiddenEmployee(ctx.actor, m.employeeId) &&
+          m.startDate <= effective &&
+          (!m.endDate || m.endDate >= effective),
+      )
       .map((m) => m.employeeId);
     await setCrewMembers(
       ctx,

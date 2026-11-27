@@ -160,7 +160,7 @@ Catatan untuk Vercel:
 | --------------- | ----------------------------------------------------------------------------------------------------- |
 | **SUPER_ADMIN** | Akses **penuh**: akses sistem, kebijakan HR, dan operasional. Satu-satunya yang melihat & mengisi nominal gaji. |
 | ↳ **Utama**     | Penanda pada **tepat satu** akun SUPER_ADMIN. Punya 4 hak eksklusif (lihat 4.4).                      |
-| **HR_ADMIN**    | Operator administrasi seluruh perusahaan. Data sensitif hanya dengan grant.                           |
+| **HR_ADMIN**    | Operator administrasi seluruh perusahaan. Data sensitif hanya dengan grant. Bisa dibatasi "Tanpa akses karyawan Head Office" ([IAM-D3](features/iam/README.md#keputusan)). |
 | **HR_PERSONNEL** | "HR Kepegawaian" ([IAM-D1](features/iam/README.md#keputusan), 2026-10-23): hanya **melihat data kerja** karyawan di PT yang ditugaskan; tanpa data pribadi/rekening/dokumen (izin sensitif tidak bisa di-grant), tanpa aksi, modul lain tertutup. |
 | **MANAGER**     | Pemilik operasional **tim sendiri** (bawahan langsung). Data sensitif tim hanya dengan grant.         |
 | **EMPLOYEE**    | Karyawan biasa (tanpa hak administrasi).                                                             |
@@ -576,6 +576,7 @@ Isi lengkap D-001–D-073 (alasan, rincian, riwayat penggantian): **[decisions.m
 | [ORG-D3](features/organisasi/README.md#org-d3) | ~~Jabatan rangkap~~ **dibatalkan 2026-11-10 (ralat pengguna)**: 1 pos utama + maks 5 pos rangkap PT sama; rangkap mengisi slot & jadi kandidat atasan D-053; profil "Pos rangkap" | [ORG](features/organisasi/README.md) |
 | [IAM-D1](features/iam/README.md#keputusan) | Role kelima `HR_PERSONNEL` "HR Kepegawaian": lihat data kerja karyawan di PT yang ditugaskan saja (mengubah PLAN §4.1 "role tetap 4") | [IAM](features/iam/README.md) |
 | [IAM-D2](features/iam/README.md#keputusan) | Grant & cabut banyak sekaligus (akun × izin, pratinjau `dryRun`, kombinasi tak sah dilewati, satu transaksi, audit per grant + `batchId`, notifikasi digabung) | [IAM](features/iam/README.md) |
+| [IAM-D3](features/iam/README.md#keputusan) | Opsi akun HR "Tanpa akses karyawan Head Office": karyawan di lokasi kerja berpenanda HO (saat ini) tersembunyi & tidak bisa diubah di semua jalur (404 seperti di luar PT); tutup periode ditolak; diatur SA | [IAM](features/iam/README.md) |
 | [DSB-D1](features/dashboard/README.md#keputusan) | Dashboard analitik SDM & biaya: aktif awal/akhir bulan, masuk/keluar per alasan, turnover 12 bulan, gender, masa kerja | [DSB](features/dashboard/README.md) |
 | MOB-D1–MOB-D16 | App mobile Flutter (Android, paritas PWA, push FCM, versi minimum, branch BE `HRIS/mobile-app`) — **isi di repo `Arthasia-Mobile/docs/decisions.md`** (MOB-D13) | [MOB](features/mobile/README.md) |
 | [FND-D1](features/fondasi/README.md#keputusan) | Akun Vercel produksi & staging = team Pro "Arthasia Akselerasi" (staging ditransfer 2026-10-16) | [FND](features/fondasi/README.md) |
