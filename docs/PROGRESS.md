@@ -106,6 +106,7 @@ Ringkasan & status. Pertanyaan lengkap + rekomendasi: [decisions.md](decisions.m
 
 ## Backlog
 
+- **(2026-11-27, IAM-D2 — temuan QA grant multi-select)** Email notifikasi dikirim **sinkron** di dalam request (`notify()` → SMTP), sehingga simpan grant (tunggal & batch) di dev ±10–20 dtk saat `SMTP_*` terisi; usul: kirim email di latar / lewat antrean `email_outbox` agar respons API tidak menunggu SMTP. Berlaku juga untuk aksi lain yang memanggil `notify({ email: true })`.
 - **(2026-11-26, KTR-D14)** Nomor SK / dokumen pada perubahan status (perlu kolom baru + migrasi); usulan, belum dijadwalkan.
 - **(2026-11-26, merge `HRIS/Mat/Mac` 52d5012 — temuan review supervisor, milik Mat)** (1) `GET /attendance/days` memotong hasil di 500 baris tanpa paginasi/tanda terpotong; (2) rute `/time/queue` tanpa policy khusus (cek akses role); (3) cron `attendance-reminders`: README TM menulis 30 menit, `apps/api/vercel.json` `*/5 * * * *`; (4) `docs/codemap/attendance.md` masih menyebut TM-D29 (sudah dicabut 2026-11-24) di bagian aktif; (5) RELEASE.md belum mencatat gel. 37. Dikabari ke Mat bersama kabar merge.
 - **(2026-11-25, KTR K1)** Isian tanggal web memakai `<input type="date">` bawaan (28 file) → format mengikuti bahasa browser (en-US tampil mm/dd/yyyy). Pemilih kalender locale id (`components/ui/calendar.tsx`, seperti dialog Export absen TM-D31) lintas web = paket terpisah. Persetujuan supervisor atas nama pengguna: K1 tetap input bawaan.
