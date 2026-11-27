@@ -754,6 +754,11 @@ export async function assignCompanies(
     const before = (await repository.findCompanyAssignments([target.id], tx)).map(
       (a) => a.companyId,
     );
+    if (input.companyIds.length === 0 && before.length > 0 && !input.allowEmpty) {
+      throw new BusinessRuleError(
+        "Melepas semua perusahaan akun ini perlu konfirmasi. Muat ulang dialog dan coba lagi.",
+      );
+    }
     const same =
       before.length === input.companyIds.length &&
       input.companyIds.every((companyId) => before.includes(companyId));

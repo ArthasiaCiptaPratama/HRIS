@@ -173,6 +173,7 @@ Ide atau fitur di luar fase aktif dicatat di sini dulu, **tidak langsung dikerja
 
 Satu baris per sesi (terbaru di atas); rincian di `features/<fitur>/log.md`. Log sebelum 2026-10-13: [archive/log-2026-10.md](archive/log-2026-10.md) · [archive/log-2026-09.md](archive/log-2026-09.md).
 
+- **2026-11-27** — Perbaikan race dialog "Atur PT" (gel. 41): Simpan menunggu daftar PT termuat, lepas semua PT butuh konfirmasi (web + API 422 tanpa `allowEmpty`). (Oatse) → [iam/log](features/iam/log.md)
 - **2026-11-27** — Tanpa akses karyawan Head Office IAM-D3 ke develop (penanda HO di lokasi kerja + opsi akun HR; karyawan HO tersembunyi & tak bisa diubah di semua jalur, tutup periode ditolak). (Oatse) → [iam/log](features/iam/log.md)
 - **2026-11-27** — Grant & cabut banyak sekaligus IAM-D2 ke develop (`POST /grants/batch` + pratinjau, `POST /grants/revoke-batch`, dialog 2 kolom + "Cabut terpilih"). (Oatse) → [iam/log](features/iam/log.md)
 - **2026-11-26** — Guard env test API (NODE_ENV=test dipaksa + kredensial nyata dikosongkan di preload, Auth Admin gagal-tertutup); K5 dialihkan ke Mat setelah technical meeting Jumat. (Oatse) → [fondasi/log](features/fondasi/log.md)

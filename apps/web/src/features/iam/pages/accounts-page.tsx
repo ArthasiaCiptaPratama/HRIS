@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/select";
 import { useMe } from "@/features/auth/api";
 import type { Me } from "@/features/auth/schemas";
-import { useCompanyScope, useEmployee } from "@/features/employee/api";
+import { useCompanyScope, useEmployee, useMasterData } from "@/features/employee/api";
 import { EmployeePicker } from "@/features/employee/components/employee-picker";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { access } from "@/lib/access";
@@ -96,6 +96,8 @@ export function AccountsPage() {
   const [roleTarget, setRoleTarget] = useState<Account | null>(null);
   const [companyTarget, setCompanyTarget] = useState<Account | null>(null);
   const scope = useCompanyScope();
+  // Bug gel. 41: dialog Atur PT baru boleh disimpan setelah daftar PT termuat.
+  const masterData = useMasterData();
   const companyCode = new Map(scope.companies.map((c) => [c.id, c.code]));
   const [transferTarget, setTransferTarget] = useState<Account | null>(null);
   const [linkTarget, setLinkTarget] = useState<Account | null>(null);
@@ -342,6 +344,7 @@ export function AccountsPage() {
       <AssignCompaniesDialog
         account={companyTarget}
         companies={scope.companies}
+        ready={masterData.isSuccess}
         onClose={() => setCompanyTarget(null)}
       />
       <TransferPrimaryDialog
@@ -618,25 +621,36 @@ function LinkEmployeeDialog({
 function AssignCompaniesDialog({
   account,
   companies,
+  ready,
   onClose,
 }: {
   account: Account | null;
   companies: { id: string; code: string; name: string }[];
+  /** Daftar PT (/master-data) sudah termuat — sebelum itu pilihan belum bisa diisi dari akun. */
+  ready: boolean;
   onClose: () => void;
 }) {
   const assign = useAssignCompanies();
   const [selected, setSelected] = useState<string[]>([]);
   // IAM-D3: sembunyikan karyawan di lokasi kerja berpenanda Head Office.
   const [restrictHeadOffice, setRestrictHeadOffice] = useState(false);
-  const [prevAccount, setPrevAccount] = useState<Account | null>(null);
-  // Isi ulang pilihan setiap kali dialog dibuka untuk akun lain.
+  // Konfirmasi eksplisit bila semua PT akun akan dilepas.
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const [prevKey, setPrevKey] = useState<string | null>(null);
+  // Isi ulang pilihan saat dialog dibuka untuk akun lain DAN saat daftar PT selesai termuat
+  // (bug gel. 41: dibuka sebelum termuat → pilihan kosong → Simpan melepas semua PT).
   // D-049: PT yang diarsipkan tidak bisa dipilih lagi → tidak ikut dikirim (dilepas saat disimpan).
-  const archived = (account?.companyIds ?? []).filter((id) => !companies.some((c) => c.id === id));
-  if (account !== prevAccount) {
-    setPrevAccount(account);
+  const archived = ready
+    ? (account?.companyIds ?? []).filter((id) => !companies.some((c) => c.id === id))
+    : [];
+  const key = account ? `${account.id}:${ready}` : null;
+  if (key !== prevKey) {
+    setPrevKey(key);
     setSelected((account?.companyIds ?? []).filter((id) => companies.some((c) => c.id === id)));
     setRestrictHeadOffice(account?.restrictHeadOffice ?? false);
+    setConfirmEmpty(false);
   }
+  const clearing = ready && selected.length === 0 && (account?.companyIds.length ?? 0) > 0;
   const toggle = (id: string) =>
     setSelected((current) =>
       current.includes(id) ? current.filter((c) => c !== id) : [...current, id],
@@ -644,7 +658,12 @@ function AssignCompaniesDialog({
   const submit = async () => {
     if (!account) return;
     try {
-      await assign.mutateAsync({ id: account.id, companyIds: selected, restrictHeadOffice });
+      await assign.mutateAsync({
+        id: account.id,
+        companyIds: selected,
+        restrictHeadOffice,
+        ...(clearing ? { allowEmpty: true } : {}),
+      });
       toast.success("Penugasan perusahaan diperbarui.");
       onClose();
     } catch (error) {
@@ -660,7 +679,16 @@ function AssignCompaniesDialog({
             {account?.email} hanya melihat dan mengelola karyawan di perusahaan yang dicentang.
           </DialogDescription>
         </DialogHeader>
-        <fieldset className="space-y-2" aria-label="Perusahaan yang dikelola">
+        {!ready ? (
+          <p role="status" className="text-muted-foreground text-sm">
+            Memuat daftar perusahaan…
+          </p>
+        ) : null}
+        <fieldset
+          className={ready ? "space-y-2" : "hidden"}
+          aria-label="Perusahaan yang dikelola"
+          disabled={!ready}
+        >
           {companies.map((company) => (
             <label
               key={company.id}
@@ -699,13 +727,27 @@ function AssignCompaniesDialog({
             disimpan.
           </p>
         ) : null}
-        {selected.length === 0 ? (
+        {ready && selected.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             Tanpa perusahaan, akun ini tidak melihat karyawan mana pun.
           </p>
         ) : null}
+        {clearing ? (
+          <label className="border-destructive/40 flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
+            <input
+              type="checkbox"
+              className="accent-destructive mt-0.5 size-4 shrink-0"
+              checked={confirmEmpty}
+              onChange={(event) => setConfirmEmpty(event.target.checked)}
+            />
+            <span>Ya, lepas semua perusahaan dari akun ini.</span>
+          </label>
+        ) : null}
         <DialogFooter>
-          <Button onClick={submit} disabled={assign.isPending}>
+          <Button
+            onClick={submit}
+            disabled={!ready || assign.isPending || (clearing && !confirmEmpty)}
+          >
             Simpan
           </Button>
         </DialogFooter>

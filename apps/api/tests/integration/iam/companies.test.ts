@@ -148,6 +148,26 @@ describe("D-040: PUT /accounts/:id/companies", () => {
     expect(hrRow.companyIds).toEqual([ids.other]);
   });
 
+  test("melepas SEMUA PT butuh konfirmasi allowEmpty (bug gel. 41: simpan sebelum PT termuat)", async () => {
+    const hr = await auth.loginAs("HR_ADMIN", { companies: [ids.other] });
+    const empty = await call("PUT", `/accounts/${hr.account.id}/companies`, sa.headers, {
+      companyIds: [],
+    });
+    expect(empty.status).toBe(422);
+    expect(await prisma.accountCompany.count({ where: { accountId: hr.account.id } })).toBe(1);
+    const confirmed = await call("PUT", `/accounts/${hr.account.id}/companies`, sa.headers, {
+      companyIds: [],
+      allowEmpty: true,
+    });
+    expect(confirmed.status).toBe(200);
+    expect((await data(confirmed)).companyIds).toEqual([]);
+    // Akun yang memang belum punya PT: kosong → kosong tidak perlu konfirmasi.
+    expect(
+      (await call("PUT", `/accounts/${hr.account.id}/companies`, sa.headers, { companyIds: [] }))
+        .status,
+    ).toBe(200);
+  });
+
   test("hanya SUPER_ADMIN & hanya untuk akun HR_ADMIN; PT tak dikenal 422; ganda 400", async () => {
     const body = { companyIds: [ids.acp] };
     expect(

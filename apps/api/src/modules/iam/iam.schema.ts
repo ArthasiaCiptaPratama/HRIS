@@ -122,6 +122,9 @@ export const assignCompaniesBodySchema = z
       .refine((ids) => new Set(ids).size === ids.length, "Perusahaan tidak boleh ganda."),
     // IAM-D3: "Tanpa akses karyawan Head Office"; tidak diisi = tidak berubah.
     restrictHeadOffice: z.boolean().optional(),
+    // Konfirmasi eksplisit melepas SEMUA PT akun yang sedang ditugaskan (bug gel. 41: simpan dialog
+    // sebelum daftar PT termuat mengosongkan penugasan). Tanpa ini → 422.
+    allowEmpty: z.boolean().optional(),
   })
   .openapi("AssignAccountCompanies");
 export type AssignCompaniesInput = z.infer<typeof assignCompaniesBodySchema>;

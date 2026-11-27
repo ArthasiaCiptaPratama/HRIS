@@ -49,7 +49,12 @@ const hrAccount = {
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-function mockBackend(role: "SUPER_ADMIN" | "HR_ADMIN", companies: (typeof ACP)[]) {
+function mockBackend(
+  role: "SUPER_ADMIN" | "HR_ADMIN",
+  companies: (typeof ACP)[],
+  /** Tahan respons /master-data sampai promise ini selesai (uji race dialog Atur PT). */
+  masterDataGate?: Promise<void>,
+) {
   const requests: { method: string; url: URL; body: unknown }[] = [];
   vi.stubGlobal(
     "fetch",
@@ -63,7 +68,8 @@ function mockBackend(role: "SUPER_ADMIN" | "HR_ADMIN", companies: (typeof ACP)[]
         return json(200, { data: { status: "ok", checks: { database: "ok" }, time: "x" } });
       if (key === "/notifications")
         return json(200, { data: [], meta: { page: 1, pageSize: 5, total: 0, unreadCount: 0 } });
-      if (key === "/master-data")
+      if (key === "/master-data") {
+        if (masterDataGate) await masterDataGate;
         return json(200, {
           data: {
             companies,
@@ -74,6 +80,7 @@ function mockBackend(role: "SUPER_ADMIN" | "HR_ADMIN", companies: (typeof ACP)[]
             workLocations: [],
           },
         });
+      }
       if (key === "/employees/summary")
         return json(200, {
           data: {
@@ -170,6 +177,58 @@ describe("Pemilih perusahaan & kolom perusahaan", () => {
 });
 
 describe("Halaman Akun: penugasan perusahaan (SA)", () => {
+  it("bug gel. 41: sebelum daftar PT termuat Simpan nonaktif; setelah termuat pilihan diisi dari akun", async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requests = mockBackend("SUPER_ADMIN", [ACP, CD2], gate);
+    renderAt("/akun");
+    const table = await screen.findByRole("table", { name: "Daftar akun" });
+    await within(table).findByText("hr.uji@example.test");
+    const user = userEvent.setup();
+    await user.click(within(table).getByRole("button", { name: "Atur PT" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("status")).toHaveTextContent("Memuat daftar perusahaan");
+    const save = within(dialog).getByRole("button", { name: "Simpan" });
+    expect(save).toBeDisabled();
+    await user.click(save);
+    expect(requests.some((r) => r.method === "PUT")).toBe(false);
+    release();
+    const group = await within(dialog).findByRole("group", { name: "Perusahaan yang dikelola" });
+    await waitFor(() =>
+      expect(
+        within(group)
+          .getAllByRole("checkbox")
+          .map((b) => (b as HTMLInputElement).checked),
+      ).toEqual([true, false]),
+    );
+    expect(save).toBeEnabled();
+  });
+
+  it("melepas semua PT butuh konfirmasi eksplisit → allowEmpty", async () => {
+    const requests = mockBackend("SUPER_ADMIN", [ACP, CD2]);
+    renderAt("/akun");
+    const table = await screen.findByRole("table", { name: "Daftar akun" });
+    await waitFor(() => expect(within(table).getByText("ACP")).toBeTruthy());
+    const user = userEvent.setup();
+    await user.click(within(table).getByRole("button", { name: "Atur PT" }));
+    const dialog = await screen.findByRole("dialog");
+    const group = within(dialog).getByRole("group", { name: "Perusahaan yang dikelola" });
+    await user.click(within(group).getAllByRole("checkbox")[0] as HTMLElement);
+    const save = within(dialog).getByRole("button", { name: "Simpan" });
+    expect(save).toBeDisabled();
+    await user.click(within(dialog).getByRole("checkbox", { name: /lepas semua perusahaan/ }));
+    await user.click(save);
+    await waitFor(() =>
+      expect(requests.find((r) => r.method === "PUT")?.body).toEqual({
+        companyIds: [],
+        restrictHeadOffice: false,
+        allowEmpty: true,
+      }),
+    );
+  });
+
   it("badge PT akun HR + Atur PT → PUT /accounts/:id/companies dengan set baru", async () => {
     const requests = mockBackend("SUPER_ADMIN", [ACP, CD2]);
     renderAt("/akun");

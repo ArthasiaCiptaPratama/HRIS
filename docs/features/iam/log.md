@@ -11,6 +11,12 @@ Entri terbaru di **atas**. Format satu entri (salin):
 - **Berikutnya:** …
 ```
 
+### 2026-11-27 — Perbaikan race dialog "Atur PT" (temuan verifikasi staging gel. 41) (Oatse)
+- **Gejala:** dialog dibuka sebelum daftar PT (`/master-data`) termuat → pilihan kosong → Simpan melepas semua PT akun.
+- **Perbaikan:** web — Simpan nonaktif + "Memuat daftar perusahaan…" sampai termuat, pilihan diisi ulang dari akun setelah termuat, melepas semua PT butuh centang konfirmasi; API — `PUT /accounts/:id/companies` menolak (422) pengosongan semua PT akun yang punya penugasan kecuali `allowEmpty: true`.
+- **Verifikasi:** test API `companies.test.ts` (+1), web `company-scope.test.tsx` (+2); verifikasi penuh sebelum commit.
+- **Persetujuan:** supervisor-af atas nama pengguna (bugfix).
+
 ### 2026-11-27 — Tanpa akses karyawan Head Office (IAM-D3) (Oatse)
 - **Permintaan:** pengguna via supervisor-af ±10:2x WIB (admin site tidak melihat/mengubah karyawan HO, termasuk absensi); keputusan kecil A–D persetujuan supervisor.
 - **Skema:** migrasi `20261127033900_iam_d3_head_office_restriction` (`work_locations.is_head_office` + backfill "Kantor Head Office", `accounts.restrict_head_office`).

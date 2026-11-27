@@ -126,14 +126,17 @@ export function useAssignCompanies() {
       id,
       companyIds,
       restrictHeadOffice,
+      allowEmpty,
     }: {
       id: string;
       companyIds: string[];
       restrictHeadOffice: boolean;
+      /** Konfirmasi eksplisit melepas semua PT (API menolak tanpa ini). */
+      allowEmpty?: boolean;
     }) =>
       api(`/accounts/${id}/companies`, {
         method: "PUT",
-        body: { companyIds, restrictHeadOffice },
+        body: { companyIds, restrictHeadOffice, ...(allowEmpty ? { allowEmpty } : {}) },
         schema: one(accountSchema),
       }),
     onSuccess: invalidate,
